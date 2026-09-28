@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isTransportError } from '@/utils/networkErrors';
 import {
   pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE, PDF_FONT_DISPLAY,
 } from './pdfDesign';
@@ -130,13 +131,9 @@ export async function loadCloseoutBinderChecked(
   }
 }
 
-export async function saveCloseoutBinder(b: Partial<CloseoutBinder> & { id?: string; projectId: string }): Promise<CloseoutBinder | null> {
-  if (!isSupabaseConfigured) return null;
-  const session = await supabase.auth.getSession();
-  const userId = session.data.session?.user?.id;
-  if (!userId) return null;
-
-  const row = {
+/** The closeout_binders row a save writes — ONE builder for saveCloseoutBinder and saveCloseoutBinderDetailed. */
+function closeoutBinderRow(b: Partial<CloseoutBinder> & { id?: string; projectId: string }, userId: string) {
+  return {
     id: b.id,
     project_id: b.projectId,
     user_id: userId,
@@ -148,6 +145,15 @@ export async function saveCloseoutBinder(b: Partial<CloseoutBinder> & { id?: str
     finalized_at: b.finalizedAt ?? null,
     sent_at:      b.sentAt      ?? null,
   };
+}
+
+export async function saveCloseoutBinder(b: Partial<CloseoutBinder> & { id?: string; projectId: string }): Promise<CloseoutBinder | null> {
+  if (!isSupabaseConfigured) return null;
+  const session = await supabase.auth.getSession();
+  const userId = session.data.session?.user?.id;
+  if (!userId) return null;
+
+  const row = closeoutBinderRow(b, userId);
   const { data, error } = await supabase
     .from('closeout_binders')
     .upsert(row, { onConflict: 'id' })
@@ -158,6 +164,65 @@ export async function saveCloseoutBinder(b: Partial<CloseoutBinder> & { id?: str
     return null;
   }
   return rowToBinder(data as CloseoutBinderRow);
+}
+
+/** Where an awaited binder save landed (Step 0). */
+export type CloseoutBinderSaveResult =
+  | { status: 'synced'; row: CloseoutBinder }
+  | { status: 'refused'; error: string }
+  | { status: 'unknown' };
+
+// postgrest answers status 0 when no response came back; 502/503/504 is the
+// gateway saying the database was not reached. Either way the upsert may or
+// may not have landed (offlineQueue's TRANSIENT_HTTP_STATUSES, same rule).
+const UNKNOWN_HTTP_STATUSES = new Set([0, 502, 503, 504]);
+
+/** Offline at the call (hooks/useOnline, read lazily so this module stays importable by the bun validators). */
+function offlineNow(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { isOfflineNow } = require('@/hooks/useOnline') as typeof import('@/hooks/useOnline');
+    return isOfflineNow();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Step 0 (moments, lane MOMSTEP0): saveCloseoutBinder for the slide-to-
+ * finalize, which must tell a refusal from a dropped connection (null cannot).
+ *   { status: 'synced', row }  the server stored it and handed the row back;
+ *   { status: 'refused', error } it answered no (or no row came back), or
+ *                                nothing was sent (offline, signed out);
+ *   { status: 'unknown' }      the connection dropped after the request may
+ *                                have left: it may have landed.
+ * saveCloseoutBinder stays as it is for its other callers.
+ */
+export async function saveCloseoutBinderDetailed(
+  b: Partial<CloseoutBinder> & { id?: string; projectId: string },
+): Promise<CloseoutBinderSaveResult> {
+  if (!isSupabaseConfigured) return { status: 'refused', error: 'Not connected to the server.' };
+  if (offlineNow()) return { status: 'refused', error: 'offline' };
+  try {
+    const session = await supabase.auth.getSession();
+    const userId = session.data.session?.user?.id;
+    if (!userId) return { status: 'refused', error: 'Not signed in.' };
+    const res = await supabase
+      .from('closeout_binders')
+      .upsert(closeoutBinderRow(b, userId), { onConflict: 'id' })
+      .select('*')
+      .maybeSingle();
+    if (res.error) {
+      if (isTransportError(res.error) || (typeof res.status === 'number' && UNKNOWN_HTTP_STATUSES.has(res.status))) return { status: 'unknown' };
+      console.warn('[closeoutBinderEngine] save refused:', res.error.message);
+      return { status: 'refused', error: res.error.message };
+    }
+    if (!res.data) return { status: 'refused', error: 'The binder was not returned.' };
+    return { status: 'synced', row: rowToBinder(res.data as CloseoutBinderRow) };
+  } catch (e) {
+    if (isTransportError(e)) return { status: 'unknown' };
+    return { status: 'refused', error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 // ─── PDF builder ───────────────────────────────────────────────────

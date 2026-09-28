@@ -44,6 +44,18 @@ import {
 import { isAppStorageKey, selectTenantKeysToWipe } from '../utils/localCacheKeys';
 import type { Project, RFI, Submittal, Invoice, Permit, PunchItem, ChangeOrder } from '../types';
 import type { AlertButton } from '../utils/alertCore';
+import { pickDefaultProjectId, PICK_JOB_FIRST } from '../utils/defaultProjectId';
+import { urlProjectIdFrom } from '../utils/activeProject';
+import {
+  voiceJobChips, planVoiceNoteFilings, fileReadyVoiceNotes, voiceNoteFiledLine, voiceClipHoldLine,
+  type VoiceFilingDeps,
+} from '../utils/voiceNoteFiling';
+import {
+  voiceBacklog, voiceWaitingLine, voiceFailedLine, voiceNoteQueueKey, voiceNoteProjectIdOf, recordedAtMs,
+  type AudioTranscribeTask,
+} from '../utils/audioTranscribeCore';
+import { localDayKey } from '../utils/dailyLogCompletion';
+import type { DailyFieldReport } from '../types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -233,7 +245,7 @@ console.log('\nA4 — a voice note adds to today\'s report:');
 }
 
 // ── A7 ─────────────────────────────────────────────────────────────────────
-console.log('\nA7 — Action Required shows the lawsuit items, each row does its job:');
+console.log('\nA7 — Action required shows the lawsuit items, each row does its job:');
 {
   const NOWMS = Date.parse('2026-02-15T12:00:00Z');
   const proj = { id: 'p1', name: 'Oak Kitchen', status: 'in_progress' } as unknown as Project;
@@ -393,6 +405,215 @@ console.log('\nutils/chaseNudge — one way to chase:');
   const pure = code('utils/projectContextPure.ts');
   const cols = pure.slice(pure.indexOf('export function dailyReportColumns('), pure.indexOf('\n}', pure.indexOf('export function dailyReportColumns(')));
   ok('origin never reaches the write payload (dailyReportColumns does not name it)', cols.length > 0 && !/\borigin\b/.test(cols));
+}
+
+// ── A3 (held items, wave next) ─────────────────────────────────────────────
+console.log('\nA3 — a voice note files to the project he is on:');
+{
+  const job = (id: string, name: string, status: Project['status'] = 'in_progress', updatedAt = '2026-09-01T00:00:00Z') =>
+    ({ id, name, status, updatedAt }) as Pick<Project, 'id' | 'name' | 'status' | 'updatedAt'>;
+  const H = job('henderson', 'Henderson'), S = job('smith', 'Smith');
+  const jobs = [H, S, job('c', 'Cole'), job('d', 'Diaz'), job('e', 'Eaton'), job('f', 'Fisher', 'in_progress', '2026-09-20T00:00:00Z')];
+  // The mic resolves the default on every open from the route it is opened on.
+  const openOn = (path: string, params: Record<string, string>, recent: string[] = []) =>
+    pickDefaultProjectId({ routeProjectId: urlProjectIdFrom(path, params), activeProjectId: null, recentProjectIds: recent, projects: jobs });
+  ok('opened on /project-detail?id=henderson → Henderson', openOn('/project-detail', { id: 'henderson' }) === 'henderson');
+  ok('open on Henderson, close, open on Smith → Smith (no latch)',
+    openOn('/project-detail', { id: 'henderson' }) === 'henderson' && openOn('/punch-list', { projectId: 'smith' }, ['henderson']) === 'smith');
+  ok('a route with no project falls to his most recent job, never "most recently updated"',
+    openOn('/(tabs)/(home)', {}, ['d']) === 'd' && openOn('/(tabs)/(home)', {}, []) === null);
+  const six = voiceJobChips({ projects: jobs, recentProjectIds: ['henderson', 'smith'], defaultId: 'henderson' });
+  ok('with 6 open jobs the chips stop at 4 and offer "More…"', six.chips.length === 4 && six.hasMore);
+  ok('…the default leads the chips', six.chips[0].id === 'henderson');
+  ok('…and job 6 is reachable through "More…"', six.all.length === 6 && six.all.some(p => p.id === 'f'));
+  const picked = voiceJobChips({ projects: jobs, recentProjectIds: ['henderson'], defaultId: 'henderson', pickedId: 'e' });
+  ok('a job picked from "More…" becomes the first chip', picked.chips[0].id === 'e');
+  const closedOut = voiceJobChips({ projects: [...jobs, job('x', 'Xavier', 'closed'), job('y', 'Yang', 'completed')], recentProjectIds: ['x', 'y'] });
+  ok('closed and completed jobs are neither chips nor in "More…"', !closedOut.all.some(p => p.id === 'x' || p.id === 'y'));
+  ok('no route, no pick, no recent job → nothing preselected', pickDefaultProjectId({ routeProjectId: null, activeProjectId: 'c', recentProjectIds: [], projects: jobs }) === null);
+  ok('PICK_JOB_FIRST reads "Pick the project first"', PICK_JOB_FIRST === 'Pick the project first');
+
+  const mic = code('components/UniversalMicButton.tsx');
+  const fnBody = (src: string, head: string) => {
+    const i = src.indexOf(head);
+    return i < 0 ? '' : src.slice(i, src.indexOf('}, [', i));
+  };
+  ok('the mic resolves its default with pickDefaultProjectId from the route',
+    /pickDefaultProjectId\(\{ routeProjectId, activeProjectId, recentProjectIds, projects: projectsList \}\)/.test(mic)
+    && /const routeProjectId = requestedProjectId \?\? projectId \?\? urlProjectIdFrom\(/.test(mic));
+  ok('the "most recently updated" default is gone', !/getTime\(\) - new Date\(a\.updatedAt\)/.test(mic) && !/activeProjects/.test(mic));
+  ok('no projects[0] fallback anywhere in the mic', !/projectsList\[0\]/.test(mic));
+  ok('the pick starts empty on every open (no latch)', /useState<string \| undefined>\(undefined\)/.test(mic)
+    && /setPickedProjectId\(undefined\)/.test(fnBody(mic, 'const handleOpen = useCallback(')) && !/setPickedProjectId\(project/.test(mic));
+  ok('close clears the pick and the request', /setPickedProjectId\(undefined\);/.test(fnBody(mic, 'const handleClose = useCallback(')) && /onClosed\?\.\(\)/.test(fnBody(mic, 'const handleClose = useCallback(')));
+  ok('the chips come from voiceJobChips, with "More…" listing every open job',
+    /voiceJobChips\(\{ projects: projectsList, recentProjectIds, defaultId: defaultProjectId, pickedId: pickedProjectId \}\)/.test(mic)
+    && /jobChips\.all\.map\(/.test(mic) && /testID="voice-job-more"/.test(mic) && !/projectsList\.slice\(0, 4\)/.test(mic));
+  ok('with no project, Create is disabled and says why',
+    /const createBlocked = [^;]*!project;/.test(mic) && /disabled=\{createBlocked\}/.test(mic) && /\{createBlocked && !error && <Text style=\{styles\.blockedText\}>\{PICK_JOB_FIRST\}<\/Text>\}/.test(mic));
+  ok('autoStart defaults to false on the recorder, the capture sheet and the mic',
+    /autoStart = false, queueKey,/.test(code('components/VoiceRecorder.tsx'))
+    && /queueKey,\s*autoStart = false,\s*\}: Props\)/.test(code('components/VoiceCaptureModal.tsx'))
+    && /requestedProjectId, autoStart = false, onClosed, filesParkedNotes = false,/.test(mic));
+  const vcm = code('components/VoiceCaptureModal.tsx');
+  ok('the capture sheet auto-starts through the record button\'s own path, only when idle, never on the web',
+    /if \(autoStart && Platform\.OS !== 'web'\)/.test(vcm) && /stepRef\.current === 'idle'\) void startRecordingRef\.current\(\)/.test(vcm)
+    && /startRecordingRef\.current = startRecording;/.test(vcm));
+  const vr = code('components/VoiceRecorder.tsx');
+  ok('the recorder opens its sheet on mount for autoStart, never on the web or locked',
+    /if \(!autoStart \|\| isLocked \|\| Platform\.OS === 'web'\) return;/.test(vr) && /autoStart=\{autoStart\}/.test(vr) && /queueKey=\{queueKey\}/.test(vr));
+  ok('an open that asked for autoStart arms it once; a transcript or Try again disarms it',
+    /setAutoStartArmed\(autoStart && Platform\.OS !== 'web'\)/.test(mic) && (mic.match(/setAutoStartArmed\(false\)/g) ?? []).length >= 2
+    && /autoStart=\{autoStartArmed\}/.test(mic));
+  ok('the nine-line "Try saying" wall is one rotating line in the capture sheet',
+    !/styles\.tipsLine/.test(mic) && /suggestions=\{VOICE_ACTION_SUGGESTIONS\}/.test(mic));
+  ok('no blocking alert on success: the note and field-update paths toast and close',
+    !/showAlert\(/.test(mic) && !/'Note saved'/.test(mic) && !/'Field update saved'/.test(mic)
+    && (mic.match(/nailIt\(`Added to today's report · \$\{proj\.name\}`\)/g) ?? []).length === 2);
+  ok('…and a field update that could not reach the schedule says so', /if \(summaryParts\.length > 0\) \{\s*const said = summaryParts\.join\('\. '\);\s*oops\(`Added to today's report\. /.test(mic));
+  const sc = code('contexts/SearchContext.tsx');
+  ok('openVoice takes { projectId, autoStart } and openVoice() behaves as before',
+    /const openVoice = useCallback\(\(opts\?: OpenVoiceOptions\) =>/.test(sc) && /autoStart: o\?\.autoStart === true/.test(sc) && /setVoiceSignal\(n => n \+ 1\)/.test(sc));
+  const bs = code('components/brain/BrainSurface.tsx');
+  ok('BrainSurface hands the request to the always-mounted mic, which files parked notes',
+    /requestedProjectId=\{voiceRequest\?\.projectId\}/.test(bs) && /autoStart=\{voiceRequest\?\.autoStart === true\}/.test(bs)
+    && /onClosed=\{clearVoiceRequest\}/.test(bs) && /filesParkedNotes/.test(bs));
+  const fab = code('components/brain/BrainFab.tsx');
+  ok('holding the Brain button starts a voice note (phone only; the tap is unchanged)',
+    /openVoice\(\{ autoStart: true \}\)/.test(fab) && /if \(Platform\.OS === 'web' \|\| !openVoice\) return;/.test(fab) && /onPress=\{handlePress\}/.test(fab));
+}
+
+// ── A4 wiring (held items, wave next) ──────────────────────────────────────
+console.log('\nA4 — the mic writes through planVoiceLogWrite:');
+{
+  const mic = code('components/UniversalMicButton.tsx');
+  const note = mic.slice(mic.indexOf("} else if (parsed.kind === 'note') {"), mic.indexOf("} else if (parsed.kind === 'punch') {"));
+  ok('the note branch plans the write for today', /planVoiceLogWrite\(\{ reports: ctx\.dailyReports, projectId: proj\.id, at, line \}\)/.test(note));
+  ok('…appends to today\'s unsent report', /if \(w\.kind === 'append'\) \{\s*ctx\.updateDailyReport\(w\.reportId, w\.patch\);/.test(note));
+  ok('…or creates the full report base with the voice seed', /ctx\.addDailyReport\(\{\s*\.\.\.voiceReportBase\(\{[^}]*\}\),\s*\.\.\.w\.seed,\s*\}\);/.test(note));
+  const fu = mic.slice(mic.indexOf("} else if (parsed.kind === 'field_update') {"), mic.indexOf("} else if (parsed.kind === 'submittal') {"));
+  ok('the field-update branch plans with its crew and materials',
+    /planVoiceLogWrite\(\{ reports: ctx\.dailyReports, projectId: proj\.id, at: now, line: workPerformed, manpower, materials \}\)/.test(fu));
+  ok('…appends (keeping its task progress) or creates with the voice seed',
+    /ctx\.updateDailyReport\(w\.reportId, \{ \.\.\.w\.patch,/.test(fu) && /\.\.\.voiceReportBase\([\s\S]*?\.\.\.w\.seed,/.test(fu));
+  ok('neither branch builds a bare new report any more', (mic.match(/ctx\.addDailyReport\(/g) ?? []).length === 2 && !/workPerformed: parsed\.noteBody/.test(mic) && !/weather: \{ temperature: ''/.test(mic));
+}
+
+// ── A6 (held items, wave next) ─────────────────────────────────────────────
+console.log('\nA6 — voice notes recorded with no signal are not lost:');
+{
+  const T = (o: Partial<AudioTranscribeTask> & { id: string }): AudioTranscribeTask => ({
+    userId: 'u1', fileRef: 'f.wav', staged: true, uploadName: 'recording.wav', contentType: 'audio/wav',
+    contextKey: voiceNoteQueueKey('henderson'), contextLabel: 'Voice dictation — Henderson', durationMs: 30_000,
+    queuedAt: new Date(2026, 8, 16, 10, 0).getTime(), retryCount: 0, status: 'pending', ...o,
+  });
+  ok('the queue key names the project and reads back', voiceNoteQueueKey('p9') === 'voice-note:p9' && voiceNoteProjectIdOf('voice-note:p9') === 'p9'
+    && voiceNoteProjectIdOf('daily-report-abc123') === null && voiceNoteProjectIdOf('voice-note:') === null);
+  const one = voiceBacklog([T({ id: 'a' })], 'u1');
+  ok('one clip queued offline → "1 voice note waiting"', voiceWaitingLine(one) === '1 voice note waiting' && voiceFailedLine(one) === '');
+  const mixed = voiceBacklog([
+    T({ id: 'a' }), T({ id: 'b', status: 'ready', transcript: 'x', fileRef: '' }),
+    T({ id: 'c', retryCount: 2 }), T({ id: 'd', retryCount: 1 }), T({ id: 'z', userId: 'u2' }),
+  ], 'u1');
+  ok('counts are the caller\'s own clips only', mixed.waiting === 1 && mixed.ready === 1 && mixed.failed === 2, JSON.stringify(mixed));
+  ok('waiting and failed are separate lines, never summed', voiceWaitingLine(mixed) === '2 voice notes waiting' && voiceFailedLine(mixed) === "2 voice notes couldn't be transcribed");
+  ok('no user → nothing is anyone\'s', JSON.stringify(voiceBacklog([T({ id: 'a' })], null)) === JSON.stringify({ waiting: 0, ready: 0, failed: 0 }));
+
+  // The filing pass, run for real against an in-memory queue and report list.
+  const projects = [
+    { id: 'henderson', name: 'Henderson', status: 'in_progress' as const },
+    { id: 'shut', name: 'Shut', status: 'closed' as const },
+  ];
+  const mkDeps = (queue: AudioTranscribeTask[], reports: DailyFieldReport[], opts: { projects?: typeof projects; now?: number } = {}) => {
+    const toasts: string[] = [];
+    let takes = 0;
+    let n = 0;
+    const deps: VoiceFilingDeps = {
+      readQueue: async () => [...queue],
+      ownUserId: async () => 'u1',
+      takeTranscript: async (id) => {
+        takes++;
+        const i = queue.findIndex(t => t.id === id && t.status === 'ready' && !!t.transcript);
+        if (i < 0) return null;
+        const [t] = queue.splice(i, 1);
+        return t.transcript ?? null;
+      },
+      projects: () => opts.projects ?? projects,
+      reports: () => reports,
+      addDailyReport: (r) => { reports.unshift(r); },
+      updateDailyReport: (id, patch) => {
+        const i = reports.findIndex(r => r.id === id);
+        if (i >= 0) reports[i] = { ...reports[i], ...patch };
+      },
+      newId: () => `r${++n}`,
+      now: () => opts.now ?? new Date(2026, 8, 17, 9, 0).getTime(),
+      toast: (m) => { toasts.push(m); },
+    };
+    return { deps, toasts, takes: () => takes };
+  };
+  // Spoken 11:59:30 pm on the 16th, 60 s long, parked (queued) at 12:00:30 am on the 17th.
+  const lateNight = T({ id: 'late', status: 'ready', transcript: 'poured the slab', fileRef: '', durationMs: 60_000, queuedAt: new Date(2026, 8, 17, 0, 0, 30).getTime() });
+  ok('the recorded time is the START of the clip', localDayKey(recordedAtMs(lateNight)) === '2026-09-16');
+  const q1 = [lateNight];
+  const r1: DailyFieldReport[] = [];
+  const run1 = mkDeps(q1, r1);
+  const res1 = await fileReadyVoiceNotes(run1.deps);
+  ok('back online, a ready note is filed once', res1.filed === 1 && r1.length === 1);
+  ok('…onto the day it was SPOKEN (yesterday), not today', localDayKey(r1[0].date) === '2026-09-16', r1[0].date);
+  ok('…as a voice draft carrying his words', r1[0].origin === 'voice' && r1[0].status === 'draft' && /poured the slab$/.test(r1[0].workPerformed));
+  ok('…with a toast naming the time and the project', run1.toasts[0] === voiceNoteFiledLine(recordedAtMs(lateNight), new Date(2026, 8, 17, 9, 0).getTime(), 'Henderson')
+    && /^Voice note from yesterday 11:59 PM added to Henderson's report$/.test(run1.toasts[0]), run1.toasts[0]);
+  const res2 = await fileReadyVoiceNotes(run1.deps);
+  ok('a second pass files nothing twice', res2.filed === 0 && r1.length === 1 && run1.toasts.length === 1);
+
+  // Two passes at once, and a clip the capture sheet's "Use it" took first.
+  const q2 = [T({ id: 'r1', status: 'ready', transcript: 'one', fileRef: '' }), T({ id: 'r2', status: 'ready', transcript: 'two', fileRef: '', queuedAt: new Date(2026, 8, 16, 11, 0).getTime() })];
+  const r2: DailyFieldReport[] = [];
+  const run2 = mkDeps(q2, r2);
+  const [a, b] = await Promise.all([fileReadyVoiceNotes(run2.deps), fileReadyVoiceNotes(run2.deps)]);
+  ok('two passes at once file each clip exactly once', a.filed + (a === b ? 0 : b.filed) === 2 && r2.length === 1);
+  ok('…two notes on one day land in ONE report, two lines', r2[0].workPerformed.split('\n').length === 2, r2[0].workPerformed);
+
+  const q3 = [T({ id: 'gone', status: 'ready', transcript: 'x', fileRef: '', contextKey: voiceNoteQueueKey('deleted') }),
+    T({ id: 'closed', status: 'ready', transcript: 'y', fileRef: '', contextKey: voiceNoteQueueKey('shut') }),
+    T({ id: 'form', status: 'ready', transcript: 'z', fileRef: '', contextKey: 'daily-report-abc' }),
+    T({ id: 'bad', retryCount: 3 })];
+  const r3: DailyFieldReport[] = [];
+  const run3 = mkDeps(q3, r3);
+  const res3 = await fileReadyVoiceNotes(run3.deps);
+  ok('a note for a project that is gone or closed is NOT filed and NOT taken', res3.filed === 0 && r3.length === 0 && run3.takes() === 0 && q3.length === 4);
+  const plan3 = planVoiceNoteFilings({ tasks: q3, ownUserId: 'u1', projects, projectsLoaded: true });
+  const hold = (id: string) => plan3.rows.find(r => r.task.id === id)?.hold;
+  ok('…it stays listed with the reason', hold('gone') === 'project_missing' && hold('closed') === 'project_closed'
+    && /no longer on this phone/.test(voiceClipHoldLine('project_missing')) && /closed/.test(voiceClipHoldLine('project_closed')));
+  ok('a form\'s own dictation is never filed to a report (it waits for its form)', plan3.rows.find(r => r.task.id === 'form')?.projectId === null && !plan3.toFile.some(f => f.taskId === 'form'));
+  ok('a failed transcription stays listed as failed', plan3.rows.find(r => r.task.id === 'bad')?.state === 'failed');
+  const cold = planVoiceNoteFilings({ tasks: q3, ownUserId: 'u1', projects: [], projectsLoaded: false });
+  ok('before the project list loads nothing is filed and nothing is called missing', cold.toFile.length === 0 && cold.rows.every(r => r.hold === null));
+
+  const filing = code('utils/voiceNoteFiling.ts');
+  const iTake = filing.indexOf('await deps.takeTranscript(item.taskId)');
+  const iPlan = filing.indexOf('planVoiceLogWrite({ reports: working');
+  ok('filing goes through takeTranscript BEFORE any write (single consumer)', iTake > 0 && iPlan > iTake);
+  ok('…and files at the recorded time, not now', /at: recordedAtMs\(r\.task\)/.test(filing) && /projectId: item\.projectId, at: item\.at, line: text/.test(filing));
+  const mic = code('components/UniversalMicButton.tsx');
+  ok('the always-mounted mic runs the pass with the real queue\'s takeTranscript',
+    /readQueue: getOwnAudioTranscribeQueue,/.test(mic) && /\n\s*takeTranscript,\n/.test(mic) && /if \(!filesParkedNotes \|\| Platform\.OS === 'web'\) return;/.test(mic));
+  ok('…on mount, on reconnect, on foreground, on a queue change and on the sheet\'s request',
+    /if \(projectsLoaded\) drainThenFile\(\);/.test(mic) && /onlineManager\.subscribe\(\(online\) => \{ if \(online\) drainThenFile\(\); \}\)/.test(mic)
+    && /if \(next === 'active'\) drainThenFile\(\);/.test(mic) && /onAudioQueueChange\(fileParkedNotes\)/.test(mic) && /onVoiceNoteFilingRequested\(fileParkedNotes\)/.test(mic));
+  ok('the global mic records under voice-note:<projectId>', /queueKey=\{project \? voiceNoteQueueKey\(project\.id\) : undefined\}/.test(mic));
+  const pill = code('components/OfflineSyncPill.tsx');
+  ok('the floating pill shows the waiting and failed voice lines separately',
+    /const voiceWaiting = floating \? voiceWaitingLine\(voice\.backlog\) : '';/.test(pill) && /const voiceFailed = floating \? voiceFailedLine\(voice\.backlog\) : '';/.test(pill)
+    && /testID="offline-sync-voice-waiting"/.test(pill) && /testID="offline-sync-voice-failed"/.test(pill));
+  ok('…the failed line in the failed colour, the waiting line in the pending one',
+    /<Text style=\{\[styles\.text, \{ color: themeColors\.danger \}\]\} numberOfLines=\{1\}>\{voiceFailed\}<\/Text>/.test(pill)
+    && /<Text style=\{styles\.text\} numberOfLines=\{1\}>\{voiceWaiting\}<\/Text>/.test(pill));
+  const sheet = code('components/VoiceBacklogSheet.tsx');
+  ok('the sheet runs the queue, then asks the mic to file, on open and on Retry',
+    /await processAudioTranscribeQueue\(\);\s*\} finally \{\s*requestVoiceNoteFiling\(\);/.test(sheet) && /useEffect\(\(\) => \{ if \(visible\) void runNow\(\); \}, \[visible, runNow\]\);/.test(sheet));
+  ok('…and offers no discard (nothing is dropped from here)', !/[Dd]iscard/.test(sheet.replace(/\/\/.*$/gm, '')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

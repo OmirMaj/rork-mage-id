@@ -17,6 +17,7 @@ import { contractScheduleFromSplit, contractWarrantyText } from '@/utils/payment
 // re-export block below.
 import { suggestContractTimeline } from '@/utils/contractTimelineCore';
 import { recordHomeownerSignatureWith, type RecordSignatureOutcome } from '@/utils/contractSignatureCore';
+import { supabaseWriteOnline, type OnlineWriteStatus } from '@/utils/offlineQueue';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
   ContractSignature, ContractStatus,
@@ -427,21 +428,53 @@ async function writeContractRow(c: Omit<ProjectContract, 'id' | 'createdAt' | 'u
   }
 }
 
-export async function setContractStatus(id: string, status: ContractStatus, extras?: { signedAt?: string; gcSignature?: ContractSignature; homeownerSignature?: ContractSignature; signedPdfUrl?: string }): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+/** The extras a status change can carry (a signature, the signed time, the sealed PDF). */
+export type ContractStatusExtras = { signedAt?: string; gcSignature?: ContractSignature; homeownerSignature?: ContractSignature; signedPdfUrl?: string };
+
+/**
+ * The project_contracts patch for a status change — ONE builder for
+ * setContractStatus and setContractStatusDetailed (Step 0), so the two can
+ * never write different columns for the same act.
+ */
+export function contractStatusPatch(status: ContractStatus, extras?: ContractStatusExtras, nowIso: string = new Date().toISOString()): Record<string, unknown> {
   const patch: Record<string, unknown> = { status };
-  if (status === 'sent')   patch.sent_at   = new Date().toISOString();
-  if (status === 'signed') patch.signed_at = extras?.signedAt ?? new Date().toISOString();
-  if (status === 'void')   patch.voided_at = new Date().toISOString();
+  if (status === 'sent')   patch.sent_at   = nowIso;
+  if (status === 'signed') patch.signed_at = extras?.signedAt ?? nowIso;
+  if (status === 'void')   patch.voided_at = nowIso;
   if (extras?.gcSignature)        patch.gc_signature        = extras.gcSignature;
   if (extras?.homeownerSignature) patch.homeowner_signature = extras.homeownerSignature;
   if (extras?.signedPdfUrl)       patch.signed_pdf_url      = extras.signedPdfUrl;
+  return patch;
+}
+
+export async function setContractStatus(id: string, status: ContractStatus, extras?: ContractStatusExtras): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  const patch = contractStatusPatch(status, extras);
   const { error } = await supabase.from('project_contracts').update(patch).eq('id', id);
   if (error) {
     console.warn('[contractEngine] status error:', error.message);
     return false;
   }
   return true;
+}
+
+/**
+ * Step 0 (moments, lane MOMSTEP0): setContractStatus for a signing ceremony,
+ * which must tell a refusal from a dropped connection (the boolean above
+ * cannot). A LEGAL write (the GC's signature rides it on sign & send), so it
+ * is online-only: utils/offlineQueue supabaseWriteOnline never queues it.
+ *   'synced'  the server stored it (and the row was there to update);
+ *   'refused' the server said no, no row matched, or nothing was sent
+ *             (offline at the call, an earlier change to the contract still
+ *             waiting): nothing changed;
+ *   'unknown' the connection dropped after the request may have left: it
+ *             may have landed ("No answer yet. Check the contract before
+ *             trying again.").
+ * setContractStatus stays as it is for its other callers.
+ */
+export async function setContractStatusDetailed(id: string, status: ContractStatus, extras?: ContractStatusExtras): Promise<OnlineWriteStatus> {
+  if (!isSupabaseConfigured) return 'refused';
+  return supabaseWriteOnline('project_contracts', 'update', { id, ...contractStatusPatch(status, extras) });
 }
 
 /**

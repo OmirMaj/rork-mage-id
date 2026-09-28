@@ -291,7 +291,7 @@ function SubPortalSetupScreenInner() {
       <View style={styles.loadingContainer} testID="sub-portal-links-loading">
         <Stack.Screen
           options={{
-            title: 'Sub Portal',
+            title: 'Sub portal',
             headerLeft: () => (
               <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
                 <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -778,7 +778,7 @@ function SubPortalSetupEditor() {
     const jobSubs = subcontractors.filter(s => jobSubIds.has(s.id));
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Sub Portal' }} />
+        <Stack.Screen options={{ title: 'Sub portal' }} />
         {!project ? (
           <Text style={styles.loadingText}>This project isn&apos;t on this device. It may have been deleted, or it hasn&apos;t loaded yet.</Text>
         ) : jobSubs.length === 0 ? (
@@ -811,7 +811,7 @@ function SubPortalSetupEditor() {
     <>
       <Stack.Screen
         options={{
-          title: 'Sub Portal',
+          title: 'Sub portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />

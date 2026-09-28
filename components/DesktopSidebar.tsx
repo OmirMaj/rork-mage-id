@@ -138,11 +138,11 @@ const NAV_ITEMS: NavItem[] = [
   //    it is shut, so an overdue RFI is never hidden behind the fold.
   { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,    route: '/(tabs)/discover/estimate',        jobRoute: '/(tabs)/estimate/full', section: 'THIS JOB', feature: 'estimate' },
   { key: 'contract',          label: 'Proposal & contract', icon: MageContract, route: '/contract',                         section: 'THIS JOB', feature: 'contract' },
-  { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder, route: '/change-order',                     section: 'THIS JOB', feature: 'change-order' },
+  { key: 'change-order',      label: 'Change orders',    icon: MageChangeOrder, route: '/change-order',                     section: 'THIS JOB', feature: 'change-order' },
   { key: 'invoice',           label: 'Invoices',         icon: MageInvoice,     route: '/invoice',                          section: 'THIS JOB', feature: 'invoice' },
-  { key: 'daily-report',      label: 'Daily Reports',    icon: MageDailyReport, route: '/daily-report',                     section: 'THIS JOB', feature: 'daily-report' },
+  { key: 'daily-report',      label: 'Daily reports',    icon: MageDailyReport, route: '/daily-report',                     section: 'THIS JOB', feature: 'daily-report' },
   { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        jobRoute: '/(tabs)/schedule', section: 'THIS JOB', feature: 'schedule' },
-  { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'THIS JOB', feature: 'punch-list' },
+  { key: 'punch-list',        label: 'Punch list',       icon: MagePunch,       route: '/punch-list',                       section: 'THIS JOB', feature: 'punch-list' },
 
   // ── More for this job — DOCUMENTS (the two counted logs that left THIS JOB)
   { key: 'rfi',               label: 'RFIs',             icon: MageRFI,         route: '/rfi',                              section: 'DOCUMENTS', feature: 'rfi' },
@@ -154,7 +154,7 @@ const NAV_ITEMS: NavItem[] = [
   // Ask-your-plans conversational plan search. The gate is ai_estimate_wizard
   // (Pro), not ask_your_plans (Business) — the sidebar's own copy said the
   // latter until 2026-09-07 and painted a Business lock on a Pro feature.
-  { key: 'plan-intelligence', label: 'Plan Intelligence', icon: FileSearch,     route: '/plan-intelligence',                section: 'PLANNING', feature: 'plan-intelligence' },
+  { key: 'plan-intelligence', label: 'Plan intelligence', icon: FileSearch,     route: '/plan-intelligence',                section: 'PLANNING', feature: 'plan-intelligence' },
   // Weekly Snapshot intentionally omitted from the rail: it's a single-project
   // screen that dead-ends on "No project to snapshot yet" without a param and
   // has no picker. It's reachable from inside each project (project-detail
@@ -163,32 +163,32 @@ const NAV_ITEMS: NavItem[] = [
   // ── More for this job — FIELD OPS
   // T&M ticket — signed-on-site record of extra work. Sits first because the
   // super notices the work while writing the daily report (THIS JOB, above).
-  { key: 'field-ticket',      label: 'T&M Tickets',      icon: FileSignature,   route: '/field-ticket',                     section: 'FIELD OPS', feature: 'field-ticket' },
-  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', feature: 'time-tracking' },
-  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', feature: 'photo-triage' },
+  { key: 'field-ticket',      label: 'T&M tickets',      icon: FileSignature,   route: '/field-ticket',                     section: 'FIELD OPS', feature: 'field-ticket' },
+  { key: 'time-tracking',     label: 'Time tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', feature: 'time-tracking' },
+  { key: 'photo-triage',      label: 'Photo triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', feature: 'photo-triage' },
   // Scan-Anything: classify → extract → auto-file any document/photo.
-  { key: 'scan',              label: 'Scan Anything',    icon: ScanLine,        route: '/scan',                             section: 'FIELD OPS', feature: 'scan' },
+  { key: 'scan',              label: 'Scan anything',    icon: ScanLine,        route: '/scan',                             section: 'FIELD OPS', feature: 'scan' },
   { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', feature: 'safety' },
-  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS', feature: 'oac-meeting' },
+  { key: 'oac-meeting',       label: 'OAC meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS', feature: 'oac-meeting' },
   // Neither screen calls useTierAccess, so their registry rows carry no
   // `requires` — a lock badge here would be a promise the code does not keep.
   { key: 'deliveries',        label: 'Deliveries',       icon: Truck,           route: '/deliveries',                       section: 'FIELD OPS', feature: 'deliveries' },
-  { key: 'building-access',   label: 'Building Access',  icon: Building2,       route: '/building-access',                  section: 'FIELD OPS', feature: 'building-access' },
+  { key: 'building-access',   label: 'Building access',  icon: Building2,       route: '/building-access',                  section: 'FIELD OPS', feature: 'building-access' },
   { key: 'equipment',         label: 'Equipment',        icon: MageEquipment,   route: '/(tabs)/equipment',                section: 'FIELD OPS', feature: 'equipment' },
   // The notice register runs across every job, so it takes no job param.
-  { key: 'delay-events',      label: 'Delay Register',   icon: CalendarClock,   route: '/delay-events',                     section: 'FIELD OPS', feature: 'delay-events' },
+  { key: 'delay-events',      label: 'Delay register',   icon: CalendarClock,   route: '/delay-events',                     section: 'FIELD OPS', feature: 'delay-events' },
 
   // ── More for this job — FINANCIALS
-  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,      route: '/aia-pay-app',                      section: 'FINANCIALS', feature: 'aia-pay-app' },
-  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', feature: 'budget-dashboard' },
-  { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', feature: 'job-costing' },
+  { key: 'aia-pay-app',       label: 'Pay apps',     icon: MagePayApp,      route: '/aia-pay-app',                      section: 'FINANCIALS', feature: 'aia-pay-app' },
+  { key: 'budget-dashboard',  label: 'Budget dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', feature: 'budget-dashboard' },
+  { key: 'job-costing',       label: 'Job costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', feature: 'job-costing' },
 
   // ── More for this job — CLIENT
-  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', feature: 'client-portal' },
+  { key: 'client-portal',     label: 'Client portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', feature: 'client-portal' },
   // Good/better/best proposals. Its only other inbound link is a tile in
   // app/(tabs)/discover/tools.tsx, which is phone-only, so without this row a
   // paid feature was click-unreachable on the laptop where proposals get written.
-  { key: 'smart-proposal',    label: 'Smart Proposal',   icon: FileSignature,   route: '/smart-proposal',                   section: 'CLIENT', feature: 'smart-proposal' },
+  { key: 'smart-proposal',    label: 'Smart proposal',   icon: FileSignature,   route: '/smart-proposal',                   section: 'CLIENT', feature: 'smart-proposal' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT', feature: 'selections' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT', feature: 'closeout-binder' },
   // Shipped with ZERO inbound navigation until this row. It's the artifact the
@@ -198,8 +198,8 @@ const NAV_ITEMS: NavItem[] = [
   // ── WORKSPACE — the cross-job surfaces, always expanded
   { key: 'home',              label: 'Projects',         icon: MageProject,     route: '/(tabs)/(home)',                   section: 'WORKSPACE', feature: 'projects' },
   { key: 'summary',           label: 'Summary',          icon: MageSummary,     route: '/(tabs)/summary',                  section: 'WORKSPACE', feature: 'summary' },
-  { key: 'waiting-on',        label: 'Waiting on Others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE', feature: 'waiting-on' },
-  { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,      route: '/portfolio-margin',                 section: 'WORKSPACE', feature: 'margin-board' },
+  { key: 'waiting-on',        label: 'Waiting on others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE', feature: 'waiting-on' },
+  { key: 'margin-board',      label: 'Margin board',     icon: MageMargin,      route: '/portfolio-margin',                 section: 'WORKSPACE', feature: 'margin-board' },
   { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE', feature: 'ask-mage', dock: 'ask' },
   // "Inbox" is the notifications inbox (app/notifications-inbox.tsx) — the
   // place things addressed to you land. It moved up from ACCOUNT because it is
@@ -209,66 +209,69 @@ const NAV_ITEMS: NavItem[] = [
   // ── BUSINESS — finding work and the people you do it with (collapsed)
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'BUSINESS', feature: 'leads' },
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'BUSINESS', feature: 'mage-id-bids' },
-  { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'BUSINESS', feature: 'public-bids' },
+  { key: 'bids',              label: 'Public bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'BUSINESS', feature: 'public-bids' },
   // Publish a solicitation of your own. Its only other inbound link is a card
   // inside the Discover tab, which does not exist on desktop (audit
   // 2026-09-07, navigation-ia #1).
-  { key: 'post-bid',          label: 'Post a Bid',       icon: Megaphone,       route: '/post-bid',                         section: 'BUSINESS', feature: 'post-bid' },
+  { key: 'post-bid',          label: 'Post a bid',       icon: Megaphone,       route: '/post-bid',                         section: 'BUSINESS', feature: 'post-bid' },
   // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
-  { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'BUSINESS', feature: 'judges' },
-  { key: 'auto-bids',         label: 'Pre-priced Bids',  icon: Zap,             route: '/auto-bids',                        section: 'BUSINESS', feature: 'auto-bids' },
+  { key: 'judges',            label: 'Bid advisor',      icon: Scale,           route: '/judges',                           section: 'BUSINESS', feature: 'judges' },
+  { key: 'auto-bids',         label: 'Pre-priced bids',  icon: Zap,             route: '/auto-bids',                        section: 'BUSINESS', feature: 'auto-bids' },
   // "(sample)": the screen is a mock catalog of invented suppliers — audit
   // round 2, #11. Drop the suffix when real suppliers are onboarded.
-  { key: 'marketplace',       label: 'Suppliers (sample)', icon: Store,         route: '/(tabs)/marketplace',              section: 'BUSINESS', feature: 'marketplace' },
+  { key: 'marketplace',       label: 'Supplier catalog (demo)', icon: Store,         route: '/(tabs)/marketplace',              section: 'BUSINESS', feature: 'marketplace' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'BUSINESS', feature: 'subs' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'BUSINESS', feature: 'contacts' },
   { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'BUSINESS', feature: 'crew' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'BUSINESS', feature: 'companies' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'BUSINESS' },
-  { key: 'track-record',      label: 'Track Record',     icon: Target,          route: '/track-record',                     section: 'BUSINESS', feature: 'track-record' },
+  { key: 'track-record',      label: 'Track record',     icon: Target,          route: '/track-record',                     section: 'BUSINESS', feature: 'track-record' },
   // Gate is job_costing (app/estimate-scorecard.tsx:51), NOT brain_accuracy like
   // Track Record one row up. The registry row carries it; this note stays as a
   // reading aid for anyone scanning the rail.
-  { key: 'estimate-scorecard', label: 'Estimate Scorecard', icon: BarChart3,    route: '/estimate-scorecard',               section: 'BUSINESS', feature: 'estimate-scorecard' },
-  { key: 'business',          label: 'Your Business',    icon: Briefcase,       route: '/business',                         section: 'BUSINESS', feature: 'business' },
+  { key: 'estimate-scorecard', label: 'Estimate scorecard', icon: BarChart3,    route: '/estimate-scorecard',               section: 'BUSINESS', feature: 'estimate-scorecard' },
+  { key: 'business',          label: 'Your business',    icon: Briefcase,       route: '/business',                         section: 'BUSINESS', feature: 'business' },
 
   // ── FINANCE — the company's money across jobs (collapsed)
-  { key: 'wip-report',        label: 'WIP Report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCE', feature: 'wip-report' },
-  { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCE', feature: 'cash-flow' },
+  { key: 'wip-report',        label: 'WIP report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCE', feature: 'wip-report' },
+  { key: 'cash-flow',         label: 'Cash flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCE', feature: 'cash-flow' },
   { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCE', feature: 'payments' },
   { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCE', feature: 'reports' },
-  { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'FINANCE', feature: 'margin-alerts' },
+  { key: 'margin-alerts',     label: 'Margin alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'FINANCE', feature: 'margin-alerts' },
 
   // ── SETUP & TOOLS — the cost book and the AI tools (collapsed)
-  { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,      route: '/cost-database',                    section: 'SETUP & TOOLS', feature: 'cost-database' },
-  { key: 'cost-seed',         label: 'Seed Your Rates',  icon: Upload,          route: '/cost-seed',                        section: 'SETUP & TOOLS', feature: 'cost-seed' },
+  { key: 'cost-database',     label: 'Cost history',    icon: MageCostDb,      route: '/cost-database',                    section: 'SETUP & TOOLS', feature: 'cost-database' },
+  { key: 'cost-seed',         label: 'Seed your rates',  icon: Upload,          route: '/cost-seed',                        section: 'SETUP & TOOLS', feature: 'cost-seed' },
   // The embed widget turns a contractor's own website into a lead source; the
   // setup screen shipped with no inbound navigation before this row.
-  { key: 'widget-setup',      label: 'Website Widget',   icon: Code,            route: '/widget-setup',                     section: 'SETUP & TOOLS', feature: 'widget-setup' },
+  { key: 'widget-setup',      label: 'Website widget',   icon: Code,            route: '/widget-setup',                     section: 'SETUP & TOOLS', feature: 'widget-setup' },
   { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'SETUP & TOOLS', feature: 'cost-xray' },
-  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'SETUP & TOOLS', feature: 'area-takeoff' },
+  { key: 'area-takeoff',      label: 'Visual takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'SETUP & TOOLS', feature: 'area-takeoff' },
   // MAGE Copilot hub — the universal voice→build engine's front door.
   { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'SETUP & TOOLS', feature: 'copilot-hub' },
   { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'SETUP & TOOLS', feature: 'construction-ai' },
   // Construction News — publisher-feed headlines (founder request 2026-09-22).
   // Ungated. Moved out of WORKSPACE in wave 6c, which brings WORKSPACE back to
   // six rows and fully above the fold on the founder's 858 px viewport.
-  { key: 'construction-news', label: 'Construction News', icon: Newspaper,
+  { key: 'construction-news', label: 'Construction news', icon: Newspaper,
     route: '/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' },
 
   // ── ACCOUNT (pinned to bottom)
   { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
-  { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT', feature: 'report-inbox' },
+  { key: 'report-inbox',      label: 'Report inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT', feature: 'report-inbox' },
   { key: 'tutorials',         label: 'Help & tutorials', icon: BookOpen,        route: '/tutorials',                        section: 'ACCOUNT', feature: 'tutorials' },
   { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT', feature: 'settings' },
 ];
 
-/** Always expanded, and every row carries the active job. */
+/** Always expanded, and every row carries the active job. The key stays
+ *  'THIS JOB' (rows and validators match it); the header prints
+ *  JOB_SECTION_LABEL, sentence case in source and uppercased by staticLabel. */
 const JOB_SECTION = 'THIS JOB';
-/** The rest of the project tools, behind one saved "More for this job" toggle,
+const JOB_SECTION_LABEL = 'This project';
+/** The rest of the project tools, behind one saved "More for this project" toggle,
  *  sub-labelled so eight-plus rows stay scannable. */
 const MORE_JOB_SECTIONS = ['DOCUMENTS', 'PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'];
-/** The "More for this job" sub-section whose rows carry live counts (D6). The
+/** The "More for this project" sub-section whose rows carry live counts (D6). The
  *  collapsed rail shows these two squares only while one carries a count. */
 const COUNTED_MORE_SECTION = 'DOCUMENTS';
 const MORE_TOGGLE = 'MORE FOR THIS JOB';
@@ -285,8 +288,8 @@ const ACCOUNT_SECTION = 'ACCOUNT';
 // job switcher: their "projects" are RFPs, not jobs they run.
 const CLIENT_NAV_ITEMS: NavItem[] = [
   { key: 'home',          label: 'Home',           icon: Home,          route: '/(tabs)/(home)', section: 'PROPERTY OWNER', feature: 'projects' },
-  { key: 'my-rfps',       label: 'My Projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER', feature: 'my-rfps' },
-  { key: 'post-rfp',      label: 'Post a Project', icon: FileText,      route: '/post-rfp',      section: 'PROPERTY OWNER', feature: 'post-rfp' },
+  { key: 'my-rfps',       label: 'My projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER', feature: 'my-rfps' },
+  { key: 'post-rfp',      label: 'Post a project', icon: FileText,      route: '/post-rfp',      section: 'PROPERTY OWNER', feature: 'post-rfp' },
 
   { key: 'messages',      label: 'Messages',       icon: MessageCircle, route: '/messages',      section: 'ACCOUNT' },
   { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT', feature: 'notifications' },
@@ -588,10 +591,10 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     // Gate read from the registry, never from a field on the row — see NavItem.
     const requires = item.feature ? featureFor(item.feature).requires : undefined;
     // #74 (wave 5): a claimed crew worker without the crew plan sees his own
-    // profile here — "My Profile", unlocked (the screen opens for him).
+    // profile here — "My profile", unlocked (the screen opens for him).
     const asProfile = item.feature === 'crew' && claimedCrewWorker && !!requires && !canAccess(requires);
     const locked = !asProfile && !!requires && !canAccess(requires);
-    const label = asProfile ? 'My Profile' : item.label;
+    const label = asProfile ? 'My profile' : item.label;
     const baseColor = dimmed ? RAIL.dim : RAIL.label;
     // The live count (wave 6d) — only from useJobRowCounts via <JobRowCounts>,
     // and never beside a lock badge.
@@ -688,7 +691,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     const requires = item.feature ? featureFor(item.feature).requires : undefined;
     const asProfile = item.feature === 'crew' && claimedCrewWorker && !!requires && !canAccess(requires);
     const locked = !asProfile && !!requires && !canAccess(requires);
-    const label = asProfile ? 'My Profile' : item.label;
+    const label = asProfile ? 'My profile' : item.label;
     const pill = !locked ? count : undefined;
     if (item.dock && isDesktopWeb) {
       return (
@@ -873,7 +876,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                     style={railRowStyle(overviewActive)}
                     selected={overviewActive}
                     testID="sidebar-job-overview"
-                    accessibilityLabel={`Overview of ${activeProject?.name ?? 'this job'}${overviewActive ? ', current page' : ''}`}
+                    accessibilityLabel={`Overview of ${activeProject?.name ?? 'this project'}${overviewActive ? ', current page' : ''}`}
                   >
                     {({ hovered }: RowLinkState) => (
                       <LayoutDashboard size={18} color={overviewActive || hovered ? RAIL.ink : RAIL.label} strokeWidth={overviewActive ? 2.2 : 1.8} />
@@ -903,7 +906,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         <View style={styles.accountSection}>
           <View style={styles.footerDivider} />
           {!isMinimalPersona && isDesktopWeb && (
-            <RailTip label="Action Required" onHover={onRailHover} containerRef={railRef}>
+            <RailTip label="Action required" onHover={onRailHover} containerRef={railRef}>
               <SidebarActionRequiredRow collapsed />
             </RailTip>
           )}
@@ -1018,14 +1021,14 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
             <View style={styles.navSection}>
               {/* The job's name is on the switcher directly above; the header
                   stays a label so the eye finds the section, not a second name. */}
-              <Text style={[styles.sectionLabel, styles.staticLabel]}>{JOB_SECTION}</Text>
+              <Text style={[styles.sectionLabel, styles.staticLabel]}>{JOB_SECTION_LABEL}</Text>
               {activeProjectId ? (
                 <RowLink
                   href={routeHref('/project-detail', { id: activeProjectId })}
                   style={rowStyle(overviewActive)}
                   selected={overviewActive}
                   testID="sidebar-job-overview"
-                  accessibilityLabel={`Overview of ${activeProject?.name ?? 'this job'}${overviewActive ? ', current page' : ''}`}
+                  accessibilityLabel={`Overview of ${activeProject?.name ?? 'this project'}${overviewActive ? ', current page' : ''}`}
                 >
                   {({ hovered }: RowLinkState) => (
                     <>
@@ -1043,7 +1046,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                 {counts => (
                   <>
                     {itemsIn(JOB_SECTION).map(item => renderNavItem(item, false, countOf(counts, item.key)))}
-                    {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS,
+                    {renderToggle(MORE_TOGGLE, 'More for this project', moreOpen, MORE_JOB_SECTIONS,
                       moreOpen ? undefined : combineRowCounts(itemsIn(COUNTED_MORE_SECTION).map(item => countOf(counts, item.key)), itemsIn(COUNTED_MORE_SECTION).map(item => item.label)))}
                     {moreOpen && MORE_JOB_SECTIONS.map(sub => (
                       <View key={sub} style={styles.subGroup}>
@@ -1065,7 +1068,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                 deleted and other accounts' jobs never appear. */}
             {recentJobs.length > 0 && (
               <View style={styles.navSection}>
-                <Text style={[styles.sectionLabel, styles.staticLabel]}>RECENT</Text>
+                <Text style={[styles.sectionLabel, styles.staticLabel]}>Recent</Text>
                 {recentJobs.map(p => {
                   const current = p.id === activeProjectId;
                   return (
@@ -1075,7 +1078,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                       style={(s) => [styles.navItem, current ? styles.recentCurrent : s.hovered ? styles.navItemHovered : null]}
                       selected={current}
                       testID={`sidebar-recent-${p.id}`}
-                      accessibilityLabel={`Open project ${p.name}${current ? ', current job' : ''}`}
+                      accessibilityLabel={`Open project ${p.name}${current ? ', current project' : ''}`}
                     >
                       {({ hovered }: RowLinkState) => (
                         <>
@@ -1121,7 +1124,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       {__DEV__ && (
         <View style={styles.footer}>
           <Text style={styles.footerText}>MAGE ID v2.0</Text>
-          <Text style={styles.footerSubtext}>Desktop Mode</Text>
+          <Text style={styles.footerSubtext}>Desktop mode</Text>
         </View>
       )}
 
@@ -1250,6 +1253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 4,
     paddingBottom: 4,
+    textTransform: 'uppercase' as const,
   },
   subGroup: {
     marginBottom: 4,

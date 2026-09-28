@@ -63,7 +63,7 @@ describe('Q6 — JUDGES describe mode and the Scope Sheet header', () => {
     expect(screen.queryByTestId('judges-type-other')).toBeNull();
     fireEvent.press(screen.getByText('Other (describe it)'));
     expect(screen.getByTestId('judges-type-other')).toBeTruthy();
-    expect(screen.getByText(/You picked Other\. Describe the job/)).toBeTruthy();
+    expect(screen.getByText(/You picked Other\. Describe the project/)).toBeTruthy();
     fireEvent.changeText(screen.getByTestId('judges-type-other'), 'Windows & doors');
     expect(screen.queryByText(/You picked Other/)).toBeNull();
   });

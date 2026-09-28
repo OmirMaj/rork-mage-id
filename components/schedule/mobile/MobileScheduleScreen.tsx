@@ -68,6 +68,8 @@ import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/intentTable';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import { jobBackLink, readUxDoorParams } from '@/utils/uxRoutes';
 
 // MISS-08 (runtime audit 2026-09-06): the second sub-tab was labelled
 // "4D Model". There is no 3D model behind it and no 3D dependency anywhere in
@@ -259,6 +261,14 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // selection away from a project the user cycled to manually.
   const { projectId: routeProjectId, focus: routeFocus, editSeed: routeEditSeed } =
     useLocalSearchParams<{ projectId?: string; focus?: string; editSeed?: string }>();
+  // W1 UXDOORS (D2): opened from a job's page (from=job), a back link names
+  // that job and returns to it. The phone screen had no back link before, and
+  // without the param it still has none.
+  const { from: routeFrom } = useLocalSearchParams<{ from?: string }>();
+  const jobBack = jobBackLink(
+    readUxDoorParams({ from: routeFrom }).fromJob,
+    routeProjectId ? projects.find((p) => p.id === routeProjectId) : null,
+  );
   const navigation = useNavigation();
   // Shared with the desktop sibling via the parent wrapper so a nonce already
   // consumed on one surface stays consumed after a breakpoint remount — a
@@ -1356,6 +1366,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {jobBack ? (
+        <HiddenTabBackLink label={jobBack.label} href={jobBack.href} style={styles.jobBack} testID="schedule-back-to-job" />
+      ) : null}
       <View style={styles.header}>
         <TouchableOpacity
           style={{ flex: 1, minWidth: 0 }}
@@ -2286,6 +2299,9 @@ function LivingFloorPlanContainer({
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
+  // D2: HiddenTabBackLink carries 6pt of its own padding, so 10 lines the
+  // chevron up with the header's 16pt edge.
+  jobBack: { marginLeft: 10, marginTop: 4 },
   titleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
   projName: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.4 },
   loc: { fontSize: 12, fontWeight: '600' as const, color: t.textMuted, marginTop: 1 },

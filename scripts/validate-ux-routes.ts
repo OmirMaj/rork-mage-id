@@ -15,6 +15,7 @@ import {
   UX_PARAM, SOURCE_PROJECT, FROM_JOB, readParam, readFlag, readUxDoorParams,
   punchListNewHref, deliveryArrivedHref, clockInHref, tomorrowLineupHref, codeCheckFromJobHref,
   scheduleFromJobHref, photoTriageHref, subPortalSetupHref, invoiceForMilestoneHref,
+  scheduleFromJobFocusHref, estimateFromJobHref, projectDetailPath, jobBackLink, lienWaiverForCommitmentHref, hrefToPath,
 } from '../utils/uxRoutes';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,10 +47,36 @@ eq('/photo-triage?projectId', photoTriageHref('p'), { pathname: '/photo-triage',
 eq('/sub-portal-setup?projectId&subId', subPortalSetupHref('p', 's'), { pathname: '/sub-portal-setup', params: { projectId: 'p', subId: 's' } });
 eq('the param names', UX_PARAM, { projectId: 'projectId', newItem: 'new', arrived: 'arrived', clockIn: 'clockIn', source: 'source', from: 'from', milestoneId: 'milestoneId', subId: 'subId' });
 ok('source=project, from=job', SOURCE_PROJECT === 'project' && FROM_JOB === 'job');
+// W1 UXDOORS (D2 + D5): additive rows.
+eq('/(tabs)/schedule?projectId&focus&from=job (the job page keeps its focus nonce)', scheduleFromJobFocusHref('p', 'n1'), { pathname: '/(tabs)/schedule', params: { projectId: 'p', focus: 'n1', from: 'job' } });
+eq('/(tabs)/estimate/full?projectId&from=job', estimateFromJobHref('p'), { pathname: '/(tabs)/estimate/full', params: { projectId: 'p', from: 'job' } });
+eq('/project-detail?id (the job page reads `id`)', projectDetailPath('a b/c'), '/project-detail?id=a%20b%2Fc');
+{
+  const pd = read('app/project-detail.tsx');
+  ok('…and project-detail really reads its job from `id`', /useLocalSearchParams<\{ id: string;/.test(pd));
+}
+eq('/lien-waivers: prefillSubName + prefillCommitmentId (+ roster id, + email only when usable), never subId or an amount',
+  lienWaiverForCommitmentHref({ projectId: 'p', subName: 'Sparky Electric', commitmentId: 'c1', subCompanyId: 's1', subEmail: ' ops@sparky.com ' }),
+  { pathname: '/lien-waivers', params: { projectId: 'p', prefillSubName: 'Sparky Electric', prefillCommitmentId: 'c1', prefillSubCompanyId: 's1', prefillSubEmail: 'ops@sparky.com' } });
+eq('…a vendor with no roster sub and no email sends only the name and commitment',
+  lienWaiverForCommitmentHref({ projectId: 'p', subName: 'Lumber Co', commitmentId: 'c2', subCompanyId: null, subEmail: 'not an email' }),
+  { pathname: '/lien-waivers', params: { projectId: 'p', prefillSubName: 'Lumber Co', prefillCommitmentId: 'c2' } });
+{
+  const lw = read('app/lien-waivers.tsx');
+  ok('…and lien-waivers reads exactly those names (prefillSubName opens the form)',
+    ['prefillSubName', 'prefillCommitmentId', 'prefillSubCompanyId', 'prefillSubEmail'].every(k => lw.includes(`${k}?: string;`)) && /if \(prefillSubName\) \{/.test(lw));
+}
+eq('jobBackLink: from=job + a named job → the job name, to the job page', jobBackLink(true, { id: 'p1', name: ' Henderson ' }), { label: 'Henderson', href: '/project-detail?id=p1' });
+eq('…without from=job, or with no job / a blank name → null (today\'s link stands)',
+  [jobBackLink(false, { id: 'p1', name: 'Henderson' }), jobBackLink(true, null), jobBackLink(true, undefined), jobBackLink(true, { id: 'p1', name: '  ' }), jobBackLink(true, { id: '', name: 'X' })],
+  [null, null, null, null, null]);
+eq('hrefToPath encodes and keeps order', hrefToPath({ pathname: '/tomorrow-lineup', params: { projectId: 'p 1&x' } }), '/tomorrow-lineup?projectId=p%201%26x');
+eq('…a bare pathname stays bare', hrefToPath({ pathname: '/tomorrow-lineup' }), '/tomorrow-lineup');
 
 console.log('\n2. every pathname is a real screen');
 for (const h of [punchListNewHref('p'), deliveryArrivedHref('p'), clockInHref('p'), tomorrowLineupHref('p'), codeCheckFromJobHref('p'),
-  scheduleFromJobHref('p'), photoTriageHref('p'), subPortalSetupHref('p', 's'), invoiceForMilestoneHref({ projectId: 'p', contractId: 'c', milestoneId: 'm', line: {}, note: '' })]) {
+  scheduleFromJobHref('p'), photoTriageHref('p'), subPortalSetupHref('p', 's'), invoiceForMilestoneHref({ projectId: 'p', contractId: 'c', milestoneId: 'm', line: {}, note: '' }),
+  scheduleFromJobFocusHref('p', 'n'), estimateFromJobHref('p'), lienWaiverForCommitmentHref({ projectId: 'p', subName: 'S', commitmentId: 'c' }), { pathname: '/project-detail' }]) {
   const rel = h.pathname.replace(/^\//, '');
   const file = ['app/' + rel + '.tsx', 'app/' + rel + '/index.tsx'].find(f => existsSync(join(ROOT, f)));
   ok(`${h.pathname} exists`, !!file);

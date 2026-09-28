@@ -127,6 +127,7 @@ import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
 import LockedAccessCard from '@/components/LockedAccessCard';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import { jobBackLink, readUxDoorParams } from '@/utils/uxRoutes';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -463,6 +464,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     useLocalSearchParams<{ projectId?: string; focus?: string; editSeed?: string }>();
   // Summary's task rows (wave 6c) name a task: the desktop branch opens it.
   const { taskId: routeTaskId } = useLocalSearchParams<{ taskId?: string }>();
+  // W1 UXDOORS (D2): opened from a job's page (from=job), the back link names
+  // that job and returns to it. Without the param, the "Schedules" link below
+  // is exactly what it was.
+  const { from: routeFrom } = useLocalSearchParams<{ from?: string }>();
+  const jobBack = jobBackLink(
+    readUxDoorParams({ from: routeFrom }).fromJob,
+    routeProjectId ? projects.find(p => p.id === routeProjectId) : null,
+  );
   const navigation = useNavigation();
   // Shared with the sibling surface via the parent wrapper so an already-
   // consumed nonce stays consumed across a phone<->desktop breakpoint remount
@@ -3438,12 +3447,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               mount, so this cannot bounce the user straight back. See
               components/HiddenTabBackLink.tsx for why it names its
               destination. */}
+          {jobBack ? (
+            <HiddenTabBackLink
+              label={jobBack.label}
+              href={jobBack.href}
+              style={styles.backToSchedules}
+              testID="schedule-back-to-job"
+            />
+          ) : (
           <HiddenTabBackLink
             label="Schedules"
             href="/(tabs)/discover/schedule"
             style={styles.backToSchedules}
             testID="schedule-back-to-schedules"
           />
+          )}
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.title} numberOfLines={1}>Schedule</Text>

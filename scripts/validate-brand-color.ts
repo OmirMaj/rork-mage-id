@@ -623,9 +623,9 @@ console.log('brand-colour USAGE guard (white text on a solid Colors.primary fill
 type PrimaryAllow = { file: string; style: string; reason: string };
 const PRIMARY_FILL_ALLOW: PrimaryAllow[] = [];
 const PRIMARY_FILL_DEFERRED: Record<string, number> = {
-  // UX lane B owns it (2026-09-27): chipActive, runBtn, lockedCta,
-  // modeToggleBtnActive, regenBtnHighlighted.
-  'app/(tabs)/construction-ai/index.tsx': 5,
+  // Empty since wave-next W1 (lane COPY moved construction-ai's five fills to
+  // themeColors.accentFill). A new row may only be added for a file another
+  // run owns, with its offender count as the ceiling.
 };
 
 /** Is `value` (a backgroundColor's value text) a SOLID primary fill somewhere

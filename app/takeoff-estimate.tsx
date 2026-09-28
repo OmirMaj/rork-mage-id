@@ -950,7 +950,7 @@ function TakeoffEstimateInner() {
             onPress={() => router.replace({ pathname: '/takeoff', params: projectId ? { projectId } : {} } as never)}
           >
             <MageAIMark size={16} color={themeColors.surface} />
-            <Text style={styles.primaryBtnText}>Run AI Takeoff</Text>
+            <Text style={styles.primaryBtnText}>Run takeoff</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -966,8 +966,8 @@ function TakeoffEstimateInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>FROM TAKEOFF</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Standalone Estimate'}</Text>
+          <Text style={styles.headerEyebrow}>From takeoff</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Standalone estimate'}</Text>
         </View>
         {!pricing && lines.length > 0 ? (
           <TouchableOpacity onPress={handleRegenerate} style={styles.headerBack}>
@@ -1149,7 +1149,7 @@ function TakeoffEstimateInner() {
             </View>
           </ScrollView>
           <View style={[styles.totalsRow, styles.totalsRowGrand]}>
-            <Text style={styles.totalsGrandLabel}>Grand Total</Text>
+            <Text style={styles.totalsGrandLabel}>Grand total</Text>
             <Text style={styles.totalsGrandValue}>{formatMoney(totals.grandTotal, 2)}</Text>
           </View>
           <TouchableOpacity
@@ -1167,7 +1167,7 @@ function TakeoffEstimateInner() {
               ? <ActivityIndicator size="small" color={themeColors.surface} />
               : <Save size={16} color={themeColors.surface} strokeWidth={1.75} />}
             <Text style={styles.saveBtnText}>
-              {saving ? 'Saving…' : saveBlocked ? 'Set your markup to save' : project ? `Save to ${project.name}` : 'Save Estimate'}
+              {saving ? 'Saving…' : saveBlocked ? 'Set your markup to save' : project ? `Save to ${project.name}` : 'Save estimate'}
             </Text>
           </TouchableOpacity>
           {/* A disabled button that does not say why is just a broken button. */}
@@ -1329,7 +1329,7 @@ function LineRow({
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.editLabel}>Unit Price ($)</Text>
+          <Text style={styles.editLabel}>Unit price ($)</Text>
           <TextInput
             style={styles.editInputSmall}
             value={price}
@@ -1341,7 +1341,7 @@ function LineRow({
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.editLabel}>Line Total</Text>
+          <Text style={styles.editLabel}>Line total</Text>
           <Text style={styles.editLineTotal}>{formatMoney(lineTotal, 2)}</Text>
         </View>
       </View>

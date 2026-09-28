@@ -177,6 +177,7 @@ function fillContractTerms(
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 import { ActionBar, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 // Gate: contracts are a Pro billing tool alongside invoices, change orders,
@@ -1097,14 +1098,14 @@ function ContractScreenInner() {
               emailNote = ' Only the project owner holds this portal\'s signing link, so nothing was emailed. Ask them to share it from the client portal.';
               break;
             case 'no_email':
-              emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
+              emailNote = ' No client email on file. Share the portal link so the client can sign.';
               break;
             case 'no_signing_key':
               emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
               break;
             case 'portal_off':
             case 'ready':
-              emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
+              emailNote = ' The client portal is off, so nothing was emailed. Turn it on in Client portal so the client can sign.';
               break;
           }
           const why = portalDeliveryState(project, user?.id ?? null);
@@ -1130,8 +1131,8 @@ function ContractScreenInner() {
       showAlert(
         deliveryMarker?.state === 'delivered' ? 'Contract sent' : 'Signed — not delivered yet',
         (createdCount > 0
-          ? `Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
-          : 'Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. You\'ll be notified when they do.')
+          ? `Your client portal is being updated with the contract; once it is, the client can review and counter-sign there. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
+          : 'Your client portal is being updated with the contract; once it is, the client can review and counter-sign there. You\'ll be notified when they do.')
           + emailNote,
       );
     } finally {
@@ -1362,7 +1363,13 @@ function ContractScreenInner() {
         return;
       }
       console.error('[Contract] Seal error:', err);
-      showAlert('Seal failed', err instanceof Error ? err.message : 'Could not seal the contract. Please try again.');
+      // sealSignedContract throws sentences written for the user ("Sealing
+      // works in the mobile app…", "Both your signature and the client's are
+      // needed…"); those say what unlocks the seal, so they win over the
+      // generic "try again" copy.
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'seal the contract', keptLocally: true });
+      showAlert(own ? "Couldn't seal the contract" : copy.title, own ?? copy.body);
     }
   }, [project, contract, user?.id, settings?.branding]);
 
@@ -1396,7 +1403,7 @@ function ContractScreenInner() {
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Contracts inside the project tile grid.',
-            'Edit the seeded draft, sign as the GC, and send to the homeowner for counter-signature.',
+            'Edit the seeded draft, sign as the GC, and send to the client for counter-signature.',
           ]}
         />
       </View>
@@ -1507,7 +1514,7 @@ function ContractScreenInner() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Construction Agreement</Text>
+          <Text style={styles.title}>Construction agreement</Text>
         </View>
         <StatusPill status={contract.status} />
       </View>
@@ -1529,9 +1536,9 @@ function ContractScreenInner() {
           <View style={styles.contractHeroIcon}>
             <FileSignature size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.contractHeroTitle}>Construction Agreement</Text>
+          <Text style={styles.contractHeroTitle}>Construction agreement</Text>
           <Text style={styles.contractHeroSub}>
-            The signed contract between you and the homeowner. Lock the scope, payment milestones, and warranty terms before work starts.
+            The signed contract between you and the client. Lock the scope, payment milestones, and warranty terms before work starts.
           </Text>
         </View>
 
@@ -1699,7 +1706,7 @@ function ContractScreenInner() {
         {/* Scope */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Scope of work *</Text>
-          <Text style={styles.cardHelper}>What you'll build, materials of note, exclusions. Be specific — this is what the homeowner agrees to.</Text>
+          <Text style={styles.cardHelper}>What you'll build, materials of note, exclusions. Be specific. This is what the client agrees to.</Text>
           <TextInput
             style={[styles.input, styles.inputMultiline, isLocked && styles.inputDisabled]}
             value={contract.scopeText}
@@ -1707,7 +1714,7 @@ function ContractScreenInner() {
             editable={!isLocked}
             multiline
             numberOfLines={8}
-            placeholder="Describe the scope in detail..."
+            placeholder="Describe the scope in detail"
             placeholderTextColor={themeColors.textMuted}
             textAlignVertical="top"
           />
@@ -1916,7 +1923,7 @@ function ContractScreenInner() {
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>Allowances (optional)</Text>
               <Text style={styles.cardHelper}>
-                Budget set aside for finishes the homeowner picks (cabinets, fixtures, tile, etc.).
+                Budget set aside for finishes the client picks (cabinets, fixtures, tile, etc.).
                 Overruns trigger a Change Order.
               </Text>
             </View>
@@ -1958,7 +1965,7 @@ function ContractScreenInner() {
           ))}
           {contract.allowances.length === 0 && (
             <Text style={styles.allowanceEmpty}>
-              No allowances yet. Tap Add to set a budget for fixtures, finishes, or any homeowner-picked items.
+              No allowances yet. Tap Add to set a budget for fixtures, finishes, or any client-picked items.
             </Text>
           )}
         </View>
@@ -2044,7 +2051,7 @@ function ContractScreenInner() {
             )}
             {contract.homeownerSignature && (
               <SignatureBlock
-                label="Homeowner"
+                label="Client"
                 name={contract.homeownerSignature.name}
                 signedAt={contract.homeownerSignature.signedAt}
                 how={homeownerSignatureMethodLabel(contract.homeownerSignature)}
@@ -2108,7 +2115,7 @@ function ContractScreenInner() {
           <View style={styles.statusBanner}>
             <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusBannerTitle}>Sent to the homeowner</Text>
+              <Text style={styles.statusBannerTitle}>Sent to the client</Text>
               <Text style={styles.statusBannerBody}>
                 You'll be notified when they sign. Until then this contract is read-only.
                 If they signed in person or on paper, record it here so the deposit can be billed.
@@ -2161,7 +2168,7 @@ function ContractScreenInner() {
         )}
         {contract.status === 'sent' && (
           <Button
-            label="Record homeowner signature"
+            label="Record client signature"
             variant="secondary"
             onPress={() => setRecordModal(true)}
             iconLeft={<FileSignature size={14} color={themeColors.text} strokeWidth={1.75} />}
@@ -2373,12 +2380,12 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
   // billed against as it gets done. A hand-set paid / invoiced / skipped still
   // wins — that is a state somebody chose.
   const cfg =
-    isPaid                          ? { bg: themeColors.success + '15', color: themeColors.success, label: 'PAID' } :
-    milestone.status === 'paid'     ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
-    milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
-    milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'SKIPPED' } :
-    isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'AS WORK IS DONE' } :
-                                       { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'PENDING' };
+    isPaid                          ? { bg: themeColors.success + '15', color: themeColors.success, label: 'Paid' } :
+    milestone.status === 'paid'     ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'Invoiced' } :
+    milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'Invoiced' } :
+    milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'Skipped' } :
+    isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'As work is done' } :
+                                       { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'Pending' };
   // Signing, progress and final read exactly as the sealed PDF and the invoice
   // line print them (utils/paymentTerms.milestoneDueText) — "Billed as work is
   // completed", not "On invoice", which read as "one invoice".
@@ -2675,7 +2682,7 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
     <Modal visible={visible} animationType={fRecord.animationType} transparent onRequestClose={() => { if (!recording) onClose(); }}>
       <View style={[styles.modalOverlay, fRecord.overlay]}>
         <View style={[styles.modalCard, fRecord.card]} testID="contract-record-signature-modal">
-          <Text style={styles.modalTitle}>Record homeowner signature</Text>
+          <Text style={styles.modalTitle}>Record client signature</Text>
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={[styles.modalCancel, method === 'in_person' && { borderColor: themeColors.accent }]}
@@ -2698,8 +2705,8 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
           </View>
           <Text style={styles.modalBody}>
             {method === 'in_person'
-              ? 'Hand the phone to the homeowner: they sign in the box and type their full legal name. It is recorded as signed in person on your device.'
-              : 'For a contract the homeowner signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page — the photo is kept as the proof.'}
+              ? 'Hand the phone to the client: they sign in the box and type their full legal name. It is recorded as signed in person on your device.'
+              : 'For a contract the client signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page — the photo is kept as the proof.'}
           </Text>
           {method === 'in_person' ? (
             <SignaturePad initialPaths={paths} onSave={setPaths} onClear={() => setPaths([])} height={150} />
@@ -2723,7 +2730,7 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
             style={styles.modalNameInput}
             value={name}
             onChangeText={setName}
-            placeholder="Homeowner's full legal name"
+            placeholder="Client's full legal name"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="words"
             testID="contract-record-name"
@@ -2752,7 +2759,7 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
       <DatePickerModal
         visible={dayPicker}
         value={signedDay}
-        title="Day the homeowner signed"
+        title="Day the client signed"
         onClose={() => setDayPicker(false)}
         onChange={(iso) => { setSignedDay(iso.slice(0, 10)); setDayPicker(false); }}
       />
@@ -2880,7 +2887,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.danger,
   },
   milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
-  milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   milestoneFieldLabel: {
     fontSize: 10, fontWeight: '800', color: themeColors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4,

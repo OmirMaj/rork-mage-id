@@ -253,7 +253,7 @@ console.log('\n#77/#141 the CO number is the server\'s before anything goes out'
     && /number: confirmedNumber \?\? existingCO\.number, isUpdate: true/.test(CODE));
   ok('sendNext is cleared once the sheet reopens (no reopen on remount)', /setShowSendRecipient\(true\);\s*router\.setParams\(\{ sendNext: undefined \}\);/.test(CODE));
   ok('the G701 prior-changes base uses the confirmed number', /const baseNumber = confirmedNumber \?\? nextCoNumber;/.test(CODE));
-  ok('a renumber is said', /was already used on this job, so MAGE numbered it/.test(CODE));
+  ok('a renumber is said', /was already used on this project, so MAGE numbered it/.test(CODE));
   ok('field-ticket\'s toast no longer prints the provisional number', !/nailIt\(`CO #\$\{co\.number\} drafted/.test(read('app/field-ticket.tsx')));
 }
 

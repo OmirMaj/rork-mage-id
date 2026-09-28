@@ -808,7 +808,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Just say the job — MAGE sets it up and drops you inside",
+                                    "Say the project out loud and MAGE sets it up",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -1099,7 +1099,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Start a new job from scratch",
+                                    "Start a new project from scratch",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -2636,7 +2636,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Fast bid for a small job",
+                                    "Fast bid for a small project",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -11965,7 +11965,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Just say the job — MAGE sets it up and drops you inside",
+                                    "Say the project out loud and MAGE sets it up",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -12258,7 +12258,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Start a new job from scratch",
+                                    "Start a new project from scratch",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -13805,7 +13805,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Fast bid for a small job",
+                                    "Fast bid for a small project",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -23190,7 +23190,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Just say the job — MAGE sets it up and drops you inside",
+                                    "Say the project out loud and MAGE sets it up",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -23483,7 +23483,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Start a new job from scratch",
+                                    "Start a new project from scratch",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -25030,7 +25030,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Fast bid for a small job",
+                                    "Fast bid for a small project",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -48645,7 +48645,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Ask Your Plans",
+                                                                                                        "Ask your plans",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -58688,7 +58688,8 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityHint": "Hold to record a voice note",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -68745,7 +68746,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Ask Your Plans",
+                                                                                                        "Ask your plans",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -77724,7 +77725,8 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityHint": "Hold to record a voice note",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -88590,7 +88592,7 @@ exports[`UniversalSearch on a phone open, "gantt", 390 ios 1`] = `
                             },
                             {
                               "children": [
-                                "Pro Scheduler",
+                                "Pro scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -88621,7 +88623,7 @@ exports[`UniversalSearch on a phone open, "gantt", 390 ios 1`] = `
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro Scheduler",
+                            "accessibilityLabel": "Pro scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -90849,7 +90851,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                             },
                             {
                               "children": [
-                                "Daily Reports",
+                                "Daily reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -90880,7 +90882,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily Reports",
+                            "accessibilityLabel": "Daily reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,

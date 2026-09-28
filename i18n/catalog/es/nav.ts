@@ -1,0 +1,50 @@
+// i18n/catalog/es/nav.ts — Spanish, area "nav". Follows docs/i18n-glossary-es.md.
+// `src` = fnv1a32 of the English each entry translates (stale check). Edit
+// `s`; when the English changes, re-translate and update `src` from the
+// validator's stale list — never just bump the hash.
+
+import type { EsCatalog } from '../../types';
+
+export const ES_NAV: EsCatalog = {
+  "nav.tab.home": { s: "Inicio", src: "52f50eae", note: "Tab bar, ≤10 chars" },
+  "nav.tab.yourProjects": { s: "Tus obras", src: "fbee0844", note: "Tab bar, ≤10 chars" },
+  "nav.tab.summary": { s: "Resumen", src: "414eb5b3", note: "Tab bar, ≤10 chars" },
+  "nav.tab.discover": { s: "Descubrir", src: "fa18c0ee", note: "Tab bar, ≤10 chars" },
+  "nav.tab.settings": { s: "Ajustes", src: "4b058728", note: "Tab bar, ≤10 chars" },
+  "nav.tab.mageIdBids": { s: "Ofertas", src: "92b80d34", note: "Tab bar, ≤10 chars; brand dropped to fit" },
+  "nav.tab.field": { s: "Campo", src: "0fb83d07", note: "Tab bar, ≤10 chars" },
+  "nav.tab.schedule": { s: "Cronograma", src: "a3f9baec", note: "Tab bar, ≤10 chars" },
+  "nav.tab.money": { s: "Dinero", src: "b34b4bef", note: "Tab bar, ≤10 chars" },
+  "nav.section.thisJob": { s: "ESTA OBRA", src: "14b2e07a", note: "Sidebar section header, uppercase" },
+  "nav.section.planning": { s: "PLANEACIÓN", src: "fc82cae4", note: "Sidebar section header, uppercase" },
+  "nav.section.fieldOps": { s: "CAMPO", src: "5c7788db", note: "Sidebar section header, uppercase" },
+  "nav.section.financials": { s: "FINANZAS", src: "d8bec61d", note: "Sidebar section header, uppercase" },
+  "nav.section.client": { s: "CLIENTE", src: "6d3cd99e", note: "Sidebar section header, uppercase" },
+  "nav.section.workspace": { s: "MI TRABAJO", src: "681a8a96", note: "Sidebar section header, uppercase" },
+  "nav.section.business": { s: "NEGOCIO", src: "9cb5b78b", note: "Sidebar section header, uppercase" },
+  "nav.item.overview": { s: "Resumen de la obra", src: "6a494fba" },
+  "nav.item.schedule": { s: "Cronograma", src: "a3f9baec" },
+  "nav.item.dailyReports": { s: "Reportes diarios", src: "730e7ce9" },
+  "nav.item.rfis": { s: "RFIs", src: "3d0a4449" },
+  "nav.item.submittals": { s: "Submittals", src: "c0e61737" },
+  "nav.item.changeOrders": { s: "Órdenes de cambio", src: "c6ee7a3e" },
+  "nav.item.invoices": { s: "Facturas", src: "1a59b7f9" },
+  "nav.item.punchList": { s: "Pendientes", src: "d6830e45" },
+  "nav.item.estimate": { s: "Estimado", src: "2649bd57" },
+  "nav.item.plans": { s: "Planos", src: "88c56053" },
+  "nav.item.tmTickets": { s: "Boletas T&M", src: "3976055f" },
+  "nav.item.timeTracking": { s: "Control de horas", src: "77df7df5" },
+  "nav.item.photoTriage": { s: "Clasificar fotos", src: "57f75bad" },
+  "nav.item.safety": { s: "Seguridad", src: "b04d1727" },
+  "nav.item.deliveries": { s: "Entregas de material", src: "bc7167e9" },
+  "nav.item.equipment": { s: "Maquinaria y equipo", src: "fba7f597" },
+  "nav.item.tomorrowLineup": { s: "Plan de mañana", src: "da146657" },
+  "nav.item.projects": { s: "Proyectos", src: "64fda4d7" },
+  "nav.item.summary": { s: "Resumen", src: "414eb5b3" },
+  "nav.item.inbox": { s: "Bandeja", src: "880e46db" },
+  "nav.item.askMage": { s: "Pregúntale a MAGE", src: "d2558240" },
+  "nav.item.subs": { s: "Subcontratistas", src: "b550a7b2" },
+  "nav.item.contacts": { s: "Contactos", src: "c8ae1110" },
+  "nav.item.crew": { s: "Cuadrilla", src: "15f02898" },
+  "nav.item.settings": { s: "Ajustes", src: "4b058728" },
+};

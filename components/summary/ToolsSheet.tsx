@@ -19,7 +19,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge, Library, PenTool, BellRing,
-  Hourglass, ShieldCheck, CalendarCheck, type LucideIcon,
+  Hourglass, ShieldCheck, CalendarCheck, Lock, type LucideIcon,
 } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -27,6 +27,12 @@ import { Tokens } from '@/constants/designTokens';
 import { NavRow } from '@/components/NavRow';
 import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { pickDefaultProjectId } from '@/utils/defaultProjectId';
+import { lineupToolsDoor } from '@/utils/uxDoors';
+import { showAlert } from '@/utils/alert';
 
 interface SheetRow {
   /** Registry row this goes to — owns the destination. */
@@ -70,11 +76,33 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
   // sidebar. Phone: every part is null — today's sheet, byte for byte.
   const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
+  // W1 UXDOORS: "Tomorrow's lineup" (still the LAST row) opens on his
+  // default job when there is one (pickDefaultProjectId: his pick → recent,
+  // never a guess); with none, the bare screen asks which project. Gated like
+  // the screen: schedule_gantt_pdf through useProjectAccess on that job, so a
+  // collaborator's grant on it counts (app/tomorrow-lineup.tsx does the same).
+  const { projects } = useProjects();
+  const { activeProjectId, recentProjectIds } = useActiveProject();
+  const lineupProjectId = pickDefaultProjectId({ activeProjectId, recentProjectIds, projects });
+  const { canAccess, requiredTierFor } = useProjectAccess(lineupProjectId ?? undefined);
+  const lineupDoor = lineupToolsDoor({
+    projectId: lineupProjectId,
+    canAccess: canAccess('schedule_gantt_pdf'),
+    requiredTier: requiredTierFor('schedule_gantt_pdf'),
+  });
+
   // Navigate by registry route, not by the row's literal, so a stale literal
   // sends nobody anywhere wrong in the window before the guard is next run.
   const go = useCallback(
-    (row: SheetRow) => onNavigate(featureFor(row.feature).route),
-    [onNavigate],
+    (row: SheetRow) => {
+      if (row.feature !== 'tomorrow-lineup') { onNavigate(featureFor(row.feature).route); return; }
+      if (lineupDoor.kind === 'open') { onNavigate(lineupDoor.path); return; }
+      showAlert(lineupDoor.title, lineupDoor.message, [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'See plans', onPress: () => onNavigate('/paywall') },
+      ]);
+    },
+    [onNavigate, lineupDoor],
   );
 
   return (
@@ -90,16 +118,19 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
         {fX.showHandle && <View style={styles.handle} />}
         <Text style={styles.title}>Tools</Text>
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
-          {SHEET_ROWS.map(row => (
-            <NavRow
-              key={row.feature}
-              Icon={row.Icon}
-              title={row.title}
-              subtitle={row.subtitle}
-              onPress={() => go(row)}
-              testID={row.testID}
-            />
-          ))}
+          {SHEET_ROWS.map(row => {
+            const locked = row.feature === 'tomorrow-lineup' && lineupDoor.kind === 'locked' ? lineupDoor : null;
+            return (
+              <NavRow
+                key={row.feature}
+                Icon={locked ? Lock : row.Icon}
+                title={row.title}
+                subtitle={locked ? locked.subtitle : row.subtitle}
+                onPress={() => go(row)}
+                testID={row.testID}
+              />
+            );
+          })}
         </ScrollView>
       </View>
       </SheetOverlay>

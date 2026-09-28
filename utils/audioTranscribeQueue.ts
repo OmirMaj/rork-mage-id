@@ -108,6 +108,29 @@ async function writeQueue(queue: AudioTranscribeTask[]): Promise<void> {
   await AsyncStorage.setItem(AUDIO_QUEUE_KEY, serializeAudioQueue(queue));
 }
 
+// ── Change feed (UX wave, A6) ───────────────────────────────────────────────
+//
+// The sync pill counts the voice notes waiting, and the global mic files a
+// voice note the moment its transcript arrives. Both need to hear when the
+// queue moved. This is a notification only: it carries no data (listeners
+// re-read the queue), changes nothing about persistence, the retry budget,
+// dedupe, the cap or the give-up rules, and a listener that throws never
+// reaches the queue.
+type AudioQueueListener = () => void;
+const audioQueueListeners = new Set<AudioQueueListener>();
+
+/** Hear every change to the dictation queue. Returns the unsubscribe. */
+export function onAudioQueueChange(listener: AudioQueueListener): () => void {
+  audioQueueListeners.add(listener);
+  return () => { audioQueueListeners.delete(listener); };
+}
+
+function emitAudioQueueChange(): void {
+  for (const l of [...audioQueueListeners]) {
+    try { l(); } catch {/* a listener's failure is its own */}
+  }
+}
+
 /**
  * A dictation is gone for good. Say so, every time. A recording silently
  * discarded after N failures is the original bug in a slower form, and there is
@@ -254,6 +277,7 @@ export async function queueAudioTranscription(input: QueueAudioInput): Promise<Q
     // see" — see scheduleOpportunisticDrain.
     queuedSinceSnapshot = true;
     scheduleOpportunisticDrain();
+    emitAudioQueueChange();
     return { saved: true, task };
   } catch (err) {
     console.warn('[AudioQueue] Failed to save the recording:', err);
@@ -326,7 +350,7 @@ export function processAudioTranscribeQueue(): Promise<AudioFlushResult> {
       console.warn('[AudioQueue] Drain failed; everything stays queued:', err);
       return { ...EMPTY_FLUSH };
     })
-    .finally(() => { inFlight = null; });
+    .finally(() => { inFlight = null; emitAudioQueueChange(); });
   return inFlight;
 }
 
@@ -497,13 +521,15 @@ export async function getContextDictation(contextKey: string): Promise<ContextDi
  * already pasted into it twice.
  */
 export async function takeTranscript(id: string): Promise<string | null> {
-  return withQueueLock(async () => {
+  const text = await withQueueLock(async () => {
     const current = await getAudioTranscribeQueue();
     const { queue, taken } = takeReadyTranscript(current, id);
     if (!taken) return null;
     await writeQueue(queue);
     return taken.transcript ?? null;
   });
+  if (text !== null) emitAudioQueueChange();
+  return text;
 }
 
 // ── Tenant boundary ─────────────────────────────────────────────────────────
@@ -522,6 +548,7 @@ export async function clearAudioTranscribeQueue(): Promise<void> {
     return current;
   });
   for (const t of cleared) void discardRecording(t);
+  emitAudioQueueChange();
 }
 
 /** Keep only `userId`'s dictation; drop and unlink the rest. Twin of
@@ -551,5 +578,6 @@ export async function retainAudioTranscribeQueueForUser(
     return { gone: current.filter((t) => !keptSet.has(t)), kept: own.length, readFailed: false };
   });
   for (const t of res.gone) void discardRecording(t);
+  emitAudioQueueChange();
   return { kept: res.kept, dropped: res.gone.length, readFailed: res.readFailed };
 }

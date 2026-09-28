@@ -175,24 +175,24 @@ ok('screen: says where the words come from', /Headlines and summaries come from 
 // ── Doors ──────────────────────────────────────────────────────────────────
 ok('route file exists', existsSync(join(ROOT, 'app', 'construction-news.tsx')));
 const layout = read('app/_layout.tsx');
-ok("Stack registers /construction-news titled 'Construction News'",
-  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction News"/.test(layout));
-eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction News');
+ok("Stack registers /construction-news titled 'Construction news'",
+  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction news"/.test(layout));
+eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction news');
 const tools = read('app/(tabs)/discover/tools.tsx');
-ok('Discover ▸ Tools has a Construction News tile (phone door)',
-  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction News'[^}]*section: 'INDUSTRY' \}/.test(tools)
+ok('Discover ▸ Tools has a Construction news tile (phone door)',
+  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction news'[^}]*section: 'INDUSTRY' \}/.test(tools)
   && /'AI HUB', 'INDUSTRY', 'DECISIONS'/.test(tools));
 ok('the Tools tile opens its own route when it has no registry row',
   /row\.feature \? featureFor\(row\.feature\)\.route : row\.route/.test(tools) && /if \(!row\.feature\) return undefined;/.test(tools));
 const sidebar = read('components/DesktopSidebar.tsx');
 // Wave 6c moved the row from WORKSPACE into SETUP & TOOLS (WORKSPACE back to
 // six rows above the fold on the founder's 858 px viewport); either is a door.
-ok('DesktopSidebar has a Construction News row (desktop door, same label)',
-  /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news',\s+section: '(?:WORKSPACE|SETUP & TOOLS)'(, feature: 'construction-news')? \}/.test(sidebar));
+ok('DesktopSidebar has a Construction news row (desktop door, same label)',
+  /\{ key: 'construction-news', label: 'Construction news', icon: Newspaper,\s+route: '\/construction-news',\s+section: '(?:WORKSPACE|SETUP & TOOLS)'(, feature: 'construction-news')? \}/.test(sidebar));
 // Integration round 1: the ⌘K registry row landed (validate-feature-search
 // requires every sidebar route to be searchable), so the row names it.
 ok('the registry has a construction-news row on the same route, ungated',
-  /\{ id: 'construction-news', title: 'Construction News', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
+  /\{ id: 'construction-news', title: 'Construction news', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

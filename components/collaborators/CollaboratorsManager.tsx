@@ -455,7 +455,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
               <Button label="Open the client portal" size="sm" variant="secondary" onPress={onOpenClientPortal} testID="collab-open-client-portal" />
             ) : (
               <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-client-portal-hint">
-                Invite them from the Client Portal tile on this project.
+                Invite them from the Client portal tile on this project.
               </Text>
             )
           ) : null}

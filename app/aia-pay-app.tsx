@@ -2666,7 +2666,7 @@ function AIAPayAppScreenInner() {
                 icon={Banknote}
                 headline="Advances on certified pay apps"
                 body="Pay-app money waits with the owner until they certify and release it. We are looking at a factoring partner that could advance part of a certified amount. No partner is signed yet, so there are no rates or timelines to show."
-                footer="Not available yet — tap to be told when it is"
+                footer="Not available yet. Tap to be told when it is."
                 testID="aia-factoring-cta"
               />
               <RevenueEarlyAccessCard
@@ -2674,7 +2674,7 @@ function AIAPayAppScreenInner() {
                 icon={FileSignature}
                 headline="Lien waivers drafted when a pay app is paid"
                 body="We are working on drafting conditional and unconditional waivers for every sub paid out of a funded pay app. Bank-held escrow would need a partner bank, and none is signed. For now, request and track waivers in Lien waivers."
-                footer="Not available yet — tap to be told when it is"
+                footer="Not available yet. Tap to be told when it is."
                 testID="aia-lienwaiver-cta"
               />
             </>

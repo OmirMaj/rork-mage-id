@@ -100,7 +100,18 @@ interface Props {
    * caller gets the offline path without being changed.
    */
   queueKey?: string;
+  /**
+   * UX wave, A3: start recording as soon as the sheet is visible — the same
+   * path as tapping the record button, so a first run still gets the iOS
+   * permission prompt and a refusal still shows the Settings message. Defaults
+   * to false: every existing caller is unchanged. Never on the web.
+   */
+  autoStart?: boolean;
 }
+
+/** Let the sheet finish presenting before the recorder starts (and before a
+ *  first-run permission prompt tries to present over it). */
+const AUTO_START_DELAY_MS = 350;
 
 export default function VoiceCaptureModal({
   visible, onClose, onTranscriptReady,
@@ -109,6 +120,7 @@ export default function VoiceCaptureModal({
   suggestions = [],
   topicChecklist,
   queueKey,
+  autoStart = false,
 }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -171,9 +183,19 @@ export default function VoiceCaptureModal({
     await refreshQueued();
   }, [refreshQueued]);
 
+  // A3 autoStart: the latest startRecording, read by the open effect below
+  // (declared further down; the effect only runs after this render).
+  const startRecordingRef = useRef<() => Promise<void>>(async () => {});
+  // Only an idle sheet auto-starts: a tap that already started a recording
+  // inside the delay must not be replaced by a second one.
+  const stepRef = useRef<Step>(step);
+  stepRef.current = step;
+  const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Fully reset when the modal opens — a previous session could have
   // left state hanging if dismissal happened mid-recording.
   useEffect(() => {
+    if (autoStartTimerRef.current) { clearTimeout(autoStartTimerRef.current); autoStartTimerRef.current = null; }
     if (visible) {
       setStep('idle');
       setErrorMsg(null);
@@ -187,6 +209,12 @@ export default function VoiceCaptureModal({
         const state = await refreshQueued();
         if (state.pending.length > 0) await transcribeNow();
       })();
+      if (autoStart && Platform.OS !== 'web') {
+        autoStartTimerRef.current = setTimeout(() => {
+          autoStartTimerRef.current = null;
+          if (aliveRef.current && stepRef.current === 'idle') void startRecordingRef.current();
+        }, AUTO_START_DELAY_MS);
+      }
     } else {
       // Modal closing — make sure we don't leave a recording armed.
       void cleanupRecording();
@@ -314,6 +342,10 @@ export default function VoiceCaptureModal({
       setStep('error');
     }
   }, [startPulse]);
+  startRecordingRef.current = startRecording;
+  useEffect(() => () => {
+    if (autoStartTimerRef.current) clearTimeout(autoStartTimerRef.current);
+  }, []);
 
   const stopAndTranscribe = useCallback(async () => {
     stopPulse();

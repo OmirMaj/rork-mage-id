@@ -285,7 +285,9 @@ ok(`all ${discovered.size - survivors.size} written keys are removed on tenant s
 // trivially silenceable: drop `mageid_change_orders` into DEVICE_SCOPED_KEYS
 // and the loop just skips it. Adding a survivor is a decision to leave data
 // behind for the next tenant, so it has to be made in two places at once.
-const EXPECTED_DEVICE_SCOPED = ['mageid_theme', 'mage_analytics_distinct_id'];
+// mageid_language (i18n handoff 06): the app-language choice, a display preference
+// like mageid_theme — keeps the sign-in screen in Spanish on a shared crew phone.
+const EXPECTED_DEVICE_SCOPED = ['mageid_theme', 'mage_analytics_distinct_id', 'mageid_language'];
 const added = DEVICE_SCOPED_KEYS.filter((k) => !EXPECTED_DEVICE_SCOPED.includes(k));
 const removed = EXPECTED_DEVICE_SCOPED.filter((k) => !DEVICE_SCOPED_KEYS.includes(k));
 ok('DEVICE_SCOPED_KEYS is exactly the reviewed survivor set',

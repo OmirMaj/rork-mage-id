@@ -36,7 +36,7 @@ const TERMS_OPTIONS = [
   { value: 'net_15', label: 'Net 15' },
   { value: 'net_30', label: 'Net 30' },
   { value: 'net_45', label: 'Net 45' },
-  { value: 'due_on_receipt', label: 'Due on Receipt' },
+  { value: 'due_on_receipt', label: 'Due on receipt' },
 ];
 
 import { useTheme } from '@/contexts/ThemeContext';

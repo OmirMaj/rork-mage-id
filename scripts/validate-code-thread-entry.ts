@@ -143,7 +143,7 @@ check('a permit is built by permitDraftFromCodeItem and written through addPermi
   /addPermit\(\s*permitDraftFromCodeItem\(\{/.test(cta));
 check("'Schedule via Roadmap' opens the roadmap mode, with its caption, and records nothing",
   cta.includes('label="Schedule via Roadmap"')
-  && cta.includes("'Inspections are scheduled from the Project Roadmap, which dates them against your permits and lead times.'")
+  && cta.includes("'Inspections are scheduled from the project roadmap, which dates them against your permits and lead times.'")
   && /go\(codeCheckRoute\(\{ projectId: record\.projectId, mode: 'roadmap' \}\)\)/.test(cta)
   && !/runAdd\('roadmap'/.test(cta));
 check('a punch item is built by punchDraftFromCodeItem with a generated id and written through addPunchItem',

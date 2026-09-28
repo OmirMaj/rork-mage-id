@@ -98,8 +98,8 @@ const pro = planFeatureLines('pro'), biz = planFeatureLines('business');
 ok('Pro lists the Plan Viewer (plan_markup is Pro)', pro.some(l => /Plan viewer/i.test(l)) && REQUIRED_TIER.plan_markup === 'pro');
 ok('Pro lists RFIs & Submittals (rfis_submittals is Pro)', pro.some(l => /RFIs/.test(l)));
 ok('Business names neither', !biz.some(l => /Plan Viewer|RFIs|Submittals/i.test(l)));
-ok('Business lists Ask Your Plans', biz.some(l => /Ask Your Plans/.test(l)));
-ok('Business web blurb names no Pro feature', !/RFI|submittal|plan viewer|(?<!Your )\bplans\b/i.test(planFeatureBlurb('business')), planFeatureBlurb('business'));
+ok('Business lists Ask your plans', biz.some(l => /Ask your plans/i.test(l)));
+ok('Business web blurb names no Pro feature', !/RFI|submittal|plan viewer|(?<![Yy]our )\bplans\b/i.test(planFeatureBlurb('business')), planFeatureBlurb('business'));
 {
   const modal = code(read('components/Paywall.tsx'));
   ok('Paywall modal: PRO_BENEFITS / BUSINESS_BENEFITS come from planFeatureLines',

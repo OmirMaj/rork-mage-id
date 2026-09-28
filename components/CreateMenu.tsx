@@ -113,15 +113,15 @@ interface CreateOption {
 
 const OPTIONS: CreateOption[] = [
   // Project-level
-  { label: 'Start by voice', subtitle: 'Just say the job — MAGE sets it up and drops you inside', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
-  { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
+  { label: 'Start by voice', subtitle: 'Say the project out loud and MAGE sets it up', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
+  { label: 'Project', subtitle: 'Start a new project from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
   { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: MageEstimate, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
   { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: MageSchedule, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
   { label: 'Lead', subtitle: 'Capture a client inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
   { label: 'Lead by voice', subtitle: 'Say what the client told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
-  { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
+  { label: 'Quick Quote', subtitle: 'Fast bid for a small project', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
   { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: MageInvoice, href: '/invoice', feature: 'invoice', category: 'money', scoped: true },
   { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: MageChangeOrder, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
   // "Progress draw", not "Progress Billing, AIA G702/G703" — the GC's word

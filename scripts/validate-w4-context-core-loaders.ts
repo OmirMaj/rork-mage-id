@@ -225,7 +225,11 @@ console.log('\n#5 — money rows written while a read is out keep their device c
   ok('addInvoice\'s INSERT is touched', /const insert = touchedWrite\(proDocWriteTouchRef, finalInvoice\.id, \(\) => supabaseWriteDetailed\('invoices', 'insert'/.test(CTX));
   ok('updateInvoice\'s write is touched for its whole life', /const invoiceWrite: Promise<boolean> = touchedWrite\(proDocWriteTouchRef, id, async \(\) => \{/.test(CTX));
   ok('addAIAPayApp\'s upsert is touched', /touchedWrite\(proDocWriteTouchRef, finalApp\.id, \(\) => supabaseWrite\('aia_pay_apps', 'upsert'/.test(CTX));
-  ok('deleteAIAPayApp and the displaced de-dupe deletes are touched', (CTX.match(/touchedWrite\(proDocWriteTouchRef, (?:a\.id|id), \(\) => supabaseWrite\('aia_pay_apps', 'delete'/g) ?? []).length === 2);
+  // Every aia_pay_apps delete is touched: deleteAIAPayApp, addAIAPayApp's displaced de-dupe and (moments Step 0)
+  // saveAIAPayAppOnline's displaced de-dupe. Counted against ALL deletes, so a new untouched one still fails.
+  ok('deleteAIAPayApp and the displaced de-dupe deletes are touched',
+    (CTX.match(/touchedWrite\(proDocWriteTouchRef, (?:a\.id|id), \(\) => supabaseWrite\('aia_pay_apps', 'delete'/g) ?? []).length >= 2
+      && (CTX.match(/touchedWrite\(proDocWriteTouchRef, (?:a\.id|id), \(\) => supabaseWrite\('aia_pay_apps', 'delete'/g) ?? []).length === (CTX.match(/supabaseWrite\('aia_pay_apps', 'delete'/g) ?? []).length);
   ok('commitment inserts (add + award), update and delete are touched',
     (CTX.match(/touchedWrite\(proDocWriteTouchRef, (?:c\.id|commitment\.id), \(\) => supabaseWrite\('commitments', 'insert'/g) ?? []).length === 2
     && /touchedWrite\(proDocWriteTouchRef, id, \(\) => updateBehindQueuedInsert\('commitments'/.test(CTX)

@@ -678,7 +678,7 @@ function PrequalManagerInner() {
             icon={Scale}
             headline="Renewal quotes for expiring sub insurance"
             body="We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."
-            footer="Not available yet — tap to be told when it is"
+            footer="Not available yet. Tap to be told when it is."
             testID="coi-requote-cta"
           />
         )}

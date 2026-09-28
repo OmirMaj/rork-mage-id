@@ -220,8 +220,9 @@ console.log('\nB. a refused Record Payment is not also parked under Not saved');
   ok('failDirectWrite skips the ledger line AND the toast for it', /if \(ledger && !opts\?\.callerOwnsRefusal && !opts\?\.ledgerRetry && !foreignSession\) \{/.test(fail) && /if \(!opts\?\.callerOwnsRefusal && sameSession\) \{\s*try \{[\s\S]*?oops\(/.test(fail));
   ok('the refused alert no longer blames the connection (a dropped signal queues)',
     /'Payment not recorded', `The server did not accept the \$\{formatCurrency\(amt\)\} payment — nothing was recorded\./.test(INV) && !/could not be saved — nothing was recorded\. Check your connection/.test(INV));
-  ok('the queued alert says where it waits, not "You\'re offline"',
-    /It is waiting in this phone's sync queue/.test(INV) && !/You're offline, so it reaches your books/.test(INV));
+  ok('the queued alert says where it waits, not "You\'re offline" (and never calls it recorded)',
+    /payment saved on this phone\. It reaches your books as soon as it goes through\./.test(INV)
+    && !/You're offline, so it reaches your books/.test(INV) && !/sync queue/.test(INV));
 }
 
 // A fake PostgREST that honours eq / is filters and answers .select() with

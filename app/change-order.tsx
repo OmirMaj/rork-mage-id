@@ -84,6 +84,8 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
+import { coStatusLabel } from '@/utils/logs/changeOrderLogRows';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { cardSurface } from '@/components/ui';
 
@@ -191,7 +193,7 @@ function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      {logHost ? null : <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />}
+      {logHost ? null : <ToolHeader eyebrow="Change orders · MAGE ID" title="Change order" />}
       <View style={styles.gateBody}>
         {gate === 'loading' ? (
           <Text style={styles.gateText}>{copy.body}</Text>
@@ -277,8 +279,8 @@ function coGateState(opts: {
  *  the client and then the save be refused ("No Items"), leaving a CO number
  *  in the client's inbox that exists nowhere. */
 export function coSaveBlocker(o: { description: string; lineItemCount: number }): { title: string; message: string } | null {
-  if (!o.description.trim()) return { title: 'Missing Description', message: 'Please enter a description for this change order.' };
-  if (o.lineItemCount === 0) return { title: 'No Items', message: 'Please add at least one line item.' };
+  if (!o.description.trim()) return { title: 'Add a description', message: 'Enter a description for this change order.' };
+  if (o.lineItemCount === 0) return { title: 'Add a line item', message: 'A change order needs at least one line item.' };
   return null;
 }
 
@@ -415,27 +417,27 @@ export function coOwnedLocally(ownerUserId: string | null | undefined, userId: s
 }
 
 export function coRoleBlockedCopy(gate: Exclude<CoRoleGate, 'open'>, role: string | null): { title: string; body: string; canFileReport: boolean } {
-  if (gate === 'loading') return { title: '', body: 'Checking your role on this job…', canFileReport: false };
+  if (gate === 'loading') return { title: '', body: 'Checking your role on this project…', canFileReport: false };
   if (gate === 'error') {
     return {
-      title: 'Could not check your role on this job',
+      title: "Couldn't check your role on this project",
       body: 'MAGE could not load who is on this project, so it cannot tell whether you may write change orders here. Check your connection and try again.',
       canFileReport: false,
     };
   }
   if (gate === 'no_access') {
     return {
-      title: 'You are not on this job',
+      title: "You're not on this project",
       body: 'This project is not shared with your account (or your access was removed), so you cannot open its change orders.',
       canFileReport: false,
     };
   }
   const canFileReport = role === 'field' || role === 'editor';
   return {
-    title: 'Your GC creates change orders on this job',
+    title: 'Your GC creates change orders on this project',
     body: canFileReport
       ? 'Send it as a field issue instead: log the extra work in a daily report, and the project owner sees it there and writes the change order. A change order written from your account would not reach your GC.'
-      : 'Your seat on this project is view-only. Tell the project owner about the extra work so they can write the change order.',
+      : 'You have view access on this project. Tell the account owner about the extra work so they can write the change order.',
     canFileReport,
   };
 }
@@ -755,7 +757,7 @@ export function coPipelineFor(status: CoW4Status): {
   const head: { key: CoW4Status; label: string; terminal?: boolean }[] = [
     { key: 'draft', label: 'Draft' },
     { key: 'submitted', label: 'Submitted' },
-    { key: 'under_review', label: 'In Review' },
+    { key: 'under_review', label: 'In review' },
   ];
   if (status === 'rejected') return { stages: [...head, { key: 'rejected', label: 'Declined', terminal: true }], current: 'rejected', canAdvance: false };
   if (status === 'void') return { stages: [...head, { key: 'void', label: 'Void', terminal: true }], current: 'void', canAdvance: false };
@@ -928,7 +930,7 @@ export function coPortalSendGate(o: {
  */
 export function coStaleNumberHold(localNumber: number | undefined, confirmedNumber: number | null): string | null {
   if (localNumber == null || confirmedNumber == null || localNumber === confirmedNumber) return null;
-  return `MAGE numbered this change order #${confirmedNumber} (#${localNumber} was already used on this job). Tap Save to Project to update it on this device, then share it.`;
+  return `MAGE numbered this change order #${confirmedNumber} (#${localNumber} was already used on this project). Tap Save to Project to update it on this device, then share it.`;
 }
 
 /** #72 — the manual approval line as the viewer reads it: his own mark says
@@ -1074,7 +1076,7 @@ function ChangeOrderGate() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />
+      <ToolHeader eyebrow="Change orders · MAGE ID" title="Change order" />
       <View style={styles.gateBody}>
         {state === 'loading' ? (
           <Text style={styles.gateText}>Loading this change order…</Text>
@@ -1566,7 +1568,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const handleAddNewItem = useCallback(() => {
     const name = newItemName.trim();
     if (!name) {
-      showAlert('Missing Name', 'Please enter an item name.');
+      showAlert('Add a name', 'Enter an item name.');
       return;
     }
     const qty = parseFloat(newItemQty) || 0;
@@ -2145,7 +2147,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       return;
     }
     withConfirmedImpactDays(() => showAlert(
-      'Issue as Construction Change Directive?',
+      'Issue as a construction change directive?',
       'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
       [
         { text: 'Lump sum (estimate stated)',  onPress: () => generateCcd('lump_sum') },
@@ -2201,13 +2203,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     setShowSendRecipient(false);
     const saved = persistCO('draft', sendRecipientName, sendRecipientEmail, { recordRecipient: true });
     if (!saved) { releaseSending(); return; }
-    nailIt('Saved as a draft — send opens once MAGE confirms its number');
+    nailIt('Saved as a draft. Send opens once MAGE confirms its number.');
     router.setParams({ coId: saved.id, sendNext: '1' });
   }, [persistCO, sendRecipientName, sendRecipientEmail, releaseSending, router]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
-      showAlert('Email Required', 'Please enter a recipient email address.');
+      showAlert('Add an email', 'Enter the recipient email address.');
       return;
     }
     // Sample fence (utils/sampleGuard): a sample job is a real synced row a
@@ -2307,6 +2309,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       })();
       const subject = `Change order #${coNum}: ${sign}${moneyShort} · ${project?.name ?? 'Project'}`;
 
+      // A send that throws never leaves the controls locked (releaseSending).
       let result: Awaited<ReturnType<typeof sendEmail>>;
       try {
         result = await sendEmail({
@@ -2318,9 +2321,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'co_approval', enabled: true },
         });
       } catch (e) {
-        // Never leave the controls locked behind a send that threw.
         releaseSending();
-        showAlert('Not sent', `The email was not sent and nothing was saved: ${e instanceof Error ? e.message : 'unknown error'}. Your change order is still open here.`);
+        console.warn('[ChangeOrder] send failed:', e);
+        const why = ownSentence(e) ?? describeError(e, { action: 'send the change order' }).body;
+        showAlert('Not sent', `The email was not sent and nothing was saved. ${why} Your change order is still open here.`);
         return;
       }
 
@@ -2419,7 +2423,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         // the credit is already inside the New Contract Total shown above.
         return {
           canBill: false,
-          reason: `This change order is a ${formatMoney(Math.abs(state.amount), 2)} credit, not a charge. It is already off the New Contract Total above, so there is no invoice line to raise for it.`,
+          reason: `This change order is a ${formatMoney(Math.abs(state.amount), 2)} credit, not a charge. It is already off the new contract total above, so there is no invoice line to raise for it.`,
         };
       case 'no_value':
         return { canBill: false, reason: 'This change order carries no dollar value, so there is nothing to bill.' };
@@ -2605,9 +2609,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        {logHost ? null : <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Orders" />}
+        {logHost ? null : <ToolHeader eyebrow="Change orders · MAGE ID" title="Change orders" />}
         <ToolProjectPicker
-          toolName="Change Orders"
+          toolName="Change orders"
           message="A change order adjusts an existing contract amount, so it is written against one project."
           projects={projects}
           onPick={setPickedProjectId}
@@ -2628,8 +2632,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       <Stack.Screen options={{ headerShown: false }} />
       {logHost ? null : (
         <ToolHeader
-          eyebrow="CHANGE ORDERS · MAGE ID"
-          title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New Change Order'}
+          eyebrow="Change orders · MAGE ID"
+          title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New change order'}
         />
       )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -2654,7 +2658,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             {existingCO && (
               <View style={[styles.statusBadge, { backgroundColor: getStatusBg(themeColors, existingCO.status) }]}>
                 <Text style={[styles.statusText, { color: getStatusText(themeColors, existingCO.status) }]}>
-                  {existingCO.status.charAt(0).toUpperCase() + existingCO.status.slice(1)}
+                  {coStatusLabel(existingCO.status) ?? ''}
                 </Text>
               </View>
             )}
@@ -2678,7 +2682,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {existingCO && serverNumber.renumberedFrom != null && confirmedNumber != null && serverNumber.renumberedFrom !== confirmedNumber && (
             <View style={styles.numberNote} testID="co-renumbered">
               <Text style={styles.numberNoteText}>
-                {`This change order was #${serverNumber.renumberedFrom} on this device, but #${serverNumber.renumberedFrom} was already used on this job, so MAGE numbered it #${confirmedNumber}. Everything you send uses #${confirmedNumber}.`}
+                {`This change order was #${serverNumber.renumberedFrom} on this device, but #${serverNumber.renumberedFrom} was already used on this project, so MAGE numbered it #${confirmedNumber}. Everything you send uses #${confirmedNumber}.`}
               </Text>
             </View>
           )}
@@ -2825,7 +2829,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             {coMargin && !coMargin.basisKnown && (
               <Text style={styles.coMarginNote}>
                 {coMargin.unpricedCount === lineItems.length
-                  ? 'MAGE does not know what these lines cost you — they were dictated or typed as a finished price — so it cannot show the margin on this change order.'
+                  ? "No cost on file for these lines, so margin can't be shown."
                   : `${coMargin.unpricedCount} of these ${lineItems.length} lines has no cost recorded against it, so the margin on this change order cannot be shown.`}
               </Text>
             )}
@@ -2874,7 +2878,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             )}
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
-              <Text style={styles.grandLabel}>{taxRatePct > 0 && changeAmount !== 0 ? 'New Contract Total (pre-tax)' : 'New Contract Total'}</Text>
+              <Text style={styles.grandLabel}>{taxRatePct > 0 && changeAmount !== 0 ? 'New contract total (pre-tax)' : 'New contract total'}</Text>
               <TapeRollNumber
                 value={newContractTotal}
                 formatter={formatCurrency}
@@ -2939,7 +2943,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   style={styles.textArea}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="Describe the change..."
+                  placeholder="Describe the change"
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
@@ -3067,7 +3071,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       : existingCO.status === 'approved'
                         ? ((project?.schedule?.tasks?.length ?? 0) > 0
                           ? ' — approved but not yet placed on the schedule.'
-                          : ' — approved, but this job has no schedule to place them on yet.')
+                          : ' — approved, but this project has no schedule to place them on yet.')
                         : ' — not applied yet'}
                   </Text>
                 ) : null}
@@ -3093,7 +3097,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
           <View style={styles.fieldSection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.fieldLabel}>Line Items</Text>
+              <Text style={styles.fieldLabel}>Line items</Text>
               {isDesktopWeb && (
                 <SegmentedControl
                   size="sm"
@@ -3268,7 +3272,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             >
               <FileText size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.ccdLinkText}>
-                Need work to start before pricing is agreed? Issue as Construction Change Directive (G714)
+                Need work to start before pricing is agreed? Issue as a construction change directive (G714)
               </Text>
             </TouchableOpacity>
           </View>
@@ -3379,7 +3383,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           <View style={[styles.modalOverlay, fSend.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Send for Approval To</Text>
+                <Text style={styles.modalTitle}>Send for approval to</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3403,7 +3407,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       {`${NO_CLIENT_ON_FILE}. Add the client on the project once and every change order fills it in.`}
                     </Text>
                   ) : null}
-                  <Text style={styles.modalFieldLabel}>Approver Name</Text>
+                  <Text style={styles.modalFieldLabel}>Approver name</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={sendRecipientName}
@@ -3428,7 +3432,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       activeOpacity={0.7}
                     >
                       <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                      <Text style={styles.pickContactText}>Pick from contacts</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -3490,7 +3494,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         visible={showContactPicker}
         onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
         contacts={contacts}
-        title="Select Approver"
+        title="Select approver"
         onSelect={(contact) => {
           const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
           setSendRecipientName(name);
@@ -3506,10 +3510,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           <View style={[styles.modalOverlay, fAddItem.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAddItem.card, fAddItem.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add New Item</Text>
+                <Text style={styles.modalTitle}>Add new item</Text>
                 <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
-              <Text style={styles.modalFieldLabel}>Item Name</Text>
+              <Text style={styles.modalFieldLabel}>Item name</Text>
               <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Description</Text>
               <TextInput style={styles.modalInput} value={newItemDesc} onChangeText={setNewItemDesc} placeholder="Optional description" placeholderTextColor={themeColors.textMuted} />
@@ -3520,7 +3524,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Unit</Text>
-                  <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft..." placeholderTextColor={themeColors.textMuted} />
+                  <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft" placeholderTextColor={themeColors.textMuted} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Your cost</Text>
@@ -3554,7 +3558,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     : 'At 0% this line goes to the client at what it costs you — no overhead, no profit.'}
               </Text>
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
-                <Text style={styles.modalAddBtnText}>Add Item</Text>
+                <Text style={styles.modalAddBtnText}>Add item</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -3565,7 +3569,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         <View style={[styles.modalOverlay, fEstimate.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }, fEstimate.card, fEstimate.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add from Estimate</Text>
+              <Text style={styles.modalTitle}>Add from estimate</Text>
               <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -3601,7 +3605,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         <View style={[styles.modalOverlay, fMaterial.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }, fMaterial.card, fMaterial.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Search Materials</Text>
+              <Text style={styles.modalTitle}>Search materials</Text>
               <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
@@ -3611,7 +3615,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 style={styles.matSearchInput}
                 value={materialQuery}
                 onChangeText={setMaterialQuery}
-                placeholder="Search lumber, concrete, HVAC..."
+                placeholder="Search lumber, concrete, HVAC"
                 placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="co-material-search"

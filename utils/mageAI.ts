@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { withLocalMonthlyReset } from '@/utils/aiRateLimiterCore';
+import { getLang } from '@/i18n/core';
+import type { Lang } from '@/i18n/types';
 
 // AI endpoint URL — derived from the single-source-of-truth constants
 // in lib/supabase.ts. Critical: this used to read process.env directly
@@ -28,6 +30,12 @@ interface MageAIParams {
    *  relay, no Pro floor) so EVERY call is tagged — the relay 400s a non-empty
    *  id it does not know (audit EDGE-F7). */
   feature?: string;
+  /** Reply language. Defaults to the user's app language (i18n getLang()).
+   *  Spanish sends `locale: 'es'` to the relay, which appends the
+   *  reply-language rule; English sends nothing new, so an English request is
+   *  byte-identical to before. Structured output (schema keys, enums) stays
+   *  English either way. */
+  lang?: Lang;
 }
 
 interface MageAIResult {
@@ -77,8 +85,10 @@ async function getCache(key: string): Promise<MageAIResult | null> {
  * call but should not be refused a result it already paid for (the Friday
  * Close's payment forecast, hooks/useWeekClose). Read-only; never throws.
  */
-export async function hasCachedMageAIResult(key: string): Promise<boolean> {
-  return (await getCache(key)) !== null;
+export async function hasCachedMageAIResult(key: string, lang: Lang = getLang()): Promise<boolean> {
+  // Same key mageAI() reads for this language — a Spanish request must not be
+  // told an ENGLISH answer is cached (it would then spend a credit anyway).
+  return (await getCache(lang === 'es' ? `${key}::es` : key)) !== null;
 }
 
 async function setCache(key: string, result: MageAIResult, hours: number) {
@@ -93,7 +103,12 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
   // + Schedule Builder); 30s was cutting too close and aborted before
   // Gemini finished. Pre-fix the user got "AI estimate unavailable" because
   // the abort fired during what would otherwise have been a successful call.
-  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2, timeoutMs = 60000, feature = 'general' } = params;
+  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey: baseCacheKey, cacheHours = 2, timeoutMs = 60000, feature = 'general' } = params;
+  const lang: Lang = params.lang ?? getLang();
+  // A Spanish answer must never be served to an English request (or back):
+  // Spanish gets its own cache entry. English keys are unchanged, so every
+  // existing English cache entry still hits.
+  const cacheKey = baseCacheKey && lang === 'es' ? `${baseCacheKey}::es` : baseCacheKey;
   if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
 
   // AbortController-based timeout. Without this, a hung edge function (or a
@@ -110,6 +125,8 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
     // sent ('general' when a call site does not tag itself) so the relay never
     // sees an untagged request from this build (audit EDGE-F7).
     payload.feature = feature;
+    // Reply language — only ever sent for Spanish (see MageAIParams.lang).
+    if (lang === 'es') payload.locale = 'es';
     if (schemaHint) {
       // An empty-array hint field (`lineItems: []`) tells the relay nothing
       // about the element, and it infers an array of STRINGS — the model is

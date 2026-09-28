@@ -42,6 +42,7 @@ import { anchorProjectIdFor } from '@/utils/resolveStarters';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { useShellDock } from '@/components/desktop/ShellDock';
 import { useAskDock } from '@/hooks/useAskDock';
+import { useSearch } from '@/contexts/SearchContext';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
 // clients/subs (they have no account and must see only what's shared), the
@@ -69,6 +70,9 @@ export function BrainFab() {
   const isDesktopWeb = useIsDesktopWeb();
   const dock = useShellDock();
   const { openAsk } = useAskDock();
+  // Undefined outside SearchProvider (a jest mount of the FAB alone).
+  const search = useSearch() as ReturnType<typeof useSearch> | undefined;
+  const openVoice = search?.openVoice;
   // A tutorial coach (spotlight, card, stamp or finale) is on screen: hide.
   // In card mode there are no dims over the FAB, and a tap on it opened /ask
   // mid-step, pausing the run (spec §16).
@@ -145,6 +149,15 @@ export function BrainFab() {
         : '/ask',
     );
   }, [router, segments, globalParams, isDesktopWeb, openAsk]);
+  // UX A3: hold the button to start a voice note, already recording, on the
+  // project the screen is on (the mic resolves it). Phone only — the web mic
+  // records nothing, so the web keeps just the tap.
+  const handleLongPress = useCallback(() => {
+    if (Platform.OS === 'web' || !openVoice) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    openVoice({ autoStart: true });
+  }, [openVoice]);
+  const canHoldForVoice = Platform.OS !== 'web' && !!openVoice;
 
   // Hide on public/tokenized viewers and the pre-auth flow.
   if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;
@@ -178,10 +191,12 @@ export function BrainFab() {
     >
       <AnimatedPressable
         onPress={handlePress}
+        onLongPress={canHoldForVoice ? handleLongPress : undefined}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         accessibilityRole="button"
-        accessibilityLabel="Open MAGE Brain"
+        accessibilityLabel="Ask MAGE"
+        accessibilityHint={canHoldForVoice ? 'Hold to record a voice note' : undefined}
         testID="brain-fab"
         style={[styles.fab, { transform: [{ scale: pulseScale }] }]}
       >

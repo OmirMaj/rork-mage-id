@@ -69,6 +69,8 @@ import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/util
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview, Permit, Project } from '@/types';
 import { recordInspectionResult } from '@/utils/inspectionPrep';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
+import { permitTypeLabel } from '@/utils/statusLabels';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
 import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
 import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
@@ -425,7 +427,7 @@ type PlanFindingSaved = CodeFinding & {
 /** How the roadmap result sheet names the permit it will write to. */
 function roadmapPermitLabel(p: Permit): string {
   const n = (p.permitNumber ?? '').trim();
-  return n ? `${n} permit` : `${p.type.replace(/_/g, ' ')} permit`;
+  return n ? `${n} permit` : permitTypeLabel(p.type);
 }
 
 export default function ConstructionAITab() {
@@ -453,7 +455,7 @@ export default function ConstructionAITab() {
             testID="construction-ai-upgrade"
           >
             <MageAIMark size={18} color="#FFF" />
-            <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
+            <Text style={styles.lockedCtaText}>See plans</Text>
           </TouchableOpacity>
         </View>
         <Paywall
@@ -1175,7 +1177,10 @@ function ConstructionAIScreenInner() {
       // counter on success — no client-side increment needed.
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      showAlert('Plan review failed', e instanceof Error ? e.message : 'Please try again.');
+      console.warn('[construction-ai] plan review failed:', e);
+      const own = ownSentence(e);
+      const copy = describeError(e, { action: 'run the plan review' });
+      showAlert(own ? "Couldn't run the plan review" : copy.title, own ?? copy.body);
     } finally {
       setPlanLoading(false);
     }
@@ -1353,7 +1358,10 @@ Never invent a section number you are unsure of — leave section empty and desc
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey, 'ai_code_check');
       if (!res.success || !res.data) {
         setLoading(false);
-        showAlert('Code check failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
+        console.warn('[construction-ai] code check failed:', res.error);
+        const own = ownSentence(res.error ?? null);
+        const copy = describeError(res.error ?? null, { action: 'run the code check' });
+        showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
         return;
       }
       const data = res.data as CodeCheckResult;
@@ -1431,7 +1439,10 @@ Never invent a section number you are unsure of — leave section empty and desc
       setTimeout(() => setResultOpen(true), openDelay);
     } catch (err) {
       setLoading(false);
-      showAlert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
+      console.warn('[construction-ai] code check failed:', err);
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'run the code check' });
+      showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
     }
   }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeCheckAuthority, threadId, savedRecord, threadSource]);
 
@@ -1647,7 +1658,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-code"
           >
             <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code Check</Text>
+            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code check</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'roadmap' && styles.modeToggleBtnActive]}
@@ -1656,7 +1667,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-roadmap"
           >
             <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project Roadmap</Text>
+            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project roadmap</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'plan' && styles.modeToggleBtnActive]}
@@ -1665,7 +1676,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-plan"
           >
             <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan Review</Text>
+            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan review</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'ask' && styles.modeToggleBtnActive]}
@@ -1710,7 +1721,7 @@ Never invent a section number you are unsure of — leave section empty and desc
               </View>
               <View style={styles.bidAdvisorBody}>
                 <View style={styles.bidAdvisorTitleRow}>
-                  <Text style={styles.bidAdvisorTitle}>Bid Advisor</Text>
+                  <Text style={styles.bidAdvisorTitle}>Bid advisor</Text>
                   <View style={styles.bidAdvisorTierChip}>
                     <Text style={styles.bidAdvisorTierText}>Business</Text>
                   </View>
@@ -1943,7 +1954,7 @@ Never invent a section number you are unsure of — leave section empty and desc
               testID="code-check-run"
             >
               <MageAIMark size={18} color="#FFF" />
-              <Text style={styles.runBtnText}>Run Code Check</Text>
+              <Text style={styles.runBtnText}>Run code check</Text>
             </TouchableOpacity>
 
             <Text style={styles.quotaText}>
@@ -1974,7 +1985,7 @@ Never invent a section number you are unsure of — leave section empty and desc
               <View style={styles.heroIconWrap}>
                 <FileText size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
-              <Text style={styles.heroTitle}>Project Roadmap</Text>
+              <Text style={styles.heroTitle}>Project roadmap</Text>
               <Text style={styles.heroSubtitle}>
                 AI generates a sequenced permit and inspection roadmap from your project's scope and schedule.
               </Text>
@@ -2040,7 +2051,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                   testID="roadmap-generate"
                 >
                   <MageAIMark size={18} color="#FFF" />
-                  <Text style={styles.runBtnText}>Generate Roadmap</Text>
+                  <Text style={styles.runBtnText}>Build roadmap</Text>
                 </TouchableOpacity>
                 <Text style={styles.quotaText}>
                   {roadmapDailyCap === Infinity ? 'No daily cap on roadmaps · each run counts toward your AI requests' : `Daily limit: ${roadmapDailyCap} generations`}
@@ -2141,7 +2152,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                       <DraftQuestionButton
                         project={roadmapProject}
                         permitNumbers={permits.filter((x) => x.projectId === roadmapProject.id).map((x) => x.permitNumber)}
-                        topic="this job's permits"
+                        topic="this project's permits"
                         testID="roadmap-draft-question"
                       />
                     ) : null}
@@ -2269,7 +2280,7 @@ Never invent a section number you are unsure of — leave section empty and desc
               <View style={styles.heroIconWrap}>
                 <ShieldCheck size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
-              <Text style={styles.heroTitle}>Plan Review</Text>
+              <Text style={styles.heroTitle}>Plan review</Text>
               <Text style={styles.heroSubtitle}>
                 AI scans a floor plan or drawing for likely building-code issues — egress, stairs, clearances, fire and ADA.
               </Text>
@@ -2746,7 +2757,7 @@ function RoadmapPermitRow({
           testID={`add-to-permits-${permit.id}`}
         >
           <PlusCircle size={13} color={Colors.primary} strokeWidth={1.75} />
-          <Text style={styles.addToPermitsBtnText}>Add to Permits</Text>
+          <Text style={styles.addToPermitsBtnText}>Add to permits</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -2756,7 +2767,7 @@ function RoadmapPermitRow({
           testID={`open-permit-${permit.id}`}
         >
           <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
-          <Text style={styles.linkedBadgeText}>Added to Permits</Text>
+          <Text style={styles.linkedBadgeText}>Added to permits</Text>
           <Text style={styles.linkedBadgeLink}>View</Text>
           <ChevronRight size={11} color={Colors.primary} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -2891,7 +2902,7 @@ function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?:
   return (
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={KEEP_LOADER_OPEN}>
       <CodeCheckLoader
-        eyebrow="PROJECT ROADMAP"
+        eyebrow="Project roadmap"
         headline="Sequencing permits, inspections and lead times"
         steps={ROADMAP_LOADING_STEPS}
         activeStep={stepIdx}
@@ -3082,7 +3093,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           <View style={styles.resultHeaderIcon}>
             <Gavel size={20} color={Colors.primary} strokeWidth={1.75} />
           </View>
-          <Text style={styles.resultHeaderTitle}>Code Check Result</Text>
+          <Text style={styles.resultHeaderTitle}>Code check result</Text>
           <TouchableOpacity
             onPress={onClose}
             style={styles.resultCloseBtn}
@@ -3130,7 +3141,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
             <View style={styles.historyChip} testID="codethread-sent">
               <ClipboardList size={12} color={Colors.primary} strokeWidth={2} />
               <Text style={styles.historyChipText}>
-                {`Sent from this job: ${savedRecord.grounding.jobDataSent.join(' · ')}`}
+                {`Sent from this project: ${savedRecord.grounding.jobDataSent.join(' · ')}`}
               </Text>
             </View>
           ) : null}
@@ -3160,7 +3171,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           {result.applicableCodes.length > 0 && (
             <AccordionSection
               keyName="codes"
-              title="Applicable Codes"
+              title="Applicable codes"
               count={result.applicableCodes.length}
               Icon={Gavel}
               iconColor={Colors.primary}
@@ -3282,7 +3293,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           {result.permitsRequired.length > 0 && (
             <AccordionSection
               keyName="permits"
-              title="Permits Required"
+              title="Permits required"
               count={result.permitsRequired.length}
               Icon={ClipboardCheck}
               iconColor={Colors.primary}
@@ -3324,7 +3335,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           {result.commonViolations.length > 0 && (
             <AccordionSection
               keyName="violations"
-              title="Common Violations"
+              title="Common violations"
               count={result.commonViolations.length}
               Icon={AlertTriangle}
               iconColor={Colors.warningLabel}
@@ -3554,7 +3565,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
     backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipActive: { backgroundColor: themeColors.accentFill, borderColor: themeColors.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   chipTextActive: { color: '#FFF' },
   presetHeader: {
@@ -3603,7 +3614,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   runBtn: {
     marginTop: 20, flexDirection: 'row' as const, alignItems: 'center' as const,
     justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
+    backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   runBtnDisabled: { opacity: 0.5 },
   // UX wave B7 — the "Check a photo" door (glove-sized, no new surface card).
@@ -3871,7 +3882,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   lockedCta: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg,
+    backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg,
     paddingVertical: 14, paddingHorizontal: 28,
   },
   lockedCtaText: {
@@ -3909,10 +3920,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     overflow: 'hidden' as const,
   },
   modeToggleBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   // minHeight is two lines' worth, so a one-line label ("Ask") reserves the
-  // same box as the one that wraps ("Project Roadmap"). Without it the wrapping
+  // same box as the one that wraps ("Project roadmap"). Without it the wrapping
   // segment is taller, justifyContent centres it, and its icon rides ~7pt above
   // the other three — the audit's "nothing in the bar shares a baseline", in
   // milder form. lineHeight 15 (not 14) so the descender in "Project" is not
@@ -3976,8 +3987,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.primary + '0A',
   },
   regenBtnHighlighted: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
+    borderColor: themeColors.accentFill,
   },
   regenBtnText: {
     fontSize: Type.bodyCompact.fontSize,

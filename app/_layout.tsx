@@ -37,6 +37,8 @@ import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import { LanguageProfileSync } from "@/components/LanguageProfileSync";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { TutorialHost } from "@/components/tutorial/TutorialHost";
 import { useBrainFabPresentation } from "@/components/brain/brainFabState";
@@ -1154,7 +1156,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="construction-news"
         options={{
-          title: "Construction News",
+          title: "Construction news",
           ...headerTitled,
         }}
       />
@@ -1813,6 +1815,11 @@ export default Sentry.wrap(function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ThemeLoader>
             <ThemeProvider>
+            {/* Language (docs/I18N.md §4): inside ThemeProvider, ABOVE
+                AuthProvider, so sign-in and sign-up render in the chosen
+                language. Owns no user data; renders English until the stored
+                choice is read. */}
+            <LanguageProvider>
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
@@ -1853,6 +1860,12 @@ export default Sentry.wrap(function RootLayout() {
                               <MagicLinkHandler />
                               <AnalyticsManager />
                               <OfflineSyncManager />
+                              {/* The account's language (docs/I18N.md §5):
+                                  reads profiles.preferred_language on sign-in
+                                  and saves an explicit Settings choice to it.
+                                  Below AuthProvider (reads the user) and
+                                  LanguageProvider. Renders nothing. */}
+                              <LanguageProfileSync />
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <BrainSurface />
@@ -1886,6 +1899,7 @@ export default Sentry.wrap(function RootLayout() {
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
+            </LanguageProvider>
             </ThemeProvider>
           </ThemeLoader>
           {/* The launch — a full-screen overlay ABOVE the app (which renders

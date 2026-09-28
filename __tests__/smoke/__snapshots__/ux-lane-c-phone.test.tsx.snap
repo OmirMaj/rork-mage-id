@@ -2,84 +2,84 @@
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (a) /contract for the fixture job (no invitee email on file) 1`] = `
 {
-  "lines": 989,
-  "sha256": "ceadff53de231a309c612fec4c2912499e5978ea0ddf1d192e693edc50c8dc1b",
+  "lines": 997,
+  "sha256": "e867002324ea389cfc41a59aadfed68a3ffb376654b56fea7549276d9c0d3ded",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (b) /change-order, a new CO on the fixture job 1`] = `
 {
-  "lines": 1011,
-  "sha256": "3749b7f54f7b27a71cac768d3aa84c5cf0b2ad078b982c904630f4b382fea447",
+  "lines": 1019,
+  "sha256": "10096b564d8dcaba8c4811bedaba2d2eae2b95d11074070a8edc6b7d0c0a726b",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (c) /estimate-wizard for a job that already has an estimate 1`] = `
 {
-  "lines": 425,
-  "sha256": "01387b3908f9c8d22799d6aac1ad3fbf154f781b2e0dcedc1a2b80c786648c69",
+  "lines": 433,
+  "sha256": "fb4a0d97f0d3b54bf9c133612b2a50daec4cc08fb0ec27ad8c1949ddcb6c1891",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (d) /smart-proposal for the fixture job 1`] = `
 {
-  "lines": 614,
-  "sha256": "1b87523882f87aa7195b2a1366a37b419b59890dbeb094d869dfa22be39549e8",
+  "lines": 622,
+  "sha256": "552d40fbf717385ac37b3313637a4391a353e4f5dc1922b3c8e40ebca6695e87",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (e) /quick-quote 1`] = `
 {
-  "lines": 427,
-  "sha256": "2ee05a8d10da0f12af5475dc5579ce687494679cf737b9cf6478198d75e0d9af",
+  "lines": 431,
+  "sha256": "d7127650661be4059919b194937ecf4743f17809890f3bfe806a66fe6dd29515",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (f) /invoice, an overdue sent invoice 1`] = `
 {
-  "lines": 971,
-  "sha256": "c18dc8ad672b6372477e13e9c6571fe6faf7a2e6c6b2bdc07e68ccdf3db45e2d",
+  "lines": 979,
+  "sha256": "56fd3f87418da5deb64bf4044419c0c8b0c9be78f6b16c23c6ca220433f8ccee",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (g) /invoice, a paid invoice 1`] = `
 {
-  "lines": 906,
-  "sha256": "b77b89c253bfc5400b10c899be9fb7db1fbd0685cc2e93c182cbca10dd46d97c",
+  "lines": 914,
+  "sha256": "65850d8b13b947b2d404a8849ff764942bf9578fe89a3d8dcb5d40664b9f06e5",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (h) /invoice, a new invoice on the fixture job 1`] = `
 {
-  "lines": 1003,
-  "sha256": "63be9ff9fa0f2d41860b42fe4964a4291b516dd614ed5c2c04bdfdb5a24351bc",
+  "lines": 1011,
+  "sha256": "8c75ee998b3e79a62148dd22295d19f38592783429b188cbfc63c9431f0b3d9e",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (i) /payments with two overdue invoices 1`] = `
 {
-  "lines": 485,
-  "sha256": "bab675eb774cbcfc8980a9f6c40d489244d20ea1bff058e964e9bc1cfdf5e4e9",
+  "lines": 489,
+  "sha256": "9a536d5cae7437905cdd4083bc15ec63b588be4ae89fe9fcd6c8dab344a1698f",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (j) /lien-waivers for the fixture job 1`] = `
 {
-  "lines": 459,
-  "sha256": "3e44339221db8ab3a2523b5025506d455accd53588f9de11bf1b959a6cae89d6",
+  "lines": 467,
+  "sha256": "78fc7efb7a90835cb2d7d55738e12b2b67ff35f12ffbe3ee4d79f91971a1446d",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (k) /sub-portal-setup for a sub on the fixture job 1`] = `
 {
-  "lines": 478,
-  "sha256": "c99918ed676bc8b53d6b3115d7a41f6d4090140008d100356d796c3e633ea332",
+  "lines": 486,
+  "sha256": "21f7bc89388c3bec63ad14a9704ff596bc805e8f27607113ed1cca5f5e2d6ecb",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (l) /takeoff-estimate for the fixture job 1`] = `
 {
-  "lines": 335,
-  "sha256": "73256d47ebaa8d91fa864db6f4499f77c8552596627423802a8fc783de0e3725",
+  "lines": 343,
+  "sha256": "2ed2a7d2053d8fd0ee5fa964b83cfde394c7d7daf3b59ca037b6a35085d94338",
 }
 `;

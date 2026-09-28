@@ -82,6 +82,8 @@ import { buildEstimateEmailBody, type EmailEstimateRow } from '@/utils/estimateE
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import { jobBackLink, readUxDoorParams } from '@/utils/uxRoutes';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -326,6 +328,13 @@ export default function EstimateScreen() {
   // project-detail Estimate tile) so it's project-aware immediately — this is
   // what surfaces the "Build by voice" hero and scopes "save to project".
   const { projectId: navProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  // W1 UXDOORS (D2): opened from a job's page (from=job), a back link names
+  // that job and returns to it. Without the param nothing is drawn.
+  const { from: navFrom } = useLocalSearchParams<{ from?: string }>();
+  const jobBack = jobBackLink(
+    readUxDoorParams({ from: navFrom }).fromJob,
+    navProjectId ? projects.find(p => p.id === navProjectId) : null,
+  );
   useEffect(() => {
     if (navProjectId && !selectedProjectId) setSelectedProjectId(navProjectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3305,6 +3314,9 @@ export default function EstimateScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {jobBack ? (
+        <HiddenTabBackLink label={jobBack.label} href={jobBack.href} style={styles.jobBack} testID="estimate-back-to-job" />
+      ) : null}
       {repriceNotice}
       {activeTab === 'materials' && <FlatList
         {...fabScroll}
@@ -4374,6 +4386,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.bg,
   },
+  // D2: the job back link — HiddenTabBackLink carries 6pt of its own padding.
+  jobBack: { marginLeft: 10, marginTop: 4 },
   wizardCta: {
     flexDirection: 'row',
     alignItems: 'center',

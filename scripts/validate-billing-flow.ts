@@ -684,12 +684,12 @@ console.log('\ncontract screen — progress rows (Direction B):');
   // that stopped being true, so the row reports the one thing that stays true.
   ok('a progress row never wears a PENDING pill — nothing can ever clear it',
     /const isProgressRow = milestone\.trigger === 'on_invoice';\s*\n\s*const cfg =/.test(code)
-    && /isProgressRow\s+\? \{ bg: themeColors\.surfaceAlt, color: themeColors\.textMuted, label: 'AS WORK IS DONE' \} :/.test(code),
+    && /isProgressRow\s+\? \{ bg: themeColors\.surfaceAlt, color: themeColors\.textMuted, label: 'As work is done' \} :/.test(code),
     "the on_invoice arm must sit between 'skipped' and the PENDING fallback");
   ok('…while a hand-set paid / invoiced / skipped still wins, because somebody chose it',
-    code.indexOf("label: 'PAID'") < code.indexOf("label: 'AS WORK IS DONE'")
-    && code.indexOf("label: 'SKIPPED'") < code.indexOf("label: 'AS WORK IS DONE'")
-    && code.indexOf("label: 'AS WORK IS DONE'") < code.indexOf("label: 'PENDING'"));
+    code.indexOf("label: 'Paid'") < code.indexOf("label: 'As work is done'")
+    && code.indexOf("label: 'Skipped'") < code.indexOf("label: 'As work is done'")
+    && code.indexOf("label: 'As work is done'") < code.indexOf("label: 'Pending'") && code.indexOf("label: 'Paid'") >= 0);
   // EXECUTED: the state the pill used to lie about — $57,500 of the contract
   // drawn, the row's own status untouched by any of it.
   {
@@ -725,8 +725,38 @@ console.log('\ncontract screen — progress rows (Direction B):');
     valueImports.length === 4 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms') && valueImports.includes('./calendarDate')
     && valueImports.includes('./formatters'),
     JSON.stringify(valueImports));
-  ok('…and utils/calendarDate.ts imports nothing',
-    !/^import\s/m.test(read('utils/calendarDate.ts')));
+  // W1 I18NWIRE: calendarDate formats a Spanish day through i18n (pure, relative,
+  // no react-native / expo / alias anywhere in that graph).
+  const calendarImports = [...read('utils/calendarDate.ts').matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
+  ok('…and utils/calendarDate.ts imports only ../i18n/types, ../i18n/core and ../i18n/dateEs',
+    calendarImports.every(s => s === '../i18n/types' || s === '../i18n/core' || s === '../i18n/dateEs')
+    && !/^import\s(?![^;]*?from\s+['"]\.\.\/i18n\/(types|core|dateEs)['"])/m.test(read('utils/calendarDate.ts')),
+    JSON.stringify(calendarImports));
+  // The rule that pin protects is "calendarDate resolves without the app's
+  // tooling" (bare bun, a Deno function one day). Three direct imports keep it
+  // only if everything they pull in does too, so walk the whole graph: every
+  // specifier (value, type, side-effect or re-export) must be relative, and no
+  // file may be missing. One @/ alias, react-native or expo anywhere fails.
+  {
+    const seen = new Set<string>();
+    const bad: string[] = [];
+    const queue = ['utils/calendarDate.ts'];
+    while (queue.length > 0) {
+      const file = queue.shift()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const src = read(file);
+      const specs = [...src.matchAll(/^\s*(?:import|export)\s+(?:[^;]*?from\s+)?['"]([^'"]+)['"]/gm)].map(m => m[1]);
+      for (const s of specs) {
+        if (!s.startsWith('./') && !s.startsWith('../')) { bad.push(`${file} → ${s}`); continue; }
+        const base = join(dirname(file), s);
+        const hit = [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts')].find(p => { try { read(p); return true; } catch { return false; } });
+        if (hit) queue.push(hit); else bad.push(`${file} → ${s} (unresolved)`);
+      }
+    }
+    ok(`…and nothing calendarDate pulls in (${seen.size} files) imports react-native, expo or the @/ alias`,
+      bad.length === 0 && seen.size > 1, bad.join(' | '));
+  }
   ok('…and utils/formatters.ts imports nothing',
     !/^import\s/m.test(read('utils/formatters.ts')));
   // AND NOT THROUGH THE ALIAS, type-only imports included (review round 5).

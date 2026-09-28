@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, Platform, ScrollView, AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
+import { onlineManager } from '@tanstack/react-query';
 import {
   Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle,
-  CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus, ListChecks,
+  CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus, ListChecks, Check,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -16,6 +17,19 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { urlProjectIdFrom } from '@/utils/activeProject';
+import { pickDefaultProjectId, PICK_JOB_FIRST } from '@/utils/defaultProjectId';
+import { planVoiceLogWrite } from '@/utils/dailyLogCompletion';
+import {
+  fileReadyVoiceNotes, onVoiceNoteFilingRequested, voiceJobChips, voiceReportBase,
+} from '@/utils/voiceNoteFiling';
+import { voiceNoteQueueKey } from '@/utils/audioTranscribeCore';
+import {
+  getOwnAudioTranscribeQueue, onAudioQueueChange, processAudioTranscribeQueue, takeTranscript,
+} from '@/utils/audioTranscribeQueue';
+import { currentSessionUserId } from '@/utils/offlineQueue';
+import { nailIt, oops } from '@/components/animations/NailItToast';
 import { useProjectCapGate } from '@/hooks/useProjectCapGate';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTimeEntries } from '@/hooks/useTimeEntries';
@@ -30,12 +44,11 @@ import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import ThinkingStates from '@/components/ThinkingStates';
-import type { Project, RFI, ChangeOrder, PunchItem } from '@/types';
+import type { Project, RFI, ChangeOrder, PunchItem, DailyFieldReport, DFRWorkProgress } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { showAlert } from '@/utils/alert';
 import { supabase } from '@/lib/supabase';
 import {
   applyFieldTaskPatches, mergeWrittenStamps,
@@ -50,9 +63,24 @@ import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 // in-app artifact (RFI / change-order / note) and routes the GC to it
 // for review. Mounted at root layout so it's reachable from every screen.
 
+// What to read aloud. Shown one line at a time by the capture sheet's
+// rotating suggestion (VoiceCaptureModal), not as a wall above the recorder.
+const VOICE_ACTION_SUGGESTIONS = [
+  'Note: framing on second floor is half done.',
+  'Log 3 hours framing, floor 2 drywall 80%, 40 sheets of drywall delivered.',
+  'Punch list: master bath, light fixture loose.',
+  'Submit an RFI to the architect about the steel beam size.',
+  'Client wants the heat pump upgrade — change order for forty-five hundred.',
+  'Invoice them for demolition — twenty-eight hundred lump.',
+  'Submittal: light fixture cut sheets, spec twenty-six fifty-one zero zero.',
+  'New lead: John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand.',
+  'New project: Smith kitchen remodel at 123 Main, eighty thousand.',
+];
+
 interface Props {
-  // When provided, the action is scoped to this project. Otherwise the
-  // user picks from a list (or we use the most-recently-updated active project).
+  // When provided, the action is pinned to this project and the picker is
+  // hidden. Otherwise the mic defaults to the project the user is on
+  // (pickDefaultProjectId) and offers the chips.
   projectId?: string;
   // Render mode: 'fab' floats bottom-right; 'inline' is a flat button you
   // can drop into a header or row.
@@ -65,11 +93,26 @@ interface Props {
   // Monotonic counter — each increment opens the voice modal. Lets a parent
   // trigger the existing `handleOpen` flow without reaching into internals.
   openSignal?: number;
+  // UX A3 — what the last openVoice() asked for (BrainSurface passes
+  // SearchContext's voiceRequest). A project the caller names wins over the
+  // route; autoStart opens the recorder already recording (native only).
+  requestedProjectId?: string;
+  autoStart?: boolean;
+  // Called when the sheet closes, so the opener can clear its request and
+  // the next open resolves the project again.
+  onClosed?: () => void;
+  // UX A6 — the ONE always-mounted mic (BrainSurface) files voice notes that
+  // were recorded with no signal once their transcript arrives. Every other
+  // mount leaves that to it.
+  filesParkedNotes?: boolean;
 }
 
 type Step = 'idle' | 'recording' | 'parsing' | 'reviewing' | 'creating';
 
-export default function UniversalMicButton({ projectId, variant = 'fab', hideFab = false, openSignal }: Props) {
+export default function UniversalMicButton({
+  projectId, variant = 'fab', hideFab = false, openSignal,
+  requestedProjectId, autoStart = false, onClosed, filesParkedNotes = false,
+}: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // Hook order is fixed regardless of project availability, so the same
@@ -89,46 +132,64 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   const [step, setStep] = useState<Step>('idle');
   const [parsed, setParsed] = useState<VoiceActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
+  // The chip he tapped in THIS open of the sheet. Cleared on close, so the
+  // next open resolves the project again (it used to latch on the first open
+  // for the whole session — every later note filed to that first job).
+  const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(undefined);
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  // Armed by an open that asked for autoStart; disarmed once a transcript
+  // arrives or he taps Try again, so the recorder never re-opens by itself.
+  const [autoStartArmed, setAutoStartArmed] = useState(false);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
   // Holds the original transcript so we can re-parse with a clarify answer appended.
   const lastTranscriptRef = useRef<string>('');
 
-  const projectsList = ctx?.projects ?? [];
+  const projectsList = useMemo(() => ctx?.projects ?? [], [ctx?.projects]);
 
-  // Active first, but fall back to all projects so a GC who's labelled
-  // everything 'completed' can still dictate. Empty array stays empty.
-  const activeProjects = useMemo(() => {
-    const active = projectsList.filter(p => p.status === 'in_progress' || p.status === 'estimated' || p.status === 'draft');
-    return active.length > 0 ? active : projectsList;
-  }, [projectsList]);
-
-  const project: Project | undefined = useMemo(() => {
-    const id = pickedProjectId ?? projectId;
-    if (id) return projectsList.find(p => p.id === id);
-    if (activeProjects.length === 1) return activeProjects[0];
-    if (activeProjects.length === 0) return undefined;
-    // Most-recently-updated project as the default.
-    return [...activeProjects].sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-  }, [projectsList, projectId, pickedProjectId, activeProjects]);
+  // A3: the project a note defaults to. The route (the same parse
+  // useActiveProject uses), then his real pick, then his most recent job —
+  // never "most recently updated", never projects[0]. null = nothing is
+  // preselected and Create waits for a pick (PICK_JOB_FIRST).
+  const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<{ projectId?: string | string[]; id?: string | string[] }>();
+  const { activeProjectId, recentProjectIds } = useActiveProject();
+  const routeProjectId = requestedProjectId ?? projectId ?? urlProjectIdFrom(pathname ?? '', globalParams ?? {});
+  const defaultProjectId = useMemo(
+    () => pickDefaultProjectId({ routeProjectId, activeProjectId, recentProjectIds, projects: projectsList }),
+    [routeProjectId, activeProjectId, recentProjectIds, projectsList],
+  );
+  const resolvedProjectId = projectId ?? pickedProjectId ?? defaultProjectId ?? undefined;
+  const project: Project | undefined = useMemo(
+    () => (resolvedProjectId ? projectsList.find(p => p.id === resolvedProjectId) : undefined),
+    [resolvedProjectId, projectsList],
+  );
+  const jobChips = useMemo(
+    () => voiceJobChips({ projects: projectsList, recentProjectIds, defaultId: defaultProjectId, pickedId: pickedProjectId }),
+    [projectsList, recentProjectIds, defaultProjectId, pickedProjectId],
+  );
 
   const reset = useCallback(() => {
     setStep('idle');
     setParsed(null);
     setError(null);
+    setAutoStartArmed(false);
   }, []);
 
   const handleClose = useCallback(() => {
     setOpen(false);
     reset();
-  }, [reset]);
+    setPickedProjectId(undefined);
+    setShowAllJobs(false);
+    onClosed?.();
+  }, [reset, onClosed]);
 
   const handleOpen = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPickedProjectId(undefined);
+    setShowAllJobs(false);
+    setAutoStartArmed(autoStart && Platform.OS !== 'web');
     setOpen(true);
-    if (!pickedProjectId && project) setPickedProjectId(project.id);
-  }, [project, pickedProjectId]);
+  }, [autoStart]);
 
   // Speed-dial trigger — when the parent HomeFabStack bumps `openSignal`,
   // run the same open flow as tapping the FAB. Guarded against the initial
@@ -143,7 +204,55 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
     }
   }, [openSignal, handleOpen]);
 
+  // A6: file voice notes recorded with no signal once their transcript is
+  // back. Only the always-mounted mic does this (BrainSurface sets
+  // filesParkedNotes), and never on the web (the web mic records nothing).
+  // The latest project list and report writers are read through a ref so a
+  // pass started by the queue's change feed never files against a stale list.
+  const filingRef = useRef({
+    projects: projectsList as readonly Project[],
+    reports: (ctx?.dailyReports ?? []) as readonly DailyFieldReport[],
+    add: ctx?.addDailyReport,
+    update: ctx?.updateDailyReport,
+  });
+  filingRef.current = {
+    projects: projectsList,
+    reports: ctx?.dailyReports ?? [],
+    add: ctx?.addDailyReport,
+    update: ctx?.updateDailyReport,
+  };
+  const fileParkedNotes = useCallback(() => {
+    void fileReadyVoiceNotes({
+      readQueue: getOwnAudioTranscribeQueue,
+      ownUserId: currentSessionUserId,
+      takeTranscript,
+      projects: () => filingRef.current.projects,
+      reports: () => filingRef.current.reports,
+      addDailyReport: (r) => filingRef.current.add?.(r),
+      updateDailyReport: (id, patch) => filingRef.current.update?.(id, patch),
+      newId: generateUUID,
+      now: Date.now,
+      toast: nailIt,
+    });
+  }, []);
+  const projectsLoaded = projectsList.length > 0;
+  useEffect(() => {
+    if (!filesParkedNotes || Platform.OS === 'web') return;
+    // Run the queue first (a reconnect is exactly when a parked clip can be
+    // transcribed), then file. The drain's own change event files too; the
+    // filing pass is single-flight and takeTranscript is single-consumer, so
+    // the overlap can never file a clip twice.
+    const drainThenFile = () => { void processAudioTranscribeQueue().finally(fileParkedNotes); };
+    if (projectsLoaded) drainThenFile();
+    const offQueue = onAudioQueueChange(fileParkedNotes);
+    const offRequest = onVoiceNoteFilingRequested(fileParkedNotes);
+    const offOnline = onlineManager.subscribe((online) => { if (online) drainThenFile(); });
+    const appState = AppState.addEventListener('change', (next) => { if (next === 'active') drainThenFile(); });
+    return () => { offQueue(); offRequest(); offOnline(); appState.remove(); };
+  }, [filesParkedNotes, fileParkedNotes, projectsLoaded]);
+
   const handleTranscript = useCallback(async (transcript: string) => {
+    setAutoStartArmed(false);
     if (!transcript || transcript.trim().length === 0) {
       setError('Didn\'t catch that — try again.');
       setStep('idle');
@@ -196,21 +305,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
     if (!parsed) return;
     // Project gate — most kinds need one. 'project' kind creates a NEW
     // project, so it's exempt. 'lead' is exempt too — leads pre-date
-    // any project (a lead becomes a project once won). If no project
-    // resolved through the auto-pick, last-ditch fallback to the first
-    // project in the list — better than blocking with a "no project"
-    // error when the GC clearly has projects on file. They can change
-    // it via the picker chips above the recorder if it's wrong.
+    // any project (a lead becomes a project once won). With no project
+    // there is NO fallback (it used to file to projects[0]): the Create
+    // button is disabled with the reason, and this is its belt and braces.
     if (!project && parsed.kind !== 'project' && parsed.kind !== 'lead') {
-      const fallback = projectsList[0];
-      if (fallback) {
-        setPickedProjectId(fallback.id);
-        // Don't return — handleConfirm re-runs after state settles when
-        // the user hits the button. We surface a hint so they retry.
-        setError(`Drafting on ${fallback.name}. Tap "Create" again to confirm.`);
-        return;
-      }
-      setError('No projects yet. Start with "new project:" and a name to create one.');
+      setError(projectsList.length > 0 ? PICK_JOB_FIRST : 'No projects yet. Start with "new project:" and a name to create one.');
       return;
     }
     setStep('creating');
@@ -310,27 +409,29 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
           router.push({ pathname: '/change-order', params: { coId: newId, projectId: proj.id } });
         }, 250);
       } else if (parsed.kind === 'note') {
-        // Notes go in as a "draft" daily report so they end up somewhere
-        // visible — the GC can convert / discard later. Keeps voice notes
-        // from disappearing into the void.
-        ctx.addDailyReport({
-          id: generateUUID(),
-          projectId: proj.id,
-          date: new Date().toISOString(),
-          weather: { temperature: '', conditions: '', wind: '', isManual: true },
-          manpower: [],
-          workPerformed: parsed.noteBody || '',
-          materialsDelivered: [],
-          issuesAndDelays: '',
-          photos: [],
-          status: 'draft',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        } as never);
+        // A4: a note adds a timestamped line to TODAY's unsent report for the
+        // project (planVoiceLogWrite). With none — or only a sent one, which
+        // voice never edits — it starts a draft marked origin 'voice', so the
+        // day still reads "voice note only · finish it" until he saves it.
+        const line = (parsed.noteBody || '').trim();
+        if (!line) {
+          setError('Didn\'t catch a note to add. Try again.');
+          setStep('reviewing');
+          return;
+        }
+        const at = new Date();
+        const w = planVoiceLogWrite({ reports: ctx.dailyReports, projectId: proj.id, at, line });
+        if (w.kind === 'append') {
+          ctx.updateDailyReport(w.reportId, w.patch);
+        } else {
+          ctx.addDailyReport({
+            ...voiceReportBase({ id: generateUUID(), projectId: proj.id, at, nowISO: at.toISOString() }),
+            ...w.seed,
+          });
+        }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert('Note saved', 'Saved as a daily-report draft you can finish later.', [{
-          text: 'OK', onPress: handleClose,
-        }]);
+        nailIt(`Added to today's report · ${proj.name}`);
+        handleClose();
       } else if (parsed.kind === 'punch') {
         // Punch item: save inline (no extra screen), so a GC walking
         // the site can dictate punches in succession without leaving
@@ -457,6 +558,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         // Saturday 8 am shift, and the daily-report draft below as Saturday's.
         const today = todayCalendarDay();
         const company = ctx.settings?.branding?.companyName ?? '';
+        // What did NOT land. Said in the toast — a failure keeps a visible
+        // reason (the old alert listed it; a success toast alone would hide it).
         const summaryParts: string[] = [];
 
         // 1) Time — one completed entry per trade whose hours were stated.
@@ -472,8 +575,6 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             date: today,
           });
         }
-        const totalHrs = timeEntries.reduce((s, t) => s + (t.hours || 0), 0);
-        if (totalHrs > 0) summaryParts.push(`${totalHrs}h logged`);
 
         // 2) Schedule — each spoken update lands on ONE task. The old loop
         // walked the tasks and gave each the first update whose name it
@@ -507,7 +608,6 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             // Before this the mic said "N tasks updated" either way, and any
             // change the DFR ratchet ignores (a lowered %, a 0% status) was
             // silently lost on the next reload.
-            const tasksUpdated = (n: number) => `${n} task${n > 1 ? 's' : ''} updated`;
             const writePath = scheduleWritePathForRole(proj.myRole);
             if (writePath === 'none') {
               summaryParts.push(`schedule not updated — you have view-only access to ${proj.name}`);
@@ -530,56 +630,64 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
               if (!sent.ok) {
                 summaryParts.push(`schedule not updated — ${sent.message}`);
               } else {
-                const landed = patches.length - sent.missing.length;
                 // Local copy = what the server now holds (see QuickFieldUpdate).
                 ctx.updateProject(proj.id, {
                   // With the stamps the RPC wrote (#87).
                   schedule: { ...schedule, tasks: mergeWrittenStamps(applyFieldTaskPatches(schedule.tasks, patches), sent.stamps), updatedAt: new Date().toISOString() },
                 });
-                if (landed > 0) summaryParts.push(tasksUpdated(landed));
-                if (sent.missing.length > 0) summaryParts.push(`${sent.missing.length} no longer on the schedule`);
+                if (sent.missing.length > 0) {
+                  summaryParts.push(sent.missing.length === 1
+                    ? '1 task is no longer on the schedule'
+                    : `${sent.missing.length} tasks are no longer on the schedule`);
+                }
               }
             } else {
               ctx.updateProject(proj.id, { schedule: { ...schedule, tasks: updatedTasks } });
-              summaryParts.push(tasksUpdated(workProgress.length));
             }
           }
         }
 
-        // 3) Daily report draft — the connective record for the whole log.
+        // 3) Daily report draft — today's, the connective record for the whole
+        // log. A4: appended to today's unsent report when there is one (crew and
+        // materials merged in without duplicating a row), else a new draft
+        // marked origin 'voice'. A sent report is never edited by voice.
         const materials = parsed.fieldMaterials ?? [];
         const workPerformed = parsed.fieldWorkPerformed
           || workProgress.map(w => `${w.taskName} ${w.pct}%`).join(', ')
           || 'Field update';
-        ctx.addDailyReport({
+        const manpower = timeEntries.map(te => ({
           id: generateUUID(),
-          projectId: proj.id,
-          date: now,
-          weather: { temperature: '', conditions: '', wind: '', isManual: true },
-          manpower: timeEntries.map(te => ({
-            id: generateUUID(),
-            trade: te.trade || 'General',
-            company,
-            headcount: 1,
-            hoursWorked: te.hours,
-          })),
-          workPerformed,
-          workProgress: workProgress.length > 0 ? workProgress : undefined,
-          materialsDelivered: materials,
-          issuesAndDelays: '',
-          photos: [],
-          status: 'draft',
-          createdAt: now,
-          updatedAt: now,
-        } as never);
-        if (materials.length > 0) summaryParts.push(`${materials.length} material${materials.length > 1 ? 's' : ''} noted`);
+          trade: te.trade || 'General',
+          company,
+          headcount: 1,
+          hoursWorked: te.hours,
+        }));
+        const progress: DFRWorkProgress[] = workProgress;
+        const w = planVoiceLogWrite({ reports: ctx.dailyReports, projectId: proj.id, at: now, line: workPerformed, manpower, materials });
+        if (w.kind === 'append') {
+          const target = ctx.dailyReports.find(r => r.id === w.reportId);
+          const heardTasks = new Set(progress.map(p => p.taskId));
+          const mergedProgress = progress.length > 0
+            ? [...(target?.workProgress ?? []).filter(p => !heardTasks.has(p.taskId)), ...progress]
+            : undefined;
+          ctx.updateDailyReport(w.reportId, { ...w.patch, ...(mergedProgress ? { workProgress: mergedProgress } : {}) });
+        } else {
+          const report: DailyFieldReport = {
+            ...voiceReportBase({ id: generateUUID(), projectId: proj.id, at: new Date(now), nowISO: now }),
+            ...w.seed,
+            workProgress: progress.length > 0 ? progress : undefined,
+          };
+          ctx.addDailyReport(report);
+        }
 
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert(
-          'Field update saved',
-          `${summaryParts.join(' · ') || 'Draft daily report created'}. Saved as a daily-report draft you can finish anytime.`,
-          [{ text: 'OK', onPress: handleClose }],
-        );
+        if (summaryParts.length > 0) {
+          const said = summaryParts.join('. ');
+          oops(`Added to today's report. ${said.charAt(0).toUpperCase()}${said.slice(1)}.`);
+        } else {
+          nailIt(`Added to today's report · ${proj.name}`);
+        }
+        handleClose();
       } else if (parsed.kind === 'submittal') {
         // Submittal: same pattern — route to the form with prefills,
         // then the user reviews + saves.
@@ -603,7 +711,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       setError('Couldn\'t save that — try again.');
       setStep('reviewing');
     }
-  }, [parsed, project, ctx, router, handleClose, capGate]);
+  }, [parsed, project, projectsList.length, ctx, router, handleClose, capGate, addManualEntry]);
 
   const KindIcon = parsed?.kind === 'rfi' ? MessageSquare
     : parsed?.kind === 'co' ? FilePlus2
@@ -635,6 +743,10 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
     : parsed?.kind === 'lead' ? 'lead'
     : parsed?.kind === 'field_update' ? 'field update'
     : '';
+
+  // A3: with no project resolved, Create is disabled and says why — except
+  // for the two kinds that make their own (a new project, a new lead).
+  const createBlocked = !!parsed && parsed.kind !== 'project' && parsed.kind !== 'lead' && parsed.kind !== 'unsure' && !project;
 
   // Hide self when there's nothing to scope to. Done in render (not via an
   // earlier return) so all hooks above run unconditionally on every render.
@@ -690,22 +802,62 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                 from. Previously gated on activeProjects.length > 1
                 which meant a single project still couldn't be re-
                 picked, and no projects gave a confusing dead-end. */}
-            {!projectId && projectsList.length > 0 && (
+            {/* A3 chips: his pick, the default, his recent jobs — and "More…"
+                with every open project, so a fifth project is reachable. */}
+            {!projectId && jobChips.all.length > 0 && (
               <View style={styles.pickerWrap}>
                 <Text style={styles.pickerLabel}>Project</Text>
                 <View style={styles.pickerRow}>
-                  {projectsList.slice(0, 4).map(p => (
+                  {jobChips.chips.map(p => {
+                    const on = project?.id === p.id;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.pickerChip, on && styles.pickerChipActive]}
+                        onPress={() => { setPickedProjectId(p.id); setShowAllJobs(false); }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        testID={`voice-job-chip-${p.id}`}
+                      >
+                        <Text style={[styles.pickerChipText, on && styles.pickerChipTextActive]} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {jobChips.hasMore && (
                     <TouchableOpacity
-                      key={p.id}
-                      style={[styles.pickerChip, project?.id === p.id && styles.pickerChipActive]}
-                      onPress={() => setPickedProjectId(p.id)}
+                      style={styles.pickerChip}
+                      onPress={() => setShowAllJobs(v => !v)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: showAllJobs }}
+                      accessibilityLabel="More projects"
+                      testID="voice-job-more"
                     >
-                      <Text style={[styles.pickerChipText, project?.id === p.id && styles.pickerChipTextActive]} numberOfLines={1}>
-                        {p.name}
-                      </Text>
+                      <Text style={styles.pickerChipText}>More…</Text>
                     </TouchableOpacity>
-                  ))}
+                  )}
                 </View>
+                {showAllJobs && (
+                  <ScrollView style={styles.allJobs} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {jobChips.all.map(p => {
+                      const on = project?.id === p.id;
+                      return (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={styles.allJobRow}
+                          onPress={() => { setPickedProjectId(p.id); setShowAllJobs(false); }}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          testID={`voice-job-row-${p.id}`}
+                        >
+                          <Text style={[styles.allJobText, on && styles.projectHintEmph]} numberOfLines={1}>{p.name}</Text>
+                          {on ? <Check size={16} color={themeColors.accent} strokeWidth={2} /> : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
               </View>
             )}
             {project && (
@@ -714,8 +866,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             {!project && projectsList.length === 0 && (
               <Text style={styles.projectHintWarn}>No projects yet — say &quot;new project: Smith kitchen at 123 Main, eighty thousand&quot; to create one.</Text>
             )}
-            {!project && projectsList.length > 0 && (
-              <Text style={styles.projectHintWarn}>Tap a project above to pick which one this applies to.</Text>
+            {!project && !projectId && projectsList.length > 0 && jobChips.all.length > 0 && (
+              <Text style={styles.projectHintWarn}>{PICK_JOB_FIRST}</Text>
+            )}
+            {!project && !projectId && projectsList.length > 0 && jobChips.all.length === 0 && (
+              <Text style={styles.projectHintWarn}>No open projects. Say &quot;new project:&quot; and a name to start one.</Text>
             )}
 
             {/* States — voice recorder is available even without a project,
@@ -723,21 +878,17 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                 For other kinds, the project gate fires inside handleConfirm. */}
             {step === 'idle' && (
               <View style={styles.bodyWrap}>
-                <View style={styles.tipsBox}>
-                  <Text style={styles.tipsTitle}>Try saying</Text>
-                  <Text style={styles.tipsLine}>&quot;New lead: John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Submit an RFI to the architect about the steel beam size.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Owner wants the heat pump upgrade — change order for forty-five hundred.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Punch list: master bath, light fixture loose.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;New project: Smith kitchen remodel at 123 Main, eighty thousand.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Invoice them for demolition — twenty-eight hundred lump.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Submittal: light fixture cut sheets, spec twenty-six fifty-one zero zero.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Note: framing on second floor is half done.&quot;</Text>
-                  <Text style={styles.tipsLine}>&quot;Log 3 hours framing, floor 2 drywall 80%, 40 sheets of drywall delivered.&quot;</Text>
-                </View>
+                {/* One rotating "Try saying" line lives in the capture sheet
+                    (VOICE_ACTION_SUGGESTIONS), not a nine-line wall here.
+                    The queue key names the project, so a note recorded with
+                    no signal still files to it when the words come back. */}
                 <VoiceRecorder
                   onTranscriptReady={handleTranscript}
                   isLoading={false}
+                  suggestions={VOICE_ACTION_SUGGESTIONS}
+                  contextLine={project?.name}
+                  queueKey={project ? voiceNoteQueueKey(project.id) : undefined}
+                  autoStart={autoStartArmed}
                 />
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
@@ -965,8 +1116,13 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                   </TouchableOpacity>
                   {parsed.kind !== 'unsure' && (
                     <TouchableOpacity
-                      style={styles.ctaPrimary}
+                      style={[styles.ctaPrimary, createBlocked && styles.ctaPrimaryBlocked]}
                       onPress={handleConfirm}
+                      disabled={createBlocked}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: createBlocked }}
+                      accessibilityHint={createBlocked ? PICK_JOB_FIRST : undefined}
+                      testID="voice-create"
                     >
                       <MageAIMark size={14} color="#FFF" />
                       <Text style={styles.ctaPrimaryText}>
@@ -975,6 +1131,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                     </TouchableOpacity>
                   )}
                 </View>
+                {createBlocked && !error && <Text style={styles.blockedText}>{PICK_JOB_FIRST}</Text>}
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
             )}
@@ -1060,12 +1217,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warningLabel, marginBottom: 12, fontWeight: '600' },
 
   bodyWrap: { gap: 12 },
-  tipsBox: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: t.line,
+  allJobs: { maxHeight: 220, marginTop: 8 },
+  allJobRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    minHeight: 44, paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
   },
-  tipsTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
-  tipsLine: { fontSize: 12.5, color: t.text, lineHeight: 18, marginBottom: 4, fontStyle: 'italic' },
+  allJobText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text },
 
   parsingWrap: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: 12 },
   parsingText: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontWeight: '600' },
@@ -1119,6 +1277,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentFill,
   },
   ctaPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
+  ctaPrimaryBlocked: { opacity: 0.45 },
+  blockedText: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 6, fontWeight: '600' },
 
   errorText: { fontSize: Type.caption1.fontSize, color: t.danger, marginTop: 6, fontWeight: '600' },
 });
