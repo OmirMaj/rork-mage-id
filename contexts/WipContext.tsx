@@ -5,6 +5,9 @@ import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
+// Step 0 (moments): the awaitable write, off the namespace (see useTimeEntries for why).
+import * as offlineQueueWrites from '@/utils/offlineQueue';
+import type { WriteOutcome } from '@/utils/offlineQueue';
 import { assertPeriodEditable } from '@/utils/wip';
 import type { WipSnapshotRowWithSources, WipPeriodWithSources } from '@/utils/wip';
 import type { WipPortfolio } from '@/types';
@@ -21,6 +24,9 @@ import type { WipPortfolio } from '@/types';
 // feature the audit calls best-in-category can be lost without a red line
 // anywhere. The whole context is now typed on the sourced row.
 type Period = WipPeriodWithSources;
+
+/** Where an awaited lock landed (Step 0). 'already' = the period was locked before; nothing written. */
+export type LockPeriodOutcome = WriteOutcome | 'local' | 'already';
 
 const WIP_PERIODS_KEY = 'mageid_wip_periods';
 
@@ -81,6 +87,9 @@ export const [WipProvider, useWip] = createContextHook(() => {
   const userId = user?.id;
   const [periods, setPeriods] = useState<Period[]>([]);
   const hydratedRef = useRef(false);
+  // Step 0: the latest list for lockPeriodDetailed, which answers after an await.
+  const periodsRef = useRef<Period[]>([]);
+  useEffect(() => { periodsRef.current = periods; }, [periods]);
 
   // Hydrate whenever the tenant changes. Clear first so a prior account's
   // snapshots never linger, then read Supabase (snake→camel, RLS-scoped) with
@@ -166,6 +175,36 @@ export const [WipProvider, useWip] = createContextHook(() => {
     return true;
   }, [periods, persist, userId]);
 
+  /**
+   * Step 0 (moments): lockPeriod, awaited and honest, for the slide-to-lock.
+   * 'already' when the period was locked before (nothing written). The lock
+   * shows at once; the write goes through supabaseWriteDetailed with
+   * callerOwnsRefusal (the slide says what did not happen: no toast, no
+   * Not-saved line); on 'failed' the period is unlocked again on this device.
+   * 'local' = no signed-in account: this device only.
+   */
+  const lockPeriodDetailed = useCallback(async (id: string): Promise<LockPeriodOutcome> => {
+    const target = periodsRef.current.find((p) => p.id === id);
+    if (!target) return 'failed';
+    if (target.lockedAt) return 'already';
+    const lockedAt = new Date().toISOString();
+    const locked = periodsRef.current.map((p) => (p.id === id ? { ...p, lockedAt } : p));
+    periodsRef.current = locked;
+    void persist(locked);
+    if (!userId) return 'local';
+    const outcome: WriteOutcome = await offlineQueueWrites.supabaseWriteDetailed(
+      'wip_periods', 'update', { id, locked_at: lockedAt }, { callerOwnsRefusal: true },
+    );
+    if (outcome === 'failed') {
+      // Only the lock this call made is taken back; anything else since stays.
+      const back = periodsRef.current.map((p) => (p.id === id && p.lockedAt === lockedAt ? { ...p, lockedAt: undefined } : p));
+      periodsRef.current = back;
+      void persist(back);
+      return 'failed';
+    }
+    return outcome;
+  }, [persist, userId]);
+
   const updatePeriod = useCallback((
     id: string,
     updates: Partial<Pick<Period, 'rows' | 'portfolioTotals' | 'notes'>>,
@@ -186,5 +225,5 @@ export const [WipProvider, useWip] = createContextHook(() => {
     return true;
   }, [periods, persist, userId]);
 
-  return { periods, addPeriod, lockPeriod, updatePeriod };
+  return { periods, addPeriod, lockPeriod, lockPeriodDetailed, updatePeriod };
 });

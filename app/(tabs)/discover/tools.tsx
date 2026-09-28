@@ -99,17 +99,17 @@ const TOOL_ROWS: ToolRow[] = [
   // 2026-08-03 UX audit flagged flagship features missing from the Tools grid,
   // which is the only discovery surface on iOS. Restored from PR #85.
   { feature: 'cost-xray', route: '/cost-xray', Icon: ScanEye, title: 'Cost X-Ray', subtitle: "Camera prices the hidden conditions you can't see — on your learned costs", tone: 'accent', testID: 'tools-cost-xray', section: 'AI HUB' },
-  { feature: 'takeoff', route: '/takeoff', Icon: MageTakeoff, title: 'AI Takeoff', subtitle: 'Upload a PDF, get a quantity takeoff with linear / area / count', tone: 'accent', testID: 'tools-takeoff', section: 'AI HUB' },
-  { feature: 'plan-intelligence', route: '/plan-intelligence', Icon: FileSearch, title: 'Plan Intelligence', subtitle: 'AI reads the floor plan room by room — and learns your prices every job', tone: 'accent', testID: 'tools-plan-intelligence', section: 'AI HUB' },
-  { feature: 'ai-punch', route: '/ai-punch', Icon: ListChecks, title: 'AI Punch from Photos', subtitle: 'Walk a site with the camera, get a punch list back', tone: 'accent', testID: 'tools-ai-punch', section: 'AI HUB' },
-  { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare Drawings', subtitle: 'See exactly what changed between two plan revisions', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
-  { feature: 'extract-submittals', route: '/extract-submittals', Icon: BookOpen, title: 'Spec Book Extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
-  { feature: 'scan', route: '/scan', Icon: ScanLine, title: 'Scan Anything', subtitle: 'Snap any doc — invoice, business card, COI — it files itself to the right project', tone: 'warning', testID: 'tools-scan', section: 'AI HUB' },
+  { feature: 'takeoff', route: '/takeoff', Icon: MageTakeoff, title: 'AI takeoff', subtitle: 'Upload a PDF, get a quantity takeoff with linear / area / count', tone: 'accent', testID: 'tools-takeoff', section: 'AI HUB' },
+  { feature: 'plan-intelligence', route: '/plan-intelligence', Icon: FileSearch, title: 'Plan intelligence', subtitle: 'AI reads the floor plan room by room — and learns your prices every job', tone: 'accent', testID: 'tools-plan-intelligence', section: 'AI HUB' },
+  { feature: 'ai-punch', route: '/ai-punch', Icon: ListChecks, title: 'AI punch from photos', subtitle: 'Walk a site with the camera, get a punch list back', tone: 'accent', testID: 'tools-ai-punch', section: 'AI HUB' },
+  { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare drawings', subtitle: 'See exactly what changed between two plan revisions', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
+  { feature: 'extract-submittals', route: '/extract-submittals', Icon: BookOpen, title: 'Spec book extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
+  { feature: 'scan', route: '/scan', Icon: ScanLine, title: 'Scan anything', subtitle: 'Snap any doc (invoice, business card, COI) and it files itself to the right project', tone: 'warning', testID: 'tools-scan', section: 'AI HUB' },
 
   // ── INDUSTRY — what is happening outside the GC's own jobs. Construction
   // News merges a curated set of publisher feeds (supabase/functions/
   // construction-news); it needs no project and gates on no tier.
-  { route: '/construction-news', Icon: Newspaper, title: 'Construction News', subtitle: 'Latest headlines from ENR, Construction Dive, NAHB, OSHA and more', tone: 'info', testID: 'tools-construction-news', feature: 'construction-news', section: 'INDUSTRY' },
+  { route: '/construction-news', Icon: Newspaper, title: 'Construction news', subtitle: 'Latest headlines from ENR, Construction Dive, NAHB, OSHA and more', tone: 'info', testID: 'tools-construction-news', feature: 'construction-news', section: 'INDUSTRY' },
 
   // ── DECISIONS — what is waiting on the GC to act on.
   // PRODUCT-F4 / UX-F16: the marketed chase list was sidebar-only —
@@ -149,22 +149,22 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'equipment', route: '/(tabs)/equipment', Icon: MageEquipment, title: 'Equipment', subtitle: "Rentals, utilization and what's on which site", tone: 'primary', testID: 'tools-equipment', section: 'FIELD', needsProjects: true },
 
   // ── MONEY — every cash-related workflow.
-  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Target, title: 'Win Optimizer', subtitle: 'The bid price that wins AND profits — learned from your own win/loss history', tone: 'accent', testID: 'tools-win-optimizer', section: 'MONEY' },
-  { feature: 'smart-proposal', route: '/smart-proposal', Icon: FileSignature, title: 'Smart Proposal', subtitle: 'Good / better / best, priced to win — send, track, close', tone: 'accent', testID: 'tools-smart-proposal', section: 'MONEY' },
+  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Target, title: 'Win optimizer', subtitle: 'The bid price that wins AND profits — learned from your own win/loss history', tone: 'accent', testID: 'tools-win-optimizer', section: 'MONEY' },
+  { feature: 'smart-proposal', route: '/smart-proposal', Icon: FileSignature, title: 'Smart proposal', subtitle: 'Good / better / best, priced to win — send, track, close', tone: 'accent', testID: 'tools-smart-proposal', section: 'MONEY' },
   { feature: 'cash-flow', route: '/cash-flow', Icon: Wallet, title: 'Cash flow', subtitle: 'Multi-week forecast across all projects', tone: 'primary', testID: 'tools-cash-flow', section: 'MONEY', needsProjects: true },
   { feature: 'budget-dashboard', route: '/budget-dashboard', Icon: PieChart, title: 'Budget dashboard', subtitle: 'Earned-value (CPI/SPI) for one project — pick a project to chart', tone: 'success', testID: 'tools-budget-dashboard', section: 'MONEY', needsProjects: true },
   // WIP Report — Business-tier. Portfolio-wide (no projectId needed); renders
   // its own Paywall for non-Business. Was desktop-sidebar-only before this row.
   { feature: 'wip-report', route: '/wip-report', Icon: TrendingUp, title: 'WIP report', subtitle: 'Over/under billings & earned revenue across the portfolio', tone: 'success', testID: 'tools-wip-report', section: 'MONEY', needsProjects: true },
-  { feature: 'estimate-calibration', route: '/estimate-calibration', Icon: SlidersHorizontal, title: 'Estimate Calibration', subtitle: 'Where your bids run high or low — and the fix', tone: 'warning', testID: 'tools-estimate-calibration', section: 'MONEY', needsProjects: true },
+  { feature: 'estimate-calibration', route: '/estimate-calibration', Icon: SlidersHorizontal, title: 'Estimate calibration', subtitle: 'Where your bids run high or low — and the fix', tone: 'warning', testID: 'tools-estimate-calibration', section: 'MONEY', needsProjects: true },
   // PRODUCT-F4: sidebar-only before.
   { feature: 'estimate-scorecard', route: '/estimate-scorecard', Icon: BarChart3, title: 'Estimate scorecard', subtitle: 'Bid vs. actual on your closed jobs — where the money went', tone: 'success', testID: 'tools-estimate-scorecard', section: 'MONEY', needsProjects: true },
   { feature: 'payments', route: '/payments', Icon: Banknote, title: 'Payments', subtitle: 'Client payment status & history', tone: 'success', testID: 'tools-payments', section: 'MONEY', needsProjects: true },
-  { feature: 'aia-pay-app', route: '/aia-pay-app', Icon: MagePayApp, title: 'AIA pay applications', subtitle: 'G702/G703 auto-populated from invoices', tone: 'success', testID: 'tools-aia-pay-app', section: 'MONEY', needsProjects: true },
+  { feature: 'aia-pay-app', route: '/aia-pay-app', Icon: MagePayApp, title: 'Pay apps', subtitle: 'G702/G703 auto-populated from invoices', tone: 'success', testID: 'tools-aia-pay-app', section: 'MONEY', needsProjects: true },
   { feature: 'lien-waivers', route: '/lien-waivers', Icon: ScrollText, title: 'Lien waivers', subtitle: 'Generate & track conditional / unconditional', tone: 'info', testID: 'tools-lien-waivers', section: 'MONEY', needsProjects: true },
   { feature: 'leads', route: '/leads', Icon: UserPlus, title: 'Pipeline', subtitle: 'Inquiries → qualified → proposal → won', tone: 'accent', testID: 'tools-pipeline', section: 'MONEY' },
   { feature: 'buyout', route: '/buyout', Icon: Gavel, title: 'Buyout', subtitle: 'Sub package builder + bid award flow', tone: 'info', testID: 'tools-buyout', section: 'MONEY' },
-  { feature: 'sub-scorecard', route: '/sub-scorecard', Icon: Award, title: 'Sub Scorecard', subtitle: "Who's actually good? Graded from your real job costs", tone: 'accent', testID: 'tools-sub-scorecard', section: 'MONEY' },
+  { feature: 'sub-scorecard', route: '/sub-scorecard', Icon: Award, title: 'Sub scorecard', subtitle: "Who's actually good? Graded from your real job costs", tone: 'accent', testID: 'tools-sub-scorecard', section: 'MONEY' },
   { feature: 'tax-1099', route: '/tax-1099-export', Icon: FileDown, title: '1099-NEC export', subtitle: 'Year-end CSV for your CPA — flags subs paid ≥ $600', tone: 'success', testID: 'tools-tax-1099', section: 'MONEY' },
 
   // ── FIND WORK — PRODUCT-F4: both were sidebar-only.
@@ -175,7 +175,7 @@ const TOOL_ROWS: ToolRow[] = [
   // Audit round 2, #11: this read "Vendors, yards and price history". The
   // screen is a MOCK catalog (mocks/suppliers.ts) with no price history and
   // no real vendor in it; say so on the door, not only once inside.
-  { feature: 'marketplace', route: '/(tabs)/marketplace', Icon: Store, title: 'Suppliers (sample)', subtitle: 'Sample catalog — made-up suppliers, not live vendors', tone: 'neutral', testID: 'tools-suppliers', section: 'FIND WORK' },
+  { feature: 'marketplace', route: '/(tabs)/marketplace', Icon: Store, title: 'Supplier catalog (demo)', subtitle: 'Example listings. These suppliers are not real.', tone: 'neutral', testID: 'tools-suppliers', section: 'FIND WORK' },
 
   // ── COMPLIANCE — the regulatory side.
   { feature: 'coi-vault', route: '/coi-vault', Icon: MageCOI, title: 'COI vault', subtitle: 'Sub insurance certificates + expiry tracking', tone: 'info', testID: 'tools-coi-vault', section: 'COMPLIANCE', needsProjects: true },
@@ -199,7 +199,7 @@ const TOOL_ROWS: ToolRow[] = [
   // ── NETWORK — subs + companies + crew. Pre-fix the Subs tab was hidden on
   // mobile (`href: null` in app/(tabs)/_layout.tsx), orphaning Sub Prequal
   // entirely from mobile users.
-  { feature: 'subs', route: '/(tabs)/subs', Icon: HardHat, title: 'Subcontractors', subtitle: "Prequal packets, COIs, ratings — every sub you've worked with", tone: 'primary', testID: 'tools-subs', section: 'NETWORK' },
+  { feature: 'subs', route: '/(tabs)/subs', Icon: HardHat, title: 'Subs', subtitle: "Prequal packets, COIs, ratings — every sub you've worked with", tone: 'primary', testID: 'tools-subs', section: 'NETWORK' },
   { feature: 'contacts', route: '/contacts', Icon: Users, title: 'Contacts', subtitle: 'Architects, engineers, suppliers — your project directory', tone: 'info', testID: 'tools-contacts', section: 'NETWORK' },
   // PRODUCT-F4: the embed widget is how a contractor turns their own website
   // into a lead source; its setup was sidebar-only.
@@ -324,7 +324,7 @@ export default function DiscoverToolsScreen() {
                   {i > 0 && <View style={styles.divider} />}
                   <NavRow
                     Icon={row.Icon}
-                    title={crewAsProfile(row) ? 'My Profile' : row.title}
+                    title={crewAsProfile(row) ? 'My profile' : row.title}
                     subtitle={crewAsProfile(row) ? 'Your crew profile — phone, email and trades' : row.subtitle}
                     meta={tierMeta(row)}
                     tone={row.tone}
@@ -341,9 +341,9 @@ export default function DiscoverToolsScreen() {
           <View style={styles.emptyWrap}>
             <EmptyState
               icon={<Wrench size={32} color={Colors.primary} strokeWidth={1.75} />}
-              title="More tools unlock with projects"
-              message="Most tools (Daily reports, Compliance, Closeout, Reporting) are project-aware. Create your first project to unlock them."
-              actionLabel="Open Projects"
+              title="Most tools need a project"
+              message="Daily reports, compliance, closeout and reporting work on a project. Create your first project to use them."
+              actionLabel="Open projects"
               onAction={() => router.push('/(tabs)/(home)' as never)}
             />
           </View>

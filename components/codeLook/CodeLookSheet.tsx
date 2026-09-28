@@ -1,4 +1,4 @@
-// CodeLookSheet — Photo Code Look: ONE site photo of work about to be covered
+// CodeLookSheet — Photo code check: ONE site photo of work about to be covered
 // up, and at most five things an inspector would look at in it.
 //
 // Honesty rules this sheet holds (utils/codeLook.ts carries the copy):

@@ -412,5 +412,36 @@ for (const s of SAMPLES) {
     && /rechecking \? 'Checking…'/.test(notif));
 }
 
+// W1 fix round 1: a catch that calls describeError on a path whose own
+// utilities throw sentences written for the GC must let those sentences
+// through (ownSentence). Otherwise the web seal ("Sealing works in the mobile
+// app…"), the blocked pop-up ("Allow pop-ups for app.mageid.app…") and an RFI
+// refusal all collapse to "That didn't go through… tell support", advice
+// that can never work.
+{
+  const sites: Array<[string, string, string]> = [
+    ['app/contract.tsx', "seal the contract", "Couldn't seal the contract"],
+    ['app/estimate-wizard.tsx', "share the estimate", "Couldn't share the estimate"],
+    ['app/rfi.tsx', "send the RFI", "Couldn't send the RFI"],
+  ];
+  for (const [file, action, title] of sites) {
+    const code = src(file);
+    const esc = action.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const catchRe = new RegExp(
+      `const own = ownSentence\\(err\\);\\s*const copy = describeError\\(err, \\{ action: '${esc}'[^}]*\\}\\);\\s*showAlert\\(own \\? "${title}" : copy\\.title, own \\?\\? copy\\.body\\);`,
+    );
+    ok(`${file}: the "${action}" catch shows the thrown sentence when it is one (ownSentence before describeError)`,
+      catchRe.test(code));
+  }
+  const rfi = src('app/rfi.tsx');
+  ok('app/rfi.tsx: a refused send shows only a reader sentence, never the raw server text',
+    /showAlert\("Couldn't send the RFI", ownSentence\(result\.error \?\? null\) \?\? describeError\(result\.error \?\? null, \{ action: 'send the RFI', keptLocally: true \}\)\.body\);/.test(rfi)
+    && !/showAlert\('Send failed', result\.error/.test(rfi));
+  const co = src('app/change-order.tsx');
+  ok('app/change-order.tsx: the send catch folds in the thrown sentence when it is one',
+    /const why = ownSentence\(e\) \?\? describeError\(e, \{ action: 'send the change order' \}\)\.body;/.test(co)
+    && /nothing was saved\. \$\{why\} Your change order is still open here\./.test(co));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

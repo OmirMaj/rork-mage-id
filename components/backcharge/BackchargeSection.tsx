@@ -4,7 +4,8 @@
 // Lists the open ones (reason, $, photo, date) and the ones already taken off
 // a bill, a total open, "New backcharge", "Void" per open item, and a notice
 // the GC sends himself (the share sheet, only on his tap — MAGE sends nothing).
-// Device-local: see hooks/useBackcharges.ts.
+// Saved on the device and the account: see hooks/useBackcharges.ts. The line
+// under the title says where these rows actually are (utils/backchargeCopy).
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Plus, Send, Camera } from 'lucide-react-native';
@@ -20,10 +21,9 @@ import { shareText } from '@/utils/shareText';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { useBackcharges } from '@/hooks/useBackcharges';
 import { backchargeNotice, formatCents, openFor, sumCents, type Backcharge } from '@/utils/backcharges';
+import { backchargeStorageLine } from '@/utils/backchargeCopy';
 import { BackchargeSheet } from '@/components/backcharge/BackchargeSheet';
 import type { Commitment, Project, Subcontractor } from '@/types';
-
-export const BACKCHARGE_DEVICE_NOTE = 'Saved on this device until you sign out.';
 
 export interface BackchargeSectionProps {
   project: Project;
@@ -37,7 +37,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { getPhotosForProject, settings } = useProjects();
-  const { list, loaded, add, voidOne } = useBackcharges();
+  const { list, loaded, add, voidOne, statusOf, signedIn, retryNotSaved } = useBackcharges();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
 
@@ -53,6 +53,11 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
   }, [getPhotosForProject, project.id]);
   const thumbOf = (b: Backcharge) => (b.photoId ? photoById.get(b.photoId) : undefined) ?? b.photoUri ?? null;
   const openTotal = sumCents(open);
+  // Where the rows on screen are kept: the worst state wins.
+  const shown = [...open, ...applied];
+  const states = shown.map(b => statusOf(b.id));
+  const storage = backchargeStorageLine(states, signedIn);
+  const notSavedIds = shown.filter((b, i) => states[i] === 'not_saved').map(b => b.id);
 
   const confirmVoid = useCallback((b: Backcharge) => {
     showAlert(
@@ -85,7 +90,17 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
         ) : null}
       </View>
       <Text style={styles.subtitle}>
-        Damage, cleanup or rework you paid for — taken off {sub.companyName}’s next bill. {BACKCHARGE_DEVICE_NOTE}
+        Damage, cleanup or rework you paid for — taken off {sub.companyName}’s next bill.{storage ? ' ' : null}
+        {storage?.retry ? (
+          <Text
+            style={styles.retry}
+            onPress={() => retryNotSaved(notSavedIds)}
+            accessibilityRole="button"
+            testID="backcharge-storage-retry"
+          >
+            {storage.text}
+          </Text>
+        ) : storage?.text ?? null}
       </Text>
       <Card pad="none" radius="card">
         {!loaded ? (
@@ -205,5 +220,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   amount: { ...Type.subheadEmphasized, color: t.text },
   voidBtn: { paddingVertical: 4, paddingHorizontal: 2 },
   voidText: { ...Type.footnoteEmphasized, color: t.dangerLabel },
+  retry: { ...Type.footnoteEmphasized, color: t.dangerLabel },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10, alignItems: 'center' },
 });

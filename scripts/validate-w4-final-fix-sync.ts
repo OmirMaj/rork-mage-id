@@ -143,7 +143,7 @@ console.log('\nE. "Open Not saved" from the Record Payment sheet actually opens 
     .filter((i) => !INV.slice(Math.max(0, i - 200), i).includes('const openNotSavedFromPaymentSheet'))
     .filter((i) => !/^import /m.test(INV.slice(INV.lastIndexOf('\n', i) + 1, i)));
   ok('no other requestSyncSheet on the invoice screen (none can run while showPaymentModal is true)', bare.length === 0, bare);
-  const opens = INV.match(/text: 'Open Not saved', onPress: [^}]*\}/g) ?? [];
+  const opens = INV.match(/text: 'Review unsent changes', onPress: [^}]*\}/g) ?? [];
   ok('every "Open Not saved" button on the screen goes through the helper (3 dialogs, 2 button specs)',
     opens.length === 2 && opens.every((o) => /onPress: \(\) => openNotSavedFromPaymentSheet\(/.test(o)), opens);
   const PILL = read('components/OfflineSyncPill.tsx');
@@ -174,7 +174,7 @@ console.log('\nF. Record Payment records one payment per tap-burst, and a resume
   const btn = flat(slice(INV, 'testID="record-payment-submit"', '</TouchableOpacity>'));
   const btnOpen = flat(INV.slice(INV.lastIndexOf('<TouchableOpacity', INV.indexOf('testID="record-payment-submit"')), INV.indexOf('testID="record-payment-submit"')));
   ok('the sheet button is disabled while recording and says so',
-    /disabled=\{recordingPayment\}/.test(btnOpen) && /\{recordingPayment \? 'Recording…' : 'Record Payment'\}/.test(btn), btnOpen + btn);
+    /disabled=\{recordingPayment\}/.test(btnOpen) && /\{recordingPayment \? 'Recording…' : 'Record payment'\}/.test(btn), btnOpen + btn);
   const helper = flat(slice(INV, 'const openNotSavedFromPaymentSheet = useCallback((resume: boolean = true) => {', '}, []);'));
   ok('"Open Not saved" marks the sheet for resume (or not — round 8, same money) before closing it',
     helper.indexOf('resumePaymentSheetRef.current = resume;') > -1 && helper.indexOf('resumePaymentSheetRef.current = resume;') < helper.indexOf('setShowPaymentModal(false);'), helper);

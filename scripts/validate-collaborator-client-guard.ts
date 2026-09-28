@@ -256,7 +256,7 @@ ok('the reason is on screen, not only in a dialog', /testID="collab-client-refus
 ok('a server refusal the device could not foresee is recognised by the phrase',
   /\(invite\.error as Error\)\?\.message \?\? ''\)\.includes\(CLIENT_REFUSAL_PHRASE\)/.test(ui));
 ok('both cases lead to the client portal',
-  /\(clientReason \|\| serverClientRefusal\) \?/.test(ui) && /Open the client portal/.test(ui) && /Client Portal tile/.test(ui));
+  /\(clientReason \|\| serverClientRefusal\) \?/.test(ui) && /Open the client portal/.test(ui) && /Client portal tile/.test(ui));
 ok('editing the address clears a stale server refusal (it was about the address sent)',
   /onChangeText=\{onEmailChange\}/.test(ui)
   && /const onEmailChange = useCallback\(\(next: string\) => \{\s*if \(invite\.isError\) invite\.reset\(\);\s*setEmail\(next\);/.test(ui));

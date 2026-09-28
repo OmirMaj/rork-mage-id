@@ -596,7 +596,14 @@ serve(async (req) => {
     restrictions: { completed_sessions: { limit: 1 } },
     inactive_message:
       "This payment link has already been used or replaced. Ask your contractor for a fresh link.",
-    after_completion: { type: "hosted_confirmation" },
+    // T6.5: after paying, the client lands on MAGE ID's thank-you page
+    // (marketing/paid/index.html) instead of Stripe's hosted confirmation. The
+    // URL carries ref=pay_link and NOTHING else: no invoice, no contractor and
+    // no checkout session id, so nothing about the payment reaches the page or
+    // its address bar. Fallback if that page is ever withdrawn:
+    //   after_completion: { type: "hosted_confirmation" }
+    // DEPLOY ORDER: marketing/paid/ must be live on mageid.app first.
+    after_completion: { type: "redirect", redirect: { url: "https://mageid.app/paid/?ref=pay_link" } },
   };
 
   // Every link is on a connected account now (there is no platform mode), so

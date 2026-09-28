@@ -105,7 +105,7 @@ assert(pathToDocumentTitle('/estimate/anything-new') === 'Estimate', 'unmapped e
 // ── 5b. Construction News (wave 4, founder request F3) ───────────────────
 // A root-stack route, so section 1 does not enumerate it. Pinned by name: the
 // label is the one the Stack header, the Tools tile and the sidebar row use.
-assert(pathToDocumentTitle('/construction-news') === 'Construction News', "/construction-news → 'Construction News'");
+assert(pathToDocumentTitle('/construction-news') === 'Construction news', "/construction-news → 'Construction news'");
 
 // ── 6. Unknown routes still return null — the fallback must stay honest ──
 // app/_layout.tsx renders plain "MAGE ID" for null. Inventing a label from the

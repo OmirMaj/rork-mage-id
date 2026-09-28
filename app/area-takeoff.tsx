@@ -545,7 +545,7 @@ function AreaTakeoffInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Visual Takeoff · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Visual takeoff · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Trace & price'}</Text>
         </View>
         {imageUri ? (
@@ -854,7 +854,7 @@ function AreaTakeoffInner() {
 
           <TouchableOpacity style={styles.crossLink} onPress={() => router.push('/cost-database' as any)} activeOpacity={0.7} testID="takeoff-costdb-link">
             <Library size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.crossLinkText}>Rates come from your Cost Database</Text>
+            <Text style={styles.crossLinkText}>Rates come from your cost history</Text>
           </TouchableOpacity>
 
           <Text style={styles.note}>

@@ -40,6 +40,11 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { resolveWarrantyMonths } from '@/utils/paymentTerms';
+import { ValidUntilField } from '@/components/proposal/ValidUntilField';
+import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/PriceDriftCheck';
+import type { DriftAtSend } from '@/utils/priceDriftGate';
+import { defaultValidUntil } from '@/utils/proposalValidity';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export default function SmartProposalScreen() {
   const router = useRouter();
@@ -137,6 +142,13 @@ function SmartProposalInner() {
   const [selectedTierKey, setSelectedTierKey] = useState<ProposalTierKey>('signature');
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [status, setStatus] = useState<SmartProposal['status']>('draft');
+  // T2: "Prices valid until" — a date he picks, today + 30 by default.
+  const [validUntil, setValidUntil] = useState<string>(() => defaultValidUntil(todayCalendarDay()) ?? '');
+  // T2: the stale-price check before sending. Only for a proposal priced off a
+  // project's linked estimate; a proposal with no project skips it.
+  const drift = usePriceDriftAtSend(project?.linkedEstimate ? project.id : null);
+  const [driftAsk, setDriftAsk] = useState(false);
+  const [driftNote, setDriftNote] = useState<string | null>(null);
 
   /** Create or update the persisted proposal record with the current inputs. */
   const persistProposal = (nextStatus: SmartProposal['status'], tierKey?: ProposalTierKey): SmartProposal | null => {
@@ -151,6 +163,7 @@ function SmartProposalInner() {
       tiers: built.tiers,
       selectedTierKey: tierKey ?? selectedTierKey,
       status: nextStatus,
+      ...(validUntil ? { validUntil } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -159,6 +172,7 @@ function SmartProposalInner() {
         clientName: record.clientName, projectName: record.projectName,
         leadId: record.leadId, projectId: record.projectId,
         tiers: record.tiers, selectedTierKey: record.selectedTierKey, status: nextStatus,
+        validUntil: record.validUntil,
       });
     } else {
       addProposal(record);
@@ -168,7 +182,35 @@ function SmartProposalInner() {
     return record;
   };
 
-  const handleShare = async () => {
+  // T2: a newer receipt contradicts a price on this job's estimate — show the
+  // check (inline, right above Share: a sheet would still be sliding out when
+  // iOS is asked to present the share sheet) instead of sending. Its "Send
+  // anyway" and "Keep these prices" continue to the share; Reprice does not,
+  // because the proposal's cost is its own field and he should see the new
+  // prices before they go out. Unread (check null) does not hold the send.
+  const handleShare = () => {
+    if (!built) return;
+    if (drift.check && drift.check.lines.length > 0) {
+      setDriftNote(null);
+      setDriftAsk(true);
+      return;
+    }
+    setDriftAsk(false);
+    void shareNow();
+  };
+
+  const handleDriftRepriced = (r: DriftAtSend) => {
+    // The job cost follows the estimate only while it still IS the estimate's
+    // cost (the prefill, rounded the same way); a cost he typed is his.
+    const before = Math.round(project?.linkedEstimate?.baseTotal ?? 0);
+    const followed = !!r.next && Math.round(cost) === before;
+    if (followed && r.next) setCostStr(String(Math.round(r.next.baseTotal)));
+    setDriftNote(followed
+      ? 'The job cost above now uses the new prices. Check the options, then share.'
+      : 'The job cost above is the one you typed, so it did not change.');
+  };
+
+  const shareNow = async () => {
     if (!built) return;
     // Persist the current inputs WITHOUT advancing the status, so the record
     // exists to share from. Only flip to "sent" once the OS Share sheet
@@ -231,7 +273,7 @@ function SmartProposalInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Smart Proposal · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Smart proposal · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Good / better / best'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -363,6 +405,27 @@ function SmartProposalInner() {
                 styles={styles}
               />
             ))}
+
+            {/* T2: prices hold until this date; it prints on what he sends. */}
+            <View style={styles.inputCard} testID="validuntil-card">
+              <ValidUntilField value={validUntil} onChange={(day) => {
+                setValidUntil(day);
+                if (proposalId) updateProposal(proposalId, { validUntil: day });
+              }} />
+            </View>
+
+            {/* T2: the stale-price check, opened by the Share press. */}
+            {driftAsk && project ? (
+              <PriceDriftCheck
+                project={project}
+                presentation="card"
+                action="send"
+                repricedNote={driftNote}
+                onReprice={handleDriftRepriced}
+                onKeep={() => { setDriftAsk(false); void shareNow(); }}
+                onContinue={() => { setDriftAsk(false); void shareNow(); }}
+              />
+            ) : null}
 
             {/* Actions */}
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: t.accentFill }]} onPress={handleShare} activeOpacity={0.85} testID="proposal-share">

@@ -97,8 +97,11 @@ import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useIsDesktopWeb, desktopToggle } from '@/components/ui/desktop';
 import { layoutNext } from '@/components/ui/motion';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
+import { markFirstUseful } from '@/utils/startupTiming';
 import { PortfolioHomeLayout } from '@/components/portfolio/PortfolioHomeLayout';
 import { buildPortfolioRows } from '@/utils/portfolio/portfolioRow';
+import { useJobLevels } from '@/hooks/useJobLevel';
+import { JobLevel } from '@/components/level/JobLevel';
 import { actionRailVisible } from '@/utils/sidebarRail';
 import { stageLabel } from '@/utils/projectStage';
 import { clientFieldsProblem, editedPrimaryContact, readNewJobThen, type NewJobThen } from '@/utils/uxDoors';
@@ -575,6 +578,13 @@ export default function HomeScreen() {
     projects: filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject, now: new Date(),
   }) : []), [responsive.isDesktop, filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject]);
 
+  // The Level on the phone list (ideas-1, T5): one reading per card, read once
+  // for the list. Desktop reads its own inside PortfolioTable (showLevel), so
+  // the phone pass gets no projects there. Money visibility = burnByProject,
+  // the rule the burn bar already prints by.
+  const phoneLevelProjects = useMemo(() => (responsive.isDesktop ? [] : filteredProjects), [responsive.isDesktop, filteredProjects]);
+  const jobLevels = useJobLevels({ projects: phoneLevelProjects, marginVisible: burnByProject });
+
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
   // Membership MUST match the Summary tab's "Today on site" exactly — both
@@ -657,13 +667,13 @@ export default function HomeScreen() {
   const handleCreateProject = useCallback(() => {
     const name = projectName.trim();
     if (!name) {
-      showAlert('Missing Name', 'Please enter a project name.');
+      showAlert('Add a name', 'Enter a project name.');
       return;
     }
     // Q6: Other needs his words — "Other" alone tells nobody what the job is.
     const typeBlock = projectTypeBlockReason(projectType, projectTypeOther);
     if (typeBlock) {
-      showAlert('Describe the job', typeBlock);
+      showAlert('Describe the project', typeBlock);
       return;
     }
     // D4: a typed client email / phone that cannot be used is said, not dropped.
@@ -799,13 +809,18 @@ export default function HomeScreen() {
       // changing is what makes it re-render when an invoice lands (#151).
       invoicedToDate={burnByProject.get(item.id)?.invoicedToDate}
       revisedContract={burnByProject.get(item.id)?.revisedContract}
+      levelSlot={(() => {
+        // Its own tap opens the reasons (the press stops, so the card does not open).
+        const level = jobLevels.get(item.id);
+        return level ? <JobLevel projectId={item.id} reading={level} size="row" projectName={item.name} /> : undefined;
+      })()}
       onPress={() => handleProjectPress(item)}
       onLongPress={() => {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setActionSheetRef({ kind: 'project', id: item.id, label: item.name });
       }}
     />
-  ), [handleProjectPress, burnByProject]);
+  ), [handleProjectPress, burnByProject, jobLevels]);
 
   // Dense-row variant: at tablet+ widths we render the projects as a single
   // bordered "table" with internal dividers (one wrapping View, one row per
@@ -959,6 +974,14 @@ export default function HomeScreen() {
   // (slick round 3). null at rest; the project rows cascade on their own.
   const landing = useLanding(isLoading);
 
+  // IDEAS-1 SPEED-3: the first commit in which the list, its empty state (or a
+  // persona hub, or the desktop portfolio table) is on screen with data records
+  // how long the app took to get here. Once per launch; releases the deferred
+  // providers if the 1.5 s cap has not already.
+  useEffect(() => {
+    if (!isLoading) markFirstUseful('home');
+  }, [isLoading]);
+
   if (isLoading) {
     // Show 3 skeleton cards instead of a centered spinner. Preserves the
     // visual rhythm of the project list so content appears to fade in
@@ -1035,7 +1058,7 @@ export default function HomeScreen() {
             activeOpacity={0.7}
             style={styles.todayRow}
             accessibilityRole="button"
-            accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'job' : 'jobs'} on site today. Opens Summary.`}
+            accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'project' : 'projects'} on site today. Opens summary.`}
             testID="today-on-site-more"
           >
             <Text style={styles.todayMoreText}>
@@ -1087,7 +1110,7 @@ export default function HomeScreen() {
     <PortfolioHomeLayout
       header={
         <PageHeader
-          title="Your Projects"
+          title="Your projects"
           statusPill={<OfflineSyncPill />}
           onSearchPress={openSearch}
           actions={
@@ -1170,6 +1193,7 @@ export default function HomeScreen() {
           projects={filteredProjects}
           rows={portfolioRows}
           burnByProject={burnByProject}
+          showLevel
           highlightId={justCreatedId}
           onOpenProject={handleProjectPress}
           onOpenActions={(p, a) => {
@@ -1283,7 +1307,7 @@ export default function HomeScreen() {
                 drop the inline search field and rely on the search icon
                 button in the actions cluster. */}
             <PageHeader
-              title="Your Projects"
+              title="Your projects"
               statusPill={<OfflineSyncPill />}
               onSearchPress={openSearch}
               actions={
@@ -1641,7 +1665,7 @@ export default function HomeScreen() {
           <View style={[styles.modalOverlay, createFrame.overlay]}>
             <Animated.View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card, createFrame.cardMotion]}>
               <View style={styles.createModalHeader}>
-                <Text style={styles.createModalTitle}>New Project</Text>
+                <Text style={styles.createModalTitle}>New project</Text>
                 <TouchableOpacity onPress={closeCreateModal} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1712,7 +1736,7 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full" size="md">
-                <Text style={styles.fieldLabel}>Project Name</Text>
+                <Text style={styles.fieldLabel}>Project name</Text>
                 <TextInput
                   style={styles.input}
                   value={projectName}
@@ -1726,7 +1750,7 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full" size="lg">
-                <Text style={styles.fieldLabel}>Jobsite Address</Text>
+                <Text style={styles.fieldLabel}>Jobsite address</Text>
                 <TextInput
                   style={styles.input}
                   value={projectLocation}
@@ -1764,7 +1788,7 @@ export default function HomeScreen() {
                   style={[styles.input, styles.descInput]}
                   value={projectDescription}
                   onChangeText={setProjectDescription}
-                  placeholder="Brief description of the project..."
+                  placeholder="Brief description of the project"
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
@@ -1773,7 +1797,7 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full">
-                <Text style={styles.fieldLabel}>Project Type</Text>
+                <Text style={styles.fieldLabel}>Project type</Text>
                 <View style={styles.typeGrid}>
                   {PROJECT_TYPES.map(pt => (
                     <TouchableOpacity
@@ -1788,7 +1812,7 @@ export default function HomeScreen() {
                 </View>
                 {projectType === 'other' ? (
                   <>
-                    <Text style={styles.fieldLabel}>Describe the job</Text>
+                    <Text style={styles.fieldLabel}>Describe the project</Text>
                     <TextInput
                       style={styles.input}
                       value={projectTypeOther}
@@ -1806,7 +1830,7 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full" size="xs">
-                <Text style={styles.fieldLabel}>Square Footage</Text>
+                <Text style={styles.fieldLabel}>Square footage</Text>
                 <TextInput
                   style={styles.input}
                   value={projectSqft}
@@ -1877,7 +1901,7 @@ export default function HomeScreen() {
               </ScrollView>
 
               <TouchableOpacity style={[styles.createBtn, createFrame.footerButton, responsive.isDesktop && styles.createBtnDesktop]} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
-                <Text style={styles.createBtnText}>Create Project</Text>
+                <Text style={styles.createBtnText}>Create project</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -1891,13 +1915,13 @@ export default function HomeScreen() {
             <View style={styles.nextStepSuccessIcon}>
               <CheckCircle2 size={36} color={themeColors.success} strokeWidth={2.4} />
             </View>
-            <Text style={styles.nextStepTitle}>Project Created!</Text>
+            <Text style={styles.nextStepTitle}>Project created</Text>
             <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('estimate')} activeOpacity={0.7}>
               <IconWrapper icon={Calculator} tone="accent" size="md" />
               <View style={styles.nextStepTextWrap}>
-                <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
+                <Text style={styles.nextStepOptionTitle}>Create estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
               </View>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1906,7 +1930,7 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
               <IconWrapper icon={CalendarDays} tone="info" size="md" />
               <View style={styles.nextStepTextWrap}>
-                <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
+                <Text style={styles.nextStepOptionTitle}>Create schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
               </View>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />

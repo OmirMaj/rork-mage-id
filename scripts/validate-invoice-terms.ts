@@ -230,6 +230,27 @@ async function checkReadServer() {
     /params: \{ projectId, invoiceId: inv\.id, termsOrigin: termsDefault\.origin \}/.test(src));
 }
 
+// The terms pickers speak one sentence-case name (docs/VOICE.md, wave W1 B7):
+// the invoice editor and cash-flow setup both offer "Due on receipt", never
+// the old Title-Case "Due on Receipt", so the GC sees the same words where he
+// sets his terms and where he bills on them.
+{
+  const lists: Array<[string, string, string]> = [
+    ['app/invoice.tsx', 'const PAYMENT_TERMS_OPTIONS', '];'],
+    ['components/CashFlowSetup.tsx', 'const TERMS_OPTIONS', '];'],
+  ];
+  for (const [file, open, close] of lists) {
+    const src = read(file);
+    const at = src.indexOf(open);
+    const block = at < 0 ? '' : src.slice(at, src.indexOf(close, at) + close.length);
+    ok(`${file}: the terms picker offers "Due on receipt" in sentence case`,
+      block.includes("{ value: 'due_on_receipt', label: 'Due on receipt' }"), block || `${open} not found`);
+    ok(`${file}: every terms label is sentence case (no Title-Case "Due on Receipt")`,
+      block.length > 0 && !/Due on Receipt/.test(block) && [...block.matchAll(/label: '([^']+)'/g)].length === 4,
+      block || `${open} not found`);
+  }
+}
+
 // Belt and braces: an event loop that drains before the tally runs is a
 // failure, never a silent pass.
 let tallied = false;

@@ -21,7 +21,11 @@ import {
   sortJobsForPicker, pickerRank, alwaysPicksJob, newJobThenFor, readNewJobThen,
   fieldGroupFirst, moneyRowsHidden, showsFieldRow, clientFieldsProblem, hasClientInput,
   editedPrimaryContact, combineRowCounts, FIELD_MORNING_END_HOUR,
+  lineupToolsDoor, planName, chainContractFromLoad, moneyChainForRole,
 } from '../utils/uxDoors';
+import { subsPayRows, centsLabel, dollarsToCents, PAY_NEEDS_ROSTER_SUB, SUBS_PAY_EMPTY, SUB_NOT_NAMED, NAME_THE_SUB } from '../utils/subsPayRows';
+import { jobBackLink } from '../utils/uxRoutes';
+import { formatMoney } from '../utils/formatters';
 import type { RowCount } from '../utils/sidebarCounts';
 import { buildPaletteRows } from '../utils/paletteRows';
 
@@ -149,15 +153,23 @@ console.log('\nux-doors validation (Lane D):');
     && /router\.push\(punchListNewHref\(project\.id\)\)/.test(pd)
     && /router\.push\(clockInHref\(project\.id\)\)/.test(pd)
     && /testID="project-field-actions"/.test(pd));
-  ok('D2 Voice is HELD with A3: the job page has no Voice door (the global mic takes no job and could file to another one)',
-    !/openVoice/.test(pd) && !/key: 'voice'/.test(pd) && !/useSearch/.test(pd));
+  // W1 UXDOORS: the Voice door (flipped from "HELD with A3" once openVoice
+  // took a projectId): native only, files to THIS job, starts recording.
+  ok('D2 Voice door: native only (Platform.OS !== \'web\'), after Clock in, openVoice({ projectId: project.id, autoStart: true })',
+    /\{ key: 'clock-in', label: 'Clock in'[^\n]*\n[\s\S]{0,400}\.\.\.\(Platform\.OS !== 'web' \? \[\{\s*key: 'voice', label: 'Voice', Icon: Mic, lock: voiceLock,/.test(pd)
+    && /openVoice\(\{ projectId: project\.id, autoStart: true \}\);/.test(pd)
+    && /const \{ openVoice \} = useSearch\(\);/.test(pd)
+    && !/Voice is\s+HELD/.test(pd));
+  ok('D2 Voice door: a seat that cannot file says why instead of recording (projectRecordWriteBlock)',
+    /const voiceLock = projectRecordWriteBlock\(hubRole \?\? undefined\);/.test(pd)
+    && /if \(voiceLock\) \{ showAlert\("Can't record here", voiceLock\); return; \}/.test(pd));
   ok('D2 the Photo lock is project-aware (canAccessProject), like the lineup row',
     /const photoLock = canAccessProject\('photo_documentation'\) \? null : tileLockReason\('photos', hubRole,/.test(pd));
   ok('D2 a live job with no schedule / no estimate still has its create doors (moved into Field Ops / Money, same testIDs)',
     /\.\.\.\(!project\.schedule \? \[\{ key: 'build-schedule', label: 'Build schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule \}\] : \[\]\),/.test(pd)
     && /\[\{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: \(\) => router\.push\(routeHref\('\/estimate-wizard', \{ projectId: project\.id \}\)\) \}\]\),/.test(pd));
   ok('D2 a live job WITH an estimate keeps its one-tap door into the estimate editor (Money: Estimate, same testID)',
-    /money: hubPerms\.showMoney \? \[[\s\S]{0,200}\.\.\.\(hasAnyEstimate\s*\? \[\{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: \(\) => router\.replace\(routeHref\('\/\(tabs\)\/estimate\/full', \{ projectId: project\.id \}\)\) \}\]\s*: \[\{ key: 'create-estimate'/.test(pd));
+    /money: hubPerms\.showMoney \? \[[\s\S]{0,200}\.\.\.\(hasAnyEstimate\s*\? \[\{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: \(\) => router\.replace\(estimateFromJobHref\(project\.id\)\) \}\]\s*: \[\{ key: 'create-estimate'/.test(pd));
   ok('D2 a locked field door says why (tileLockReason) and names it in the a11y label',
     /accessibilityLabel=\{a\.lock \? `\$\{a\.label\}\. \$\{a\.lock\}` : a\.label\}/.test(pd)
     && /tileLockReason\('punchList', hubRole,/.test(pd) && /tileLockReason\('timeTracking', hubRole,/.test(pd));
@@ -238,6 +250,146 @@ console.log('\nux-doors validation (Lane D):');
   const cp = read('components', 'search', 'CommandPalette.tsx');
   ok('D1 palette: the new-project row passes its chain to Home (?openCreate=1&then=)',
     /router\.push\(routeHref\('\/', ref\.then \? \{ openCreate: '1', then: ref\.then \} : \{ openCreate: '1' \}\)\);/.test(cp));
+}
+
+// ── 3. W1 UXDOORS: Back returns to the job (D2) ─────────────────────────────
+// Every job-page door into the schedule tab and the Full Estimator carries
+// from=job; the three receivers draw "< <job name>" → /project-detail?id=
+// ONLY with from=job, and today's link (or none) without it.
+{
+  const pd = read('app', 'project-detail.tsx');
+  const schedDoors = (pd.match(/scheduleFromJobFocusHref\(id \?\? '', String\(Date\.now\(\)\)\)/g) ?? []).length;
+  ok('D2 senders: every phone door into the schedule tab carries from=job (scheduleFromJobFocusHref, keeps the focus nonce) — 4 sites',
+    schedDoors === 4 && !/pathname: '\/\(tabs\)\/schedule'/.test(pd) && !/routeHref\('\/\(tabs\)\/schedule'/.test(pd), `found ${schedDoors}`);
+  ok('D2 senders: the phone line of openSchedule is one of them (desktop web keeps scheduleDestination)',
+    /if \(href\.pathname === '\/schedule-pro'\) router\.push\(href\); else router\.replace\(href\);\s*return;\s*\}[\s\S]{0,200}router\.replace\(scheduleFromJobFocusHref\(id \?\? '', String\(Date\.now\(\)\)\)\);/.test(pd));
+  const estDoors = (pd.match(/router\.replace\(estimateFromJobHref\((project\.id|id \?\? '')\)\)/g) ?? []).length;
+  ok('D2 senders: every Estimate door carries from=job (estimateFromJobHref) — 3 sites, no bare /(tabs)/estimate/full left',
+    estDoors === 3 && !/'\/\(tabs\)\/estimate\/full'/.test(pd), `found ${estDoors}`);
+
+  const cls = read('app', '(tabs)', 'schedule', 'index.tsx');
+  ok('D2 receiver (classic tab): the job link only with from=job, "Schedules" otherwise, byte for byte',
+    /const jobBack = jobBackLink\(\s*readUxDoorParams\(\{ from: routeFrom \}\)\.fromJob,\s*routeProjectId \? projects\.find\(p => p\.id === routeProjectId\) : null,\s*\);/.test(cls)
+    && /\{jobBack \? \(\s*<HiddenTabBackLink\s+label=\{jobBack\.label\}\s+href=\{jobBack\.href\}[\s\S]{0,120}testID="schedule-back-to-job"\s*\/>\s*\) : \(\s*<HiddenTabBackLink\s+label="Schedules"\s+href="\/\(tabs\)\/discover\/schedule"\s+style=\{styles\.backToSchedules\}\s+testID="schedule-back-to-schedules"\s*\/>\s*\)\}/.test(cls));
+  const mob = read('components', 'schedule', 'mobile', 'MobileScheduleScreen.tsx');
+  ok('D2 receiver (iPhone schedule): a job link only with from=job, nothing otherwise',
+    /const jobBack = jobBackLink\(\s*readUxDoorParams\(\{ from: routeFrom \}\)\.fromJob,\s*routeProjectId \? projects\.find\(\(p\) => p\.id === routeProjectId\) : null,\s*\);/.test(mob)
+    && /\{jobBack \? \(\s*<HiddenTabBackLink label=\{jobBack\.label\} href=\{jobBack\.href\}[^>]*testID="schedule-back-to-job" \/>\s*\) : null\}/.test(mob)
+    && (mob.match(/<HiddenTabBackLink\b/g) ?? []).length === 1);
+  const est = read('app', '(tabs)', 'estimate', 'full.tsx');
+  ok('D2 receiver (Full Estimator): a job link only with from=job, nothing otherwise',
+    /const jobBack = jobBackLink\(\s*readUxDoorParams\(\{ from: navFrom \}\)\.fromJob,\s*navProjectId \? projects\.find\(p => p\.id === navProjectId\) : null,\s*\);/.test(est)
+    && /\{jobBack \? \(\s*<HiddenTabBackLink label=\{jobBack\.label\} href=\{jobBack\.href\}[^>]*testID="estimate-back-to-job" \/>\s*\) : null\}/.test(est)
+    && (est.match(/<HiddenTabBackLink\b/g) ?? []).length === 1);
+  ok('D2 jobBackLink: the job name → /project-detail?id=, and null without from=job',
+    eq(jobBackLink(true, { id: 'p 1', name: 'Henderson' }), { label: 'Henderson', href: '/project-detail?id=p%201' })
+    && jobBackLink(false, { id: 'p1', name: 'Henderson' }) === null && jobBackLink(true, null) === null);
+}
+
+// ── 4. W1 UXDOORS: the Tools sheet's lineup row ─────────────────────────────
+{
+  const open = lineupToolsDoor({ projectId: 'p 1', canAccess: true, requiredTier: 'pro' });
+  ok('lineup: with the plan and a default job → /tomorrow-lineup?projectId=<job>', eq(open, { kind: 'open', path: '/tomorrow-lineup?projectId=p%201' }), JSON.stringify(open));
+  ok('lineup: with the plan and no default job → the bare screen (it asks)', eq(lineupToolsDoor({ projectId: null, canAccess: true, requiredTier: 'pro' }), { kind: 'open', path: '/tomorrow-lineup' }));
+  const locked = lineupToolsDoor({ projectId: 'p1', canAccess: false, requiredTier: 'pro' });
+  ok('lineup: without the plan → locked, the subtitle names the plan (VOICE plan-limit form), never a route',
+    locked.kind === 'locked' && locked.subtitle === "Tomorrow's lineup is on the Pro plan" && locked.title === locked.subtitle && !('path' in locked));
+  ok('planName: "business" → "Business"', planName('business') === 'Business' && planName('') === '');
+  const ts = read('components', 'summary', 'ToolsSheet.tsx');
+  const rows = ts.slice(ts.indexOf('const SHEET_ROWS'), ts.indexOf('];', ts.indexOf('const SHEET_ROWS')));
+  const lines = rows.split('\n').filter(l => /\bfeature: '/.test(l));
+  ok("ToolsSheet: Tomorrow's lineup is still the LAST row, its route literal unchanged", /feature: 'tomorrow-lineup', route: '\/tomorrow-lineup'/.test(lines[lines.length - 1] ?? ''));
+  ok('ToolsSheet: the default job is pickDefaultProjectId (never a guess) and the gate is the screen\'s (useProjectAccess on that job, schedule_gantt_pdf)',
+    /const lineupProjectId = pickDefaultProjectId\(\{ activeProjectId, recentProjectIds, projects \}\);/.test(ts)
+    && /const \{ canAccess, requiredTierFor \} = useProjectAccess\(lineupProjectId \?\? undefined\);/.test(ts)
+    && /canAccess: canAccess\('schedule_gantt_pdf'\),/.test(ts) && /requiredTier: requiredTierFor\('schedule_gantt_pdf'\),/.test(ts));
+  ok('ToolsSheet: a locked tap explains the plan with a See plans path (/paywall); the row shows a Lock',
+    /showAlert\(lineupDoor\.title, lineupDoor\.message, \[\s*\{ text: 'Not now', style: 'cancel' \},\s*\{ text: 'See plans', onPress: \(\) => onNavigate\('\/paywall'\) \},\s*\]\);/.test(ts)
+    && /Icon=\{locked \? Lock : row\.Icon\}/.test(ts) && /subtitle=\{locked \? locked\.subtitle : row\.subtitle\}/.test(ts));
+  ok('ToolsSheet: every other row still navigates by the registry route', /if \(row\.feature !== 'tomorrow-lineup'\) \{ onNavigate\(featureFor\(row\.feature\)\.route\); return; \}/.test(ts));
+}
+
+// ── 5. W1 UXDOORS: Subs & pay, the deposit, the chain (D5) ──────────────────
+{
+  const commitments = [
+    { id: 'c1', projectId: 'p1', number: 'SC-01', type: 'subcontract' as const, subcontractorId: 's1', vendorName: undefined, description: 'Electrical', amount: 12000, changeAmount: 500.25, paidToDate: 4000.1 },
+    { id: 'c2', projectId: 'p1', number: 'SC-02', type: 'subcontract' as const, subcontractorId: 's2', vendorName: undefined, description: 'Plumbing', amount: 8000, paidToDate: 0 },
+    { id: 'c3', projectId: 'p1', number: 'PO-01', type: 'purchase_order' as const, subcontractorId: undefined, vendorName: 'Lumber Co', description: 'Framing package', amount: 3000.5 },
+    { id: 'c4', projectId: 'p2', number: 'SC-09', type: 'subcontract' as const, subcontractorId: 's1', vendorName: undefined, description: 'Other job', amount: 1 },
+  ];
+  const subs = [{ id: 's1', companyName: 'Sparky Electric', email: 'ops@sparky.com' }, { id: 's2', companyName: 'Flow Plumbing' }];
+  const bills = [
+    { commitmentId: 'c1', status: 'submitted' as const, amount: 1200.5 },
+    { commitmentId: 'c1', status: 'approved' as const, amount: 999 },
+    { commitmentId: 'c1', status: 'rejected' as const, amount: 50 },
+    { commitmentId: 'c2', status: 'paid' as const, amount: 10 },
+  ];
+  const rows = subsPayRows({ projectId: 'p1', commitments, subs, subBills: bills });
+  ok('D5: 3 commitments on this job → 3 rows (another job\'s commitment is left out)', eq(rows.map(r => r.commitmentId), ['c1', 'c2', 'c3']));
+  ok('D5: approved bills is the ledger\'s paidToDate, to the cent; the contract adds the approved CO change',
+    eq(rows.map(r => [r.contractCents, r.paidCents]), [[1250025, 400010], [800000, 0], [300050, 0]]));
+  ok('D5: the open bill counts only bills awaiting review (an approved bill is already inside paid to date)',
+    eq(rows.map(r => r.openBillCents), [120050, 0, 0]));
+  ok('D5: bills not read → no open-bill figure at all (null, never a guessed $0)',
+    subsPayRows({ projectId: 'p1', commitments, subs, subBills: null }).every(r => r.openBillCents === null));
+  ok('D5: Pay → /sub-portal-setup?projectId&subId for a roster sub', eq(rows[0].payHref, { pathname: '/sub-portal-setup', params: { projectId: 'p1', subId: 's1' } }));
+  ok('D5: a vendor with no roster sub has no Pay door and says why', rows[2].payHref === null && rows[2].payBlockedReason === PAY_NEEDS_ROSTER_SUB);
+  ok('D5: Get waiver carries prefillSubName + prefillCommitmentId (+ the roster id and email on file), never subId or an amount',
+    eq(rows[0].waiverHref, { pathname: '/lien-waivers', params: { projectId: 'p1', prefillSubName: 'Sparky Electric', prefillCommitmentId: 'c1', prefillSubCompanyId: 's1', prefillSubEmail: 'ops@sparky.com' } })
+    && rows.every(r => r.waiverHref != null && !('subId' in r.waiverHref.params) && !('prefillAmount' in r.waiverHref.params) && !('prefillWaiverType' in r.waiverHref.params)));
+  ok('D5: the vendor row\'s waiver names the vendor and its commitment only', eq(rows[2].waiverHref?.params, { projectId: 'p1', prefillSubName: 'Lumber Co', prefillCommitmentId: 'c3' }));
+  // A commitment with no roster sub and no vendor name is SHOWN (never "no subs
+  // on this project" while commitments exist), with no Pay and no waiver door.
+  const nameless = subsPayRows({ projectId: 'p1', commitments: [{ id: 'c9', projectId: 'p1', number: 'SC-07', type: 'subcontract' as const, subcontractorId: undefined, vendorName: '  ', description: 'Drywall', amount: 5000, paidToDate: 250 }], subs, subBills: [] });
+  ok('D5: a nameless commitment still makes a row (SUB_NOT_NAMED), with no Pay, no waiver and the reason',
+    nameless.length === 1 && nameless[0].name === SUB_NOT_NAMED && nameless[0].detail === 'SC-07 · Drywall'
+    && nameless[0].payHref === null && nameless[0].waiverHref === null && nameless[0].payBlockedReason === NAME_THE_SUB
+    && nameless[0].contractCents === 500000 && nameless[0].paidCents === 25000);
+  const srcRows = read('utils', 'subsPayRows.ts');
+  ok('D5: the figures come from the ledger\'s own helpers (jobCostEngine commitmentValue / commitmentPaidToDate), not a re-derivation',
+    /dollarsToCents\(commitmentValue\(c as Commitment\)\)/.test(srcRows) && /dollarsToCents\(commitmentPaidToDate\(c as Commitment\)\)/.test(srcRows));
+  const tile = read('components', 'project', 'SubsPayTile.tsx');
+  ok('D5: the tile says "Approved bills" (the rollup counts approved-but-unpaid bills), never "Paid to date"; Get waiver is off when there is no waiver door',
+    />Approved bills</.test(tile) && !/Paid to date/.test(tile) && /disabled=\{!r\.waiverHref\}/.test(tile));
+  ok('D5: no commitments → no rows, and the empty line reads "No subs on this project yet"',
+    subsPayRows({ projectId: 'p1', commitments: [], subs, subBills: [] }).length === 0 && SUBS_PAY_EMPTY.title === 'No subs on this project yet');
+  ok('D5: every amount prints cents', centsLabel(450000) === '$4,500.00' && centsLabel(120050) === '$1,200.50' && dollarsToCents(Number.NaN) === 0);
+
+  const pd = read('app', 'project-detail.tsx');
+  ok('D5: Subs & pay is a Money tile (phone / tablet section), hidden with the money tiles and from view-only seats',
+    /tileKeys: \['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'\]/.test(pd)
+    && /const HUB_MONEY_TILE_KEYS: readonly string\[\] = \[[^\]]*'subsPay'\];/.test(pd)
+    && /if \(key === 'subsPay' && !perms\.showSubsPay\) return false;/.test(pd)
+    && /showSubsPay: role === 'owner',/.test(pd)
+    && /\{activeTile === 'subsPay' && hubPerms\.showMoney && hubPerms\.showSubsPay && \(\s*<SubsPayTile\s+rows=\{subsPayRowList\}/.test(pd));
+  ok('D5: the rows come from subsPayRows over the context\'s commitments; the bills are read only while the section is open',
+    /useSubSubmittedInvoices\(\{ projectId: activeTile === 'subsPay' \? \(id \?\? undefined\) : undefined \}\)/.test(pd)
+    && /subsPayRows\(\{\s*projectId: id \?\? '',\s*commitments: projectCommitments,/.test(pd));
+  ok('D5: the scoped NextStepHero gets the fetched contract and this job\'s change orders; no subPaidNoWaiver (no new read)',
+    /scopeToProjectId=\{project\?\.id\}[\s\S]{0,600}contract=\{moneyChain\.contract\}\s*changeOrders=\{moneyChain\.changeOrders\}\s*testID="project-next-step"/.test(pd)
+    && !/subPaidNoWaiver=/.test(pd));
+  // fetchActiveContract folds a failed read into null ("none on file"), so the
+  // page reads loadActiveContract, which says whether the read worked.
+  ok('D5: chainContractFromLoad — ok+row → the row; ok+none → null; a failed read → undefined (never "none on file")',
+    eq(chainContractFromLoad({ ok: true, contract: { id: 'c1' } }), { id: 'c1' })
+    && chainContractFromLoad({ ok: true, contract: null }) === null
+    && chainContractFromLoad({ ok: false }) === undefined);
+  ok('D5: moneyChainForRole — the owner gets the contract and COs; editor, viewer, field and unknown seats get undefined (RLS hides both from them)',
+    eq(moneyChainForRole('owner', null, [1]), { contract: null, changeOrders: [1] })
+    && ['editor', 'viewer', 'field', null, undefined].every(r => eq(moneyChainForRole(r, { id: 'c1' }, [1]), { contract: undefined, changeOrders: undefined })));
+  ok('D5: the page reads loadActiveContract (not fetchActiveContract), maps it with chainContractFromLoad, and gates the chain on the role',
+    /loadActiveContract\(id\)\.catch\(/.test(pd) && !/fetchActiveContract/.test(pd.replace(/\/\/.*$/gm, ''))
+    && /setChainContract\(chainContractFromLoad\(contractLoad\)\);/.test(pd)
+    && /const contract = contractLoad\.ok \? contractLoad\.contract : null;/.test(pd)
+    && /const moneyChain = moneyChainForRole\(hubRole, chainContract, changeOrders\);/.test(pd));
+  const home = read('app', '(tabs)', '(home)', 'index.tsx');
+  ok('D5: Home\'s NextStepHero is untouched (no contract, no change orders)', !/<NextStepHero[\s\S]{0,400}contract=\{/.test(home));
+  ok('D5: the Invoices section leads with "Bill deposit · $4,500.00" only when nextBillableMilestone offers one (contract-sourced, cents)',
+    /const depositToBill = nextBillableMilestone\(\{\s*contract: moneyChain\.contract,\s*invoices: projectInvoices,/.test(pd)
+    && /\{depositToBill \? \(\s*<TouchableOpacity[\s\S]{0,120}onPress=\{\(\) => navigateFromTile\(depositToBill\.href\)\}[\s\S]{0,400}\{`Bill \$\{depositToBill\.kind\} · \$\{formatMoney\(depositToBill\.amount, 2\)\}`\}[\s\S]{0,80}\) : null\}\s*\{\/\* Bill by voice/.test(pd)
+    && `Bill deposit · ${formatMoney(4500, 2)}` === 'Bill deposit · $4,500.00');
+  ok('D5: the deposit sits inside the owner-only branch (billBlockedReason), before today\'s buttons',
+    /\{billBlockedReason \? \([\s\S]{0,200}\) : \(<>\s*\{\/\* W1 UXDOORS \(D5\)[\s\S]{0,600}\{depositToBill \?/.test(pd));
 }
 
 if (failures > 0) {

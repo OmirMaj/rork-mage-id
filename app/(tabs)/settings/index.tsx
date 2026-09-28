@@ -7,11 +7,14 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem, Languages } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Badge } from '@/components/ui/Badge';
 import { Colors, setCustomPrimary, deriveAccentPalette } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage, useT } from '@/contexts/LanguageContext';
+import { languageEndonym } from '@/components/LanguagePicker';
+import { LANGUAGE_PICKER_ENABLED } from '@/i18n/flags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -292,6 +295,8 @@ export default function SettingsScreen() {
     };
   }, [planSource]);
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
+  const { t } = useT();
+  const { lang: appLanguage } = useLanguage();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   // Wave 6d: on desktop web Settings is an index and ONE group
@@ -1300,6 +1305,32 @@ export default function SettingsScreen() {
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </View>
           </TouchableOpacity>
+          {/* Language (docs/I18N.md §13). Hidden until the Phase 1 field
+              screens are translated (i18n/flags.ts). The label is bilingual so
+              a Spanish speaker stuck in English can still find it; the value is
+              the endonym ("English" / "Español"). */}
+          {LANGUAGE_PICKER_ENABLED ? (
+            <>
+              <View style={styles.rowSeparator} />
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => router.push('/(tabs)/settings/language' as never)}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityHint={t('settings.language.a11yHint', 'Opens the language picker')}
+                testID="settings-language"
+              >
+                <View style={styles.iconWrap}>
+                  <Languages size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.rowLabel}>{t('settings.language.rowLabel', 'Language / Idioma')}</Text>
+                <View style={styles.rowRight}>
+                  <Text style={styles.rowValue}>{languageEndonym(appLanguage)}</Text>
+                  <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
+                </View>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
 
         </SettingsSection>

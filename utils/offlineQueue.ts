@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { isTransportError } from '@/utils/networkErrors';
 import { recordIdOf } from '@/utils/syncRecordKey';
+import type { OnlineOutcome, OnlineRefusalCode } from '@/utils/moments/commitAdapters';
+import { EARLIER_CHANGE_PENDING_REASON, EARLIER_CHANGE_UNSAVED_REASON } from '@/utils/moments/copy';
 
 const OFFLINE_QUEUE_KEY = 'mageid_offline_queue';
 const MAX_RETRIES = 5;
@@ -2379,3 +2381,256 @@ function toastParked(table: string): void {
     oops(`Not sent yet (${ledger.labelForTable(table)}): an earlier change to it is under Not saved. Tap the sync badge and Retry — they go in order.`);
   } catch {/* toast host not mounted — the ledger line says it */}
 }
+
+// ── Online-only writes (moments Step 0, lane MOMSTEP0; plan rule 2) ──────────
+// A LEGAL record (a signature, a certification, a CO approval signed by the
+// client) is never queued: a signature that sits in a phone's outbox for a
+// day was not given when the screen said it was. These two calls are the
+// write for them. They:
+//   - never enqueue, never write the Not-saved ledger, never toast: the caller
+//     owns the words (a slide's reason line);
+//   - answer 'refused' when the server answered with an error (RLS, a
+//     constraint, a 4xx/5xx with a body) or when nothing was sent at all
+//     (offline at the call, no row matched, an earlier change still waiting);
+//   - answer 'unknown' for a transport error after the request may have left:
+//     it may have landed, so the screen says "No answer yet. Check … before
+//     trying again.", never "nothing was saved";
+//   - keep FIFO with the queue: they wait behind an in-flight direct write of
+//     the same record exactly as runDirectWrite does (the record slot), and
+//     they never overtake a write of the same record still sitting in this
+//     session's queue: that record's queued writes get one flush first (the
+//     queue's own processOfflineQueue, run OUTSIDE the slot because the flush
+//     takes the slot for its group), and if they are still waiting the answer
+//     is 'refused' with the code 'earlier_change_pending'. The same for a
+//     write parked under Not saved ('earlier_change_unsaved': Retry goes first).
+//
+// update / delete ask PostgREST for the touched row back (`.select`): a
+// PATCH that matched 0 rows (RLS, a deleted record) is a success to
+// PostgREST and a refusal here ('no_row'). A legal write that reached nothing
+// must never read as stored.
+
+export { EARLIER_CHANGE_PENDING_REASON, EARLIER_CHANGE_UNSAVED_REASON };
+export type { OnlineRefusalCode };
+export type OnlineWriteStatus = OnlineOutcome;
+
+/** An online-only write's full answer. `status` is what a screen decides on. */
+export interface OnlineWriteResult<T = unknown> {
+  status: OnlineWriteStatus;
+  /** Why it was refused, when known. */
+  code?: OnlineRefusalCode;
+  /** For 'earlier_change_pending' / 'earlier_change_unsaved': the whole sentence a copy file may show. */
+  message?: string;
+  /** The server's own words (English, for logs; never shown raw). */
+  error?: string;
+  /** What the server returned (an rpc's result, or the `returning` columns). */
+  data?: T;
+}
+
+export interface OnlineWriteOpts {
+  /** Columns to read back (default 'id' for update/delete; nothing for insert/upsert). */
+  returning?: string;
+  /** upsert only: the conflict target (supabase-js onConflict). */
+  onConflict?: string;
+}
+
+/** Offline at the call (react-query's onlineManager via hooks/useOnline). Lazy: this module stays side-effect free. */
+function offlineAtCall(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { isOfflineNow } = require('@/hooks/useOnline') as typeof import('@/hooks/useOnline');
+    return isOfflineNow();
+  } catch {
+    // Unknown: the server decides.
+    return false;
+  }
+}
+
+/**
+ * Does this session's queue hold a write of any of these records? Read like
+ * queueBehindEarlierWrite reads it: once more on a storage error, and a queue
+ * that still cannot be read holds nothing that could be flushed (so nothing
+ * could be overtaken).
+ */
+async function ownQueueHolds(keys: readonly string[], writerId: string): Promise<{ holds: boolean; ownDepth: number }> {
+  if (keys.length === 0) return { holds: false, ownDepth: 0 };
+  const marker = await readLastUserMarker();
+  let queue: OfflineMutation[];
+  try {
+    queue = await readOfflineQueueOrThrow();
+  } catch {
+    try { queue = await readOfflineQueueOrThrow(); } catch { return { holds: false, ownDepth: 0 }; }
+  }
+  const own = partitionQueueForSession(queue, writerId, marker).own;
+  const holds = own.some((q) => {
+    const qk = recordKeyOf(q.table, q.data);
+    if (qk && keys.includes(qk)) return true;
+    const qn = numberedKeyOf(q.table, q.operation, q.data);
+    return !!qn && keys.includes(qn);
+  });
+  return { holds, ownDepth: own.length };
+}
+
+/** The keys an online write must not overtake: its record, its numbered series, and (a child create) its job's row. */
+function onlineWaitKeys(m: NewMutation): string[] {
+  const keys: string[] = [];
+  const rk = recordKeyOf(m.table, m.data);
+  if (rk) keys.push(rk);
+  const nk = numberedKeyOf(m.table, m.operation, m.data);
+  if (nk) keys.push(nk);
+  const pid = m.table !== 'projects' && (m.operation === 'insert' || m.operation === 'upsert') ? m.data?.project_id : undefined;
+  if (typeof pid === 'string' && pid.length > 0) keys.push(`projects:${pid}`);
+  return keys;
+}
+
+function reportOnlineRefusal(m: NewMutation, message: string, code: string | undefined): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Sentry = require('@sentry/react-native');
+    Sentry.captureMessage(`[OfflineQueue] online-only write refused: ${m.table} ${m.operation}${code ? ` (${code})` : ''}: ${message.slice(0, 120)}`, 'warning');
+  } catch {/* ignore */}
+}
+
+async function runOnlineWrite(m: NewMutation, opts?: OnlineWriteOpts): Promise<OnlineWriteResult> {
+  if (!isSupabaseConfigured) return { status: 'refused', code: 'not_configured' };
+  // Offline at the call: nothing is sent, so nothing can have landed.
+  if (offlineAtCall()) return { status: 'refused', code: 'offline' };
+  const slotKeys: string[] = [];
+  const rk = recordKeyOf(m.table, m.data);
+  if (rk) slotKeys.push(rk);
+  const nk = numberedKeyOf(m.table, m.operation, m.data);
+  if (nk) slotKeys.push(nk);
+  const waitKeys = onlineWaitKeys(m);
+  // Who made this write, taken at the call (the runDirectWrite rule).
+  const writerAtCall = currentSessionUser();
+  let writer: SessionUser | null;
+  try { writer = await writerAtCall; } catch { writer = null; }
+  // An earlier queued write of this record gets its chance first, through
+  // the queue's own flush — outside the slot, which the flush takes itself.
+  if (writer && waitKeys.length > 0) {
+    let first = { holds: false, ownDepth: 0 };
+    try { first = await ownQueueHolds(waitKeys, writer.id); } catch { first = { holds: false, ownDepth: 0 }; }
+    if (first.holds) {
+      try { await processOfflineQueue(); } catch { /* the check inside the slot decides */ }
+    }
+  }
+  return withRecordSlot(slotKeys, () => sendOnline(m, waitKeys, writer, opts));
+}
+
+async function sendOnline(
+  m: NewMutation, waitKeys: readonly string[], writer: SessionUser | null, opts?: OnlineWriteOpts,
+): Promise<OnlineWriteResult> {
+  const { table, operation, data } = m;
+  const writerId = writer?.id;
+  // #4: a child made with its job waits for the job's write on the wire.
+  const parentId = table !== 'projects' && (operation === 'insert' || operation === 'upsert') ? data?.project_id : undefined;
+  if (typeof parentId === 'string' && parentId.length > 0) {
+    const parent = recordSlots.get(`projects:${parentId}`);
+    if (parent) await parent;
+  }
+  // The account that made this write must still be the one signed in.
+  if (!(await sessionIsWriter(writerId))) return { status: 'refused', code: 'session_changed' };
+  let ownDepth = 0;
+  if (writer) {
+    const rid = recordIdOf(table, data);
+    if (rid !== null) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+        if (await ledger.unsavedChainBlocks(writer.id, {
+          table, recordId: rid, operation,
+          ...(operation === 'rpc' ? {} : { row: data }),
+        })) {
+          return { status: 'refused', code: 'earlier_change_unsaved', message: EARLIER_CHANGE_UNSAVED_REASON };
+        }
+      } catch { /* a ledger that cannot be read holds nothing Retry could send first */ }
+    }
+    const after = await ownQueueHolds(waitKeys, writer.id);
+    ownDepth = after.ownDepth;
+    if (after.holds) return { status: 'refused', code: 'earlier_change_pending', message: EARLIER_CHANGE_PENDING_REASON };
+  }
+  try {
+    let error: { message: string; code?: string } | null = null;
+    let status: number | undefined;
+    let rows: unknown = undefined;
+    if (operation === 'insert') {
+      const q = supabase.from(table).insert(data);
+      const res = opts?.returning ? await q.select(opts.returning) : await q;
+      error = res.error; status = res.status; rows = (res as { data?: unknown }).data;
+      // A re-send of an insert whose first attempt got no answer meets its own
+      // row: that is success, when this user can see it (#122's rule).
+      if (error && typeof data?.id === 'string' && isAlreadyLandedInsert(error)) {
+        const seen = await duplicateRowVisibility(table, data);
+        if (seen === 'visible') { error = null; rows = undefined; }
+        else if (seen === 'unknown') return { status: 'unknown', error: 'the duplicate row could not be re-read' };
+      }
+    } else if (operation === 'upsert') {
+      const q = supabase.from(table).upsert(data, opts?.onConflict ? { onConflict: opts.onConflict } : undefined);
+      const res = opts?.returning ? await q.select(opts.returning) : await q;
+      error = res.error; status = res.status; rows = (res as { data?: unknown }).data;
+    } else if (operation === 'update' || operation === 'delete') {
+      const { id, ...rest } = data;
+      const base = operation === 'update' ? supabase.from(table).update(rest) : supabase.from(table).delete();
+      const res = await base.eq('id', id as string).select(opts?.returning ?? 'id');
+      error = res.error; status = res.status; rows = res.data;
+      if (!error && Array.isArray(res.data) && res.data.length === 0) {
+        reportOnlineRefusal(m, 'no row matched', 'no_row');
+        return { status: 'refused', code: 'no_row' };
+      }
+    } else if (operation === 'rpc' && m.rpc) {
+      const res = await supabase.rpc(m.rpc.fn, m.rpc.args);
+      error = res.error; status = res.status; rows = res.data;
+    } else {
+      return { status: 'refused', code: 'invalid' };
+    }
+    if (error) throw Object.assign(new Error(error.message), { code: error.code, status });
+    // The network is up: whatever this session still has queued goes now.
+    if (ownDepth > 0) scheduleQueueDrain();
+    return { status: 'synced', ...(rows !== undefined ? { data: rows } : {}) };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (isNetworkError(err)) return { status: 'unknown', error: msg };
+    const code = (err as { code?: string } | null)?.code;
+    reportOnlineRefusal(m, msg, code);
+    return { status: 'refused', code: 'server', error: msg };
+  }
+}
+
+/**
+ * An online-only table write with its reason code and returned data. See the
+ * block comment above: never queued, never ledgered, never toasted.
+ */
+export async function supabaseWriteOnlineDetailed<T = unknown>(
+  table: string,
+  operation: DirectOperation,
+  data: Record<string, unknown>,
+  opts?: OnlineWriteOpts,
+): Promise<OnlineWriteResult<T>> {
+  return (await runOnlineWrite({ table, operation, data }, opts)) as OnlineWriteResult<T>;
+}
+
+/** An online-only table write: 'synced' | 'refused' | 'unknown'. */
+export async function supabaseWriteOnline(
+  table: string,
+  operation: DirectOperation,
+  data: Record<string, unknown>,
+  opts?: OnlineWriteOpts,
+): Promise<OnlineWriteStatus> {
+  return (await supabaseWriteOnlineDetailed(table, operation, data, opts)).status;
+}
+
+/**
+ * An online-only rpc call. `record` names the record it changes (the same
+ * table + id the queue orders by) so it waits behind that record's writes;
+ * without it there is nothing to order and it is sent at once. Returns the
+ * rpc's data on 'synced' (a caller reads `recorded: true` / `signed` from it).
+ */
+export async function supabaseRpcOnline<T = unknown>(
+  fn: string,
+  args: Record<string, unknown>,
+  opts?: { record?: { table: string; id: string } },
+): Promise<OnlineWriteResult<T>> {
+  const table = opts?.record?.table ?? `rpc:${fn}`;
+  const data: Record<string, unknown> = opts?.record ? { id: opts.record.id } : {};
+  return (await runOnlineWrite({ table, operation: 'rpc', data, rpc: { fn, args } })) as OnlineWriteResult<T>;
+}
+

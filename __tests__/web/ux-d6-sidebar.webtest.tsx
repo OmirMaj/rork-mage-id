@@ -241,14 +241,14 @@ describe('D6: the counts that moved behind "More for this job"', () => {
     expect(byTestId(`sidebar-section-count-${TOGGLE}`).textContent).toBe('3');
     expect(q(`sidebar-section-count-dot-${TOGGLE}`)).not.toBeNull();
     expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label'))
-      .toBe('More for this job, collapsed, RFIs 2 open, 1 overdue; Submittals 1 open');
+      .toBe('More for this project, collapsed, RFIs 2 open, 1 overdue; Submittals 1 open');
   });
 
   it('nothing open: no toggle count at all (never a 0)', async () => {
     mockWorld.rfis = [RFI('answered', PAST)];
     await mount();
     expect(q(`sidebar-section-count-${TOGGLE}`)).toBeNull();
-    expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label')).toBe('More for this job, collapsed');
+    expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label')).toBe('More for this project, collapsed');
   });
 
   it('an unloaded RFI read gives no RFI part (the submittal part still counts)', async () => {

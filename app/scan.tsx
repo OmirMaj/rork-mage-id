@@ -71,6 +71,7 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { cardSurface, ChipRail, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 // ── Types ────────────────────────────────────────────────────────
 interface Capture { uri: string; base64: string; mimeType: string }
@@ -95,13 +96,10 @@ function isScalar(v: unknown): v is string | number {
   return typeof v === 'string' || typeof v === 'number';
 }
 
-/** camelCase / snake_case field key → "Title Case" label. */
+/** camelCase / snake_case field key → sentence-case label ('invoiceNumber' →
+ *  'Invoice number'): split the camel humps, then the shared humanizer. */
 function humanizeKey(k: string): string {
-  return k
-    .replace(/_/g, ' ')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, c => c.toUpperCase())
-    .trim();
+  return humanizeEnum(k.replace(/([a-z0-9])([A-Z])/g, '$1_$2'));
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -283,7 +281,7 @@ function ScanInner() {
     if (landedCount > 0) {
       showAlert(
         'Pages already filed',
-        `${landedCount} page${landedCount === 1 ? ' of this scan is' : 's of this scan are'} already in ${project?.name ?? 'this job'}'s files. Finish filing the rest here, or tap Start over (the filed pages stay in Project Files).`,
+        `${landedCount} page${landedCount === 1 ? ' of this scan is' : 's of this scan are'} already in ${project?.name ?? 'this project'}'s files. Finish filing the rest here, or tap Start over (the filed pages stay in Project Files).`,
       );
       return;
     }
@@ -569,7 +567,7 @@ function ScanInner() {
     if (landedCount > 0) {
       showAlert(
         'Pages already filed',
-        `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this job'}'s files. Finish filing here, or tap Start over (the filed pages stay in Project Files).`,
+        `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this project'}'s files. Finish filing here, or tap Start over (the filed pages stay in Project Files).`,
       );
       return;
     }
@@ -593,7 +591,7 @@ function ScanInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Scan Anything · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Scan anything · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Auto-file a document'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -663,7 +661,7 @@ function ScanInner() {
           <EmptyState
             icon={<ScanLine size={36} color={t.accent} strokeWidth={1.6} />}
             title="No projects yet"
-            message="Scan Anything reads a document and files it into a job — a bill as a cost entry, a COI on the sub, a permit on the Permits list. Create a project first so Scan Anything has somewhere to land."
+            message="Scan anything reads a document and files it into a project: a bill as a cost entry, a COI on the sub, a permit on the Permits list. Create a project first so it has somewhere to land."
             actionLabel="Create a project"
             onAction={() => router.push({ pathname: '/' as never, params: { openCreate: '1' } as never })}
           />
@@ -803,7 +801,7 @@ function ScanInner() {
                   <View style={styles.helpRow}>
                     <Text style={styles.helpText}>No subs yet — add one in Subs to file this as compliance. Until then it files as a plain document.</Text>
                     <TouchableOpacity onPress={() => router.push('/(tabs)/subs' as never)} hitSlop={8} accessibilityRole="link" testID="scan-add-sub">
-                      <Text style={styles.helpLink}>Open Subs</Text>
+                      <Text style={styles.helpLink}>Open subs</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -839,11 +837,11 @@ function ScanInner() {
                     <Text style={styles.helpText}>
                       {effectiveCommitmentId
                         ? 'Counts against that PO or subcontract in job costing, so the same dollars are not counted twice.'
-                        : 'Unlinked, this counts as direct cost — if the vendor already has a PO or subcontract on this job, the same dollars are then counted twice.'}
+                        : 'Unlinked, this counts as direct cost. If the vendor already has a PO or subcontract on this project, the same dollars are counted twice.'}
                     </Text>
                   </>
                 ) : (
-                  <Text style={styles.helpText}>No open POs or subcontracts on this job — the bill books as direct cost.</Text>
+                  <Text style={styles.helpText}>No open POs or subcontracts on this project, so the bill books as direct cost.</Text>
                 )}
               </View>
             )}

@@ -17,6 +17,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
 import { computeSubScorecards, type SubGrade } from '@/utils/subScorecard';
+import { useBackcharges } from '@/hooks/useBackcharges';
+import { backchargesForScorecard } from '@/utils/backchargeRows';
 import type { Subcontractor, SubTrade } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
@@ -269,12 +271,19 @@ export default function SubsScreen() {
   // screen does not use), so a one-element input returns the identical card
   // app/sub-scorecard.tsx renders — without running the punch-item filter and
   // the schedule walk once per sub on every render of the LIST.
+  // Backcharges feed the scorecard's backcharges factor, the same list
+  // /sub-scorecard and the desktop register pass (lane HEALTH H1.6) — and only
+  // once the list is complete: before the account's read is back it can be []
+  // with backcharges on the account, so it reaches the scorecard as undefined
+  // ("not counted"), never [] ("no backcharges").
+  const { list: backchargeList, complete: backchargesRead } = useBackcharges();
+  const backcharges = backchargesForScorecard(backchargeList, backchargesRead);
   const openScorecard = useMemo(() => {
     if (!showDetail) return null;
     return computeSubScorecards({
-      subcontractors: [showDetail], commitments, changeOrders, punchItems, projects, rfis,
+      subcontractors: [showDetail], commitments, changeOrders, punchItems, projects, rfis, backcharges,
     }).cards[0] ?? null;
-  }, [showDetail, commitments, changeOrders, punchItems, projects, rfis]);
+  }, [showDetail, commitments, changeOrders, punchItems, projects, rfis, backcharges]);
 
   // What 'AI Evaluate Sub' reads: the same card, plus the jobs his signed
   // commitments are on. Pure (utils/subCompliance), pinned by

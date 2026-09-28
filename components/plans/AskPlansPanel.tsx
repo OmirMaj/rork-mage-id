@@ -1,4 +1,4 @@
-// components/plans/AskPlansPanel.tsx — "Ask Your Plans" question box.
+// components/plans/AskPlansPanel.tsx — "Ask your plans" question box.
 //
 // Lets a GC type a plain-English question about their uploaded plan set and
 // get a grounded, cited answer with a tap-to-jump to the relevant sheet.
@@ -291,7 +291,7 @@ function AskPlansPanelInner({
       {/* Header */}
       <View style={styles.panelHeader}>
         <BookOpen size={16} color={t.accent} strokeWidth={1.75} />
-        <Text style={styles.panelTitle}>Ask Your Plans</Text>
+        <Text style={styles.panelTitle}>Ask your plans</Text>
       </View>
 
       {/* Input row */}

@@ -10,6 +10,9 @@
 // Grounding: when the GC has a learned cost book, the leveling engine uses
 // those rates and marks each row 'your_history' vs 'market_guess' so the
 // GC knows which adjustments came from real data and which are model estimates.
+// T7: that label is SAVED with the reason (utils/levelingBasis — "Not from
+// your book: …" / "Needs price: …"), so it survives a reload; an exclusion
+// that needs his price is saved at 0 and never moves the ranking.
 //
 // Pure ranking in utils/bidLeveling; AI call routes through bidLevelingEngine.
 
@@ -34,7 +37,11 @@ import {
   computeBidLeveling,
   type LeveledBid,
 } from '@/utils/bidLeveling';
-import { levelBids, type AdjustmentBasis } from '@/utils/bidLevelingEngine';
+import { applyLevelingHonesty, levelBids, type AdjustmentBasis } from '@/utils/bidLevelingEngine';
+import {
+  LABEL_NEEDS_PRICE, LABEL_NOT_FROM_BOOK, LABEL_YOUR_HISTORY, LABEL_YOUR_PRICE, NO_BOOK_MATCH_NOTE, CLOSE_CALL_REASON,
+  exclusionsNeedPriceLine, levelingMayWrite, needsYourPrice, rankingNotFromBookLine, readReason,
+} from '@/utils/levelingBasis';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import type { BidPackageBid } from '@/types';
 import { Type } from '@/constants/typography';
@@ -74,8 +81,10 @@ function BidLevelingInner() {
     return 'Subcontractor';
   }, [getSubcontractor]);
 
+  // A needs-price bid's 0 is a placeholder, not a price: it stays out of the
+  // median, the spread and the outliers (ideas-1 round 3).
   const report = useMemo(
-    () => (pkg ? computeBidLeveling(pkg, bids, resolveVendor) : null),
+    () => (pkg ? computeBidLeveling(pkg, bids, resolveVendor, { leveledCostUnknown: needsYourPrice }) : null),
     [pkg, bids, resolveVendor],
   );
 
@@ -93,16 +102,23 @@ function BidLevelingInner() {
     setAiBusy(true);
     setAiMsg(null);
     try {
-      const result = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
-      if (result.adjustments.length === 0) {
+      const raw = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
+      if (raw.adjustments.length === 0) {
         setAiMsg("No adjustments suggested. Add each bid's exclusions and try again.");
         return;
       }
+      // The honesty pass (T7): labels ride on the saved reason; a needs-price
+      // exclusion is written at 0.
+      const honest = applyLevelingHonesty(raw, bids);
+      const result = honest.result;
       const newBasis: Record<string, AdjustmentBasis> = {};
       const newQuestions: Record<string, string> = {};
       let applied = 0;
       for (const adj of result.adjustments) {
         if (!adj.bidId || adj.confidence === 0) continue;
+        // Never over his own price, never over the awarded bid's award-time
+        // figure (utils/levelingBasis.levelingMayWrite, round 2).
+        if (!levelingMayWrite(bids.find(x => x.id === adj.bidId), pkg.awardedBidId)) continue;
         const amount = Math.max(0, Math.round(Number(adj.adjustment) || 0));
         updateBidPackageBid(adj.bidId, {
           normalizedAdjustment: amount,
@@ -115,12 +131,12 @@ function BidLevelingInner() {
       setBasisMap(prev => ({ ...prev, ...newBasis }));
       setQuestionsMap(prev => ({ ...prev, ...newQuestions }));
 
-      // Check if all adjustments are market_guess (no learned data used)
-      const historyCount = Object.values(newBasis).filter(b => b === 'your_history').length;
+      // Counted from the labels the honesty pass gave the rows, not from the
+      // model's own claim about where its numbers came from.
       const baseMsg = `Leveled ${applied} bid${applied === 1 ? '' : 's'} for excluded scope. Ranking updated.`;
-      const groundingNote = historyCount > 0
-        ? ` ${historyCount} adjustment${historyCount === 1 ? '' : 's'} priced from your cost history.`
-        : ' No rates in your cost history matched, so these use market estimates. Close more projects to sharpen them.';
+      const groundingNote = honest.bookCount > 0
+        ? ` ${honest.bookCount} adjustment${honest.bookCount === 1 ? '' : 's'} priced from your cost history.`
+        : honest.notFromBookCount > 0 ? ` ${NO_BOOK_MATCH_NOTE}` : '';
       setAiMsg(baseMsg + groundingNote);
     } catch (e) {
       console.warn('[bid-leveling] AI leveling failed:', rawErrorMessage(e));
@@ -162,18 +178,34 @@ function BidLevelingInner() {
           {/* Recommendation */}
           {report.recommendedId && (() => {
             const rec = report.bids.find(b => b.isRecommended)!;
+            // T7: what the ranking rests on, read from the SAVED labels so a
+            // reload shows the same thing.
+            const notFromBook = report.bids.filter(b => b.adjustment > 0 && readReason(b.bid.normalizedAdjustmentReason).label === 'not_from_book').length;
+            const needsPrice = report.bids.filter(b => readReason(b.bid.normalizedAdjustmentReason).label === 'needs_price').length;
+            const recNeedsPrice = readReason(rec.bid.normalizedAdjustmentReason).label === 'needs_price';
+            const notes = [
+              notFromBook > 0 ? rankingNotFromBookLine(notFromBook) : null,
+              needsPrice > 0 ? exclusionsNeedPriceLine(needsPrice) : null,
+            ].filter((x): x is string => !!x);
             return (
               <View style={[styles.recoCard, { borderColor: t.success + '55' }]}>
                 <View style={styles.recoHead}>
                   <Trophy size={16} color={t.success} strokeWidth={1.75} />
-                  <Text style={styles.recoLabel}>Best value</Text>
+                  <Text style={styles.recoLabel}>{recNeedsPrice ? CLOSE_CALL_REASON.replace(/\.$/, '') : 'Best value'}</Text>
                 </View>
                 <Text style={styles.recoVendor}>{rec.vendor}</Text>
-                <Text style={styles.recoAmount}>{formatMoneyFull(rec.leveledAmount)} <Text style={styles.recoLeveled}>leveled</Text></Text>
-                <Text style={styles.recoReason}>
-                  {rec.adjustment > 0 ? `${formatMoneyFull(rec.rawAmount)} bid + ${formatMoney(rec.adjustment)} for excluded scope. ` : ''}
-                  {rec.vsBudget <= 0 ? `${formatMoney(Math.abs(rec.vsBudget))} under budget.` : `${formatMoney(rec.vsBudget)} over budget.`}
-                </Text>
+                {/* A close call has no leveled total yet: its 0 is a placeholder,
+                    so no amount and no budget sentence (round 3). */}
+                {recNeedsPrice ? null : (
+                  <>
+                    <Text style={styles.recoAmount}>{formatMoneyFull(rec.leveledAmount)} <Text style={styles.recoLeveled}>leveled</Text></Text>
+                    <Text style={styles.recoReason}>
+                      {rec.adjustment > 0 ? `${formatMoneyFull(rec.rawAmount)} bid + ${formatMoney(rec.adjustment)} for excluded scope. ` : ''}
+                      {rec.vsBudget <= 0 ? `${formatMoney(Math.abs(rec.vsBudget))} under budget.` : `${formatMoney(rec.vsBudget)} over budget.`}
+                    </Text>
+                  </>
+                )}
+                {notes.length > 0 ? <Text style={styles.recoReason} testID="leveling-note">{notes.join(' ')}</Text> : null}
               </View>
             );
           })()}
@@ -197,7 +229,12 @@ function BidLevelingInner() {
 
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Budget</Text><Text style={styles.kpiValue}>{formatMoney(report.budget)}</Text></View>
-            <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>{formatMoney(report.spread)}</Text><Text style={styles.kpiSub}>{Math.round(report.spreadPct * 100)}% of median</Text></View>
+            {report.bids.length - report.unknownCount < 2 && report.unknownCount > 0 ? (
+              // Fewer than two known leveled costs: there is no spread to show yet.
+              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>—</Text><Text style={styles.kpiSub}>{LABEL_NEEDS_PRICE}</Text></View>
+            ) : (
+              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>{formatMoney(report.spread)}</Text><Text style={styles.kpiSub}>{Math.round(report.spreadPct * 100)}% of median</Text></View>
+            )}
           </View>
 
           {report.outlierCount > 0 && (
@@ -237,13 +274,9 @@ function BidLevelingInner() {
   );
 }
 
-// ── Basis chip labels ─────────────────────────────────────────────────────────
-
-const BASIS_LABEL: Record<AdjustmentBasis, string> = {
-  your_history: 'Your history',
-  estimate:     'Estimate',
-  market_guess: 'AI draft',
-};
+// ── Basis chip ───────────────────────────────────────────────────────────────
+// The SAVED label wins (it survives a reload): "Needs price" / "Not from your
+// book". "Your history" is shown for a row this session leveled from the book.
 
 function BidRow({
   b, t, styles, basis, needsAnswer, onScorecard,
@@ -256,39 +289,59 @@ function BidRow({
   onScorecard?: () => void;
 }) {
   const overBudget = b.vsBudget > 0;
-  const showBasisChip = !!basis && b.adjustment > 0;
-  const isHistoryBased = basis === 'your_history';
+  const saved = readReason(b.bid.normalizedAdjustmentReason);
+  // Round 3: a needs-price bid's leveled cost is unknown — it prints "Needs
+  // price", never its 0 placeholder, and never wears "Best value".
+  const unpriced = needsYourPrice(b.bid);
+  const isWinner = b.isRecommended && !unpriced;
+  const basisChip: { label: string; color: string; bg?: string } | null =
+    saved.label === 'needs_price' ? { label: LABEL_NEEDS_PRICE, color: t.warningLabel }
+      : saved.label === 'your_price' ? { label: LABEL_YOUR_PRICE, color: t.success }
+      : saved.label === 'not_from_book' && b.adjustment > 0 ? { label: LABEL_NOT_FROM_BOOK, color: t.textMuted, bg: t.surfaceAlt }
+        : basis === 'your_history' && b.adjustment > 0 ? { label: LABEL_YOUR_HISTORY, color: t.success }
+          : null;
   return (
-    <View style={[styles.bidCard, b.isRecommended && { borderColor: t.success, borderWidth: 1.5 }]}>
+    <View style={[styles.bidCard, isWinner && { borderColor: t.success, borderWidth: 1.5 }]}>
       <View style={styles.bidTop}>
-        <View style={[styles.rankPill, { backgroundColor: (b.isRecommended ? t.success : t.textMuted) + '1F' }]}>
-          <Text style={[styles.rankNum, { color: b.isRecommended ? t.success : t.textSecondary }]}>{b.rank}</Text>
+        <View style={[styles.rankPill, { backgroundColor: (isWinner ? t.success : t.textMuted) + '1F' }]}>
+          <Text style={[styles.rankNum, { color: isWinner ? t.success : t.textSecondary }]}>{b.rank}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.bidVendor} numberOfLines={1}>{b.vendor}</Text>
           <View style={styles.badgeRow}>
-            {b.isRecommended && <Badge label="Best value" color={t.success} styles={styles} />}
+            {isWinner && <Badge label="Best value" color={t.success} styles={styles} />}
             {b.isCheapestRaw && <Badge label="Cheapest bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} strokeWidth={1.75} />} />}
             {b.outlierLow && <Badge label="Suspiciously low" color={t.danger} styles={styles} />}
-            {showBasisChip && (
+            {basisChip && (
               <Badge
-                label={BASIS_LABEL[basis!]}
-                color={isHistoryBased ? t.success : t.textMuted}
+                label={basisChip.label}
+                color={basisChip.color}
+                bg={basisChip.bg}
                 styles={styles}
+                testID={`leveling-basis-${b.bid.id}`}
               />
             )}
           </View>
         </View>
         <View style={styles.bidAmounts}>
-          <Text style={styles.bidLeveled}>{formatMoneyFull(b.leveledAmount)}</Text>
-          {b.adjustment > 0
-            ? <Text style={styles.bidRaw}>{formatMoneyFull(b.rawAmount)} + {formatMoney(b.adjustment)}</Text>
-            : <Text style={styles.bidRaw}>as bid</Text>}
-          <Text style={[styles.bidVsBudget, { color: overBudget ? t.danger : t.success }]}>{overBudget ? '+' : '−'}{formatMoney(Math.abs(b.vsBudget))} vs budget</Text>
+          {unpriced ? (
+            <>
+              <Text style={[styles.bidLeveled, { color: t.warningLabel }]} testID={`leveling-needs-price-${b.bid.id}`}>{LABEL_NEEDS_PRICE}</Text>
+              <Text style={styles.bidRaw}>{`${formatMoneyFull(b.rawAmount)} bid + the excluded scope`}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.bidLeveled}>{formatMoneyFull(b.leveledAmount)}</Text>
+              {b.adjustment > 0
+                ? <Text style={styles.bidRaw}>{formatMoneyFull(b.rawAmount)} + {formatMoney(b.adjustment)}</Text>
+                : <Text style={styles.bidRaw}>as bid</Text>}
+              <Text style={[styles.bidVsBudget, { color: overBudget ? t.danger : t.success }]}>{overBudget ? '+' : '−'}{formatMoney(Math.abs(b.vsBudget))} vs budget</Text>
+            </>
+          )}
         </View>
       </View>
       {b.excludes.length > 0 && (
-        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{b.bid.normalizedAdjustmentReason ? ` — leveled: ${b.bid.normalizedAdjustmentReason}` : ''}</Text>
+        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{saved.text ? ` — leveled: ${saved.text}` : ''}</Text>
       )}
       {needsAnswer && (
         <View style={styles.needsAnswerRow}>
@@ -306,9 +359,9 @@ function BidRow({
   );
 }
 
-function Badge({ label, color, styles, icon }: { label: string; color: string; styles: ReturnType<typeof makeStyles>; icon?: React.ReactNode }) {
+function Badge({ label, color, styles, icon, bg, testID }: { label: string; color: string; styles: ReturnType<typeof makeStyles>; icon?: React.ReactNode; bg?: string; testID?: string }) {
   return (
-    <View style={[styles.badge, { backgroundColor: color + '1F' }]}>
+    <View style={[styles.badge, { backgroundColor: bg ?? color + '1F' }]} testID={testID}>
       {icon}
       <Text style={[styles.badgeText, { color }]}>{label}</Text>
     </View>

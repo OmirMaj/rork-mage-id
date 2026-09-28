@@ -89,6 +89,85 @@ export function scheduleFromJobHref(projectId: string) {
   return { pathname: '/(tabs)/schedule' as const, params: { projectId, from: FROM_JOB } };
 }
 
+/**
+ * The job page's schedule doors (W1 UXDOORS, D2). The same classic-tab href
+ * the job page always sent (projectId + the `focus` nonce the schedule tab
+ * re-applies on every arrival), plus `from=job` so the tab draws a back link
+ * to the job. scheduleFromJobHref above stays as it is (no focus).
+ */
+export function scheduleFromJobFocusHref(projectId: string, focus: string) {
+  return { pathname: '/(tabs)/schedule' as const, params: { projectId, focus, from: FROM_JOB } };
+}
+
+/** The job page's Estimate doors (D2): the Full Estimator on this job, with
+ *  `from=job` so its back link returns to the job. */
+export function estimateFromJobHref(projectId: string) {
+  return { pathname: '/(tabs)/estimate/full' as const, params: { projectId, from: FROM_JOB } };
+}
+
+/** The job page itself, as the string HiddenTabBackLink pushes. project-detail
+ *  reads its job from `id` (useLocalSearchParams<{ id }>), not `projectId`. */
+export function projectDetailPath(projectId: string): string {
+  return `/project-detail?id=${encodeURIComponent(projectId)}`;
+}
+
+/**
+ * The back link a hidden tab draws when it was opened from a job (D2), or
+ * null for today's link. Only with `from=job` AND a projectId that resolves
+ * to a job he has: the label is that job's name and the link goes to that
+ * job's page — the label names where the link goes (HiddenTabBackLink's rule).
+ */
+export function jobBackLink(
+  fromJob: boolean,
+  job: { id: string; name?: string | null } | null | undefined,
+): { label: string; href: string } | null {
+  if (!fromJob || !job || !job.id) return null;
+  const name = (job.name ?? '').trim();
+  if (!name) return null;
+  return { label: name, href: projectDetailPath(job.id) };
+}
+
+/**
+ * "Get waiver" from the job's Subs & pay rows (D5). app/lien-waivers.tsx
+ * reads no `subId`: it auto-opens its new-waiver form only when
+ * `prefillSubName` is set, and links the waiver through
+ * `prefillCommitmentId` / `prefillSubCompanyId` — the same names
+ * sub-portal-setup's subPaymentReleasePrefill sends. No amount and no waiver
+ * type: which payment the release covers is his choice in the form (and
+ * `prefillAmount` there is dollars, not cents).
+ */
+export interface LienWaiverForCommitmentInput {
+  projectId: string;
+  /** The sub's company name (roster sub, else the commitment's vendor). */
+  subName: string;
+  commitmentId: string;
+  /** The roster sub's id, when the commitment names one. */
+  subCompanyId?: string | null;
+  /** Only when an address is on file. */
+  subEmail?: string | null;
+}
+
+export function lienWaiverForCommitmentHref(i: LienWaiverForCommitmentInput) {
+  const params: Record<string, string> = {
+    projectId: i.projectId,
+    prefillSubName: i.subName,
+    prefillCommitmentId: i.commitmentId,
+  };
+  if (i.subCompanyId) params.prefillSubCompanyId = i.subCompanyId;
+  const email = (i.subEmail ?? '').trim();
+  if (email.includes('@')) params.prefillSubEmail = email;
+  return { pathname: '/lien-waivers' as const, params };
+}
+
+/** An href object as the path string a string-only navigator takes
+ *  (ToolsSheet's onNavigate(route: string)). Params in insertion order. */
+export function hrefToPath(h: { pathname: string; params?: Record<string, string> }): string {
+  const q = Object.entries(h.params ?? {})
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+  return q ? `${h.pathname}?${q}` : h.pathname;
+}
+
 export function photoTriageHref(projectId: string) {
   return { pathname: '/photo-triage' as const, params: { projectId } };
 }

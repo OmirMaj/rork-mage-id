@@ -183,7 +183,7 @@ export default React.memo(function AIQuickEstimate({
       return;
     }
     if (typeBlock) {
-      showAlert('Describe the job', typeBlock);
+      showAlert('Describe the project', typeBlock);
       return;
     }
 
@@ -459,7 +459,7 @@ export default React.memo(function AIQuickEstimate({
               style={s.detailInput}
               value={projectTypeOther}
               onChangeText={setProjectTypeOther}
-              placeholder="Describe the job, e.g. Whole-house repipe"
+              placeholder="Describe the project, e.g. Whole-house repipe"
               placeholderTextColor={t.textMuted}
               maxLength={PROJECT_TYPE_OTHER_MAX}
               testID="ai-type-other"

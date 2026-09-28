@@ -192,5 +192,20 @@ assert(keptKeyFor({ projectId: 'p', materialId: 'm', latestReceiptLineId: 'l' })
   assert(/<PriceWatchCard projectId=\{projectId\} \/>[\s\S]{0,40}\{\/\* Existing receipts for this project \*\/\}/.test(screen), 'the receipts screen mounts PriceWatchCard directly above the existing-receipts list');
 }
 
+console.log('\n── estimateDrift includeProjectIds (T2: the one project being sent or signed)');
+{
+  const est = footed(items);
+  const all = [project('open', 'estimated', est), project('live', 'in_progress', est), project('done', 'completed', est)];
+  const base = JSON.stringify(estimateDrift(all, rcpts));
+  assert(JSON.stringify(estimateDrift(all, rcpts, 5, {})) === base, 'an empty options object changes nothing');
+  assert(JSON.stringify(estimateDrift(all, rcpts, 5, { includeProjectIds: [] })) === base, 'an empty include list changes nothing');
+  assert(estimateDrift(all, rcpts).every((d) => d.projectId === 'open'), 'by default only the open estimate drifts');
+  const named = estimateDrift(all, rcpts, 5, { includeProjectIds: ['live'] });
+  assert(named.filter((d) => d.projectId === 'live').length === 2, `a named in-progress project is checked (${named.filter((d) => d.projectId === 'live').length})`);
+  assert(!named.some((d) => d.projectId === 'done'), 'an un-named completed project is still skipped');
+  assert(JSON.stringify(named.filter((d) => d.projectId === 'open')) === base, "naming one project leaves every other project's findings as they were");
+  assert(estimateDrift(all, rcpts, 20, { includeProjectIds: ['live'] }).length === 0, 'minPct still applies to a named project');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

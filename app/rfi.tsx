@@ -71,6 +71,8 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
+import { humanizeEnum } from '@/utils/statusLabels';
 import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays, calendarDayOf } from '@/utils/calendarDate';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
@@ -189,7 +191,7 @@ export default function RFIScreen() {
         ? (
           <RecordGateView
             title="RFIs" state="error"
-            message="Couldn't check your access to this job. Check your connection and try again."
+            message="Couldn't check your access to this project. Check your connection and try again."
             onRetry={() => { void roleState.refetch(); }}
           />
         )
@@ -626,11 +628,11 @@ function RFIForm() {
   const persistForm = useCallback((): RFI | null => {
     if (!existingRFI) return null;
     if (!subject.trim()) {
-      showAlert('Missing Subject', 'Please enter a subject for this RFI.');
+      showAlert('Add a subject', 'Enter a subject for this RFI.');
       return null;
     }
     if (!question.trim()) {
-      showAlert('Missing Question', 'Please enter the RFI question.');
+      showAlert('Add the question', 'Enter the RFI question.');
       return null;
     }
     // #25: the architect's answer and his differ — he picks first.
@@ -720,11 +722,11 @@ function RFIForm() {
       if (!persistForm()) return;
     } else {
       if (!subject.trim()) {
-        showAlert('Missing Subject', 'Please enter a subject for this RFI.');
+        showAlert('Add a subject', 'Enter a subject for this RFI.');
         return;
       }
       if (!question.trim()) {
-        showAlert('Missing Question', 'Please enter the RFI question.');
+        showAlert('Add the question', 'Enter the RFI question.');
         return;
       }
       const now = new Date().toISOString();
@@ -937,7 +939,10 @@ function RFIForm() {
         attachments: sendUris.length ? sendUris : undefined,
       });
       if (!result.success) {
-        showAlert('Send failed', result.error || 'Could not send the RFI. Try again.');
+        // The server's text can be transport noise ("Edge Function returned a
+        // non-2xx status code"); only a sentence written for a person is shown.
+        console.warn('[RFI] send refused:', result.error);
+        showAlert("Couldn't send the RFI", ownSentence(result.error ?? null) ?? describeError(result.error ?? null, { action: 'send the RFI', keptLocally: true }).body);
         return;
       }
       // Shift the ball-in-court to the architect. The GC held it until
@@ -997,12 +1002,14 @@ function RFIForm() {
           `Sent to ${to}.${sheetsLine} ${whereBack}`,
         );
       } else {
-        showAlert('RFI Sent', `Sent to ${to}. ${whereBack}`);
+        showAlert('RFI sent', `Sent to ${to}. ${whereBack}`);
       }
       setShowSendModal(false);
     } catch (err) {
       console.error('[RFI] Send failed:', err);
-      showAlert('Send failed', err instanceof Error ? err.message : 'Could not send RFI.');
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'send the RFI', keptLocally: true });
+      showAlert(own ? "Couldn't send the RFI" : copy.title, own ?? copy.body);
     } finally {
       setSending(false);
     }
@@ -1115,12 +1122,12 @@ function RFIForm() {
       >
         {!existingRFI && (
           <FeatureHeader
-            eyebrow="RFI · Request for Information"
+            eyebrow="RFI · Request for information"
             title="Ask a question. Get a paper trail."
             subtitle="Send the design team (architect, engineer, owner) a question with a deadline. Every answer is logged with a timestamp — protects you when scope drifts later."
             explainer={{
               term: 'Request for Information (RFI)',
-              definition: 'An RFI is the formal way you ask the architect, engineer, or owner a question during construction. It creates a clock (when do you need the answer?) and a permanent record. RFIs are how you protect yourself when a detail is unclear or missing — a delayed RFI answer is documented evidence for a schedule extension.',
+              definition: 'An RFI is the formal way you ask the architect, engineer or owner a question during construction. It starts a clock and leaves a permanent record, so a late answer is evidence for a schedule extension.',
               whenToUse: [
                 'A drawing detail is unclear, missing, or contradicts another sheet',
                 'You need a substitution approved on a spec\'d product',
@@ -1185,7 +1192,7 @@ function RFIForm() {
         {existingRFI && (
           <View style={styles.ballInCourtCard}>
             <View style={styles.ballInCourtRow}>
-              <Text style={styles.ballInCourtEyebrow}>BALL IN COURT</Text>
+              <Text style={styles.ballInCourtEyebrow}>Ball in court</Text>
               <View style={[styles.ballInCourtBadge, { backgroundColor: getBallColor(existingRFI.ballInCourt ?? 'gc') }]}>
                 <Text style={styles.ballInCourtBadgeText}>
                   {ballLabel(existingRFI.ballInCourt ?? 'gc')}
@@ -1316,7 +1323,7 @@ function RFIForm() {
           style={[styles.input, styles.multilineInput]}
           value={question}
           onChangeText={setQuestion}
-          placeholder="Full RFI question body..."
+          placeholder="Question for the architect"
           placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"
@@ -1384,7 +1391,7 @@ function RFIForm() {
 
         <View style={styles.row}>
           <View style={[styles.halfField, isDesktop && desktopField('md')]}>
-            <Text style={styles.fieldLabel}>Submitted By</Text>
+            <Text style={styles.fieldLabel}>Submitted by</Text>
             <TextInput
               style={styles.input}
               value={submittedBy}
@@ -1394,7 +1401,7 @@ function RFIForm() {
             />
           </View>
           <View style={[styles.halfField, isDesktop && desktopField('md')]}>
-            <Text style={styles.fieldLabel}>Assigned To</Text>
+            <Text style={styles.fieldLabel}>Assigned to</Text>
             <TextInput
               style={styles.input}
               value={assignedTo}
@@ -1404,7 +1411,7 @@ function RFIForm() {
                 // rather than leave it pointing at a different company.
                 if (assignedSubId) setAssignedSubId(undefined);
               }}
-              placeholder="Architect, engineer..."
+              placeholder="Architect or engineer"
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
@@ -1501,7 +1508,7 @@ function RFIForm() {
           </>
         )}
 
-        <Text style={styles.fieldLabel}>Response Required By</Text>
+        <Text style={styles.fieldLabel}>Response needed by</Text>
         <TouchableOpacity
           style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
@@ -1540,7 +1547,7 @@ function RFIForm() {
           activeOpacity={0.7}
         >
           <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-          <Text style={styles.pickerBtnText}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</Text>
+          <Text style={styles.pickerBtnText}>{humanizeEnum(priority)}</Text>
           <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
         {showPriorityPicker && (
@@ -1552,7 +1559,7 @@ function RFIForm() {
                 onPress={() => { setPriority(p); setShowPriorityPicker(false); }}
               >
                 <Text style={[styles.pickerOptionText, priority === p && styles.pickerOptionTextActive]}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {humanizeEnum(p)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1567,7 +1574,7 @@ function RFIForm() {
               onPress={() => setShowStatusPicker(!showStatusPicker)}
               activeOpacity={0.7}
             >
-              <Text style={styles.pickerBtnText}>{status.replace('_', ' ').charAt(0).toUpperCase() + status.slice(1)}</Text>
+              <Text style={styles.pickerBtnText}>{humanizeEnum(status)}</Text>
               <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
             {showStatusPicker && (
@@ -1585,7 +1592,7 @@ function RFIForm() {
                       accessibilityState={{ disabled: locked }}
                     >
                       <Text style={[styles.pickerOptionText, status === s && styles.pickerOptionTextActive]}>
-                        {s.charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}
+                        {humanizeEnum(s)}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1600,7 +1607,7 @@ function RFIForm() {
           </>
         )}
 
-        <Text style={styles.fieldLabel}>Linked Drawing</Text>
+        <Text style={styles.fieldLabel}>Linked sheet</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={linkedDrawing}
@@ -1726,7 +1733,7 @@ function RFIForm() {
 
         {scheduleTasks.length > 0 && (
           <>
-            <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
+            <Text style={styles.fieldLabel}>Linked schedule task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
               <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
@@ -1866,7 +1873,7 @@ function RFIForm() {
         <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
           <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
-              <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
+              <Text style={styles.taskPickerTitle}>Link schedule task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>

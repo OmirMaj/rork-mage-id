@@ -1,3 +1,6 @@
+// IDEAS-1 SPEED-2: FIRST import — stamps JS start and registers the
+// after-interactions release of the first-screen signal before anything else.
+import '@/utils/startupTiming';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -20,6 +23,7 @@ import DesktopSidebar from "@/components/DesktopSidebar";
 import { useSidebarRailRouteSync } from "@/hooks/useSidebarRail";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import QueryCachePersist from "@/components/QueryCachePersist";
 import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
 import { ActiveProjectProvider } from "@/contexts/ActiveProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
@@ -37,6 +41,8 @@ import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import { LanguageProfileSync } from "@/components/LanguageProfileSync";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { TutorialHost } from "@/components/tutorial/TutorialHost";
 import { useBrainFabPresentation } from "@/components/brain/brainFabState";
@@ -66,6 +72,7 @@ import {
 } from '@/utils/deepLinksInvite';
 import { isTransportError } from '@/utils/networkErrors';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
+import { captureGrowthRefFromLocation } from '@/utils/growthAttribution';
 import { NATIVE_HEADER_TITLE_FACE, nativeHeaderOptions } from '@/constants/navigation';
 import {
   ThemeProvider as NavThemeProvider, DefaultTheme, DarkTheme, type Theme as NavTheme,
@@ -1154,7 +1161,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="construction-news"
         options={{
-          title: "Construction News",
+          title: "Construction news",
           ...headerTitled,
         }}
       />
@@ -1804,6 +1811,9 @@ export default Sentry.wrap(function RootLayout() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const intent = parseSignupIntent(new URLSearchParams(window.location.search));
       if (intent) void persistSignupIntent(intent);
+      // T6: ?ref=<outsider page kind>, carried here by marketing/growth.js.
+      // Allow-listed and kept for the user_signed_up event.
+      captureGrowthRefFromLocation();
     }
   }, []);
 
@@ -1813,7 +1823,19 @@ export default Sentry.wrap(function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ThemeLoader>
             <ThemeProvider>
+            {/* Language (docs/I18N.md §4): inside ThemeProvider, ABOVE
+                AuthProvider, so sign-in and sign-up render in the chosen
+                language. Owns no user data; renders English until the stored
+                choice is read. */}
+            <LanguageProvider>
             <AuthProvider>
+              {/* IDEAS-1 SPEED-1 (Instant Open): the allow-listed part of the
+                  query cache, kept on the device and restored in the FIRST render
+                  where auth has resolved — before SubscriptionProvider (the first
+                  provider below that reads queries) and ProjectProvider render
+                  with the user. Renders its children at once (no hold) and never
+                  remounts them; the restore happens once, in that first render. */}
+              <QueryCachePersist client={queryClient}>
               <SubscriptionProvider>
                 <ProjectProvider>
                   {/* The active job (wave 6b): reads the project list and the user,
@@ -1853,6 +1875,12 @@ export default Sentry.wrap(function RootLayout() {
                               <MagicLinkHandler />
                               <AnalyticsManager />
                               <OfflineSyncManager />
+                              {/* The account's language (docs/I18N.md §5):
+                                  reads profiles.preferred_language on sign-in
+                                  and saves an explicit Settings choice to it.
+                                  Below AuthProvider (reads the user) and
+                                  LanguageProvider. Renders nothing. */}
+                              <LanguageProfileSync />
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <BrainSurface />
@@ -1885,7 +1913,9 @@ export default Sentry.wrap(function RootLayout() {
                   </ActiveProjectProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
+              </QueryCachePersist>
             </AuthProvider>
+            </LanguageProvider>
             </ThemeProvider>
           </ThemeLoader>
           {/* The launch — a full-screen overlay ABOVE the app (which renders

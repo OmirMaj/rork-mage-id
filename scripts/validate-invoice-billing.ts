@@ -474,12 +474,12 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       && /const taxAmount = roundCents\(subtotal \* \(taxRate \/ 100\)\);/.test(code)
       && /const totalDue = roundCents\(subtotal \+ taxAmount\);/.test(code), true);
     eq('the totals card discloses the retainage basis',
-      /Retention Held \(\{retentionPctValue\}% of work completed\)/.test(code)
+      /Retainage held \(\{retentionPctValue\}% of work completed\)/.test(code)
       && /testID="retention-basis-note"/.test(code), true);
     // The row under that note must show the amount WITHHELD, or the note stops
     // being true the moment any retention is released.
     eq('…and the row it labels renders retentionAmount, not retentionPending',
-      /Retention Held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
+      /Retainage held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
     eq('a row stored on the old tax-inclusive basis is called out from STORED columns only',
       /testID="retention-basis-legacy"/.test(code)
       && /taxBasisRetentionOverhold\(existingInvoice\)/.test(code), true);

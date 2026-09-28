@@ -157,12 +157,6 @@
       "rule": "R16",
       "match": "and 0 more",
       "reason": "list continuation (\"and 3 more\") under the rows above"
-    },
-    {
-      "file": "components/plans/AskPlansPanel.tsx",
-      "rule": "R15",
-      "match": "Ask Your Plans",
-      "reason": "renamed atomically with the paywall, featureRegistry and 5 validators in copy handoff B1"
     }
   ]
 }

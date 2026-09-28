@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { useAfterFirstScreen } from '@/hooks/useAfterFirstScreen';
 
 const BIDS_KEY = 'mageid_public_bids';
 /** Set once the pre-wave-5 cache (which could hold homeowner RFPs with their
@@ -98,10 +99,16 @@ export const [BidsProvider, useBids] = createContextHook(() => {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const canSync = !!userId && isSupabaseConfigured;
+  // IDEAS-1 SPEED S2: the first load waits for the first screen (or 1.5 s at
+  // most) so it does not compete with Home's reads on a weak signal. Home and
+  // the desktop portfolio never read this context. Once true it stays true, so
+  // every later refetch is unchanged.
+  const afterFirstScreen = useAfterFirstScreen();
   const [bids, setBids] = useState<PublicBid[]>([]);
 
   const bidsQuery = useQuery({
     queryKey: ['public_bids'],
+    enabled: afterFirstScreen,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -192,9 +199,11 @@ export const [BidsProvider, useBids] = createContextHook(() => {
     if (canSync) void supabaseWrite('public_bids', 'delete', { id });
   }, [bids, saveMutation, canSync]);
 
+  // Still loading while the first load waits: a deferred read is not an empty one.
+  const isLoading = bidsQuery.isLoading || (!afterFirstScreen && bidsQuery.data === undefined);
   return useMemo(() => ({
-    bids, addBid, updateBid, deleteBid, isLoading: bidsQuery.isLoading,
-  }), [bids, addBid, updateBid, deleteBid, bidsQuery.isLoading]);
+    bids, addBid, updateBid, deleteBid, isLoading,
+  }), [bids, addBid, updateBid, deleteBid, isLoading]);
 });
 
 export function useFilteredBids(filters: {

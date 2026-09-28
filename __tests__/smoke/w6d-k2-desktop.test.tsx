@@ -105,7 +105,7 @@ jest.mock('@/components/brain/BrainSurface', () => {
       if (!mockDockOpen) return;
       if (dock.content == null) {
         hid.current = false;
-        dock.open(R.createElement(Rail, { variant: 'dock' }), { id: mockDockOpen.id, title: 'Action Required', width: 440 });
+        dock.open(R.createElement(Rail, { variant: 'dock' }), { id: mockDockOpen.id, title: 'Action required', width: 440 });
         return;
       }
       if (mockDockOpen.hide && !dock.hidden && !hid.current) { hid.current = true; dock.toggle(); }
@@ -162,7 +162,7 @@ const WINDOW = 1512;
 function OpenAttentionDock() {
   const dock = useShellDock();
   React.useEffect(() => {
-    dock.open(<DesktopActionRail variant="dock" />, { id: ATTENTION_DOCK_ID, title: 'Action Required', width: SIDE_PANEL_DEFAULT });
+    dock.open(<DesktopActionRail variant="dock" />, { id: ATTENTION_DOCK_ID, title: 'Action required', width: SIDE_PANEL_DEFAULT });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
@@ -198,7 +198,7 @@ describe('d6r K2: Home with the attention dock at 1512 desktop web', () => {
     await act(async () => { await Promise.resolve(); });
     expect(tree.getByTestId('desktop-action-rail-dock')).toBeTruthy();
     expect(tree.queryByTestId('desktop-action-rail-rail')).toBeNull();
-    const dockNode = tree.getByLabelText('Action Required');
+    const dockNode = tree.getByLabelText('Action required');
     const dock = flat(dockNode.props.style).width as number;
     const sidebar = flat(tree.getByTestId('shell-sidebar').props.style).width as number;
     expect(dock).toBe(440);

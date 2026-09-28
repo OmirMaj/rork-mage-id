@@ -67,7 +67,7 @@ export const PERMIT_OWNER_ONLY_TEXT = 'Permits are managed by the project owner'
 export const PERMIT_CONFIRM_TEXT =
   'Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.';
 export const ROADMAP_CAPTION =
-  'Inspections are scheduled from the Project Roadmap, which dates them against your permits and lead times.';
+  'Inspections are scheduled from the project roadmap, which dates them against your permits and lead times.';
 /** Shown when the add worked but the saved check could not record it. */
 export const NOT_NOTED_TEXT =
   'It was added, but this saved check could not note that on this device. The button stays marked Added until you leave this screen.';

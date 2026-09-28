@@ -267,9 +267,9 @@ console.log('\n6. the screens');
   ok('C1: anything but ready opens the ask and returns', /if \(state !== 'ready'\) \{[\s\S]{0,300}setDeliveryAsk\([\s\S]{0,200}return;/.test(signBody));
   ok('C1: a collaborator is told and nothing happens', /state === 'collaborator'[\s\S]{0,400}return;/.test(signBody));
   ok('C1: the portal is switched on only inside the confirmed ask', /portalExists && !portal!\.enabled/.test(contractSrc) && (contractSrc.match(/enabled: true/g) ?? []).length === 1);
-  ok('C1: "Sent to the homeowner" only with this device\'s delivered marker',
-    /contract\.status === 'sent' && contractDelivery\?\.state === 'delivered' && \([\s\S]{0,300}Sent to the homeowner/.test(contractSrc)
-    && (contractSrc.match(/>Sent to the homeowner</g) ?? []).length === 1);
+  ok('C1: "Sent to the client" only with this device\'s delivered marker',
+    /contract\.status === 'sent' && contractDelivery\?\.state === 'delivered' && \([\s\S]{0,300}Sent to the client/.test(contractSrc)
+    && (contractSrc.match(/>Sent to the client</g) ?? []).length === 1);
   ok('C1: not delivered shows Retry and Copy link', /Signed by you, not delivered/.test(contractSrc) && /contract-delivery-retry/.test(contractSrc) && /contract-delivery-copy/.test(contractSrc));
   ok('C1: Sign together returns BEFORE any email and opens the record modal', (() => {
     const t = contractSrc.indexOf("if (activeSignModeRef.current === 'together') {");

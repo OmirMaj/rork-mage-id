@@ -474,7 +474,7 @@ describe('the Action Required footer row opens the attention dock', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false');
     await click(row);
     expect(mockDockOpen).toHaveBeenCalledTimes(1);
-    expect(mockDockOpen.mock.calls[0][1]).toEqual({ id: 'attention', title: 'Action Required', width: 440 });
+    expect(mockDockOpen.mock.calls[0][1]).toEqual({ id: 'attention', title: 'Action required', width: 440 });
     // The docked content is DesktopActionRail's 'dock' variant.
     const node = mockDockOpen.mock.calls[0][0] as React.ReactElement<{ variant?: string }>;
     expect(node.props.variant).toBe('dock');

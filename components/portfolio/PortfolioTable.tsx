@@ -21,6 +21,17 @@
 // Honesty: every unknown cell is '—' (DataTable's UNKNOWN_CELL rule, and this
 // file's own renders); money cells come only from the burn map, whose
 // visibility rule leaves out jobs someone else owns.
+//
+// HEALTH (ideas-1, T5; `showLevel`, default false). An optional narrow column
+// with The Level as a reading per project (components/level/JobLevel): the
+// bubble drifts with schedule slip against the baseline, the tint is margin
+// risk, and "Not enough data yet" when neither is known. Its margin half obeys
+// the same burn-map visibility rule as the money columns. Its width and
+// hideBelow live in utils/jobLevel (JOB_LEVEL_COLUMN_*), budgeted on top of
+// PORTFOLIO_HIDE_BELOW so Job keeps its 160 px at every width
+// (scripts/validate-job-level.ts sweeps it). With showLevel false the table
+// renders exactly as before: the Level's hooks live in a wrapper that is not
+// mounted then.
 
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
@@ -38,6 +49,12 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { formatMoneyShort } from '@/utils/formatters';
 import { parseCalendarDay } from '@/utils/calendarDate';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
+import { JobLevel } from '@/components/level/JobLevel';
+import { useJobLevels } from '@/hooks/useJobLevel';
+import {
+  JOB_LEVEL_COLUMN_HIDE_BELOW, JOB_LEVEL_COLUMN_ID, JOB_LEVEL_COLUMN_WIDTH, jobLevelSortValue,
+  type JobLevelReading,
+} from '@/utils/jobLevel';
 import {
   formatOpenItems, relativeDaysLabel, scheduleCellDescription, scheduleCellLabel,
   PORTFOLIO_COLUMN_WIDTHS as W, PORTFOLIO_HIDE_BELOW as HIDE,
@@ -106,16 +123,50 @@ export interface PortfolioTableProps {
   emptyState?: React.ReactNode;
   /** "Now" for 'Last activity'; injectable for tests. */
   now?: Date;
+  /** Adds the Health column (The Level as a reading). Default false. */
+  showLevel?: boolean;
   testID?: string;
 }
 
-export function PortfolioTable({
-  projects, rows, burnByProject, stageChips, onOpenActions, onOpenProject, highlightId = null, emptyState, now, testID = 'portfolio-table',
-}: PortfolioTableProps) {
+/** The Health column's readings, read once for the table (only when shown). */
+function PortfolioTableWithLevel(props: PortfolioTableProps) {
+  const { rows, projects, burnByProject, now } = props;
+  // The rows' own schedule verdicts: the Level reads the slip the Schedule
+  // column prints, never a second derivation.
+  const schedules = useMemo(() => new Map(rows.map((r) => [r.id, r.schedule] as const)), [rows]);
+  const levels = useJobLevels({ projects, schedules, marginVisible: burnByProject, now });
+  return <PortfolioTableBase {...props} levels={levels} />;
+}
+
+export function PortfolioTable(props: PortfolioTableProps) {
+  if (props.showLevel) return <PortfolioTableWithLevel {...props} />;
+  return <PortfolioTableBase {...props} levels={null} />;
+}
+
+function PortfolioTableBase({
+  projects, rows, burnByProject, stageChips, onOpenActions, onOpenProject, highlightId = null, emptyState, now, testID = 'portfolio-table', levels,
+}: PortfolioTableProps & { levels: ReadonlyMap<string, JobLevelReading> | null }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const byId = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const clock = now ?? new Date();
+
+  // The optional Health column (showLevel). Keyed and sized from
+  // utils/jobLevel, not PORTFOLIO_COLUMN_WIDTHS: it is not a spec column.
+  const levelColumns = useMemo<DataTableColumn<PortfolioRow>[]>(() => (levels ? [{
+    key: JOB_LEVEL_COLUMN_ID,
+    label: 'Health',
+    width: JOB_LEVEL_COLUMN_WIDTH,
+    hideBelow: JOB_LEVEL_COLUMN_HIDE_BELOW,
+    align: 'center',
+    sortValue: (r) => jobLevelSortValue(levels.get(r.id)),
+    render: (r) => {
+      const reading = levels.get(r.id);
+      return reading
+        ? <JobLevel projectId={r.id} reading={reading} size="row" showLabel={false} projectName={r.name} />
+        : <Text style={styles.cell}>{UNKNOWN}</Text>;
+    },
+  }] : []), [levels, styles]);
 
   const columns = useMemo<DataTableColumn<PortfolioRow>[]>(() => [
     {
@@ -180,6 +231,7 @@ export function PortfolioTable({
         );
       },
     },
+    ...levelColumns,
     {
       key: 'finish',
       label: 'Finish',
@@ -280,7 +332,7 @@ export function PortfolioTable({
   // `clock` changes every render; the only column that reads it is Last
   // activity, and a day-granular label does not need to re-derive columns.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [styles, t, byId, onOpenActions, testID]);
+  ], [styles, t, byId, onOpenActions, testID, levelColumns]);
 
   const anyContract = rows.some((r) => r.contract != null);
   // The note belongs to the desktop table; below the gate DataTable returns

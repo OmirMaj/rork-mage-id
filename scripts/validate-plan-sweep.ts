@@ -83,6 +83,7 @@ const PS = await import('../utils/plans/planSweep');
 const RUN = await import('../utils/plans/planSweepRun');
 const { resolveCodeJurisdiction } = await import('../utils/codeJurisdiction');
 const { PLAN_SOURCE } = await import('../utils/plans/planChunk');
+const I18N = await import('../i18n/core');
 type Sheet = import('../types').PlanSheet;
 
 const BAD = /\b(passed|compliant|clean|approved)\b/i;
@@ -258,7 +259,7 @@ console.log('\n4. the RFI draft is unsent, and 5. the model\'s words are neutral
   const r2 = PS.rfiFromSweepFinding(A2, noLoc, now, null);
   ok('…and its draft invents no position', /Location not identified on A-201/.test(r2.question) && !/% from the left/.test(r2.question), r2.question);
   const samples = ['It violated the rule', 'VIOLATION OF R302', 'noncompliant with R311', 'The stair fails code', 'in violation of section 5', 'Violating', 'violationish'];
-  ok('neutralizeModelText clears every forbidden spelling', samples.every(s => !PS.FORBIDDEN_WORDS.test(PS.neutralizeModelText(s))), samples.map(PS.neutralizeModelText).join(' | '));
+  ok('neutralizeModelText clears every forbidden spelling', samples.every(s => !PS.FORBIDDEN_WORDS.test(PS.neutralizeModelText(s))), samples.map(x => PS.neutralizeModelText(x)).join(' | '));
 }
 
 // ── 6. Stage A and B against a faked network ──────────────────────────────
@@ -383,6 +384,149 @@ console.log('\n8. "Add punch item": open, unassigned, pinned only where the AI p
     /if \(view\.location\) \{\s*addDrawingPin\(\{[^}]*kind: 'punch'[^}]*linkedPunchItemId: punch\.id/.test(panel));
   ok('the punch action is idempotent per finding key', /if \(punchedRef\.current\[key\]\) return;/.test(panel));
   ok('the punch button carries the finding key testID', /testID=\{`plansweep-punch-\$\{key\}`\}/.test(panel));
+}
+
+// ── 9. Spanish verdict words (docs/I18N.md §7.6, wave-next I18NWIRE) ─────
+// mageAI sends locale 'es' when the app language is Spanish, so the model's
+// words can arrive in Spanish. The filter must catch Spanish verdicts, with
+// Unicode-aware boundaries (JS \b treats ó as a non-word character), and must
+// not change a single English decision.
+console.log('\n9. Spanish verdict words: caught, neutralised, English unchanged');
+{
+  const F = PS.FORBIDDEN_WORDS;
+  const esPositives = [
+    'viola el código', 'Esto viola la sección R310', 'VIOLA', 'violan', 'violación', 'Violación del código',
+    'violaciones', 'violado', 'no cumple', 'La baranda no cumple con R312', 'no  cumplen', 'NO CUMPLE',
+    'incumple', 'incumplen', 'incumplimiento', 'ilegal', 'ilegales', 'Es ILEGAL', 'ilegalmente',
+    'infracción', 'infraccion', 'INFRACCIÓN', 'infracciones', '(infracción)', 'infracción.', '¿viola?', '«ilegal»',
+  ];
+  const esMissed = esPositives.filter(s => !F.test(s));
+  ok(`every Spanish verdict spelling is caught (${esPositives.length})`, esMissed.length === 0, esMissed.join(' | '));
+  // Accented-boundary cases: an accented letter is part of the word, never a boundary.
+  const esNegatives = [
+    'cumple con R311', 'cumple', 'no cumplir', 'cumplimiento del código', 'violeta', 'víolación',
+    'aviolación', 'ñviola', 'áinfracción', 'legal', 'ilegible', 'desinfracción', 'reviola', 'sinviolación', 'éilegal',
+  ];
+  const esFalse = esNegatives.filter(s => F.test(s));
+  ok(`words that only contain a stem, or an accented letter at the edge, are not caught (${esNegatives.length})`, esFalse.length === 0, esFalse.join(' | '));
+  ok('the \\b trap is real: JS \\b sees a boundary between ñ and v, the lookbehind does not',
+    /\bviola/i.test('ñviola') && !F.test('ñviola'));
+  ok('an accented letter after a stem is part of the same word (infracciónes, ilegalé are caught)', F.test('infracciónes') && F.test('ilegalé'));
+  // English regressions: the original list decides exactly as before.
+  const EN_OLD = /\b(violat\w*|non-?compliant|fails? code|illegal|code violation)\b/i;
+  const enCases = [
+    'It violated the rule', 'VIOLATION OF R302', 'noncompliant with R311', 'non-compliant', 'The stair fails code',
+    'fail code', 'in violation of section 5', 'Violating', 'violationish', 'illegal', 'Illegal stair', 'code violation',
+    'comply with R311', 'compliance', 'legal', 'failed code', 'fails codes', 'unviolated', 'illegally', 'a question for the architect',
+    'Confirm: guard height 42 in', 'May conflict with R310', 'possibly not permitted', 'possible conflict',
+  ];
+  const enDiff = enCases.filter(s => EN_OLD.test(s) !== F.test(s));
+  ok(`every English case decides exactly as the original list (${enCases.length})`, enDiff.length === 0, enDiff.join(' | '));
+  // The pre-Spanish neutraliser, verbatim (planSweep.ts before wave-next), as
+  // the oracle: on English text the new one must give the same bytes.
+  const NEUTRAL_OLD: [RegExp, string][] = [
+    [/\b(?:is|are|was|were)\s+in\s+violation\s+of\b/gi, 'may conflict with'],
+    [/\bin\s+violation\s+of\b/gi, 'possibly in conflict with'],
+    [/\bcode\s+violations\b/gi, 'possible code conflicts'],
+    [/\bcode\s+violation\b/gi, 'possible code conflict'],
+    [/\bviolations?\s+of\b/gi, 'possible conflict with'],
+    [/\bviolat(?:es|e|ed|ing)\b/gi, 'may conflict with'],
+    [/\bviolations\b/gi, 'possible conflicts'],
+    [/\bviolation\b/gi, 'possible conflict'],
+    [/\bnon-?compliant\s+with\b/gi, 'possibly not meeting'],
+    [/\bnon-?compliant\b/gi, 'possibly not meeting the requirement'],
+    [/\bfails?\s+code\b/gi, 'may not meet code'],
+    [/\billegal\b/gi, 'possibly not permitted'],
+    [/\bviolat\w*/gi, 'possible conflict'],
+  ];
+  const neutralOld = (x: string) => {
+    let out = x;
+    for (const [re, r] of NEUTRAL_OLD) out = out.replace(re, (m: string) => (/^[A-Z]/.test(m) ? r[0].toUpperCase() + r.slice(1) : r));
+    while (EN_OLD.test(out)) out = out.replace(EN_OLD, 'possible conflict');
+    return out.replace(/\s+/g, ' ').trim();
+  };
+  // "viola" is a word English text can carry (a street, a person, the
+  // instrument): in English it must come through untouched (integration fix).
+  const violaEn = [
+    'Guardrail at the Viola Ave entrance is 36 in; IBC 1015.3 requires 42 in.',
+    'Title block lists Viola Chen, PE, as engineer of record.', 'The viola player', 'VIOLA', 'viola el código',
+    'Viola Ave violates R312', 'no cumple', 'ilegal infracción',
+  ];
+  const enSamples = [
+    ...enCases, 'The guard IS IN VIOLATION OF R312', 'code violations at 3 doors', 'violations of section 4',
+    'Non-compliant with the stair rule; fails code', 'ILLEGAL and violatory', '  spaced   out  violation  ',
+    'Window at bedroom 2 is 48 in above the floor. Confirm the sill height.', '', ...violaEn,
+  ];
+  // Both ways in: the explicit 'en' and the default (the app language, 'en'
+  // while the picker is hidden).
+  I18N.setLang('en');
+  const enChanged = enSamples.filter(x => PS.neutralizeModelText(x, 'en') !== neutralOld(x) || PS.neutralizeModelText(x) !== neutralOld(x));
+  ok(`English neutralised text is byte-identical to the original neutraliser, "viola" included (${enSamples.length})`, enChanged.length === 0,
+    enChanged.map(x => `${x} → ${PS.neutralizeModelText(x, 'en')} vs ${neutralOld(x)}`).join(' | '));
+  eq('"Viola Ave" and "Viola Chen" are unchanged in English',
+    violaEn.slice(0, 2).map(x => PS.neutralizeModelText(x)), violaEn.slice(0, 2));
+  ok('English output never carries an English verdict word',
+    enSamples.every(x => !EN_OLD.test(PS.neutralizeModelText(x, 'en'))));
+  const enView = PS.sweepFindingView({
+    category: 'guards', codeRef: 'IBC 1015.3', citedEdition: 'IBC 2018', section: '1015.3',
+    requirement: 'Guards 42 in minimum', observed: 'Guardrail at the Viola Ave entrance is 36 in',
+    severity: 'high', confidence: 'med', question: 'Does the Viola Ave guard need to be 42 in?', location: null,
+  }, sheet('en1', 'A-502'), resolveCodeJurisdiction({ city: 'Hoboken', state: 'NJ' }));
+  ok('an English finding view keeps "Viola Ave" (the panel and the RFI draft read this)',
+    /Viola Ave/.test(enView.observed) && /Viola Ave/.test(enView.title) && !/Podría/.test(enView.observed + enView.title), JSON.stringify([enView.title, enView.observed]));
+  // In Spanish neutralizeModelText guarantees its output never matches — Spanish included.
+  const esN = (x: string) => PS.neutralizeModelText(x, 'es');
+  const esSamples = [
+    'Esto viola el código IRC R310', 'La escalera viola la sección 5', 'Violación del código', 'infracciones de la norma',
+    'La baranda no cumple con R312', 'no cumplen', 'Es ilegal', 'Son ilegales', 'incumplimiento del código',
+    'El muro incumple R302', 'violaciones', 'ilegalmente instalado', 'viola viola viola', 'It violates and viola el código',
+  ];
+  const esLeft = esSamples.map(esN).filter(s => F.test(s));
+  ok(`neutralizeModelText clears every Spanish verdict (${esSamples.length})`, esLeft.length === 0, esLeft.join(' | '));
+  eq('a Spanish verdict the phrase table misses still gets SPANISH filler (the Spanish belt)',
+    esN('Fue instalado ilegalmente'), 'Fue instalado posible conflicto');
+  // Grammar (review, fix round 1): the feminine article goes with the noun,
+  // plural subjects keep plural verbs, participles keep gender and number.
+  const grammar: [string, string][] = [
+    ['La violación del código IBC', 'El posible conflicto con el código IBC'],
+    ['La infraccion de seguridad', 'El posible conflicto con seguridad'],
+    ['Revise las infracciones del plano', 'Revise los posibles conflictos con el plano'],
+    ['antes de la violación', 'antes del posible conflicto'],
+    ['Una infracción', 'Un posible conflicto'],
+    ['ESTA VIOLACIÓN', 'Este posible conflicto'],
+    ['código violado', 'código posiblemente no respetado'],
+    ['la norma violada', 'la norma posiblemente no respetada'],
+    ['El muro fue violado', 'El muro fue posiblemente no respetado'],
+    ['Las paredes violan el código', 'Las paredes podrían no ajustarse al código'],
+    ['Las barandas no cumplen con R312', 'Las barandas podrían no cumplir con R312'],
+    ['Los muros incumplen R302', 'Los muros podrían no cumplir R302'],
+    ['El muro incumple R302', 'El muro podría no cumplir R302'],
+    ['Esto viola.', 'Esto podría no ajustarse.'],
+    ['puede violar el código', 'puede no ajustarse al código'],
+  ];
+  const badGrammar = grammar.filter(([x, want]) => esN(x) !== want);
+  ok(`Spanish neutralised text keeps article, number and gender (${grammar.length})`, badGrammar.length === 0,
+    badGrammar.map(([x, w]) => `${x} → ${esN(x)} (want ${w})`).join(' | '));
+  ok('…and none of the grammar outputs carries a verdict word', grammar.every(([x]) => !F.test(esN(x))));
+  // In Spanish "viola" is always the verb: the hard gate wins over the noun.
+  eq('in Spanish, "viola el código" is neutralised', esN('viola el código'), 'podría no ajustarse al código');
+  ok('in Spanish, no output of the English "viola" samples carries a verdict word', violaEn.every(x => !F.test(esN(x))));
+  eq('Spanish verdicts become possibilities (samples)',
+    ['Esto viola el código IRC R310', 'La baranda no cumple con R312', 'Violación del código', 'Es ilegal'].map(esN),
+    ['Esto podría no ajustarse al código IRC R310', 'La baranda podría no cumplir con R312', 'Posible conflicto con el código', 'Es posiblemente no permitido']);
+  ok('FORBIDDEN_WORDS has no g flag (test() stays stateless) and is Unicode-aware', !F.global && F.unicode && F.ignoreCase);
+  // The view follows the app language (the default argument): Spanish on.
+  I18N.setLang('es');
+  const view = PS.sweepFindingView({
+    category: 'egress', codeRef: 'IRC R310.1 — la ventana viola la salida', citedEdition: 'IRC 2018', section: 'R310.1',
+    requirement: 'La ventana no cumple con R310', observed: 'Infracción del código en el dormitorio 2; antepecho ilegal', severity: 'high', confidence: 'med',
+    question: '¿Esto incumple R310?', location: { x: 0.1, y: 0.1 },
+  }, sheet('es1', 'A-501'), resolveCodeJurisdiction({ city: 'Hoboken', state: 'NJ' }));
+  const vf = [view.title, view.observed, view.requirement, view.citation];
+  ok('a Spanish finding\'s view carries no verdict word in any model field', vf.length > 0 && vf.every(f => !F.test(f)), JSON.stringify(vf));
+  const esRfi = PS.rfiFromSweepFinding(sheet('es1', 'A-501'), view, new Date(2026, 8, 26, 18), null);
+  ok('…and neither does its RFI draft', !F.test(esRfi.question) && !F.test(esRfi.subject), esRfi.question);
+  I18N.setLang('en');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

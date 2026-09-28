@@ -770,7 +770,7 @@ export default function PaymentsScreen() {
           'Send the invoice — the client taps Pay or you mark a check received.',
           'Payments, fees, and provider details land on this screen automatically.',
         ]}
-        actionLabel="Open Projects"
+        actionLabel="Open projects"
         onAction={() => router.push(routeHref('/(tabs)/(home)'))}
       />
     </View>
@@ -863,7 +863,7 @@ export default function PaymentsScreen() {
           testID="payments-collect-oldest"
         >
           <Send size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.sendButtonText}>Collect Oldest Unpaid</Text>
+          <Text style={styles.sendButtonText}>Collect oldest unpaid</Text>
         </TouchableOpacity>
 
         {overdueRows.length > 0 && (
@@ -967,7 +967,7 @@ export default function PaymentsScreen() {
                     'Send the invoice — the client taps Pay or you mark a check received.',
                     'Payments, fees, and provider details land on this screen automatically.',
                   ]}
-                  actionLabel="Open Projects"
+                  actionLabel="Open projects"
                   onAction={() => router.push('/(tabs)/(home)' as any)}
                 />
               </View>

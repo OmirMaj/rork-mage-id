@@ -176,8 +176,13 @@ ok('the picked photo keeps its photoId', /setPhoto\(\{ uri: saved\.uri, photoId:
   ok('the picker URI never reaches setPhoto directly', !/setPhoto\(\{ uri(,|: uri)/.test(sheet));
 }
 ok('the sheet is dialog-scoped only while open (section mounts it conditionally)', /\{sheetOpen \? \(\s*<BackchargeSheet/.test(section));
-ok('the section says "Saved on this device until you sign out"', section.includes('Saved on this device until you sign out'));
-ok('the deduction card says "Saved on this device until you sign out"', card.includes('Saved on this device until you sign out'));
+// The section and the deduction card say where the record is kept — on the
+// account, waiting on this device, not saved, or (signed out) on this device
+// until sign-out — through ONE rule (utils/backchargeCopy.ts, lane HEALTH H1.5).
+const copy = read('utils/backchargeCopy.ts');
+ok('the section says where the record is kept (backchargeStorageLine)', /backchargeStorageLine\(states, signedIn\)/.test(section) && /\{storage\?\.retry \?/.test(section));
+ok('the deduction card says where the record is kept (backchargeStorageLine)', /backchargeStorageLine\(states, signedIn\)/.test(card) && /\{storage\?\.retry \?/.test(card));
+ok('signed out, the line is still "Saved on this device until you sign out."', copy.includes("BACKCHARGE_LINE_DEVICE = 'Saved on this device until you sign out.'"));
 ok('the deduction card says "MAGE never moves the money"', card.includes('MAGE never moves the money'));
 ok('the hook reads/writes BACKCHARGES_KEY in try/catch', hook.includes('BACKCHARGES_KEY') && (hook.match(/try \{/g) ?? []).length >= 2);
 ok('the section root is a sanctioned backcharge- host', /<View style=\{styles\.section\} testID="backcharge-section">/.test(section));

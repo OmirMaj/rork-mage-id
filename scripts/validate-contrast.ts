@@ -1334,7 +1334,7 @@ ok(
 // label, so it read as a search box: a contractor looking for search tapped
 // it and landed in Settings, one looking for their profile walked past it.
 
-const IDENTITY_LABELS = /^(My Profile|Profile|My Account|Account)$/;
+const IDENTITY_LABELS = /^(My profile|Profile|My account|Account)$/i;
 const iconMismatch: string[] = [];
 for (const file of collectFiles(['app', 'components'])) {
   const src = stripComments(readFileSync(file, 'utf8'));

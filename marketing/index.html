@@ -48,6 +48,20 @@
       capture_pageleave: true,
       autocapture: false,
       persistence: 'localStorage+cookie',
+      // T6.7 defence in depth: a visitor arriving from a page whose address
+      // carries a private link (?t=, ?w=, a token) never has that address
+      // stored. Only the query string is dropped, and only then.
+      before_send: function (e) {
+        var keys = ['$referrer', '$initial_referrer', '$current_url', '$initial_current_url'];
+        var bags = e ? [e.properties, e.$set_once, e.$set] : [];
+        for (var b = 0; b < bags.length; b++) {
+          for (var k = 0; bags[b] && k < keys.length; k++) {
+            var v = bags[b][keys[k]];
+            if (typeof v === 'string' && /[?&][tw]=|token/i.test(v)) bags[b][keys[k]] = v.split('?')[0];
+          }
+        }
+        return e;
+      },
     });
   </script>
 
@@ -1261,5 +1275,6 @@
   }
 })();
 </script>
+<script src="/growth.js?v=2026-09-28" defer></script>
 </body>
 </html>
