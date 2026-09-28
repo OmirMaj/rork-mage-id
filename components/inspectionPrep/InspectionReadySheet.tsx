@@ -43,7 +43,7 @@ import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  groundingFactsFor, jobsiteAddressForProject, resolveCodeJurisdiction,
+  groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 import { editionMismatchFor } from '@/utils/codeAmendments';
 import {
@@ -84,7 +84,7 @@ export default function InspectionReadySheet({
   const canAI = canAccess('ai_code_check');
   const { entry, loaded, update } = useInspectionPrepState(visible ? prepStateKey(inspection) : null);
 
-  const resolved = useMemo(() => resolveCodeJurisdiction(jobsiteAddressForProject(project)), [project]);
+  const resolved = useMemo(() => resolveCodeJurisdiction(jurisdictionQueryForProject(project)), [project]);
   const grounding = useMemo(() => groundingFactsFor(resolved), [resolved]);
 
   const base = useMemo(() => buildChecklist({ inspection, project, permits, recall: null }), [inspection, project, permits]);

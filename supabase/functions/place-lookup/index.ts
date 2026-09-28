@@ -1,4 +1,5 @@
-// place-lookup — which town, village or city a NY / NJ / CT jobsite is in.
+// place-lookup — which town, village or city a NY / NJ / CT jobsite is in,
+// and which county a Maryland one is in.
 //
 // POST { address, lat?, lon? }
 //   → { status: 'ok', state, county, town, incorporatedPlace, cdp,
@@ -12,7 +13,22 @@
 //    utils/geocodeProject.ts already saved) → /geographies/coordinates at that
 //    point → match 'approximate'. The client says "from the map pin — confirm".
 // 3. Neither → match 'none', every geography null. So does an address Census
-//    places outside NY / NJ / CT: this function only answers for the tristate.
+//    places outside NY / NJ / CT / MD: this function only answers for those.
+//
+// MARYLAND (added 2026-09-28). Probed live that day with this function's own
+// query (benchmark Public_AR_Current, vintage Current_Current, these layers):
+//   "620 E 31st St, Baltimore, MD 21218" → Counties "Baltimore city" 24510;
+//     County Subdivisions "Baltimore city" 2451090000; Incorporated Places
+//     "Baltimore city" 2404000.
+//   "400 Washington Ave, Towson, MD 21204" → Counties "Baltimore County" 24005;
+//     County Subdivisions "District 9" 2400590748; no incorporated place;
+//     Census Designated Places "Towson CDP" 2478425.
+//   "100 State Cir, Annapolis, MD 21401" → Counties "Anne Arundel County"
+//     24003; County Subdivisions "District 6" 2400390468; Incorporated Places
+//     "Annapolis city" 2401600.
+// Maryland's county subdivisions are ELECTION DISTRICTS, not governments, so
+// for MD the answer carries `town: null` and the client keys the permit office
+// on the county. Everything else (Pennsylvania included) is still 'none'.
 // An upstream failure is an ERROR, never 'none' — "Census didn't answer" must
 // not read as "Census found nothing", and the client never caches an error.
 //
@@ -45,14 +61,16 @@ export const ERRORS = {
 } as const;
 type ErrorCode = keyof typeof ERRORS;
 
-/** Census state FIPS → the three states this function answers for. */
-export const TRISTATE_FIPS: Readonly<Record<string, 'NY' | 'NJ' | 'CT'>> = { '36': 'NY', '34': 'NJ', '09': 'CT' };
+/** Census state FIPS → the states this function answers for. (The name
+ *  predates Maryland.) */
+export type PlaceState = 'NY' | 'NJ' | 'CT' | 'MD';
+export const TRISTATE_FIPS: Readonly<Record<string, PlaceState>> = { '36': 'NY', '34': 'NJ', '09': 'CT', '24': 'MD' };
 
 export interface PlaceRequest { address: string; lat: number | null; lon: number | null }
 export interface PlaceUnit { name: string; basename: string; geoid: string; kind: string }
 export interface PlaceAnswer {
   status: 'ok';
-  state: 'NY' | 'NJ' | 'CT' | null;
+  state: PlaceState | null;
   county: { name: string; geoid: string } | null;
   town: PlaceUnit | null;
   incorporatedPlace: PlaceUnit | null;
@@ -129,8 +147,9 @@ export function noneAnswer(asOf: string): PlaceAnswer {
   };
 }
 
-/** A Census `geographies` object → the answer. Outside NY / NJ / CT, or with
- *  no county at all, it is 'none'. */
+/** A Census `geographies` object → the answer. Outside NY / NJ / CT / MD, or
+ *  with no county at all, it is 'none'. In MD the county subdivision is an
+ *  election district, so `town` is always null there. */
 export function answerFromGeographies(
   geographies: unknown,
   match: 'address' | 'approximate',
@@ -148,7 +167,7 @@ export function answerFromGeographies(
     status: 'ok',
     state,
     county: { name: county.name, geoid: county.geoid },
-    town: unitFrom(firstRow(g, 'County Subdivisions')),
+    town: state === 'MD' ? null : unitFrom(firstRow(g, 'County Subdivisions')),
     incorporatedPlace: unitFrom(firstRow(g, 'Incorporated Places')),
     cdp: unitFrom(firstRow(g, 'Census Designated Places')),
     match,

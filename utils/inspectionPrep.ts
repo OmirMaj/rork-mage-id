@@ -42,7 +42,7 @@ import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import { ROADMAP_FEATURE } from '@/utils/automation/roadmapToScheduleWork';
 import {
   issuingAuthorityForAddress,
-  jobsiteAddressForProject,
+  jurisdictionQueryForProject,
   type JurisdictionGrounding,
 } from '@/utils/codeJurisdiction';
 
@@ -243,7 +243,7 @@ export function upcomingInspectionsFor(project: Project, permits: readonly Permi
   if (schedule && Array.isArray(schedule.tasks) && schedule.tasks.length > 0) {
     const anchor = resolveScheduleAnchor(schedule, now);
     if (anchor.dated && anchor.date) {
-      const authority = issuingAuthorityForAddress(jobsiteAddressForProject(project));
+      const authority = issuingAuthorityForAddress(jurisdictionQueryForProject(project));
       for (const task of schedule.tasks) {
         const title = (task.title ?? '').trim();
         const tagged = task.sourceEventRef?.feature === ROADMAP_FEATURE;

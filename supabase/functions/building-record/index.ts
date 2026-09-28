@@ -7,9 +7,17 @@
 // POST { mode: 'nj_resolve', text, lat, lon } → NJ tax-lot candidates (never auto-picked)
 // POST { mode: 'nj_record', muniCode, block, lot } → NJ state permit data + town freshness
 //
+// POST { mode: 'md_resolve', text, lat, lon } → Baltimore City / County parcel candidates (never auto-picked)
+// POST { mode: 'md_record', side, key, lat, lon } → the parcel's City or County open data
+//
 // The two NJ modes are routed BEFORE the NYC switch and live in ./nj.ts (pure).
 // Their sources (Census geocoder, the NJGIN parcel layer, data.nj.gov) are
 // public and cost $0; they share the NYC auth, tier and rate-limit bucket.
+// The two MD modes are routed before them and live in ./md.ts (pure): the
+// Baltimore City and Baltimore County ArcGIS services, public and $0, same
+// auth, tier and rate-limit bucket. md.ts plans every fetch (a bounded
+// resolve fan-out, a bounded record pool, one deadline); this file only runs
+// them through getJson.
 //
 // Everything it reads is PUBLIC (NYC Open Data + NYC Planning GeoSearch) and
 // costs MAGE $0, so it is FREE for every tier (founder decision 2026-09-25).
@@ -66,6 +74,38 @@ import {
   type NjBuildingRecordResponse,
   type NjParcelCandidate,
 } from './nj.ts';
+import {
+  MD_ASOF_TTL_MS,
+  MD_DEADLINE_MS,
+  MD_ERRORS,
+  MD_RECORD_CONCURRENCY,
+  MD_RESOLVE_CONCURRENCY,
+  assembleMdRecord,
+  censusCounty,
+  censusCountyUrl,
+  mdCensusFallback,
+  cityGeocodeUrl,
+  countyGeocodeUrl,
+  geocodePoints,
+  isAllowedMdUrl,
+  mdAddressInput,
+  mdRecordComplete,
+  mdRecordPlan,
+  mdResolveOutcome,
+  parcelHitFrom,
+  parcelPointUrl,
+  parseMdRequest,
+  planMdResolve,
+  probeIsRedundant,
+  runBounded,
+  type MdBuildingRecord,
+  type MdBuildingRecordResponse,
+  type MdFetched,
+  type MdJobId,
+  type MdProbe,
+  type MdProbeResult,
+  type MdSide,
+} from './md.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -86,6 +126,13 @@ function json(body: BuildingRecordResponse, status = 200) {
 }
 
 function njJson(body: NjBuildingRecordResponse, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
+function mdJson(body: MdBuildingRecordResponse, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -130,6 +177,9 @@ async function getJson(url: string, soda: boolean): Promise<Fetched> {
 const recordCache = new Map<string, { at: number; record: BuildingRecord }>();
 const benchmarkCache = new Map<string, { at: number; benchmark: ReviewBenchmark }>();
 const njRecordCache = new Map<string, { at: number; record: NjBuildingRecord }>();
+const mdRecordCache = new Map<string, { at: number; record: MdBuildingRecord }>();
+/** Layer as-of reads (editingInfo / max date), keyed by URL, 6 hours. */
+const mdAsOfCache = new Map<string, { at: number; body: unknown }>();
 
 function prune<T extends { at: number }>(m: Map<string, T>, ttl: number) {
   const now = Date.now();
@@ -316,6 +366,126 @@ async function njRecord(muniCode: string, block: string, lot: string): Promise<R
   return njJson({ status: 'nj_record', record: rec });
 }
 
+// ── Maryland (Baltimore City / Baltimore County) modes ──────────────────────
+
+/** GET one md.ts-built URL (refused unless it is on md.ts's allow-list). */
+async function getMd(url: string | null): Promise<unknown> {
+  if (!url || !isAllowedMdUrl(url)) throw new Error('md url refused');
+  return (await getJson(url, false)).rows;
+}
+const isTimeout = (e: unknown) => e instanceof TimeoutError;
+
+/** One point against its own side's parcel layer, then the other side's only
+ *  when the first answered that the point is not inside it (or failed). */
+async function probeParcel(probe: MdProbe): Promise<MdProbeResult> {
+  const hits: MdProbeResult['hits'] = [];
+  for (const side of probe.order) {
+    let hit: MdProbeResult['hits'][number]['hit'];
+    try {
+      hit = parcelHitFrom(await getMd(parcelPointUrl(side, probe.point.lat, probe.point.lon)), side, probe.point);
+    } catch (e) {
+      console.error('[building-record] md parcel probe failed:', e);
+      hit = isTimeout(e) ? 'timeout' : 'failed';
+    }
+    hits.push({ side, hit });
+    if (typeof hit === 'object' && (hit.kind === 'parcel' || hit.kind === 'inside_no_parcel')) break;
+  }
+  return { probe, hits };
+}
+
+/** Both Baltimore geocoders in parallel → the bounded probe plan (md.ts) →
+ *  candidates. The side is decided by which parcel layer contains the point.
+ *  ALWAYS candidates: never auto-picked. */
+async function mdResolve(text: string, lat: number | null, lon: number | null): Promise<Response> {
+  const started = Date.now();
+  const input = mdAddressInput(text);
+  if (!input) return mdJson({ status: 'error', code: 'bad_request', error: ERRORS.bad_request }, 400);
+  const [cg, kg] = await Promise.allSettled([getMd(cityGeocodeUrl(input)), getMd(countyGeocodeUrl(input))]);
+  if (cg.status === 'rejected') console.error('[building-record] md city geocode failed:', cg.reason);
+  if (kg.status === 'rejected') console.error('[building-record] md county geocode failed:', kg.reason);
+  let probes = planMdResolve(
+    cg.status === 'fulfilled' ? geocodePoints(cg.value, 'city', input) : [],
+    kg.status === 'fulfilled' ? geocodePoints(kg.value, 'county', input) : [],
+  );
+  let census: { county: string | null } | null = null;
+  const readCensus = async () => {
+    try {
+      const c = censusCounty(await getMd(censusCountyUrl(text)));
+      return c;
+    } catch (e) {
+      console.error('[building-record] md census failed:', e);
+      return null;
+    }
+  };
+  if (!probes.length) {
+    // A geocoder that did not answer means nothing can be said about where the
+    // address is: never "outside".
+    if (cg.status === 'rejected' || kg.status === 'rejected') {
+      return mdJson({ status: 'error', code: 'upstream', error: MD_ERRORS.upstream }, 502);
+    }
+    // Neither Baltimore geocoder placed it: the Census names the county. Its
+    // point (when it could be in Baltimore) and the job's map pin are checked
+    // against BOTH parcel layers; a Census match in another county with
+    // nothing left to probe is md_outside (mdCensusFallback, md.ts).
+    const c = await readCensus();
+    census = c;
+    const fb = mdCensusFallback(c, lat !== null && lon !== null ? { lat, lon } : null);
+    if ('outcome' in fb) return mdJson(fb.outcome);
+    probes = fb.points.map((point) => ({ point, order: ['baltimore_city', 'baltimore_county'] as MdSide[] }));
+  }
+  const pool = await runBounded(probes.map((p) => () => probeParcel(p)), {
+    concurrency: MD_RESOLVE_CONCURRENCY,
+    deadlineMs: Math.max(0, MD_DEADLINE_MS - (Date.now() - started)),
+    skip: (i, done) => probeIsRedundant(probes[i], done.flatMap((d) => (d.result.status === 'ok' ? [d.result.value] : []))),
+    isTimeout,
+  });
+  const results: MdProbeResult[] = pool.flatMap((r, i) => {
+    if (r.status === 'ok') return [r.value];
+    if (r.status === 'skipped') return [];
+    return [{ probe: probes[i], hits: [{ side: probes[i].order[0], hit: r.status === 'timeout' ? 'timeout' as const : 'failed' as const }] }];
+  });
+  let out = mdResolveOutcome(results, census);
+  if (out.status === 'md_outside' && !census) out = { status: 'md_outside', county: (await readCensus())?.county ?? null };
+  if (out.status === 'error') return mdJson(out, 502);
+  return mdJson(out);
+}
+
+async function mdRecord(side: MdSide, key: string, lat: number, lon: number): Promise<Response> {
+  const cacheKey = `md:${side}:${key}`;
+  prune(mdRecordCache, RECORD_TTL_MS);
+  const hit = mdRecordCache.get(cacheKey);
+  if (hit) return mdJson({ status: 'md_record', record: hit.record });
+
+  const plan = mdRecordPlan(side, key, lat, lon);
+  if (!plan) return mdJson({ status: 'error', code: 'bad_request', error: ERRORS.bad_request }, 400);
+  prune(mdAsOfCache, MD_ASOF_TTL_MS);
+  const pool = await runBounded(plan.map((job) => async () => {
+    if (job.asOf) {
+      const c = mdAsOfCache.get(job.url);
+      if (c && Date.now() - c.at < MD_ASOF_TTL_MS) return c.body;
+    }
+    const body = await getMd(job.url);
+    if (job.asOf && body && typeof body === 'object' && !(body as Record<string, unknown>).error) {
+      mdAsOfCache.set(job.url, { at: Date.now(), body });
+    }
+    return body;
+  }), { concurrency: MD_RECORD_CONCURRENCY, deadlineMs: MD_DEADLINE_MS, isTimeout });
+
+  const jobs: Partial<Record<MdJobId, MdFetched>> = {};
+  plan.forEach((job, i) => {
+    const r = pool[i];
+    if (r.status === 'ok') jobs[job.id] = { status: 'ok', body: r.value };
+    else {
+      if (r.status === 'failed') console.error(`[building-record] md ${job.id} failed:`, r.error);
+      jobs[job.id] = { status: r.status === 'failed' ? 'failed' : 'timeout' };
+    }
+  });
+  const rec = assembleMdRecord({ side, key, fetchedAt: new Date(), jobs });
+  // Only a fully answered record is cached (a failed part is retried next open).
+  if (mdRecordComplete(rec)) mdRecordCache.set(cacheKey, { at: Date.now(), record: rec });
+  return mdJson({ status: 'md_record', record: rec });
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -337,6 +507,11 @@ serve(async (req) => {
       body = await req.json();
     } catch {
       body = null;
+    }
+    const md = parseMdRequest(body);
+    if (md) {
+      if (md.mode === 'md_resolve') return await mdResolve(md.text, md.lat, md.lon);
+      return await mdRecord(md.side, md.key, md.lat, md.lon);
     }
     const nj = parseNjRequest(body);
     if (nj) {

@@ -29,7 +29,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
-import { groundingFactsFor, jobsiteAddressForProject, resolveCodeJurisdiction } from '@/utils/codeJurisdiction';
+import { groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction } from '@/utils/codeJurisdiction';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { sheetAttachmentFor } from '@/utils/plans/revisionActions';
 import { generateUUID } from '@/utils/generateId';
@@ -73,7 +73,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
     projectType: project.type,
     jobKind: project.type === 'commercial' ? 'commercial' : 'residential',
   }), [project]);
-  const jurisdiction = useMemo(() => resolveCodeJurisdiction(jobsiteAddressForProject(project)), [project]);
+  const jurisdiction = useMemo(() => resolveCodeJurisdiction(jurisdictionQueryForProject(project)), [project]);
   const grounding = useMemo(() => groundingFactsFor(jurisdiction), [jurisdiction]);
   const monthlyCap = FEATURE_LIMITS.ai_plan_review_monthly[tier];
 

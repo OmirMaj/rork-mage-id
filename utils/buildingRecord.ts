@@ -514,3 +514,553 @@ export function isNjJobsite(addr: { state?: string }): boolean {
 export function njParcelConfirmKey(projectId: string): string {
   return `mageid_building_parcel_${projectId}`;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// MARYLAND: BALTIMORE CITY AND BALTIMORE COUNTY (lane RECORD, 2026-09-28).
+// ADDITIVE. Everything above (NYC, NJ) is unchanged. The MD record renders
+// through summarizeMdBuildingRecord into the NYC BuildingRecordSummary shape
+// with kinds from the NYC union ONLY, so Code Check grounding reads it
+// unchanged. Wire types mirror supabase/functions/building-record/md.ts
+// (validate-building-record proves the round trip).
+//
+// Baltimore City and Baltimore County are separate governments. The side of a
+// record is decided by which parcel layer contains the confirmed point, never
+// by the postal city.
+// ─────────────────────────────────────────────────────────────────────
+
+export type MdSide = 'baltimore_city' | 'baltimore_county';
+export type MdPartStatus = 'ok' | 'failed' | 'timeout';
+export type MdAsOfKind = 'data' | 'edited' | 'none' | 'unread';
+export interface MdCandidate { side: MdSide; key: string; label: string; lat: number; lon: number; match: 'address' | 'approximate'; }
+export interface MdPartMeta { status: MdPartStatus; asOf: string | null; asOfKind: MdAsOfKind; source: string; url: string; }
+export interface MdParcelPart extends MdPartMeta { found: boolean; address: string | null; zip: string | null; yearBuilt: number | null; areaSqft: number | null; zoning: string | null; use: string | null; dwellingUnits: number | null; neighborhood: string | null; parcelRef: string | null; }
+export interface MdPermitRow { number: string; issued: string | null; expires: string | null; status: string | null; description: string | null; costCents: number | null; }
+export interface MdPermitsPart extends MdPartMeta { total: number | null; truncated: boolean; rows: MdPermitRow[]; }
+export interface MdNoticeRow { number: string; date: string | null; type: string | null; statusCode: string | null; }
+export interface MdNoticesPart extends MdPartMeta { layer: string; truncated: boolean; rows: MdNoticeRow[]; }
+export interface MdZoningRow { code: string; overlay: string | null; pdfUrl: string | null; }
+export interface MdAreaRow { name: string; code: string | null; listed: string | null; }
+export interface MdFloodRow { zone: string; subtype: string | null; sfha: boolean | null; bfe: number | null; dfirmId: string | null; }
+export interface MdListPart<R> extends MdPartMeta { truncated: boolean; rows: R[]; }
+export interface MdLink { label: string; url: string; }
+export interface MdBuildingRecord {
+  jurisdiction: 'md'; side: MdSide; key: string; label: string; fetchedAt: string;
+  parcel: MdParcelPart;
+  permits: MdPermitsPart;
+  vacantNotices: MdNoticesPart | null;
+  housingNotices: MdNoticesPart[];
+  zoning: MdListPart<MdZoningRow>;
+  historic: MdListPart<MdAreaRow>;
+  landmarks: MdListPart<MdAreaRow> | null;
+  nationalRegister: MdListPart<MdAreaRow> | null;
+  flood: MdListPart<MdFloodRow>;
+  notChecked: string[];
+  links: MdLink[];
+}
+export type MdBuildingRecordRequest =
+  | { mode: 'md_resolve'; text: string; lat: number | null; lon: number | null }
+  | { mode: 'md_record'; side: MdSide; key: string; lat: number; lon: number };
+export type MdBuildingRecordResponse =
+  | { status: 'md_candidates'; candidates: MdCandidate[] }
+  | { status: 'md_outside'; county: string | null }
+  | { status: 'md_record'; record: MdBuildingRecord }
+  | { status: 'error'; code: string; error: string };
+
+/** Equal to md.ts (asserted by the validator). */
+export const MD_NOT_CHECKED_CITY: readonly string[] = [
+  'Permits issued before 2019 (a separate City dataset)',
+  "Permit status (issued, finaled or expired is not in the City's open data)",
+  'Closed violations and complaint history (the City publishes open notices only)',
+  'Certificates of occupancy (no City dataset)',
+  'Zoning, historic and flood maps beyond the address point',
+];
+export const MD_NOT_CHECKED_COUNTY: readonly string[] = [
+  'Code enforcement cases (the County publishes them only in Citizen Access)',
+  'Certificates of occupancy (no County dataset read)',
+  'Zoning, historic and flood maps beyond the address point',
+];
+
+export const MD_SIDE_NAME: Record<MdSide, string> = { baltimore_city: 'Baltimore City', baltimore_county: 'Baltimore County' };
+
+/**
+ * The official pages behind the scope-trigger lines. Each was fetched on
+ * checkedOn and the line's wording comes from it:
+ *  - mdeLead: "Owners of rental homes built before 1978 must register their
+ *    properties with the state, renew annually, and provide valid lead
+ *    inspection certificates at each tenant turnover, unless the property is
+ *    certified lead-free." (no page date)
+ *  - epaRrp: paid work that disturbs painted surfaces in homes, child-care
+ *    facilities and preschools built before 1978 needs certified firms and
+ *    trained workers ("Last updated on June 17, 2026"; the old URL
+ *    /lead/renovation-repair-and-painting-program redirects here).
+ *  - chapReview: a permit filed first is held until CHAP staff issue an
+ *    Authorization to Proceed and sign off in the permit system (page
+ *    updated 09/16/2026; chap.baltimorecity.gov/review-procedures redirects here).
+ *  - dhcdReferrals: exterior changes in a CHAP district need CHAP approval and
+ *    are not issued over the counter; "some minor work that would not
+ *    otherwise require a permit will require one in a CHAP district"; a
+ *    floodplain property's permit is sent to Planning's floodplain managers
+ *    (page updated 07/27/2026). It calls CHAP's approval a "Notice-To-Proceed";
+ *    CHAP's own page says "Authorization to Proceed", which is used here.
+ *  - cityFloodplain: "In Baltimore City, the regulated floodplain includes the
+ *    1% and 0.2% annual-chance flood areas" (page modified 2023-09-15).
+ *  - countyInspections: a building permit is required for "Any building
+ *    activity within a tidal or riverine 100-year floodplain" (no page date).
+ *  - countyCodes: "FLOOD PLAIN REGULATIONS: Baltimore County Bill #6-24,
+ *    effective May 6, 2024" (sheet Rev 08/25/26).
+ */
+export const MD_SOURCES = {
+  mdeLead: { name: 'MDE', url: 'https://mde.maryland.gov/programs/Land/LeadPoisoningPrevention/Pages/rentalowners.aspx', checkedOn: '2026-09-28' },
+  epaRrp: { name: 'EPA', url: 'https://www.epa.gov/lead/lead-renovation-repair-and-painting-program', checkedOn: '2026-09-28' },
+  chapReview: { name: 'CHAP review procedures', url: 'https://www.baltimorecity.gov/chap/our-work/review-procedures', checkedOn: '2026-09-28' },
+  dhcdReferrals: { name: 'DHCD special referrals', url: 'https://www.baltimorecity.gov/dhcd/our-work/permits-and-inspections/permits-special-referrals', checkedOn: '2026-09-28' },
+  cityFloodplain: { name: 'City floodplain program', url: 'https://www.baltimoresustainability.org/floodplain-management-program/', checkedOn: '2026-09-28' },
+  countyInspections: { name: 'PAI Building Inspections', url: 'https://www.baltimorecountymd.gov/departments/pai/building-inspections', checkedOn: '2026-09-28' },
+  countyCodes: { name: 'County codes sheet, Rev 08/25/26', url: 'https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf', checkedOn: '2026-09-28' },
+} as const;
+type MdSourceId = keyof typeof MD_SOURCES;
+
+// ── parsing ──
+
+const MD_BAD_RESPONSE: MdBuildingRecordResponse = { status: 'error', code: 'bad_response', error: 'The building lookup returned something MAGE could not read.' };
+
+function pMdSide(v: unknown): MdSide { if (v === 'baltimore_city' || v === 'baltimore_county') return v; throw new Bad(); }
+function pMdStatus(v: unknown): MdPartStatus { return dsStatus(v); }
+function pMdAsOfKind(v: unknown): MdAsOfKind { if (v === 'data' || v === 'edited' || v === 'none' || v === 'unread') return v; throw new Bad(); }
+function pMdMeta(o: O): MdPartMeta { return { status: pMdStatus(o.status), asOf: sN(o.asOf), asOfKind: pMdAsOfKind(o.asOfKind), source: s(o.source), url: s(o.url) }; }
+function pMdCandidate(v: unknown): MdCandidate {
+  const o = obj(v);
+  if (o.match !== 'address' && o.match !== 'approximate') throw new Bad();
+  return { side: pMdSide(o.side), key: s(o.key), label: s(o.label), lat: n(o.lat), lon: n(o.lon), match: o.match };
+}
+function pMdParcel(v: unknown): MdParcelPart {
+  const o = obj(v);
+  return {
+    ...pMdMeta(o), found: b(o.found), address: sN(o.address), zip: sN(o.zip), yearBuilt: nN(o.yearBuilt), areaSqft: nN(o.areaSqft),
+    zoning: sN(o.zoning), use: sN(o.use), dwellingUnits: nN(o.dwellingUnits), neighborhood: sN(o.neighborhood), parcelRef: sN(o.parcelRef),
+  };
+}
+function pMdPermitRow(v: unknown): MdPermitRow {
+  const o = obj(v);
+  const cents = nN(o.costCents);
+  if (cents !== null && !Number.isInteger(cents)) throw new Bad();
+  return { number: s(o.number), issued: sN(o.issued), expires: sN(o.expires), status: sN(o.status), description: sN(o.description), costCents: cents };
+}
+function pMdPermits(v: unknown): MdPermitsPart {
+  const o = obj(v);
+  return { ...pMdMeta(o), total: nN(o.total), truncated: b(o.truncated), rows: arr(o.rows, pMdPermitRow) };
+}
+function pMdNoticeRow(v: unknown): MdNoticeRow {
+  const o = obj(v);
+  return { number: s(o.number), date: sN(o.date), type: sN(o.type), statusCode: sN(o.statusCode) };
+}
+function pMdNotices(v: unknown): MdNoticesPart {
+  const o = obj(v);
+  return { ...pMdMeta(o), layer: s(o.layer), truncated: b(o.truncated), rows: arr(o.rows, pMdNoticeRow) };
+}
+function pMdList<R>(v: unknown, row: (x: unknown) => R): MdListPart<R> {
+  const o = obj(v);
+  return { ...pMdMeta(o), truncated: b(o.truncated), rows: arr(o.rows, row) };
+}
+const pMdZoningRow = (v: unknown): MdZoningRow => { const o = obj(v); return { code: s(o.code), overlay: sN(o.overlay), pdfUrl: sN(o.pdfUrl) }; };
+const pMdAreaRow = (v: unknown): MdAreaRow => { const o = obj(v); return { name: s(o.name), code: sN(o.code), listed: sN(o.listed) }; };
+const pMdFloodRow = (v: unknown): MdFloodRow => { const o = obj(v); return { zone: s(o.zone), subtype: sN(o.subtype), sfha: bN(o.sfha), bfe: nN(o.bfe), dfirmId: sN(o.dfirmId) }; };
+function pMdRecord(v: unknown): MdBuildingRecord {
+  const o = obj(v);
+  if (o.jurisdiction !== 'md') throw new Bad();
+  const side = pMdSide(o.side);
+  const city = side === 'baltimore_city';
+  // City-only parts are null on a County record and present on a City one.
+  const cityOnly = <T>(x: unknown, p: (y: unknown) => T): T | null => {
+    if (!city) { if (x !== null) throw new Bad(); return null; }
+    return p(x);
+  };
+  const rec: MdBuildingRecord = {
+    jurisdiction: 'md', side, key: s(o.key), label: s(o.label), fetchedAt: s(o.fetchedAt),
+    parcel: pMdParcel(o.parcel), permits: pMdPermits(o.permits),
+    vacantNotices: cityOnly(o.vacantNotices, pMdNotices),
+    housingNotices: arr(o.housingNotices, pMdNotices),
+    zoning: pMdList(o.zoning, pMdZoningRow),
+    historic: pMdList(o.historic, pMdAreaRow),
+    landmarks: cityOnly(o.landmarks, (x) => pMdList(x, pMdAreaRow)),
+    nationalRegister: cityOnly(o.nationalRegister, (x) => pMdList(x, pMdAreaRow)),
+    flood: pMdList(o.flood, pMdFloodRow),
+    notChecked: arr(o.notChecked, s),
+    links: arr(o.links, (x) => { const l = obj(x); return { label: s(l.label), url: s(l.url) }; }),
+  };
+  if (city && rec.housingNotices.length !== 4) throw new Bad();
+  return rec;
+}
+
+/** Tolerant: never throws; an unknown shape is one fixed error. */
+export function parseMdBuildingRecordResponse(json: unknown): MdBuildingRecordResponse {
+  try {
+    const o = obj(json);
+    switch (o.status) {
+      case 'md_candidates': return { status: 'md_candidates', candidates: arr(o.candidates, pMdCandidate) };
+      case 'md_outside': return { status: 'md_outside', county: sN(o.county ?? null) };
+      case 'md_record': return { status: 'md_record', record: pMdRecord(o.record) };
+      case 'error': return { status: 'error', code: s(o.code), error: s(o.error) };
+      default: return { ...MD_BAD_RESPONSE };
+    }
+  } catch {
+    return { ...MD_BAD_RESPONSE };
+  }
+}
+
+// ── the MD renderer ──
+
+/** The cap on promptBlock. Trimming drops permit rows (oldest first), then
+ *  other fact lines; never the header, the headline, the scope-trigger lines,
+ *  the "Not checked" line or the RULES paragraph. */
+export const MD_PROMPT_CAP = 2400;
+const MD_DESC_MAX = 140;
+
+function mdAsOfText(p: MdPartMeta): string {
+  switch (p.asOfKind) {
+    case 'data': return p.asOf ? `as of ${p.asOf}` : 'as-of date not published';
+    case 'edited': return p.asOf ? `last edited ${p.asOf}` : 'as-of date not published';
+    case 'none': return 'as-of date not published';
+    default: return 'as-of date not read';
+  }
+}
+const mdSrc = (p: MdPartMeta): string => ` · ${p.source}, ${mdAsOfText(p)}`;
+const mdCouldNot = (p: MdPartMeta): string => `Couldn't read ${p.source} — not checked`;
+function mdTrim(v: string | null, max = MD_DESC_MAX): string | null {
+  if (!v) return null;
+  const t = v.replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/** 1% annual-chance (100-year) zones on a FEMA map. */
+const ONE_PCT_ZONES = /^(A|AE|AH|AO|AR|A99|V|VE|A\d{1,2})$/i;
+
+function mdPermitLine(r: MdPermitRow, county: boolean, descMax = MD_DESC_MAX): string {
+  const bits = [r.number, r.issued ? `issued ${r.issued}` : 'issue date not published'];
+  if (r.expires) bits.push(`expires ${r.expires}`);
+  if (county && r.status) bits.push(`County status ${r.status}`);
+  const d = mdTrim(r.description, descMax);
+  if (d) bits.push(d);
+  if (r.costCents !== null && r.costCents > 0) bits.push(`declared cost ${njDollars(r.costCents)}`);
+  return bits.join(' · ');
+}
+
+function mdTrigger(id: MdSourceId[], text: string, withUrls: boolean): string {
+  const cite = id.map((k) => {
+    const src = MD_SOURCES[k];
+    return withUrls ? `${src.name}, checked ${src.checkedOn}: ${src.url}` : `${src.name}, checked ${src.checkedOn}`;
+  }).join('; ');
+  return `${text} (${cite})`;
+}
+
+/** A fact line and how long it survives the promptBlock trim (3 = kept longest). */
+interface MdFact { text: string; prio: 1 | 2 | 3; }
+interface MdRendered { facts: MdFact[]; permitLines: string[]; promptPermitLines: string[]; triggers: (withUrls: boolean) => string[]; }
+
+function mdRender(rec: MdBuildingRecord): MdRendered {
+  const city = rec.side === 'baltimore_city';
+  const open: MdFact[] = [];   // open notices: first on the card, last to be trimmed
+  const facts: MdFact[] = [];
+  const trig: { ids: MdSourceId[]; text: string }[] = [];
+  const bare: string[] = [];
+  const add = (text: string, prio: MdFact['prio']) => facts.push({ text, prio });
+
+  // Open notices (City only) go first.
+  const noticeFacts: MdFact[] = [];
+  if (rec.vacantNotices) {
+    const v = rec.vacantNotices;
+    if (v.status !== 'ok') noticeFacts.push({ text: mdCouldNot(v), prio: 3 });
+    else if (!v.rows.length) noticeFacts.push({ text: `No open vacant building notice in ${v.source}${mdSrc(v).replace(` · ${v.source},`, ',')}`, prio: 2 });
+    else for (const r of v.rows) {
+      open.push({ text: `Open vacant building notice ${r.number}, dated ${r.date ?? 'date not published'}${mdSrc(v)}`, prio: 3 });
+      bare.push(`Open vacant building notice ${r.number} dated ${r.date ?? 'date not published'}.`);
+    }
+  }
+  if (city) {
+    const hn = rec.housingNotices;
+    const allEmpty = hn.length > 0 && hn.every((x) => x.status === 'ok' && !x.rows.length && !x.truncated);
+    if (allEmpty) {
+      const newest = hn.map((x) => x.asOf).filter((x): x is string => !!x).sort().pop() ?? null;
+      noticeFacts.push({ text: `No open housing-code notices (${hn.map((x) => x.layer.toLowerCase()).join(', ')}) in the ${hn[0].source}, ${newest ? `as of ${newest}` : 'as-of date not read'}`, prio: 2 });
+    } else {
+      const empty: MdNoticesPart[] = [];
+      for (const x of hn) {
+        if (x.status !== 'ok') { noticeFacts.push({ text: mdCouldNot({ ...x, source: `the ${x.layer.toLowerCase()} notices in the ${x.source}` }), prio: 3 }); continue; }
+        for (const r of x.rows) {
+          open.push({ text: `Open ${(r.type ?? x.layer).toLowerCase()} notice ${r.number}, dated ${r.date ?? 'date not published'}, DHCD status code: ${r.statusCode ?? 'not published'}${mdSrc(x)}`, prio: 3 });
+        }
+        if (x.truncated) noticeFacts.push({ text: `${x.layer} notices: MAGE read only the first ${x.rows.length} rows, so there may be more${mdSrc(x)}`, prio: 3 });
+        else if (!x.rows.length) empty.push(x);
+      }
+      if (empty.length) {
+        const names = empty.map((x) => x.layer.toLowerCase());
+        const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+        const newest = empty.map((x) => x.asOf).filter((x): x is string => !!x).sort().pop() ?? null;
+        noticeFacts.push({ text: `No open ${list} notices in the ${empty[0].source}, ${newest ? `as of ${newest}` : 'as-of date not read'}`, prio: 2 });
+      }
+    }
+  }
+
+  // Parcel + year built (+ the pre-1978 lead trigger).
+  const p = rec.parcel;
+  if (p.status !== 'ok') {
+    add(mdCouldNot(p), 3);
+  } else if (!p.found) {
+    add(`No parcel found for ${city ? `block-lot ${rec.key.slice(0, 5).trim()} ${rec.key.slice(5)}` : 'this tax account'}${mdSrc(p)}`, 3);
+  } else {
+    const where = [p.address, p.parcelRef, p.neighborhood].filter(Boolean).join(', ');
+    add(`Parcel: ${where || 'address not published'}${mdSrc(p)}`, 3);
+    add(`${p.yearBuilt !== null ? `Year built ${p.yearBuilt}` : 'Year built not recorded'}${mdSrc(p)}`, 3);
+    if (p.areaSqft !== null) add(`Building area ${Math.round(p.areaSqft).toLocaleString('en-US')} sq ft${mdSrc(p)}`, 1);
+    if (!city && p.use) add(`Land use ${p.use}${mdSrc(p)}`, 1);
+    if (p.yearBuilt !== null && p.yearBuilt < 1978) {
+      trig.push({ ids: ['mdeLead', 'epaRrp'], text: `Built ${p.yearBuilt}, before 1978. If it is a rental home, Maryland requires lead registration with MDE and a lead inspection certificate at each tenant turnover unless it is certified lead-free. Paid work that disturbs paint in a pre-1978 home, child-care facility or preschool is covered by EPA's RRP rule` });
+    } else if (p.yearBuilt === null) {
+      bare.push("Year built not recorded, so MAGE can't say whether pre-1978 lead rules apply.");
+    }
+  }
+
+  // Zoning.
+  const z = rec.zoning;
+  if (z.status !== 'ok') add(mdCouldNot(z), 3);
+  else if (!z.rows.length) add(`No zoning district at the address point${mdSrc(z)}`, 2);
+  else add(`Zoning ${z.rows.map((r) => r.code + (r.overlay ? `, overlay ${r.overlay}` : '')).join(' / ')}${mdSrc(z)}`, 3);
+
+  // Historic: CHAP district / County district, CHAP landmark, National Register.
+  const h = rec.historic;
+  let chap = false;
+  if (h.status !== 'ok') add(mdCouldNot(h), 3);
+  else if (h.rows.length) {
+    chap = city;
+    add(`${city ? 'CHAP historic district' : 'County historic district'}: ${h.rows.map((r) => r.name + (r.listed ? `, listed ${r.listed}` : '')).join(' / ')}${mdSrc(h)}`, 3);
+  } else {
+    add(`Not found in ${h.source}${mdSrc(h).replace(` · ${h.source},`, ',')}${city ? '. The layer may be out of date.' : ''}`, 2);
+  }
+  if (rec.landmarks) {
+    const l = rec.landmarks;
+    if (l.status !== 'ok') add(mdCouldNot(l), 3);
+    else if (l.rows.length) { chap = true; add(`CHAP landmark: ${l.rows.map((r) => r.name).join(' / ')}${mdSrc(l)}`, 3); }
+    else add(`Not found in ${l.source}${mdSrc(l).replace(` · ${l.source},`, ',')}`, 1);
+  }
+  if (rec.nationalRegister) {
+    const nr = rec.nationalRegister;
+    if (nr.status !== 'ok') add(mdCouldNot(nr), 2);
+    else if (nr.rows.length) add(`National Register district: ${nr.rows.map((r) => r.name + (r.listed ? `, listed ${r.listed}` : '')).join(' / ')} (informational)${mdSrc(nr)}`, 1);
+  }
+  if (chap) {
+    trig.push({ ids: ['chapReview', 'dhcdReferrals'], text: 'Exterior work here needs CHAP approval (an Authorization to Proceed) before the permit issues. Some work that is otherwise exempt needs a permit in a CHAP district' });
+  }
+
+  // Flood.
+  const fl = rec.flood;
+  if (fl.status !== 'ok') add(mdCouldNot(fl), 3);
+  else if (!fl.rows.length) add(`Not in a mapped flood area in ${fl.source}${mdSrc(fl).replace(` · ${fl.source},`, ',')}`, 2);
+  else {
+    let onePct = false;
+    let pointTwo = false;
+    for (const r of fl.rows) {
+      const zone = r.zone.toUpperCase();
+      const bfe = r.bfe !== null ? `, base flood elevation ${r.bfe} ft` : ', no base flood elevation published';
+      if (ONE_PCT_ZONES.test(zone)) {
+        onePct = true;
+        add(`Flood zone ${r.zone}: in the 1% annual-chance (100-year) flood area${bfe}${mdSrc(fl)}`, 3);
+      } else if (zone === 'X2' || /0\.2 PCT/i.test(r.subtype ?? '')) {
+        pointTwo = true;
+        add(city
+          ? `Flood zone ${r.zone}: in the 0.2% annual-chance flood area, which Baltimore City's floodplain rules also cover${mdSrc(fl)}`
+          : `Flood zone ${r.zone}: in the 0.2% annual-chance flood area on FEMA's map${mdSrc(fl)}`, 3);
+      } else if (zone === 'X' && /MINIMAL/i.test(r.subtype ?? '')) {
+        // FEMA's own subtype words ("minimal hazard", "reduced risk") are not
+        // repeated: only where the point sits on the map.
+        add(`Flood zone ${r.zone} on FEMA's map, outside its mapped 1% and 0.2% annual-chance flood areas${mdSrc(fl)}`, 2);
+      } else if (/LEVEE/i.test(r.subtype ?? '')) {
+        add(`Flood zone ${r.zone} on FEMA's map, in an area FEMA marks as behind a levee${mdSrc(fl)}`, 2);
+      } else {
+        add(`Flood zone ${r.zone} on FEMA's map${mdSrc(fl)}`, 2);
+      }
+    }
+    if (city && (onePct || pointTwo)) {
+      trig.push({ ids: ['dhcdReferrals', 'cityFloodplain'], text: "In Baltimore City's regulated floodplain: the permit is sent to Planning's floodplain managers for review. The City regulates both the 1% and the 0.2% annual-chance flood areas" });
+    }
+    if (!city && onePct) {
+      trig.push({ ids: ['countyInspections', 'countyCodes'], text: 'In the 1% annual-chance flood area: Baltimore County requires a building permit for any building activity in a tidal or riverine 100-year floodplain. County floodplain rules: Bill 6-24' });
+    }
+  }
+
+  facts.push(...noticeFacts);
+
+  // Permits.
+  const permitLines: string[] = [];
+  const promptPermitLines: string[] = [];
+  const pm = rec.permits;
+  if (pm.status !== 'ok') add(mdCouldNot(pm), 3);
+  else {
+    const what = city ? 'City permits since 2019' : 'County permits';
+    const count = pm.total ?? 0;
+    if (!count) add(`No permits listed for this parcel in ${pm.source}${mdSrc(pm).replace(` · ${pm.source},`, ',')}`, 2);
+    else {
+      add(`${count} ${what} for this parcel${mdSrc(pm)}`, 3);
+      for (const r of pm.rows) {
+        permitLines.push(mdPermitLine(r, !city));
+        promptPermitLines.push(mdPermitLine(r, !city, 90));
+      }
+    }
+  }
+
+  return {
+    facts: [...open, ...facts],
+    permitLines,
+    promptPermitLines,
+    triggers: (withUrls: boolean) => [...trig.map((t) => mdTrigger(t.ids, t.text, withUrls)), ...bare],
+  };
+}
+
+function mdNewestAsOf(rec: MdBuildingRecord): string | null {
+  const parts: MdPartMeta[] = [rec.parcel, rec.permits, rec.zoning, rec.historic, rec.flood, ...rec.housingNotices];
+  if (rec.vacantNotices) parts.push(rec.vacantNotices);
+  return parts.filter((p) => p.status === 'ok' && p.asOfKind === 'data' && p.asOf).map((p) => p.asOf as string).sort().pop() ?? null;
+}
+
+/** The newest dataset as-of day of an MD record (null when none was read). */
+export function mdRecordAsOf(rec: MdBuildingRecord | null | undefined): string | null {
+  return rec ? mdNewestAsOf(rec) : null;
+}
+
+const MD_NONE_SUMMARY: BuildingRecordSummary = { kind: 'none', headline: '', lines: [], promptBlock: '', chipLabel: '', cacheKey: 'brmd:none' };
+
+/**
+ * The one MD renderer. Kinds stay inside the NYC union:
+ *   'attention'            an open vacant building notice or open housing notice
+ *                          is listed (from parts that read ok);
+ *   'no_active_in_checked' ONLY for a City record whose vacant-notice part and
+ *                          all four notice layers read ok, none truncated,
+ *                          nothing listed;
+ *   'incomplete'           any part failed, timed out or was truncated, AND
+ *                          ALWAYS for a County record: the County publishes no
+ *                          code-enforcement dataset, so a County record can
+ *                          never claim "nothing open".
+ */
+export function summarizeMdBuildingRecord(rec: MdBuildingRecord | null | undefined): BuildingRecordSummary {
+  if (!rec) return { ...MD_NONE_SUMMARY, lines: [] };
+  const city = rec.side === 'baltimore_city';
+  const r = mdRender(rec);
+  const notChecked = `Not checked: ${rec.notChecked.join(', ')}.`;
+  const newest = mdNewestAsOf(rec);
+  const asOfText = newest ? `as of ${newest}` : 'as-of dates not published';
+
+  const parts: MdPartMeta[] = [rec.parcel, rec.permits, rec.zoning, rec.historic, rec.flood, ...rec.housingNotices];
+  if (rec.vacantNotices) parts.push(rec.vacantNotices);
+  if (rec.landmarks) parts.push(rec.landmarks);
+  if (rec.nationalRegister) parts.push(rec.nationalRegister);
+  const incomplete = parts.some((p) => p.status !== 'ok' || ('truncated' in p && (p as { truncated: boolean }).truncated));
+
+  const listed: string[] = [];
+  if (rec.vacantNotices && rec.vacantNotices.status === 'ok' && rec.vacantNotices.rows.length) {
+    const k = rec.vacantNotices.rows.length;
+    listed.push(`${k} vacant building ${k === 1 ? 'notice' : 'notices'}`);
+  }
+  for (const x of rec.housingNotices) {
+    if (x.status === 'ok' && x.rows.length) listed.push(`${x.rows.length} ${x.layer.toLowerCase()} ${x.rows.length === 1 ? 'notice' : 'notices'}`);
+  }
+  const noticeParts = [...rec.housingNotices, ...(rec.vacantNotices ? [rec.vacantNotices] : [])];
+  const noticesComplete = city && rec.vacantNotices !== null && rec.housingNotices.length === 4
+    && noticeParts.every((x) => x.status === 'ok' && !x.truncated);
+
+  let kind: BuildingRecordSummary['kind'];
+  let headline: string;
+  if (listed.length) {
+    kind = 'attention';
+    // Neutral on purpose: the housing notices come from the City's inspections
+    // map feed, which is not a published dataset (each line names its source).
+    headline = `Baltimore City records list open notices for this parcel: ${listed.join(', ')} (${asOfText}).`;
+  } else if (!city) {
+    kind = 'incomplete';
+    const names: [MdPartMeta, string][] = [[rec.parcel, 'parcel'], [rec.permits, 'permits'], [rec.zoning, 'zoning'], [rec.flood, 'flood map'], [rec.historic, 'historic districts']];
+    const read = names.filter(([p]) => p.status === 'ok').map(([, name]) => name);
+    const notRead = names.filter(([p]) => p.status !== 'ok').map(([, name]) => name);
+    const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+    headline = `${read.length ? `Baltimore County ${list(read)} read (${asOfText})` : 'Nothing in Baltimore County\'s open data could be read'}${notRead.length && read.length ? `; ${list(notRead)} could not be read` : ''}. Code enforcement not checked.`;
+  } else if (incomplete || !noticesComplete) {
+    kind = 'incomplete';
+    headline = 'Some Baltimore City datasets could not be fully checked for this parcel; see below.';
+  } else {
+    kind = 'no_active_in_checked';
+    const nNewest = noticeParts.map((x) => x.asOf).filter((x): x is string => !!x).sort().pop() ?? null;
+    headline = `No open notices listed in the City datasets MAGE checked (${nNewest ? `as of ${nNewest}` : 'as-of date not read'})`;
+  }
+
+  const lines = [...r.facts.map((x) => x.text), ...r.permitLines, ...r.triggers(false), notChecked];
+
+  const header = `BUILDING RECORD (${city ? 'Baltimore City' : 'Baltimore County'} open data, fetched by MAGE ${rec.fetchedAt.slice(0, 10)})`;
+  const rules = city
+    ? "RULES: These are public records as published, not a finding by MAGE. Only open notices are published; closed history is not. The City does not publish permit status, so never say a permit is finaled, active or expired. Do not infer legal consequences. Never tell the contractor the building is free of problems or meets code."
+    : "RULES: These are public records as published, not a finding by MAGE. Baltimore County publishes no code-enforcement dataset, so nothing here says whether the property has open code cases. Permit status is the County's own code, shown verbatim. Do not infer legal consequences. Never tell the contractor the building is free of problems or meets code.";
+  const triggers = r.triggers(true);
+  let facts = [...r.facts];
+  let permits = [...r.promptPermitLines];
+  const build = () => [header, headline, ...facts.map((x) => `- ${x.text}`), ...permits.map((x) => `- ${x}`), ...triggers.map((x) => `- ${x}`), notChecked, rules].join('\n');
+  let promptBlock = build();
+  // Oldest permit rows go first, then the least useful facts (lowest prio,
+  // from the end). Header, headline, triggers, Not checked and RULES stay.
+  while (promptBlock.length > MD_PROMPT_CAP && permits.length) { permits = permits.slice(0, -1); promptBlock = build(); }
+  for (const prio of [1, 2, 3] as const) {
+    while (promptBlock.length > MD_PROMPT_CAP) {
+      let at = -1;
+      for (let k = facts.length - 1; k >= 0; k--) if (facts[k].prio === prio) { at = k; break; }
+      if (at < 0) break;
+      facts = [...facts.slice(0, at), ...facts.slice(at + 1)];
+      promptBlock = build();
+    }
+  }
+
+  const cacheKey = `brmd:${rec.side}:${rec.key}:${parts.map((x) => (x.asOf ?? x.status) + (('truncated' in x && (x as { truncated: boolean }).truncated) ? '+' : '')).join(',')}`;
+  const chipLabel = `${city ? 'Baltimore City' : 'Baltimore County'} record, ${asOfText}`;
+  return { kind, headline, lines, promptBlock, chipLabel, cacheKey };
+}
+
+/**
+ * The card's links for an MD record: the zoning district PDF the zoning layer
+ * names (only when the zoning part read ok, https only, deduped), then the
+ * record's own links (E-Permits / Citizen Access).
+ */
+export function mdRecordLinks(rec: MdBuildingRecord | null | undefined): MdLink[] {
+  if (!rec) return [];
+  const out: MdLink[] = [];
+  const seen = new Set<string>();
+  if (rec.zoning.status === 'ok') {
+    for (const z of rec.zoning.rows) {
+      if (!z.pdfUrl || !/^https:\/\//i.test(z.pdfUrl) || seen.has(z.pdfUrl)) continue;
+      seen.add(z.pdfUrl);
+      out.push({ label: `${z.code} zoning district (PDF)`, url: z.pdfUrl });
+    }
+  }
+  for (const l of rec.links) {
+    if (seen.has(l.url)) continue;
+    seen.add(l.url);
+    out.push(l);
+  }
+  return out;
+}
+
+/** A Maryland jobsite (state only; City vs County is decided by the parcel). */
+export function isMdJobsite(addr: { state?: string }): boolean {
+  return normalizeState(addr.state) === 'MD';
+}
+
+/** The job's permit row by number: exact match after upper-casing and removing
+ *  spaces and dashes. null when the permits part did not read ok. */
+export function mdPermitForNumber(rec: MdBuildingRecord, permitNumber: string | null | undefined): MdPermitRow | null {
+  if (!rec || rec.permits.status !== 'ok') return null;
+  const norm = (x: string | null | undefined) => (x ?? '').toUpperCase().replace(/[\s-]+/g, '');
+  const p = norm(permitNumber);
+  if (!p) return null;
+  return rec.permits.rows.find((r) => norm(r.number) === p) ?? null;
+}
+
+export function mdParcelConfirmKey(projectId: string): string {
+  return `mageid_building_md_${projectId}`;
+}
+
+export function mdBuildingRecordCacheKey(side: MdSide, key: string): string {
+  return `mageid_building_record_md_${side}_${key.replace(/\s+/g, '-')}`;
+}
