@@ -25,7 +25,13 @@ import { useCoreData } from '@/contexts/ProjectContext';
 import { helpTutorialsRowVisible } from '@/utils/tutorial/entryPoints';
 
 export function BrainSurface() {
-  const { voiceSignal, helpSignal } = useSearch();
+  const search = useSearch();
+  const { voiceSignal, helpSignal } = search;
+  // A3: what the last openVoice() asked for — a project to file to, and
+  // whether to start recording straight away. Optional-chained because a jest
+  // stand-in for useSearch may predate the request.
+  const voiceRequest = search.voiceRequest;
+  const clearVoiceRequest = search.clearVoiceRequest;
   const router = useRouter();
   // The narrow core slice, not useProjects(): this surface is always mounted,
   // and the full hook re-rendered it (and UniversalSearch, the FAB and the mic)
@@ -42,7 +48,14 @@ export function BrainSurface() {
     <>
       <UniversalSearch />
       <BrainFab />
-      <UniversalMicButton hideFab openSignal={voiceSignal} />
+      <UniversalMicButton
+        hideFab
+        openSignal={voiceSignal}
+        requestedProjectId={voiceRequest?.projectId}
+        autoStart={voiceRequest?.autoStart === true}
+        onClosed={clearVoiceRequest}
+        filesParkedNotes
+      />
       <HelpFab
         hideFab
         openSignal={helpSignal}

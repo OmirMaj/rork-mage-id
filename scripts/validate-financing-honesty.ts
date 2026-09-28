@@ -339,7 +339,7 @@ const html = read('marketing/portal/index.html');
   ok('…and a sample job shows neither', /\{!isSampleJob && \(isFinancingAvailable\(settings\) \?/.test(inv));
 
   // Contract D8: the early-access cards on the invoice and prequal-manager.
-  const FOOTER = 'Not available yet — tap to be told when it is';
+  const FOOTER = 'Not available yet. Tap to be told when it is.';
   const D8: [string, string, string, string, string][] = [
     ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on unpaid invoices',
       'We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show.'],

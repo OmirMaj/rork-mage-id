@@ -5,6 +5,26 @@ where this ended. Read this, then `CLAUDE.md`, then `docs/PRODUCT-BIBLE.md`._
 
 ---
 
+> **wave-next W1 notes (2026-09-28, branch claude/wave-next, NOT shipped).**
+> Two scope decisions were accepted at integration, with no code change:
+> - **planSweep neutraliser is per language.** `neutralizeModelText(s, lang = getLang())`
+>   in utils/plans/planSweep.ts: English output never carries an English verdict
+>   word and is byte-identical to the f0dbd267 neutraliser; Spanish output never
+>   matches the EN∪ES `FORBIDDEN_WORDS` union. Consequence once Spanish is live: in
+>   an English session a quoted Spanish verdict ("viola el código") passes through
+>   unchanged. It cannot happen while `LANGUAGE_PICKER_ENABLED` is false; re-check at
+>   the flip (docs/I18N.md §12, Phase 1).
+> - **Subs & pay is owner-only.** `hubPermissions(role).showSubsPay` is
+>   `role === 'owner'`, because commitments RLS (`commitments_owner_all`) gives
+>   editors an empty read, which the tile would show as "No subs on this project
+>   yet". The spec said "hidden for field and viewer". The tile is phone and tablet
+>   only for now: the desktop Money-index row, a `SECTION_TITLES` 'subsPay' entry in
+>   utils/projectWorkspaceLayout.ts and their pins are a follow-up.
+> - **One name for Code look until the rename.** The plans page row reads
+>   'Photo code look /mo' again (base wording); the atomic 'Photo code check'
+>   rename (buttons, CodeLookSheet, utils/codeLook.ts, analyze-photos + deploy,
+>   validate-code-look pins) is its own follow-up.
+
 # CURRENT STATE — 2026-09-25 (desktop waves 6a–6d + the smoothness pass)
 
 The founder works in the web app (app.mageid.app, react-native-web) on a

@@ -401,7 +401,7 @@ export function NextStepHero(props: NextStepHeroProps) {
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <View style={[styles.eyebrowDot, { backgroundColor: accent }]} />
-          <Text style={[styles.eyebrow, { color: accent }]}>NEXT STEP</Text>
+          <Text style={[styles.eyebrow, { color: accent }]}>Next step</Text>
         </View>
         <Text style={styles.title} numberOfLines={2}>{step.title}</Text>
         <Text style={styles.bodyText} numberOfLines={3}>{step.body}</Text>
@@ -462,6 +462,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     ...Type.caption2,
     fontWeight: '800' as const,
     letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
   },
   title: {
     ...Type.bodyCompactEmphasized,

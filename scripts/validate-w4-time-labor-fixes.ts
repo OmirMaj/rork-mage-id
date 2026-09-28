@@ -103,7 +103,7 @@ console.log('\n#99 a worker on the clock is never offered twice:');
   ok('the open-shift map reads EVERY team row, not only owned ones', /for \(const e of teamEntries\)/.test(block) && !/ownedTeam/.test(block));
   ok('…and keeps the missed-clock-out exemption', /!isMissed\(e\)/.test(block));
   ok('availableRoster filters on it', /roster\.filter\(m => !openShiftByWorker\.has\(m\.id\)\)/.test(tt));
-  ok('blocked names are shown greyed with who has him', /On the clock\$\{where\} — \$\{hit\.who \? `logged by \$\{hit\.who\}` : 'you clocked him in'\}/.test(tt)
+  ok('blocked names are shown greyed with who has them', /On the clock\$\{where\} — \$\{hit\.who \? `logged by \$\{hit\.who\}` : 'you clocked them in'\}/.test(tt)
     && /testID=\{`clock-in-member-on-clock-\$\{member\.id\}`\}/.test(tt));
   ok('seat-job open shifts are listed read-only', /seatTeamOpen\.map\(e => \(\{[\s\S]{0,160}readOnly: true/.test(tt) && /readOnly=\{r\.readOnly\}/.test(tt)
     && /testID=\{`time-entry-readonly-\$\{entry\.id\}`\}/.test(tt));
@@ -111,7 +111,7 @@ console.log('\n#99 a worker on the clock is never offered twice:');
   ok('costing, the export and closeTeamShift stay on ownedTeam',
     /\.\.\.ownedTeam\.map\(\(e: TeamTimeEntry\) => \(\{ \.\.\.e, loggedByLabel/.test(tt) && /const teamRow = ownedTeam\.find/.test(tt)
     && /const todayEntries = \[\.\.\.entries, \.\.\.ownedTeam\]/.test(tt));
-  ok('a double-clocked worker is flagged', /const doubleClocked = useMemo/.test(tt) && /testID="time-tracking-double-clocked"/.test(tt) && /isn&apos;t paid twice/.test(tt));
+  ok('a double-clocked worker is flagged', /const doubleClocked = useMemo/.test(tt) && /testID="time-tracking-double-clocked"/.test(tt) && /aren&apos;t paid twice/.test(tt));
 }
 
 console.log('\n#100 the job\'s crew is saved for no signal:');

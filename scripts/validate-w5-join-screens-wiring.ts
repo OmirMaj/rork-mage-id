@@ -276,10 +276,10 @@ console.log('\n#74 — a claimed crew worker:');
     && layout.indexOf('inCrew && claimedCrewWorker') < layout.indexOf("router.replace('/persona-select' as never)"));
   ok('a stashed /claim-crew is replayed before the persona question', /if \(route === 'claim-crew'\) \{ router\.replace\(pending as never\); return; \}/.test(layout)
     && /await setPendingDeepLink\(pending\);/.test(layout) && /if \(authLoading \|\| projectLoading \|\| !isAuthenticated \|\| userRole !== null \|\| claimReplayRef\.current\) return;/.test(layout));
-  ok('Tools and the sidebar read "My Profile" (no chip / lock) for him',
-    /crewAsProfile\(row\) \? 'My Profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
+  ok('Tools and the sidebar read "My profile" (no chip / lock) for them',
+    /crewAsProfile\(row\) \? 'My profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
     && /if \(crewAsProfile\(row\)\) return undefined;/.test(read('app/(tabs)/discover/tools.tsx'))
-    && /const label = asProfile \? 'My Profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
+    && /const label = asProfile \? 'My profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
     && /const locked = !asProfile && /.test(read('components/DesktopSidebar.tsx')));
 }
 

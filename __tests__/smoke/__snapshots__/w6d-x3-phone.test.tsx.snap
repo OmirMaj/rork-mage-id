@@ -2,49 +2,49 @@
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /client-view 1`] = `
 {
-  "lines": 301,
+  "lines": 309,
   "modals": 4,
-  "sha256": "289473f8f21ab7232532cf5b19c342262525a5ba520869e288c862adca78df42",
+  "sha256": "5c596b7214655622c938a82677a1d169339b2da655d4884175bd2f34321386fb",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /client-view?portalId=44444444-4444-4444-8444-444444444444 1`] = `
 {
-  "lines": 583,
+  "lines": 587,
   "modals": 7,
-  "sha256": "1e918f874111cfa165356cb012b84e8a914caca09af402910fda8320edc398e6",
+  "sha256": "5f959ea79dfb314ea29abc49485503f961dd919f8f7d07e49615bb8d86e2787e",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /managed-property 1`] = `
 {
-  "lines": 320,
+  "lines": 328,
   "modals": 4,
-  "sha256": "9332979cfa81a7f82a78bbc44599b00310697a3b8cbb01b6487c69ee302c8ba1",
+  "sha256": "1f777e7cefad2804a78a1d69bc16adad68dfbb43b78dfa180053a8aaaa908575",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /oac-meeting 1`] = `
 {
-  "lines": 383,
+  "lines": 391,
   "modals": 5,
-  "sha256": "a7fe69e1d2064744999d5fab5b433475fb9cb3791c7db881fe356efc1b78669f",
+  "sha256": "d1c5090be77eb8663b7f0fcaa35c57fe3f6e45decdd2d408efb22833a182e054",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /shared-schedule 1`] = `
 {
-  "lines": 303,
+  "lines": 311,
   "modals": 4,
-  "sha256": "bb830b4409eb934d5f6a6f2c768791cd3503628b2f1cc1cbd809e34cc32d6462",
+  "sha256": "5bb349ff6758fc5248ce7da48f20dd4178f797ce75589012f1428530bce841e9",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /work-order 1`] = `
 {
-  "lines": 320,
+  "lines": 328,
   "modals": 4,
-  "sha256": "0f12cc70f3125e2bada66c5a9278f89b62444af6ad07a2d1eef63f04eedd95fd",
+  "sha256": "369b966d3a82eb100885ed30a047331b30d8303012258e7683d91407e62e632d",
 }
 `;
 

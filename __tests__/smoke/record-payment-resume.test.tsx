@@ -121,7 +121,7 @@ async function typeAndSubmit(tree: Awaited<ReturnType<typeof openSheet>>, amount
 async function pressOpenNotSaved() {
   const warn = alerts.find((a) => a.title === 'A payment on this invoice is not saved yet');
   expect(warn).toBeDefined();
-  const open = warn?.buttons?.find((b) => b.text === 'Open Not saved');
+  const open = warn?.buttons?.find((b) => b.text === 'Review unsent changes');
   await act(async () => { open?.onPress?.(); });
   await pump(1000);
 }
@@ -180,7 +180,7 @@ describe('a payment that lands after he left the invoice', () => {
     await pump(300);
     expect(tree.getPathname()).toBe('/cash-flow');
     await pump(15000);
-    expect(alerts.map((a) => a.title)).toContain('Payment Recorded');
+    expect(alerts.map((a) => a.title)).toContain('Payment recorded');
     expect(tree.getPathname()).toBe('/cash-flow'); // round 7: '/' — his cash-flow screen closed
     expect(appends).toHaveLength(1);
   });

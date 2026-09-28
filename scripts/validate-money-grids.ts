@@ -514,7 +514,7 @@ function moneyCalls(span: string): string[] {
       body: 'We are working on drafting conditional and unconditional waivers for every sub paid out of a funded pay app. Bank-held escrow would need a partner bank, and none is signed. For now, request and track waivers in Lien waivers.',
     },
   };
-  const FOOTER = 'Not available yet — tap to be told when it is';
+  const FOOTER = 'Not available yet. Tap to be told when it is.';
   const spans = [...aiaRaw.matchAll(/<RevenueEarlyAccessCard\b/g)].map((m) => tagSpan(aiaRaw, m.index ?? 0));
   eq('the AIA pay app renders exactly the two early-access cards', spans.map((s) => /testID="([^"]+)"/.exec(s)?.[1] ?? null).sort(), Object.keys(D8).sort());
   for (const span of spans) {

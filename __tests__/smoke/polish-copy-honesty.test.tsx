@@ -288,7 +288,7 @@ describe('/discover/tools marks the rows a free contractor cannot open', () => {
     // Sanity: the rows themselves are still there. A badge that appeared
     // because the grid collapsed would satisfy the two lines above.
     expect(text).toContain('Cost X-Ray');
-    expect(text).toContain('Plan Intelligence');
+    expect(text).toContain('Plan intelligence');
   });
 
   it('badges nothing for a user whose tier clears every gate', async () => {

@@ -104,7 +104,7 @@ async function main() {
     /from\('secure-contracts'\)\s*\.upload\(path, bytes, \{ contentType: 'image\/jpeg', upsert: false \}\)/.test(engine) && /`\$\{userId\}\/\$\{contractId\}-signed-page-/.test(engine));
   const contract = strip(read('app/contract.tsx'));
   const rec = callbackBody(contract, 'handleRecordSignature');
-  ok('contract: "Record homeowner signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record homeowner signature"/.test(contract));
+  ok('contract: "Record client signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record client signature"/.test(contract));
   ok('contract: paper uploads the photo BEFORE the write, and a failed upload records nothing',
     rec.indexOf('uploadSignedPageEvidence(') > 0 && rec.indexOf('uploadSignedPageEvidence(') < rec.indexOf('recordHomeownerSignature(') && /return;\s*\}\s*\}\s*const sig/.test(rec));
   ok('contract: after the record, the contract is re-read and the portal republished',

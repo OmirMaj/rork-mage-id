@@ -83,6 +83,6 @@ export function projectTypeBlockReason(type: string, other: string | undefined, 
   if (type !== 'other') return null;
   if (cleanProjectTypeOther(other)) return null;
   return use === 'ai'
-    ? 'You picked Other. Describe the job in a few words, for example "Whole-house repipe", so the AI knows what kind of job it is pricing.'
-    : 'You picked Other. Describe the job in a few words, for example "Whole-house repipe". That is what the job list, PDFs and the client portal will show.';
+    ? 'You picked Other. Describe the project in a few words, for example "Whole-house repipe", so the AI knows what kind of project it is pricing.'
+    : 'You picked Other. Describe the project in a few words, for example "Whole-house repipe". That is what the project list, PDFs and the client portal will show.';
 }

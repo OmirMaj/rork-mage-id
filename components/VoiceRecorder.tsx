@@ -13,7 +13,7 @@
 // recording lifecycle in isolation, shows project-specific suggestions,
 // and unmounts on close so the next session starts clean.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Platform,
 } from 'react-native';
@@ -61,15 +61,42 @@ interface VoiceRecorderProps {
    * false: every existing caller keeps its card.
    */
   bare?: boolean;
+  /**
+   * Optional (UX wave, A3): open the capture sheet as soon as this button
+   * mounts, already recording once the sheet is up and the microphone is
+   * allowed. Defaults to false: every existing caller is unchanged. A no-op on
+   * the web (the mic there is disabled) and while locked.
+   */
+  autoStart?: boolean;
+  /**
+   * Optional (UX wave, A6): the offline queue key handed to the capture sheet,
+   * so a recording parked with no signal knows where it belongs. Defaults to
+   * the sheet's own title-based key.
+   */
+  queueKey?: string;
 }
+
+/** The capture sheet is a second modal; iOS refuses to present one while
+ *  another is still animating in, so an auto-open waits for the first. */
+const AUTO_OPEN_DELAY_MS = Platform.OS === 'ios' ? 450 : 0;
 
 export default function VoiceRecorder({
   onTranscriptReady, isLoading, isLocked, onLockedPress,
   title, contextLine, suggestions, topicChecklist, label, bare = false,
+  autoStart = false, queueKey,
 }: VoiceRecorderProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // autoStart is read on mount only: the caller disarms it once used, and a
+  // later change must not pop the sheet open under the user's thumb.
+  useEffect(() => {
+    if (!autoStart || isLocked || Platform.OS === 'web') return;
+    const t = setTimeout(() => setModalOpen(true), AUTO_OPEN_DELAY_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePress = useCallback(() => {
     if (isLocked) {
@@ -129,6 +156,8 @@ export default function VoiceRecorder({
         contextLine={contextLine}
         suggestions={suggestions}
         topicChecklist={topicChecklist}
+        autoStart={autoStart}
+        queueKey={queueKey}
       />
     </>
   );

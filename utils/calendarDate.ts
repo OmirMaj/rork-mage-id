@@ -10,6 +10,25 @@
 // 'YYYY-MM-DD' as UTC midnight — so in any negative-offset zone the label
 // renders the PREVIOUS day. A due date is a day on a calendar, not a moment,
 // and must not move when the reader changes timezone.
+//
+// LANGUAGE (docs/I18N.md §6): formatCalendarDay takes `lang` (default: the
+// app language, i18n getLang()). English is the unchanged en-US path; Spanish
+// renders from our own tables (i18n/dateEs.ts), never numeric. Relative
+// imports and no React Native: bun validators and the Hermes gate load this.
+//
+// PHASE 1 GATE (review, fix round 1) — before LANGUAGE_PICKER_ENABLED flips:
+// the default `lang` follows the app language, so every statutory, legal or
+// outbound document builder that calls this must pass `lang` itself — 'en'
+// for statutory/legal text (lien waivers, AIA pay apps, contracts, invoices,
+// PDFs) and recipientLanguage() for outbound mail. Inert today: getLang() is
+// 'en' in production while the picker is hidden (LanguageProfileSync is
+// inert too, so the account cannot switch it).
+// i18n/format.ts imports THIS file, so this file must never import
+// i18n/format.ts (dateEs.ts exists to break that cycle).
+
+import type { Lang } from '../i18n/types';
+import { getLang } from '../i18n/core';
+import { esCalendarDate } from '../i18n/dateEs';
 
 const CALENDAR_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -44,14 +63,19 @@ export function parseCalendarDay(value: string | null | undefined): Date | null 
  * Unparseable input is returned UNCHANGED rather than replaced with a dash:
  * showing the reader the raw value is honest, and hiding it makes a data bug
  * invisible. Empty input yields ''; callers already gate on truthiness.
+ *
+ * `lang` defaults to the app language. 'es' gives '30 ago 2026' for the same
+ * options (never numeric — `month: 'numeric'` becomes the month name).
  */
 export function formatCalendarDay(
   value: string | null | undefined,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' },
+  lang: Lang = getLang(),
 ): string {
   if (!value) return '';
   const d = parseCalendarDay(value);
   if (!d) return value;
+  if (lang === 'es') return esCalendarDate(d, options);
   return d.toLocaleDateString('en-US', options);
 }
 

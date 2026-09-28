@@ -17,10 +17,27 @@
 import { useCallback, useState } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 
+/** What the last openVoice() asked for. `projectId` files the note to that
+ *  project (the mic still lets the user change it); `autoStart` begins
+ *  recording as soon as the capture sheet is visible (native only — the web
+ *  mic is disabled, so autoStart is a no-op there). */
+export interface VoiceRequest {
+  projectId?: string;
+  autoStart: boolean;
+}
+
+export interface OpenVoiceOptions {
+  projectId?: string;
+  autoStart?: boolean;
+}
+
+const EMPTY_VOICE_REQUEST: VoiceRequest = { autoStart: false };
+
 export const [SearchProvider, useSearch] = createContextHook(() => {
   const [isOpen, setIsOpen] = useState(false);
   const [voiceSignal, setVoiceSignal] = useState(0);
   const [helpSignal, setHelpSignal] = useState(0);
+  const [voiceRequest, setVoiceRequest] = useState<VoiceRequest>(EMPTY_VOICE_REQUEST);
 
   const openSearch = useCallback(() => setIsOpen(true), []);
   const closeSearch = useCallback(() => setIsOpen(false), []);
@@ -28,8 +45,21 @@ export const [SearchProvider, useSearch] = createContextHook(() => {
 
   // Close the search surface first, then fire the secondary action, so the
   // voice/help modal opens onto a clean screen rather than over the search list.
-  const openVoice = useCallback(() => { setIsOpen(false); setVoiceSignal(n => n + 1); }, []);
+  // openVoice() with no argument behaves exactly as before (no project hint,
+  // no auto-start). Guard against being wired straight to onPress, which would
+  // hand us a press event instead of options.
+  const openVoice = useCallback((opts?: OpenVoiceOptions) => {
+    const o = opts && typeof opts === 'object' && !('nativeEvent' in opts) ? opts : undefined;
+    setIsOpen(false);
+    setVoiceRequest({
+      projectId: typeof o?.projectId === 'string' && o.projectId ? o.projectId : undefined,
+      autoStart: o?.autoStart === true,
+    });
+    setVoiceSignal(n => n + 1);
+  }, []);
+  // The mic clears the request when it closes, so the next open re-resolves.
+  const clearVoiceRequest = useCallback(() => setVoiceRequest(EMPTY_VOICE_REQUEST), []);
   const openHelp = useCallback(() => { setIsOpen(false); setHelpSignal(n => n + 1); }, []);
 
-  return { isOpen, openSearch, closeSearch, toggleSearch, voiceSignal, helpSignal, openVoice, openHelp };
+  return { isOpen, openSearch, closeSearch, toggleSearch, voiceSignal, voiceRequest, clearVoiceRequest, helpSignal, openVoice, openHelp };
 });

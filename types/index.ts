@@ -2784,6 +2784,11 @@ export interface Subcontractor {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  /** Recipient language for text we send this sub — 'en' | 'es'; null or
+   *  absent = not told us, which sends English (i18n/recipient.ts,
+   *  docs/I18N.md §9). Maps from subcontractors.preferred_language (mapping lands in a
+   *  later wave). */
+  preferredLanguage?: 'en' | 'es' | null;
 }
 
 /**
@@ -3950,6 +3955,11 @@ export interface Contact {
   linkedProjectIds: string[];
   createdAt: string;
   updatedAt: string;
+  /** Recipient language for text we send this contact — 'en' | 'es'; null or
+   *  absent = not told us, which sends English (i18n/recipient.ts,
+   *  docs/I18N.md §9). Maps from contacts.preferred_language (mapping lands in a
+   *  later wave). */
+  preferredLanguage?: 'en' | 'es' | null;
 }
 
 export type CommEventType = 'document_sent' | 'co_submitted' | 'co_approved' | 'co_rejected' | 'invoice_sent' | 'invoice_paid' | 'invoice_overdue' | 'daily_report_sent' | 'collaborator_added' | 'internal_note' | 'client_message';
@@ -4487,6 +4497,11 @@ export interface CrewMember {
   marketplaceProfileId?: string;
   // Assignment
   projectIds: string[];
+  /** Recipient language for text we send this crew member — 'en' | 'es'; null or
+   *  absent = not told us, which sends English (i18n/recipient.ts,
+   *  docs/I18N.md §9). Maps from crew_members.preferred_language (mapping lands in a
+   *  later wave). */
+  preferredLanguage?: 'en' | 'es' | null;
 }
 
 export interface ChatMessage {

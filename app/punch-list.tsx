@@ -161,7 +161,7 @@ function getStatusConfig(t: ThemeColors, status: PunchItemStatus): { label: stri
     // There is no `infoSoft` token, so in-progress uses the repo-wide
     // `info + '1F'` soft fill (payments.tsx, warranties.tsx, ui/Badge.tsx).
     case 'open': return { label: 'Open', color: t.dangerLabel, bg: t.dangerSoft };
-    case 'in_progress': return { label: 'In Progress', color: t.info, bg: t.info + '1F' };
+    case 'in_progress': return { label: 'In progress', color: t.info, bg: t.info + '1F' };
     case 'ready_for_review': return { label: 'Review', color: t.accent, bg: t.accentSoft };
     case 'closed': return { label: 'Closed', color: t.success, bg: t.successSoft };
   }
@@ -196,6 +196,11 @@ function getPriorityConfig(t: ThemeColors, p: PunchItemPriority): { label: strin
 // gate to point at, and a claim the app cannot back is worse than no claim.
 
 const LIST_LABEL: Record<PunchListType, string> = { punch: 'Punch', crew: 'Crew list' };
+/** Punch priorities as the filter prints them (VOICE: a label map, never a
+ *  title-cased enum). */
+const PRIORITY_LABEL: Record<'low' | 'medium' | 'high' | 'critical', string> = {
+  low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical',
+};
 
 function otherList(list: PunchListType): PunchListType {
   return list === 'punch' ? 'crew' : 'punch';
@@ -715,7 +720,7 @@ const PunchRow = React.memo(function PunchRow({
           {item.status === 'in_progress' && (
             <TouchableOpacity style={styles.punchActionBtn} onPress={() => actions.onStatus(item, 'ready_for_review')}>
               <Eye size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Submit for Review</Text>
+              <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Send for review</Text>
             </TouchableOpacity>
           )}
           {item.status === 'ready_for_review' && (
@@ -833,17 +838,17 @@ function PunchGateView({ state, reason, onRetry }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const copy = state === 'error'
-    ? { title: 'Could not check your access to this job', body: 'MAGE could not load who is on this project, so it cannot tell whether you were invited to its punch list. Check your connection and try again.' }
+    ? { title: 'Could not check your access to this project', body: 'MAGE could not load who is on this project, so it cannot tell whether you were invited to its punch list. Check your connection and try again.' }
     : state === 'paused'
-      ? { title: 'Waiting for signal', body: reason ?? 'This job is not saved on this phone yet. It opens once there is signal.' }
-      : { title: 'Not on this job', body: 'You don\'t have access to this project\'s punch list. Ask the project owner to invite you.' };
+      ? { title: 'Waiting for signal', body: reason ?? 'This project is not saved on this phone yet. It opens once there is signal.' }
+      : { title: 'Not on this project', body: 'You don\'t have access to this project\'s punch list. Ask the project owner to invite you.' };
   return (
     <View style={[styles.gateWrap, { backgroundColor: themeColors.bg }]} testID={`punch-gate-${state}`}>
-      <Stack.Screen options={{ title: 'Punch List' }} />
+      <Stack.Screen options={{ title: 'Punch list' }} />
       {state === 'loading' ? (
         <>
           <ActivityIndicator color={themeColors.accent} />
-          <Text style={styles.gateText}>Checking your access to this job…</Text>
+          <Text style={styles.gateText}>Checking your access to this project…</Text>
         </>
       ) : (
         <>
@@ -1656,7 +1661,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     }
     const desc = description.trim();
     if (!desc) {
-      showAlert('Missing Description', 'Please describe the punch item.');
+      showAlert('Add a description', 'Describe the punch item.');
       return;
     }
     // The picker stores a calendar day; this refuses anything else (an old
@@ -1733,7 +1738,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       // on the instant it saves. Say where it went instead of letting it
       // look lost.
       if (formListType !== activeList) {
-        nailIt(`Saved to the ${formListType === 'punch' ? 'punch list' : 'crew list'}.`);
+        nailIt(formListType === 'punch' ? 'Saved to the punch list' : 'Saved to the crew list');
       }
     };
     // Changing an EXISTING item's list in the sheet is a move, and a move
@@ -1861,8 +1866,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     if (leftover.length === 0) setShowWalk(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nailIt(leftover.length === 0
-      ? `${filed} punch item${filed === 1 ? '' : 's'} added.`
-      : `${filed} added. ${leftover.length} photo${leftover.length === 1 ? '' : 's'} still need a line.`);
+      ? (filed === 1 ? '1 punch item added' : `${filed} punch items added`)
+      : (leftover.length === 1
+        ? `${filed} added. 1 photo still needs a line`
+        : `${filed} added. ${leftover.length} photos still need a line`));
     if (opts?.thenPin) {
       // The ids ride in memory, not the URL (up to 40 of them); a web reload
       // loses the batch and Pin items falls back to every unpinned item.
@@ -1910,7 +1917,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             [
               { text: 'Not yet', style: 'cancel' },
               {
-                text: 'Close Project',
+                text: 'Close project',
                 onPress: () => {
                   // Land in the SAME terminal state the Close Project button
                   // sets — 'closed' + closedAt — so both paths agree instead
@@ -1960,17 +1967,17 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const handleCloseProject = useCallback(() => {
     if (!allClosed) {
-      showAlert('Cannot Close', 'All punch items must be resolved before closing the project.');
+      showAlert('Cannot close yet', 'Resolve every punch item before closing the project.');
       return;
     }
-    showAlert('Close Project', 'Mark this project as closed? This will archive it.', [
+    showAlert('Close project?', 'The project is marked closed and archived.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Close Project',
+        text: 'Close project',
         onPress: () => {
           updateProject(projectId ?? '', { status: 'closed', closedAt: new Date().toISOString() });
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          showAlert('Project Closed', 'This project has been archived.');
+          showAlert('Project closed', 'This project has been archived.');
           router.back();
         },
       },
@@ -1988,13 +1995,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // killed halfway left half the selection changed. Because the write is now
   // synchronous and all-or-nothing, there is no "saving 12 of 30" state for the
   // bar to lock against.
-  const finishBulk = useCallback((n: number, label: string) => {
+  // Each caller writes its whole toast (singular and plural) so every
+  // sentence stays one string for translation.
+  const finishBulk = useCallback((message: string) => {
     clearSelection();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    nailIt(`${n} item${n === 1 ? '' : 's'} ${label}.`);
+    nailIt(message);
   }, [clearSelection]);
 
-  const runBulkUpdate = useCallback((ids: string[], updates: Partial<PunchItem>, label: string) => {
+  const runBulkUpdate = useCallback((ids: string[], updates: Partial<PunchItem>, message: (n: number) => string) => {
     // LS-5: bulk assign / move land here; each is an UPDATE a viewer can't make.
     if (recordWriteBlock) {
       showAlert("Can't change these items", recordWriteBlock);
@@ -2002,7 +2011,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     }
     if (ids.length === 0) return;
     updatePunchItems(ids, updates);
-    finishBulk(ids.length, label);
+    finishBulk(message(ids.length));
   }, [updatePunchItems, finishBulk, recordWriteBlock]);
 
   const [showBulkSubPicker, setShowBulkSubPicker] = useState(false);
@@ -2017,7 +2026,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       // name (no sub record) must clear the previous sub's id, or that sub's
       // portal keeps these items and the portal shortcut still opens his.
       { assignedSub: companyName, assignedSubId: subId },
-      `assigned to ${companyName}`,
+      (n) => (n === 1 ? `1 item assigned to ${companyName}` : `${n} items assigned to ${companyName}`),
     );
   }, [selectedIdList, runBulkUpdate]);
 
@@ -2044,7 +2053,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       // clock behind an earlier reject's stamp cannot neutralise this one.
       if (rejects.length > 0) updatePunchItems(rejects, punchStatusPatch({ status: 'ready_for_review', rejectedAt: latestRejectedAt(rejectItems) }, next, nowIso));
       if (rest.length > 0) updatePunchItems(rest, punchStatusPatch({ status: 'open' }, next, nowIso));
-      finishBulk(selectedIdList.length, `moved to ${cfg.label}`);
+      const n = selectedIdList.length;
+      finishBulk(n === 1 ? `1 item moved to ${cfg.label}` : `${n} items moved to ${cfg.label}`);
     };
     if (rejects.length === 0) { run(); return; }
     // Sending a sub's marked-fixed work back is a verdict on it — said first,
@@ -2078,7 +2088,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         onPress: () => runBulkUpdate(
           ids,
           { listType: target },
-          target === 'punch' ? 'moved to the punch list' : 'moved to the crew list',
+          (n) => (target === 'punch'
+            ? (n === 1 ? '1 item moved to the punch list' : `${n} items moved to the punch list`)
+            : (n === 1 ? '1 item moved to the crew list' : `${n} items moved to the crew list`)),
         ),
       },
     ]);
@@ -2101,7 +2113,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           updatePunchItem(item.id, { listType: target });
           if (Platform.OS !== 'web') void Haptics.selectionAsync();
           // The row leaves this list the moment it saves; say where it went.
-          nailIt(`Moved to the ${target === 'punch' ? 'punch list' : 'crew list'}.`);
+          nailIt(target === 'punch' ? 'Moved to the punch list' : 'Moved to the crew list');
         },
       },
     ]);
@@ -2133,7 +2145,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           style: 'destructive',
           onPress: () => {
             deletePunchItems(ids);
-            finishBulk(n, 'deleted');
+            finishBulk(n === 1 ? '1 item deleted' : `${n} items deleted`);
           },
         },
       ],
@@ -2439,7 +2451,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const exportProjectName = project?.name;
   const stackOptions = useMemo(
     () => ({
-      title: exportProjectName !== undefined ? `Punch List — ${exportProjectName}` : 'Punch List',
+      title: exportProjectName !== undefined ? `Punch list · ${exportProjectName}` : 'Punch list',
       headerRight: exportProjectName !== undefined ? exportHeaderRight : undefined,
     }),
     [exportProjectName, exportHeaderRight],
@@ -2470,13 +2482,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={stackOptions} />
         <ToolProjectPicker
-          toolName="Punch List"
+          toolName="Punch list"
           message={ownTier
             ? 'Punch lists are tied to a project so each item links to its trade and location.'
             // #127: in on an invite, not his own plan — only the jobs whose
             // invite opens the punch list, or a pick would open a Business
             // feature on one of his own free-plan jobs.
-            : 'Your plan does not include the punch list, but your GC invited you to the jobs below. Pick the one you are on.'}
+            : 'Your plan does not include the punch list, but your GC invited you to the projects below. Pick the one you are on.'}
           projects={pickableProjects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -2906,11 +2918,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           it pins. Walk Mode was labelled "voice capture" — the thing it is
           for (photo → pin → describe) was invisible from here. */}
       <View style={styles.walkGroupWrap}>
-        <EyebrowLabel tone="neutral">Walk the job</EyebrowLabel>
+        <EyebrowLabel tone="neutral">Walk the jobsite</EyebrowLabel>
         <View style={[cardSurface(themeColors, { radius: 'md', pad: 'none' }), styles.walkGroup]}>
           {renderWalkRow({
             icon: <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
-            title: 'Walk Mode: photo → pin → describe',
+            title: 'Walk mode: photo → pin → describe',
             sub: 'Photo, then tap where it is on the plan, then say what’s wrong.',
             a11y: 'Walk mode: take a photo, pin it on the plan, then describe it',
             testID: 'open-punch-walk',
@@ -2959,7 +2971,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
         <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Close project">
           <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.closeProjectBtnText}>Close Project</Text>
+          <Text style={styles.closeProjectBtnText}>Close project</Text>
         </TouchableOpacity>
       )}
 
@@ -2982,7 +2994,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     <>
       <View style={styles.formHeader}>
         <Text style={styles.formTitle}>
-          {editingItem ? 'Edit Item' : formListType === 'punch' ? 'New Punch Item' : 'New Crew List Item'}
+          {editingItem ? 'Edit item' : formListType === 'punch' ? 'New punch item' : 'New crew list item'}
         </Text>
         <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
           <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -3128,7 +3140,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       </Text>
 
       <Text style={styles.fieldLabel}>Description *</Text>
-      <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
+      <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done" placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
       {/* UX wave B2: say it instead of typing it (phone only — the web
           recorder is disabled, the desk types). */}
       {Platform.OS !== 'web' ? (
@@ -3165,7 +3177,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Due Date</Text>
+          <Text style={styles.fieldLabel}>Due date</Text>
           {/* A picker, not a text box: a typed "9/25" saved, never
               went overdue and printed raw (#113). Stored as the
               calendar day picked (utils/calendarDate), never a UTC
@@ -3222,7 +3234,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             : ref?.state === 'no-position'
               ? `On ${ref.sheetLabel}, but its spot is missing${saved}`
               : ref?.state === 'sheet-missing'
-                ? `Its plan sheet is no longer on this job${saved}`
+                ? `Its plan sheet is no longer on this project${saved}`
                 : `Not pinned — the export lists it as not pinned${saved}`
           : formPin
             ? `Will be pinned on ${formSheet ? pinSheetLabel(formSheet) : 'the plan'} when you add it`
@@ -3256,7 +3268,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         );
       })()}
 
-      <Text style={styles.fieldLabel}>Assigned Sub</Text>
+      <Text style={styles.fieldLabel}>Assigned sub</Text>
       {/* Unassigned, the subs, and Other…. Tapping the active chip
           also clears it. Every choice sets the name AND the id
           together: a chip gives its sub's id; Unassigned and Other…
@@ -3315,10 +3327,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {!projectSubs.isOwner && (projectSubs.isLoading || projectSubs.isError || pickerSubs.length === 0) ? (
         <Text style={styles.formListNote}>
           {projectSubs.isLoading
-            ? 'Loading your GC’s subs on this job…'
+            ? 'Loading your GC’s subs on this project…'
             : projectSubs.isError
-              ? 'Couldn’t load your GC’s subs on this job. Leave it unassigned and your GC assigns it.'
-              : 'Your GC has no subs on this job yet. Leave it unassigned and your GC assigns it.'}
+              ? 'Couldn’t load your GC’s subs on this project. Leave it unassigned and your GC assigns it.'
+              : 'Your GC has no subs on this project yet. Leave it unassigned and your GC assigns it.'}
         </Text>
       ) : null}
       {editingItem?.subNote ? (
@@ -3368,7 +3380,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.saveBtn, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]} onPress={handleSave} disabled={recordWriteBlock ? true : undefined} accessibilityState={recordWriteBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="save-punch-item">
-          <Text style={styles.saveBtnText}>{editingItem ? 'Update' : 'Add Item'}</Text>
+          <Text style={styles.saveBtnText}>{editingItem ? 'Update' : 'Add item'}</Text>
         </TouchableOpacity>
       </View>
       {/* LS-5: says why Add / Update is off for a viewer seat. */}
@@ -3763,7 +3775,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.rejectOverlay, fTaskPick.overlay]}>
           <View style={[styles.rejectCard, { maxHeight: '70%' as const }, fTaskPick.card]}>
             <View style={styles.formHeader}>
-              <Text style={styles.rejectTitle}>Link to Task</Text>
+              <Text style={styles.rejectTitle}>Link to task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3791,13 +3803,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <Modal visible={showRejectModal !== null} transparent animationType={fReject.animationType} onRequestClose={() => setShowRejectModal(null)}>
         <View style={[styles.rejectOverlay, fReject.overlay]}>
           <View style={[styles.rejectCard, fReject.card]}>
-            <Text style={styles.rejectTitle}>Reject Item</Text>
+            <Text style={styles.rejectTitle}>Reject item</Text>
             <Text style={styles.rejectDesc}>Provide a reason for rejection:</Text>
             <TextInput
               style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
               value={rejectionNote}
               onChangeText={setRejectionNote}
-              placeholder="Reason for rejection..."
+              placeholder="Reason for rejection"
               placeholderTextColor={themeColors.textMuted}
               multiline
             />
@@ -4021,7 +4033,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                       onPress={() => setFilterPriority(p)}
                     >
                       <Text style={[styles.filterDrawerChipText, filterPriority === p && styles.filterDrawerChipTextActive]}>
-                        {p === 'all' ? 'Any' : p.charAt(0).toUpperCase() + p.slice(1)}
+                        {p === 'all' ? 'Any' : PRIORITY_LABEL[p]}
                       </Text>
                     </TouchableOpacity>
                   ))}

@@ -190,7 +190,7 @@ function hiddenByDisplay(el: HTMLElement | null): boolean {
 /** Docks `node` under `id` on mount (a DockOpener, like a screen would). */
 function DockOpener({ node, id }: { node: React.ReactNode; id?: string }) {
   const dock = useShellDock();
-  React.useEffect(() => { dock.open(node, { title: id === ATTENTION_DOCK_ID ? 'Action Required' : 'Ask MAGE', id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { dock.open(node, { title: id === ATTENTION_DOCK_ID ? 'Action required' : 'Ask MAGE', id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 /** Reads the dock API into the DOM, and offers openAsk() on a button. */

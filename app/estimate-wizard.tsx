@@ -91,6 +91,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 import { formatMoney } from '@/utils/formatters';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
@@ -669,7 +670,8 @@ function EstimateWizardScreenInner() {
       // none) owns the screen now. Drop this response on the floor.
       if (runRef.current !== runId) return;
       if (!res.success || !res.data) {
-        showAlert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
+        console.warn('[EstimateWizard] estimate failed:', res.error);
+        showAlert("Couldn't build the estimate", ownSentence(res.error ?? null) ?? "Couldn't read the estimate. Your answers are saved. Try again.");
       } else {
         // NEVER trust AI arithmetic in a client-facing PDF or saved
         // project financials. Deterministically recompute every number
@@ -713,7 +715,7 @@ function EstimateWizardScreenInner() {
         // $0 estimate — do NOT render/save it or overwrite the project.
         // (An AI error kind is already handled by the !res.success guard.)
         if (lineItems.length === 0 || total <= 0) {
-          showAlert('Estimate failed', 'The AI returned an empty or invalid estimate. Please try again.');
+          showAlert("Couldn't build the estimate", 'The estimate came back empty. Your answers are saved. Try again.');
           return;
         }
 
@@ -783,7 +785,9 @@ function EstimateWizardScreenInner() {
       }
     } catch (err) {
       if (runRef.current !== runId) return;
-      showAlert('Estimate failed', err instanceof Error ? err.message : 'Unknown error.');
+      console.warn('[EstimateWizard] estimate failed:', err);
+      const copy = describeError(err, { action: 'generate the estimate', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       // Only the run that owns the screen may take the loader down.
       if (runRef.current === runId) setLoading(false);
@@ -1076,7 +1080,12 @@ function EstimateWizardScreenInner() {
         void maybeAskForPush('estimate_shared');
       }
     } catch (err) {
-      showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
+      console.warn('[EstimateWizard] share failed:', err);
+      // On web the PDF path throws PRINT_WINDOW_BLOCKED_MESSAGE ("Allow
+      // pop-ups for app.mageid.app…"): that sentence is the fix, so it wins.
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'share the estimate' });
+      showAlert(own ? "Couldn't share the estimate" : copy.title, own ?? copy.body);
     } finally {
       sharingRef.current = false;
       setSharingPdf(false);
@@ -1400,7 +1409,7 @@ function EstimateWizardScreenInner() {
 
           <View style={styles.heroCard}>
             <BrandBackdrop />
-            <Text style={styles.heroEyebrow}>CONSTRUCTION ESTIMATE</Text>
+            <Text style={styles.heroEyebrow}>Construction estimate</Text>
             <TapeRollNumber
               value={result.total}
               prefix="$"
@@ -1457,7 +1466,7 @@ function EstimateWizardScreenInner() {
 
           {result.summary ? (
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Scope of Work</Text>
+              <Text style={styles.summaryLabel}>Scope of work</Text>
               <Text style={styles.summaryText}>{result.summary}</Text>
               {answers.scope && answers.scope !== result.summary ? (
                 <Text style={styles.summaryNote}>{answers.scope}</Text>
@@ -1598,7 +1607,7 @@ function EstimateWizardScreenInner() {
           {/* Cost Distribution — same layout as the PDF, percentage bars. */}
           {result.total > 0 && sortedCategories.length > 0 ? (
             <View style={styles.breakdownCard}>
-              <Text style={styles.breakdownTitle}>Cost Distribution</Text>
+              <Text style={styles.breakdownTitle}>Cost distribution</Text>
               {sortedCategories.map(({ cat, subtotal }, i) => {
                 const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
                 const barColor = breakdownColor(i);
@@ -1625,7 +1634,7 @@ function EstimateWizardScreenInner() {
           {/* Detailed line items, grouped by category, biggest first.
               Each category card has its own subtotal + % so the GC can
               still drill into specifics. */}
-          <Text style={styles.sectionTitle}>Detailed Line Items</Text>
+          <Text style={styles.sectionTitle}>Line items</Text>
           {sortedCategories.map(({ cat, items, subtotal }, ci) => {
             const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
             return (
@@ -1679,7 +1688,7 @@ function EstimateWizardScreenInner() {
               honest — these are the categories actually estimated). */}
           {sortedCategories.length > 0 ? (
             <View style={styles.includedCard}>
-              <Text style={styles.sectionTitle}>What's Included</Text>
+              <Text style={styles.sectionTitle}>What's included</Text>
               <View style={styles.includedChips}>
                 {sortedCategories.map(({ cat }, i) => (
                   <View key={i} style={styles.includedChip}>
@@ -1697,7 +1706,7 @@ function EstimateWizardScreenInner() {
               These prevent 90% of "I thought that was included" disputes.
               Same list as the PDF. */}
           <View style={styles.excludedCard}>
-            <Text style={styles.sectionTitle}>What's Not Included</Text>
+            <Text style={styles.sectionTitle}>What's not included</Text>
             <Text style={styles.excludedItem}>• Architectural / engineering / design fees</Text>
             <Text style={styles.excludedItem}>• HOA, city, or third-party plan-review fees beyond standard permits</Text>
             <Text style={styles.excludedItem}>• Asbestos, lead, mold, or other hazardous-material abatement</Text>
@@ -1711,7 +1720,7 @@ function EstimateWizardScreenInner() {
               given one, this GC-only line says so rather than showing a
               schedule the homeowner would never receive. */}
           <View style={styles.paymentCard} testID="wizard-payment-terms">
-            <Text style={styles.sectionTitle}>Payment Terms</Text>
+            <Text style={styles.sectionTitle}>Payment terms</Text>
             {savedTerms.status !== 'ready' ? (
               <View style={styles.paymentNotSet} testID="wizard-payment-terms-loading">
                 <Text style={styles.paymentRowDesc}>
@@ -1765,7 +1774,7 @@ function EstimateWizardScreenInner() {
 
           {result.notes.length > 0 && (
             <View style={styles.notesBlock}>
-              <Text style={styles.sectionTitle}>Project Notes</Text>
+              <Text style={styles.sectionTitle}>Project notes</Text>
               {result.notes.map((n, i) => (
                 <Text key={i} style={styles.noteRow}>• {n}</Text>
               ))}
@@ -2158,7 +2167,7 @@ function EstimateWizardScreenInner() {
         <UpgradeSheet
           visible={!!upgradeLimit}
           limit={upgradeLimit}
-          featureLabel="AI Estimate"
+          featureLabel="AI estimate"
           onClose={() => setUpgradeLimit(null)}
         />
       </View>
@@ -2205,7 +2214,7 @@ function EstimateWizardScreenInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Quick Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
+      <Stack.Screen options={{ title: 'Quick estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
       {isDesktopWeb ? (
         <EstimateWizardDesktop
           answers={answers}
@@ -2382,7 +2391,7 @@ function EstimateWizardScreenInner() {
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
-        featureLabel="AI Estimate"
+        featureLabel="AI estimate"
         onClose={() => setUpgradeLimit(null)}
       />
     </View>
@@ -2440,7 +2449,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   heroEyebrow: {
     fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 1.6,
-    color: OnInk.eyebrow, marginBottom: 8,
+    color: OnInk.eyebrow, marginBottom: 8, textTransform: 'uppercase' as const,
   },
   heroTotal: {
     fontFamily: 'Barlow_700Bold', fontSize: 46, color: OnInk.title, letterSpacing: -0.5,

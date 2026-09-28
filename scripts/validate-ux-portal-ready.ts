@@ -108,9 +108,9 @@ console.log('\n5. contract.tsx asks the helper');
   ok('the ready check is unchanged (validate-portal-owner pins it too)', /if \(project && portalUrl && recipients\.length > 0\)/.test(c));
   ok('the not-sent note is chosen by portalDeliveryState, with the owner id', /switch \(portalDeliveryState\(project, user\?\.id \?\? null\)\)/.test(c));
   for (const note of [
-    'no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.',
+    'No client email on file. Share the portal link so the client can sign.',
     'this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.',
-    'the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.',
+    'The client portal is off, so nothing was emailed. Turn it on in Client portal so the client can sign.',
   ]) ok(`the old note survives verbatim: "${note.slice(0, 40)}…"`, c.includes(note));
   ok('a collaborator is told the truth (only the owner can send), not "tap Save"', /case 'collaborator':\s*\n\s*emailNote = ' Only the project owner holds this portal\\'s signing link/.test(c));
   const helper = read('utils/portalReady.ts').replace(/\/\/.*$/gm, '');

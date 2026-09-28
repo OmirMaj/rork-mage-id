@@ -762,7 +762,8 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityHint": "Hold to record a voice note",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -2802,7 +2803,8 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /rfi (s
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityHint": "Hold to record a voice note",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -14833,7 +14835,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Ask Your Plans",
+                                                                                                        "Ask your plans",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -24876,7 +24878,8 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityHint": "Hold to record a voice note",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -26997,7 +27000,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /sub-po
         "position": "absolute",
         "width": "100%",
       },
-      "title": "Sub Portal",
+      "title": "Sub portal",
       "titleColor": "#2F6B3A",
       "titleFontFamily": "Barlow_600SemiBold",
       "titleFontSize": 17,

@@ -269,7 +269,7 @@ console.log('\n#62 a field / editor seat clocks the GC crew on the GC job:');
   ok('a job stamped viewer spins while loading and offers retry on error', g('viewer', false, L(null, true)) === 'loading' && g('viewer', false, L(null, false, true)) === 'error');
   ok('gating contract: a RESOLVED null role on a seat job states why', g('field', false, L(null)) === 'blocked');
   ok('a live viewer is blocked; a live field seat is let in', g('field', false, L('viewer')) === 'blocked' && g('viewer', false, L('field')) === 'ok');
-  ok('blocked jobs are listed with the reason', /blockedProjects\.map/.test(tt) && /needs a field or editor seat/.test(tt));
+  ok('blocked jobs are listed with the reason', /blockedProjects\.map/.test(tt) && /needs Field or Editor access/.test(tt));
   ok('a seat\'s roster and cert chips come from the GC\'s job crew', /useProjectCrew\(gateProjectId, isSeat[,)]/.test(tt) && /isSeat \? projectCrew\.certifications : ownCertifications/.test(tt));
   ok('labor rates / dollars show only on his own book', /\{ownTier \? \(\s*<TouchableOpacity/.test(tt) && /\{!ownTier \? null : laborStats\.sampledEntries > 0/.test(tt));
   const crew = src('contexts/CrewContext.tsx');
@@ -285,6 +285,10 @@ console.log('\n#65 / #153 Time Tracking reads the allocation and sets the multip
     /Overtime pays ×/.test(tt) && /onBlur=\{echoClampedMultiplier\}/.test(tt) && /setOvertimeSettings\(\{/.test(tt) && /normalizeOvertimeMultiplier\(n\)/.test(tt));
   ok('the default is shown as the default', /time-and-a-half, the default/.test(tt));
   ok('the bare-wage hint no longer folds OT into the rate', !/comp, taxes, OT, and small tools/.test(tt));
+  // W1 UXDOORS: the overtime hint ended on a sentence with no figure in it
+  // ("This week's overtime is so far."); the live figure is the OT so far tile.
+  ok('the overtime hint has no figure-less sentence and names the crew as they',
+    !/overtime is so far/.test(tt) && /The project they worked the late hours on carries the premium\.\s*<\/Text>/.test(tt));
   ok('the correction copy no longer promises "over 8h"', !/recalculated over 8h/.test(tt) && /describeOvertimeRule\(overtimeRule\)/.test(tt));
   const ute = src('hooks/useTimeEntries.ts');
   ok('computeShiftHours documents its OT as the unread legacy per-shift figure', /NOTHING in this build\s+\/\/?\s*\*?\s*reads it|NOTHING in this build/.test(ute));

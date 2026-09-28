@@ -82,7 +82,7 @@ const hub = lift<{
   hubPermissions: (r: Role) => Perms;
   sortRFIsForHub: <T extends { number: number; status: string; dateRequired?: string | null }>(rows: T[], filter: string, dueDay: (v: string | null | undefined) => string | null) => T[];
   sortSubmittalsForHub: <T extends { currentStatus: string }>(rows: T[]) => T[];
-  hubTileVisible: (key: string, p: { showMoney: boolean; showClientPortal: boolean }) => boolean;
+  hubTileVisible: (key: string, p: { showMoney: boolean; showClientPortal: boolean; showSubsPay?: boolean }) => boolean;
   tileLockReason: (key: string, role: Role, tier: string | null) => string;
   leaveFailureMessage: (r: { reached: boolean; serverError: string | null; ok: boolean }) => string | null;
 }>(PD, [
@@ -127,7 +127,7 @@ if (hub) {
   // #62: a viewer seat gets no crew clock; the tile says why, not "Needs Business".
   const viewer = hub.hubLockedTileKeys({ canAccessProject: (f: string) => resolveProjectAccess(false, 'viewer', f), canAccessOwnTier: ownFree, roleLoading: false });
   ok('a free viewer seat: Time Tracking is locked', viewer.has('timeTracking'));
-  expect('…with the seat reason, not a plan upsell', hub.tileLockReason('timeTracking', 'viewer', 'business'), 'Clocking crew in needs a field or editor seat');
+  expect('…with the role reason, not a plan upsell', hub.tileLockReason('timeTracking', 'viewer', 'business'), 'Clocking in crew needs Field or Editor access');
   // A Business owner: the own-tier half opens it even though crew_time_tracking is not a tier key.
   const bizOwner = hub.hubLockedTileKeys({ canAccessProject: (f: string) => resolveProjectAccess(f === 'subcontractor_management', 'owner', f), canAccessOwnTier: (f: string) => f === 'subcontractor_management', roleLoading: false });
   ok('a Business owner: Time Tracking is not locked', !bizOwner.has('timeTracking'));
@@ -180,6 +180,11 @@ if (hub) {
   expect('field: field tiles stay', ['dailyReports', 'punchList', 'fieldTickets', 'plans'].map(k => hub.hubTileVisible(k, f)), [true, true, true, true]);
   expect('editor: the Client Portal tile is hidden', hub.hubTileVisible('clientPortal', e), false);
   expect('owner: every tile shows', ['invoices', 'clientPortal', 'budget'].map(k => hub.hubTileVisible(k, o)), [true, true, true]);
+  // W1 UXDOORS (D5): Subs & pay (Pay / Get waiver) is the owner's alone.
+  // Commitments are owner-only under RLS (commitments_owner_all), so an
+  // editor would read "No subs on this project yet" on a job full of subs.
+  expect('Subs & pay: only the owner sees it; editor, field, viewer and an unconfirmed role do not',
+    [o, e, f, v, n].map(p => hub.hubTileVisible('subsPay', p)), [true, false, false, false, false]);
   // Leave's failure copy.
   ok('leave: unreachable server says he is still on the job',
     /still on this job/.test(hub.leaveFailureMessage({ reached: false, serverError: null, ok: false }) ?? ''));

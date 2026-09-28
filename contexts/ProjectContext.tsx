@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
 import { useFieldDayPackWarmer } from '@/hooks/useFieldDayPack';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { supabaseWrite, supabaseWriteDetailed, supabaseRpcDetailed, bearerStillLive, getOfflineQueue, getOwnOfflineQueue, addToOfflineQueue, onQueueChanged, onQueueFlushed, onQueueDropped, onProjectDeleteRefused, currentSessionUserId, discardQueuedWrites, type WriteOutcome } from '@/utils/offlineQueue';
+import { supabaseWrite, supabaseWriteDetailed, supabaseRpcDetailed, bearerStillLive, getOfflineQueue, getOwnOfflineQueue, addToOfflineQueue, onQueueChanged, onQueueFlushed, onQueueDropped, onProjectDeleteRefused, currentSessionUserId, discardQueuedWrites, supabaseWriteOnlineDetailed, type WriteOutcome, type OnlineWriteStatus, type OnlineRefusalCode } from '@/utils/offlineQueue';
 import { writePortalMessageOrdered, isPortalLockRefusal, portalRefusalCopy } from '@/utils/portalMessageWrite';
 import { mergeInvoiceUpdate, invoiceUpdatePayload, invoiceInsertStillQueued, insertStillQueued, writeBehindQueuedInsert, sharedDraftIssuePatch } from '@/utils/invoiceWrites';
 import { freezeForPortal, MAX_PORTAL_SNAPSHOT_BYTES } from '@/utils/portalFreeze';
@@ -1206,8 +1206,40 @@ export type ChangeOrderReflowIntent = {
   deferReflow?: boolean;
 };
 
+/** signFieldTicket's input (Step 0): a new ticket signed as it is created, or an existing unsigned one being signed. */
+export type SignFieldTicketInput =
+  | { ticket: FieldTicket }
+  | { id: string; updates: Partial<FieldTicket> };
+
+/**
+ * An online-only record write's answer (Step 0). `status` is what the slide
+ * decides on; `code` says why a refusal happened when it is known ('sealed':
+ * a signed ticket's content cannot change, `message` lists the fields).
+ */
+export interface OnlineRecordResult<T> {
+  status: OnlineWriteStatus;
+  code?: OnlineRefusalCode;
+  message?: string;
+  record?: T;
+}
+
 type CrossDomainValue = {
   updateChangeOrder: (id: string, updates: Partial<ChangeOrder>, reflow?: ChangeOrderReflowIntent) => Promise<RecordWriteOutcome>;
+  /**
+   * Step 0 (moments): the HONEST approve a slide awaits. The status write goes
+   * FIRST (queued behind the CO's own create when that is still waiting, as
+   * updateChangeOrder orders it); only on 'synced' | 'queued' does the local
+   * status and the approval cascade (reflow, marks, grading) run — through
+   * updateChangeOrder itself, so the cascade has one home. On 'failed'
+   * nothing changed on this device. 'local' = no signed-in account.
+   */
+  approveChangeOrder: (id: string, opts?: { anchorTaskId?: string }) => Promise<RecordWriteOutcome>;
+  /** Step 0: close a project with an answer. The close is written first; the device shows it only on 'synced' | 'queued' (or 'local'). */
+  closeProjectDetailed: (id: string) => Promise<RecordWriteOutcome>;
+  /** Step 0: sign a field ticket ONLINE ONLY (a signature is never queued). Local state only on 'synced'. A `{ ticket }` whose id this phone already holds is signed as an update of that record. */
+  signFieldTicket: (input: SignFieldTicketInput) => Promise<OnlineRecordResult<FieldTicket>>;
+  /** Step 0: the AIA certify write, ONLINE ONLY. Local state only on 'synced'. Plain save stays addAIAPayApp (queue-backed). */
+  saveAIAPayAppOnline: (app: SavedAIAPayApp) => Promise<OnlineRecordResult<SavedAIAPayApp>>;
   addDailyReport: (report: DailyFieldReport) => void;
   updateDailyReport: (id: string, updates: Partial<DailyFieldReport>) => void;
   convertLeadToProject: (leadId: string) => string | null;
@@ -1601,6 +1633,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => { dailyReportsRef.current = dailyReports; }, [dailyReports]);
   const aiaPayAppsRef = useRef<SavedAIAPayApp[]>([]);
   useEffect(() => { aiaPayAppsRef.current = aiaPayApps; }, [aiaPayApps]);
+  // Step 0: signFieldTicket answers after an await; it commits onto the latest list.
+  const fieldTicketsRef = useRef<FieldTicket[]>([]);
+  useEffect(() => { fieldTicketsRef.current = fieldTickets; }, [fieldTickets]);
   const warrantiesRef = useRef<Warranty[]>([]);
   useEffect(() => { warrantiesRef.current = warranties; }, [warranties]);
   // Which account's warranties are in state — the provider-level portal sync
@@ -11011,10 +11046,151 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     return result;
   }, [projects, contacts, subcontractors, saveProjectsMutation, saveContactsMutation, saveSubsMutation, syncProjectToSupabase, canSync, userId]);
 
+  // ── Step 0 (moments, lane MOMSTEP0): awaitable, honest writes ─────────────
+  // Each returns the truth of the server write, so a slide turns green only on
+  // a real confirmation. The older functions stay for every other caller.
+
+  const approveChangeOrder = useCallback(async (id: string, opts?: { anchorTaskId?: string }): Promise<RecordWriteOutcome> => {
+    const prior = changeOrdersRef.current.find(c => c.id === id);
+    if (!prior) return 'failed';
+    const reflow: ChangeOrderReflowIntent | undefined = opts?.anchorTaskId ? { anchorTaskId: opts.anchorTaskId } : undefined;
+    // No account to send as: this device only, as updateChangeOrder answers.
+    if (!canSync) return updateChangeOrder(id, { status: 'approved' }, reflow);
+    const now = new Date().toISOString();
+    // Built from the shared builder like every change_orders update (it can
+    // never drop a column the insert writes; no audit_trail, no portal_state).
+    const statusRow = { ...changeOrderToRow({ ...prior, status: 'approved' }), updated_at: now };
+    // The status write FIRST, ordered exactly as updateChangeOrder orders its
+    // UPDATE: behind the CO's own INSERT while that is on the wire or queued
+    // (a direct UPDATE would match 0 rows and read 'synced').
+    beginCoWrite(id);
+    const outcome = await (async (): Promise<WriteOutcome> => {
+      const pendingInsert = changeOrderInsertsRef.current.get(id);
+      if (pendingInsert) await pendingInsert;
+      let createQueued = false;
+      try { createQueued = insertStillQueued(await getOfflineQueue(), 'change_orders', id); } catch { createQueued = true; }
+      if (createQueued) {
+        try {
+          await addToOfflineQueue({ table: 'change_orders', operation: 'update', data: statusRow });
+          return 'queued';
+        } catch {
+          return 'failed';
+        }
+      }
+      // callerOwnsRefusal: the slide un-commits and says so; no toast, no Not-saved line.
+      return supabaseWriteDetailed('change_orders', 'update', statusRow, { callerOwnsRefusal: true });
+    })().finally(() => endCoWrite(id));
+    // Refused: nothing on this device changed, so the un-commit is the truth.
+    if (outcome === 'failed') return 'failed';
+    // Stored (or safely queued behind its create): now the local status and
+    // the approval cascade — the reflow exactly once (its own idempotency
+    // marker), the "marked approved" entry, grading. updateChangeOrder applies
+    // them synchronously and writes the full row after; its answer does not
+    // change what the approval already is on the server.
+    void updateChangeOrder(id, { status: 'approved' }, reflow).catch(() => undefined);
+    return outcome;
+  }, [canSync, updateChangeOrder, changeOrderToRow, beginCoWrite, endCoWrite]);
+
+  const closeProjectDetailed = useCallback(async (id: string): Promise<RecordWriteOutcome> => {
+    const prior = projectsRef.current.find(p => p.id === id);
+    if (!prior) return 'failed';
+    const closedAt = new Date().toISOString();
+    // No account to send as: this device only (the punch list's close, as today).
+    if (!canSync) {
+      updateProject(id, { status: 'closed', closedAt });
+      return 'local';
+    }
+    // The close is written first; the device shows it only once it is stored
+    // or queued. On 'failed' nothing local changed (the revert is the no-op).
+    const outcome = await supabaseWriteDetailed('projects', 'update', {
+      id, status: 'closed', closed_at: closedAt, updated_at: closedAt,
+    }, { callerOwnsRefusal: true });
+    if (outcome === 'failed') return 'failed';
+    // The same local close the punch list makes today (updateProject), which
+    // also replaces any pending debounced sync of this project with the closed row.
+    updateProject(id, { status: 'closed', closedAt });
+    return outcome;
+  }, [canSync, updateProject]);
+
+  const signFieldTicket = useCallback(async (given: SignFieldTicketInput): Promise<OnlineRecordResult<FieldTicket>> => {
+    // A signature is never kept on the phone only: no account, no signature.
+    if (!canSync) return { status: 'refused', code: 'no_account' };
+    // A ticket this phone already holds (a draft saved earlier, maybe still
+    // waiting to send) is signed as an UPDATE of that record. As an insert it
+    // would hit the draft's own row, read as stored, and leave the unsigned
+    // draft on the server. The update path also applies the seal.
+    let input: SignFieldTicketInput = given;
+    if ('ticket' in given && fieldTicketsRef.current.some(t => t.id === given.ticket.id)) {
+      const { id, ...updates } = given.ticket;
+      input = { id, updates };
+    }
+    const commit = (t: FieldTicket) => {
+      const base = fieldTicketsRef.current;
+      const updated = base.some(x => x.id === t.id) ? base.map(x => (x.id === t.id ? t : x)) : [t, ...base];
+      fieldTicketsRef.current = updated;
+      setFieldTickets(updated);
+      saveFieldTicketsMutation.mutate(updated);
+    };
+    if ('ticket' in input) {
+      // The row addFieldTicket builds (photo staging as today), sent online-only.
+      const finalTicket = stageTicketPhotos(input.ticket);
+      const res = await touchedWrite(proDocWriteTouchRef, finalTicket.id, () =>
+        supabaseWriteOnlineDetailed('field_tickets', 'insert', fieldTicketRow(finalTicket)));
+      if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
+      commit(finalTicket);
+      return { status: 'synced', record: finalTicket };
+    }
+    const prior = fieldTicketsRef.current.find(t => t.id === input.id);
+    if (!prior) return { status: 'refused', code: 'invalid' };
+    // The data-layer seal, exactly as updateFieldTicket applies it.
+    const violations = sealedFieldTicketViolations(prior, input.updates);
+    if (violations.length > 0) return { status: 'refused', code: 'sealed', message: violations.join(', ') };
+    const now = new Date().toISOString();
+    const next = stageTicketPhotos({ ...prior, ...input.updates, updatedAt: now });
+    // #85 (wave 5): an UPDATE never carries user_id, as updateFieldTicket.
+    const { user_id: _owner, ...updateRow } = fieldTicketRow(next);
+    const res = await touchedWrite(proDocWriteTouchRef, next.id, () =>
+      supabaseWriteOnlineDetailed('field_tickets', 'update', updateRow));
+    if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
+    commit(next);
+    return { status: 'synced', record: next };
+  }, [canSync, stageTicketPhotos, fieldTicketRow, saveFieldTicketsMutation]);
+
+  const saveAIAPayAppOnline = useCallback(async (app: SavedAIAPayApp): Promise<OnlineRecordResult<SavedAIAPayApp>> => {
+    // A certification is never kept on the phone only.
+    if (!canSync || !userId) return { status: 'refused', code: 'no_account' };
+    const finalApp: SavedAIAPayApp = {
+      ...app,
+      portalState: app.portalState ?? initialPortalState('aia_pay_app', app.projectId),
+    };
+    // The same identity rule as addAIAPayApp (id, then invoiceId, then the
+    // legacy application number).
+    const sameRecord = (a: SavedAIAPayApp) => {
+      if (a.projectId !== finalApp.projectId) return false;
+      if (a.id === finalApp.id) return true;
+      if (finalApp.invoiceId && a.invoiceId) return a.invoiceId === finalApp.invoiceId;
+      if (!a.invoiceId && !finalApp.invoiceId) return a.applicationNumber === finalApp.applicationNumber;
+      return false;
+    };
+    const res = await touchedWrite(proDocWriteTouchRef, finalApp.id, () =>
+      supabaseWriteOnlineDetailed('aia_pay_apps', 'upsert', aiaPayAppToRow(finalApp)));
+    if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
+    const base = aiaPayAppsRef.current;
+    // A displaced legacy record leaves the server too (housekeeping, queue-backed as in addAIAPayApp).
+    const displaced = base.filter(a => sameRecord(a) && a.id !== finalApp.id);
+    displaced.forEach(a => { void touchedWrite(proDocWriteTouchRef, a.id, () => supabaseWrite('aia_pay_apps', 'delete', { id: a.id })); });
+    const updated = [finalApp, ...base.filter(a => !sameRecord(a))];
+    aiaPayAppsRef.current = updated;
+    setAiaPayApps(updated);
+    saveAiaPayAppsMutation.mutate(updated);
+    return { status: 'synced', record: finalApp };
+  }, [canSync, userId, initialPortalState, aiaPayAppToRow, saveAiaPayAppsMutation]);
+
   const crossDomain = useMemo<CrossDomainValue>(() => ({
     updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage,
     sendToClientPortal, recallFromClientPortal, batchSendToClientPortal, importData,
-  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage, sendToClientPortal, recallFromClientPortal, batchSendToClientPortal, importData]);
+    approveChangeOrder, closeProjectDetailed, signFieldTicket, saveAIAPayAppOnline,
+  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage, sendToClientPortal, recallFromClientPortal, batchSendToClientPortal, importData, approveChangeOrder, closeProjectDetailed, signFieldTicket, saveAIAPayAppOnline]);
 
   return (
     <StableActionsContext.Provider value={stableActions}>

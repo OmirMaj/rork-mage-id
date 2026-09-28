@@ -433,8 +433,8 @@ ok('Discover ▸ Tools has a tile for /construction-news',
 
 const registrySrc = read(join('utils', 'featureRegistry.ts'));
 ok('featureRegistry indexes /post-bid as what it actually is',
-  /id: 'post-bid', title: 'Post a Bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
-  "app/post-bid.tsx:186 self-titles 'Post a Bid' and is a publish-a-solicitation form with a "
+  /id: 'post-bid', title: 'Post a bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
+  "app/post-bid.tsx self-titles 'Post a bid' and is a publish-a-solicitation form with a "
   + "monthly quota. Indexing it as 'Post-Bid Analysis' with win/loss synonyms sent a GC "
   + 'searching "why lost" into a form that publishes a public bid opportunity.');
 
@@ -1341,14 +1341,14 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
     && />⌘J</.test(side));
   ok('K3 Action Required is gated `!isMinimalPersona && isDesktopWeb` in both modes: first in the footer, before Settings on the rail',
     /<View style=\{styles\.accountSection\}>\s*<View style=\{styles\.footerDivider\} \/>\s*(\{\}\s*)?\{!isMinimalPersona && isDesktopWeb && <SidebarActionRequiredRow \/>\}\s*\{accountItems\.map/.test(side)
-    && /\{!isMinimalPersona && isDesktopWeb && \(\s*<RailTip label="Action Required"[^>]*>\s*<SidebarActionRequiredRow collapsed \/>\s*<\/RailTip>\s*\)\}\s*\{settingsItem \? renderRailItem\(settingsItem\) : null\}/.test(side)
+    && /\{!isMinimalPersona && isDesktopWeb && \(\s*<RailTip label="Action required"[^>]*>\s*<SidebarActionRequiredRow collapsed \/>\s*<\/RailTip>\s*\)\}\s*\{settingsItem \? renderRailItem\(settingsItem\) : null\}/.test(side)
     && (side.match(/<SidebarActionRequiredRow\b/g) ?? []).length === 2);
   ok('K3 Action Required opens the ATTENTION dock with the docked rail and closes it when it is showing',
     /const open = dock\.id === ATTENTION_DOCK_ID && dock\.showing;/.test(arSrc)
     && /if \(dock\.id === ATTENTION_DOCK_ID && dock\.showing\) \{\s*dock\.close\(\);\s*return;\s*\}/.test(arSrc)
     && /if \(!dock\.canShow\(ATTENTION_DOCK_ID\)\) return;/.test(arSrc)
     && /<DesktopActionRail variant="dock" \/>/.test(arSrc)
-    && /id: ATTENTION_DOCK_ID, title: 'Action Required', width: SIDE_PANEL_DEFAULT/.test(arSrc)
+    && /id: ATTENTION_DOCK_ID, title: 'Action required', width: SIDE_PANEL_DEFAULT/.test(arSrc)
     && /attentionBadgeLabel\(total, sourceFailed\)/.test(arSrc)
     && /testID="sidebar-action-required"/.test(arSrc));
   ok("K3 '+ New' is a 40×40 button beside the job switcher: newItem is gone and newButton exists",
@@ -1434,12 +1434,12 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
   ok("D6 the contract row is labelled 'Proposal & contract' and the Estimate row carries the job (jobRoute)",
     /\{ key: 'contract',\s*label: 'Proposal & contract',/.test(table)
     && /\{ key: 'estimate',[^\n]*jobRoute: '\/\(tabs\)\/estimate\/full',[^\n]*section: 'THIS JOB'/.test(table));
-  ok(`D6 RFIs and Submittals sit in DOCUMENTS, the first "More for this job" group (${rowsIn('DOCUMENTS').join(', ')})`,
+  ok(`D6 RFIs and Submittals sit in DOCUMENTS, the first "More for this project" group (${rowsIn('DOCUMENTS').join(', ')})`,
     rowsIn('DOCUMENTS').join(',') === 'rfi,submittal'
     && /const MORE_JOB_SECTIONS = \['DOCUMENTS', 'PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'\];/.test(side)
     && /const COUNTED_MORE_SECTION = 'DOCUMENTS';/.test(side));
   ok('D6 the shut toggle carries the DOCUMENTS counts (combineRowCounts), the open DOCUMENTS rows carry their own',
-    /renderToggle\(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS,\s*moreOpen \? undefined : combineRowCounts\(itemsIn\(COUNTED_MORE_SECTION\)\.map\(item => countOf\(counts, item\.key\)\)/.test(side)
+    /renderToggle\(MORE_TOGGLE, 'More for this project', moreOpen, MORE_JOB_SECTIONS,\s*moreOpen \? undefined : combineRowCounts\(itemsIn\(COUNTED_MORE_SECTION\)\.map\(item => countOf\(counts, item\.key\)\)/.test(side)
     && /renderNavItem\(item, false, sub === COUNTED_MORE_SECTION \? countOf\(counts, item\.key\) : undefined\)/.test(side)
     && /const renderToggle = \([^)]*count\?: RowCount\) =>/.test(side)
     && /testID=\{`sidebar-section-count-dot-\$\{toggle\}`\}/.test(side));
