@@ -52,7 +52,20 @@ export interface BidLevelingReport {
   withExclusions: number;
   /** True once every bid carries a normalized adjustment (fully AI/hand-leveled). */
   fullyLeveled: boolean;
+  /** Bids whose leveled cost is unknown (opts.leveledCostUnknown) — left out
+   *  of the median, the spread and the outliers. 0 without the option. */
+  unknownCount: number;
   asOf: string;
+}
+
+export interface BidLevelingOptions {
+  /** A bid whose leveled cost is not known yet (utils/levelingBasis
+   *  needsYourPrice: its adjustment is a 0 placeholder, not a price). Such a
+   *  bid is kept out of every numeric comparison — the median, the spread and
+   *  the outlier flags. It keeps its place in the ranking: its bid is a lower
+   *  bound on its leveled cost, so a would-be winner stays a close call until
+   *  its exclusion is priced (the screen says so; ideas-1 round 3). */
+  leveledCostUnknown?: (bid: BidPackageBid) => boolean;
 }
 
 const OUTLIER_FLOOR = 0.7; // below 70% of median = "too good to be true"
@@ -68,6 +81,7 @@ export function computeBidLeveling(
   pkg: BidPackage,
   allBids: BidPackageBid[],
   resolveVendor: (bid: BidPackageBid) => string,
+  opts: BidLevelingOptions = {},
 ): BidLevelingReport {
   const budget = pkg.estimateBudget || 0;
   // Disqualified bids are out of the running; everything else competes.
@@ -77,7 +91,7 @@ export function computeBidLeveling(
     return {
       hasBids: false, budget, bids: [], recommendedId: null, cheapestRawId: null,
       median: 0, spread: 0, spreadPct: 0, outlierCount: 0, withExclusions: 0,
-      fullyLeveled: false, asOf: new Date().toISOString(),
+      fullyLeveled: false, unknownCount: 0, asOf: new Date().toISOString(),
     };
   }
 
@@ -95,7 +109,10 @@ export function computeBidLeveling(
     };
   });
 
-  const med = median(enriched.map(e => e.leveledAmount));
+  const unknown = (e: { bid: BidPackageBid }) => !!opts.leveledCostUnknown?.(e.bid);
+  // The comparison points: bids whose leveled cost is known.
+  const known = enriched.filter(e => !unknown(e));
+  const med = median(known.map(e => e.leveledAmount));
   const cheapestRaw = [...enriched].sort((a, b) => a.rawAmount - b.rawAmount)[0];
 
   // Rank by leveled cost; the recommendation is the lowest leveled bid that
@@ -103,7 +120,7 @@ export function computeBidLeveling(
   const ranked = [...enriched].sort((a, b) => a.leveledAmount - b.leveledAmount);
   const withOutlier = ranked.map(e => ({
     ...e,
-    outlierLow: med > 0 && e.leveledAmount < med * OUTLIER_FLOOR,
+    outlierLow: !unknown(e) && med > 0 && e.leveledAmount < med * OUTLIER_FLOOR,
   }));
   const recommended = withOutlier.find(e => !e.outlierLow) ?? withOutlier[0];
 
@@ -122,8 +139,8 @@ export function computeBidLeveling(
     isRecommended: e.bid.id === recommended.bid.id,
   }));
 
-  const leveledAmts = leveled.map(l => l.leveledAmount);
-  const spread = Math.max(...leveledAmts) - Math.min(...leveledAmts);
+  const leveledAmts = known.map(e => e.leveledAmount);
+  const spread = leveledAmts.length === 0 ? 0 : Math.max(...leveledAmts) - Math.min(...leveledAmts);
 
   return {
     hasBids: true,
@@ -137,6 +154,7 @@ export function computeBidLeveling(
     outlierCount: leveled.filter(l => l.outlierLow).length,
     withExclusions: leveled.filter(l => l.excludes.length > 0).length,
     fullyLeveled: leveled.every(l => l.adjustment !== 0 || l.excludes.length === 0),
+    unknownCount: enriched.length - known.length,
     asOf: new Date().toISOString(),
   };
 }

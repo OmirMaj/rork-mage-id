@@ -47,7 +47,9 @@ import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
 import { applyLevelingHonesty, levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
 import {
   AWARD_NEEDS_PRICE_TITLE, LABEL_NEEDS_PRICE, LABEL_NOT_FROM_BOOK, LABEL_YOUR_PRICE, SAVINGS_NEEDS_PRICE, SET_YOUR_PRICE_CTA,
-  awardNeedsPriceBody, levelingMayWrite, needsYourPrice, readReason, yourPriceReason,
+  NOTHING_EXTRA_CONFIRM_TITLE, NOTHING_EXTRA_LABEL,
+  awardNeedsPriceBody, isNothingExtraInput, levelingMayWrite, needsYourPrice, nothingExtraConfirmBody, nothingExtraReason,
+  readReason, yourPriceReason,
 } from '@/utils/levelingBasis';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
@@ -677,9 +679,34 @@ export default function BuyoutPackageScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [pkg, newVendor, newAmount, newIncludes, newExcludes, newTerms, addBidPackageBid]);
 
+  // ── "Nothing extra" (ideas-1 round 3) ────────────────────────
+  // His answer that the excluded scope costs nothing on top of this bid: saved
+  // at 0 as "Your price: Nothing extra for …", so the bid no longer needs a
+  // price, Award comes back at the bid amount and leveling never overwrites it.
+  const saveNothingExtra = useCallback((bidId: string) => {
+    const target = bids.find(b => b.id === bidId);
+    updateBidPackageBid(bidId, {
+      normalizedAdjustment: 0,
+      normalizedAdjustmentReason: nothingExtraReason(target?.excludes),
+    });
+    setAmountEditBidId(null);
+    setAmountDraft('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [bids, updateBidPackageBid]);
+
   // ── Fix a bid's amount on its card (#95) ─────────────────────
   const handleSaveAmount = useCallback(() => {
     if (!amountEditBidId) return;
+    // Pricing the excluded scope, 0 is an answer ("nothing extra"), not a
+    // missing number — confirmed first, since it makes the bid awardable.
+    if (amountEditMode === 'excludedPrice' && isNothingExtraInput(amountDraft)) {
+      const bidId = amountEditBidId;
+      showAlert(NOTHING_EXTRA_CONFIRM_TITLE, nothingExtraConfirmBody(bids.find(b => b.id === bidId)?.excludes), [
+        { text: 'Cancel', style: 'cancel' },
+        { text: NOTHING_EXTRA_LABEL, onPress: () => saveNothingExtra(bidId) },
+      ]);
+      return;
+    }
     const amount = parseBidAmountInput(amountDraft);
     if (amount == null) {
       showAlert('Needs an amount', amountEditMode === 'excludedPrice'
@@ -702,7 +729,7 @@ export default function BuyoutPackageScreen() {
     setAmountEditBidId(null);
     setAmountDraft('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [amountEditBidId, amountDraft, amountEditMode, bids, updateBidPackageBid]);
+  }, [amountEditBidId, amountDraft, amountEditMode, bids, updateBidPackageBid, saveNothingExtra]);
 
   // ── Delete a bid — behind a confirm (#92) ────────────────────
   // One brush of a small trash icon used to delete a bid outright, including
@@ -813,7 +840,7 @@ export default function BuyoutPackageScreen() {
     // 0 placeholder). Awarding it would store, show and print its unpriced
     // excluded scope as savings — so it waits for his price.
     if (needsYourPrice(bid)) {
-      showAlert(AWARD_NEEDS_PRICE_TITLE, awardNeedsPriceBody(bid.excludes));
+      showAlert(AWARD_NEEDS_PRICE_TITLE, awardNeedsPriceBody(bid.excludes, readReason(bid.normalizedAdjustmentReason).text));
       return;
     }
     // One savings figure everywhere: the leveled one (the awarded sub does not
@@ -1128,13 +1155,18 @@ export default function BuyoutPackageScreen() {
   // AI's adjustments are already factored in.
   // Priced bids only — a $0 or unreadable bid would drag the median down and
   // mark every real bid HIGH.
-  const leveledTotals = pricedBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
+  // A needs-price bid's 0 is a placeholder, not a price (ideas-1 round 3): it
+  // is left out of the median and of "Lowest" — only known leveled costs are
+  // compared.
+  const knownBids = pricedBids.filter(b => !needsYourPrice(b));
+  const leveledTotals = knownBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
   const median = leveledTotals.length === 0 ? 0
     : leveledTotals.length % 2 === 1
       ? leveledTotals[Math.floor(leveledTotals.length / 2)]
       : (leveledTotals[leveledTotals.length / 2 - 1] + leveledTotals[leveledTotals.length / 2]) / 2;
   const isOutlier = (bid: BidPackageBid): { kind: 'low' | 'high'; pct: number } | null => {
-    if (median === 0 || pricedBids.length < 2 || bidAmountOf(bid) == null) return null;
+    if (median === 0 || knownBids.length < 2 || bidAmountOf(bid) == null) return null;
+    if (needsYourPrice(bid)) return null;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
     const deltaPct = ((total - median) / median) * 100;
     if (deltaPct < -15) return { kind: 'low', pct: Math.abs(deltaPct) };
@@ -1624,21 +1656,21 @@ export default function BuyoutPackageScreen() {
           </Text>
         </View>
       ) : (
-        sortedBids.map((bid, i) => {
+        sortedBids.map((bid) => {
           const priced = bidAmountOf(bid) != null;
           const total = bid.amount + (bid.normalizedAdjustment ?? 0);
           const vsBudget = pkg.estimateBudget - total;
           const isWinner = winningBidId === bid.id;
-          // Never a bid with no amount, and only when two PRICED bids compete.
-          const isLowest = priced && i === 0 && pricedBids.length > 1;
+          // Never a bid with no amount or an unknown leveled cost, and only when
+          // two bids with a KNOWN leveled cost compete.
+          const needsPrice = priced && needsYourPrice(bid);
+          const isLowest = priced && !needsPrice && knownBids.length > 1 && knownBids[0].id === bid.id;
           const outlier = isOutlier(bid);
           const filedBySub = invitedBidIds.has(bid.id);
           const isAwardedBid = bid.status === 'awarded' || pkg.awardedBidId === bid.id;
           // The sub's own number is his to change (call him); an awarded
           // bid's amount is the commitment's now.
           const canEditAmount = !filedBySub && !isAwardedBid;
-          // Unknown leveled cost until he prices the excluded scope.
-          const needsPrice = priced && needsYourPrice(bid);
           return (
             <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded, outlier && styles.bidCardOutlier]}>
               <View style={styles.bidHead}>
@@ -1998,6 +2030,20 @@ export default function BuyoutPackageScreen() {
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.saveBtnText}>{amountEditMode === 'excludedPrice' ? 'Save your price' : 'Save amount'}</Text>
               </TouchableOpacity>
+              {amountEditMode === 'excludedPrice' && amountEditBidId ? (
+                // The other honest answer: the excluded scope costs nothing
+                // extra (round 3). Without it the only unlock was a made-up
+                // price or a re-run of leveling.
+                <TouchableOpacity
+                  style={[styles.needsAmountBtn, { marginTop: 10, borderColor: themeColors.line, backgroundColor: 'transparent' }]}
+                  onPress={() => saveNothingExtra(amountEditBidId)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  testID="bid-price-nothing-extra"
+                >
+                  <Text style={[styles.needsAmountText, { color: themeColors.text }]}>{NOTHING_EXTRA_LABEL}</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </KeyboardAvoidingView>
           </SheetOverlay>

@@ -34,6 +34,23 @@
 //   • Anywhere a savings figure would read a needs-price bid, it says
 //     SAVINGS_NEEDS_PRICE instead of a number.
 //
+// Integration round 3 (onto main) — the 0 is never a NUMBER on screen either,
+// and the unlock is always reachable:
+//   • no screen prints a leveled total, "as bid" or a vs-budget figure for a
+//     needs-price bid ("Needs price" instead), and it is kept out of every
+//     numeric comparison — the median, the spread, the outliers and "Lowest"
+//     (utils/bidLeveling computeBidLeveling's leveledCostUnknown option, and
+//     the buyout matrix's knownBids). The ranking keeps it where its bid puts
+//     it: the bid is a lower bound on its leveled cost, so a would-be winner
+//     stays a close call until he prices the exclusion;
+//   • "Nothing extra" is an answer: a button beside the price field, or 0
+//     typed and confirmed, saves "Your price: Nothing extra for …" at 0 — the
+//     excluded scope is covered, so the leveled total is the bid;
+//   • once a bid carries his answer ('your_price'), leveling's question, a
+//     low-confidence guess or an "another bid includes it" 0 no longer label
+//     it needs-price (classify), and the pass leaves his bid out of its
+//     labels and counts (it is never written over — levelingMayWrite).
+//
 // Pure — no React, no storage, no network (scripts/validate-leveling-basis.ts
 // runs it under bun).
 
@@ -68,7 +85,13 @@ export interface AdjustmentLike {
   needsAnswer?: string;
 }
 
-export interface BidLike { id: string; excludes?: string | null }
+export interface BidLike { id: string; excludes?: string | null; normalizedAdjustmentReason?: string | null }
+
+/** He has answered for this bid's excluded scope — his own price, or
+ *  "Nothing extra" ("Your price: …"). Leveling never writes over it. */
+function answeredByYou(bid: { normalizedAdjustmentReason?: string | null } | null | undefined): boolean {
+  return readReason(bid?.normalizedAdjustmentReason).label === 'your_price';
+}
 
 export interface LevelingResultLike {
   adjustments: AdjustmentLike[];
@@ -120,17 +143,21 @@ const ALL_IN = /\b(?:all[- ]in|fully inclusive|no exclusions|includes? everythin
  *                  'estimate' row when the prompt carried estimate lines, or
  *                  a zero adjustment (there is no number to label).
  *   not_from_book — every other non-zero amount.
+ * A bid he has already answered for (his price, or "Nothing extra" — the
+ * saved reason reads 'your_price') is never needs_price: the question has
+ * its answer (round 3).
  * Only what the result says is used; the bids are not re-parsed.
  */
 export function classify(adj: AdjustmentLike, bid: BidLike | null | undefined, ctx: LevelingBasisContext): LevelingLabel {
   const amount = Number(adj.adjustment) || 0;
   const basis: Basis = adj.adjustmentBasis ?? 'market_guess';
   const reason = String(adj.reason ?? '');
-  if ((adj.needsAnswer ?? '').trim() !== '') return 'needs_price';
-  if (basis === 'market_guess' && Number(adj.confidence) < 30 && amount !== 0) return 'needs_price';
+  const open = !answeredByYou(bid);
+  if (open && (adj.needsAnswer ?? '').trim() !== '') return 'needs_price';
+  if (open && basis === 'market_guess' && Number(adj.confidence) < 30 && amount !== 0) return 'needs_price';
   if (amount === 0) {
     const excludes = String(bid?.excludes ?? '').trim();
-    return excludes && OTHER_INCLUDES.test(reason) && !ALL_IN.test(reason) ? 'needs_price' : 'book';
+    return open && excludes && OTHER_INCLUDES.test(reason) && !ALL_IN.test(reason) ? 'needs_price' : 'book';
   }
   if (basis === 'your_history') return ctx.costBookEntries > 0 ? 'book' : 'not_from_book';
   if (basis === 'estimate') return ctx.promptHadEstimateLines ? 'book' : 'not_from_book';
@@ -159,6 +186,10 @@ export interface LevelingHonesty<R extends LevelingResultLike> {
  *   • not_from_book → amount kept, reason "Not from your book: …";
  *   • the AI-unavailable rows (confidence 0) pass through untouched — the
  *     screens already skip them;
+ *   • a bid he has answered for ("Your price: …", incl. "Nothing extra")
+ *     passes through unlabelled and uncounted, its question dropped — the
+ *     screens never write over it (levelingMayWrite), so it is not asked
+ *     again and never clears the recommendation (round 3);
  *   • a recommended winner whose own exclusion needs a price is not a winner
  *     yet: the recommendation is cleared and says so.
  */
@@ -171,6 +202,10 @@ export function applyLevelingHonestyPure<R extends LevelingResultLike>(result: R
   let bookCount = 0;
   const adjustments = result.adjustments.map(adj => {
     if (adj.confidence === 0) return adj;
+    if (answeredByYou(byId.get(adj.bidId))) {
+      const { needsAnswer: _answered, ...rest } = adj;
+      return rest;
+    }
     // A label already on the reason is never weakened (the pass is idempotent).
     // 'your_price' is not a leveling label (levelingMayWrite keeps his price).
     const had = readReason(adj.reason).label;
@@ -209,6 +244,7 @@ export function countBookRows(
 ): number {
   const byId = new Map(bids.map(b => [b.id, b]));
   return adjustments.filter(a => a.confidence !== 0 && (Number(a.adjustment) || 0) !== 0
+    && !answeredByYou(byId.get(a.bidId))
     && classify(a, byId.get(a.bidId), ctx) === 'book').length;
 }
 
@@ -247,10 +283,40 @@ export function yourPriceReason(excludes: string | null | undefined): string {
   return (YOUR_PRICE_TAG + what).slice(0, REASON_MAX);
 }
 
-/** Why Award is refused, and what unlocks it. */
-export function awardNeedsPriceBody(excludes: string | null | undefined): string {
-  const what = String(excludes ?? '').trim() || 'The scope this bid excludes';
-  return `${what} needs your price before this bid can be awarded. Tap "${SET_YOUR_PRICE_CTA}" on the bid card.`;
+/** Why Award is refused, and what unlocks it — his price, or "Nothing
+ *  extra". A bid that lists no exclusion is refused on the saved question
+ *  (the reason's own words), not on "the scope this bid excludes". */
+export function awardNeedsPriceBody(excludes: string | null | undefined, reasonText?: string | null): string {
+  const unlock = `Tap "${SET_YOUR_PRICE_CTA}" on the bid card, or "${NOTHING_EXTRA_LABEL}" there if it costs nothing more.`;
+  const what = String(excludes ?? '').trim();
+  const question = String(reasonText ?? '').trim();
+  if (!what && question) return `This bid needs your answer before it can be awarded: ${question} ${unlock}`;
+  return `${what || 'The scope this bid excludes'} needs your price before this bid can be awarded. ${unlock}`;
+}
+
+// ── Nothing extra (round 3) ──────────────────────────────────────────────────
+
+export const NOTHING_EXTRA_LABEL = 'Nothing extra';
+export const NOTHING_EXTRA_CONFIRM_TITLE = 'Nothing extra?';
+
+/** "0", "0.00", "$0", "$ 0.0", ".0" typed into the price field: an answer
+ *  ("it costs nothing extra"), not a missing number. Same shape rules as
+ *  parseBidAmountInput (no sign, no comma decimal); a sub-cent is refused. */
+export function isNothingExtraInput(text: string | null | undefined): boolean {
+  const stripped = String(text ?? '').replace(/[$\s]/g, '');
+  return /^(?:0+(?:\.0*)?|\.0+)$/.test(stripped);
+}
+
+/** The reason saved with "Nothing extra": his answer, at 0. */
+export function nothingExtraReason(excludes: string | null | undefined): string {
+  const what = String(excludes ?? '').trim() || 'the scope this bid excludes';
+  return (YOUR_PRICE_TAG + 'Nothing extra for ' + what).slice(0, REASON_MAX);
+}
+
+/** The confirm when he types 0 as his price. */
+export function nothingExtraConfirmBody(excludes: string | null | undefined): string {
+  const what = String(excludes ?? '').trim() || 'The excluded scope';
+  return `${what} costs nothing on top of this bid, so its leveled total is the bid amount.`;
 }
 
 /**

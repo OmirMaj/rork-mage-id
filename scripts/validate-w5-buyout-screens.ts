@@ -91,8 +91,12 @@ ok('the hand-entry form parses through parseBidAmountInput, not Number(newAmount
   /parseBidAmountInput\(newAmount\)/.test(addBid) && !/Number\(newAmount\)/.test(screen));
 ok('the amount fields use the decimal pad', (screen.match(/keyboardType="decimal-pad"/g) ?? []).length >= 2 && !/value=\{newAmount\}[^\n]*keyboardType="numeric"/.test(screen));
 ok('the matrix sorts through compareBidsForMatrix', /\[\.\.\.bids\]\.sort\(compareBidsForMatrix\)/.test(screen));
-ok('LOWEST needs a priced bid and two priced bids', /const isLowest = priced && i === 0 && pricedBids\.length > 1;/.test(screen));
-ok('the median ignores unpriced bids', /const leveledTotals = pricedBids\.map/.test(screen));
+// ideas-1 round 3: a needs-price bid's 0 is a placeholder, so LOWEST and the
+// median read only priced bids whose leveled cost is KNOWN (knownBids is
+// pricedBids minus needs-price bids) — the unpriced-bid rule is unchanged.
+ok('LOWEST needs a priced bid with a known leveled cost, and two such bids', /const knownBids = pricedBids\.filter\(b => !needsYourPrice\(b\)\);/.test(screen)
+  && /const isLowest = priced && !needsPrice && knownBids\.length > 1 && knownBids\[0\]\.id === bid\.id;/.test(screen));
+ok('the median ignores unpriced bids (and needs-price placeholders)', /const knownBids = pricedBids\.filter\(/.test(screen) && /const leveledTotals = knownBids\.map/.test(screen));
 ok('an unpriced bid shows "Needs an amount" instead of Award', /priced \? \([\s\S]{0,200}styles\.awardBtn[\s\S]{0,1400}Needs an amount — tap to add it/.test(screen));
 ok('the card edits the amount through updateBidPackageBid', /updateBidPackageBid\(amountEditBidId, \{ amount \}\)/.test(screen));
 ok('a sub\'s own number is not editable from the card', /const canEditAmount = !filedBySub && !isAwardedBid;/.test(screen));

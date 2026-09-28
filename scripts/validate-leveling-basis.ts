@@ -158,10 +158,104 @@ console.log('\n── needs your price');
   assert(rerun.labels.b1 === 'book', "a 'Your price' reason is not a leveling label (the pass classifies the new row on its own)");
   // Copy.
   assert(SAVINGS_NEEDS_PRICE === 'Not shown — needs your price' && AWARD_NEEDS_PRICE_TITLE === 'Price the excluded scope first'
-    && awardNeedsPriceBody('Dumpster and blocking') === `Dumpster and blocking needs your price before this bid can be awarded. Tap "${SET_YOUR_PRICE_CTA}" on the bid card.`
+    && awardNeedsPriceBody('Dumpster and blocking').startsWith(`Dumpster and blocking needs your price before this bid can be awarded. Tap "${SET_YOUR_PRICE_CTA}" on the bid card`)
     && awardNeedsPriceBody(null).startsWith('The scope this bid excludes needs your price'), 'the refusal says what unlocks it');
   const words = [SAVINGS_NEEDS_PRICE, AWARD_NEEDS_PRICE_TITLE, SET_YOUR_PRICE_CTA, awardNeedsPriceBody('x')];
   assert(words.every(w => !/!/.test(w) && !/\b(he|his|him|she|her)\b/i.test(w)), 'VOICE: no exclamation marks, no he/his');
+}
+
+// ─── round 3 (integration onto main) ──────────────────────────────────────
+// (a) A needs-price bid's 0 is a placeholder, never a number: it is kept out
+//     of every numeric comparison (median, spread, outliers, "Lowest") and
+//     the screens print "Needs price" where its leveled total would be.
+// (b) The refusal's unlock is reachable: "Nothing extra" records that the
+//     excluded scope costs nothing on top of the bid, and once he has
+//     answered, the model's question no longer labels the bid needs-price.
+console.log('\n── round 3: the placeholder is never a number; "Nothing extra" answers it');
+{
+  // Loaded dynamically so a missing export reads as a FAIL line, not a crash.
+  const lb = (await import('../utils/levelingBasis')) as Record<string, unknown>;
+  const fn = <T,>(name: string): T | null => (typeof lb[name] === 'function' ? lb[name] as T : null);
+  const isNothingExtraInput = fn<(s: string) => boolean>('isNothingExtraInput');
+  const nothingExtraReason = fn<(e: string | null | undefined) => string>('nothingExtraReason');
+  const NOTHING_EXTRA_LABEL = typeof lb.NOTHING_EXTRA_LABEL === 'string' ? lb.NOTHING_EXTRA_LABEL : null;
+
+  // (b) the answer: "0" / "$0.00" is "nothing extra"; anything else is not.
+  assert(!!isNothingExtraInput && ['0', '0.00', '$0', ' 0 ', '$ 0.0', '00', '.0'].every(s => isNothingExtraInput(s)),
+    'isNothingExtraInput: "0", "0.00", "$0", " 0 ", "$ 0.0", "00", ".0" all mean nothing extra');
+  assert(!!isNothingExtraInput && ['', ' ', 'abc', '0.5', '-0', '1', '0,00', '0.001', '10'].every(s => !isNothingExtraInput(s)),
+    'isNothingExtraInput: empty, words, a real amount, a negative, a comma decimal and a sub-cent are not');
+  const ne = nothingExtraReason ? nothingExtraReason('Permits') : '';
+  assert(ne === `${YOUR_PRICE_TAG}Nothing extra for Permits` && readReason(ne).label === 'your_price' && !needsYourPrice({ normalizedAdjustmentReason: ne }),
+    `nothingExtraReason saves "Your price: Nothing extra for <excludes>" — his answer, no longer needs a price (${JSON.stringify(ne)})`);
+  assert(!!nothingExtraReason && nothingExtraReason('').startsWith(`${YOUR_PRICE_TAG}Nothing extra for the scope this bid excludes`)
+    && nothingExtraReason('z'.repeat(400)).length === REASON_MAX, 'nothingExtraReason: a fallback for empty excludes, capped at REASON_MAX');
+  assert(!levelingMayWrite({ id: 'b1', normalizedAdjustmentReason: ne }, undefined), 'leveling never overwrites "Nothing extra"');
+  const pf = await import('../utils/projectFinancials');
+  const answeredBid = { amount: 15000, normalizedAdjustment: 0, normalizedAdjustmentReason: ne };
+  assert(pf.leveledBidTotal(answeredBid) === 15000 && pf.leveledBuyoutSavings(16000, answeredBid) === 1000 && pf.uncoveredScopeOf(answeredBid) === 0,
+    'nothing extra: leveled total = the bid, savings off the bid, nothing left to buy');
+
+  // (b) once answered, the model's question / low confidence / "another bid
+  // includes it" no longer make the bid needs-price.
+  const answered = { id: 'b1', excludes: '', normalizedAdjustmentReason: nothingExtraReason ? nothingExtraReason('') : ne };
+  const priced = { id: 'b1', excludes: 'fixtures', normalizedAdjustmentReason: yourPriceReason('fixtures') };
+  assert(classify(adj({ adjustment: 0, needsAnswer: 'Does bid A cover the full permit fee?' }), answered, BOOK) !== 'needs_price',
+    'classify: a question on a bid he already answered ("Nothing extra") is not needs-price');
+  assert(classify(adj({ adjustmentBasis: 'market_guess', confidence: 20 }), priced, BOOK) !== 'needs_price'
+    && classify(adj({ adjustment: 0, reason: 'Excludes fixtures, which Bid 2 includes.' }), priced, BOOK) !== 'needs_price',
+    'classify: a low-confidence guess or an "another bid includes it" 0 on a bid he priced is not needs-price');
+  assert(classify(adj({ needsAnswer: 'Does it cover the permit?' }), { id: 'b1', excludes: '' }, BOOK) === 'needs_price'
+    && classify(adj({ needsAnswer: 'x' }), { id: 'b1', excludes: 'fixtures', normalizedAdjustmentReason: `${NEEDS_PRICE_TAG}x` }, BOOK) === 'needs_price',
+    'classify: an UNanswered question still reads needs-price (no answer on the bid, or only the old needs-price tag)');
+  const run: LevelingResultLike = {
+    adjustments: [
+      adj({ bidId: 'b1', adjustment: 0, confidence: 20, needsAnswer: 'Does bid A cover the full permit fee?', reason: 'Permit fee unclear.' }),
+      adj({ bidId: 'b2', adjustment: 900, adjustmentBasis: 'your_history', confidence: 75, reason: 'Permits at your rate.' }),
+    ],
+    summary: 'Two bids.', recommendedWinnerBidId: 'b1', recommendedWinnerReason: 'Lowest after leveling.', basisContext: BOOK,
+  };
+  const h = applyLevelingHonestyPure(run, [answered, { id: 'b2', excludes: 'permits' }]);
+  const b1 = h.result.adjustments.find(a => a.bidId === 'b1');
+  assert(!('b1' in h.labels) && h.needsPriceCount === 0 && h.result.recommendedWinnerBidId === 'b1',
+    `the pass leaves an answered bid unlabelled and uncounted, and does not clear it as the winner (labels ${JSON.stringify(h.labels)}, winner ${JSON.stringify(h.result.recommendedWinnerBidId)})`);
+  assert(!!b1 && b1.needsAnswer === undefined && b1.reason === 'Permit fee unclear.', 'the answered row passes through with its question dropped (it is not asked again)');
+  assert(countBookRows([adj({ adjustmentBasis: 'your_history', confidence: 70 })], [priced], BOOK) === 0,
+    'countBookRows does not count a row that will not be written over his price');
+
+  // (b) the refusal says what to answer, even when the bid lists no exclusion.
+  const body = (awardNeedsPriceBody as (e: string | null | undefined, r?: string | null) => string)('', 'Permit fee unclear; Bid 1 includes it.');
+  assert(body.includes('Permit fee unclear; Bid 1 includes it.') && !body.includes('The scope this bid excludes'),
+    `awardNeedsPriceBody quotes the saved question when the bid lists no exclusion (${JSON.stringify(body)})`);
+  assert(!!NOTHING_EXTRA_LABEL && awardNeedsPriceBody('Permits').includes(`"${NOTHING_EXTRA_LABEL}"`) && body.includes(`"${NOTHING_EXTRA_LABEL}"`),
+    'the refusal names both unlocks: Set your price, or Nothing extra');
+  assert(!!NOTHING_EXTRA_LABEL && [NOTHING_EXTRA_LABEL, body].every(w => !/!/.test(w) && !/\b(he|his|him|she|her)\b/i.test(w)), 'VOICE: no exclamation marks, no he/his');
+
+  // (a) the numbers: a needs-price bid is out of the median, the spread and
+  // the outliers, and never counted as a comparison point.
+  const bl = await import('../utils/bidLeveling');
+  const PKG = { id: 'p', projectId: 'x', name: 'Framing', estimateBudget: 16000, status: 'leveling', linkedEstimateItemIds: [], createdAt: '', updatedAt: '' };
+  const bid = (id: string, amount: number, over: Record<string, unknown> = {}) => ({ id, packageId: 'p', vendorName: id, amount, status: 'received', createdAt: '', updatedAt: '', ...over });
+  const three = [
+    bid('A', 8000, { excludes: 'Blocking', normalizedAdjustment: 0, normalizedAdjustmentReason: `${NEEDS_PRICE_TAG}Blocking, unclear.` }),
+    bid('B', 16000), bid('C', 19000),
+  ];
+  const opts = { leveledCostUnknown: needsYourPrice };
+  const compute = bl.computeBidLeveling as unknown as (p: unknown, b: unknown[], v: (x: { id: string }) => string, o?: unknown) => ReturnType<typeof bl.computeBidLeveling> & { unknownCount?: number };
+  const before = compute(PKG, three, x => x.id);
+  const after = compute(PKG, three, x => x.id, opts);
+  assert(before.median === 16000 && before.bids.find(b => b.bid.id === 'A')!.outlierLow && before.spread === 11000,
+    'without the rule the 0 placeholder drags the median to $16,000, flags A LOW and makes an $11,000 spread (the defect)');
+  const A = after.bids.find(b => b.bid.id === 'A')!;
+  assert(after.median === 17500 && after.spread === 3000 && after.outlierCount === 0 && !A.outlierLow && after.unknownCount === 1,
+    `with the rule: median $17,500 and spread $3,000 over the two known bids, no outliers, 1 unknown (got ${after.median} / ${after.spread} / ${after.outlierCount} / ${after.unknownCount})`);
+  assert(after.recommendedId === 'A' && A.rank === 1,
+    'the ranking is kept (its bid is a lower bound), so the would-be winner is still A — the screen calls it a close call, not a number');
+  const plain = [bid('B', 16000), bid('C', 19000), bid('D', 9000)];
+  const strip = (r: { asOf: string }) => JSON.stringify({ ...r, asOf: '' });
+  const plainWith = compute(PKG, plain, x => x.id, opts);
+  assert(strip({ ...plainWith, unknownCount: undefined } as { asOf: string }) === strip({ ...compute(PKG, plain, x => x.id), unknownCount: undefined } as { asOf: string }) && plainWith.unknownCount === 0,
+    'with no needs-price bid the report is exactly today\'s');
 }
 
 // ─── source ───────────────────────────────────────────────────────────────
@@ -184,7 +278,7 @@ assert(/const PROMPT_HAS_ESTIMATE_LINES = false;/.test(engine), 'promptHadEstima
   const award = awardAt < 0 ? '' : buyout.slice(awardAt, buyout.indexOf('const handleGenerateSubcontract', awardAt));
   const gate = award.indexOf('if (needsYourPrice(bid)) {');
   assert(gate > 0 && gate < award.indexOf('leveledBuyoutSavings(') && gate < award.indexOf('reviewAwardCompliance(')
-    && /if \(needsYourPrice\(bid\)\) \{\s*showAlert\(AWARD_NEEDS_PRICE_TITLE, awardNeedsPriceBody\(bid\.excludes\)\);\s*return;\s*\}/.test(award),
+    && /if \(needsYourPrice\(bid\)\) \{\s*showAlert\(AWARD_NEEDS_PRICE_TITLE, awardNeedsPriceBody\(bid\.excludes(?:, readReason\(bid\.normalizedAdjustmentReason\)\.text)?\)\);\s*return;\s*\}/.test(award),
     'handleAward refuses a needs-price bid, with the unlock, before any savings figure or the compliance dialogs');
   assert(/const needsPrice = priced && needsYourPrice\(bid\);/.test(buyout)
     && /\{pkg\.status !== 'awarded' && \(needsPrice \? \([\s\S]{0,700}setAmountEditMode\('excludedPrice'\)[\s\S]{0,700}\{SET_YOUR_PRICE_CTA\}[\s\S]{0,200}\) : priced \? \(\s*<TouchableOpacity style=\{styles\.awardBtn\}/.test(buyout),
@@ -196,6 +290,34 @@ assert(/const PROMPT_HAS_ESTIMATE_LINES = false;/.test(engine), 'promptHadEstima
     && /\) : heroNeedsPrice \? \([\s\S]{0,300}\{SAVINGS_NEEDS_PRICE\}[\s\S]{0,120}\) : heroSavings != null \? \(/.test(buyout), 'the hero shows no savings number off a needs-price awarded bid');
   assert(/if \(!levelingMayWrite\(bids\.find\(b => b\.id === adj\.bidId\), pkg\.awardedBidId\)\) continue;/.test(buyout)
     && /if \(!levelingMayWrite\(bids\.find\(x => x\.id === adj\.bidId\), pkg\.awardedBidId\)\) continue;/.test(screen), 'both leveling writers skip his price and the awarded bid');
+}
+// Round 3: the placeholder never renders as a number; the unlock is reachable.
+{
+  assert(/computeBidLeveling\(pkg, bids, resolveVendor, \{ leveledCostUnknown: needsYourPrice \}\)/.test(screen),
+    '/bid-leveling computes the report with needs-price bids out of the median, spread and outliers');
+  const rowAt = screen.indexOf('function BidRow(');
+  const row = rowAt < 0 ? '' : screen.slice(rowAt, screen.indexOf('function Badge(', rowAt));
+  assert(/const unpriced = needsYourPrice\(b\.bid\);/.test(row)
+    && /\{unpriced \? \([\s\S]{0,400}\{LABEL_NEEDS_PRICE\}[\s\S]{0,400}\) : \(/.test(row)
+    && /as bid/.test(row.slice(row.indexOf(') : (', row.indexOf('{unpriced ? ('))))
+    && !/as bid|vs budget/.test(row.slice(row.indexOf('{unpriced ? ('), row.indexOf(') : (', row.indexOf('{unpriced ? (')))),
+    'a needs-price row prints "Needs price" — no leveled amount, no "as bid", no vs-budget line');
+  assert(/const isWinner = b\.isRecommended && !unpriced;/.test(row) && !/b\.isRecommended &&\s*<Badge label="Best value"/.test(row),
+    'a needs-price row never wears "Best value"');
+  const recAt = screen.indexOf('{/* Recommendation */}');
+  const rec = recAt < 0 ? '' : screen.slice(recAt, screen.indexOf('{/* AI level CTA', recAt));
+  assert(/\{recNeedsPrice \? null : \(/.test(rec) && rec.indexOf('{recNeedsPrice ? null : (') < rec.indexOf('under budget.'),
+    'the recommendation card drops the leveled amount and the budget sentence for a needs-price would-be winner');
+  assert(/const knownBids = pricedBids\.filter\(b => !needsYourPrice\(b\)\);/.test(buyout)
+    && /const leveledTotals = knownBids\.map\(/.test(buyout)
+    && /const isLowest = priced && !needsPrice && knownBids\.length > 1 && knownBids\[0\]\.id === bid\.id;/.test(buyout)
+    && /if \(needsYourPrice\(bid\)\) return null;/.test(buyout),
+    '/buyout-package: "Lowest" and the outlier median read only bids with a known leveled cost');
+  assert(/isNothingExtraInput\(amountDraft\)/.test(buyout) && /testID="bid-price-nothing-extra"/.test(buyout)
+    && /normalizedAdjustmentReason: nothingExtraReason\(/.test(buyout),
+    '/buyout-package: "Nothing extra" (a button, or 0 typed and confirmed) records the answer');
+  assert(/awardNeedsPriceBody\(bid\.excludes, readReason\(bid\.normalizedAdjustmentReason\)\.text\)/.test(buyout),
+    'the refusal is given the saved question for a bid with no stated exclusion');
 }
 
 // Byte-identity with base 64d397af: the prompt, the schema, the schema hint.

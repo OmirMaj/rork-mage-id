@@ -14,6 +14,7 @@
  *     price" and brings Award back at the leveled total with his number.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld, settle } from '@/__tests__/helpers/mountRoute';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
@@ -102,5 +103,92 @@ describe('bid leveling — the saved basis label', () => {
     const ace = saved.find(b => b.id === 'bid-t7-2');
     expect(ace?.normalizedAdjustment).toBe(750.5);
     expect(ace?.normalizedAdjustmentReason).toBe('Your price: Permits');
+  });
+});
+
+// Integration round 3 (onto main): (a) the needs-price 0 is a placeholder, so
+// no screen prints a number built on it; (b) "Nothing extra" is a reachable
+// answer — a button, or 0 typed into the price field and confirmed.
+describe('bid leveling — a needs-price bid is never a number, and "Nothing extra" answers it', () => {
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  const lines = (tree: { toJSON: () => unknown }) => textOf(tree.toJSON()).join('\n');
+
+  it('/bid-leveling: no "as bid", no vs-budget, no leveled amount or "under budget" for the needs-price would-be winner', async () => {
+    const tree = await mountRouteChecked(`/bid-leveling?packageId=${PKG.id}`);
+    const text = lines(tree);
+    // Ace $15,000 + a 0 placeholder would print "$15,000 leveled", "$1,000 under
+    // budget.", "as bid" and "−$1,000 vs budget". None of it is a price.
+    expect(text).not.toMatch(/^\$15,000$/m);
+    expect(text).not.toMatch(/^leveled$/m);
+    expect(text).not.toContain('under budget');
+    expect(text).not.toContain('as bid');
+    expect(text.match(/vs budget/g)?.length).toBe(1); // Joe's row only
+    expect(screen.getByTestId('leveling-needs-price-bid-t7-2').props.children).toBe('Needs price');
+    expect(text).toContain('$15,000 bid + the excluded scope');
+    // The close call is called a close call — no "Best value" badge on Ace.
+    expect(text).toContain('Close call until you price the exclusion');
+    expect(text).not.toMatch(/^Best value$/m);
+    // The spread is not measured off the placeholder: one known leveled cost.
+    expect(text).not.toMatch(/Field spread\n\$1,000/);
+  });
+
+  it('/buyout-package: a needs-price bid never wears "Lowest"', async () => {
+    const tree = await mountRouteChecked(`/buyout-package?packageId=${PKG.id}`);
+    expect(lines(tree)).not.toMatch(/^Lowest$/m);
+  });
+
+  it('/buyout-package: the outlier median is taken over known leveled costs only', async () => {
+    // A needs price at $8,000; B $16,000 and C $19,000 are known. With A's 0
+    // placeholder in the median ($16,000), C reads "19% HIGH" and A "50% LOW".
+    await AsyncStorage.setItem('mageid_bid_package_bids', JSON.stringify([
+      { ...bidBase, id: 'bid-o-a', vendorName: 'Alpha Framing', amount: 8000, excludes: 'Blocking', normalizedAdjustment: 0, normalizedAdjustmentReason: `${NEEDS_PRICE_TAG}Blocking, unclear.` },
+      { ...bidBase, id: 'bid-o-b', vendorName: 'Beta Framing', amount: 16000 },
+      { ...bidBase, id: 'bid-o-c', vendorName: 'Gamma Framing', amount: 19000 },
+    ]));
+    const tree = await mountRouteChecked(`/buyout-package?packageId=${PKG.id}`);
+    const text = lines(tree);
+    expect(text).not.toMatch(/% (?:LOW|HIGH)$/m);
+    // Beta is the lowest KNOWN leveled cost of two.
+    expect(text).toMatch(/Beta Framing\nLowest/);
+  });
+
+  it('/buyout-package: "Nothing extra" records the answer; Award returns at the bid amount', async () => {
+    const tree = await mountRouteChecked(`/buyout-package?packageId=${PKG.id}`);
+    await act(async () => { fireEvent.press(screen.getByTestId('leveling-set-price-bid-t7-2')); });
+    await settle();
+    await act(async () => { fireEvent.press(screen.getByTestId('bid-price-nothing-extra')); });
+    await settle();
+    expect(screen.queryByTestId('leveling-set-price-bid-t7-2')).toBeNull();
+    expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Your price');
+    const after = lines(tree);
+    expect(after).toContain('Nothing extra for Permits');
+    expect(after).toMatch(/Leveled total\n\$15,000\n/);
+    // Award is back, at the bid amount (the Award label and its amount are two text runs).
+    expect(after).toMatch(/^Award .*\n\$15,000$/m);
+    expect(after.match(/^Award /gm)?.length).toBe(2);
+    const saved = JSON.parse((await AsyncStorage.getItem('mageid_bid_package_bids')) ?? '[]') as { id: string; normalizedAdjustment?: number; normalizedAdjustmentReason?: string }[];
+    const ace = saved.find(b => b.id === 'bid-t7-2');
+    expect(ace?.normalizedAdjustment).toBe(0);
+    expect(ace?.normalizedAdjustmentReason).toBe('Your price: Nothing extra for Permits');
+  });
+
+  it('/buyout-package: typing 0 asks to confirm "Nothing extra", then records it', async () => {
+    const asked: string[] = [];
+    jest.spyOn(Alert, 'alert').mockImplementation((title, _msg, buttons) => {
+      asked.push(String(title));
+      const yes = (buttons ?? []).find(b => b.text === 'Nothing extra');
+      yes?.onPress?.();
+    });
+    const tree = await mountRouteChecked(`/buyout-package?packageId=${PKG.id}`);
+    await act(async () => { fireEvent.press(screen.getByTestId('leveling-set-price-bid-t7-2')); });
+    await settle();
+    await act(async () => { fireEvent.changeText(screen.getByTestId('bid-amount-input'), '0.00'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('bid-amount-save')); });
+    await settle();
+    expect(asked).toContain('Nothing extra?');
+    expect(asked).not.toContain('Needs an amount');
+    expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Your price');
+    expect(lines(tree)).toMatch(/^Award .*\n\$15,000$/m);
   });
 });
