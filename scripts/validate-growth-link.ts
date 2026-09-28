@@ -205,10 +205,11 @@ const SURFACES: Surface[] = [
   { surface: 'builders', file: 'marketing/builders/index.html', kind: 'html' },
   { surface: 'pay_link', file: 'marketing/paid/index.html', kind: 'html' },
   // Remove `pending` once the patch has landed; the file is checked either way
-  // as soon as it carries the link.
+  // as soon as it carries the link. GROWTH-3 and GROWTH-4 landed in the
+  // integration onto main (2026-09-28), so a regression there now fails.
   { surface: 'portal', file: 'app/client-view.tsx', kind: 'rn', pending: 'GROWTH-2' },
-  { surface: 'portal', file: 'marketing/portal/index.html', kind: 'html', pending: 'GROWTH-3' },
-  { surface: 'lien_waiver', file: 'marketing/lien-waiver/index.html', kind: 'html', pending: 'GROWTH-4' },
+  { surface: 'portal', file: 'marketing/portal/index.html', kind: 'html' },
+  { surface: 'lien_waiver', file: 'marketing/lien-waiver/index.html', kind: 'html' },
 ];
 ok('every allow-listed surface has at least one page', EXPECTED_SURFACES.every((s) => SURFACES.some((x) => x.surface === s)),
   EXPECTED_SURFACES.filter((s) => !SURFACES.some((x) => x.surface === s)).join(', '));
@@ -258,7 +259,7 @@ for (const p of pendingNow) console.log(`  · ${p}`);
 console.log('\ntoken pages send no Referer:');
 for (const [file, pending] of [
   ['marketing/bid-invite/index.html', ''], ['marketing/sub-portal/index.html', ''],
-  ['marketing/portal/index.html', 'GROWTH-3'], ['marketing/lien-waiver/index.html', 'GROWTH-4'],
+  ['marketing/portal/index.html', ''], ['marketing/lien-waiver/index.html', ''],
   ['marketing/paid/index.html', ''],
 ] as const) {
   const src = read(file);

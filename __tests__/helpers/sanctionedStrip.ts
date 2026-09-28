@@ -4,8 +4,9 @@
 // Wave 4 (2026-09-26): takeoffws- (desktop takeoff), codelook- (Photo code check), pricewatch-/lienclock- (W1), backcharge-/ownerdelay- (W2).
 // List-2 round (2026-09-26): plansweep- (Plan Set Code Sweep), njrecord- (NJ building record), lineup- (Tomorrow's lineup), insaudit- (Insurance audit pack).
 // Ideas-1 (2026-09-28): validuntil- (the "Valid until" row on the smart proposal and the quick quote; ships with TRUST-1/3).
+// Ideas-1 (2026-09-28): joblevel- (The Level as a project-health reading on Home cards and the portfolio table; ships with LEVEL-1/2).
 
-export const SANCTIONED_TESTID_PREFIXES = ['scopegaps-', 'rfiscope-', 'payearned-', 'codethread-', 'takeoffws-', 'codelook-', 'pricewatch-', 'lienclock-', 'backcharge-', 'ownerdelay-', 'plansweep-', 'njrecord-', 'lineup-', 'insaudit-', 'validuntil-'] as const;
+export const SANCTIONED_TESTID_PREFIXES = ['scopegaps-', 'rfiscope-', 'payearned-', 'codethread-', 'takeoffws-', 'codelook-', 'pricewatch-', 'lienclock-', 'backcharge-', 'ownerdelay-', 'plansweep-', 'njrecord-', 'lineup-', 'insaudit-', 'validuntil-', 'joblevel-'] as const;
 
 /** A react-test-renderer JSON node whose props.testID starts with a sanctioned prefix. */
 export function isSanctionedNode(n: unknown): boolean {
