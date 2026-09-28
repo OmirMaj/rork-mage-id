@@ -131,7 +131,7 @@ console.log('\n#70 crew updates carry only what changed');
   const crew = read('contexts/CrewContext.tsx');
   const upd = crew.slice(crew.indexOf('const updateCrewMember = useCallback('), crew.indexOf('const deleteCrewMember = useCallback('));
   ok('updateCrewMember writes crewMemberUpdateRow, never toRow(next)',
-    /supabaseWrite\('crew_members', 'update', crewMemberUpdateRow\(id, changes, next\.updatedAt\)\)/.test(upd) && !/toRow\(next\)/.test(upd));
+    /supabaseWrite\('crew_members', 'update', \{ \.\.\.crewMemberUpdateRow\(id, changes, next\.updatedAt\), \.\.\.crewLanguageColumn\(changes, LANGUAGE_PICKER_ENABLED\) \}\)/.test(upd) && !/toRow\(next\)/.test(upd));
 }
 
 // ── #82 / CONTRACT 13 ────────────────────────────────────────────────────────

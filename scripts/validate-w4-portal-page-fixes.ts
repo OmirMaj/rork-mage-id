@@ -304,11 +304,17 @@ ok('the section, the legacy list and the published list all ask contractSignable
 
 console.log('\ncontract signing answers (portal-server handoff)');
 const signHandler = html.slice(html.indexOf("var target = ev.target.closest('[data-action=\"sign-contract\"]');"), html.indexOf('function showContractSignNote('));
-ok('{ok, already:true} reads "Already signed" — no confetti, no reload loop',
-  /res && res\.already === true\) \{\s*showContractSignNote\(target, 'Already signed[^']*'\);\s*refreshPortalSnapshot\(\);\s*return;/.test(signHandler));
+// W3 MOMPORTAL: the sentences moved into FALLBACK_STRINGS (English only, t());
+// the rule is the same — a neutral "Already signed" line, no seal, re-read, stop.
+const fallbackSays = (key: string, text: string) => html.includes(`    ${key}: '${text.replace(/'/g, "\\'")}',`);
+ok('{ok, already:true} reads "Already signed" — no seal, no reload loop',
+  /res && res\.already === true\) \{\s*showContractSignNote\(target, t\('contractSignAlready'\)\);\s*refreshPortalSnapshot\(\);\s*return;/.test(signHandler)
+  && fallbackSays('contractSignAlready', 'Already signed. Updating the page.'));
 ok('a new signature re-reads the portal instead of window.location.reload()', !/window\.location\.reload\(\)/.test(signHandler) && /refreshPortalSnapshot\(\)/.test(signHandler));
-ok('sign_denied on a contract the fresh snapshot shows signed reads "This contract is already signed"',
-  /fc\.id === contractId && fc\.status === 'signed'\) \{\s*alert\('This contract is already signed\.'\)/.test(signHandler));
+ok('sign_denied on a contract the fresh snapshot shows signed reads "This contract is already signed" (a line under the button, no alert)',
+  /fc\.id === contractId && fc\.status === 'signed'\) \{\s*setContractSignLine\(contractId, t\('contractSignDeniedSigned'\), 'error'\);/.test(signHandler)
+  && fallbackSays('contractSignDeniedSigned', 'This contract is already signed.')
+  && !/\balert\(/.test(signHandler));
 
 console.log('\n#70 — client-view opens the sealed PDF through the signed-URL helper');
 ok('the contract row routes through downloadSealedContractPdf (contract.userId folder)',
@@ -401,7 +407,9 @@ ok('renderChangeOrders reads the overlay\'s clientDecision (localStorage only su
   /var decided = coDecisionFor\(c\);/.test(html) && /var cd = c\.clientDecision;/.test(html) && !/var locallyDecided = loadCODecision\(c\.id\);/.test(html));
 ok('recorded:false reads "Already decided on another device: <decision> by <signer>", no confetti',
   /'Already decided on another device: ' \+ word \+ \(d\.signer \? ' by ' \+ d\.signer : ''\)/.test(html)
-  && /if \(res\.recorded === false\) \{[\s\S]{0,700}refreshPortalSnapshot\(\);\s*return;\s*\}/.test(html));
+  && /if \(res\.recorded === false\) \{[\s\S]{0,1000}refreshPortalSnapshot\(\);\s*return;\s*\}/.test(html)
+  // W3: on the approve slide the line says it was not recorded and locks (no seal).
+  && /if \(isApprove\) ui\.refused\(t\('esignCONotRecorded'\), true\); else ui\.close\(\);/.test(html));
 ok('the legacy RPC\'s answer is passed through too', /if \(legacyRes && legacyRes\.recorded === false\) return legacyRes;/.test(html));
 
 // ═══ carry #72 + portal-server — the reconciler ═════════════════════════════

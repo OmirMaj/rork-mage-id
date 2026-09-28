@@ -45,6 +45,23 @@ import QuickUpdateClarifier, {
   type ClarifierAction,
   type ClarifierResult,
 } from '@/components/QuickUpdateClarifier';
+import { useT } from '@/contexts/LanguageContext';
+
+/**
+ * "{count} tasks" as the three children the pre-i18n JSX rendered
+ * (`{n} {n === 1 ? 'task' : 'tasks'}`): the number, a space, the word. Still
+ * ONE key (tn); only the rendering is split, so the element tree is unchanged.
+ */
+function countChildren(template: string, n: number): (string | number)[] {
+  const out: (string | number)[] = [];
+  for (const part of template.split(/(\{count\})/)) {
+    if (part === '{count}') { out.push(n); continue; }
+    if (!part) continue;
+    const lead = /^(\s)([\s\S]+)$/.exec(part);
+    if (lead) out.push(lead[1], lead[2]); else out.push(part);
+  }
+  return out;
+}
 
 /**
  * Home-screen quick field update widget.
@@ -122,6 +139,9 @@ function rankTasksForQuery(tasks: ScheduleTask[], query: string): string[] {
 }
 
 export default function QuickFieldUpdate() {
+  // Spanish Phase 1b (W3 ESSHELL, field.home.qfu.*). What he types, the task
+  // names and the note text written onto the task stay as written.
+  const { t, tn } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projects, updateProject } = useProjects();
@@ -252,7 +272,7 @@ export default function QuickFieldUpdate() {
 
       const writePath = scheduleWritePathForRole(project.myRole);
       if (writePath === 'none') {
-        return { ok: false, message: `Not saved — you have view-only access to ${project.name}. Ask the project owner for field or editor access.` };
+        return { ok: false, message: t('field.home.qfu.viewOnly', 'Not saved — you have view-only access to {project}. Ask the project owner for field or editor access.', { project: project.name }) };
       }
       // Field: a cleared actual (reopening a finished task) goes out as null —
       // the RPC's "remove this key"; JSON would silently drop an undefined.
@@ -262,7 +282,7 @@ export default function QuickFieldUpdate() {
         const sent = await sendFieldTaskPatches(supabase, project.id, [fieldPatch]);
         if (!sent.ok) return { ok: false, message: sent.message };
         if (sent.missing.includes(task.id)) {
-          return { ok: false, message: `Not saved — ${task.title} is no longer on this schedule. Pull to refresh and try again.` };
+          return { ok: false, message: t('field.home.qfu.taskGone', 'Not saved — {task} is no longer on this schedule. Pull to refresh and try again.', { task: task.title }) };
         }
         // Local copy = what the server now holds. This also enqueues the usual
         // row PATCH, which projects_update refuses for field (0 rows, nothing
@@ -282,16 +302,16 @@ export default function QuickFieldUpdate() {
         case 'update_progress':
           return { ok: true, message: `${task.title} → ${patch.progress}%` };
         case 'mark_complete':
-          return { ok: true, message: `${task.title} marked complete` };
+          return { ok: true, message: t('field.home.qfu.markedComplete', '{task} marked complete', { task: task.title }) };
         case 'start_task':
-          return { ok: true, message: `${task.title} → in progress` };
+          return { ok: true, message: t('field.home.qfu.inProgress', '{task} → in progress', { task: task.title }) };
         case 'add_note':
-          return { ok: true, message: `Note added to ${task.title}` };
+          return { ok: true, message: t('field.home.qfu.noteAdded', 'Note added to {task}', { task: task.title }) };
         case 'log_issue':
-          return { ok: true, message: `Issue logged on ${task.title}` };
+          return { ok: true, message: t('field.home.qfu.issueLogged', 'Issue logged on {task}', { task: task.title }) };
       }
     },
-    [updateProject],
+    [updateProject, t],
   );
 
   /**
@@ -303,7 +323,7 @@ export default function QuickFieldUpdate() {
   const evaluateParse = useCallback(
     async (parsed: ParsedVoiceCommand, project: Project): Promise<ParseOutcome> => {
       const schedule = project.schedule;
-      if (!schedule) return { kind: 'applied', message: 'No schedule on this project.' };
+      if (!schedule) return { kind: 'applied', message: t('field.home.qfu.noSchedule', 'No schedule on this project.') };
       const tasks = schedule.tasks;
 
       // Fuzzy-find a task by the parser's reported taskName.
@@ -398,7 +418,7 @@ export default function QuickFieldUpdate() {
       const result = await applyUpdate(project, task, clarifierAction, parsed.value, parsed.text);
       return result.ok ? { kind: 'applied', message: result.message } : { kind: 'refused', message: result.message };
     },
-    [applyUpdate, text],
+    [applyUpdate, text, t],
   );
 
   const openClarifier = useCallback((seed: ClarifierSeed) => {
@@ -410,7 +430,7 @@ export default function QuickFieldUpdate() {
     const input = text.trim();
     if (!input) return;
     if (!selectedProject || !selectedProject.schedule) {
-      setFeedback({ kind: 'error', message: 'Pick a project with a schedule first.' });
+      setFeedback({ kind: 'error', message: t('field.home.qfu.pickProject', 'Pick a project with a schedule first.') });
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -457,7 +477,7 @@ export default function QuickFieldUpdate() {
     } finally {
       setParsing(false);
     }
-  }, [text, selectedProject, evaluateParse, openClarifier]);
+  }, [text, selectedProject, evaluateParse, openClarifier, t]);
 
   const handleClarifierSubmit = useCallback(
     async (result: ClarifierResult) => {
@@ -517,7 +537,7 @@ export default function QuickFieldUpdate() {
         <View style={styles.titleIconWrap}>
           <MageAIMark size={14} color={themeColors.accent} />
         </View>
-        <Text style={styles.title}>Quick field update</Text>
+        <Text style={styles.title}>{t('field.home.qfu.title', 'Quick field update')}</Text>
       </View>
 
       <TouchableOpacity
@@ -545,7 +565,7 @@ export default function QuickFieldUpdate() {
             setText(v);
             if (feedback) setFeedback(null);
           }}
-          placeholder='e.g. "drywall done floor 3" or "framing 80%"'
+          placeholder={t('field.home.qfu.placeholder', 'e.g. "drywall done floor 3" or "framing 80%"')}
           placeholderTextColor={themeColors.textMuted}
           editable={!parsing}
           returnKeyType="send"
@@ -632,7 +652,7 @@ export default function QuickFieldUpdate() {
       >
         <Pressable style={[styles.pickerOverlay, fPick.overlay]} onPress={() => setShowPicker(false)}>
           <Pressable style={[styles.pickerCard, fPick.card]} onPress={() => undefined}>
-            <Text style={styles.pickerTitle}>Project</Text>
+            <Text style={styles.pickerTitle}>{t('field.home.qfu.project', 'Project')}</Text>
             {projectsWithSchedule.map((p) => {
               const isSelected = p.id === (selectedProject?.id ?? '');
               return (
@@ -655,7 +675,7 @@ export default function QuickFieldUpdate() {
                     {p.name}
                   </Text>
                   <Text style={styles.pickerRowMeta}>
-                    {p.schedule?.tasks.length ?? 0} {(p.schedule?.tasks.length ?? 0) === 1 ? 'task' : 'tasks'}
+                    {countChildren(tn('field.home.qfu.taskCount', p.schedule?.tasks.length ?? 0, { one: '{count} task', other: '{count} tasks' }, { count: '{count}' }), p.schedule?.tasks.length ?? 0)}
                   </Text>
                 </TouchableOpacity>
               );

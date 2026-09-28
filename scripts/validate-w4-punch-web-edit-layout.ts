@@ -248,7 +248,7 @@ console.log('\nD. the screen and the pane');
   const reset = between(src, 'const resetForm = useCallback(', '}, [activeList]);');
   const openEdit = between(src, 'const openEditForm = useCallback(', '}, [pickerSubs');
   ok('resetForm and openEditForm both start the photo change at keep', /setPhotoEdit\(\{ kind: 'keep' \}\)/.test(reset) && /setPhotoEdit\(\{ kind: 'keep' \}\)/.test(openEdit));
-  const pick = between(src, 'const pickPanePhoto = useCallback(', '}, [editingItem, attachNewItemPhoto]);');
+  const pick = between(src, 'const pickPanePhoto = useCallback(', '}, [editingItem, attachNewItemPhoto, t]);');
   const attach = between(src, 'const attachNewItemPhoto = useCallback(', '}, []);');
   ok('picking on an existing item is a pending replace; on a new item it drops the gallery link',
     /setPhotoEdit\(\{ kind: 'replace', uri, mimeType: asset\?\.mimeType \?\? null \}\)/.test(pick) && /attachNewItemPhoto\(uri, undefined\)/.test(pick)

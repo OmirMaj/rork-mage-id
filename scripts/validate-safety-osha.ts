@@ -573,7 +573,7 @@ ok('the DFR captures the incident TYPE',
   'genuine near-miss becomes a candidate 300 case.');
 ok('leaving the injury type clears the medical answers it hides',
   /Leaving injury clears the medical answers with it/.test(dfrSrc)
-    && /\.\.\.\(t === 'injury' \? null : \{/.test(dfrSrc),
+    && /\.\.\.\(kind === 'injury' \? null : \{/.test(dfrSrc),
   'a stale fatality:true from a mis-tap short-circuits the classifier into "Recordable — ' +
   'fatality" on a property-damage event, with no control left on screen to untick it.');
 ok('the stored oshaRecordable is the computed verdict',

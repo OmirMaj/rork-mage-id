@@ -41,7 +41,7 @@ import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
-import { LanguageProvider } from "@/contexts/LanguageContext";
+import { LanguageProvider, useT } from "@/contexts/LanguageContext";
 import { LanguageProfileSync } from "@/components/LanguageProfileSync";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { TutorialHost } from "@/components/tutorial/TutorialHost";
@@ -50,7 +50,6 @@ import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import { useQuickActionRouting } from "expo-quick-actions/router";
-import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomPrimary, legacyChrome } from "@/constants/colors";
 import { THEME_PRESETS } from "@/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -519,8 +518,41 @@ const NO_STACK_MOTION = {};
  *  tablet at >= 1024 included — and a phone-width browser). */
 const NO_HEADER_OVERRIDE = {} as const;
 
+/**
+ * The native header titles (and so the back-button labels) of the Phase 1
+ * field screens — the screens a foreman moves through — in the app language
+ * (Spanish Phase 1b, W3 ESSHELL; keys nav.title.*, surface field.shell). A
+ * hook, not a constant: the language is read at render, never frozen at
+ * import. It lives outside RootLayoutNav only because `t` there names the
+ * theme colours. Every other title stays English (office screens, Phase 2+).
+ * scripts/validate-shell-i18n.ts pins the table: route, key, English.
+ */
+function useFieldScreenTitles() {
+  const { t } = useT();
+  return React.useMemo(() => ({
+    dailyReport: t('nav.title.dailyReport', 'Daily report'),
+    punchList: t('nav.title.punchList', 'Punch list'),
+    timeTracking: t('nav.title.timeTracking', 'Time tracking'),
+    crew: t('nav.title.crew', 'Crew'),
+    safety: t('nav.title.safety', 'Safety'),
+    safetyJha: t('nav.title.safetyJha', 'JHAs'),
+    safetyToolbox: t('nav.title.safetyToolbox', 'Toolbox talks'),
+    safetyIncidents: t('nav.title.safetyIncidents', 'Incidents'),
+    safetyHazards: t('nav.title.safetyHazards', 'Hazard log'),
+    safetyInspections: t('nav.title.safetyInspections', 'Inspections'),
+    safetyCertifications: t('nav.title.safetyCertifications', 'Certifications'),
+    safetyForms: t('nav.title.safetyForms', 'Forms library'),
+    safetyOsha: t('nav.title.safetyOsha', 'OSHA 300 log'),
+    photoTriage: t('nav.title.photoTriage', 'Photo triage'),
+    materialReceipt: t('nav.title.materialReceipt', 'Material receipt'),
+    deliveries: t('nav.title.deliveries', 'Deliveries'),
+    tomorrowLineup: t('nav.title.tomorrowLineup', "Tomorrow's lineup"),
+  }), [t]);
+}
+
 function RootLayoutNav() {
   const router = useRouter();
+  const fieldTitle = useFieldScreenTitles();
   const segments = useSegments();
   const pathname = usePathname();
   // usePathname() carries NO query string, so the pending-link stash below
@@ -948,7 +980,7 @@ function RootLayoutNav() {
       <Stack.Screen name="bid-leveling" options={{ title: 'Bid leveling', headerShown: false }} />
       <Stack.Screen name="win-optimizer" options={{ title: 'Win optimizer', headerShown: false }} />
       <Stack.Screen name="smart-proposal" options={{ title: 'Smart proposal', headerShown: false }} />
-      <Stack.Screen name="material-receipt" options={{ title: 'Material receipt', headerShown: false }} />
+      <Stack.Screen name="material-receipt" options={{ title: fieldTitle.materialReceipt, headerShown: false }} />
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner', headerShown: false }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan intelligence', headerShown: false }} />
       {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
@@ -963,12 +995,12 @@ function RootLayoutNav() {
       {/* AI tool doors render their own ToolHeader chrome (sim-audit #5) —
           headerShown:false here so the default RN header never flashes in. */}
       <Stack.Screen name="ai-punch" options={{ headerShown: false }} />
-      <Stack.Screen name="photo-triage" options={{ title: 'Photo triage' }} />
+      <Stack.Screen name="photo-triage" options={{ title: fieldTitle.photoTriage }} />
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
       <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC export' }} />
       <Stack.Screen name="insurance-audit" options={{ title: 'Insurance audit pack', headerShown: false }} />
-      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's lineup", headerShown: false }} />
+      <Stack.Screen name="tomorrow-lineup" options={{ title: fieldTitle.tomorrowLineup, headerShown: false }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"
@@ -1043,26 +1075,26 @@ function RootLayoutNav() {
       <Stack.Screen
         name="daily-report"
         options={{
-          title: "Daily report",
+          title: fieldTitle.dailyReport,
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="punch-list"
         options={{
-          title: "Punch list",
+          title: fieldTitle.punchList,
           ...headerTitled,
         }}
       />
-      <Stack.Screen name="safety" options={{ title: 'Safety' }} />
-      <Stack.Screen name="safety-jha" options={{ title: 'JHAs' }} />
-      <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox talks' }} />
-      <Stack.Screen name="safety-incidents" options={{ title: 'Incidents' }} />
-      <Stack.Screen name="safety-hazards" options={{ title: 'Hazard log' }} />
-      <Stack.Screen name="safety-inspections" options={{ title: 'Inspections' }} />
-      <Stack.Screen name="safety-certifications" options={{ title: 'Certifications' }} />
-      <Stack.Screen name="safety-forms" options={{ title: 'Forms library' }} />
-      <Stack.Screen name="safety-osha" options={{ title: 'OSHA 300 log' }} />
+      <Stack.Screen name="safety" options={{ title: fieldTitle.safety }} />
+      <Stack.Screen name="safety-jha" options={{ title: fieldTitle.safetyJha }} />
+      <Stack.Screen name="safety-toolbox" options={{ title: fieldTitle.safetyToolbox }} />
+      <Stack.Screen name="safety-incidents" options={{ title: fieldTitle.safetyIncidents }} />
+      <Stack.Screen name="safety-hazards" options={{ title: fieldTitle.safetyHazards }} />
+      <Stack.Screen name="safety-inspections" options={{ title: fieldTitle.safetyInspections }} />
+      <Stack.Screen name="safety-certifications" options={{ title: fieldTitle.safetyCertifications }} />
+      <Stack.Screen name="safety-forms" options={{ title: fieldTitle.safetyForms }} />
+      <Stack.Screen name="safety-osha" options={{ title: fieldTitle.safetyOsha }} />
       <Stack.Screen
         name="punch-walk"
         options={{ headerShown: false }}
@@ -1099,7 +1131,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="crew"
         options={{
-          title: "Crew",
+          title: fieldTitle.crew,
           ...headerTitled,
         }}
       />
@@ -1203,7 +1235,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="deliveries"
-        options={{ headerShown: false, title: 'Deliveries' }}
+        options={{ headerShown: false, title: fieldTitle.deliveries }}
       />
       <Stack.Screen
         name="building-access"
@@ -1460,7 +1492,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="time-tracking"
         options={{
-          title: "Time tracking",
+          title: fieldTitle.timeTracking,
           ...headerTitled,
         }}
       />
@@ -1885,8 +1917,8 @@ export default Sentry.wrap(function RootLayout() {
                               <RootLayoutNav />
                               <BrainSurface />
                               {/* Learn-by-doing tutorials: the coach-mark engine's
-                                  root layer (zIndex 9500 — above NailItToast,
-                                  below Confetti; AlertHost is a Modal and draws
+                                  root layer (zIndex 9500 — above NailItToast;
+                                  AlertHost is a Modal and draws
                                   above it). Renders null when no tutorial runs. */}
                               <TutorialHost />
                               <GlobalOfflineSyncPill />
@@ -1895,7 +1927,6 @@ export default Sentry.wrap(function RootLayout() {
                                   no-op. Must stay mounted app-wide. */}
                               <AlertHost />
                               <NailItToastHost />
-                              <ConfettiHost />
                             </ShellDockTenantScope>
                             </SearchProvider>
                             </AutonomyProvider>

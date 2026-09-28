@@ -1,6 +1,13 @@
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import type { DailyFieldReport, ProjectPhoto } from '@/types';
+import { getLang } from '@/i18n/core';
+import type { Lang } from '@/i18n/types';
+
+// Spanish (wave-next W3): a Spanish-language user's transcript may be Spanish
+// or mixed. Appended ONLY for 'es' so the English prompt is byte-identical;
+// the schema's field keys and value shapes are unchanged.
+export const DFR_SPANISH_TRANSCRIPT_LINE = 'The transcript may be Spanish or mixed Spanish and English. Write field values in Spanish.';
 
 const DFRSchema = z.object({
   weather: z.object({
@@ -46,13 +53,14 @@ export async function parseDFRFromTranscript(
   transcript: string,
   _projectId: string,
   photos?: ProjectPhoto[],
+  lang: Lang = getLang(),
 ): Promise<Partial<DailyFieldReport>> {
   console.log('[VoiceDFR] Parsing transcript into DFR fields' + (photos?.length ? ` with ${photos.length} photo(s)` : ''));
 
   try {
     const photoCtx = buildPhotoContext(photos);
     const aiResult = await mageAI({
-      prompt: `You are a construction daily field report parser. Extract structured data from this voice transcript of a field worker describing their day on a construction site. Extract: weather conditions, manpower headcount by trade, work performed description, materials delivered, and any issues or delays mentioned. Be thorough but only extract what was actually said.${photoCtx}\n\nTranscript:\n${transcript}`,
+      prompt: `You are a construction daily field report parser. Extract structured data from this voice transcript of a field worker describing their day on a construction site. Extract: weather conditions, manpower headcount by trade, work performed description, materials delivered, and any issues or delays mentioned. Be thorough but only extract what was actually said.${lang === 'es' ? ` ${DFR_SPANISH_TRANSCRIPT_LINE}` : ''}${photoCtx}\n\nTranscript:\n${transcript}`,
       schema: DFRSchema,
       tier: 'fast',
     });

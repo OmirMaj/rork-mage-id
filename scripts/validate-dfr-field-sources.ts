@@ -128,8 +128,8 @@ console.log('\n#10 crew roster from the time clock:');
   ok('the screen shows the warning on the roster, after save, and before send',
     /const liveHoursWarning = useMemo\(\(\) => liveClockHoursWarning\(clockCrew, manpower\), \[clockCrew, manpower\]\);/.test(DFR)
     && /testID="dfr-live-hours-warning"/.test(DFR)
-    && /if \(!silent && liveHoursWarning\) showAlert\('Saved with hours so far', liveHoursWarning\);/.test(DFR)
-    && /if \(liveHoursWarning\) \{\s*showAlert\('Crew still on the clock'/.test(DFR));
+    && /if \(!silent && liveHoursWarning\) showAlert\(t\('field\.dfr\.savedWithHoursSo', 'Saved with hours so far'\), liveHoursWarning\);/.test(DFR)
+    && /if \(liveHoursWarning\) \{\s*showAlert\(t\('field\.dfr\.crewStillOnThe', 'Crew still on the clock'\)/.test(DFR));
   ok('open-shift hours keep counting while the screen is open',
     /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule, shiftAlertHours\)/.test(DFR)
     && /setInterval\(\(\) => setLiveNowMs\(Date\.now\(\)\), 60_000\)/.test(DFR));

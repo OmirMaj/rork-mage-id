@@ -32,7 +32,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(HERE, '..');
-const REQUIRED = ['capsule', 'signline', 'adapters', 'step0', 'rules'];
+const REQUIRED = ['capsule', 'signline', 'adapters', 'step0', 'rules', 'portal'];
 
 export interface MomentsCtx {
   ok(name: string, cond: boolean, detail?: string): void;

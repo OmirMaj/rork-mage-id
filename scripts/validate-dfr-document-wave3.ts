@@ -323,11 +323,11 @@ console.log('\n#27 web: no project-files copy, Print instead, never "sent" on no
       && P.dfrDelivered({ wantsEmail: false, emailSent: false, fileSaved: true }) === true
       && P.dfrDelivered({ wantsEmail: false, emailSent: false, fileSaved: false }) === false);
   ok('the send handler goes through dfrSendPlan and dfrDelivered',
-    /const plan = dfrSendPlan\(\{ email: sendRecipientEmail, saveToggle: saveToProjectFiles, os: Platform\.OS \}\);/.test(DFR_CODE)
+    /const plan = dfrSendPlan\(\{ email: sendRecipientEmail, saveToggle: saveToProjectFiles, os: Platform\.OS \}, t\);/.test(DFR_CODE)
       && /if \(!dfrDelivered\(\{ wantsEmail, emailSent, fileSaved \}\)\)/.test(DFR_CODE)
       && !/let delivered = wantsEmail;/.test(DFR_CODE));
   ok('the web row is disabled with the reason and a Print button',
-    /testID="dfr-project-files-web-disabled"/.test(DFR_CODE) && /\{DFR_FILES_NEEDS_APP\}/.test(DFR_CODE) && /onPress=\{handlePrintCopy\}/.test(DFR_CODE));
+    /testID="dfr-project-files-web-disabled"/.test(DFR_CODE) && /\{t\('field\.dfr\.send\.filesNeedApp', 'Saving a PDF to project files needs the mobile app — use Print to keep a copy\.'\)\}/.test(DFR_CODE) && /onPress=\{handlePrintCopy\}/.test(DFR_CODE));
   ok('the screen and projectDocuments give the same reason', P.DFR_FILES_NEEDS_APP === docs.PROJECT_FILES_NEEDS_APP);
   ok('projectDocuments no longer opens a print tab before throwing on web',
     !/printHtmlDocument/.test(DOCS_CODE) && /if \(Platform\.OS === 'web'\) \{\s*throw new Error\(PROJECT_FILES_NEEDS_APP\);/.test(DOCS_CODE));
@@ -424,7 +424,7 @@ console.log('\n#25 round 1: incident photos stay off the client-linked record:')
   const sent = P.dfrPhotoMarkupTarget({ photoId: 'a', galleryIds: ['a'], reportSent: true }) as { action: string; lockedNote?: string };
   ok('markup on a sent report says it will not change what went out', sent.action === 'annotate' && /not the report that went out/.test(sent.lockedNote ?? ''));
   ok('the tile asks before opening the annotator on a sent report',
-    /reportSent: reportIsSent/.test(DFR_CODE) && /if \(target\.lockedNote\) \{\s*showAlert\('This report was already sent', target\.lockedNote/.test(DFR_CODE));
+    /reportSent: reportIsSent/.test(DFR_CODE) && /if \(target\.lockedNote\) \{\s*showAlert\(t\('field\.dfr\.thisReportWasAlready', 'This report was already sent'\), target\.lockedNote/.test(DFR_CODE));
 }
 
 // ── #124 a blocked window throws ─────────────────────────────────────────────

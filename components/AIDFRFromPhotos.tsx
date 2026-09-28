@@ -14,6 +14,7 @@ import { generateDFRFromPhotos } from '@/utils/voiceDFRParser';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError } from '@/utils/errorCopy';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   projectName: string;
@@ -32,6 +33,7 @@ interface Props {
 export default React.memo(function AIDFRFromPhotos({
   projectName, weatherStr, photos, onGenerated, isLocked, onLockedPress,
 }: Props) {
+  const { t, tn } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(photos.slice(0, 12).map(p => p.id)));
@@ -80,11 +82,11 @@ export default React.memo(function AIDFRFromPhotos({
       // normal, and the narrative stays blank — no way to tell a dropped signal
       // from a tier cap from a dead feature (audit 2026-09-07, ai-features).
       console.warn('[AIDFRFromPhotos] generation failed', err);
-      setError(describeError(err, { action: 'draft from those photos' }).body);
+      setError(describeError(err, { action: 'draft from those photos', title: t('field.dfr.aiPhotos.errorTitle', "Couldn't draft from the photos") }).body);
     } finally {
       setLoading(false);
     }
-  }, [loading, isLocked, onLockedPress, selectedPhotos, weatherStr, projectName, onGenerated]);
+  }, [loading, isLocked, onLockedPress, selectedPhotos, weatherStr, projectName, onGenerated, t]);
 
   if (sortedPhotos.length === 0) {
     return null;
@@ -97,9 +99,9 @@ export default React.memo(function AIDFRFromPhotos({
           <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Draft from today&apos;s photos</Text>
+          <Text style={styles.title}>{t('field.dfr.aiPhotos.title', "Draft from today's photos")}</Text>
           <Text style={styles.subtitle}>
-            Pick the photos to include. MAGE drafts the work narrative from them.
+            {t('field.dfr.aiPhotos.subtitle', 'Pick the photos to include. MAGE drafts the work narrative from them.')}
           </Text>
         </View>
         <Text style={styles.count}>{selected.size}/{sortedPhotos.length}</Text>
@@ -157,10 +159,10 @@ export default React.memo(function AIDFRFromPhotos({
         )}
         <Text style={styles.btnText}>
           {loading
-            ? 'Drafting from photos…'
+            ? t('field.dfr.aiPhotos.drafting', 'Drafting from photos…')
             : error
-              ? 'Try again'
-              : `Draft from ${selected.size} photo${selected.size === 1 ? '' : 's'}`}
+              ? t('field.dfr.aiPhotos.tryAgain', 'Try again')
+              : tn('field.dfr.aiPhotos.draftFrom', selected.size, { one: 'Draft from {count} photo', other: 'Draft from {count} photos' })}
         </Text>
       </TouchableOpacity>
     </View>

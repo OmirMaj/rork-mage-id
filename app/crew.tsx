@@ -31,10 +31,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified } from '@/utils/crew';
-import { idExpiredLabel, crewCertRowStatus, type CrewCertRowStatus } from '@/utils/crew/verifiedBadge';
+import { crewCertRowStatus, type CrewCertRowStatus } from '@/utils/crew/verifiedBadge';
 import { scanGovernmentId, sendClaimInvite, type IdScanResult } from '@/utils/crewScan';
 import { uploadWorkerIdImage, deleteStorageFile } from '@/utils/storage';
-import { todayCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -45,6 +45,9 @@ import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
 import { CrewRegister } from '@/components/registers/CrewRegister';
 import { useRegisterRecordDirty } from '@/components/registers/RegisterRecordHost';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
+import { LANGUAGE_PICKER_ENABLED } from '@/i18n/flags';
 
 export default function CrewScreen() {
   const router = useRouter();
@@ -109,6 +112,7 @@ export function ClaimedWorkerSelfView({
   header?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -123,7 +127,7 @@ export function ClaimedWorkerSelfView({
           this route in app/_layout.tsx) already prints the screen name, so an
           in-page copy of it rendered the same word twice, stacked. The title
           belongs to the header; the body starts with content. */}
-      {!embedded && <Stack.Screen options={{ title: 'My profile' }} />}
+      {!embedded && <Stack.Screen options={{ title: t('field.crew.myProfile', 'My profile') }} />}
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {header}
         {members.map(m => (
@@ -143,6 +147,7 @@ function SelfEditCard({
   styles: ReturnType<typeof makeStyles>;
   themeColors: ThemeColors;
 }) {
+  const { t } = useT();
   const [phone, setPhone] = useState(member.phone ?? '');
   const [email, setEmail] = useState(member.email ?? '');
   const [tradesText, setTradesText] = useState(member.trades.join(', '));
@@ -156,8 +161,8 @@ function SelfEditCard({
       isPublic,
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Saved', 'Your profile has been updated.');
-  }, [member.id, phone, email, tradesText, isPublic, onSave]);
+    showAlert(t('field.crew.saved', 'Saved'), t('field.crew.yourProfileHasBeen', 'Your profile has been updated.'));
+  }, [member.id, phone, email, tradesText, isPublic, onSave, t]);
 
   return (
     <View style={[styles.crewCard, { flexDirection: 'column', alignItems: 'stretch', gap: 14 }]}>
@@ -167,30 +172,30 @@ function SelfEditCard({
           <IdBadgeChip member={member} styles={styles} themeColors={themeColors} />
           <View style={styles.claimedChip}>
             <UserCheck size={12} color={themeColors.success} strokeWidth={2} />
-            <Text style={styles.claimedChipText}>Claimed</Text>
+            <Text style={styles.claimedChipText}>{t('field.crew.claimed', 'Claimed')}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.fieldLabel}>Phone</Text>
+        <Text style={styles.fieldLabel}>{t('field.crew.phone', 'Phone')}</Text>
         <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
-        <Text style={styles.fieldLabel}>Email</Text>
+        <Text style={styles.fieldLabel}>{t('field.crew.email', 'Email')}</Text>
         <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
-        <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
-        <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} />
+        <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
+        <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
       </View>
 
       <View style={styles.retainRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.retainLabel}>Show me for hire</Text>
+          <Text style={styles.retainLabel}>{t('field.crew.showMeForHire', 'Show me for hire')}</Text>
           {/* #170: HIRE_ENABLED is off, so no contractor can find anyone yet.
               The switch stays — is_public is exactly what surfacing reads the
               day the flag flips — but it must not read as live. */}
           <Text style={styles.retainHelp}>
             {HIRE_ENABLED
-              ? 'Controls whether your profile can appear in the hiring marketplace.'
-              : 'Direct hire isn\u2019t open yet. Turn this on to be listed when it opens.'}
+              ? t('field.crew.controlsWhetherYourProfile', 'Controls whether your profile can appear in the hiring marketplace.')
+              : t('field.crew.directHireIsntOpen', 'Direct hire isn’t open yet. Turn this on to be listed when it opens.')}
           </Text>
         </View>
         <Switch
@@ -202,7 +207,7 @@ function SelfEditCard({
       </View>
 
       <TouchableOpacity style={[styles.saveBtn, { flex: 0 }]} onPress={handleSave} activeOpacity={0.85} testID="self-save">
-        <Text style={styles.saveBtnText}>Save</Text>
+        <Text style={styles.saveBtnText}>{t('field.crew.save', 'Save')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -218,12 +223,13 @@ function IdBadgeChip({
   styles: ReturnType<typeof makeStyles>;
   themeColors: ThemeColors;
 }) {
+  const { t } = useT();
   const badge = verifiedBadge(member, todayCalendarDay());
   if (badge === 'id_verified') {
     return (
       <View style={styles.verifiedChip}>
         <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
-        <Text style={styles.verifiedChipText}>ID Verified</Text>
+        <Text style={styles.verifiedChipText}>{t('field.crew.idVerified', 'ID Verified')}</Text>
       </View>
     );
   }
@@ -231,7 +237,7 @@ function IdBadgeChip({
     return (
       <View style={styles.expiredChip}>
         <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
-        <Text style={styles.expiredChipText}>{idExpiredLabel(member.idExpiry)}</Text>
+        <Text style={styles.expiredChipText}>{idExpiredText(member.idExpiry)}</Text>
       </View>
     );
   }
@@ -239,6 +245,7 @@ function IdBadgeChip({
 }
 
 function CrewScreenInner() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -268,6 +275,7 @@ function CrewScreenInner() {
   const [tradesText, setTradesText] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [newLang, setNewLang] = useState<CrewLanguage>(null);
 
   // ── ID-scan sub-flow state ─────────────────────────────────────────────
   // SECURITY INVARIANT: the raw ID base64 is NEVER stored in state — it's passed
@@ -303,6 +311,8 @@ function CrewScreenInner() {
   const [editTrades, setEditTrades] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  // The language we send this crew member texts and invites in (null = not set → English).
+  const [editLang, setEditLang] = useState<CrewLanguage>(null);
   useEffect(() => { setEditOpen(false); setFocusEmail(false); }, [activeId]);
 
   // Once he has claimed his profile, phone / email / trades are HIS
@@ -318,6 +328,7 @@ function CrewScreenInner() {
     setEditTrades(member.trades.join(', '));
     setEditPhone(member.phone ?? '');
     setEditEmail(member.email ?? '');
+    setEditLang(member.preferredLanguage ?? null);
     setFocusEmail(focusOnEmail);
     setEditOpen(true);
   }, [member]);
@@ -325,10 +336,10 @@ function CrewScreenInner() {
   const handleSaveDetails = useCallback(() => {
     if (!member) return;
     const name = editName.trim();
-    if (!name) { showAlert('Name required'); return; }
+    if (!name) { showAlert(t('field.crew.nameRequired', 'Name required')); return; }
     const mail = editEmail.trim();
     if (!contactLocked && mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) {
-      showAlert('Check the email', `"${mail}" isn't a complete email address.`);
+      showAlert(t('field.crew.checkTheEmail', 'Check the email'), t('field.crew.isntACompleteEmail', '"{mail}" isn\'t a complete email address.', { mail }));
       return;
     }
     const changes: Partial<CrewMember> = { fullName: name };
@@ -337,11 +348,14 @@ function CrewScreenInner() {
       changes.phone = editPhone.trim() || undefined;
       changes.email = mail || undefined;
     }
+    // Sent only when the language row is on screen (LANGUAGE_PICKER_ENABLED)
+    // and only when it moved; CrewContext writes it as its own column.
+    if (LANGUAGE_PICKER_ENABLED && editLang !== (member.preferredLanguage ?? null)) changes.preferredLanguage = editLang;
     updateCrewMember(member.id, changes);
     setEditOpen(false);
     setFocusEmail(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [member, editName, editTrades, editPhone, editEmail, contactLocked, updateCrewMember]);
+  }, [member, editName, editTrades, editPhone, editEmail, editLang, contactLocked, updateCrewMember, t]);
 
   const handleSetActive = useCallback((active: boolean) => {
     if (!member) return;
@@ -377,7 +391,7 @@ function CrewScreenInner() {
     // catch below surfaces — do NOT branch on a daily counter to "fix" this.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
     if (!limit.allowed) {
-      showAlert('Scan limit reached', limit.message ?? 'Scan limit reached. See plans for more ID scans.');
+      showAlert(t('field.crew.scanLimitReached', 'Scan limit reached'), limit.message ?? t('field.crew.scanLimitReachedSee', 'Scan limit reached. See plans for more ID scans.'));
       return;
     }
     setScanStage('scanning');
@@ -390,24 +404,24 @@ function CrewScreenInner() {
       // CONTRACT 26 (#124): the server's own sentence, and a cap or a plan
       // gate goes to the plans page — "try again" would be refused again.
       const code = edgeErrorCode(e);
-      const message = e instanceof Error && e.message ? e.message : 'Try a clearer, well-lit photo.';
+      const message = e instanceof Error && e.message ? e.message : t('field.crew.scan.tryClearerPhoto', 'Try a clearer, well-lit photo.');
       if (code === 'monthly_cap_reached' || code === 'tier_required') {
         closeScan();
-        showAlert(code === 'tier_required' ? 'Not on your plan' : 'Scan limit reached', message, [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'See plans', onPress: () => router.push('/paywall') },
+        showAlert(code === 'tier_required' ? t('field.crew.notOnYourPlan', 'Not on your plan') : t('field.crew.scanLimitReached', 'Scan limit reached'), message, [
+          { text: t('field.crew.notNow', 'Not now'), style: 'cancel' },
+          { text: t('field.crew.seePlans', 'See plans'), onPress: () => router.push('/paywall') },
         ]);
         return;
       }
-      showAlert('Scan failed', message);
+      showAlert(t('field.crew.scanFailed', 'Scan failed'), message);
       setScanStage('capture');
     }
-  }, [subscription, closeScan, router]);
+  }, [subscription, closeScan, router, t]);
 
   const handleTakeIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      showAlert('Camera access needed', 'Grant camera permission in Settings.');
+      showAlert(t('field.crew.cameraAccessNeeded', 'Camera access needed'), t('field.crew.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
@@ -415,12 +429,12 @@ function CrewScreenInner() {
     const asset = result.assets[0];
     setCapturedUri(asset.uri);
     void runScan(asset.base64 ?? '');
-  }, [runScan]);
+  }, [runScan, t]);
 
   const handleChooseIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert('Photo access needed', 'Grant photo access in Settings to pick a photo.');
+      showAlert(t('field.crew.photoAccessNeeded', 'Photo access needed'), t('field.crew.grantPhotoAccessIn', 'Grant photo access in Settings to pick a photo.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -432,7 +446,7 @@ function CrewScreenInner() {
     const asset = result.assets[0];
     setCapturedUri(asset.uri);
     void runScan(asset.base64 ?? '');
-  }, [runScan]);
+  }, [runScan, t]);
 
   const handleSaveScan = useCallback(async () => {
     if (!scanTargetId || !scanFields) return;
@@ -478,22 +492,22 @@ function CrewScreenInner() {
       // He chose to keep the photo and it didn't upload. Say so, and no
       // success haptic for a save that didn't do what he asked.
       showAlert(
-        'ID photo not kept',
-        'Couldn\u2019t upload. You may be offline. Only the masked number and expiry were saved. Scan again with signal to keep the photo.',
+        t('field.crew.idPhotoNotKept', 'ID photo not kept'),
+        t('field.crew.couldntUploadYouMay', 'Couldn’t upload. You may be offline. Only the masked number and expiry were saved. Scan again with signal to keep the photo.'),
       );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember, getCrewMember]);
+  }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember, getCrewMember, t]);
 
   // Remove a wrong or outdated scan without deleting the worker (#165).
   const handleClearId = useCallback(() => {
     if (!member) return;
-    showAlert('Remove ID', `Remove the scanned ID from ${member.fullName}? The masked number, expiry and any kept photo are deleted.`, [
-      { text: 'Cancel', style: 'cancel' },
+    showAlert(t('field.crew.removeId', 'Remove ID'), t('field.crew.removeTheScannedId', 'Remove the scanned ID from {fullName}? The masked number, expiry and any kept photo are deleted.', { fullName: member.fullName }), [
+      { text: t('field.crew.cancel', 'Cancel'), style: 'cancel' },
       {
-        text: 'Remove',
+        text: t('field.crew.remove', 'Remove'),
         style: 'destructive',
         onPress: () => {
           const oldPath = member.idImagePath;
@@ -514,10 +528,10 @@ function CrewScreenInner() {
         },
       },
     ]);
-  }, [member, updateCrewMember]);
+  }, [member, updateCrewMember, t]);
 
   const handleAdd = useCallback(() => {
-    if (!fullName.trim()) { showAlert('Name required'); return; }
+    if (!fullName.trim()) { showAlert(t('field.crew.nameRequired', 'Name required')); return; }
     const now = new Date().toISOString();
     addCrewMember({
       id: generateUUID(),
@@ -531,10 +545,11 @@ function CrewScreenInner() {
       idVerified: false,
       isPublic: false,
       projectIds: [],
+      ...(LANGUAGE_PICKER_ENABLED && newLang ? { preferredLanguage: newLang } : {}),
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setAddOpen(false); setFullName(''); setTradesText(''); setPhone(''); setEmail('');
-  }, [fullName, tradesText, phone, email, addCrewMember]);
+    setAddOpen(false); setFullName(''); setTradesText(''); setPhone(''); setEmail(''); setNewLang(null);
+  }, [fullName, tradesText, phone, email, newLang, addCrewMember, t]);
 
   const handleToggleProject = useCallback((projectId: string) => {
     if (!member) return;
@@ -551,9 +566,9 @@ function CrewScreenInner() {
     if (!member.email) {
       // #71: the alert used to send him nowhere. 'Add email' opens the
       // editor with the email field focused.
-      showAlert('Add an email', `Add ${member.fullName}\u2019s email first. The claim link is sent there.`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Add email', onPress: () => openEditor(true) },
+      showAlert(t('field.crew.addAnEmail', 'Add an email'), t('field.crew.addSEmailFirst', 'Add {fullName}’s email first. The claim link is sent there.', { fullName: member.fullName }), [
+        { text: t('field.crew.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('field.crew.addEmail', 'Add email'), onPress: () => openEditor(true) },
       ]);
       return;
     }
@@ -561,15 +576,15 @@ function CrewScreenInner() {
       // Async: the token is read back from the server's row, so the link
       // carries the token the server actually stored (CrewContext).
       const token = await startClaimInvite(member.id);
-      if (!token) { showAlert('Couldn\u2019t start the invite', 'This crew member isn\u2019t on your crew list any more.'); return; }
+      if (!token) { showAlert(t('field.crew.couldntStartTheInvite', 'Couldn’t start the invite'), t('field.crew.thisCrewMemberIsnt', 'This crew member isn’t on your crew list any more.')); return; }
       const { companyName } = await sendClaimInvite(member.email, token, member.id);
       // #72: the invite now goes out in his company's name (read by the
       // server from his own profile) — say which name the worker will see.
       showAlert(
-        'Invite sent',
+        t('field.crew.inviteSent', 'Invite sent'),
         companyName
-          ? `${member.fullName} gets an email from ${companyName} to claim the profile.`
-          : `${member.fullName} gets an email from MAGE ID to claim the profile. Your profile has no company name yet, so it says \u201cYour contractor\u201d added them.`,
+          ? t('field.crew.getsAnEmailFrom', '{fullName} gets an email from {companyName} to claim the profile.', { fullName: member.fullName, companyName })
+          : t('field.crew.getsAnEmailFrom2', '{fullName} gets an email from MAGE ID to claim the profile. Your profile has no company name yet, so it says “Your contractor” added them.', { fullName: member.fullName }),
       );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -578,9 +593,9 @@ function CrewScreenInner() {
       // profile.") is the reason; retrying won't change it.
       const own = ownSentence(e);
       const copy = describeError(e, { action: 'send the invite' });
-      showAlert(own ? 'Couldn\u2019t send the invite' : copy.title, own ?? copy.body);
+      showAlert(own ? t('field.crew.couldntSendTheInvite', 'Couldn’t send the invite') : copy.title, own ?? copy.body);
     }
-  }, [member, startClaimInvite, openEditor]);
+  }, [member, startClaimInvite, openEditor, t]);
 
   const handleDelete = useCallback(() => {
     if (!member) return;
@@ -588,22 +603,24 @@ function CrewScreenInner() {
     // and it takes his certificate links and claim with it. Offer the
     // reversible option first.
     const buttons: AlertButton[] = [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('field.crew.cancel', 'Cancel'), style: 'cancel' },
     ];
     if (member.status !== 'inactive') {
-      buttons.push({ text: 'Mark inactive', onPress: () => handleSetActive(false) });
+      buttons.push({ text: t('field.crew.markInactive', 'Mark inactive'), onPress: () => handleSetActive(false) });
     }
     buttons.push({
-      text: 'Delete',
+      text: t('field.crew.delete', 'Delete'),
       style: 'destructive',
       onPress: () => { deleteCrewMember(member.id); setDetailId(null); if (isDesktopWeb) split.close(); },
     });
     showAlert(
-      'Delete crew member',
-      `Remove ${member.fullName} from your roster? Their ID and certificate links${member.claimedByUserId ? ' and claimed profile' : ''} are deleted too. To keep their history, mark them inactive instead.`,
+      t('field.crew.deleteCrewMember', 'Delete crew member'),
+      member.claimedByUserId
+        ? t('field.crew.deleteBodyClaimed', 'Remove {fullName} from your roster? Their ID and certificate links and claimed profile are deleted too. To keep their history, mark them inactive instead.', { fullName: member.fullName })
+        : t('field.crew.deleteBody', 'Remove {fullName} from your roster? Their ID and certificate links are deleted too. To keep their history, mark them inactive instead.', { fullName: member.fullName }),
       buttons,
     );
-  }, [member, deleteCrewMember, handleSetActive, isDesktopWeb, split]);
+  }, [member, deleteCrewMember, handleSetActive, isDesktopWeb, split, t]);
 
   // A LOCAL calendar day, read at render (#167). The UTC slice named
   // tomorrow from ~8 pm Eastern and called a card expired on its last valid
@@ -617,7 +634,7 @@ function CrewScreenInner() {
     <>
       <CrewDirtyProbe open={editOpen} />
       <View style={styles.detailHeader}>
-        <TouchableOpacity onPress={() => (isDesktopWeb ? split.close() : setDetailId(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={() => (isDesktopWeb ? split.close() : setDetailId(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.back', 'Back')}>
           <ChevronLeft size={24} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -634,54 +651,55 @@ function CrewScreenInner() {
             status 'inactive'; nothing ever set it. */}
         <View style={styles.retainRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.retainLabel}>{member.status === 'inactive' ? 'Inactive' : 'Active'}</Text>
+            <Text style={styles.retainLabel}>{member.status === 'inactive' ? t('field.crew.inactive', 'Inactive') : t('field.crew.active', 'Active')}</Text>
             <Text style={styles.retainHelp}>
-              Inactive crew members drop off Clock In and cert pickers. Their shifts and certs stay.
+              {t('field.crew.inactiveCrewMembersDrop', 'Inactive crew members drop off Clock In and cert pickers. Their shifts and certs stay.')}
             </Text>
           </View>
           <Switch
             value={member.status !== 'inactive'}
             onValueChange={handleSetActive}
             trackColor={{ true: themeColors.accent, false: themeColors.line }}
-            accessibilityLabel="Active"
+            accessibilityLabel={t('field.crew.active', 'Active')}
             testID="crew-active-switch"
           />
         </View>
 
         {/* Details (#71) */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Details</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.details', 'Details')}</Text>
           {editOpen ? (
             <>
-              <Text style={styles.fieldLabel}>Full name *</Text>
-              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
+              <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full name *')}</Text>
+              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder={t('field.crew.eGMariaGonzalez', 'e.g. Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
               {contactLocked ? (
                 <Text style={styles.lockedNote} testID="crew-contact-locked">
-                  They claimed their profile, so they manage their phone, email and trades.
+                  {t('field.crew.theyClaimedTheirProfile', 'They claimed their profile, so they manage their phone, email and trades.')}
                 </Text>
               ) : null}
-              <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
-              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
-              <Text style={styles.fieldLabel}>Phone</Text>
+              <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
+              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
+              <Text style={styles.fieldLabel}>{t('field.crew.phone', 'Phone')}</Text>
               <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editPhone} onChangeText={setEditPhone} editable={!contactLocked} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="crew-edit-phone" />
-              <Text style={styles.fieldLabel}>Email</Text>
+              <Text style={styles.fieldLabel}>{t('field.crew.email', 'Email')}</Text>
               <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editEmail} onChangeText={setEditEmail} editable={!contactLocked} autoFocus={focusEmail && !contactLocked} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" testID="crew-edit-email" />
+              <CrewLanguageRow value={editLang} onChange={setEditLang} testID="crew-edit-language" />
               <View style={styles.formActions}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setEditOpen(false); setFocusEmail(false); }} accessibilityRole="button">
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                  <Text style={styles.cancelBtnText}>{t('field.crew.cancel', 'Cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} activeOpacity={0.85} accessibilityRole="button" testID="crew-edit-save">
-                  <Text style={styles.saveBtnText}>Save details</Text>
+                  <Text style={styles.saveBtnText}>{t('field.crew.saveDetails', 'Save details')}</Text>
                 </TouchableOpacity>
               </View>
             </>
           ) : (
             <>
-              <Text style={styles.detailLine}>{member.phone || 'No phone'}</Text>
-              <Text style={styles.detailLine}>{member.email || 'No email'}</Text>
+              <Text style={styles.detailLine}>{member.phone || t('field.crew.noPhone', 'No phone')}</Text>
+              <Text style={styles.detailLine}>{member.email || t('field.crew.noEmail', 'No email')}</Text>
               <TouchableOpacity style={styles.scanBtn} onPress={() => openEditor(false)} activeOpacity={0.85} accessibilityRole="button" testID="edit-crew-details">
                 <Pencil size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.scanBtnText}>Edit details</Text>
+                <Text style={styles.scanBtnText}>{t('field.crew.editDetails', 'Edit details')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -690,7 +708,7 @@ function CrewScreenInner() {
         {/* Identity (#165: an ID can always be re-scanned, and an
             expired one says so instead of "ID Verified") */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Identity</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.identity', 'Identity')}</Text>
           {(() => {
             const badge = verifiedBadge(member, today);
             if (badge === 'id_verified') {
@@ -698,8 +716,9 @@ function CrewScreenInner() {
                 <View style={styles.identityVerifiedRow}>
                   <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
-                    ID Verified — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}
-                    {member.idExpiry ? `, exp ${member.idExpiry}` : ''}
+                    {member.idExpiry
+                      ? sentenceParts(t('field.crew.identity.verifiedExp', 'ID Verified — {issuer} ····{last4}, exp {expiry}', { issuer: '{issuer}', last4: '{last4}', expiry: '{expiry}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '', expiry: member.idExpiry }, ['expiry'])
+                      : [...sentenceParts(t('field.crew.identity.verified', 'ID Verified — {issuer} ····{last4}', { issuer: '{issuer}', last4: '{last4}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' }), '']}
                   </Text>
                 </View>
               );
@@ -709,12 +728,12 @@ function CrewScreenInner() {
                 <View style={styles.identityExpiredRow} testID="crew-id-expired">
                   <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
-                    {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan their current ID.
+                    {sentenceParts(t('field.crew.identity.expiredRescan', '{expired} — {issuer} ····{last4}. Re-scan their current ID.', { expired: '{expired}', issuer: '{issuer}', last4: '{last4}' }), { expired: idExpiredText(member.idExpiry), issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' })}
                   </Text>
                 </View>
               );
             }
-            return <Text style={styles.identityMutedText}>ID not verified</Text>;
+            return <Text style={styles.identityMutedText}>{t('field.crew.idNotVerified', 'ID not verified')}</Text>;
           })()}
           <TouchableOpacity
             style={styles.scanBtn}
@@ -723,32 +742,32 @@ function CrewScreenInner() {
             testID="scan-id"
           >
             <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? 'Re-scan ID' : 'Scan ID'}</Text>
+            <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? t('field.crew.reScanId', 'Re-scan ID') : t('field.crew.scanId', 'Scan ID')}</Text>
           </TouchableOpacity>
           {member.idVerified || member.idMaskedLast4 || member.idExpiry || member.idImagePath ? (
             <Text style={styles.clearIdLink} onPress={handleClearId} accessibilityRole="button" testID="clear-id">
-              Remove ID
+              {t('field.crew.removeId', 'Remove ID')}
             </Text>
           ) : null}
           <Text style={styles.disclaimer}>
-            MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
+            {t('field.crew.legal.idDisclaimer', 'MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.')}
           </Text>
         </View>
 
         {/* Certifications — person-anchored via Certification.workerId === member.id (Safety Wave B). */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Certifications</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.certifications', 'Certifications')}</Text>
           {(() => {
             const certs = getCertificationsForWorker(member.id);
             if (certs.length === 0) {
-              return <Text style={styles.emptyRowText}>No certifications on file yet.</Text>;
+              return <Text style={styles.emptyRowText}>{t('field.crew.noCertificationsOnFile', 'No certifications on file yet.')}</Text>;
             }
             return certs.map(cert => {
               const status = crewCertRowStatus(cert.expiresDate, certExpiryStatus(cert.expiresDate, today));
               return (
                 <View key={cert.id} style={styles.certRow}>
                   <Text style={styles.certName} numberOfLines={1}>{cert.type}</Text>
-                  <Text style={[styles.certStatus, CERT_STATUS_STYLE(themeColors)[status]]}>{CERT_STATUS_LABEL[status]}</Text>
+                  <Text style={[styles.certStatus, CERT_STATUS_STYLE(themeColors)[status]]}>{certStatusLabel(status)}</Text>
                 </View>
               );
             });
@@ -757,7 +776,7 @@ function CrewScreenInner() {
 
         {/* Assigned projects */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Assigned projects</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.assignedProjects', 'Assigned projects')}</Text>
           {member.projectIds.length > 0 ? (
             <View style={styles.chipWrap}>
               {projects.filter(p => member.projectIds.includes(p.id)).map(p => (
@@ -767,11 +786,11 @@ function CrewScreenInner() {
               ))}
             </View>
           ) : (
-            <Text style={styles.emptyRowText}>Not assigned to any project.</Text>
+            <Text style={styles.emptyRowText}>{t('field.crew.notAssignedToAny', 'Not assigned to any project.')}</Text>
           )}
           {projects.length > 0 ? (
             <>
-              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Assign to project</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>{t('field.crew.assignToProject', 'Assign to project')}</Text>
               <View style={styles.chipWrap}>
                 {projects.map(p => {
                   const on = member.projectIds.includes(p.id);
@@ -793,16 +812,16 @@ function CrewScreenInner() {
 
         {/* Claim */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Claim</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.claim', 'Claim')}</Text>
           {member.claimedByUserId ? (
             <View style={styles.claimedRow}>
               <UserCheck size={16} color={themeColors.success} strokeWidth={2} />
-              <Text style={styles.claimedRowText}>Claimed by this crew member.</Text>
+              <Text style={styles.claimedRowText}>{t('field.crew.claimedByThisCrew', 'Claimed by this crew member.')}</Text>
             </View>
           ) : (
             <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite} activeOpacity={0.85} testID="invite-claim">
               <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
-              <Text style={styles.inviteBtnText}>Invite to claim</Text>
+              <Text style={styles.inviteBtnText}>{t('field.crew.inviteToClaim', 'Invite to claim')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -810,7 +829,7 @@ function CrewScreenInner() {
         {/* Delete */}
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.85} testID="delete-crew-member">
           <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
-          <Text style={styles.deleteBtnText}>Delete crew member</Text>
+          <Text style={styles.deleteBtnText}>{t('field.crew.deleteCrewMember', 'Delete crew member')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </>
@@ -841,9 +860,9 @@ function CrewScreenInner() {
           detail={crewDetailBody ?? (
             <EmptyState
               icon={<IdCard size={28} color={themeColors.accent} strokeWidth={1.75} />}
-              title={crewLoading ? 'Loading…' : "This crew member isn't on your roster any more"}
-              message={crewLoading ? 'Your crew roster appears here once it loads.' : 'It may have been deleted. Pick another member from the list.'}
-              actionLabel="Close"
+              title={crewLoading ? t('field.crew.loading', 'Loading…') : t('field.crew.thisCrewMemberIsnt2', "This crew member isn't on your roster any more")}
+              message={crewLoading ? t('field.crew.register.loadingMessage', 'Your crew roster appears here once it loads.') : t('field.crew.register.goneMessage', 'It may have been deleted. Pick another member from the list.')}
+              actionLabel={t('field.crew.close', 'Close')}
               onAction={split.close}
             />
           )}
@@ -854,14 +873,14 @@ function CrewScreenInner() {
       ) : (<>
       <Stack.Screen
         options={{
-          title: 'Crew',
+          title: t('field.crew.title', 'Crew'),
           headerRight: () => (
             <TouchableOpacity
               onPress={() => setAddOpen(true)}
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
-              accessibilityLabel="Add crew member"
+              accessibilityLabel={t('field.crew.addCrewMember', 'Add crew member')}
               testID="add-crew-member"
             >
               <Plus size={22} color={themeColors.accentLabel} strokeWidth={2.25} />
@@ -881,15 +900,15 @@ function CrewScreenInner() {
                 live, and offer the door. */}
             <EmptyState
               icon={<IdCard size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No crew yet"
+              title={t('field.crew.noCrewYet', 'No crew yet')}
               message={
                 certifications.length > 0
-                  ? `Add your first crew member to build a verified roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety — certifications are tracked separately from the roster.`
-                  : 'Add your first crew member to build a verified roster.'
+                  ? tn('field.crew.empty.messageCerts', certifications.length, { one: 'Add your first crew member to build a verified roster. Looking for a certification? {count} is on file under Safety — certifications are tracked separately from the roster.', other: 'Add your first crew member to build a verified roster. Looking for a certification? {count} are on file under Safety — certifications are tracked separately from the roster.' })
+                  : t('field.crew.empty.message', 'Add your first crew member to build a verified roster.')
               }
-              actionLabel="Add crew member"
+              actionLabel={t('field.crew.addCrewMember', 'Add crew member')}
               onAction={() => setAddOpen(true)}
-              secondaryLabel={certifications.length > 0 ? 'Open certifications' : undefined}
+              secondaryLabel={certifications.length > 0 ? t('field.crew.empty.openCertifications', 'Open certifications') : undefined}
               onSecondaryAction={
                 certifications.length > 0
                   ? () => router.push('/safety-certifications')
@@ -906,7 +925,7 @@ function CrewScreenInner() {
                 onPress={() => setDetailId(m.id)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${m.fullName}`}
+                accessibilityLabel={t('field.crew.open', 'Open {fullName}', { fullName: m.fullName })}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.crewName}>{m.fullName}</Text>
@@ -917,13 +936,13 @@ function CrewScreenInner() {
                     <IdBadgeChip member={m} styles={styles} themeColors={themeColors} />
                     {m.status === 'inactive' ? (
                       <View style={styles.inactiveChip}>
-                        <Text style={styles.inactiveChipText}>Inactive</Text>
+                        <Text style={styles.inactiveChipText}>{t('field.crew.inactive', 'Inactive')}</Text>
                       </View>
                     ) : null}
                     {m.claimedByUserId ? (
                       <View style={styles.claimedChip}>
                         <UserCheck size={12} color={themeColors.success} strokeWidth={2} />
-                        <Text style={styles.claimedChipText}>Claimed</Text>
+                        <Text style={styles.claimedChipText}>{t('field.crew.claimed', 'Claimed')}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -943,38 +962,39 @@ function CrewScreenInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fAdd.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fAdd.card]}>
                 <View style={styles.formHeader}>
-                  <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+                  <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.back', 'Back')}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={styles.formTitle}>Add crew member</Text>
-                  <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={styles.formTitle}>{t('field.crew.addCrewMember', 'Add crew member')}</Text>
+                  <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Full name *</Text>
-                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-name-input" />
+                <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full name *')}</Text>
+                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder={t('field.crew.eGMariaGonzalez', 'e.g. Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-name-input" />
 
-                <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
-                <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} />
+                <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
+                <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Phone</Text>
+                    <Text style={styles.fieldLabel}>{t('field.crew.phone', 'Phone')}</Text>
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Email</Text>
+                    <Text style={styles.fieldLabel}>{t('field.crew.email', 'Email')}</Text>
                     <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
                   </View>
                 </View>
+                <CrewLanguageRow value={newLang} onChange={setNewLang} testID="crew-add-language" />
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setAddOpen(false)}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('field.crew.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} activeOpacity={0.85} testID="save-crew-member">
-                    <Text style={styles.saveBtnText}>Add member</Text>
+                    <Text style={styles.saveBtnText}>{t('field.crew.addMember', 'Add member')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1005,11 +1025,11 @@ function CrewScreenInner() {
           <View style={[styles.modalOverlay, fScan.overlay]}>
             <View style={[styles.scanCard, { paddingBottom: insets.bottom + 20 }, fScan.card]}>
               <View style={styles.formHeader}>
-                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close scan">
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.closeScan', 'Close scan')}>
                   <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
-                <Text style={styles.formTitle}>Scan ID</Text>
-                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel scan">
+                <Text style={styles.formTitle}>{t('field.crew.scanId', 'Scan ID')}</Text>
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.cancelScan', 'Cancel scan')}>
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -1029,11 +1049,11 @@ function CrewScreenInner() {
                       {consentChecked ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
                     </View>
                     <Text style={styles.consentText}>
-                      I have this person&apos;s consent to scan and store their ID information.
+                      {t('field.crew.legal.idScanConsent', "I have this person's consent to scan and store their ID information.")}
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.disclaimer}>
-                    MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
+                    {t('field.crew.legal.idDisclaimer', 'MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.')}
                   </Text>
                   <TouchableOpacity
                     style={[styles.saveBtn, !consentChecked && styles.saveBtnDisabled]}
@@ -1042,7 +1062,7 @@ function CrewScreenInner() {
                     activeOpacity={0.85}
                     testID="scan-consent-continue"
                   >
-                    <Text style={styles.saveBtnText}>Continue</Text>
+                    <Text style={styles.saveBtnText}>{t('field.crew.continue', 'Continue')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1050,14 +1070,14 @@ function CrewScreenInner() {
               {/* Stage: capture */}
               {scanStage === 'capture' ? (
                 <View style={{ gap: 12 }}>
-                  <Text style={styles.captureHint}>Use a clear, well-lit photo of the government ID.</Text>
+                  <Text style={styles.captureHint}>{t('field.crew.useAClearWell', 'Use a clear, well-lit photo of the government ID.')}</Text>
                   <TouchableOpacity style={styles.captureBtn} onPress={handleTakeIdPhoto} activeOpacity={0.85} testID="scan-take-photo">
                     <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.captureBtnText}>Take photo</Text>
+                    <Text style={styles.captureBtnText}>{t('field.crew.takePhoto', 'Take photo')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.captureBtn} onPress={handleChooseIdPhoto} activeOpacity={0.85} testID="scan-choose-photo">
                     <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.captureBtnText}>Choose photo</Text>
+                    <Text style={styles.captureBtnText}>{t('field.crew.choosePhoto', 'Choose photo')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1066,23 +1086,23 @@ function CrewScreenInner() {
               {scanStage === 'scanning' ? (
                 <View style={styles.scanningBox}>
                   <CraneSvg size={180} />
-                  <Text style={styles.scanningText}>Reading the ID…</Text>
+                  <Text style={styles.scanningText}>{t('field.crew.readingTheId', 'Reading the ID…')}</Text>
                 </View>
               ) : null}
 
               {/* Stage: review */}
               {scanStage === 'review' && scanFields ? (
                 <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.fieldLabel}>Full name</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.fullName2', 'Full name')}</Text>
                   <TextInput
                     style={styles.input}
                     value={scanFields.fullName}
                     onChangeText={t => setScanFields(f => (f ? { ...f, fullName: t } : f))}
-                    placeholder="Full name"
+                    placeholder={t('field.crew.fullName2', 'Full name')}
                     placeholderTextColor={themeColors.textMuted}
                   />
 
-                  <Text style={styles.fieldLabel}>ID type</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.idType', 'ID type')}</Text>
                   <View style={styles.chipWrap}>
                     {(ID_TYPE_OPTIONS).map(opt => {
                       const on = scanFields.idType === opt.value;
@@ -1093,25 +1113,25 @@ function CrewScreenInner() {
                           onPress={() => setScanFields(f => (f ? { ...f, idType: opt.value } : f))}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.assignChipText, on && styles.assignChipTextActive]}>{opt.label}</Text>
+                          <Text style={[styles.assignChipText, on && styles.assignChipTextActive]}>{idTypeLabel(opt.value)}</Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
 
-                  <Text style={styles.fieldLabel}>ID number</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.idNumber', 'ID number')}</Text>
                   <TextInput
                     style={styles.input}
                     value={scanFields.idNumberFull}
                     onChangeText={t => setScanFields(f => (f ? { ...f, idNumberFull: t } : f))}
-                    placeholder="ID number"
+                    placeholder={t('field.crew.idNumber', 'ID number')}
                     placeholderTextColor={themeColors.textMuted}
                     autoCapitalize="characters"
                   />
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Expiry</Text>
+                      <Text style={styles.fieldLabel}>{t('field.crew.expiry', 'Expiry')}</Text>
                       <TextInput
                         style={styles.input}
                         value={scanFields.expiry}
@@ -1121,12 +1141,12 @@ function CrewScreenInner() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Issuer</Text>
+                      <Text style={styles.fieldLabel}>{t('field.crew.issuer', 'Issuer')}</Text>
                       <TextInput
                         style={styles.input}
                         value={scanFields.issuer}
                         onChangeText={t => setScanFields(f => (f ? { ...f, issuer: t } : f))}
-                        placeholder="e.g. CA DMV"
+                        placeholder={t('field.crew.eGCaDmv', 'e.g. CA DMV')}
                         placeholderTextColor={themeColors.textMuted}
                       />
                     </View>
@@ -1136,14 +1156,14 @@ function CrewScreenInner() {
                       switch there promised a photo that was never kept. */}
                   {Platform.OS === 'web' ? (
                     <Text style={styles.retainHelp} testID="scan-retain-web-note">
-                      Keeping the photo is iPhone-only. Here we keep only the masked last 4 and expiry; the photo is discarded.
+                      {t('field.crew.keepingThePhotoIs', 'Keeping the photo is iPhone-only. Here we keep only the masked last 4 and expiry; the photo is discarded.')}
                     </Text>
                   ) : (
                     <View style={styles.retainRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.retainLabel}>Retain original image</Text>
+                        <Text style={styles.retainLabel}>{t('field.crew.retainOriginalImage', 'Retain original image')}</Text>
                         <Text style={styles.retainHelp}>
-                          Off = we keep only the masked last 4 and expiry; the photo is discarded.
+                          {t('field.crew.offWeKeepOnly', 'Off = we keep only the masked last 4 and expiry; the photo is discarded.')}
                         </Text>
                       </View>
                       <Switch
@@ -1162,7 +1182,7 @@ function CrewScreenInner() {
                       <>
                         {!canSave ? (
                           <Text style={styles.scanBlockedText} testID="scan-save-blocked">
-                            We couldn’t read an ID number — retake the photo or type the number.
+                            {t('field.crew.weCouldntReadAn', 'We couldn’t read an ID number — retake the photo or type the number.')}
                           </Text>
                         ) : null}
                         <TouchableOpacity
@@ -1173,7 +1193,7 @@ function CrewScreenInner() {
                           accessibilityState={{ disabled: !canSave }}
                           testID="scan-save"
                         >
-                          <Text style={styles.saveBtnText}>Save</Text>
+                          <Text style={styles.saveBtnText}>{t('field.crew.save', 'Save')}</Text>
                         </TouchableOpacity>
                       </>
                     );
@@ -1188,6 +1208,58 @@ function CrewScreenInner() {
   );
 }
 
+/** crew_members.preferred_language: 'en' | 'es', or null = not set (English outbound). */
+export type CrewLanguage = 'en' | 'es' | null;
+
+/**
+ * The crew member's language: which language the texts and invites WE SEND
+ * THEM go out in (docs/I18N.md §9: the recipient's language, never the
+ * sender's). "Not set" is null and sends English; a language is never guessed
+ * from a name. Renders nothing while the Settings language row is hidden
+ * (i18n/flags.ts LANGUAGE_PICKER_ENABLED = false), so the crew screens are
+ * byte-identical in English until Spanish ships.
+ */
+export function CrewLanguageRow({ value, onChange, testID }: {
+  value: CrewLanguage;
+  onChange: (v: CrewLanguage) => void;
+  testID: string;
+}) {
+  const { t } = useT();
+  const styles = useThemedStyles(makeStyles);
+  if (!LANGUAGE_PICKER_ENABLED) return null;
+  const options: { value: CrewLanguage; label: string; id: string }[] = [
+    { value: null, label: t('field.crew.language.notSet', 'Not set'), id: 'none' },
+    // i18n-keep-english: an endonym, shown in its own language whatever the app's language
+    { value: 'en', label: 'English', id: 'en' },
+    // i18n-keep-english: an endonym, shown in its own language whatever the app's language
+    { value: 'es', label: 'Español', id: 'es' },
+  ];
+  return (
+    <View testID={testID}>
+      <Text style={styles.fieldLabel}>{t('field.crew.language.label', 'Language')}</Text>
+      <View style={styles.chipWrap}>
+        {options.map(o => {
+          const on = value === o.value;
+          return (
+            <TouchableOpacity
+              key={o.id}
+              style={[styles.assignChip, on && styles.assignChipActive]}
+              onPress={() => onChange(o.value)}
+              activeOpacity={0.8}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              testID={`${testID}-${o.id}`}
+            >
+              <Text style={[styles.assignChipText, on && styles.assignChipTextActive]}>{o.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={styles.retainHelp}>{t('field.crew.language.hint', 'Used for texts and invites we send them.')}</Text>
+    </View>
+  );
+}
+
 /** Tells a desktop register the open member's inline editor holds unsaved
  *  edits, so a row click, j/k or Esc asks first. Renders nothing; without a
  *  register host (every phone) it registers nothing. */
@@ -1196,23 +1268,72 @@ function CrewDirtyProbe({ open }: { open: boolean }) {
   return null;
 }
 
-const ID_TYPE_OPTIONS: { value: IdDocumentType; label: string }[] = [
-  { value: 'drivers_license', label: "Driver's license" },
-  { value: 'state_id', label: 'State ID' },
-  { value: 'passport', label: 'Passport' },
-  { value: 'other', label: 'Other' },
+const ID_TYPE_OPTIONS: { value: IdDocumentType }[] = [
+  { value: 'drivers_license' },
+  { value: 'state_id' },
+  { value: 'passport' },
+  { value: 'other' },
 ];
+
+/** An ID type chip's label, in the app's language (read at call time, never at import). */
+function idTypeLabel(value: IdDocumentType): string {
+  switch (value) {
+    case 'drivers_license': return t('field.crew.idType.driversLicense', "Driver's license");
+    case 'state_id': return t('field.crew.idType.stateId', 'State ID');
+    case 'passport': return t('field.crew.idType.passport', 'Passport');
+    case 'other': return t('field.crew.idType.other', 'Other');
+  }
+  return value;
+}
+
+/** utils/crew/verifiedBadge idExpiredLabel in the app's language: English is
+ *  the same words and the same formatCalendarDay date, byte for byte. */
+function idExpiredText(idExpiry: string | null | undefined): string {
+  const raw = (idExpiry ?? '').trim();
+  return raw
+    ? t('field.crew.identity.idExpiredOn', 'ID expired {date}', { date: formatCalendarDay(raw) })
+    : t('field.crew.identity.idExpired', 'ID expired');
+}
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX rendered
+ * (the goldens record one line per string child). The sentence is still ONE
+ * key. A name in `glue` joins the text run before it into one child, the way
+ * a template literal (`, exp ${date}`) rendered. (Same helper as
+ * components/home/DailyLogCard.tsx, plus `glue`.)
+ */
+function sentenceParts(template: string, values: Record<string, string | number>, glue: string[] = []): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    const text = at > last ? template.slice(last, at) : '';
+    const value = Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m;
+    if (glue.includes(name)) out.push(`${text}${value}`);
+    else {
+      if (text) out.push(text);
+      out.push(value);
+    }
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
 
 // Human-readable cert-expiry labels + status coloring for the crew detail view.
 // 'check_date' (#167): an expiry that is there but unreadable — never the grey
 // "No expiry" a missing date gets.
-const CERT_STATUS_LABEL: Record<CrewCertRowStatus, string> = {
-  none: 'No expiry',
-  valid: 'Valid',
-  expiring: 'Expiring soon',
-  expired: 'Expired',
-  check_date: 'Check date',
-};
+function certStatusLabel(status: CrewCertRowStatus): string {
+  switch (status) {
+    case 'none': return t('field.crew.cert.none', 'No expiry');
+    case 'valid': return t('field.crew.cert.valid', 'Valid');
+    case 'expiring': return t('field.crew.cert.expiring', 'Expiring soon');
+    case 'expired': return t('field.crew.cert.expired', 'Expired');
+    case 'check_date': return t('field.crew.cert.checkDate', 'Check date');
+  }
+  return status;
+}
 const CERT_STATUS_STYLE = (t: ThemeColors): Record<CrewCertRowStatus, { color: string }> => ({
   none: { color: t.textSecondary },
   valid: { color: t.success },

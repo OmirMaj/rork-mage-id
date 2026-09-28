@@ -20,6 +20,7 @@ import { computeSubScorecards, type SubGrade } from '@/utils/subScorecard';
 import { useBackcharges } from '@/hooks/useBackcharges';
 import { backchargesForScorecard } from '@/utils/backchargeRows';
 import type { Subcontractor, SubTrade } from '@/types';
+import { LANGUAGE_PICKER_ENABLED } from '@/i18n/flags';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
@@ -317,12 +318,17 @@ export default function SubsScreen() {
   const [legalName, setLegalName] = useState('');
   const [w9DocPath, setW9DocPath] = useState<string | undefined>(undefined);
   const [uploadingW9, setUploadingW9] = useState(false);
+  // The language texts to this sub go out in (Spanish Phase 1b, docs/I18N.md
+  // §9). Set by the GC, never guessed from a name; null = "Not set" (English).
+  // The row shows, and the choice is saved, only once Spanish is switched on.
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'es' | null>(null);
 
   const resetForm = useCallback(() => {
     setCompanyName(''); setContactName(''); setPhone(''); setEmail('');
     setAddress(''); setTrade('General'); setLicenseNumber('');
     setLicenseExpiry(''); setCoiExpiry(''); setW9OnFile(false); setNotes('');
     setTaxIdLast4(''); setLegalName(''); setW9DocPath(undefined);
+    setPreferredLanguage(null);
     setEditingSub(null);
   }, []);
 
@@ -363,6 +369,7 @@ export default function SubsScreen() {
     setTaxIdLast4(sub.taxIdLast4 ?? '');
     setLegalName(sub.legalName ?? '');
     setW9DocPath(sub.w9DocPath);
+    setPreferredLanguage(sub.preferredLanguage ?? null);
     setShowForm(true);
     // Desktop web keeps the record open under the edit sheet.
     if (!liveRef.current.isDesktopWeb) setShowDetail(null);
@@ -390,6 +397,7 @@ export default function SubsScreen() {
         licenseExpiry, coiExpiry, w9OnFile, notes: notes.trim(),
         taxIdLast4: taxIdLast4.trim() || undefined,
         legalName: legalName.trim() || undefined,
+        ...(LANGUAGE_PICKER_ENABLED ? { preferredLanguage } : {}),
       });
       showAlert('Sub updated', `${name} is saved.`);
     } else {
@@ -400,6 +408,7 @@ export default function SubsScreen() {
         bidHistory: [], assignedProjects: [], notes: notes.trim(),
         taxIdLast4: taxIdLast4.trim() || undefined,
         legalName: legalName.trim() || undefined,
+        ...(LANGUAGE_PICKER_ENABLED ? { preferredLanguage } : {}),
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       addSubcontractor(sub);
@@ -409,7 +418,7 @@ export default function SubsScreen() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, taxIdLast4, legalName, notes, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
+  }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, taxIdLast4, legalName, notes, preferredLanguage, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
 
   const openW9 = useCallback(async (path: string) => {
     const url = await signW9Url(path);
@@ -990,6 +999,27 @@ export default function SubsScreen() {
 
                 <Text style={styles.fieldLabel}>Address</Text>
                 <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Street, city, state" placeholderTextColor={Colors.textMuted} />
+
+                {LANGUAGE_PICKER_ENABLED ? (
+                  <View testID="sub-language-row">
+                    <Text style={styles.fieldLabel}>Language</Text>
+                    <View style={styles.tradeGrid}>
+                      {([[null, 'Not set'], ['en', 'English'], ['es', 'Español']] as const).map(([value, label]) => (
+                        <TouchableOpacity
+                          key={value ?? 'unset'}
+                          style={[styles.tradeChip, preferredLanguage === value && styles.tradeChipActive]}
+                          onPress={() => setPreferredLanguage(value)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: preferredLanguage === value }}
+                          testID={`sub-language-${value ?? 'unset'}`}
+                        >
+                          <Text style={[styles.tradeChipText, preferredLanguage === value && styles.tradeChipTextActive]}>{label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={styles.metaText}>Used for texts we send them.</Text>
+                  </View>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Trade</Text>
                 <View style={styles.tradeGrid}>

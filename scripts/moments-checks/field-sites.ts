@@ -200,7 +200,7 @@ export function checkFieldSite(path: string, code: string): Fails {
     if (/\bshowAlert\s*\(/.test(opener)) f.push(`${TT}: handleAction raises an Alert for clock-out`);
     if (!/if \(action !== 'clock_out' && Platform\.OS !== 'web'\) void Haptics\.impactAsync/.test(opener)) f.push(`${TT}: handleAction's Medium haptic must skip clock_out (the slide plays its own)`);
     const out = bodyOf(code, 'commitOutTime');
-    if (!/parseClockTime\(outText\)/.test(out) || !/outTimeProblem\(entry, outMs, Date\.now\(\)\)/.test(out)) f.push(`${TT}: commitOutTime must read the picked time and check it against now at release`);
+    if (!/parseClockTime\(outText\)/.test(out) || !/outTimeProblem\(entry, outMs, Date\.now\(\)(?:, displayLang)?\)/.test(out)) f.push(`${TT}: commitOutTime must read the picked time and check it against now at release`);
     if (!/closeTeamShiftDetailed\(entry\.id, \{ clockOut: outIso/.test(out) || !/clockOutDetailed\(entry\.id, outIso\)/.test(out)) f.push(`${TT}: commitOutTime must write through closeTeamShiftDetailed / clockOutDetailed`);
     if (!/fieldCopy\.teamShiftNotOwn\(\)/.test(out)) f.push(`${TT}: a team close that is not on your project must be refused with teamShiftNotOwn()`);
     if (!/fieldCopy\.teamShiftCaption\(/.test(code)) f.push(`${TT}: the team caption above the track is missing`);
@@ -295,7 +295,7 @@ export function checkCopyModule(mod: Record<string, unknown>, source: string): F
     // ONE return of ONE literal: never a sentence joined from pieces.
     const body = bodyOf(source, name);
     const returns = body.match(/\breturn\b/g) ?? [];
-    if (returns.length !== 1 || !/return\s+(['"`])/.test(body) || /\breturn\s+[^;]*\+/.test(body)) {
+    if (returns.length !== 1 || !/return\s+(?:['"`]|tn?\(\s*'[a-z][\w.]*',\s*['"`])/.test(body) || /\breturn\s+[^;]*\+/.test(body)) {
       f.push(`${COPY}: ${name} must be one return of one string or template literal`);
     }
   }
@@ -414,7 +414,7 @@ function planted(ctx: MomentsCtx, real: Record<string, string>, copySrc: string)
   out.push(['copy red on planted: a pronoun for the worker',
     copyRed({ ...base, clockOutAlready: () => 'He was already clocked out. Nothing was changed.' }, copySrc, /pronoun/)]);
   out.push(['copy red on planted: a sentence joined from pieces',
-    copyRed(base, copySrc.replace("return 'Already clocked out. Nothing was changed.';", "return 'Already clocked out.' + ' Nothing was changed.';"), /one return of one string/)]);
+    copyRed(base, copySrc.replace("return t('field.time.moment.clockOutAlready', 'Already clocked out. Nothing was changed.');", "return t('field.time.moment.clockOutAlready', 'Already clocked out.') + ' Nothing was changed.';"), /one return of one string/)]);
   out.push(['copy red on planted: Title Case',
     copyRed({ ...base, closeProjectAction: () => 'Close The Project Now' }, copySrc, /Title Case/)]);
   out.push(['copy red on planted: an outcome sentence with no period',

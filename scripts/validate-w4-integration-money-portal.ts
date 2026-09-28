@@ -391,8 +391,10 @@ console.log('\nG. #64 — no Sign box and no signature on terms nobody published
     && sign.indexOf("'already', true") < sign.indexOf('contract_terms_pending')
     && sign.indexOf('contract_terms_pending') < sign.indexOf('update public.project_contracts'));
   const PAGE = read('marketing/portal/index.html');
+  // W3 MOMPORTAL: the sentence moved into FALLBACK_STRINGS and shows as the line under the button.
   ok('the page words that refusal (not "re-send your link")',
-    /if \(fc && fc\.contentPending === true\) \{\s*alert\('Your contractor has not published this contract/.test(PAGE));
+    /if \(fc && fc\.contentPending === true\) \{\s*setContractSignLine\(contractId, t\('contractSignDeniedPending'\), 'error'\);/.test(PAGE)
+    && /    contractSignDeniedPending: 'Your contractor has not published this contract/.test(PAGE));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -284,7 +284,7 @@ expect('the screen no longer keys the marker on the report id',
 expect('carry-forward still copies the delay note (the fix is the guard, not dropping the field)',
   /setIssuesAndDelays\(lastReport\.issuesAndDelays\)/.test(DFR_SRC), true);
 expect('the blocked Preview names the day the ripple was applied on',
-  /Already applied to the schedule from \$\{day\}/.test(DFR_SRC), true);
+  /Already applied to the schedule from \{day\}[^']*', \{ day \}\)/.test(DFR_SRC), true);
 expect('Re-arm is still the escape hatch for a genuinely repeated delay',
   /setDelayReArmed\(true\)/.test(DFR_SRC), true);
 

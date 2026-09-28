@@ -18,6 +18,7 @@ import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { describeError } from '@/utils/errorCopy';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   projectName: string;
@@ -40,21 +41,28 @@ interface Props {
   reportDay?: string | null;
 }
 
-/** Why the schedule draft can't write this report, or null. Pure. */
-export function scheduleDraftBlockedReason(reportDay: string | null | undefined, today: string = todayCalendarDay()): string | null {
+/** Why the schedule draft can't write this report, or null. Pure — the
+ *  screen passes useT's `t` (W3); scripts/validate-w4-dfr-fixes.ts evaluates
+ *  it alone, so the default is English with the same {name} interpolation. */
+export function scheduleDraftBlockedReason(
+  reportDay: string | null | undefined,
+  today: string = todayCalendarDay(),
+  t: (key: `field.${string}`, en: string, vars?: Record<string, string | number>) => string = (_k, en, v) => (v ? en.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m)) : en),
+): string | null {
   if (!reportDay || reportDay >= today) return null;
   const label = formatCalendarDay(reportDay, { weekday: 'short', month: 'short', day: 'numeric' }) || reportDay;
-  return `The schedule draft reads where tasks stand today, so it can't write ${label}'s report. Fill it in by hand, or copy from an earlier report.`;
+  return t('field.dfr.aiGen.pastDayBlocked', "The schedule draft reads where tasks stand today, so it can't write {day}'s report. Fill it in by hand, or copy from an earlier report.", { day: label });
 }
 
 export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated, isLocked, onLockedPress, reportDay }: Props) {
+  const { t } = useT();
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
   const { tier } = useSubscription();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pastDayReason = scheduleDraftBlockedReason(reportDay);
+  const pastDayReason = scheduleDraftBlockedReason(reportDay, undefined, t);
 
   const handleGenerate = useCallback(async () => {
     if (isLoading) return;
@@ -83,11 +91,11 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
       // report blank, with no way to tell signal loss from a broken feature
       // (audit 2026-09-07, ai-features). Same shape as AIQuickEstimate.
       console.error('[AI DFR] Generation failed:', err);
-      setError(describeError(err, { action: 'draft the daily report' }).body);
+      setError(describeError(err, { action: 'draft the daily report', title: t('field.dfr.aiGen.errorTitle', "Couldn't draft the report") }).body);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, isLocked, onLockedPress, projectName, tasks, weatherStr, onGenerated, tier, router, reportDay]);
+  }, [isLoading, isLocked, onLockedPress, projectName, tasks, weatherStr, onGenerated, tier, router, reportDay, t]);
 
   return (
     <View>
@@ -105,7 +113,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
           <MageAIMark size={16} color={"#FFFFFF"} />
         )}
         <Text style={styles.btnText}>
-          {isLoading ? 'Drafting…' : 'Draft from schedule'}
+          {isLoading ? t('field.dfr.aiGen.drafting', 'Drafting…') : t('field.dfr.aiGen.draftFromSchedule', 'Draft from schedule')}
         </Text>
       </TouchableOpacity>
       {pastDayReason ? (

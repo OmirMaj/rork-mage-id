@@ -32,6 +32,7 @@ import { PhotoMarkupOverlay } from '@/components/PhotoMarkupOverlay';
 import { pinCropWindow, PIN_MARKER_SIZE } from '@/utils/punchPlanPin';
 import { closeUpMarkerPlacement, loadedImageAspect } from '@/utils/punchEditLayout';
 import type { PhotoMarkup } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 export interface PunchEditPinThumb {
   /** A renderable sheet image (signed URL / local copy). */
@@ -66,7 +67,8 @@ export interface PunchEditPhotoPaneProps {
 }
 
 export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [paneW, setPaneW] = useState(0);
   const [failedUri, setFailedUri] = useState<string | null>(null);
@@ -86,7 +88,7 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
             onPress={p.onOpenPhoto}
             activeOpacity={0.9}
             accessibilityRole="imagebutton"
-            accessibilityLabel="Item photo, opens full size"
+            accessibilityLabel={t('field.punchWalk.edit.itemPhotoOpensFull', 'Item photo, opens full size')}
             testID="punch-edit-photo"
             style={[styles.photo, side > 0 && { width: side, height: side }]}
           >
@@ -100,8 +102,8 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
           // It had a photo and the photo will not load (an expired link, a
           // file on another device). Saying so beats an empty square.
           <View style={[styles.photo, styles.failed, side > 0 && { width: side, height: side }]} testID="punch-edit-photo-failed">
-            <ImageOff size={22} color={t.textMuted} strokeWidth={1.75} />
-            <Text style={styles.dropHint}>This photo didn’t load. Replace it, or close and reopen the item.</Text>
+            <ImageOff size={22} color={tc.textMuted} strokeWidth={1.75} />
+            <Text style={styles.dropHint}>{t('field.punchWalk.edit.thisPhotoDidntLoad', 'This photo didn’t load. Replace it, or close and reopen the item.')}</Text>
           </View>
         ) : (
           <TouchableOpacity
@@ -109,22 +111,22 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
             disabled={!!p.addBlocked}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Add photo"
+            accessibilityLabel={t('field.punchWalk.edit.addPhoto', 'Add photo')}
             accessibilityState={{ disabled: !!p.addBlocked }}
             testID="punch-edit-photo-add"
             style={[styles.photo, styles.drop, side > 0 && { width: side, height: side }]}
           >
-            <ImagePlus size={26} color={p.addBlocked ? t.textMuted : t.accentLabel} strokeWidth={1.75} />
-            <Text style={[styles.dropTitle, p.addBlocked && { color: t.textMuted }]}>Add photo</Text>
-            <Text style={styles.dropHint}>Choose a picture of the defect from this computer.</Text>
+            <ImagePlus size={26} color={p.addBlocked ? tc.textMuted : tc.accentLabel} strokeWidth={1.75} />
+            <Text style={[styles.dropTitle, p.addBlocked && { color: tc.textMuted }]}>{t('field.punchWalk.edit.addPhoto', 'Add photo')}</Text>
+            <Text style={styles.dropHint}>{t('field.punchWalk.edit.chooseAPictureOf', 'Choose a picture of the defect from this computer.')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {p.photoUri ? (
         <View style={styles.actions}>
-          <Button size="sm" variant="secondary" label="Replace" onPress={p.onPickPhoto} disabled={!!p.replaceBlocked} testID="punch-edit-photo-replace" />
-          <Button size="sm" variant="ghost" label="Remove" onPress={p.onRemovePhoto} disabled={!!p.removeBlocked} testID="punch-edit-photo-remove" />
+          <Button size="sm" variant="secondary" label={t('field.punchWalk.edit.replace', 'Replace')} onPress={p.onPickPhoto} disabled={!!p.replaceBlocked} testID="punch-edit-photo-replace" />
+          <Button size="sm" variant="ghost" label={t('field.punchWalk.edit.remove', 'Remove')} onPress={p.onRemovePhoto} disabled={!!p.removeBlocked} testID="punch-edit-photo-remove" />
         </View>
       ) : null}
       {p.photoUri && (p.replaceBlocked || p.removeBlocked) ? (
@@ -142,7 +144,7 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
           <PinCloseUp key={p.pin.imageUri} pin={p.pin} side={side} onPress={p.onOpenPin} blocked={p.pinBlocked} />
         ) : (
           <View style={styles.pinRow}>
-            <MapPin size={14} color={t.textMuted} strokeWidth={2} />
+            <MapPin size={14} color={tc.textMuted} strokeWidth={2} />
             <Text style={styles.pinText}>{p.pinText}</Text>
           </View>
         )}
@@ -163,7 +165,8 @@ function PinCloseUp({ pin, side, onPress, blocked }: {
   onPress: (() => void) | null;
   blocked: string | null;
 }) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [loadedAspect, setLoadedAspect] = useState<number | null>(null);
   // The image loaded but its shape could not be read (and the sheet has no
@@ -177,13 +180,13 @@ function PinCloseUp({ pin, side, onPress, blocked }: {
   const canPress = !!onPress && !blocked;
   const body = failed ? (
     <View style={[styles.closeUp, styles.failed, { width: side, height: side * 0.6 }]}>
-      <ImageOff size={18} color={t.textMuted} strokeWidth={1.75} />
-      <Text style={styles.dropHint}>The plan sheet didn’t load.</Text>
+      <ImageOff size={18} color={tc.textMuted} strokeWidth={1.75} />
+      <Text style={styles.dropHint}>{t('field.punchWalk.edit.thePlanSheetDidnt', 'The plan sheet didn’t load.')}</Text>
     </View>
   ) : !w && shapeUnknown ? (
     <View style={styles.pinRow} testID="punch-edit-pin-no-closeup">
-      <MapPin size={14} color={t.textMuted} strokeWidth={2} />
-      <Text style={styles.pinText}>{`${pin.label} — close-up not available`}</Text>
+      <MapPin size={14} color={tc.textMuted} strokeWidth={2} />
+      <Text style={styles.pinText}>{t('field.punchWalk.edit.closeUpNotAvailable', '{label} — close-up not available', { label: pin.label })}</Text>
     </View>
   ) : (
     <View style={[styles.closeUp, { width: side, height: side }]}>
@@ -233,7 +236,7 @@ function PinCloseUp({ pin, side, onPress, blocked }: {
         disabled={!canPress}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`${pin.label}. ${canPress ? 'Opens the plan to move the pin' : ''}`}
+        accessibilityLabel={canPress ? t('field.punchWalk.edit.pinThumbA11y', '{label}. Opens the plan to move the pin', { label: pin.label }) : `${pin.label}. `}
         testID="punch-edit-pin-thumb"
       >
         {body}

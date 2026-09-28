@@ -80,7 +80,7 @@ console.log('A. punch list');
   ok('move to the other list: glideRows on the line before the write',
     lineBefore(move, 'updatePunchItem(item.id, { listType: target });') === 'glideRows(rowCountRef.current);');
   ok('delete: glideRows right before deletePunchItem inside the destructive confirm',
-    /\{ text: 'Delete', style: 'destructive', onPress: \(\) => \{ glideRows\(rowCountRef\.current\); latestActions\.current\.deletePunchItem\(item\.id\); \} \}/.test(P));
+    /\{ text: t\('common\.action\.delete', 'Delete'\), style: 'destructive', onPress: \(\) => \{ glideRows\(rowCountRef\.current\); latestActions\.current\.deletePunchItem\(item\.id\); \} \}/.test(P));
   const effects = P.split('useEffect(').slice(1).map((s) => s.slice(0, s.indexOf('}, [') + 1));
   ok('glideRows / layoutNext never run from an effect', effects.every((e) => !/glideRows\(|layoutNext\(/.test(e)));
 }

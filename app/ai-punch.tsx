@@ -54,6 +54,8 @@ import { describeError, ownSentence } from '@/utils/errorCopy';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Expanded per code-review #8 to cover the trades
@@ -124,6 +126,16 @@ function priorityColors(t: ThemeColors): Record<PunchItemPriority, string> {
   };
 }
 
+/** The priority chip's words (the stored value stays the enum). Same keys and
+ *  English as app/punch-list.tsx priorityLabel. */
+function priorityLabel(p: PunchItemPriority): string {
+  switch (p) {
+    case 'high': return t('field.punch.priority.high', 'High');
+    case 'medium': return t('field.punch.priority.medium', 'Medium');
+    default: return t('field.punch.priority.low', 'Low');
+  }
+}
+
 export default function AiPunchScreen() {
   // AI Punch produces punch-list items — a Business feature (punch_list_closeout).
   // punch-walk (the primary entry) is already gated, but this screen is routable
@@ -147,6 +159,7 @@ export default function AiPunchScreen() {
 }
 
 function AiPunchScreenInner() {
+  const { t, tn } = useT();
   const { colors: themeColors } = useTheme();
   const priorityInk = priorityColors(themeColors);
   const styles = useThemedStyles(makeStyles);
@@ -228,22 +241,22 @@ function AiPunchScreenInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        showAlert('Max 12 photos', 'Pick the clearest shots. Each run reads up to 12 photos.');
+        showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.pickTheClearestShots', 'Pick the clearest shots. Each run reads up to 12 photos.'));
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
     });
-  }, []);
+  }, [t]);
 
   const handlePickFromCameraRoll = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert('Photo access needed', 'Grant photo access in Settings to pick photos.');
+      showAlert(t('field.punch.ai.photoAccessNeeded', 'Photo access needed'), t('field.punch.ai.grantPhotoAccessIn', 'Grant photo access in Settings to pick photos.'));
       return;
     }
     const remaining = 12 - pickedPhotos.length;
     if (remaining <= 0) {
-      showAlert('Max 12 photos', 'Remove a photo before adding more.');
+      showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.removeAPhotoBefore', 'Remove a photo before adding more.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -258,31 +271,31 @@ function AiPunchScreenInner() {
       uri: a.uri,
     }));
     setPickedPhotos(prev => [...prev, ...additions]);
-  }, [pickedPhotos.length]);
+  }, [pickedPhotos.length, t]);
 
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      showAlert('Camera access needed', 'Grant camera permission in Settings.');
+      showAlert(t('field.punch.ai.cameraAccessNeeded', 'Camera access needed'), t('field.punch.ai.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
       return;
     }
     if (pickedPhotos.length >= 12) {
-      showAlert('Max 12 photos', 'Remove a photo before taking more.');
+      showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.removeAPhotoBefore2', 'Remove a photo before taking more.'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
     setPickedPhotos(prev => [...prev, { id: `cam-${generateUUID()}`, uri: result.assets[0].uri }]);
-  }, [pickedPhotos.length]);
+  }, [pickedPhotos.length, t]);
 
   // ── Step 2: analyze ──────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
     if (writeBlock) {
-      showAlert("Can't add items", writeBlock);
+      showAlert(t('field.punch.ai.cantAddItems', "Can't add items"), writeBlock);
       return;
     }
     if (pickedPhotos.length === 0) {
-      showAlert('Pick at least one photo first');
+      showAlert(t('field.punch.ai.pickAtLeastOne', 'Pick at least one photo first'));
       return;
     }
     // Photo Analysis is a Pro+ feature — vision API calls are 2-3x the cost
@@ -316,14 +329,14 @@ function AiPunchScreenInner() {
     // whole fix and this early return becomes the bug.
     if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
       showAlert(
-        'Punch from photos is on the Pro plan',
-        'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.',
+        t('field.punch.ai.punchFromPhotosIs', 'Punch from photos is on the Pro plan'),
+        t('field.punch.ai.youWereInvitedTo', 'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.'),
         // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
         // at least deep-linked here, and losing that would trade one dead end
         // for another.
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'See plans', onPress: () => router.push('/paywall') },
+          { text: t('field.punch.ai.notNow', 'Not now'), style: 'cancel' },
+          { text: t('field.punch.ai.seePlans', 'See plans'), onPress: () => router.push('/paywall') },
         ],
       );
       return;
@@ -356,14 +369,15 @@ function AiPunchScreenInner() {
         };
       });
       if (reviewable.length === 0) {
-        setError('No punch items found in those photos. Try shots closer to the work, or with better lighting.');
+        setError(t('field.punch.ai.noItemsFound', 'No punch items found in those photos. Try shots closer to the work, or with better lighting.'));
       } else if (meta.skippedIndexes.length > 0) {
         // Partial success — some photos couldn't be read but the AI
         // analyzed the rest. Surface as a warning, not an error
         // (round-4 #3): different visual channel + amber tone.
+        // Two whole sentences, each its own plural key; the second is data to the first.
+        const foundLine = tn('field.punch.ai.foundFromRest', reviewable.length, { one: 'Found {count} item from the rest.', other: 'Found {count} items from the rest.' });
         setNotice(
-          `Skipped ${meta.skippedIndexes.length} photo${meta.skippedIndexes.length === 1 ? '' : 's'} that couldn't be read. ` +
-          `Found ${reviewable.length} item${reviewable.length === 1 ? '' : 's'} from the rest.`,
+          tn('field.punch.ai.skippedPhotos', meta.skippedIndexes.length, { one: "Skipped {count} photo that couldn't be read. {found}", other: "Skipped {count} photos that couldn't be read. {found}" }, { found: foundLine }),
         );
       }
       setReviewItems(reviewable);
@@ -378,7 +392,7 @@ function AiPunchScreenInner() {
     } finally {
       setBusy(false);
     }
-  }, [pickedPhotos, project, subscriptionTier, meteringTier, collaboratorGranted, router, writeBlock]);
+  }, [pickedPhotos, project, subscriptionTier, meteringTier, collaboratorGranted, router, writeBlock, t, tn]);
 
   // ── Step 3: review + save ────────────────────────────────────
   const updateReviewItem = useCallback((id: string, updates: Partial<ReviewableItem>) => {
@@ -440,11 +454,11 @@ function AiPunchScreenInner() {
   const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
     if (!project || item.saved) return;
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert(t('field.punch.ai.cantSave', "Can't save"), writeBlock);
       return;
     }
     if (!item.editedDescription.trim()) {
-      showAlert('Add a description');
+      showAlert(t('field.punch.ai.addADescription', 'Add a description'));
       return;
     }
     let stamp: PhotoGeoStamp | null = null;
@@ -454,14 +468,14 @@ function AiPunchScreenInner() {
     addPunchItem(buildPunchItem(item, stamp));
     updateReviewItem(item.id, { saved: true });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, addPunchItem, updateReviewItem, shouldStampItem, buildPunchItem, writeBlock]);
+  }, [project, addPunchItem, updateReviewItem, shouldStampItem, buildPunchItem, writeBlock, t]);
 
   const [saving, setSaving] = useState(false);
   const handleSaveAll = useCallback(async () => {
     if (!project) return;
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert(t('field.punch.ai.cantSave', "Can't save"), writeBlock);
       return;
     }
     const pending = reviewItems.filter(r => !r.saved && !r.discarded);
@@ -491,8 +505,8 @@ function AiPunchScreenInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const saved = items.length;
       showAlert(
-        `Saved ${saved} punch item${saved === 1 ? '' : 's'}`,
-        'They’re now in the punch list.',
+        tn('field.punch.ai.savedPunchItems', saved, { one: 'Saved {count} punch item', other: 'Saved {count} punch items' }),
+        t('field.punch.ai.theyreNowInThe', 'They’re now in the punch list.'),
         [{
           text: 'OK',
           onPress: () => router.replace({ pathname: '/punch-list' as never, params: { projectId: project.id } as never }),
@@ -501,7 +515,7 @@ function AiPunchScreenInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, reviewItems, shouldStampItem, buildPunchItem, addPunchItems, router, writeBlock]);
+  }, [project, reviewItems, shouldStampItem, buildPunchItem, addPunchItems, router, writeBlock, t, tn]);
 
   const reviewMode = reviewItems.length > 0 || error !== null;
   const savedCount = reviewItems.filter(r => r.saved).length;
@@ -511,10 +525,10 @@ function AiPunchScreenInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Punch from photos · MAGE ID" title="Punch from photos" />
+        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from photos · MAGE ID')} title={t('field.punch.ai.punchFromPhotos', 'Punch from photos')} />
         <ToolProjectPicker
-          toolName="Punch from photos"
-          message="Turn walkthrough photos into punch items. MAGE drafts them, and you review and save them to the project."
+          toolName={t('field.punch.ai.punchFromPhotos', 'Punch from photos')}
+          message={t('field.punch.ai.pickerMessage', 'Turn walkthrough photos into punch items. MAGE drafts them, and you review and save them to the project.')}
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -526,7 +540,7 @@ function AiPunchScreenInner() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ToolHeader eyebrow="Punch from photos · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from photos · MAGE ID')} title={project.name} />
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
@@ -536,13 +550,13 @@ function AiPunchScreenInner() {
             <View style={styles.heroIconWrap}>
               <MageAIMark size={28} color={themeColors.accent} />
             </View>
-            <Text style={styles.heroTitle}>Punch from photos</Text>
+            <Text style={styles.heroTitle}>{t('field.punch.ai.punchFromPhotos', 'Punch from photos')}</Text>
             <Text style={styles.heroSub}>
               {reviewItems.length > 0
-                ? `Review what MAGE found. Edit, save or discard each item.`
+                ? t('field.punch.ai.reviewWhatMageFound', 'Review what MAGE found. Edit, save or discard each item.')
                 : error
-                ? `Those photos couldn't be read. Pick a different set and try again.`
-                : `Pick up to 12 photos from this project. MAGE drafts punch items from them. Review before saving.`}
+                ? t('field.punch.ai.thosePhotosCouldntBe', "Those photos couldn't be read. Pick a different set and try again.")
+                : t('field.punch.ai.pickUpTo12', 'Pick up to 12 photos from this project. MAGE drafts punch items from them. Review before saving.')}
             </Text>
           </View>
 
@@ -553,20 +567,20 @@ function AiPunchScreenInner() {
                 <View style={styles.sourceRow}>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
                     <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.sourceBtnText}>Camera</Text>
+                    <Text style={styles.sourceBtnText}>{t('field.punch.ai.camera', 'Camera')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
                     <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.sourceBtnText}>Photo library</Text>
+                    <Text style={styles.sourceBtnText}>{t('field.punch.ai.photoLibrary', 'Photo library')}</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.sectionSub}>{pickedPhotos.length} of 12 picked</Text>
+                <Text style={styles.sectionSub}>{t('field.punch.ai.of12Picked', '{length} of 12 picked', { length: pickedPhotos.length })}</Text>
               </View>
 
               {/* Picked photos preview */}
               {pickedPhotos.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Picked photos</Text>
+                  <Text style={styles.sectionTitle}>{t('field.punch.ai.pickedPhotos', 'Picked photos')}</Text>
                   <View style={styles.thumbGrid}>
                     {pickedPhotos.map(p => (
                       <View key={p.id} style={styles.thumbWrap}>
@@ -574,7 +588,7 @@ function AiPunchScreenInner() {
                         <TouchableOpacity
                           style={styles.thumbRemove}
                           onPress={() => setPickedPhotos(prev => prev.filter(x => x.id !== p.id))}
-                          hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                          hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                           <X size={12} color="#FFF" strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
@@ -591,10 +605,10 @@ function AiPunchScreenInner() {
               {projectPhotos.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.galleryHead}>
-                    <Text style={styles.sectionTitle}>Or pick from project gallery</Text>
+                    <Text style={styles.sectionTitle}>{t('field.punch.ai.orPickFromProject', 'Or pick from project gallery')}</Text>
                     {projectPhotos.length > 30 && (
                       <TouchableOpacity onPress={() => setShowAllGallery(s => !s)} hitSlop={10}>
-                        <Text style={styles.galleryToggle}>{showAllGallery ? 'Show recent' : `Show all ${projectPhotos.length}`}</Text>
+                        <Text style={styles.galleryToggle}>{showAllGallery ? t('field.punch.ai.showRecent', 'Show recent') : t('field.punch.ai.showAll', 'Show all {length}', { length: projectPhotos.length })}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -638,10 +652,10 @@ function AiPunchScreenInner() {
                   onPress={() => { setError(null); setReviewItems([]); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Pick photos again"
+                  accessibilityLabel={t('field.punch.ai.pickPhotosAgain', 'Pick photos again')}
                 >
                   <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.retryBtnText}>Pick photos again</Text>
+                  <Text style={styles.retryBtnText}>{t('field.punch.ai.pickPhotosAgain', 'Pick photos again')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -673,8 +687,8 @@ function AiPunchScreenInner() {
           {reviewItems.length > 0 && (
             <View style={styles.section}>
               <View style={styles.reviewHead}>
-                <Text style={styles.sectionTitle}>{reviewItems.length} item{reviewItems.length === 1 ? '' : 's'} found</Text>
-                <Text style={styles.sectionSub}>{savedCount} saved · {pendingCount} pending</Text>
+                <Text style={styles.sectionTitle}>{tn('field.punch.ai.itemsFound', reviewItems.length, { one: '{count} item found', other: '{count} items found' })}</Text>
+                <Text style={styles.sectionSub}>{t('field.punch.ai.savedPending', '{saved} saved · {pending} pending', { saved: savedCount, pending: pendingCount })}</Text>
               </View>
               {reviewItems.map(item => {
                 if (item.discarded) return null;
@@ -686,13 +700,13 @@ function AiPunchScreenInner() {
                     <View style={styles.reviewBody}>
                       <View style={styles.reviewMetaRow}>
                         <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? themeColors.success : Colors.warning }]} />
-                        <Text style={styles.reviewMeta}>AI confidence {item.confidence}%</Text>
+                        <Text style={styles.reviewMeta}>{t('field.punch.ai.aiConfidence', 'AI confidence {confidence}%', { confidence: item.confidence })}</Text>
                       </View>
                       <TextInput
                         style={styles.reviewInput}
                         value={item.editedDescription}
                         onChangeText={t => updateReviewItem(item.id, { editedDescription: t })}
-                        placeholder="Description"
+                        placeholder={t('field.punch.ai.description', 'Description')}
                         placeholderTextColor={themeColors.textMuted}
                         multiline
                         editable={!item.saved}
@@ -702,14 +716,14 @@ function AiPunchScreenInner() {
                           style={[styles.reviewInputSmall, { flex: 1 }]}
                           value={item.editedLocation}
                           onChangeText={t => updateReviewItem(item.id, { editedLocation: t })}
-                          placeholder="Location"
+                          placeholder={t('field.punch.ai.location', 'Location')}
                           placeholderTextColor={themeColors.textMuted}
                           editable={!item.saved}
                         />
                       </View>
                       <View style={styles.reviewRow}>
                         <View style={[styles.priorityPill, { backgroundColor: priorityInk[item.editedPriority] + '22' }]}>
-                          <Text style={[styles.priorityText, { color: priorityInk[item.editedPriority] }]}>{item.editedPriority.toUpperCase()}</Text>
+                          <Text style={[styles.priorityText, { color: priorityInk[item.editedPriority] }]}>{priorityLabel(item.editedPriority).toUpperCase()}</Text>
                         </View>
                         <Text style={styles.tradeText}>{item.editedTrade}</Text>
                       </View>
@@ -718,17 +732,17 @@ function AiPunchScreenInner() {
                           <>
                             <TouchableOpacity style={styles.discardBtn} onPress={() => updateReviewItem(item.id, { discarded: true })}>
                               <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
-                              <Text style={styles.discardBtnText}>Discard</Text>
+                              <Text style={styles.discardBtnText}>{t('field.punch.ai.discard', 'Discard')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.saveOneBtn} onPress={() => handleSaveOne(item)} activeOpacity={0.85}>
                               <Save size={14} color="#FFF" strokeWidth={1.75} />
-                              <Text style={styles.saveOneBtnText}>Save</Text>
+                              <Text style={styles.saveOneBtnText}>{t('common.action.save', 'Save')}</Text>
                             </TouchableOpacity>
                           </>
                         ) : (
                           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                             <Check size={Type.caption1.fontSize} color={themeColors.success} strokeWidth={2.5} />
-                            <Text style={[styles.savedFlag, { flex: 0, textAlign: 'left' }]}>Saved to punch list</Text>
+                            <Text style={[styles.savedFlag, { flex: 0, textAlign: 'left' }]}>{t('field.punch.ai.savedToPunchList', 'Saved to punch list')}</Text>
                           </View>
                         )}
                       </View>
@@ -752,12 +766,12 @@ function AiPunchScreenInner() {
               {busy ? (
                 <>
                   <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>Reading photos…</Text>
+                  <Text style={styles.fabPrimaryText}>{t('field.punch.ai.readingPhotos', 'Reading photos…')}</Text>
                 </>
               ) : (
                 <>
                   <MageAIMark size={16} color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>Find punch items · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
+                  <Text style={styles.fabPrimaryText}>{tn('field.punch.ai.findPunchItemsPhotos', pickedPhotos.length, { one: 'Find punch items · {count} photo', other: 'Find punch items · {count} photos' })}</Text>
                   <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
                 </>
               )}
@@ -772,12 +786,12 @@ function AiPunchScreenInner() {
               {saving ? (
                 <>
                   <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>Saving {pendingCount} item{pendingCount === 1 ? '' : 's'}…</Text>
+                  <Text style={styles.fabPrimaryText}>{tn('field.punch.ai.savingItems', pendingCount, { one: 'Saving {count} item…', other: 'Saving {count} items…' })}</Text>
                 </>
               ) : (
                 <>
                   <Save size={16} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.fabPrimaryText}>Save all {pendingCount} item{pendingCount === 1 ? '' : 's'}</Text>
+                  <Text style={styles.fabPrimaryText}>{tn('field.punch.ai.saveAllItems', pendingCount, { one: 'Save all {count} item', other: 'Save all {count} items' })}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -787,7 +801,7 @@ function AiPunchScreenInner() {
               onPress={() => router.replace({ pathname: '/punch-list' as never, params: { projectId: project.id } as never })}
               activeOpacity={0.85}
             >
-              <Text style={styles.fabPrimaryText}>Open punch list</Text>
+              <Text style={styles.fabPrimaryText}>{t('field.punch.ai.openPunchList', 'Open punch list')}</Text>
               <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
           )}

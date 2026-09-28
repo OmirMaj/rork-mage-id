@@ -60,14 +60,6 @@ jest.mock('react-native-gesture-handler', () => {
   return { ...actual, PanGestureHandler: (props: { children: React.ReactNode }) => props.children };
 });
 
-const mockFireConfetti = jest.fn();
-jest.mock('@/components/animations/Confetti', () => ({
-  __esModule: true,
-  fireConfetti: (...a: unknown[]) => mockFireConfetti(...a),
-  default: () => null,
-  ConfettiHost: () => null,
-}));
-
 // The context values are the REAL ones inside the provider tree, with only the
 // two writes these sites make shaped: approveChangeOrder (useProjectCrossActions:
 // the approve sheet / reflow slide, mounted bare) and saveAIAPayAppOnline
@@ -118,7 +110,6 @@ jest.useFakeTimers();
 
 let alertSpy: jest.SpyInstance;
 beforeEach(() => {
-  mockFireConfetti.mockClear();
   mockApprove.mockReset();
   mockSaveAia.mockReset();
   mockPdf.mockReset();
@@ -183,7 +174,6 @@ describe('B1 the approve sheet', () => {
     expect(textOf(u, 'co-approve-slide-result')).toBe('CO #4 approved · contract $52,400.00');
     await advance(2000);
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(mockFireConfetti).not.toHaveBeenCalled();
     expect(alertSpy).not.toHaveBeenCalled();
     u.unmount();
   });
@@ -329,7 +319,6 @@ describe('B2 the reflow preview slide', () => {
     expect(u.getByText(/^Finish moves to [A-Z][a-z]{2} \d{1,2}, 2026$/)).toBeTruthy();
     await advance(2000);
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(mockFireConfetti).not.toHaveBeenCalled();
     expect(alertSpy).not.toHaveBeenCalled();
     u.unmount();
   });
@@ -467,7 +456,6 @@ describe('B3 record a payment (the real invoice screen)', () => {
     expect(tree.queryByTestId('record-payment-slide')).toBeNull();
     expect(appends).toHaveLength(1);
     expect(alertSpy).not.toHaveBeenCalled();
-    expect(mockFireConfetti).not.toHaveBeenCalled();
   });
 
   test('refused: the reason line, the sheet stays, nothing recorded', async () => {
@@ -722,7 +710,6 @@ describe('B4 certify an AIA pay app (the real screen)', () => {
     expect(mockPdf).toHaveBeenCalledTimes(1);
     expect(mockSaveAia).toHaveBeenCalledTimes(1);
     expect(alertSpy).not.toHaveBeenCalled();
-    expect(mockFireConfetti).not.toHaveBeenCalled();
     // The certification went through the online write only; nothing queue-backed.
     expect(aiaWrites).toHaveLength(0);
     expect(await queuedAiaWrites()).toBe(0);

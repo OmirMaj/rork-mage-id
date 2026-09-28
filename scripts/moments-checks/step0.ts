@@ -637,7 +637,7 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
     ['useCommitCapsule: a skin\'s neutral resolve leaves the capsule display in the cap role, never success', /const how = await play\(ctx\);/.test(hook) && /role: how === 'neutral' \? 'cap' : 'success'/.test(hook) && /playConfirmed\?: \(ctx: ConfirmedContext\) => Promise<void \| 'neutral'>;/.test(hook)],
     ['SigningCeremony: the offline reason in readiness is the site sentence', /offlineReason: offlineReasonLine\(props\.writeOptions\)/.test(cer)],
     ['contract.ts re-exports the Step 0 names (adapters, copy constants, sentence resolvers)', ['fromWriteOutcome', 'fromOnlineOutcome', 'offlineReasonLine', 'legalQueuedLine', 'LOCAL_ONLY_TITLE', 'LOCAL_ONLY_NEXT', 'EARLIER_CHANGE_PENDING_REASON', 'CommitOutcomeCopy', 'OnlineRefusalCode'].every((n) => contract.includes(n))],
-    ['validate-moments discovers every module and requires capsule, signline, adapters, step0, rules', /const REQUIRED = \['capsule', 'signline', 'adapters', 'step0', 'rules'\];/.test(read('scripts/validate-moments.ts')) && /readdirSync\(dir\)\.filter\(\(f\) => f\.endsWith\('\.ts'\)\)/.test(read('scripts/validate-moments.ts'))],
+    ['validate-moments discovers every module and requires capsule, signline, adapters, step0, rules, portal', /const REQUIRED = \['capsule', 'signline', 'adapters', 'step0', 'rules', 'portal'\];/.test(read('scripts/validate-moments.ts')) && /readdirSync\(dir\)\.filter\(\(f\) => f\.endsWith\('\.ts'\)\)/.test(read('scripts/validate-moments.ts'))],
   ];
   for (const [name, pass] of pins) ok(`0.6 ${name}`, pass);
 }

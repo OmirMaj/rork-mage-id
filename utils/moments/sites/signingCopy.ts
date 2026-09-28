@@ -27,7 +27,13 @@
 //   - VOICE §8: the contract signing is the one celebratory moment. The seal
 //     may celebrate; these words stay plain and specific.
 //
-// Pure: no imports. scripts/moments-checks/signing-sites.ts calls every export.
+// Pure: its one import (i18n/core, itself pure) reads the language at call
+// time, so bun loads this too. scripts/moments-checks/signing-sites.ts calls
+// every export. The field-ticket functions (A5) are keyed field.ticket.*
+// (W3 lane ESTICKET); the contract and client-view functions stay English
+// until Phase 2/3.
+
+import { t } from '@/i18n/core';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared: the contract on the ceremony's top panel
@@ -462,100 +468,102 @@ export function sealLegalQueued(): string {
 /**
  * LEGAL, VERBATIM: the attestation the signer agrees to, exactly as the
  * screen has shown it (founder decision D-5 keeps the screen and PDF wording
- * as they are). English only: no Spanish key ever carries it.
+ * as they are). Keyed field.ticket.legal.attestation: a `.legal.` key is
+ * extracted for display and carries NO Spanish until a human legal
+ * translator supplies it, so Spanish shows this English.
  */
 export function ticketAttestation(): string {
-  return "By signing you confirm this work was performed and the hours and quantities shown are accurate. Pricing is billed under the contract's T&M rates.";
+  return t('field.ticket.legal.attestation', "By signing you confirm this work was performed and the hours and quantities shown are accurate. Pricing is billed under the contract's T&M rates.");
 }
 
 /** Top panel row label: the work. */
 export function ticketWorkRowLabel(): string {
-  return 'Work';
+  return t('field.ticket.sign.workRow', 'Work');
 }
 
 /** Top panel row label: the day the work was done. */
 export function ticketDateRowLabel(): string {
-  return 'Date';
+  return t('field.ticket.sign.dateRow', 'Date');
 }
 
 /** Top panel row label: the amount (never shown to a role blinded from money). */
 export function ticketAmountRowLabel(): string {
-  return 'Amount';
+  return t('field.ticket.sign.amountRow', 'Amount');
 }
 
 /** The name field's label. */
 export function ticketNameLabel(): string {
-  return 'Full name';
+  return t('field.ticket.sign.fullName', 'Full name');
 }
 
 /** The slide label with the amount (cents). */
 export function ticketSignLabel(amount: string): string {
-  return `Slide along the line to sign · ${amount}`;
+  return t('field.ticket.sign.slideAmount', 'Slide along the line to sign · {amount}', { amount });
 }
 
 /** The slide label for a role blinded from money. */
 export function ticketSignLabelNoAmount(): string {
-  return 'Slide along the line to sign';
+  return t('field.ticket.sign.slide', 'Slide along the line to sign');
 }
 
 /** Screen reader: the line as one button. */
 export function ticketSrLabel(): string {
-  return 'Sign the field ticket';
+  return t('field.ticket.sign.srLabel', 'Sign the field ticket');
 }
 
 /** Screen reader: the confirm segment. */
 export function ticketSrConfirm(): string {
-  return 'Confirm signature';
+  return t('field.ticket.sign.srConfirm', 'Confirm signature');
 }
 
 /** Announced when the seal lands. */
 export function ticketSealedAnnounce(ticketLabel: string): string {
-  return `${ticketLabel} signed and locked.`;
+  return t('field.ticket.sign.sealedAnnounce', '{ticketLabel} signed and locked.', { ticketLabel });
 }
 
 /** Confirmed, with the amount: "FT-12 signed · $1,240.00". */
 export function ticketSignedTitle(ticketLabel: string, amount: string): string {
-  return `${ticketLabel} signed · ${amount}`;
+  return t('field.ticket.sign.signedTitle', '{ticketLabel} signed · {amount}', { ticketLabel, amount });
 }
 
 /** Confirmed, for a role blinded from money. */
 export function ticketSignedTitleNoAmount(ticketLabel: string): string {
-  return `${ticketLabel} signed`;
+  return t('field.ticket.sign.signedTitleNoAmount', '{ticketLabel} signed', { ticketLabel });
 }
 
 /** Confirmed detail. */
 export function ticketLockedDetail(): string {
-  return 'Locked';
+  return t('field.ticket.sign.locked', 'Locked');
 }
 
 /** What happens next. */
 export function ticketLockedNext(): string {
-  return 'Hours and quantities are locked. Rates can still change.';
+  return t('field.ticket.sign.lockedNext', 'Hours and quantities are locked. Rates can still change.');
 }
 
 /** Refused: the server said no. Nothing was signed. */
 export function ticketRefused(ticketLabel: string): string {
-  return `Not signed. ${ticketLabel} could not be saved. Nothing was signed.`;
+  return t('field.ticket.sign.refused', 'Not signed. {ticketLabel} could not be saved. Nothing was signed.', { ticketLabel });
 }
 
 /** Refused: the ticket was already signed, so its content cannot change. */
 export function ticketAlreadySigned(ticketLabel: string): string {
-  return `Not signed. ${ticketLabel} was already signed, so nothing was changed.`;
+  return t('field.ticket.sign.alreadySigned', 'Not signed. {ticketLabel} was already signed, so nothing was changed.', { ticketLabel });
 }
 
 /** Refused: no account is signed in on this phone. */
 export function ticketNoAccount(): string {
-  return 'Not signed. Sign in to your account to sign field tickets.';
+  return t('field.ticket.sign.noAccount', 'Not signed. Sign in to your account to sign field tickets.');
 }
 
 /** Timeout: the signature may still have landed. */
 export function ticketTimeout(ticketLabel: string): string {
-  return `No answer yet. Check ${ticketLabel} before trying again.`;
+  return t('field.ticket.sign.timeout', 'No answer yet. Check {ticketLabel} before trying again.', { ticketLabel });
 }
 
 /** A legal write answered "queued" (it never can). */
 export function ticketLegalQueued(): string {
-  return 'Not signed. Signing needs a connection, so nothing was signed.';
+  return t('field.ticket.sign.legalQueued', 'Not signed. Signing needs a connection, so nothing was signed.');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

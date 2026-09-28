@@ -691,7 +691,7 @@ console.log('\nC. wiring (comment-stripped source)');
   ok('"voice capture" is gone; Walk Mode says photo → pin → describe', !/voice capture/i.test(list) && /photo → pin → describe/.test(list));
   ok('the count comes from planPinStats (the export\'s verdict)', /planPinStats\(/.test(list));
   ok('no pinned count until the plan sheets are in too', /const pinCountsReady = punchItemsLoaded && planSheetsLoaded;/.test(list)
-    && /!pinCountsReady\s*\? 'Checking the plan sheets…'/.test(list) && /pinCountsReady && pinStats\.unpinned > 0 && \(/.test(list));
+    && /!pinCountsReady\s*\? t\('field\.punch\.checkingThePlanSheets', 'Checking the plan sheets…'\)/.test(list) && /pinCountsReady && pinStats\.unpinned > 0 && \(/.test(list));
   ok('the row\'s "On plan" chip is the export\'s verdict, not planSheetId', /onPlan: pinRefOf\(item, sheetsById\)\.state === 'pinned'/.test(list)
     && /\{onPlan \? \(\s*<TouchableOpacity\s*style=\{styles\.onPlanChip\}/.test(list) && !/\{item\.planSheetId \? \(/.test(list));
   ok('the site pin buttons are 48pt (md), not 36', /testID="punch-form-pin-move"/.test(list)
@@ -783,7 +783,7 @@ console.log('\nC. wiring (comment-stripped source)');
     /if \(initialStart !== 'pin'\) return;/.test(walk) && /if \(Platform\.OS !== 'ios'\) \{ openPinStep\(\); return; \}/.test(walk)
       && /addListener\('transitionEnd', open\)/.test(walk) && /setTimeout\(open, PIN_FIRST_MOUNT_FALLBACK_MS\)/.test(walk));
   ok('the late GPS stamp is a pin-scoped write (GPS columns only)', /updatePunchItemPin\(id, \{\s*photoLatitude/.test(save) && !/updatePunchItem\(/.test(walk));
-  ok('web never promises a camera in pin-first', /Platform\.OS === 'web' \? 'Next: add the photo' : 'Next: take the photo'/.test(walk));
+  ok('web never promises a camera in pin-first', /Platform\.OS === 'web' \? t\('field\.punchWalk\.pinFirst\.nextWeb', 'Next: add the photo'\) : t\('field\.punchWalk\.pinFirst\.next', 'Next: take the photo'\)/.test(walk));
   ok('Save reopens the plan in pin-first mode', /if \(pinFirst && shouldAutoOpenPinStep\(/.test(save) && /openPinStep\(\)/.test(save.slice(save.lastIndexOf('setDraft('))));
   ok('the pin-first toggle is a switch', /testID="walk-pin-first-toggle"/.test(walk) && /accessibilityRole="switch"/.test(walk));
 
@@ -805,8 +805,8 @@ console.log('\nC. wiring (comment-stripped source)');
       && /<ScrollView style=\{styles\.panelWrap\} contentContainerStyle=\{styles\.panel\} testID="walk-pin-sheet-missing">/.test(step));
   ok('the missing panel points at the other sheets he can pin on', /testID="walk-pin-other-sheets"/.test(step));
   ok('capture guidance under "Photograph the plan"', /Stand over the sheet with the phone flat, fill the frame, keep glare off it\./.test(step));
-  ok('defaults are the walk\'s own words', /title = 'Where is this\?'/.test(step) && /nextLabel = 'Next'/.test(step)
-    && /skipLabel = 'Skip'/.test(step) && /skipHint = 'Skip to save without a pin'/.test(step));
+  ok('defaults are the walk\'s own words', /title = t\('field\.punchWalk\.planPin\.title', 'Where is this\?'\)/.test(step) && /nextLabel = t\('field\.punchWalk\.planPin\.next', 'Next'\)/.test(step)
+    && /skipLabel = t\('field\.punchWalk\.planPin\.skip', 'Skip'\)/.test(step) && /skipHint = t\('field\.punchWalk\.planPin\.skipHint', 'Skip to save without a pin'\)/.test(step));
 
   // ── contexts/ProjectContext.tsx ──
   const ctx = stripTsComments(RAW_CTX);

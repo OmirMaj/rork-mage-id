@@ -27,6 +27,7 @@ import { PhotoMarkupOverlay } from '@/components/PhotoMarkupOverlay';
 import { UNPLACED_LOCATION_LABEL } from '@/utils/punchLocations';
 import { punchListTypeOf, type PhotoMarkup, type PunchItem } from '@/types';
 import type { PinSeed } from '@/utils/punchPinQueue';
+import { useT } from '@/contexts/LanguageContext';
 
 export interface PinQueueCardProps {
   layout: 'strip' | 'pane';
@@ -49,7 +50,8 @@ export interface PinQueueCardProps {
 }
 
 export function PinQueueCard(p: PinQueueCardProps) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const uri = p.item.photoUri && p.item.photoUri !== failedUri ? p.item.photoUri : undefined;
@@ -59,13 +61,28 @@ export function PinQueueCard(p: PinQueueCardProps) {
   const locationText = typed || UNPLACED_LOCATION_LABEL;
   const gps = (p.item.photoLocationLabel ?? '').trim();
   const seedNote = p.sheetMissing
-    ? 'Its plan sheet was deleted — pin it again.'
+    ? t('field.punchWalk.queue.seed.sheetDeleted', 'Its plan sheet was deleted — pin it again.')
     : p.seedSource === 'drawing-pin'
-      ? 'Placed where its plan-viewer pin is — Save to keep it.'
+      ? t('field.punchWalk.queue.seed.drawingPin', 'Placed where its plan-viewer pin is — Save to keep it.')
       : p.seedSource === 'sheet-only'
-        ? `Filed to ${p.seedSheetLabel ?? 'a sheet'} without a spot — tap where it is.`
+        ? (p.seedSheetLabel
+          ? t('field.punchWalk.queue.seed.sheetOnly', 'Filed to {sheet} without a spot — tap where it is.', { sheet: p.seedSheetLabel })
+          : t('field.punchWalk.queue.seed.sheetOnlyNoLabel', 'Filed to a sheet without a spot — tap where it is.'))
         : null;
-  const groupLabel = `Item ${p.number}, ${p.position} of ${p.total}: ${p.item.description || 'no description'}, ${locationText}${gps ? `, photo GPS ${gps}` : ''}. ${p.pinned ? 'Pinned.' : 'Not pinned.'}`;
+  // The screen reader's one line for the card: each variant is ONE sentence.
+  // One-letter placeholders: n number, i position, o total, d description, l location, g photo GPS.
+  const a11yVars = {
+    n: p.number, i: p.position, o: p.total,
+    d: p.item.description || t('field.punchWalk.queue.a11y.noDescription', 'no description'),
+    l: locationText, g: gps,
+  };
+  const groupLabel = gps
+    ? (p.pinned
+      ? t('field.punchWalk.queue.a11y.gpsPinned', 'Item {n}, {i} of {o}: {d}, {l}, photo GPS {g}. Pinned.', a11yVars)
+      : t('field.punchWalk.queue.a11y.gpsNotPinned', 'Item {n}, {i} of {o}: {d}, {l}, photo GPS {g}. Not pinned.', a11yVars))
+    : (p.pinned
+      ? t('field.punchWalk.queue.a11y.pinned', 'Item {n}, {i} of {o}: {d}, {l}. Pinned.', a11yVars)
+      : t('field.punchWalk.queue.a11y.notPinned', 'Item {n}, {i} of {o}: {d}, {l}. Not pinned.', a11yVars));
 
   const photo = (
     <TouchableOpacity
@@ -73,7 +90,7 @@ export function PinQueueCard(p: PinQueueCardProps) {
       disabled={!uri}
       activeOpacity={0.85}
       accessibilityRole="imagebutton"
-      accessibilityLabel={uri ? `Photo for #${p.number}, opens full screen` : `No photo for #${p.number}`}
+      accessibilityLabel={uri ? t('field.punchWalk.queue.photoForOpensFull', 'Photo for #{number}, opens full screen', { number: p.number }) : t('field.punchWalk.queue.noPhotoFor', 'No photo for #{number}', { number: p.number })}
       accessibilityState={{ disabled: !uri }}
       testID="pin-queue-photo"
       style={[styles.photo, { width: p.photoSize, height: p.photoSize }]}
@@ -86,8 +103,8 @@ export function PinQueueCard(p: PinQueueCardProps) {
         </>
       ) : (
         <View style={styles.noPhoto}>
-          <ImageOff size={p.photoSize > 80 ? 20 : 14} color={t.textMuted} strokeWidth={1.75} />
-          {p.photoSize > 80 && <Text style={styles.noPhotoText}>No photo</Text>}
+          <ImageOff size={p.photoSize > 80 ? 20 : 14} color={tc.textMuted} strokeWidth={1.75} />
+          {p.photoSize > 80 && <Text style={styles.noPhotoText}>{t('field.punchWalk.queue.noPhoto', 'No photo')}</Text>}
         </View>
       )}
     </TouchableOpacity>
@@ -97,15 +114,15 @@ export function PinQueueCard(p: PinQueueCardProps) {
     <View style={{ flex: 1, minWidth: 0 }} accessible accessibilityLabel={groupLabel}>
       <View style={styles.topRow}>
         <Text style={styles.number}>#{p.number}</Text>
-        <Badge tone={list === 'punch' ? 'danger' : 'neutral'}>{list === 'punch' ? 'Punch' : 'Crew list'}</Badge>
-        {p.item.status === 'closed' && <StatusPill label="Closed" tone="neutral" size="compact" />}
+        <Badge tone={list === 'punch' ? 'danger' : 'neutral'}>{list === 'punch' ? t('field.punchWalk.queue.badgePunch', 'Punch') : t('field.punchWalk.queue.badgeCrew', 'Crew list')}</Badge>
+        {p.item.status === 'closed' && <StatusPill label={t('field.punchWalk.queue.closed', 'Closed')} tone="neutral" size="compact" />}
       </View>
       <Text style={styles.desc} numberOfLines={isPane ? undefined : p.collapsed ? 1 : 2}>
-        {p.item.description || 'No description'}
+        {p.item.description || t('field.punchWalk.queue.noDescription', 'No description')}
       </Text>
       <Text style={styles.meta} numberOfLines={isPane ? undefined : 1}>
         <Text style={typed ? styles.metaStrong : undefined}>{locationText}</Text>
-        {gps ? ` · Photo GPS · ${gps}` : ''}
+        {gps ? t('field.punchWalk.queue.gpsFact', ' · Photo GPS · {gps}', { gps }) : ''}
       </Text>
       {seedNote && <Text style={styles.seed} numberOfLines={isPane ? undefined : 1}>{seedNote}</Text>}
     </View>
@@ -133,12 +150,12 @@ export function PinQueueCard(p: PinQueueCardProps) {
           onPress={p.onToggleCollapsed}
           style={styles.iconBtn}
           accessibilityRole="button"
-          accessibilityLabel={p.collapsed ? 'Bigger photo' : 'Smaller photo'}
+          accessibilityLabel={p.collapsed ? t('field.punchWalk.queue.biggerPhoto', 'Bigger photo') : t('field.punchWalk.queue.smallerPhoto', 'Smaller photo')}
           testID="pin-queue-photo-toggle"
         >
           {p.collapsed
-            ? <Maximize2 size={18} color={t.textSecondary} strokeWidth={1.75} />
-            : <Minimize2 size={18} color={t.textSecondary} strokeWidth={1.75} />}
+            ? <Maximize2 size={18} color={tc.textSecondary} strokeWidth={1.75} />
+            : <Minimize2 size={18} color={tc.textSecondary} strokeWidth={1.75} />}
         </TouchableOpacity>
       )}
     </View>
@@ -152,7 +169,8 @@ export function PinQueueNav({ backNumber, undoNumber, onBack, onUndo }: {
   onBack: () => void;
   onUndo: () => void;
 }) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const backOff = backNumber === null;
   const undoOff = undoNumber === null;
@@ -163,22 +181,22 @@ export function PinQueueNav({ backNumber, undoNumber, onBack, onUndo }: {
         disabled={backOff}
         style={[styles.navBtn, backOff && styles.navBtnOff]}
         accessibilityRole="button"
-        accessibilityLabel={backOff ? 'First item' : `Back to #${backNumber}`}
+        accessibilityLabel={backOff ? t('field.punchWalk.queue.firstItem', 'First item') : t('field.punchWalk.queue.backTo', 'Back to #{backNumber}', { backNumber })}
         accessibilityState={{ disabled: backOff }}
         testID="pin-queue-back"
       >
-        <ChevronLeft size={20} color={backOff ? t.textMuted : t.accent} strokeWidth={2} />
+        <ChevronLeft size={20} color={backOff ? tc.textMuted : tc.accent} strokeWidth={2} />
       </TouchableOpacity>
       <TouchableOpacity
         onPress={onUndo}
         disabled={undoOff}
         style={[styles.navBtn, undoOff && styles.navBtnOff]}
         accessibilityRole="button"
-        accessibilityLabel={undoOff ? 'Nothing to undo yet' : `Undo the pin on #${undoNumber}`}
+        accessibilityLabel={undoOff ? t('field.punchWalk.queue.nothingToUndoYet', 'Nothing to undo yet') : t('field.punchWalk.queue.undoThePinOn', 'Undo the pin on #{undoNumber}', { undoNumber })}
         accessibilityState={{ disabled: undoOff }}
         testID="pin-queue-undo"
       >
-        <Undo2 size={18} color={undoOff ? t.textMuted : t.accent} strokeWidth={2} />
+        <Undo2 size={18} color={undoOff ? tc.textMuted : tc.accent} strokeWidth={2} />
       </TouchableOpacity>
     </>
   );

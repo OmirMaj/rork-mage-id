@@ -105,7 +105,7 @@ console.log('\n#22 publish toggle is unsaved work and says what is saved:');
   ok('draftContent includes hsPublished (value and deps)', /homeownerSummary, hsPublished,\n\s*\}\), \[[^\]]*homeownerSummary, hsPublished\]/.test(code));
   ok('the saved baseline reads the saved flag', /hsPublished: existingReport\?\.homeownerSummaryPublished \?\? false,/.test(code));
   ok('Restore brings the flag back', /setHsPublished\(draft\.hsPublished \?\? false\)/.test(code));
-  ok('the pill and label come from dfrPublishControl(saved, local)', /const hsControl = dfrPublishControl\(hsPublishedSaved, hsPublished\)/.test(code) && /\{hsControl\.pill && \(/.test(code) && /\{hsControl\.label\}/.test(code));
+  ok('the pill and label come from dfrPublishControl(saved, local)', /const hsControl = dfrPublishControl\(hsPublishedSaved, hsPublished, t\)/.test(code) && /\{hsControl\.pill && \(/.test(code) && /\{hsControl\.label\}/.test(code));
 }
 
 // ── #115 — the summary is for the report's day ───────────────────────────────
@@ -114,12 +114,12 @@ console.log('\n#115 homeowner summary dated the report day:');
   const fnStart = code.indexOf('const handleGenerateHomeownerSummary = useCallback(');
   const fn = code.slice(fnStart, code.indexOf('// ─── Profit Leak scan', fnStart) > 0 ? code.indexOf('const currentLeakHash', fnStart) : fnStart + 3000);
   ok('the prompt DFR is dated reportDate', /date: reportDate,/.test(fn) && !/existingReport\?\.date \?\? new Date\(\)\.toISOString\(\)/.test(fn));
-  ok('reportDate is in the callback deps', /settings, reportDate\]\);/.test(fn));
+  ok('reportDate is in the callback deps', /settings, reportDate(, t)?\]\);/.test(fn));
   ok('a generated summary remembers its day', /setHsWrittenForDay\(calendarDayOf\(reportDate\)\)/.test(fn));
   ok('re-dated after writing → stale', P.dfrSummaryIsStale('Big day', '2026-09-14', '2026-09-18'));
   ok('same day → not stale', !P.dfrSummaryIsStale('Big day', '2026-09-18', '2026-09-18'));
   ok('no summary → nothing to be stale', !P.dfrSummaryIsStale('  ', '2026-09-14', '2026-09-18'));
-  ok('a stale summary cannot be published (taking it down stays allowed)', /hsStale && !hsPublished \? 'Written for a different day/.test(code));
+  ok('a stale summary cannot be published (taking it down stays allowed)', /hsStale && !hsPublished \? t\('field\.dfr\.hs\.writtenForOtherDay', 'Written for a different day/.test(code));
 }
 
 // ── #116 — who decides what the homeowner sees ───────────────────────────────
@@ -131,7 +131,7 @@ console.log('\n#116 only owner/editor publish; field reports notify the GC:');
   ok('editor may publish', a({ ownerUserId: 'x', userId: 'u1', role: 'editor' }).allowed);
   ok('editor by the offline myRole stamp', a({ ownerUserId: 'x', userId: 'u1', role: null, myRole: 'editor' }).allowed);
   const f = a({ ownerUserId: 'x', userId: 'u1', role: 'field' });
-  ok('field seat blocked, with the reason', !f.allowed && f.reason === 'The project owner decides what the homeowner sees.');
+  ok('field seat blocked, with the reason', !f.allowed && f.reason === 'The project owner decides what the client sees.');
   ok('viewer seat blocked', !a({ ownerUserId: 'x', userId: 'u1', role: 'viewer' }).allowed);
   ok('offline field seat (myRole only) blocked', !a({ ownerUserId: 'x', userId: 'u1', role: null, myRole: 'field' }).allowed);
   ok("a collaborator's role still loading is held, and says so", a({ ownerUserId: 'x', userId: 'u1', role: null, roleLoading: true }).reason === 'Checking your role on this job…');
@@ -146,7 +146,7 @@ console.log('\n#116 only owner/editor publish; field reports notify the GC:');
   ok('save writes the SAVED flag/text for a non-publisher (mirrors the trigger)',
     /const hsPublishedOut = publishAccess\.allowed \? hsPublished : savedPublished;/.test(code)
     && /homeownerSummaryPublished: hsPublishedOut,[\s\S]*homeownerSummaryPublished: hsPublishedOut,/.test(code));
-  ok('the published note claims only "once the report has synced"', /The homeowner&apos;s portal shows this update once the report has synced\./.test(code));
+  ok('the published note claims only "once the report has synced"', /The client's portal shows this update once the report has synced\./.test(code));
   ok('the role hook keeps its call shape', /useProjectRoleState\(projectId \|\| undefined\)/.test(code));
 
   const MIG = read('supabase/migrations/20260919140000_dfr_portal_publish_owner.sql');
@@ -230,7 +230,7 @@ console.log('\n#87 #83 #89 #82 incident from the report:');
   ok('#89: a case deleted in Incidents is not re-filed on save', /const caseDeletedInLog = !linkedIncident && isIncidentDeleted\(dfrCaseId\);/.test(code) && /if \(incident\.hasIncident && projectId && !caseDeletedInLog && !caseNotYoursReason\)/.test(code));
   ok('#89: the report says so and offers "File it again"', /The case from this report was deleted in Incidents, so saving will not file it again\./.test(code) && /clearIncidentTombstone\(dfrCaseId\)/.test(code));
   ok('#82: a collaborator is not promised "your" record or the OSHA 300', P.dfrIncidentFileNote(false) === 'Filed with this report. Only you and the job\u2019s owner can see it; the owner keeps the OSHA 300.' && !/your/i.test(P.dfrIncidentFileNote(false)));
-  ok('#82: the will-file note reads the owner rule', /\{dfrIncidentFileNote\(isProjectOwner\)\}/.test(code));
+  ok('#82: the will-file note reads the owner rule', /\{dfrIncidentFileNote\(isProjectOwner, t\)\}/.test(code));
   ok('#83: a filed case points to Incidents for people/actions/photos', /Case filed — edit people, actions and photos in Incidents/.test(code));
 }
 
@@ -240,7 +240,7 @@ console.log('\n#41 Draft-CO owner gate and the fieldIssue handoff:');
   ok('owner by stamp, else by role', P.dfrIsProjectOwner('u1', 'u1', null) && P.dfrIsProjectOwner('x', 'u1', 'owner') && !P.dfrIsProjectOwner('x', 'u1', 'editor') && !P.dfrIsProjectOwner(undefined, 'u1', null));
   ok('the reason is the handoff copy', P.DFR_GC_CREATES_COS === 'Your GC creates change orders — this goes to them as a field issue in this report.');
   ok('the Draft-CO button is disabled for non-owners', /disabled=\{leakIsStale \|\| !isProjectOwner\}/.test(code) && /testID="leak-draft-co-blocked"/.test(code));
-  ok('the handler refuses too', /if \(!isProjectOwner\) \{ showAlert\('Change orders', DFR_GC_CREATES_COS\); return; \}/.test(code));
+  ok('the handler refuses too', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report\.'\)\); return; \}/.test(code));
   ok('fieldIssue prefills a NEW report\'s issues', /const fi = typeof paramFieldIssue === 'string' \? paramFieldIssue\.trim\(\) : '';/.test(code) && /if \(existingReport\) return existingReport\.issuesAndDelays \?\? '';/.test(code));
 }
 

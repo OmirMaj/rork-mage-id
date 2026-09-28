@@ -31,6 +31,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useT } from '@/contexts/LanguageContext';
 
 // --- BEGIN burstSummary ---
 // scripts/validate-field-capture.ts extracts everything between these
@@ -55,19 +56,45 @@ export type BurstStop = 'cancelled' | 'limit' | 'permission' | 'error' | 'unsupp
  * `capLabel` is the cap as the caller words it ("10-photo", "no more room"),
  * so this stays out of the business of knowing each screen's limit.
  */
-export function burstSummary(captured: number, stoppedBy: BurstStop, capLabel: string): string | null {
+/**
+ * The words burstSummary speaks through (Spanish Phase 1b, W3 ESSHELL;
+ * field.chrome.burst.*). The default is plain English — byte-identical to the
+ * English-only build, and what validate-field-capture runs (this region is
+ * executed on its own, so the default lives inside the sentinels). A migrated
+ * screen passes its useT() `{ t, tn }` to get the app language.
+ */
+export interface BurstSay {
+  t(key: `field.chrome.${string}`, en: string, vars?: Record<string, string | number>): string;
+  tn(key: `field.chrome.${string}`, count: number, en: { one: string; other: string }, vars?: Record<string, string | number>): string;
+}
+const PLAIN_BURST_SAY: BurstSay = {
+  t: (_key, en, vars) => en.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, k: string) => (vars && Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m)),
+  tn: (key, count, en, vars) => PLAIN_BURST_SAY.t(key, count === 1 ? en.one : en.other, { count, ...(vars ?? {}) }),
+};
+
+export function burstSummary(captured: number, stoppedBy: BurstStop, capLabel: string, say: BurstSay = PLAIN_BURST_SAY): string | null {
+  const { t, tn } = say;
   if (stoppedBy === 'permission') {
     return captured > 0
-      ? `Added ${captured} photo${captured === 1 ? '' : 's'}. Camera access was turned off partway through — turn it back on in Settings to keep shooting.`
-      : 'Camera access is off. Turn it on in Settings to shoot a photo walk.';
+      ? tn('field.chrome.burst.permissionPartway', captured, {
+        one: 'Added {count} photo. Camera access was turned off partway through — turn it back on in Settings to keep shooting.',
+        other: 'Added {count} photos. Camera access was turned off partway through — turn it back on in Settings to keep shooting.',
+      })
+      : t('field.chrome.burst.permissionOff', 'Camera access is off. Turn it on in Settings to shoot a photo walk.');
   }
   if (stoppedBy === 'error') {
     return captured > 0
-      ? `Added ${captured} photo${captured === 1 ? '' : 's'}, then the camera stopped responding. Tap again to carry on where you left off.`
-      : 'The camera did not open. Try again, or pick from your library instead.';
+      ? tn('field.chrome.burst.cameraStopped', captured, {
+        one: 'Added {count} photo, then the camera stopped responding. Tap again to carry on where you left off.',
+        other: 'Added {count} photos, then the camera stopped responding. Tap again to carry on where you left off.',
+      })
+      : t('field.chrome.burst.cameraDidNotOpen', 'The camera did not open. Try again, or pick from your library instead.');
   }
   if (stoppedBy === 'limit') {
-    return `Added ${captured} photo${captured === 1 ? '' : 's'} — that is the ${capLabel} limit for this record. Anything else has to go somewhere else.`;
+    return tn('field.chrome.burst.limit', captured, {
+      one: 'Added {count} photo — that is the {capLabel} limit for this record. Anything else has to go somewhere else.',
+      other: 'Added {count} photos — that is the {capLabel} limit for this record. Anything else has to go somewhere else.',
+    }, { capLabel });
   }
   // 'cancelled' — the user ended the walk, and every shot they took is on
   // screen. 'unsupported' — web already fell through to the library picker and
@@ -201,6 +228,7 @@ export interface PhotoThumbGridProps {
  * taken and stays visible with no signal.
  */
 export function PhotoThumbGrid({ uris, onRemove, size = 76, testIDPrefix = 'photo' }: PhotoThumbGridProps) {
+  const { t } = useT();
   const styles = useThemedStyles(makeStyles);
   const remove = useCallback((idx: number) => {
     onRemove?.(idx);
@@ -219,7 +247,7 @@ export function PhotoThumbGrid({ uris, onRemove, size = 76, testIDPrefix = 'phot
               onPress={() => remove(idx)}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               accessibilityRole="button"
-              accessibilityLabel={`Remove photo ${idx + 1}`}
+              accessibilityLabel={t('field.chrome.photo.removeN', 'Remove photo {n}', { n: idx + 1 })}
               testID={`${testIDPrefix}-remove-${idx}`}
             >
               <X size={12} color="#FFFFFF" strokeWidth={2.5} />

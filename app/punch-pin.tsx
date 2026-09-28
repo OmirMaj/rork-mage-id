@@ -57,8 +57,7 @@ import {
   type PinQueueEnv, type PinWrite,
 } from '@/utils/punchPinQueue';
 import { peekPinQueueIds } from '@/utils/pinQueueHandoff';
-
-const LIST_WORDS: Record<PunchListType, string> = { punch: 'punch list', crew: 'crew list' };
+import { useT } from '@/contexts/LanguageContext';
 
 export default function PunchPinScreen() {
   const router = useRouter();
@@ -80,7 +79,8 @@ export default function PunchPinScreen() {
 }
 
 function PunchPinScreenInner() {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ projectId?: string; list?: string; batch?: string; ids?: string }>();
   const { projects, getProject, projectsLoaded } = useProjects();
@@ -93,12 +93,12 @@ function PunchPinScreenInner() {
 
   if (!project) {
     return (
-      <View style={[styles.root, { backgroundColor: t.bg }]}>
-        <Stack.Screen options={{ headerShown: true, title: 'Pin items' }} />
+      <View style={[styles.root, { backgroundColor: tc.bg }]}>
+        <Stack.Screen options={{ headerShown: true, title: t('field.punchWalk.pin.pinItems', 'Pin items') }} />
         {!projectsLoaded ? (
           <View style={styles.center} testID="pin-queue-loading-job">
-            <ActivityIndicator color={t.textMuted} />
-            <Text style={styles.body}>Loading this project{'…'}</Text>
+            <ActivityIndicator color={tc.textMuted} />
+            <Text style={styles.body}>{t('field.punchWalk.pin.loadingThisProject', 'Loading this project…')}</Text>
           </View>
         ) : (
           <ToolProjectPicker
@@ -130,8 +130,9 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   batchToken?: string;
   idsParam?: string | string[];
 }) {
+  const { t, tn } = useT();
   const router = useRouter();
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -250,7 +251,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
     router.push({ pathname: '/plans' as never, params: { projectId } as never });
   }, [router, projectId]);
 
-  const listWord = LIST_WORDS[list];
+  const isPunchList = list === 'punch';
 
   // ── States before the walk ──────────────────────────────────────────────
   const frame = (content: React.ReactNode, testID: string) => (
@@ -265,8 +266,8 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   if (!punchItemsLoaded || !planSheetsLoaded) {
     return frame(
       <>
-        <ActivityIndicator color={t.textMuted} />
-        <Text style={styles.body}>{!punchItemsLoaded ? 'Loading the punch list' : 'Loading the plan sheets'}{'…'}</Text>
+        <ActivityIndicator color={tc.textMuted} />
+        <Text style={styles.body}>{!punchItemsLoaded ? t('field.punchWalk.pin.loadingPunch', 'Loading the punch list') : t('field.punchWalk.pin.loadingSheets', 'Loading the plan sheets')}{'…'}</Text>
       </>,
       'pin-queue-loading',
     );
@@ -275,9 +276,9 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   if (pinBlocked) {
     return frame(
       <>
-        <Text style={styles.title}>{roleState.role === 'viewer' ? 'View-only access' : 'Pins can’t be saved'}</Text>
+        <Text style={styles.title}>{roleState.role === 'viewer' ? t('field.punchWalk.pin.viewOnlyAccess', 'View-only access') : t('field.punchWalk.pin.pinsCantBeSaved', 'Pins can’t be saved')}</Text>
         <Text style={styles.body}>{pinBlocked}</Text>
-        <Button label="Back" variant="secondary" onPress={exit} iconLeft={<ChevronLeft size={16} color={t.text} strokeWidth={2} />} testID="pin-queue-exit" />
+        <Button label={t('field.punchWalk.pin.back', 'Back')} variant="secondary" onPress={exit} iconLeft={<ChevronLeft size={16} color={tc.text} strokeWidth={2} />} testID="pin-queue-exit" />
       </>,
       'pin-queue-viewonly',
     );
@@ -296,17 +297,17 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
         <>
           <Text style={styles.title}>
             {none
-              ? `${scopeStats.missing === 1 ? 'This item isn’t' : `These ${scopeStats.missing} items aren’t`} on this phone yet`
-              : `${scopeStats.total} pinned · ${scopeStats.missing} not on this phone yet`}
+              ? tn('field.punchWalk.pin.missingOnPhone', scopeStats.missing, { one: 'This item isn’t on this phone yet', other: 'These {count} items aren’t on this phone yet' })
+              : t('field.punchWalk.pin.pinnedNotOnThis', '{total} pinned · {missing} not on this phone yet', { total: scopeStats.total, missing: scopeStats.missing })}
           </Text>
-          <Text style={styles.body}>They may still be syncing from another phone, or they were deleted. Nothing here says whether they are pinned.</Text>
+          <Text style={styles.body}>{t('field.punchWalk.pin.theyMayStillBe', 'They may still be syncing from another phone, or they were deleted. Nothing here says whether they are pinned.')}</Text>
           <Button
-            label={`Pin the unpinned items on the ${listWord}`}
+            label={(isPunchList ? t('field.punchWalk.pin.pinUnpinnedPunch', 'Pin the unpinned items on the punch list') : t('field.punchWalk.pin.pinUnpinnedCrew', 'Pin the unpinned items on the crew list'))}
             onPress={() => router.replace({ pathname: '/punch-pin' as never, params: { projectId, list } as never })}
             iconLeft={<MapPinned size={16} color={Colors.textOnAccent} strokeWidth={2} />}
             testID="pin-queue-scope-missing-all"
           />
-          <Button label="Back to the punch list" variant="secondary" onPress={exit} testID="pin-queue-exit" />
+          <Button label={t('field.punchWalk.pin.backToThePunch', 'Back to the punch list')} variant="secondary" onPress={exit} testID="pin-queue-exit" />
         </>,
         'pin-queue-scope-missing',
       );
@@ -314,43 +315,45 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
     if (onList.length === 0 && !scopeIds) {
       return frame(
         <>
-          <Text style={styles.title}>No items on the {listWord} yet</Text>
-          <Text style={styles.body}>Pin first: tap the spot on the plan, take the photo, then say what{'’'}s wrong.</Text>
+          <Text style={styles.title}>{(isPunchList ? t('field.punchWalk.pin.noItemsPunch', 'No items on the punch list yet') : t('field.punchWalk.pin.noItemsCrew', 'No items on the crew list yet'))}</Text>
+          <Text style={styles.body}>{t('field.punchWalk.pin.pinFirstTapThe', 'Pin first: tap the spot on the plan, take the photo, then say what’s wrong.')}</Text>
           <Button
-            label="Pin first"
+            label={t('field.punchWalk.pin.pinFirst', 'Pin first')}
             onPress={() => router.replace({ pathname: '/punch-walk' as never, params: { projectId, list, start: 'pin' } as never })}
             iconLeft={<MapPinPlus size={16} color={Colors.textOnAccent} strokeWidth={2} />}
             testID="pin-queue-pin-first"
           />
-          <Button label="Back" variant="secondary" onPress={exit} testID="pin-queue-exit" />
+          <Button label={t('field.punchWalk.pin.back', 'Back')} variant="secondary" onPress={exit} testID="pin-queue-exit" />
         </>,
         'pin-queue-empty',
       );
     }
     return frame(
       <>
-        <MapPinned size={28} color={t.successLabel} strokeWidth={1.75} />
+        <MapPinned size={28} color={tc.successLabel} strokeWidth={1.75} />
         <Text style={styles.title}>
-          {scopeIds ? 'Every item in this batch is pinned' : `Every item on the ${listWord} is pinned (${onList.length})`}
+          {scopeIds ? t('field.punchWalk.pin.everyItemInThis', 'Every item in this batch is pinned') : (isPunchList ? t('field.punchWalk.pin.allPinnedPunch', 'Every item on the punch list is pinned ({length})', { length: onList.length }) : t('field.punchWalk.pin.allPinnedCrew', 'Every item on the crew list is pinned ({length})', { length: onList.length }))}
         </Text>
         {lastPinnedSheet && lastPinnedSheet.state === 'pinned' && (
           <Button
-            label="View on the plan"
+            label={t('field.punchWalk.pin.viewOnThePlan', 'View on the plan')}
             variant="secondary"
             onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: lastPinnedSheet.sheetId } as never })}
-            iconLeft={<PlanIcon size={16} color={t.text} strokeWidth={2} />}
+            iconLeft={<PlanIcon size={16} color={tc.text} strokeWidth={2} />}
             testID="pin-queue-view-plan"
           />
         )}
         {!scopeIds && otherUnpinned > 0 && (
           <Button
-            label={`Pin the ${otherUnpinned} ${LIST_WORDS[otherList]} item${otherUnpinned === 1 ? '' : 's'}`}
+            label={otherList === 'punch'
+              ? tn('field.punchWalk.pin.pinOtherPunch', otherUnpinned, { one: 'Pin the {count} punch list item', other: 'Pin the {count} punch list items' })
+              : tn('field.punchWalk.pin.pinOtherCrew', otherUnpinned, { one: 'Pin the {count} crew list item', other: 'Pin the {count} crew list items' })}
             onPress={() => router.replace({ pathname: '/punch-pin' as never, params: { projectId, list: otherList } as never })}
             iconLeft={<MapPinned size={16} color={Colors.textOnAccent} strokeWidth={2} />}
             testID="pin-queue-other-list"
           />
         )}
-        <Button label="Back to the punch list" variant="secondary" onPress={exit} testID="pin-queue-exit" />
+        <Button label={t('field.punchWalk.pin.backToThePunch', 'Back to the punch list')} variant="secondary" onPress={exit} testID="pin-queue-exit" />
       </>,
       'pin-queue-nothing',
     );
@@ -359,7 +362,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   if (session.index < session.ids.length && (!current || !seed)) {
     // The item under the cursor just left (deleted elsewhere); the effect
     // above moves on next frame — never flash "All pinned" meanwhile.
-    return frame(<ActivityIndicator color={t.textMuted} />, 'pin-queue-moving');
+    return frame(<ActivityIndicator color={tc.textMuted} />, 'pin-queue-moving');
   }
 
   if (session.index >= session.ids.length || !current || !seed) {
@@ -368,16 +371,18 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
     const lastSheetId = session.lastSheetId;
     return frame(
       <>
-        <MapPinned size={28} color={t.successLabel} strokeWidth={1.75} />
+        <MapPinned size={28} color={tc.successLabel} strokeWidth={1.75} />
         <Text style={styles.title}>
           {scopeStats.unpinned === 0
-            ? `All ${scopeStats.total} pinned`
-            : `${scopeStats.pinned} of ${scopeStats.total} pinned${skipped > 0 ? ` · ${skipped} skipped` : ''}`}
+            ? t('field.punchWalk.pin.allPinned', 'All {total} pinned', { total: scopeStats.total })
+            : skipped > 0
+              ? t('field.punchWalk.pin.pinnedOfSkipped', '{pinned} of {total} pinned · {skipped} skipped', { pinned: scopeStats.pinned, total: scopeStats.total, skipped })
+              : t('field.punchWalk.pin.pinnedOf', '{pinned} of {total} pinned', { pinned: scopeStats.pinned, total: scopeStats.total })}
         </Text>
-        <Text style={styles.body}>The punch list export draws these on its plan pages.</Text>
+        <Text style={styles.body}>{t('field.punchWalk.pin.thePunchListExport', 'The punch list export draws these on its plan pages.')}</Text>
         {skipped > 0 && (
           <Button
-            label={`Pin the ${skipped} skipped`}
+            label={t('field.punchWalk.pin.pinTheSkipped', 'Pin the {skipped} skipped', { skipped })}
             onPress={() => dispatch({ type: 'restart-skipped', env })}
             iconLeft={<RotateCcw size={16} color={Colors.textOnAccent} strokeWidth={2} />}
             testID="pin-queue-restart-skipped"
@@ -385,20 +390,20 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
         )}
         {lastSheetId && (
           <Button
-            label="View on the plan"
+            label={t('field.punchWalk.pin.viewOnThePlan', 'View on the plan')}
             variant="secondary"
             onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: lastSheetId } as never })}
-            iconLeft={<PlanIcon size={16} color={t.text} strokeWidth={2} />}
+            iconLeft={<PlanIcon size={16} color={tc.text} strokeWidth={2} />}
             testID="pin-queue-view-plan"
           />
         )}
-        <Button label="Back to the punch list" variant="secondary" onPress={exit} testID="pin-queue-exit" />
+        <Button label={t('field.punchWalk.pin.backToThePunch', 'Back to the punch list')} variant="secondary" onPress={exit} testID="pin-queue-exit" />
         {lastWrite && lastNumber !== undefined && (
           <Button
-            label={`Undo #${lastNumber}`}
+            label={t('field.punchWalk.pin.undo', 'Undo #{lastNumber}', { lastNumber })}
             variant="ghost"
             onPress={undoLast}
-            iconLeft={<Undo2 size={16} color={t.accent} strokeWidth={2} />}
+            iconLeft={<Undo2 size={16} color={tc.accent} strokeWidth={2} />}
             testID="pin-queue-done-undo"
           />
         )}
@@ -431,7 +436,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   };
   const batchNote = batchLost ? (
     <Text style={styles.batchNote} testID="pin-queue-batch-note">
-      Showing every unpinned item on the {listWord} {'—'} the photo-walk batch is only kept until the app reloads.
+      {(isPunchList ? t('field.punchWalk.pin.batchLostPunch', 'Showing every unpinned item on the punch list — the photo-walk batch is only kept until the app reloads.') : t('field.punchWalk.pin.batchLostCrew', 'Showing every unpinned item on the crew list — the photo-walk batch is only kept until the app reloads.'))}
     </Text>
   ) : null;
 
@@ -443,7 +448,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
         presentation="screen"
         projectId={projectId}
         itemKey={current.id}
-        title="Pin items"
+        title={t('field.punchWalk.pin.pinItems', 'Pin items')}
         closeLabel="Done — back to the punch list"
         // List-wide (the card's "item 3 of 43" is the queue position).
         subtitlePrefix={`${scopeStats.pinned} of ${scopeStats.total} pinned`}
@@ -475,9 +480,9 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
         onFooterLayout={setFooterH}
         showHint={Platform.OS === 'web' || session.history.length === 0}
         webShortcuts={viewer || !focused ? null : { onBack: goBack, onUndo: undoLast }}
-        nextLabel={pinnedNow ? 'Save · next' : isLast ? 'Save pin · done' : 'Save pin · next'}
-        skipLabel={hasDurablePlan ? 'Skip' : 'Not now'}
-        skipHint={hasDurablePlan ? 'Skip to leave this item unpinned for now' : 'Not now to leave Pin items'}
+        nextLabel={pinnedNow ? t('field.punchWalk.pin.saveNext', 'Save · next') : isLast ? t('field.punchWalk.pin.savePinDone', 'Save pin · done') : t('field.punchWalk.pin.savePinNext', 'Save pin · next')}
+        skipLabel={hasDurablePlan ? t('field.punchWalk.pin.skip', 'Skip') : t('field.punchWalk.pin.notNow', 'Not now')}
+        skipHint={hasDurablePlan ? t('field.punchWalk.pin.skipHint', 'Skip to leave this item unpinned for now') : t('field.punchWalk.pin.notNowHint', 'Not now to leave Pin items')}
         onNext={(pin) => handleNext(pin)}
         onSkip={handleSkip}
         onClose={exit}

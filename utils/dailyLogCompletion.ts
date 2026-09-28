@@ -44,6 +44,13 @@
 
 import type { DailyFieldReport, ManpowerEntry, ProjectSchedule } from '@/types';
 import { DELIVERY_TICKET_TAG } from '@/utils/deliveryArrival';
+// Spanish (wave-next W3): the sentence builders below take a trailing
+// `lang` (default 'en'). Each sentence is ONE key with its count
+// (docs/I18N.md, "Gender and sentence building"); t/tn read the catalog only when lang is not 'en', so
+// the English path returns exactly the sentence it always did.
+import { t, tn } from '@/i18n/core';
+import { formatTimeL } from '@/i18n/format';
+import type { DisplayLang } from '@/i18n/types';
 
 /** Default rolling window. Long enough to show a habit, short enough that an
  *  old gap stops being news. */
@@ -364,35 +371,40 @@ export function computeDailyLogCompletion(input: DailyLogCompletionInput): Daily
   };
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
 /**
  * The standing number. States it; does not congratulate anyone for it.
  * Null before there is a record to describe.
  */
-export function dailyLogHeadline(c: DailyLogCompletion): string | null {
+export function dailyLogHeadline(c: DailyLogCompletion, lang: DisplayLang = 'en'): string | null {
   if (!c.hasRecord || c.closedExpectedDays === 0) return null;
-  return `Daily log covers ${c.filedDays} of ${plural(c.closedExpectedDays, 'working day')}.`;
+  return tn('field.dfr.record.headline', c.closedExpectedDays, {
+    one: 'Daily log covers {filed} of {count} working day.',
+    other: 'Daily log covers {filed} of {count} working days.',
+  }, { filed: c.filedDays }, lang);
 }
 
 /** The "nothing happened days still count" line. Null when there are none. */
-export function dailyLogEmptyDayLine(c: DailyLogCompletion): string | null {
+export function dailyLogEmptyDayLine(c: DailyLogCompletion, lang: DisplayLang = 'en'): string | null {
   if (!c.hasRecord || c.emptyDayFilings === 0) return null;
-  const n = c.emptyDayFilings;
-  return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.`;
+  return tn('field.dfr.record.emptyDays', c.emptyDayFilings, {
+    one: '{count} of those days was logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.',
+    other: '{count} of those days were logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.',
+  }, undefined, lang);
 }
 
 /** The gap statement. A fact about the record, not a to-do list. */
-export function dailyLogGapLine(c: DailyLogCompletion): string | null {
+export function dailyLogGapLine(c: DailyLogCompletion, lang: DisplayLang = 'en'): string | null {
   if (!c.hasRecord || c.missedDays === 0) return null;
-  const n = c.missedDays;
-  return `${plural(n, 'working day')} in this stretch ${n === 1 ? 'has' : 'have'} no log. A report written now would carry today's date, not that day's, so the gap stays.`;
+  return tn('field.dfr.record.gap', c.missedDays, {
+    one: "{count} working day in this stretch has no log. A report written now would carry today's date, not that day's, so the gap stays.",
+    other: "{count} working days in this stretch have no log. A report written now would carry today's date, not that day's, so the gap stays.",
+  }, undefined, lang);
 }
 
 /** The only action worth offering: today. Null when today is not owed. */
-export function dailyLogTodayLine(c: DailyLogCompletion): string | null {
+export function dailyLogTodayLine(c: DailyLogCompletion, lang: DisplayLang = 'en'): string | null {
   if (!c.hasRecord || !c.todayExpected || c.todayFiled) return null;
-  return 'Today has no log yet. If nothing happened on site, that is still the day to record.';
+  return t('field.dfr.record.today', 'Today has no log yet. If nothing happened on site, that is still the day to record.', undefined, lang);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -453,6 +465,9 @@ export function todaysPhotosToAttach<P extends DayPhotoLike>(
   max: number,
   /** "today's" (default) — a backdated report says "that day's". */
   dayWord: string = "today's",
+  /** Spanish (W3): the chip is ONE key per day word ("today's" or any other
+   *  word = "that day's"), never the English word spliced into Spanish. */
+  lang: DisplayLang = 'en',
 ): TodaysPhotosPlan<P> {
   const have = new Set((attached ?? []).map(p => p.id));
   const seen = new Set<string>();
@@ -465,10 +480,19 @@ export function todaysPhotosToAttach<P extends DayPhotoLike>(
   const room = Math.max(0, Math.floor(max) - (attached ?? []).length);
   const add = fresh.slice(0, room);
   let label: string | null = null;
-  if (add.length > 0) {
+  if (add.length > 0 && lang === 'en') {
     label = add.length === fresh.length
       ? `Add ${dayWord} ${add.length} ${add.length === 1 ? 'photo' : 'photos'}`
       : `Add ${dayWord} photos · ${room} more ${room === 1 ? 'fits' : 'fit'}`;
+  } else if (add.length > 0) {
+    const today = dayWord === "today's";
+    label = add.length === fresh.length
+      ? (today
+        ? tn('field.dfr.photos.addToday', add.length, { one: "Add today's {count} photo", other: "Add today's {count} photos" }, undefined, lang)
+        : tn('field.dfr.photos.addThatDay', add.length, { one: "Add that day's {count} photo", other: "Add that day's {count} photos" }, undefined, lang))
+      : (today
+        ? tn('field.dfr.photos.addTodayFits', room, { one: "Add today's photos · {count} more fits", other: "Add today's photos · {count} more fit" }, undefined, lang)
+        : tn('field.dfr.photos.addThatDayFits', room, { one: "Add that day's photos · {count} more fits", other: "Add that day's photos · {count} more fit" }, undefined, lang));
   }
   return { add, available: fresh.length, room, label };
 }
@@ -574,10 +598,12 @@ export type VoiceLogWrite =
 
 const pad2v = (n: number) => String(n).padStart(2, '0');
 
-/** "7:42 AM" in local time — the stamp on an appended line. */
-export function voiceLineStamp(at: string | number | Date): string {
+/** "7:42 AM" in local time — the stamp on an appended line. Spanish (W3):
+ *  "7:42 a.m." (i18n/format.ts formatTimeL). */
+export function voiceLineStamp(at: string | number | Date, lang: DisplayLang = 'en'): string {
   const d = at instanceof Date ? at : new Date(at);
   if (!Number.isFinite(d.getTime())) return '';
+  if (lang === 'es') return formatTimeL(d, 'es');
   const h = d.getHours();
   return `${h % 12 === 0 ? 12 : h % 12}:${pad2v(d.getMinutes())} ${h < 12 ? 'AM' : 'PM'}`;
 }

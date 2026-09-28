@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatPoint, toCoordinate, inNoStartRect, type NoStartRect } from '@/utils/moments/signatureInk';
+import { useT } from '@/contexts/LanguageContext';
 
 // SignaturePad — the drawn-signature canvas.
 //
@@ -101,6 +102,9 @@ function SignaturePadInner(
   }: SignaturePadProps,
   ref: React.ForwardedRef<SignaturePadHandle>,
 ) {
+  // Spanish Phase 1b (W3 ESSHELL, field.chrome.signature.*): the pad's own
+  // chrome only. The strokes are the signature; nothing about them changes.
+  const { t } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const pathsRef = useRef<string[]>(initialPaths ?? []);
@@ -243,7 +247,7 @@ function SignaturePadInner(
         </Svg>
         {!bare && !hasPaths && (
           <View style={styles.placeholder} pointerEvents="none">
-            <Text style={styles.placeholderText}>Sign here</Text>
+            <Text style={styles.placeholderText}>{t('field.chrome.signature.signHere', 'Sign here')}</Text>
           </View>
         )}
         {!bare && (
@@ -261,7 +265,7 @@ function SignaturePadInner(
             activeOpacity={0.7}
           >
             <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-            <Text style={styles.clearBtnText}>Clear</Text>
+            <Text style={styles.clearBtnText}>{t('field.chrome.signature.clear', 'Clear')}</Text>
           </TouchableOpacity>
           {saveShown && (
             <TouchableOpacity
@@ -272,7 +276,7 @@ function SignaturePadInner(
             >
               <Check size={14} color={hasPaths ? '#FFFFFF' : themeColors.textMuted} strokeWidth={1.75} />
               <Text style={[styles.saveBtnText, !hasPaths && styles.saveBtnTextDisabled]}>
-                Save Signature
+                {t('field.chrome.signature.save', 'Save Signature')}
               </Text>
             </TouchableOpacity>
           )}

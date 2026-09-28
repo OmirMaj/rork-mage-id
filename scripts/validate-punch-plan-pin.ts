@@ -409,7 +409,7 @@ console.log('\nPlanPinStep (source)');
   // The loaded image's shape is the truth (stored dimensions can be swapped or
   // stale); the stored size only sizes the box before onLoad.
   ok('ratio from the loaded image first, stored sheet size before it loads', /loadedRatio\s*\?\?\s*sheetAspectRatio\(sheet\)/.test(step));
-  ok('a disabled Next says what it is waiting for (loading / load error)', /loadState === 'error'[\s\S]{0,80}Plan didn’t load/.test(step) && /loadState === 'loading'[\s\S]{0,40}Loading the plan/.test(step));
+  ok('a disabled Next says what it is waiting for (loading / load error)', /loadState === 'error'[\s\S]{0,120}Plan didn’t load/.test(step) && /loadState === 'loading'[\s\S]{0,90}Loading the plan/.test(step));
   ok('children of the touch box do not take the touch (pointerEvents="none")', (step.match(/pointerEvents="none"/g) ?? []).length >= 3);
   ok('iOS pinch zoom through the ScrollView, starting fitted', /maximumZoomScale=\{Platform\.OS === 'ios'/.test(step) && /minimumZoomScale=\{1\}/.test(step));
   ok('a new plan goes through addFloorPlan (upload first)', /addFloorPlan\(/.test(step));

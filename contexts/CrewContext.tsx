@@ -13,6 +13,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { shouldSurfaceToMarketplace, crewMemberToWorkerProfile } from '@/utils/crew';
 import { isTransportError } from '@/utils/networkErrors';
 import { crewMemberUpdateRow } from '@/utils/projectContextPure';
+import { LANGUAGE_PICKER_ENABLED } from '@/i18n/flags';
 import {
   projectCrewCacheKey, savedProjectCrewFrom, parseSavedProjectCrew, type SavedProjectCrew,
 } from '@/utils/timeClockPayroll';
@@ -37,6 +38,35 @@ async function loadLocal<T>(key: string, fallback: T): Promise<T> {
 async function saveLocal(key: string, data: unknown): Promise<void> {
   try { await AsyncStorage.setItem(key, JSON.stringify(data)); }
   catch (err) { console.log('[CrewContext] Local save failed for', key, err); }
+}
+
+// ── crew_members.preferred_language ⇄ CrewMember.preferredLanguage ────────
+// (wave-next W3, lane ESTICKET; column from 20260928120000_preferred_language)
+// The language of what WE SEND this crew member — texts and invites
+// (docs/I18N.md §9, i18n/recipient.ts). NULL = "not told us", which sends
+// English; a language is never guessed from a name. The column's CHECK takes
+// only NULL, 'en' or 'es', and a refused write is terminal in the offline
+// queue, so nothing else is ever sent. Both helpers are self-contained (no
+// imports) so scripts/validate-crew-language.ts runs them as written.
+
+/** Row → field: only the two exact codes count; NULL, 'es-MX' or 'spanish' read as not set. */
+export function crewLanguageFromRow(v: unknown): 'en' | 'es' | null {
+  return v === 'en' || v === 'es' ? v : null;
+}
+
+/**
+ * The preferred_language column a write carries, or undefined for none. Only
+ * while the language row is on screen (`enabled` = LANGUAGE_PICKER_ENABLED)
+ * and only when the caller passed the key; a value other than 'en' / 'es'
+ * (a cleared field) goes as NULL, never as itself.
+ */
+export function crewLanguageColumn(
+  m: { preferredLanguage?: 'en' | 'es' | null },
+  enabled: boolean,
+): { preferred_language: 'en' | 'es' | null } | undefined {
+  if (!enabled || !Object.prototype.hasOwnProperty.call(m, 'preferredLanguage')) return undefined;
+  const v = m.preferredLanguage;
+  return { preferred_language: v === 'en' || v === 'es' ? v : null };
 }
 
 /** Row → CrewMember (snake_case → camelCase). */
@@ -65,6 +95,7 @@ function mapRow(r: Record<string, unknown>): CrewMember {
     isPublic: !!r.is_public,
     marketplaceProfileId: (r.marketplace_profile_id as string | null) ?? undefined,
     projectIds: (r.project_ids as string[]) ?? [],
+    preferredLanguage: crewLanguageFromRow(r.preferred_language),
   };
 }
 
@@ -80,6 +111,7 @@ function toRow(m: CrewMember): Record<string, unknown> {
     claimed_by_user_id: m.claimedByUserId ?? null, claimed_at: m.claimedAt ?? null,
     is_public: m.isPublic, marketplace_profile_id: m.marketplaceProfileId ?? null,
     project_ids: m.projectIds, created_at: m.createdAt, updated_at: m.updatedAt,
+    ...crewLanguageColumn(m, LANGUAGE_PICKER_ENABLED),
   };
 }
 
@@ -157,7 +189,9 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     // (Remove ID, the purge-path scan). So startClaimInvite sends
     // { id, claim_token } and the ID-scan save sends full_name + the id_*
     // columns only.
-    if (canSync && next) void supabaseWrite('crew_members', 'update', crewMemberUpdateRow(id, changes, next.updatedAt));
+    // The language rides the same UPDATE as its own column (crewLanguageColumn:
+    // only with the language row on screen, only 'en' / 'es' / NULL).
+    if (canSync && next) void supabaseWrite('crew_members', 'update', { ...crewMemberUpdateRow(id, changes, next.updatedAt), ...crewLanguageColumn(changes, LANGUAGE_PICKER_ENABLED) });
   }, [crewMembers, canSync, storageKey]);
 
   const deleteCrewMember = useCallback((id: string) => {

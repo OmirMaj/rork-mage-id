@@ -1,0 +1,107 @@
+/*
+ * moments.css: the portal's signing line and seal (wave-next W3, lane MOMPORTAL).
+ * Styles for marketing/portal/moments.js. Colours are the page's own tokens
+ * (the green-on-concrete :root in marketing/portal/index.html): no literal
+ * colour lives in this file. Only transform and opacity animate, plus the
+ * seal's stroke-dashoffset (how an SVG arc draws).
+ */
+
+.mp-line { position: relative; margin-top: 14px; }
+
+/* The zone: a groove across, the head on it. H 56, D 40 (CAPSULE_GEOMETRY.line). */
+.mp-zone {
+  position: relative; height: 56px;
+  transition: opacity 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+.mp-groove {
+  position: absolute; left: 20px; right: 20px; top: 27px; height: 2px;
+  background: var(--bone); border-radius: 2px; overflow: hidden;
+}
+.mp-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
+  background: var(--brand); transform-origin: 0 50%; transform: scaleX(0);
+}
+.mp-head {
+  position: absolute; left: 0; top: 8px; width: 40px; height: 40px;
+  border-radius: 50%; border: none; padding: 0; margin: 0;
+  background: var(--brand); color: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  box-shadow: var(--shadow-brand);
+  transform: translateX(0) scale(1); will-change: transform;
+  font: inherit;
+}
+/* hitSlop 12: the head can be grabbed 12px outside its circle. */
+.mp-head::before { content: ''; position: absolute; top: -12px; right: -12px; bottom: -12px; left: -12px; border-radius: 50%; }
+.mp-head:focus { outline: none; }
+.mp-head:focus-visible { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--brand); }
+.mp-head:active { cursor: grabbing; }
+/* Locked: a solid neutral disc (a see-through one showed the groove through it). */
+.mp-head[disabled] { background: var(--bone-2); color: var(--text-muted); cursor: not-allowed; box-shadow: none; }
+.mp-chev { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: opacity 120ms; }
+.mp-spin { position: absolute; left: 0; top: 0; opacity: 0; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; transition: opacity 120ms; }
+.mp-line[data-state="busy"] .mp-chev { opacity: 0; }
+.mp-line[data-state="busy"] .mp-spin { opacity: 1; animation: mpSpin 900ms linear infinite; }
+.mp-line[data-state="busy"] .mp-head { cursor: progress; }
+@keyframes mpSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.mp-line[data-state="failing"] .mp-head,
+.mp-line[data-state="refused"] .mp-head { background: var(--error); box-shadow: none; }
+
+/* The row under the line: the label, or the reason that replaced it. */
+.mp-row { position: relative; min-height: 20px; margin-top: 2px; font-size: 13px; line-height: 1.45; }
+.mp-label { display: block; color: var(--text-2); font-weight: 600; transition: opacity 120ms; }
+.mp-reason { display: none; color: var(--text-2); font-weight: 600; }
+.mp-reason[data-tone="error"] { color: var(--error); }
+.mp-row[data-show="reason"] .mp-label { display: none; }
+.mp-row[data-show="reason"] .mp-reason { display: block; animation: mpRise 200ms cubic-bezier(0.2, 0, 0, 1) both; }
+@keyframes mpRise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.mp-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The result takes the zone's place. */
+.mp-result { display: none; }
+.mp-line[data-state="confirmed"] .mp-zone { opacity: 0; height: 0; overflow: hidden; }
+.mp-line[data-state="confirmed"] .mp-row { display: none; }
+.mp-line[data-state="confirmed"] .mp-result { display: block; }
+
+/* ── The seal ───────────────────────────────────────────────────────────── */
+.mp-seal { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
+.mp-seal-ring { flex: none; width: 64px; height: 64px; }
+.mp-arc { fill: none; stroke: var(--brand); stroke-linecap: round; }
+.mp-check { fill: none; stroke: var(--brand); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.mp-seal-text { min-width: 0; }
+.mp-chip {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  background: var(--brand-tint); color: var(--brand-dark);
+  font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+}
+.mp-seal-title { margin-top: 4px; font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.45; }
+.mp-seal-record { margin-top: 2px; font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+
+/* play: the arcs and the check draw on the app's timeline; chip and record fade in. */
+.mp-play .mp-draw, .mp-play .mp-check {
+  stroke-dashoffset: var(--mp-len);
+  animation: mpDraw var(--mp-arc, 360ms) cubic-bezier(0.2, 0, 0, 1) var(--mp-at, 0ms) forwards;
+}
+.mp-play .mp-check { animation-duration: var(--mp-dur, 280ms); }
+.mp-play .mp-chip { opacity: 0; animation: mpFade var(--mp-fade, 160ms) ease-out var(--mp-chip-at, 0ms) forwards; }
+.mp-play .mp-seal-title, .mp-play .mp-seal-record { opacity: 0; animation: mpFade 160ms ease-out var(--mp-record-at, 0ms) forwards; }
+@keyframes mpDraw { to { stroke-dashoffset: 0; } }
+@keyframes mpFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* rm (Reduce Motion chosen when the seal was built): the finished seal fades in. */
+.mp-rm { animation: mpFade 200ms ease-out both; }
+
+/* The system setting can change after the page loads: honour it at once. */
+@media (prefers-reduced-motion: reduce) {
+  .mp-zone, .mp-label, .mp-chev, .mp-spin { transition: opacity 200ms; }
+  .mp-head { transition: opacity 100ms; }
+  .mp-line[data-state="busy"] .mp-spin { animation: none; }
+  .mp-row[data-show="reason"] .mp-reason { animation: mpFade 200ms ease-out both; }
+  .mp-play .mp-draw, .mp-play .mp-check { stroke-dashoffset: 0; animation: none; }
+  .mp-play .mp-chip, .mp-play .mp-seal-title, .mp-play .mp-seal-record { opacity: 1; animation: none; }
+  .mp-play { animation: mpFade 200ms ease-out both; }
+}

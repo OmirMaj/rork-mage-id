@@ -2819,6 +2819,32 @@ export function subcontractorExtraColumns(s: Partial<Subcontractor>): Record<str
 }
 
 /**
+ * Spanish Phase 1b (W3 ESSHELL) · subcontractors.preferred_language ↔
+ * Subcontractor.preferredLanguage — the language a sub's lineup text goes out
+ * in (docs/I18N.md §9: the recipient's, never the sender's; never guessed from
+ * a name). The column carries CHECK (preferred_language in ('en','es')), so
+ * anything else read is "not set" and anything else is never sent: a refused
+ * value would be a terminal write in the offline queue and take the whole sub
+ * edit with it. Kept apart from subcontractorExtrasFromRow/Columns so their
+ * pinned shapes do not move.
+ */
+export function subcontractorLanguageFromRow(r: Record<string, unknown>): Pick<Subcontractor, 'preferredLanguage'> {
+  const v = r.preferred_language;
+  return v === 'en' || v === 'es' ? { preferredLanguage: v } : {};
+}
+
+/**
+ * The same column, the other way: sent only when this copy holds a choice —
+ * 'en' | 'es', or null for a deliberate "Not set". A copy that never loaded
+ * the column (undefined) sends nothing, so it cannot clear a language set on
+ * another device.
+ */
+export function subcontractorLanguageColumn(s: Partial<Subcontractor>): Record<string, unknown> {
+  const v = s.preferredLanguage;
+  return v === 'en' || v === 'es' || v === null ? { preferred_language: v } : {};
+}
+
+/**
  * #65 (CONTRACT 18) · photos.latitude / longitude / location_accuracy_meters /
  * location_label → ProjectPhoto. The capture flows stamp them, but nothing
  * wrote or read them, so the pin on "where was this taken" was gone the moment

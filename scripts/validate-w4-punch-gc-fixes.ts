@@ -159,7 +159,7 @@ console.log('\n#51/#54 opening the item from a notification');
     /setActiveList\(step\.list\);[\s\S]{0,200}setFilterStatus\(step\.status\);[\s\S]{0,80}setFilterSub\(''\);/.test(list));
   ok('the old one-shot snapshot focus is gone', !/punchFocusFor\(item\)/.test(list) && !/setFilterStatus\(plan\.status\)/.test(list));
   ok('the banner has a real Refresh / Try again control (pull-to-refresh does nothing on web)',
-    /<Button\s+label=\{refreshState === 'offline' \? 'Try again' : 'Refresh'\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
+    /<Button\s+label=\{refreshState === 'offline' \? t\('field\.punch\.tryAgain', 'Try again'\) : t\('field\.punch\.refresh', 'Refresh'\)\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
     && /const retryFocus = useCallback\(\(\) => setFocusNonce\(n => n \+ 1\), \[\]\);/.test(list)
     && /\}, \[focusItemId, queryClient, projectId, focusNonce, punchKey\]\);/.test(list));
   ok('no copy tells him to "pull down"', !/[Pp]ull down/.test(list));
@@ -206,8 +206,8 @@ console.log('\n#51/#54 opening the item from a notification');
 
   // The row rail on a Review item: Close / Reject, never Start.
   const row = between(list, 'const PunchRow = React.memo', 'const NO_SESSION_IDS');
-  ok('a Review row offers Close and Reject; Start only on Open', /item\.status === 'open' && \([\s\S]{0,300}>Start</.test(row)
-    && /item\.status === 'ready_for_review' && \([\s\S]{0,700}>Close<[\s\S]{0,500}>Reject</.test(row));
+  ok('a Review row offers Close and Reject; Start only on Open', /item\.status === 'open' && \([\s\S]{0,300}'Start'\)\}</.test(row)
+    && /item\.status === 'ready_for_review' && \([\s\S]{0,700}'Close'\)\}<[\s\S]{0,500}'Reject'\)\}</.test(row));
   ok('rows word an empty room', /PUNCH_NO_ROOM_TEXT/.test(row) && /punchLocationText\(item\.location\)/.test(row));
   ok('rows apply the rejection-box rule', /punchRejectionBox\(item\)/.test(row) && /rejection\.tone === 'active'/.test(row));
 
@@ -219,7 +219,7 @@ console.log('\n#51/#54 opening the item from a notification');
   const bulk = between(list, 'const bulkSetStatus = useCallback', 'const bulkMove = useCallback');
   ok('bulk status: Review items moved back are written as rejects, the rest as a plain move',
     /isPunchReject\(i\.status, next\)/.test(bulk) && /updatePunchItems\(rejects, punchStatusPatch\(\{ status: 'ready_for_review', rejectedAt: latestRejectedAt\(rejectItems\) \}, next, nowIso\)\)/.test(bulk));
-  ok('bulk status: sending marked-fixed work back asks first', /Send \$\{n\} item/.test(bulk) && /onPress: run/.test(bulk));
+  ok('bulk status: sending marked-fixed work back asks first', /Send \{count\} item/.test(bulk) && /onPress: run/.test(bulk));
 }
 
 console.log('\n#51 notify: which item, coalesced, the tap opens it');

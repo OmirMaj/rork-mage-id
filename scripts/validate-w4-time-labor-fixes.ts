@@ -103,7 +103,7 @@ console.log('\n#99 a worker on the clock is never offered twice:');
   ok('the open-shift map reads EVERY team row, not only owned ones', /for \(const e of teamEntries\)/.test(block) && !/ownedTeam/.test(block));
   ok('…and keeps the missed-clock-out exemption', /!isMissed\(e\)/.test(block));
   ok('availableRoster filters on it', /roster\.filter\(m => !openShiftByWorker\.has\(m\.id\)\)/.test(tt));
-  ok('blocked names are shown greyed with who has them', /On the clock\$\{where\} — \$\{hit\.who \? `logged by \$\{hit\.who\}` : 'you clocked them in'\}/.test(tt)
+  ok('blocked names are shown greyed with who has them', /'On the clock on \{project\} — logged by \{who\}'[\s\S]{0,240}'On the clock on \{project\} — you clocked them in'[\s\S]{0,240}'On the clock — logged by \{who\}'[\s\S]{0,240}'On the clock — you clocked them in'/.test(tt)
     && /testID=\{`clock-in-member-on-clock-\$\{member\.id\}`\}/.test(tt));
   ok('seat-job open shifts are listed read-only', /seatTeamOpen\.map\(e => \(\{[\s\S]{0,160}readOnly: true/.test(tt) && /readOnly=\{r\.readOnly\}/.test(tt)
     && /testID=\{`time-entry-readonly-\$\{entry\.id\}`\}/.test(tt));
@@ -111,7 +111,7 @@ console.log('\n#99 a worker on the clock is never offered twice:');
   ok('costing, the export and closeTeamShift stay on ownedTeam',
     /\.\.\.ownedTeam\.map\(\(e: TeamTimeEntry\) => \(\{ \.\.\.e, loggedByLabel/.test(tt) && /const teamRow = ownedTeam\.find/.test(tt)
     && /const todayEntries = \[\.\.\.entries, \.\.\.ownedTeam\]/.test(tt));
-  ok('a double-clocked worker is flagged', /const doubleClocked = useMemo/.test(tt) && /testID="time-tracking-double-clocked"/.test(tt) && /aren&apos;t paid twice/.test(tt));
+  ok('a double-clocked worker is flagged', /const doubleClocked = useMemo/.test(tt) && /testID="time-tracking-double-clocked"/.test(tt) && /aren't paid twice\./.test(tt));
 }
 
 console.log('\n#100 the job\'s crew is saved for no signal:');
@@ -237,7 +237,7 @@ console.log('\n#105 the screen can be refreshed, and clock-in checks again:');
     && /onPress=\{openClockInSheet\}/.test(tt));
   ok('the sheet says when it could not check', /testID="clock-in-pull-failed"/.test(tt) && /pullFailed/.test(hook));
   ok('clocking in a worker already on the clock is a confirm naming who has him',
-    /const already = openShiftByWorker\.get\(member\.id\);/.test(tt) && /'Already on the clock'/.test(tt) && /text: 'Clock in again', style: 'destructive', onPress: certCheck/.test(tt));
+    /const already = openShiftByWorker\.get\(member\.id\);/.test(tt) && /'Already on the clock'/.test(tt) && /text: t\('field\.time\.clockInAgain', 'Clock in again'\), style: 'destructive', onPress: certCheck/.test(tt));
 }
 
 console.log('\n#106 the sentences use the bare name:');
@@ -258,12 +258,12 @@ console.log('\n#106 the sentences use the bare name:');
     && /outFor\.loggedByName \? fieldCopy\.teamShiftCaption\(outFor\.loggedByName\) : fieldCopy\.teamShiftCaptionUnnamed\(\)/.test(tt)
     && /openOutSheet\(entry, !!teamRow, teamRow \? teamLoggedByLabel\(teamRow\) : undefined, teamRow\?\.loggedByName\?\.trim\(\) \|\| undefined\);/.test(tt)
     && !/openOutSheet\([^;]*teamLoggedByName\(/.test(tt)
-    && /return 'A teammate logged this shift\./.test(src('utils/moments/sites/fieldCopy.ts'))
+    && /return t\('field\.time\.moment\.teamShiftCaptionUnnamed', 'A teammate logged this shift\./.test(src('utils/moments/sites/fieldCopy.ts'))
     && !/teamShiftCaption\(outFor\.loggedBy\)/.test(tt)
-    && /return `\$\{loggedByName\} logged this shift\./.test(src('utils/moments/sites/fieldCopy.ts'))
-    && /\$\{sentenceName\(correctingTeam\)\} logged this shift/.test(tt));
+    && /return t\('field\.time\.moment\.teamShiftCaption', '\{name\} logged this shift\.[^']*', \{ name: loggedByName \}\)/.test(src('utils/moments/sites/fieldCopy.ts'))
+    && /\{name\} logged this shift; it stays theirs[\s\S]{0,200}name: sentenceName\(correctingTeam\)/.test(tt));
   ok('the note hint and the correction hint read as sentences',
-    /\{correctingTeam\}&apos;s note stays as they wrote it/.test(tt) && /This shift was logged by \$\{correctingTeam\}; it stays theirs, only its hours change\./.test(tt));
+    /\{correctingTeam\}'s note stays as they wrote it/.test(tt) && /'This shift was logged by \{name\}; it stays theirs, only its hours change\.', \{ name: correctingTeam \}/.test(tt));
   ok('the tags keep "Logged by …"', /\{loggedBy \? <Text style=\{styles\.loggedByTag\}/.test(tt) && /\{outFor\.loggedBy \? ` \$\{outFor\.loggedBy\}\.` : ''\}/.test(tt));
 }
 

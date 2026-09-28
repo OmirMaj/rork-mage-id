@@ -4,4 +4,23 @@
 
 import type { EnCatalog } from '../../types';
 
-export const EN: EnCatalog = {};
+export const EN: EnCatalog = {
+  "nav.title.crew": "Crew",
+  "nav.title.dailyReport": "Daily report",
+  "nav.title.deliveries": "Deliveries",
+  "nav.title.materialReceipt": "Material receipt",
+  "nav.title.photoTriage": "Photo triage",
+  "nav.title.punchList": "Punch list",
+  "nav.title.safety": "Safety",
+  "nav.title.safetyCertifications": "Certifications",
+  "nav.title.safetyForms": "Forms library",
+  "nav.title.safetyHazards": "Hazard log",
+  "nav.title.safetyIncidents": "Incidents",
+  "nav.title.safetyInspections": "Inspections",
+  "nav.title.safetyJha": "JHAs",
+  "nav.title.safetyOsha": "OSHA 300 log",
+  "nav.title.safetyToolbox": "Toolbox talks",
+  "nav.title.tabA11yPosition": "{label}, tab, {position} of {count}",
+  "nav.title.timeTracking": "Time tracking",
+  "nav.title.tomorrowLineup": "Tomorrow's lineup",
+};

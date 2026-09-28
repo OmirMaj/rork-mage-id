@@ -45,7 +45,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
   "lines": 1153,
-  "sha256": "461b544de73760a267d65e2a8eead2c01556f2d133f2ae0a5ade06871e949f62",
+  "sha256": "3e7ced96e62834a29534fa0773a207530e129c53b09df00ad13c8990895681fd",
 }
 `;
 
@@ -163,15 +163,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) prequal-mana
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-list (walk, filter and five more sheets) 1`] = `
 {
-  "lines": 1677,
-  "sha256": "5dcd144e07634f5f6164a737c688901d59aff65271b0b39fc30b92081fef961e",
+  "lines": 1613,
+  "sha256": "ca7faee9f23a8e2dc0478a9294621e443edb4ef45aad8b0c415e875d523bcc63",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-walk (trade override, sub picker, all locations) 1`] = `
 {
-  "lines": 721,
-  "sha256": "010ab76eb8b23218cd6db33c9618f34f0f8d11c0a6c3ba3e073e98441a04c841",
+  "lines": 706,
+  "sha256": "60823bf67a52e5a849991e717e6107faebe07e9e20193426d86c823b5f4ccc82",
 }
 `;
 
@@ -261,15 +261,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) sub-scorecar
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking (Live, six sheets) 1`] = `
 {
-  "lines": 669,
-  "sha256": "9957be153f514db175dc8a89a47abd2ad9ef9c4262d547378426e67af1f4c7ed",
+  "lines": 662,
+  "sha256": "4fd5144e7979b9477ca07dfd96447bf957ea2640843d92cc9b63d06ba24fdbfe",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking: the History tab 1`] = `
 {
-  "lines": 665,
-  "sha256": "18512e4a6e487e14447a75793ce33a5af062b8a2ef6fdf36ef2bd9146449538c",
+  "lines": 656,
+  "sha256": "9657be3aa55899b1d6a8679fa49fc9ea8b6e6b9e609cc11ba4376322eda1c55e",
 }
 `;
 

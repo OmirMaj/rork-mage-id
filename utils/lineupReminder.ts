@@ -20,6 +20,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { BRAND_ACCENT } from '@/constants/colors';
+import { t } from '@/i18n/core';
 
 /** The stem of the five OS notification identifiers (the same family as
  *  'mageid-week-close-nudge'). An OS schedule id, NOT a local-storage key —
@@ -31,15 +32,21 @@ export const LINEUP_REMINDER_MINUTE = 0;
 /** expo-notifications weekday numbering: 1 = Sunday … 7 = Saturday. Mon–Fri. */
 export const LINEUP_REMINDER_WEEKDAYS = [2, 3, 4, 5, 6] as const;
 
+// The reminder is for the person holding this phone, so it speaks the
+// DEVICE user's language (getLang(), tú in Spanish) — never a sub's. Getters,
+// not constants: each read picks the language at that moment (a constant would
+// freeze it at import). The notification's title and body are copied into the
+// OS schedule when he turns the reminder on, so they are in the language he
+// had then; turning it off and on again re-arms it in the current one.
 export const lineupReminderCopy = {
-  title: 'Tomorrow’s lineup',
-  body: 'It’s 3 pm — check tomorrow’s lineup and send each sub their message.',
-  toggle: 'Remind me at 3 pm on weekdays',
-  help: 'A reminder on this phone at 3:00 pm, Monday to Friday. It can’t see your schedule, so it rings even when tomorrow is empty. Nothing is sent to your subs — you still tap Send for each one.',
-  web: 'Reminders work in the iPhone app.',
-  noPermission: 'Notifications are off for MAGE ID. Turn them on in Settings to get this reminder.',
-  failed: 'Couldn’t set the reminder on this phone — try again.',
-  readFailed: 'Couldn’t check whether the reminder is on.',
+  get title(): string { return t('field.lineup.reminder.title', 'Tomorrow’s lineup'); },
+  get body(): string { return t('field.lineup.reminder.body', 'It’s 3 pm — check tomorrow’s lineup and send each sub their message.'); },
+  get toggle(): string { return t('field.lineup.reminder.toggle', 'Remind me at 3 pm on weekdays'); },
+  get help(): string { return t('field.lineup.reminder.help', 'A reminder on this phone at 3:00 pm, Monday to Friday. It can’t see your schedule, so it rings even when tomorrow is empty. Nothing is sent to your subs — you still tap Send for each one.'); },
+  get web(): string { return t('field.lineup.reminder.web', 'Reminders work in the iPhone app.'); },
+  get noPermission(): string { return t('field.lineup.reminder.noPermission', 'Notifications are off for MAGE ID. Turn them on in Settings to get this reminder.'); },
+  get failed(): string { return t('field.lineup.reminder.failed', 'Couldn’t set the reminder on this phone — try again.'); },
+  get readFailed(): string { return t('field.lineup.reminder.readFailed', 'Couldn’t check whether the reminder is on.'); },
 };
 
 export type LineupReminderArmResult = 'armed' | 'no_permission' | 'web' | 'failed';

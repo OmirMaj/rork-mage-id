@@ -11,7 +11,7 @@ import type { EnCatalog } from '../../types';
 
 export const EN_SEED: EnCatalog = {
   "nav.tab.home": "Home",
-  "nav.tab.yourProjects": "Your Projects",
+  "nav.tab.yourProjects": "Projects",
   "nav.tab.summary": "Summary",
   "nav.tab.discover": "Discover",
   "nav.tab.settings": "Settings",
