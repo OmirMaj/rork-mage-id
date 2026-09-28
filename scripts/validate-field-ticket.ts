@@ -721,7 +721,7 @@ console.log('\npricing names the signed-in user, and only the owner or an editor
   eq('a resolved role is never overridden (a field seat stays field)', pricingRoleFor('field', 'u1', 'u1'), 'field');
   ok('the screen gates pricing on pricingRoleFor(projectRole, project?.ownerUserId, user?.id)',
     /const pricingRole = pricingRoleFor\(projectRole, project\?\.ownerUserId, user\?\.id\);/.test(screen));
-  ok('applying prices re-checks the role', /if \(pricingBlockReason\) \{ showAlert\('Not saved', pricingBlockReason\); return; \}/.test(screen));
+  ok('applying prices re-checks the role', /if \(pricingBlockReason\) \{ showAlert\(t\('field\.ticket\.notSaved', 'Not saved'\), pricingBlockReason\); return; \}/.test(screen));
 }
 
 // Integration round 1: the field role SEES no money on a saved ticket either —
@@ -757,12 +757,12 @@ console.log('\nfield access sees hours and quantities, not the office\'s rates:'
   ok('...the open ticket shows quantities in place of the total and O&P',
     /\{moneyBlinded \? \(\s*<View style=\{styles\.amountCard\} testID="ticket-amount-blinded">/.test(screen));
   ok('...no labour, equipment or material rate on its rows',
-    (screen.match(/\{r\.hours\} hr\{moneyBlinded \? '' : r\.rate \?/g) ?? []).length === 2
-      && /\{r\.quantity\} \{r\.unit\}\{moneyBlinded \? '' : r\.unitCost \?/.test(screen));
+    (screen.match(/\{moneyBlinded\s*\? t\('field\.ticket\.detail\.hours', '\{hours\} hr', \{ hours: r\.hours \}\)\s*: r\.rate\s*\?/g) ?? []).length === 2
+      && /\{moneyBlinded\s*\? t\('field\.ticket\.detail\.quantity', '\{quantity\} \{unit\}', \{ quantity: r\.quantity, unit: r\.unit \}\)\s*: r\.unitCost\s*\?/.test(screen));
   ok('...no unbilled total, no list amounts (screen or screen reader)',
     /\{!moneyBlinded && <Text style=\{styles\.unbilledValue\}>/.test(screen)
       && /\{!moneyBlinded && <Text style=\{styles\.ticketAmount\}>/.test(screen)
-      && /\$\{moneyBlinded \? '' : `, \$\{money\(tot\.billableTotal\)\}`\}/.test(screen));
+      && /\.\.\.\(moneyBlinded \? \[\] : \[money\(tot\.billableTotal\)\]\)\]\.join\(', '\)/.test(screen));
   ok('...no amount in the signed toast or on the re-sign button',
     !/signed — \$\{money\(/.test(screen) && /amount=\{moneyBlinded \? null : totals\.billableTotal\}/.test(screen));
   ok('...and every saved-ticket money display left is behind the flag',

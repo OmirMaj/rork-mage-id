@@ -309,11 +309,11 @@ console.log('\n#158 today on site:');
     && /const TODAY_ON_SITE_ROWS = 4;/.test(home));
   ok('a "+N more on site today" row, tappable, with a real label',
     /\+\{todayOnSiteHidden\} more on site today/.test(home) && /testID="today-on-site-more"/.test(home)
-    && /accessibilityLabel=\{`\$\{todayOnSiteHidden\} more/.test(home));
+    && /accessibilityLabel=\{tn\('field\.home\.moreOnSiteA11y', todayOnSiteHidden, \{ one: '\{count\} more project on site today\. Opens summary\.', other: '\{count\} more projects on site today\. Opens summary\.' \}\)\}/.test(home));
   ok('it opens Summary (which lists every job, uncapped)', /router\.push\('\/\(tabs\)\/summary' as never\)/.test(home));
   ok('the last shown row keeps its divider when the more-row follows',
     /\(idx < todayOnSiteShown\.length - 1 \|\| todayOnSiteHidden > 0\) && styles\.todayRowDivider/.test(home));
-  ok('a row with more than 3 live tasks says " · +k more"', /moreTasks > 0 \? ` · \+\$\{moreTasks\} more` : ''/.test(home));
+  ok('a row with more than 3 live tasks says " · +k more"', /moreTasks > 0 \? ` · \$\{t\('field\.home\.moreTasks', '\+\{count\} more', \{ count: moreTasks \}\)\}` : ''/.test(home));
 }
 
 // ── #142 carry: the warranty walk uses the GC's warranty length ─────────────

@@ -13,6 +13,7 @@ import { Type } from '@/constants/typography';
 import { ContainedPhotoMarkupOverlay } from '@/components/PhotoMarkupOverlay';
 import type { PhotoMarkup } from '@/types';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useT } from '@/contexts/LanguageContext';
 
 // A photo reads best on near-black whatever the theme; the ink on it is white.
 const BACKDROP = 'rgba(0,0,0,0.95)';
@@ -25,6 +26,7 @@ export default function PunchPhotoViewer({ visible, uri, markup, caption, onClos
   caption: string;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Desktop web: the open viewer is a DIALOG to the shortcut registry, so its
   // Esc closes the photo and nothing behind it.
@@ -37,7 +39,7 @@ export default function PunchPhotoViewer({ visible, uri, markup, caption, onClos
             onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             accessibilityRole="button"
-            accessibilityLabel="Close photo"
+            accessibilityLabel={t('field.punchWalk.photo.closePhoto', 'Close photo')}
             testID="pin-queue-photo-close"
           >
             <X size={22} color={ON_BACKDROP} strokeWidth={1.75} />

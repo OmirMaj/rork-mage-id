@@ -242,7 +242,7 @@ const volt = (headcount = 2, hoursWorked = 8): Crew =>
   // clocked in, the schedule plan otherwise — and the plan line still has to
   // admit the flat 8-hour day.
   check('the DFR says so while the seeded counts are still the app\'s assumption',
-    /Counts came from today\\u2019s schedule and assume an 8-hour day/.test(src)
+    /Counts came from today(\\u2019|’)s schedule and assume an 8-hour day/.test(src)
     && /line: clockCrewSourceLine\(clockCrew, subRows\.length\)/.test(src)
     && /\{crewSource\?\.line \?\?/.test(src));
   check('a seeded row can be corrected in place rather than deleted and retyped',

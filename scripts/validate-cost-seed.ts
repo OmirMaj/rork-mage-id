@@ -881,7 +881,7 @@ expect('an earned book stamps earned',
   priceLeakItems([{ trade: 'Framing', unit: 'SF', quantity: 40, description: 'x', confidence: 'high', reportQuote: '' } as never],
     EARNED_ONLY)[0].rateProvenance, 'earned');
 ok('the daily report renders the seeded caption differently',
-  /rateProvenance === 'seeded' \? 'from the rate you set'/.test(src('app/daily-report.tsx')));
+  /rateProvenance === 'seeded'\s*\?\s*t\('field\.dfr\.leak\.priceSeeded', '~\{amount\} from the rate you set'/.test(src('app/daily-report.tsx')));
 
 // ── SUB-BID REALITY CHECK (job costing). A seeded book gives it an expectation
 // to compare against; its copy never claims a job count either way.

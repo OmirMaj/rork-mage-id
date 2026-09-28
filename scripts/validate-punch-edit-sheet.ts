@@ -61,12 +61,12 @@ check('an item with no creator mapped is "not yours" unless you own the job',
 check('signed out never deletes a creator-less item', !api.punchDeleteAllowed({}, undefined, false));
 check('the row trash is gated and says why when blocked',
   /onPress=\{\(\) => \(canDelete \? actions\.onDelete\(item\) : actions\.onDeleteBlocked\(\)\)\}/.test(src)
-  && /onDeleteBlocked: \(\) => showAlert\('Can’t delete this item', PUNCH_DELETE_BLOCKED_REASON\)/.test(src)
-  && /const PUNCH_DELETE_BLOCKED_REASON = 'Only the person who added this item or the project owner can delete it\.';/.test(src));
+  && /onDeleteBlocked: \(\) => showAlert\(t\('field\.punch\.cantDeleteThisItem', 'Can’t delete this item'\), punchDeleteBlockedReason\(\)\)/.test(src)
+  && /function punchDeleteBlockedReason\(\): string \{\s*return t\('field\.punch\.deleteBlockedReason', 'Only the person who added this item or the project owner can delete it\.'\);/.test(src));
 check('bulk delete sends only the deletable rows and explains the rest',
   /const ids = selectedItems\.filter\(canDeleteItem\)\.map\(i => i\.id\);/.test(src)
   && /deletePunchItems\(ids\);/.test(src) && /added by someone else and will stay/.test(src)
-  && /if \(n === 0\) \{\s*showAlert\('Can’t delete these items', PUNCH_DELETE_BLOCKED_REASON\);/.test(src));
+  && /if \(n === 0\) \{\s*showAlert\(t\('field\.punch\.cantDeleteTheseItems', 'Can’t delete these items'\), punchDeleteBlockedReason\(\)\);/.test(src));
 check('every create path on the list stamps createdByUserId (form, template, photo walk)',
   (src.match(/\.\.\.\(user\?\.id \? \{ createdByUserId: user\.id \} : \{\}\),/g) ?? []).length === 3);
 
@@ -75,7 +75,7 @@ const subs = new Set(['sparks electric', 'electrical']);
 check('a bare trade word with no sub of that name is flagged', api.isTradeWordOnly('General', new Set()));
 check('a real sub is not', !api.isTradeWordOnly('Sparks Electric', subs));
 check('a sub literally named like a trade is trusted', !api.isTradeWordOnly('Electrical', subs));
-check('the row says "Trade: X · no sub assigned"', /Trade: \{item\.assignedSub\} · no sub assigned/.test(src));
+check('the row says "Trade: X · no sub assigned"', /'Trade: \{assignedSub\} · no sub assigned', \{ assignedSub: item\.assignedSub \}/.test(src));
 check('the sub filter leaves trade words out', /if \(s && !isTradeWordOnly\(s, pickerSubNames\)\) set\.add\(s\);/.test(src));
 check('templates save unassigned, not the trade word', !/assignedSub: template\.trade === 'General'/.test(src)
   && /assignedSub: '',\s*dueDate: '',\s*priority: item\.priority,/.test(src));
@@ -88,7 +88,7 @@ check('a DatePickerModal stores the calendar day (calendarDayOf), with Clear',
   /<DatePickerModal[\s\S]{0,800}onChange=\{\(iso\) => setDueDate\(calendarDayOf\(iso\) \?\? ''\)\}/.test(src)
   && /onPress=\{\(\) => setDueDate\(''\)\}[^\n]*testID="punch-due-clear"/.test(src));
 check('save refuses an unreadable due date with the reason',
-  /if \(dueDate\.trim\(\) && !parseCalendarDay\(dueDate\.trim\(\)\.slice\(0, 10\)\)\) \{\s*showAlert\('Due date not understood'/.test(src));
+  /if \(dueDate\.trim\(\) && !parseCalendarDay\(dueDate\.trim\(\)\.slice\(0, 10\)\)\) \{\s*showAlert\(t\('field\.punch\.dueDateNotUnderstood', 'Due date not understood'\)/.test(src));
 check('a stored free-text date reads "not a date, not tracked"', /not a date, not tracked\. Edit to pick one\./.test(src));
 
 console.log('\n#19 the edit sheet can clear and type a sub:');

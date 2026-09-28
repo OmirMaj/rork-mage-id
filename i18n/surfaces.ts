@@ -118,7 +118,7 @@ export const SURFACES: Surface[] = [
   // Phase 1 — the foreman's day. Pending until each lane migrates it; the
   // orchestrator flips states after a phase, from the lanes' reports.
   {
-    id: 'field.daily-report', phase: 1, state: 'pending', keyPrefixes: ['field.dfr.'], lane: 'W2 ESTOOLS (DailyLogCard) then W3 ESDFR',
+    id: 'field.daily-report', phase: 1, state: 'migrated', keyPrefixes: ['field.dfr.'], lane: 'W2 ESTOOLS (DailyLogCard) then W3 ESDFR',
     files: ['app/daily-report.tsx', 'components/AIDailyReportGen.tsx', 'components/AIDFRFromPhotos.tsx', 'components/home/DailyLogCard.tsx', 'utils/dailyLogCompletion.ts'],
   },
   {
@@ -133,40 +133,41 @@ export const SURFACES: Surface[] = [
     ],
   },
   {
-    id: 'field.time-clock', phase: 1, state: 'pending', keyPrefixes: ['field.time.'], lane: 'W3 ESCLOCK',
+    id: 'field.time-clock', phase: 1, state: 'migrated', keyPrefixes: ['field.time.'], lane: 'W3 ESCLOCK',
     files: ['app/time-tracking.tsx'],
-    partialFiles: ['utils/moments/sites/fieldCopy.ts'],
+    // W3 ESCLOCK: the time clock's display-string builders take a trailing `lang`.
+    partialFiles: ['utils/moments/sites/fieldCopy.ts', 'utils/crewClockBatch.ts', 'utils/timeClockPayroll.ts'],
   },
-  { id: 'field.punch', phase: 1, state: 'pending', keyPrefixes: ['field.punch.'], lane: 'W3 ESCLOCK', files: ['app/punch-list.tsx', 'app/ai-punch.tsx'] },
+  { id: 'field.punch', phase: 1, state: 'migrated', keyPrefixes: ['field.punch.'], lane: 'W3 ESCLOCK', files: ['app/punch-list.tsx', 'app/ai-punch.tsx'] },
   {
-    id: 'field.punch-walk', phase: 1, state: 'pending', keyPrefixes: ['field.punchWalk.'], lane: 'W3 ESTICKET',
+    id: 'field.punch-walk', phase: 1, state: 'migrated', keyPrefixes: ['field.punchWalk.'], lane: 'W3 ESTICKET',
     files: [
       'app/punch-walk.tsx', 'app/punch-pin.tsx', 'components/punch/PinQueueCard.tsx', 'components/punch/PlanPinStep.tsx',
       'components/punch/PunchEditPanes.tsx', 'components/punch/PunchExportSheet.tsx', 'components/punch/PunchPhotoViewer.tsx',
     ],
   },
   {
-    id: 'field.ticket', phase: 1, state: 'pending', keyPrefixes: ['field.ticket.'], lane: 'W3 ESTICKET',
+    id: 'field.ticket', phase: 1, state: 'migrated', keyPrefixes: ['field.ticket.'], lane: 'W3 ESTICKET',
     files: ['app/field-ticket.tsx'],
     partialFiles: ['utils/moments/sites/signingCopy.ts'],
   },
-  { id: 'field.crew', phase: 1, state: 'pending', keyPrefixes: ['field.crew.'], lane: 'W3 ESTICKET', files: ['app/crew.tsx', 'app/claim-crew.tsx'] },
+  { id: 'field.crew', phase: 1, state: 'migrated', keyPrefixes: ['field.crew.'], lane: 'W3 ESTICKET', files: ['app/crew.tsx', 'app/claim-crew.tsx'] },
   {
-    id: 'field.lineup', phase: 1, state: 'pending', keyPrefixes: ['field.lineup.', 'outbound.lineup.'], lane: 'W3 ESSHELL',
+    id: 'field.lineup', phase: 1, state: 'migrated', keyPrefixes: ['field.lineup.', 'outbound.lineup.'], lane: 'W3 ESSHELL',
     files: ['app/tomorrow-lineup.tsx', 'utils/lineupTexts.ts', 'utils/tomorrowLineup.ts', 'utils/lineupReminder.ts', 'utils/tomorrowBlock.ts'],
   },
   {
-    id: 'field.home', phase: 1, state: 'pending', keyPrefixes: ['field.home.'], lane: 'W3 ESSHELL',
+    id: 'field.home', phase: 1, state: 'migrated', keyPrefixes: ['field.home.'], lane: 'W3 ESSHELL',
     files: ['components/QuickFieldUpdate.tsx'],
     partialFiles: ['app/(tabs)/(home)/index.tsx'],
   },
   {
-    id: 'field.shell', phase: 1, state: 'pending', keyPrefixes: ['nav.tab.', 'nav.title.'], lane: 'W3 ESSHELL',
+    id: 'field.shell', phase: 1, state: 'migrated', keyPrefixes: ['nav.tab.', 'nav.title.'], lane: 'W3 ESSHELL',
     files: ['app/(tabs)/_layout.tsx'],
     partialFiles: ['app/_layout.tsx'],
   },
   {
-    id: 'field.chrome', phase: 1, state: 'pending', keyPrefixes: ['field.chrome.'], lane: 'W2 ESTOOLS (voice/offline) + W3 ESSHELL',
+    id: 'field.chrome', phase: 1, state: 'migrated', keyPrefixes: ['field.chrome.'], lane: 'W2 ESTOOLS (voice/offline) + W3 ESSHELL',
     files: [
       'components/OfflineSyncPill.tsx', 'components/VoiceBacklogSheet.tsx', 'components/VoiceRecorder.tsx', 'components/VoiceCaptureModal.tsx',
       'components/DatePickerModal.tsx', 'components/PhotoCapture.tsx', 'components/SignaturePad.tsx',

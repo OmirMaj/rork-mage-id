@@ -10,7 +10,9 @@
 // which names tomorrow for any shift punched after ~5 pm Pacific (field-ops #9).
 
 import type { TimeEntry } from '@/types';
-import { addCalendarDays, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import type { DisplayLang } from '@/i18n/types';
+import { t } from '@/i18n/core';
+import { addCalendarDays, formatCalendarDay, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   computeOvertime, overtimeFor, describeOvertimeRule, openShiftHours, payrollWeekStart, shiftWorkDay,
   isMissedOpenShift, missedClockOutHours as missedClockOutHoursRule,
@@ -118,12 +120,12 @@ export function defaultMissedOutMs(entry: TimeEntry, alertHours: number, nowMs: 
 }
 
 /** Why an entered out time can't be saved, or null when it can. */
-export function outTimeProblem(entry: Pick<TimeEntry, 'clockIn'>, outMs: number, nowMs: number): string | null {
+export function outTimeProblem(entry: Pick<TimeEntry, 'clockIn'>, outMs: number, nowMs: number, lang: DisplayLang = 'en'): string | null {
   const inMs = Date.parse(entry.clockIn);
-  if (!Number.isFinite(outMs)) return 'Enter the time they left, e.g. 3:30 pm.';
-  if (Number.isFinite(inMs) && outMs <= inMs) return 'The out time has to be after the clock-in.';
-  if (outMs > nowMs + 60_000) return 'The out time can’t be later than now.';
-  if (Number.isFinite(inMs) && outMs - inMs > 24 * 3_600_000) return 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.';
+  if (!Number.isFinite(outMs)) return t('field.time.out.enterTime', 'Enter the time they left, e.g. 3:30 pm.', undefined, lang);
+  if (Number.isFinite(inMs) && outMs <= inMs) return t('field.time.out.afterClockIn', 'The out time has to be after the clock-in.', undefined, lang);
+  if (outMs > nowMs + 60_000) return t('field.time.out.notLater', 'The out time can’t be later than now.', undefined, lang);
+  if (Number.isFinite(inMs) && outMs - inMs > 24 * 3_600_000) return t('field.time.out.max24h', 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.', undefined, lang);
   return null;
 }
 
@@ -248,20 +250,29 @@ export function payrollTitle(period: PayPeriod, projectName?: string | null): st
   return `Time entries ${period.start} to ${period.end}${projectName ? ` — ${projectName}` : ''}`;
 }
 
+/** A period bound in a sentence: the bare day in English (as the export names
+ *  it), a month name in Spanish (never a numeric date, docs/I18N.md §6). */
+function periodDay(day: string, lang: DisplayLang): string {
+  return lang === 'es' ? formatCalendarDay(day, { month: 'short', day: 'numeric' }, 'es') : day;
+}
+
 /** Why an export can't run, or null when it can. */
-export function payrollBlockedReason(sel: PayrollSelection, period: PayPeriod): string | null {
+export function payrollBlockedReason(sel: PayrollSelection, period: PayPeriod, lang: DisplayLang = 'en'): string | null {
   if (sel.rows.length > 0) return null;
+  const vars = { start: periodDay(period.start, lang), end: periodDay(period.end, lang) };
   if (sel.open.length > 0) {
-    return `Nobody has finished a shift between ${period.start} and ${period.end} yet — ${sel.open.length} still on the clock. Clock them out first.`;
+    return t('field.time.export.onlyOpen', 'Nobody has finished a shift between {start} and {end} yet — {count} still on the clock. Clock them out first.', { ...vars, count: sel.open.length }, lang);
   }
-  return `No finished shifts between ${period.start} and ${period.end}. Pick another week or project.`;
+  return t('field.time.export.empty', 'No finished shifts between {start} and {end}. Pick another week or project.', vars, lang);
 }
 
 /** "2 crew still on the clock (Mike, Jose) — not included". */
-export function openShiftsNote(open: readonly TimeEntry[]): string | null {
+export function openShiftsNote(open: readonly TimeEntry[], lang: DisplayLang = 'en'): string | null {
   if (open.length === 0) return null;
   const names = [...new Set(open.map(e => e.workerName).filter(Boolean))];
-  return `${open.length} crew still on the clock${names.length ? ` (${names.join(', ')})` : ''} — not included`;
+  return names.length
+    ? t('field.time.export.openNamed', '{count} crew still on the clock ({names}) — not included', { count: open.length, names: names.join(', ') }, lang)
+    : t('field.time.export.open', '{count} crew still on the clock — not included', { count: open.length }, lang);
 }
 
 // ── The CSV ──────────────────────────────────────────────────────────────

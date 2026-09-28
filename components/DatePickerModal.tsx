@@ -38,6 +38,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useT } from '@/contexts/LanguageContext';
+import { formatDateOptsL } from '@/i18n/format';
+import type { Lang } from '@/i18n/types';
 
 interface Props {
   visible: boolean;
@@ -51,19 +54,45 @@ interface Props {
   allowFuture?: boolean;
 }
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+const MONTH_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+/** The month's full name through i18n/format (Spanish Phase 1b): en is
+ *  exactly toLocaleDateString('en-US', { month: 'long' }) — "January" … —
+ *  and es comes from the Spanish tables ("enero"). Never hard-coded English. */
+function monthName(i: number, lang: Lang): string {
+  return formatDateOptsL(new Date(2000, i, 1), { month: 'long' }, lang);
+}
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX
+ * (`Use {month} {day}, {year}`) rendered. Still ONE key; only the rendering
+ * is split, so the element tree is unchanged (components/home/DailyLogCard).
+ */
+function sentenceParts(template: string, values: Record<string, string | number>): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
 
 export default function DatePickerModal({
   visible,
   value,
   onClose,
   onChange,
-  title = 'Pick a date',
+  title,
   allowFuture = false,
 }: Props) {
+  // Spanish Phase 1b (W3 ESSHELL, field.chrome.datePicker.*). A caller's own
+  // `title` is the caller's string; the default is ours.
+  const { t, lang } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // An open picker is a dialog to the shortcut registry (wave 6d, C2): its Esc
@@ -150,8 +179,8 @@ export default function DatePickerModal({
         <View style={styles.card}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+            <Text style={styles.title}>{title ?? t('field.chrome.datePicker.title', 'Pick a date')}</Text>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={t('field.chrome.datePicker.close', 'Close')}>
               <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -163,35 +192,37 @@ export default function DatePickerModal({
               onPress={setToday}
               activeOpacity={0.85}
             >
-              <Text style={[styles.quickPillText, isToday && styles.quickPillTextActive]}>Today</Text>
+              <Text style={[styles.quickPillText, isToday && styles.quickPillTextActive]}>{t('field.chrome.datePicker.today', 'Today')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.quickPill, isYesterday && styles.quickPillActive]}
               onPress={setYesterday}
               activeOpacity={0.85}
             >
-              <Text style={[styles.quickPillText, isYesterday && styles.quickPillTextActive]}>Yesterday</Text>
+              <Text style={[styles.quickPillText, isYesterday && styles.quickPillTextActive]}>{t('field.chrome.datePicker.yesterday', 'Yesterday')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Three-wheel picker */}
           <View style={styles.wheels}>
             <Wheel<number>
-              label="Month"
-              options={MONTHS.map((_, i) => i)}
-              renderOption={(i) => MONTHS[i]}
+              label={t('field.chrome.datePicker.month', 'Month')}
+              // A fresh array per render, as before: the wheel re-centres on
+              // every render (its effect keys on `options`).
+              options={[...MONTH_INDEXES]}
+              renderOption={(i) => monthName(i, lang)}
               value={month}
               onChange={setMonth}
             />
             <Wheel<number>
-              label="Day"
+              label={t('field.chrome.datePicker.day', 'Day')}
               options={dayOptions}
               renderOption={(d) => String(d)}
               value={day}
               onChange={setDay}
             />
             <Wheel<number>
-              label="Year"
+              label={t('field.chrome.datePicker.year', 'Year')}
               options={yearOptions}
               renderOption={(y) => String(y)}
               value={year}
@@ -203,7 +234,7 @@ export default function DatePickerModal({
           <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
             <Check size={16} color={themeColors.surface} strokeWidth={1.75} />
             <Text style={styles.confirmText}>
-              Use {MONTHS[month]} {day}, {year}
+              {sentenceParts(t('field.chrome.datePicker.use', 'Use {month} {day}, {year}', { month: '{month}', day: '{day}', year: '{year}' }), { month: monthName(month, lang), day, year })}
             </Text>
           </TouchableOpacity>
         </View>

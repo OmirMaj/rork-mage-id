@@ -53,7 +53,7 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateFieldTicketPDF } from '@/utils/pdfGenerator';
 import { nailIt } from '@/components/animations/NailItToast';
 import { SigningCeremony } from '@/components/moments/signing/SigningCeremony';
-import { fromOnlineOutcome, offlineLegalReason, EARLIER_CHANGE_PENDING_REASON, EARLIER_CHANGE_UNSAVED_REASON, type CommitResult } from '@/components/moments/core/contract';
+import { fromOnlineOutcome, offlineLegalReason, earlierChangePendingReason, earlierChangeUnsavedReason, type CommitResult } from '@/components/moments/core/contract';
 import { useOffline } from '@/hooks/useOnline';
 import * as signingCopy from '@/utils/moments/sites/signingCopy';
 import {
@@ -76,6 +76,9 @@ import type {
   Equipment, FieldTicket, FieldTicketAuthorizerRole, FieldTicketEquipmentRow,
   FieldTicketLaborRow, FieldTicketMaterialRow, FieldTicketPhoto, FieldTicketStatus,
 } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
+import { getLang, t } from '@/i18n/core';
+import { formatDateL, formatDateOptsL, formatTimeL } from '@/i18n/format';
 
 // ─── Gate ────────────────────────────────────────────────────────────────────
 // change_orders_invoicing (Pro). The ticket's ONLY payoff is becoming a
@@ -124,27 +127,28 @@ function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClo
   onRetry: () => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   if (gate === 'paywall') {
-    return <Paywall visible feature="T&M Field Tickets" requiredTier={requiredTier} onClose={onClose} />;
+    return <Paywall visible feature={t('field.ticket.paywallFeature', 'T&M Field Tickets')} requiredTier={requiredTier} onClose={onClose} />;
   }
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID={`field-ticket-gate-${gate}`}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="T&M ticket · MAGE ID" title={projectName} />
+      <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={projectName} />
       <View style={{ padding: 24, gap: 14, alignItems: 'center' }}>
-        {gate === 'loading' ? <ActivityIndicator color={t.accent} /> : null}
+        {gate === 'loading' ? <ActivityIndicator color={tc.accent} /> : null}
         <Text style={styles.ticketMeta}>
           {gate === 'loading'
-            ? 'Checking your access to this project…'
+            ? t('field.ticket.checkingYourAccessTo', 'Checking your access to this project…')
             : gate === 'error'
-              ? "Couldn't check your access to this project. Check your connection and try again."
-              : "You don't have access to this project's T&M tickets. Ask the project owner to invite you."}
+              ? t('field.ticket.couldntCheckYourAccess', "Couldn't check your access to this project. Check your connection and try again.")
+              : t('field.ticket.youDontHaveAccess', "You don't have access to this project's T&M tickets. Ask the project owner to invite you.")}
         </Text>
         {gate === 'error' ? (
-          <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
+          <Button label={t('field.ticket.tryAgain', 'Try again')} variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
         ) : null}
       </View>
     </View>
@@ -153,7 +157,10 @@ function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClo
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
-/** The five reasons that cover essentially every extra-work argument. */
+/** The five reasons that cover essentially every extra-work argument. The
+ *  VALUE stays English: a tapped chip writes it into the ticket's own reason,
+ *  which the change order and the PDF print (documents stay English until
+ *  Phase 2). Only the chip's label is translated (reasonChipLabel). */
 const REASON_CHIPS = [
   'Owner / rep directive',
   'Unforeseen condition',
@@ -162,39 +169,121 @@ const REASON_CHIPS = [
   'Emergency / safety',
 ] as const;
 
+/** A reason chip's label in the app's language (the value above is what is saved). */
+function reasonChipLabel(r: typeof REASON_CHIPS[number]): string {
+  switch (r) {
+    case 'Owner / rep directive': return t('field.ticket.reason.directive', 'Owner / rep directive');
+    case 'Unforeseen condition': return t('field.ticket.reason.unforeseen', 'Unforeseen condition');
+    case 'Design change': return t('field.ticket.reason.designChange', 'Design change');
+    case 'Damage by others': return t('field.ticket.reason.damageByOthers', 'Damage by others');
+    case 'Emergency / safety': return t('field.ticket.reason.emergency', 'Emergency / safety');
+  }
+}
+
+/** The trade a labor row carries. The VALUE stays English (the office's
+ *  labor rates are keyed on it, and the PDF prints it); tradeChipLabel is the
+ *  chip's label in the app's language. */
 const TRADE_CHIPS = [
   'Laborer', 'Carpenter', 'Foreman', 'Electrician', 'Plumber',
   'Operator', 'Mason', 'Painter',
 ] as const;
 
-const ROLE_CHIPS: { key: FieldTicketAuthorizerRole; label: string }[] = [
-  { key: 'owner_rep', label: "Owner's rep" },
-  { key: 'client', label: 'Client' },
-  { key: 'architect', label: 'Architect' },
-  { key: 'cm', label: 'CM' },
-  { key: 'other', label: 'Other' },
-];
+function tradeChipLabel(tr: typeof TRADE_CHIPS[number]): string {
+  switch (tr) {
+    case 'Laborer': return t('field.ticket.trade.laborer', 'Laborer');
+    case 'Carpenter': return t('field.ticket.trade.carpenter', 'Carpenter');
+    case 'Foreman': return t('field.ticket.trade.foreman', 'Foreman');
+    case 'Electrician': return t('field.ticket.trade.electrician', 'Electrician');
+    case 'Plumber': return t('field.ticket.trade.plumber', 'Plumber');
+    case 'Operator': return t('field.ticket.trade.operator', 'Operator');
+    case 'Mason': return t('field.ticket.trade.mason', 'Mason');
+    case 'Painter': return t('field.ticket.trade.painter', 'Painter');
+  }
+}
 
-const STATUS_LABEL: Record<FieldTicketStatus, string> = {
-  draft: 'Unsigned',
-  signed: 'Signed, not billed',
-  converted: 'Billed',
-  void: 'Void',
-};
+const ROLE_KEYS: FieldTicketAuthorizerRole[] = ['owner_rep', 'client', 'architect', 'cm', 'other'];
+
+/** The signer's role chip, in the app's language (read at call time, never at import). */
+function roleChipLabel(key: FieldTicketAuthorizerRole): string {
+  switch (key) {
+    case 'owner_rep': return t('field.ticket.role.ownerRep', "Owner's rep");
+    case 'client': return t('field.ticket.role.client', 'Client');
+    case 'architect': return t('field.ticket.role.architect', 'Architect');
+    // i18n-keep-english: acronym (construction manager), the same in Spanish
+    case 'cm': return 'CM';
+    case 'other': return t('field.ticket.role.other', 'Other');
+  }
+  return '';
+}
+
+function roleChips(): { key: FieldTicketAuthorizerRole; label: string }[] {
+  return ROLE_KEYS.map(key => ({ key, label: roleChipLabel(key) }));
+}
+
+/** A ticket's status pill, in the app's language. */
+function statusLabel(status: FieldTicketStatus): string {
+  switch (status) {
+    case 'draft': return t('field.ticket.status.draft', 'Unsigned');
+    case 'signed': return t('field.ticket.status.signed', 'Signed, not billed');
+    case 'converted': return t('field.ticket.status.converted', 'Billed');
+    case 'void': return t('field.ticket.status.void', 'Void');
+  }
+  return status;
+}
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX
+ * (`Sealed. This is the record {name} put their name on …`) rendered. The
+ * sentence is still ONE key; only the rendering is split, so the rendered
+ * element tree (and every golden) is unchanged. (Same helper as
+ * components/home/DailyLogCard.tsx.)
+ */
+function sentenceParts(template: string, values: Record<string, string | number>): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
 
 function money(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** formatTicketDate in the app's language. English is exactly
+ *  formatTicketDate (byte for byte); Spanish is a month-name date from the
+ *  i18n tables (docs/I18N.md §6: never a numeric date in Spanish). */
+function ticketDate(raw: string): string {
+  if (getLang() === 'en') return formatTicketDate(raw);
+  if (!raw) return '';
+  const d = raw.length === 10 ? new Date(`${raw}T12:00:00`) : new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return formatDateOptsL(d, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** When a signature landed. English is exactly `toLocaleString()` as before;
+ *  Spanish is the i18n date and time ("27 sept 2026, 3:05 p.m."). */
+function signedAtLabel(iso: string): string {
+  if (getLang() === 'en') return new Date(iso).toLocaleString();
+  return `${formatDateL(iso, 'dayYear')}, ${formatTimeL(iso)}`;
+}
+
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function FieldTicketScreen() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const {
@@ -347,7 +436,7 @@ export default function FieldTicketScreen() {
 
   const handleAddPhoto = useCallback(async (fromCamera: boolean) => {
     if (photos.length >= 8) {
-      showAlert('Limit reached', 'Up to 8 photos per ticket.');
+      showAlert(t('field.ticket.limitReached', 'Limit reached'), t('field.ticket.upTo8Photos', 'Up to 8 photos per ticket.'));
       return;
     }
     try {
@@ -355,7 +444,7 @@ export default function FieldTicketScreen() {
       if (fromCamera && Platform.OS !== 'web') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert('Camera access needed', 'Allow camera access to photograph the extra work.');
+          showAlert(t('field.ticket.cameraAccessNeeded', 'Camera access needed'), t('field.ticket.allowCameraAccessTo', 'Allow camera access to photograph the extra work.'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -381,7 +470,7 @@ export default function FieldTicketScreen() {
     } catch (err) {
       console.warn('[FieldTicket] photo error:', err);
     }
-  }, [photos.length, tap]);
+  }, [photos.length, tap, t]);
 
   // ── Sign & seal ───────────────────────────────────────────────────────────
 
@@ -552,8 +641,8 @@ export default function FieldTicketScreen() {
       refused: signingCopy.ticketRefused(label),
       timeout: signingCopy.ticketTimeout(label),
       sealed: signingCopy.ticketAlreadySigned(label),
-      earlierPending: EARLIER_CHANGE_PENDING_REASON,
-      earlierUnsaved: EARLIER_CHANGE_UNSAVED_REASON,
+      earlierPending: earlierChangePendingReason(),
+      earlierUnsaved: earlierChangeUnsavedReason(),
       offline: offlineLegalReason('signing'),
     });
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
@@ -590,7 +679,7 @@ export default function FieldTicketScreen() {
     if (!activeProjectId) return;
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert(t('field.ticket.cantSave', "Can't save"), writeBlock);
       return;
     }
     const now = new Date().toISOString();
@@ -608,11 +697,11 @@ export default function FieldTicketScreen() {
     resetComposer();
     setView('list');
     showAlert(
-      'Saved unsigned',
-      'This ticket is a note, not evidence. Get the signature before the crew leaves — an unsigned ticket cannot become a change order.',
+      t('field.ticket.savedUnsigned', 'Saved unsigned'),
+      t('field.ticket.thisTicketIsA', 'This ticket is a note, not evidence. Get the signature before the crew leaves — an unsigned ticket cannot become a change order.'),
     );
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
-      reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer, writeBlock]);
+      reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer, writeBlock, t]);
 
   // ── Convert to change order ───────────────────────────────────────────────
 
@@ -620,12 +709,12 @@ export default function FieldTicketScreen() {
     // Never call addChangeOrder / ticketConversionPatch for a non-owner: the
     // server refuses the CO and the ticket would read "billed" forever.
     if (convertBlockReason) {
-      showAlert("Can't bill this here", convertBlockReason);
+      showAlert(t('field.ticket.cantBillThisHere', "Can't bill this here"), convertBlockReason);
       return;
     }
     const gate = checkFieldTicketConversion(ticket, changeOrders);
     if (!gate.canConvert) {
-      showAlert("Can't bill this yet", gate.reason ?? 'This ticket cannot be converted.');
+      showAlert(t('field.ticket.cantBillThisYet', "Can't bill this yet"), gate.reason ?? t('field.ticket.thisTicketCannotBe', 'This ticket cannot be converted.'));
       return;
     }
     // A half-priced ticket still converts — but the rows with no rate produce
@@ -634,21 +723,21 @@ export default function FieldTicketScreen() {
     // warning is the whole point of the gate returning one: say it before he
     // taps Create, while pricing the ticket is still an option.
     showAlert(
-      'Create change order',
+      t('field.ticket.createChangeOrder', 'Create change order'),
       [
-        `${fieldTicketLabel(ticket.number)} becomes a draft change order for ${money(computeFieldTicketTotals(ticket).billableTotal)}. You still review and send it.`,
+        t('field.ticket.convert.body', '{ticketLabel} becomes a draft change order for {amount}. You still review and send it.', { ticketLabel: fieldTicketLabel(ticket.number), amount: money(computeFieldTicketTotals(ticket).billableTotal) }),
         gate.warning,
       ].filter(Boolean).join('\n\n'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('field.ticket.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Create',
+          text: t('field.ticket.create', 'Create'),
           onPress: () => {
             // Re-check against the LIVE list: the user may have sat on this
             // dialog while a sync landed the CO from another device.
             const recheck = checkFieldTicketConversion(ticket, changeOrders);
             if (!recheck.canConvert) {
-              showAlert("Can't bill this yet", recheck.reason ?? '');
+              showAlert(t('field.ticket.cantBillThisYet', "Can't bill this yet"), recheck.reason ?? '');
               return;
             }
             const now = new Date().toISOString();
@@ -664,7 +753,7 @@ export default function FieldTicketScreen() {
             // No number in the toast: it is provisional until the server has
             // it (#77/#141) — the change-order screen opens next and shows the
             // confirmed number, or "(pending #)".
-            nailIt(`Change order drafted · ${money(co.changeAmount)}`);
+            nailIt(t('field.ticket.convert.drafted', 'Change order drafted · {amount}', { amount: money(co.changeAmount) }));
             router.push({
               pathname: '/change-order',
               params: { projectId: ticket.projectId, coId: co.id },
@@ -673,7 +762,7 @@ export default function FieldTicketScreen() {
         },
       ],
     );
-  }, [changeOrders, projectCOs, project, addChangeOrder, updateFieldTicket, router, convertBlockReason]);
+  }, [changeOrders, projectCOs, project, addChangeOrder, updateFieldTicket, router, convertBlockReason, t]);
 
   // ── Price a signed ticket ─────────────────────────────────────────────────
   // The rep signs for HOURS; the office attaches the money afterwards. Until
@@ -704,7 +793,7 @@ export default function FieldTicketScreen() {
   ) => {
     // The button is hidden for these roles; this holds the line if the sheet
     // was already open when the role resolved.
-    if (pricingBlockReason) { showAlert('Not saved', pricingBlockReason); return; }
+    if (pricingBlockReason) { showAlert(t('field.ticket.notSaved', 'Not saved'), pricingBlockReason); return; }
     const changes = fieldTicketPriceChanges(ticket, next);
     if (changes.length === 0) { setPricingOpen(false); return; }
     const now = new Date().toISOString();
@@ -730,15 +819,15 @@ export default function FieldTicketScreen() {
       // The data layer refused — something other than a rate moved. Say what
       // the rule is rather than leaving a silently-unsaved sheet behind.
       showAlert(
-        'Not saved',
-        'Only the rates can change after a signature. The hours, quantities and descriptions are what the signer put their name on.',
+        t('field.ticket.notSaved', 'Not saved'),
+        t('field.ticket.onlyTheRatesCan', 'Only the rates can change after a signature. The hours, quantities and descriptions are what the signer put their name on.'),
       );
       return;
     }
     setPricingOpen(false);
     const priced = computeFieldTicketTotals({ ...ticket, ...next });
-    nailIt(`${fieldTicketLabel(ticket.number)} priced · ${money(priced.billableTotal)}`);
-  }, [updateFieldTicket, officeActor, pricingBlockReason]);
+    nailIt(t('field.ticket.pricing.pricedToast', '{ticketLabel} priced · {amount}', { ticketLabel: fieldTicketLabel(ticket.number), amount: money(priced.billableTotal) }));
+  }, [updateFieldTicket, officeActor, pricingBlockReason, t]);
 
   const handleShare = useCallback(async (ticket: FieldTicket) => {
     if (!project) return;
@@ -750,24 +839,24 @@ export default function FieldTicketScreen() {
       });
     } catch (err) {
       console.warn('[FieldTicket] pdf error:', err);
-      showAlert('Couldn’t build the PDF', pdfFailureMessage(err, 'Try again in a moment.'));
+      showAlert(t('field.ticket.couldntBuildThePdf', 'Couldn’t build the PDF'), pdfFailureMessage(err, t('field.ticket.pdfTryAgain', 'Try again in a moment.')));
     } finally {
       setBusy(false);
     }
-  }, [project, settings.branding]);
+  }, [project, settings.branding, t]);
 
   const handleVoid = useCallback((ticket: FieldTicket) => {
     if (writeBlock) {
-      showAlert("Can't void", writeBlock);
+      showAlert(t('field.ticket.cantVoid', "Can't void"), writeBlock);
       return;
     }
     showAlert(
-      `Void ${fieldTicketLabel(ticket.number)}?`,
-      'The ticket stays on the record but can never be billed.',
+      t('field.ticket.voidTitle', 'Void {ticketLabel}?', { ticketLabel: fieldTicketLabel(ticket.number) }),
+      t('field.ticket.theTicketStaysOn', 'The ticket stays on the record but can never be billed.'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('field.ticket.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Void',
+          text: t('field.ticket.void', 'Void'),
           style: 'destructive',
           onPress: () => {
             updateFieldTicket(ticket.id, { status: 'void' });
@@ -776,7 +865,7 @@ export default function FieldTicketScreen() {
         },
       ],
     );
-  }, [updateFieldTicket, writeBlock]);
+  }, [updateFieldTicket, writeBlock, t]);
 
   // ── No project selected ───────────────────────────────────────────────────
 
@@ -784,10 +873,10 @@ export default function FieldTicketScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="T&M ticket · MAGE ID" title="T&M ticket" />
+        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={t('field.ticket.tMTicket', 'T&M ticket')} />
         <ToolProjectPicker
-          toolName="T&M tickets"
-          message="Capture extra work and get it signed on site, before anyone forgets it happened."
+          toolName={t('field.ticket.picker.toolName', 'T&M tickets')}
+          message={t('field.ticket.picker.message', 'Capture extra work and get it signed on site, before anyone forgets it happened.')}
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -832,11 +921,11 @@ export default function FieldTicketScreen() {
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader
-          eyebrow={`${fieldTicketLabel(openTicket.number)} · ${STATUS_LABEL[openTicket.status]}`}
+          eyebrow={`${fieldTicketLabel(openTicket.number)} · ${statusLabel(openTicket.status)}`}
           title={project.name}
           right={
             <TouchableOpacity onPress={() => setOpenTicketId(null)} hitSlop={12} style={styles.headerAction}>
-              <X size={20} color={t.text} strokeWidth={1.75} />
+              <X size={20} color={tc.text} strokeWidth={1.75} />
             </TouchableOpacity>
           }
         />
@@ -844,67 +933,69 @@ export default function FieldTicketScreen() {
           {/* Seal banner — why nothing here is editable. */}
           {openTicket.status !== 'draft' && (
             <View style={styles.sealBanner}>
-              <Lock size={14} color={t.accent} strokeWidth={2} />
+              <Lock size={14} color={tc.accent} strokeWidth={2} />
               <Text style={styles.sealBannerText}>
-                Sealed. This is the record {openTicket.authorization?.name ?? 'the signer'} put their
-                name on — the hours, quantities and descriptions can&apos;t be edited. Rates are the
-                office&apos;s to attach, and every one is logged.
+                {openTicket.authorization?.name
+                  ? sentenceParts(t('field.ticket.detail.sealedBanner', "Sealed. This is the record {name} put their name on — the hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.", { name: '{name}' }), { name: openTicket.authorization.name })
+                  : t('field.ticket.detail.sealedBannerNoName', "Sealed. This is the record the signer put their name on — the hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.")}
               </Text>
             </View>
           )}
 
           {moneyBlinded ? (
             <View style={styles.amountCard} testID="ticket-amount-blinded">
-              <Text style={styles.amountLabel}>Signed quantities</Text>
-              <Text style={styles.amountValue}>{totals.laborHours} labor hr</Text>
+              <Text style={styles.amountLabel}>{t('field.ticket.signedQuantities', 'Signed quantities')}</Text>
+              <Text style={styles.amountValue}>{t('field.ticket.laborHr', '{laborHours} labor hr', { laborHours: totals.laborHours })}</Text>
               <Text style={styles.amountSub}>
-                {openTicket.materials.length} material line{openTicket.materials.length === 1 ? '' : 's'} ·{' '}
-                {totals.equipmentHours} equip hr
+                {tn('field.ticket.materialLinesEquipHr', openTicket.materials.length, { one: '{count} material line · {equipmentHours} equip hr', other: '{count} material lines · {equipmentHours} equip hr' }, { equipmentHours: totals.equipmentHours })}
               </Text>
               <Text style={styles.amountSub}>{moneyHiddenReason}</Text>
             </View>
           ) : (
           <View style={styles.amountCard}>
-            <Text style={styles.amountLabel}>Ticket total</Text>
+            <Text style={styles.amountLabel}>{t('field.ticket.ticketTotal', 'Ticket total')}</Text>
             <Text style={styles.amountValue}>{money(totals.billableTotal)}</Text>
             <Text style={styles.amountSub}>
-              {totals.laborHours} labor hr · {money(totals.materialCost)} materials ·{' '}
-              {totals.equipmentHours} equip hr
-              {totals.markupAmount > 0 ? ` · ${totals.markupPercent}% O&P` : ''}
+              {totals.markupAmount > 0
+                ? t('field.ticket.detail.totalsLineMarkup', '{h} labor hr · {m} materials · {e} equip hr · {p}% O&P', { h: totals.laborHours, m: money(totals.materialCost), e: totals.equipmentHours, p: totals.markupPercent })
+                : t('field.ticket.detail.totalsLine', '{h} labor hr · {m} materials · {e} equip hr', { h: totals.laborHours, m: money(totals.materialCost), e: totals.equipmentHours })}
             </Text>
             {/* What the total is NOT. Without this the number reads as the
                 value of the signed work, when part of that work has no rate
                 and is worth $0 on this screen and $0 on the change order. */}
             {totals.unpricedRowCount > 0 && (
               <Text style={styles.amountWarn}>
-                Excludes {totals.unpricedRowCount} signed line
-                {totals.unpricedRowCount === 1 ? '' : 's'} with no rate
-                {totals.unpricedLaborHours > 0 ? ` (${totals.unpricedLaborHours} labor hr)` : ''}.
+                {totals.unpricedLaborHours > 0
+                  ? tn('field.ticket.detail.excludesUnpricedHours', totals.unpricedRowCount, { one: 'Excludes {count} signed line with no rate ({laborHours} labor hr).', other: 'Excludes {count} signed lines with no rate ({laborHours} labor hr).' }, { laborHours: totals.unpricedLaborHours })
+                  : tn('field.ticket.detail.excludesUnpriced', totals.unpricedRowCount, { one: 'Excludes {count} signed line with no rate.', other: 'Excludes {count} signed lines with no rate.' })}
               </Text>
             )}
             {!!pricedAt && (
               <Text style={styles.amountSub}>
-                Rates applied in the office {formatTicketDate(pricedAt)} — the signature covers the
-                hours and quantities.
+                {t('field.ticket.detail.ratesApplied', 'Rates applied in the office {date} — the signature covers the hours and quantities.', { date: ticketDate(pricedAt) })}
               </Text>
             )}
           </View>
           )}
 
-          <ReadBlock label="Work performed" value={openTicket.workDescription} />
-          <ReadBlock label="Why it's extra" value={openTicket.reasonExtra} />
-          <ReadBlock label="Date of work" value={formatTicketDate(openTicket.date)} />
+          <ReadBlock label={t('field.ticket.workPerformed', 'Work performed')} value={openTicket.workDescription} />
+          <ReadBlock label={t('field.ticket.whyItsExtra', "Why it's extra")} value={openTicket.reasonExtra} />
+          <ReadBlock label={t('field.ticket.dateOfWork', 'Date of work')} value={ticketDate(openTicket.date)} />
 
           {openTicket.labor.length > 0 && (
             <View style={styles.readCard}>
-              <Text style={styles.readLabel}>Labor</Text>
+              <Text style={styles.readLabel}>{t('field.ticket.labor', 'Labor')}</Text>
               {openTicket.labor.map(r => (
                 <View key={r.id} style={styles.readRow}>
                   <Text style={styles.readRowMain} numberOfLines={1}>
-                    {r.workerName || 'Unnamed'} · {r.trade}
+                    {r.workerName || t('field.ticket.unnamed', 'Unnamed')} · {r.trade}
                   </Text>
                   <Text style={styles.readRowValue}>
-                    {r.hours} hr{moneyBlinded ? '' : r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
+                    {moneyBlinded
+                      ? t('field.ticket.detail.hours', '{hours} hr', { hours: r.hours })
+                      : r.rate
+                        ? t('field.ticket.detail.hoursAtRate', '{hours} hr @ {rate}', { hours: r.hours, rate: money(r.rate) })
+                        : t('field.ticket.detail.hoursRateTbd', '{hours} hr · rate TBD', { hours: r.hours })}
                   </Text>
                 </View>
               ))}
@@ -912,12 +1003,16 @@ export default function FieldTicketScreen() {
           )}
           {openTicket.materials.length > 0 && (
             <View style={styles.readCard}>
-              <Text style={styles.readLabel}>Materials</Text>
+              <Text style={styles.readLabel}>{t('field.ticket.materials', 'Materials')}</Text>
               {openTicket.materials.map(r => (
                 <View key={r.id} style={styles.readRow}>
-                  <Text style={styles.readRowMain} numberOfLines={1}>{r.description || 'Material'}</Text>
+                  <Text style={styles.readRowMain} numberOfLines={1}>{r.description || t('field.ticket.material', 'Material')}</Text>
                   <Text style={styles.readRowValue}>
-                    {r.quantity} {r.unit}{moneyBlinded ? '' : r.unitCost ? ` @ ${money(r.unitCost)}` : ' · cost TBD'}
+                    {moneyBlinded
+                      ? t('field.ticket.detail.quantity', '{quantity} {unit}', { quantity: r.quantity, unit: r.unit })
+                      : r.unitCost
+                        ? t('field.ticket.detail.quantityAtCost', '{quantity} {unit} @ {cost}', { quantity: r.quantity, unit: r.unit, cost: money(r.unitCost) })
+                        : t('field.ticket.detail.quantityCostTbd', '{quantity} {unit} · cost TBD', { quantity: r.quantity, unit: r.unit })}
                   </Text>
                 </View>
               ))}
@@ -925,12 +1020,16 @@ export default function FieldTicketScreen() {
           )}
           {openTicket.equipment.length > 0 && (
             <View style={styles.readCard}>
-              <Text style={styles.readLabel}>Equipment</Text>
+              <Text style={styles.readLabel}>{t('field.ticket.equipment', 'Equipment')}</Text>
               {openTicket.equipment.map(r => (
                 <View key={r.id} style={styles.readRow}>
-                  <Text style={styles.readRowMain} numberOfLines={1}>{r.description || 'Equipment'}</Text>
+                  <Text style={styles.readRowMain} numberOfLines={1}>{r.description || t('field.ticket.equipment', 'Equipment')}</Text>
                   <Text style={styles.readRowValue}>
-                    {r.hours} hr{moneyBlinded ? '' : r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
+                    {moneyBlinded
+                      ? t('field.ticket.detail.hours', '{hours} hr', { hours: r.hours })
+                      : r.rate
+                        ? t('field.ticket.detail.hoursAtRate', '{hours} hr @ {rate}', { hours: r.hours, rate: money(r.rate) })
+                        : t('field.ticket.detail.hoursRateTbd', '{hours} hr · rate TBD', { hours: r.hours })}
                   </Text>
                 </View>
               ))}
@@ -939,7 +1038,7 @@ export default function FieldTicketScreen() {
 
           {(openTicket.photos ?? []).length > 0 && (
             <View style={styles.readCard}>
-              <Text style={styles.readLabel}>Photos</Text>
+              <Text style={styles.readLabel}>{t('field.ticket.photos', 'Photos')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>
                 {(openTicket.photos ?? []).map(p => (
                   <Image key={p.id} source={{ uri: p.localUri ?? p.uri }} style={styles.photoThumb} contentFit="cover" />
@@ -950,7 +1049,7 @@ export default function FieldTicketScreen() {
 
           {/* The signature — the whole point of the record. */}
           <View style={[styles.readCard, authorized ? styles.sigCardOk : styles.sigCardBad]}>
-            <Text style={styles.readLabel}>Authorized on site</Text>
+            <Text style={styles.readLabel}>{t('field.ticket.authorizedOnSite', 'Authorized on site')}</Text>
             {openTicket.authorization ? (
               <>
                 <Text style={styles.sigName}>{openTicket.authorization.name}</Text>
@@ -958,18 +1057,18 @@ export default function FieldTicketScreen() {
                   <Text style={styles.sigMeta}>{openTicket.authorization.title}</Text>
                 )}
                 <Text style={styles.sigMeta}>
-                  Signed {new Date(openTicket.authorization.signedAt).toLocaleString()}
+                  {t('field.ticket.detail.signedAt', 'Signed {when}', { when: signedAtLabel(openTicket.authorization.signedAt) })}
                 </Text>
                 {!!openTicket.authorization.locationLabel && (
                   <View style={styles.sigGeo}>
-                    <MapPin size={12} color={t.textMuted} strokeWidth={1.75} />
+                    <MapPin size={12} color={tc.textMuted} strokeWidth={1.75} />
                     <Text style={styles.sigMeta}>{openTicket.authorization.locationLabel}</Text>
                   </View>
                 )}
               </>
             ) : (
               <Text style={styles.sigBadText}>
-                Unsigned. This is a note, not evidence — it can&apos;t be billed.
+                {t('field.ticket.unsignedThisIsA', "Unsigned. This is a note, not evidence — it can't be billed.")}
               </Text>
             )}
           </View>
@@ -980,7 +1079,7 @@ export default function FieldTicketScreen() {
               record, which is the exact failure this feature exists to fix. */}
           {openTicket.status === 'draft' && (
             <Button
-              label="Get signature now"
+              label={t('field.ticket.getSignatureNow', 'Get signature now')}
               onPress={() => { setSignTargetId(openTicket.id); setSignOpen(true); }}
               disabled={!!writeBlock}
               fullWidth
@@ -1000,9 +1099,9 @@ export default function FieldTicketScreen() {
               })}
               testID="ticket-open-co"
             >
-              <Check size={16} color={t.success} strokeWidth={2} />
-              <Text style={styles.billedText}>Billed on change order #{billedCO.number}</Text>
-              <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
+              <Check size={16} color={tc.success} strokeWidth={2} />
+              <Text style={styles.billedText}>{t('field.ticket.billedOnChangeOrder', 'Billed on change order #{number}', { number: billedCO.number })}</Text>
+              <ChevronRight size={16} color={tc.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
 
@@ -1013,14 +1112,14 @@ export default function FieldTicketScreen() {
                 become a change order. */}
             {canPrice && (
               <Button
-                label={totals.unpricedRowCount > 0 ? 'Price this ticket' : 'Adjust rates'}
+                label={totals.unpricedRowCount > 0 ? t('field.ticket.priceThisTicket', 'Price this ticket') : t('field.ticket.adjustRates', 'Adjust rates')}
                 onPress={() => setPricingOpen(true)}
                 variant={totals.unpricedRowCount > 0 ? 'primary' : 'secondary'}
                 fullWidth
                 iconLeft={
                   <DollarSign
                     size={16}
-                    color={totals.unpricedRowCount > 0 ? '#FFF' : t.text}
+                    color={totals.unpricedRowCount > 0 ? '#FFF' : tc.text}
                     strokeWidth={2}
                   />
                 }
@@ -1043,13 +1142,13 @@ export default function FieldTicketScreen() {
             {!!(openTicket.convertedChangeOrderId || gate.existingChangeOrderId) && totals.unpricedRowCount > 0 && (
               <Text style={styles.gateReason}>
                 {billedCO
-                  ? `Rates are locked now that CO #${billedCO.number} exists — changing them here would leave the change order saying something different. Revise the change order instead.`
-                  : 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project — revise or re-raise that change order rather than re-pricing the signed ticket.'}
+                  ? t('field.ticket.ratesAreLockedNow', 'Rates are locked now that CO #{number} exists — changing them here would leave the change order saying something different. Revise the change order instead.', { number: billedCO.number })
+                  : t('field.ticket.thisTicketWasAlready', 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project — revise or re-raise that change order rather than re-pricing the signed ticket.')}
               </Text>
             )}
             {!billedCO && openTicket.status !== 'void' && (
               <Button
-                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? "Your GC bills this ticket" : convertBlockReason ? "Can't bill yet" : gate.canConvert ? 'Bill it as a change order' : "Can't bill yet"}
+                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? t('field.ticket.yourGcBillsThis', 'Your GC bills this ticket') : convertBlockReason ? t('field.ticket.cantBillYet', "Can't bill yet") : gate.canConvert ? t('field.ticket.billItAsA', 'Bill it as a change order') : t('field.ticket.cantBillYet', "Can't bill yet")}
                 onPress={() => handleConvert(openTicket)}
                 disabled={!gate.canConvert || !!convertBlockReason}
                 fullWidth
@@ -1064,17 +1163,17 @@ export default function FieldTicketScreen() {
               <Text style={styles.gateReason}>{gate.reason}</Text>
             )}
             <Button
-              label="Share signed PDF"
+              label={t('field.ticket.shareSignedPdf', 'Share signed PDF')}
               onPress={() => void handleShare(openTicket)}
               variant="secondary"
               fullWidth
               loading={busy}
-              iconLeft={<Share2 size={16} color={t.text} strokeWidth={1.75} />}
+              iconLeft={<Share2 size={16} color={tc.text} strokeWidth={1.75} />}
               testID="ticket-share"
             />
             {openTicket.status !== 'void' && !billedCO && (
               <Button
-                label="Void ticket"
+                label={t('field.ticket.voidTicket', 'Void ticket')}
                 onPress={() => handleVoid(openTicket)}
                 variant="ghost"
                 fullWidth
@@ -1125,7 +1224,7 @@ export default function FieldTicketScreen() {
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader
-          eyebrow={`${fieldTicketLabel(nextFieldTicketNumber(tickets))} · New`}
+          eyebrow={t('field.ticket.composer.eyebrow', '{ticketLabel} · New', { ticketLabel: fieldTicketLabel(nextFieldTicketNumber(tickets)) })}
           title={project.name}
           right={
             <TouchableOpacity
@@ -1134,7 +1233,7 @@ export default function FieldTicketScreen() {
               style={styles.headerAction}
               testID="ticket-cancel"
             >
-              <X size={20} color={t.text} strokeWidth={1.75} />
+              <X size={20} color={tc.text} strokeWidth={1.75} />
             </TouchableOpacity>
           }
         />
@@ -1149,19 +1248,19 @@ export default function FieldTicketScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {/* 1. What work */}
-            <Text style={styles.fieldLabel}>What did the crew do?</Text>
+            <Text style={styles.fieldLabel}>{t('field.ticket.whatDidTheCrew', 'What did the crew do?')}</Text>
             <TextInput
               style={[styles.input, styles.inputTall]}
               value={workDescription}
               onChangeText={setWorkDescription}
-              placeholder="e.g. Broke out and hauled off an undocumented footing under the east slab"
-              placeholderTextColor={t.textMuted}
+              placeholder={t('field.ticket.eGBrokeOut', 'e.g. Broke out and hauled off an undocumented footing under the east slab')}
+              placeholderTextColor={tc.textMuted}
               multiline
               testID="ticket-work"
             />
 
             {/* 2. Why it's extra — chips first, typing optional */}
-            <Text style={styles.fieldLabel}>Why is it extra?</Text>
+            <Text style={styles.fieldLabel}>{t('field.ticket.whyIsItExtra', 'Why is it extra?')}</Text>
             <View style={styles.chipWrap}>
               {REASON_CHIPS.map(r => {
                 const on = reasonExtra.startsWith(r);
@@ -1172,7 +1271,7 @@ export default function FieldTicketScreen() {
                     onPress={() => { tap(); setReasonExtra(on ? '' : r); }}
                     testID={`ticket-reason-${r}`}
                   >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{r}</Text>
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{reasonChipLabel(r)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1181,27 +1280,27 @@ export default function FieldTicketScreen() {
               style={styles.input}
               value={reasonExtra}
               onChangeText={setReasonExtra}
-              placeholder="Tap a reason above, or type it"
-              placeholderTextColor={t.textMuted}
+              placeholder={t('field.ticket.tapAReasonAbove', 'Tap a reason above, or type it')}
+              placeholderTextColor={tc.textMuted}
               testID="ticket-reason"
             />
 
             {/* 3. Date */}
-            <Text style={styles.fieldLabel}>Date of work</Text>
+            <Text style={styles.fieldLabel}>{t('field.ticket.dateOfWork', 'Date of work')}</Text>
             <TextInput
               style={styles.input}
               value={workDate}
               onChangeText={setWorkDate}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor={t.textMuted}
+              placeholderTextColor={tc.textMuted}
               autoCapitalize="none"
               testID="ticket-date"
             />
 
             {/* 4. Labor */}
             <SectionHead
-              icon={<HardHat size={16} color={t.accent} strokeWidth={2} />}
-              label="Labor"
+              icon={<HardHat size={16} color={tc.accent} strokeWidth={2} />}
+              label={t('field.ticket.labor', 'Labor')}
               hint={draftTotals.laborHours > 0 ? `${draftTotals.laborHours} hr` : undefined}
               onAdd={addLaborRow}
               addTestID="ticket-add-labor"
@@ -1213,8 +1312,8 @@ export default function FieldTicketScreen() {
                     style={[styles.input, styles.rowNameInput]}
                     value={row.workerName}
                     onChangeText={v => setLabor(p => p.map((r, j) => j === i ? { ...r, workerName: v } : r))}
-                    placeholder="Name"
-                    placeholderTextColor={t.textMuted}
+                    placeholder={t('field.ticket.name', 'Name')}
+                    placeholderTextColor={tc.textMuted}
                     testID={`ticket-labor-name-${i}`}
                   />
                   <TouchableOpacity
@@ -1223,7 +1322,7 @@ export default function FieldTicketScreen() {
                     hitSlop={10}
                     testID={`ticket-labor-del-${i}`}
                   >
-                    <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+                    <Trash2 size={16} color={tc.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -1233,20 +1332,20 @@ export default function FieldTicketScreen() {
                       style={[styles.chipSm, row.trade === tr && styles.chipOn]}
                       onPress={() => { tap(); setLabor(p => p.map((r, j) => j === i ? { ...r, trade: tr } : r)); }}
                     >
-                      <Text style={[styles.chipTextSm, row.trade === tr && styles.chipTextOn]}>{tr}</Text>
+                      <Text style={[styles.chipTextSm, row.trade === tr && styles.chipTextOn]}>{tradeChipLabel(tr)}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
                 <View style={styles.rowBottom}>
                   <Stepper
-                    label="hours"
+                    label={t('field.ticket.stepper.hours', 'hours')}
                     value={row.hours}
                     step={0.5}
                     onChange={v => setLabor(p => p.map((r, j) => j === i ? { ...r, hours: v } : r))}
                     testID={`ticket-labor-hours-${i}`}
                   />
                   <MoneyInput
-                    label="$/hr"
+                    label={t('field.ticket.perHour', '$/hr')}
                     value={row.rate}
                     onChange={v => setLabor(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
                     testID={`ticket-labor-rate-${i}`}
@@ -1257,8 +1356,8 @@ export default function FieldTicketScreen() {
 
             {/* 5. Materials */}
             <SectionHead
-              icon={<Package size={16} color={t.accent} strokeWidth={2} />}
-              label="Materials"
+              icon={<Package size={16} color={tc.accent} strokeWidth={2} />}
+              label={t('field.ticket.materials', 'Materials')}
               hint={draftTotals.materialCost > 0 ? money(draftTotals.materialCost) : undefined}
               onAdd={addMaterialRow}
               addTestID="ticket-add-material"
@@ -1270,8 +1369,8 @@ export default function FieldTicketScreen() {
                     style={[styles.input, styles.rowNameInput]}
                     value={row.description}
                     onChangeText={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, description: v } : r))}
-                    placeholder="What was used"
-                    placeholderTextColor={t.textMuted}
+                    placeholder={t('field.ticket.whatWasUsed', 'What was used')}
+                    placeholderTextColor={tc.textMuted}
                     testID={`ticket-material-desc-${i}`}
                   />
                   <TouchableOpacity
@@ -1279,12 +1378,12 @@ export default function FieldTicketScreen() {
                     style={styles.rowDelete}
                     hitSlop={10}
                   >
-                    <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+                    <Trash2 size={16} color={tc.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.rowBottom}>
                   <Stepper
-                    label="qty"
+                    label={t('field.ticket.stepper.qty', 'qty')}
                     value={row.quantity}
                     step={1}
                     onChange={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, quantity: v } : r))}
@@ -1295,11 +1394,11 @@ export default function FieldTicketScreen() {
                     value={row.unit}
                     onChangeText={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, unit: v } : r))}
                     placeholder="ea"
-                    placeholderTextColor={t.textMuted}
+                    placeholderTextColor={tc.textMuted}
                     autoCapitalize="none"
                   />
                   <MoneyInput
-                    label="$/unit"
+                    label={t('field.ticket.perUnit', '$/unit')}
                     value={row.unitCost}
                     onChange={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, unitCost: v } : r))}
                     testID={`ticket-material-cost-${i}`}
@@ -1310,8 +1409,8 @@ export default function FieldTicketScreen() {
 
             {/* 6. Equipment */}
             <SectionHead
-              icon={<Truck size={16} color={t.accent} strokeWidth={2} />}
-              label="Equipment"
+              icon={<Truck size={16} color={tc.accent} strokeWidth={2} />}
+              label={t('field.ticket.equipment', 'Equipment')}
               hint={draftTotals.equipmentHours > 0 ? `${draftTotals.equipmentHours} hr` : undefined}
               onAdd={addEquipmentRow}
               addTestID="ticket-add-equipment"
@@ -1323,8 +1422,8 @@ export default function FieldTicketScreen() {
                     style={[styles.input, styles.rowNameInput]}
                     value={row.description}
                     onChangeText={v => setEquipment(p => p.map((r, j) => j === i ? { ...r, description: v } : r))}
-                    placeholder="Machine (e.g. mini excavator)"
-                    placeholderTextColor={t.textMuted}
+                    placeholder={t('field.ticket.machineEGMini', 'Machine (e.g. mini excavator)')}
+                    placeholderTextColor={tc.textMuted}
                     testID={`ticket-equipment-desc-${i}`}
                   />
                   <TouchableOpacity
@@ -1332,19 +1431,19 @@ export default function FieldTicketScreen() {
                     style={styles.rowDelete}
                     hitSlop={10}
                   >
-                    <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+                    <Trash2 size={16} color={tc.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.rowBottom}>
                   <Stepper
-                    label="hours"
+                    label={t('field.ticket.stepper.hours', 'hours')}
                     value={row.hours}
                     step={0.5}
                     onChange={v => setEquipment(p => p.map((r, j) => j === i ? { ...r, hours: v } : r))}
                     testID={`ticket-equipment-hours-${i}`}
                   />
                   <MoneyInput
-                    label="$/hr"
+                    label={t('field.ticket.perHour', '$/hr')}
                     value={row.rate}
                     onChange={v => setEquipment(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
                     testID={`ticket-equipment-rate-${i}`}
@@ -1355,18 +1454,18 @@ export default function FieldTicketScreen() {
 
             {/* 7. Photos */}
             <SectionHead
-              icon={<Camera size={16} color={t.accent} strokeWidth={2} />}
-              label="Photos"
+              icon={<Camera size={16} color={tc.accent} strokeWidth={2} />}
+              label={t('field.ticket.photos', 'Photos')}
               hint={photos.length > 0 ? `${photos.length}` : undefined}
             />
             <View style={styles.photoActions}>
               <TouchableOpacity style={styles.photoBtn} onPress={() => void handleAddPhoto(true)} testID="ticket-camera">
-                <Camera size={18} color={t.accent} strokeWidth={1.75} />
-                <Text style={styles.photoBtnText}>Take photo</Text>
+                <Camera size={18} color={tc.accent} strokeWidth={1.75} />
+                <Text style={styles.photoBtnText}>{t('field.ticket.takePhoto', 'Take photo')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.photoBtn} onPress={() => void handleAddPhoto(false)} testID="ticket-library">
-                <ImagePlus size={18} color={t.accent} strokeWidth={1.75} />
-                <Text style={styles.photoBtnText}>From library</Text>
+                <ImagePlus size={18} color={tc.accent} strokeWidth={1.75} />
+                <Text style={styles.photoBtnText}>{t('field.ticket.fromLibrary', 'From library')}</Text>
               </TouchableOpacity>
             </View>
             {photos.length > 0 && (
@@ -1387,20 +1486,20 @@ export default function FieldTicketScreen() {
             )}
 
             {/* 8. Markup */}
-            <Text style={styles.fieldLabel}>Overhead &amp; profit</Text>
+            <Text style={styles.fieldLabel}>{t('field.ticket.overheadProfit', 'Overhead & profit')}</Text>
             <View style={styles.markupRow}>
               <TextInput
                 style={[styles.input, styles.markupInput]}
                 value={markup}
                 onChangeText={setMarkup}
                 placeholder="0"
-                placeholderTextColor={t.textMuted}
+                placeholderTextColor={tc.textMuted}
                 keyboardType="decimal-pad"
                 testID="ticket-markup"
               />
               <Text style={styles.markupPct}>%</Text>
               <Text style={styles.markupHint}>
-                {draftTotals.markupAmount > 0 ? `+${money(draftTotals.markupAmount)}` : 'Applied on top of cost'}
+                {draftTotals.markupAmount > 0 ? t('field.ticket.composer.markupAmount', '+{amount}', { amount: money(draftTotals.markupAmount) }) : t('field.ticket.appliedOnTopOf', 'Applied on top of cost')}
               </Text>
             </View>
           </ScrollView>
@@ -1416,8 +1515,8 @@ export default function FieldTicketScreen() {
                 {writeBlock
                   ? writeBlock
                   : readiness.ready
-                    ? 'Ready for signature'
-                    : `Still need: ${readiness.missing[0]}`}
+                    ? t('field.ticket.readyForSignature', 'Ready for signature')
+                    : t('field.ticket.stillNeed', 'Still need: {item}', { item: readiness.missing[0] })}
               </Text>
             </View>
             <View style={styles.stickyActions}>
@@ -1427,7 +1526,7 @@ export default function FieldTicketScreen() {
                 disabled={!readiness.ready || !!writeBlock}
                 testID="ticket-save-unsigned"
               >
-                <Text style={[styles.saveLaterText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>Save</Text>
+                <Text style={[styles.saveLaterText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>{t('field.ticket.save', 'Save')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.signBtn, (!readiness.ready || !!writeBlock) && styles.signBtnDisabled]}
@@ -1435,9 +1534,9 @@ export default function FieldTicketScreen() {
                 disabled={!readiness.ready || !!writeBlock}
                 testID="ticket-get-signature"
               >
-                <FileSignature size={16} color={readiness.ready ? '#FFF' : t.textMuted} strokeWidth={2} />
+                <FileSignature size={16} color={readiness.ready ? '#FFF' : tc.textMuted} strokeWidth={2} />
                 <Text style={[styles.signBtnText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>
-                  Get signature
+                  {t('field.ticket.getSignature', 'Get signature')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1473,18 +1572,17 @@ export default function FieldTicketScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="T&M ticket · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>
-            <Text style={styles.unbilledLabel}>Signed, not yet billed</Text>
+            <Text style={styles.unbilledLabel}>{t('field.ticket.signedNotYetBilled', 'Signed, not yet billed')}</Text>
             {!moneyBlinded && <Text style={styles.unbilledValue}>{money(unbilledTotal)}</Text>}
             {moneyBlinded && moneyHiddenReason ? (
               <Text style={styles.unbilledSub} testID="ticket-money-hidden-reason">{moneyHiddenReason}</Text>
             ) : null}
             <Text style={styles.unbilledSub}>
-              {unbilled.length} ticket{unbilled.length === 1 ? '' : 's'} already signed on site.
-              Convert them before closeout.
+              {tn('field.ticket.ticketsAlreadySignedOn', unbilled.length, { one: '{count} ticket already signed on site. Convert them before closeout.', other: '{count} tickets already signed on site. Convert them before closeout.' })}
             </Text>
           </View>
         )}
@@ -1497,10 +1595,10 @@ export default function FieldTicketScreen() {
 
         {tickets.length === 0 ? (
           <EmptyState
-            icon={<FileSignature size={36} color={t.accent} strokeWidth={1.6} />}
-            title="No T&M tickets yet"
-            message={writeBlock ?? "Extra work you never got signed for is the money you lose at closeout. Write the ticket while the work is still visible and get the owner's rep to sign it on the spot."}
-            actionLabel={writeBlock ? undefined : 'New T&M ticket'}
+            icon={<FileSignature size={36} color={tc.accent} strokeWidth={1.6} />}
+            title={t('field.ticket.noTMTickets', 'No T&M tickets yet')}
+            message={writeBlock ?? t('field.ticket.empty.message', "Extra work you never got signed for is the money you lose at closeout. Write the ticket while the work is still visible and get the owner's rep to sign it on the spot.")}
+            actionLabel={writeBlock ? undefined : t('field.ticket.newTMTicket', 'New T&M ticket')}
             onAction={writeBlock ? undefined : () => setView('compose')}
           />
         ) : (
@@ -1517,26 +1615,28 @@ export default function FieldTicketScreen() {
                 onPress={() => setOpenTicketId(x.id)}
                 testID={`ticket-row-${x.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${fieldTicketLabel(x.number)}, ${STATUS_LABEL[x.status]}${moneyBlinded ? '' : `, ${money(tot.billableTotal)}`}`}
+                // A list of facts for the screen reader (label, status, amount), never one sentence.
+                accessibilityLabel={[fieldTicketLabel(x.number), statusLabel(x.status), ...(moneyBlinded ? [] : [money(tot.billableTotal)])].join(', ')}
               >
                 <View style={styles.ticketRowMain}>
                   <View style={styles.ticketRowHead}>
                     <Text style={styles.ticketNumber}>{fieldTicketLabel(x.number)}</Text>
                     <View style={[styles.pill, tone]}>
-                      <Text style={styles.pillText}>{STATUS_LABEL[x.status]}</Text>
+                      <Text style={styles.pillText}>{statusLabel(x.status)}</Text>
                     </View>
                   </View>
                   <Text style={styles.ticketDesc} numberOfLines={2}>
-                    {x.workDescription || 'No description'}
+                    {x.workDescription || t('field.ticket.noDescription', 'No description')}
                   </Text>
                   <Text style={styles.ticketMeta}>
-                    {formatTicketDate(x.date)}
-                    {x.authorization ? ` · signed by ${x.authorization.name}` : ' · unsigned'}
+                    {x.authorization
+                      ? sentenceParts(t('field.ticket.list.metaSigned', '{date} · signed by {name}', { date: '{date}', name: '{name}' }), { date: ticketDate(x.date), name: x.authorization.name })
+                      : t('field.ticket.list.metaUnsigned', '{date} · unsigned', { date: ticketDate(x.date) })}
                   </Text>
                 </View>
                 <View style={styles.ticketRowRight}>
                   {!moneyBlinded && <Text style={styles.ticketAmount}>{money(tot.billableTotal)}</Text>}
-                  <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
+                  <ChevronRight size={16} color={tc.textMuted} strokeWidth={1.75} />
                 </View>
               </TouchableOpacity>
             );
@@ -1549,7 +1649,7 @@ export default function FieldTicketScreen() {
           {/* LS-5: a viewer seat cannot file — the control says why. */}
           {writeBlock ? <Text style={styles.ticketMeta} testID="ticket-viewer-block">{writeBlock}</Text> : null}
           <Button
-            label="New T&M ticket"
+            label={t('field.ticket.newTMTicket', 'New T&M ticket')}
             onPress={() => setView('compose')}
             disabled={!!writeBlock}
             fullWidth
@@ -1572,8 +1672,9 @@ function SectionHead({ icon, label, hint, onAdd, addTestID }: {
   onAdd?: () => void;
   addTestID?: string;
 }) {
+  const { t } = useT();
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   return (
     <View style={styles.sectionHead}>
       {icon}
@@ -1581,8 +1682,8 @@ function SectionHead({ icon, label, hint, onAdd, addTestID }: {
       {!!hint && <Text style={styles.sectionHeadHint}>{hint}</Text>}
       {!!onAdd && (
         <TouchableOpacity style={styles.sectionAdd} onPress={onAdd} hitSlop={10} testID={addTestID}>
-          <Plus size={16} color={t.accent} strokeWidth={2.25} />
-          <Text style={styles.sectionAddText}>Add</Text>
+          <Plus size={16} color={tc.accent} strokeWidth={2.25} />
+          <Text style={styles.sectionAddText}>{t('field.ticket.add', 'Add')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -1598,7 +1699,7 @@ function Stepper({ label, value, step, onChange, testID }: {
   testID?: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const bump = (dir: 1 | -1) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     const next = Math.max(0, Math.round((value + dir * step) * 100) / 100);
@@ -1607,14 +1708,14 @@ function Stepper({ label, value, step, onChange, testID }: {
   return (
     <View style={styles.stepper}>
       <TouchableOpacity style={styles.stepperBtn} onPress={() => bump(-1)} hitSlop={6} testID={`${testID}-minus`}>
-        <Minus size={18} color={t.text} strokeWidth={2.25} />
+        <Minus size={18} color={tc.text} strokeWidth={2.25} />
       </TouchableOpacity>
       <View style={styles.stepperMid}>
         <Text style={styles.stepperValue} testID={testID}>{value}</Text>
         <Text style={styles.stepperLabel}>{label}</Text>
       </View>
       <TouchableOpacity style={styles.stepperBtn} onPress={() => bump(1)} hitSlop={6} testID={`${testID}-plus`}>
-        <Plus size={18} color={t.text} strokeWidth={2.25} />
+        <Plus size={18} color={tc.text} strokeWidth={2.25} />
       </TouchableOpacity>
     </View>
   );
@@ -1628,7 +1729,7 @@ function MoneyInput({ label, value, onChange, testID }: {
   testID?: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   // The field renders the RAW keystrokes, not the parsed number. Rendering
   // String(value) back made the decimal point untypable: parseFloat('95.') is
   // 95, which re-renders as "95", so the '.' never sticks and $95.50 comes out
@@ -1656,7 +1757,7 @@ function MoneyInput({ label, value, onChange, testID }: {
           onChange(next);
         }}
         placeholder="—"
-        placeholderTextColor={t.textMuted}
+        placeholderTextColor={tc.textMuted}
         keyboardType="decimal-pad"
         testID={testID}
       />
@@ -1678,12 +1779,12 @@ function RateSuggestion({ suggestion, unit, onUse, testID }: {
   testID?: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   return (
     <TouchableOpacity style={styles.suggestChip} onPress={onUse} testID={testID}>
-      <Sparkles size={12} color={t.accent} strokeWidth={2} />
+      <Sparkles size={12} color={tc.accent} strokeWidth={2} />
       <Text style={styles.suggestChipText} numberOfLines={1}>
-        Use {money(suggestion.rate)}{unit} · {suggestion.source}
+        {t('field.ticket.pricing.useSuggestion', 'Use {rate}{unit} · {source}', { rate: money(suggestion.rate), unit, source: suggestion.source })}
       </Text>
     </TouchableOpacity>
   );
@@ -1706,8 +1807,9 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
   onClose: () => void;
   onApply: (next: Pick<FieldTicket, 'labor' | 'materials' | 'equipment'>) => void;
 }) {
+  const { t, tn } = useT();
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const insets = useSafeAreaInsets();
 
   // Seeded once, at mount. The caller mounts this only while the sheet is open,
@@ -1735,11 +1837,11 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
     <Modal visible={visible} animationType={fPrice.animationType} transparent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, fPrice.overlay]}>
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 10 }, fPrice.card]}>
-          <Text style={styles.modalTitle}>Price this ticket</Text>
+          <Text style={styles.modalTitle}>{t('field.ticket.priceThisTicket', 'Price this ticket')}</Text>
           <Text style={styles.modalAttest}>
-            {ticket.authorization?.name ?? 'The signer'} signed for the hours and quantities below.
-            They stay exactly as signed — only the rates can change here, and each one is written
-            into the ticket&apos;s history with your name and today&apos;s date.
+            {ticket.authorization?.name
+              ? t('field.ticket.pricing.attest', "{name} signed for the hours and quantities below. They stay exactly as signed — only the rates can change here, and each one is written into the ticket's history with your name and today's date.", { name: ticket.authorization.name })
+              : t('field.ticket.pricing.attestNoName', "The signer signed for the hours and quantities below. They stay exactly as signed — only the rates can change here, and each one is written into the ticket's history with your name and today's date.")}
           </Text>
           {/* What the numbers below turn into. The suggestion chips offer the
               GC's LOADED COST from Time Tracking, so the ticket's own markup is
@@ -1749,21 +1851,21 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
               handled somewhere else"; it is not. */}
           <Text style={preview.markupPercent > 0 ? styles.modalAttest : styles.priceWarn}>
             {preview.markupPercent > 0
-              ? `This ticket adds ${preview.markupPercent}% O&P on top of the rates you enter.`
-              : 'This ticket carries no O&P markup — whatever you enter here is exactly what the client is billed.'}
+              ? t('field.ticket.thisTicketAddsO', 'This ticket adds {markupPercent}% O&P on top of the rates you enter.', { markupPercent: preview.markupPercent })
+              : t('field.ticket.thisTicketCarriesNo', 'This ticket carries no O&P markup — whatever you enter here is exactly what the client is billed.')}
           </Text>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-            {labor.length > 0 && <Text style={styles.priceGroupLabel}>Labor</Text>}
+            {labor.length > 0 && <Text style={styles.priceGroupLabel}>{t('field.ticket.labor', 'Labor')}</Text>}
             {labor.map((row, i) => {
               const suggestion = suggestLaborRate(row.trade, laborRates);
               return (
                 <View key={row.id} style={styles.priceRow}>
                   <View style={styles.priceRowText}>
                     <Text style={styles.priceRowMain} numberOfLines={1}>
-                      {row.workerName || 'Unnamed'} · {row.trade}
+                      {row.workerName || t('field.ticket.unnamed', 'Unnamed')} · {row.trade}
                     </Text>
-                    <Text style={styles.priceRowSub}>{row.hours} hr signed</Text>
+                    <Text style={styles.priceRowSub}>{t('field.ticket.pricing.hoursSigned', '{hours} hr signed', { hours: row.hours })}</Text>
                     {!!suggestion && !row.rate && (
                       <RateSuggestion
                         suggestion={suggestion}
@@ -1774,7 +1876,7 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
                     )}
                   </View>
                   <MoneyInput
-                    label="$/hr"
+                    label={t('field.ticket.perHour', '$/hr')}
                     value={row.rate}
                     onChange={v => setLabor(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
                     testID={`ticket-price-labor-${i}`}
@@ -1783,15 +1885,15 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
               );
             })}
 
-            {materials.length > 0 && <Text style={styles.priceGroupLabel}>Materials</Text>}
+            {materials.length > 0 && <Text style={styles.priceGroupLabel}>{t('field.ticket.materials', 'Materials')}</Text>}
             {materials.map((row, i) => (
               <View key={row.id} style={styles.priceRow}>
                 <View style={styles.priceRowText}>
-                  <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || 'Material'}</Text>
-                  <Text style={styles.priceRowSub}>{row.quantity} {row.unit} signed</Text>
+                  <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || t('field.ticket.material', 'Material')}</Text>
+                  <Text style={styles.priceRowSub}>{t('field.ticket.pricing.quantitySigned', '{quantity} {unit} signed', { quantity: row.quantity, unit: row.unit })}</Text>
                 </View>
                 <MoneyInput
-                  label="$/unit"
+                  label={t('field.ticket.perUnit', '$/unit')}
                   value={row.unitCost}
                   onChange={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, unitCost: v } : r))}
                   testID={`ticket-price-material-${i}`}
@@ -1799,14 +1901,14 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
               </View>
             ))}
 
-            {equipRows.length > 0 && <Text style={styles.priceGroupLabel}>Equipment</Text>}
+            {equipRows.length > 0 && <Text style={styles.priceGroupLabel}>{t('field.ticket.equipment', 'Equipment')}</Text>}
             {equipRows.map((row, i) => {
               const suggestion = suggestEquipmentRate(row.description, equipment);
               return (
                 <View key={row.id} style={styles.priceRow}>
                   <View style={styles.priceRowText}>
-                    <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || 'Equipment'}</Text>
-                    <Text style={styles.priceRowSub}>{row.hours} hr signed</Text>
+                    <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || t('field.ticket.equipment', 'Equipment')}</Text>
+                    <Text style={styles.priceRowSub}>{t('field.ticket.pricing.hoursSigned', '{hours} hr signed', { hours: row.hours })}</Text>
                     {!!suggestion && !row.rate && (
                       <RateSuggestion
                         suggestion={suggestion}
@@ -1817,7 +1919,7 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
                     )}
                   </View>
                   <MoneyInput
-                    label="$/hr"
+                    label={t('field.ticket.perHour', '$/hr')}
                     value={row.rate}
                     onChange={v => setEquipRows(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
                     testID={`ticket-price-equipment-${i}`}
@@ -1828,16 +1930,14 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
 
             {preview.unpricedRowCount > 0 && (
               <Text style={styles.priceWarn}>
-                {preview.unpricedRowCount} line{preview.unpricedRowCount === 1 ? '' : 's'} still
-                without a rate. Those hours are authorized work, but they will not appear on the
-                change order.
+                {tn('field.ticket.linesStillWithoutA', preview.unpricedRowCount, { one: '{count} line still without a rate. Those hours are authorized work, but they will not appear on the change order.', other: '{count} lines still without a rate. Those hours are authorized work, but they will not appear on the change order.' })}
               </Text>
             )}
           </ScrollView>
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={styles.modalCancelText}>{t('field.ticket.cancel', 'Cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalConfirm, changeCount === 0 && styles.signBtnDisabled]}
@@ -1845,18 +1945,18 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
               disabled={changeCount === 0}
               testID="ticket-price-save"
             >
-              <Check size={16} color={changeCount > 0 ? '#FFF' : t.textMuted} strokeWidth={2.5} />
+              <Check size={16} color={changeCount > 0 ? '#FFF' : tc.textMuted} strokeWidth={2.5} />
               <Text style={[styles.modalConfirmText, changeCount === 0 && styles.disabledText]}>
-                Save rates · {money(preview.billableTotal)}
+                {t('field.ticket.pricing.saveRates', 'Save rates · {amount}', { amount: money(preview.billableTotal) })}
               </Text>
             </TouchableOpacity>
           </View>
           <View style={styles.sealNote}>
-            <Lock size={12} color={t.textMuted} strokeWidth={1.75} />
+            <Lock size={12} color={tc.textMuted} strokeWidth={1.75} />
             <Text style={styles.sealNoteText}>
               {changeCount === 0
-                ? 'Change a rate to save. Nothing else on a signed ticket can move.'
-                : `${changeCount} rate${changeCount === 1 ? '' : 's'} will be logged against your name.`}
+                ? t('field.ticket.changeARateTo', 'Change a rate to save. Nothing else on a signed ticket can move.')
+                : tn('field.ticket.ratesWillBeLogged', changeCount, { one: '{count} rate will be logged against your name.', other: '{count} rates will be logged against your name.' })}
             </Text>
           </View>
         </View>
@@ -1898,8 +1998,9 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
   onLateResult: (r: CommitResult) => void;
   recordFrom: () => { signedAtIso: string; timeSource: 'device' | 'server'; name: string };
 }) {
+  const { t } = useT();
   const styles = useThemedStyles(makeStyles);
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [role, setRole] = useState<FieldTicketAuthorizerRole>('owner_rep');
@@ -1924,13 +2025,13 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
     srLabel: signingCopy.ticketSrLabel(),
     srConfirm: signingCopy.ticketSrConfirm(),
     sealedAnnounce: signingCopy.ticketSealedAnnounce(ticketLabel),
-  }), [amountText, ticketLabel]);
+  }), [amountText, ticketLabel, t]);
   const rows = [
     { label: signingCopy.ticketWorkRowLabel(), value: summary },
-    { label: signingCopy.ticketDateRowLabel(), value: formatTicketDate(workDate) },
+    { label: signingCopy.ticketDateRowLabel(), value: ticketDate(workDate) },
     ...(amountText ? [{ label: signingCopy.ticketAmountRowLabel(), value: amountText, mono: true }] : []),
   ];
-  const roleLabel = ROLE_CHIPS.find(r => r.key === role)?.label ?? '';
+  const roleLabel = roleChipLabel(role);
 
   return (
     <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
@@ -1947,7 +2048,7 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.modalTitle}>Sign for the work</Text>
+            <Text style={styles.modalTitle}>{t('field.ticket.signForTheWork', 'Sign for the work')}</Text>
             <Text style={styles.modalAttest}>{signingCopy.ticketAttestation()}</Text>
           </ScrollView>
 
@@ -1965,7 +2066,7 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
                 above={(
                   <>
                     <View style={styles.chipWrap}>
-                      {ROLE_CHIPS.map(r => (
+                      {roleChips().map(r => (
                         <TouchableOpacity
                           key={r.key}
                           style={[styles.chip, role === r.key && styles.chipOn]}
@@ -1980,8 +2081,8 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
                       style={styles.input}
                       value={title}
                       onChangeText={setTitle}
-                      placeholder="Title / company (optional)"
-                      placeholderTextColor={t.textMuted}
+                      placeholder={t('field.ticket.titleCompanyOptional', 'Title / company (optional)')}
+                      placeholderTextColor={tc.textMuted}
                       testID="ticket-sign-title"
                     />
                   </>
@@ -2013,13 +2114,13 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={busy} testID="ticket-sign-cancel">
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={styles.modalCancelText}>{t('field.ticket.cancel', 'Cancel')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.sealNote}>
-            <Lock size={12} color={t.textMuted} strokeWidth={1.75} />
+            <Lock size={12} color={tc.textMuted} strokeWidth={1.75} />
             <Text style={styles.sealNoteText}>
-              Once signed the ticket is locked. Nothing above can be changed afterward.
+              {t('field.ticket.onceSignedTheTicket', 'Once signed the ticket is locked. Nothing above can be changed afterward.')}
             </Text>
           </View>
         </View>

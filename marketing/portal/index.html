@@ -12,6 +12,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<!-- The signing line and seal (wave-next W3). Bump ?v= with any change to
+     moments.css / moments.js: netlify.toml caches *.css and *.js for a year. -->
+<link href="/portal/moments.css?v=2026-09-28-w3" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='Inter,system-ui' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
@@ -540,29 +543,6 @@
     0%   { transform: scale(1); }
     40%  { transform: scale(1.35); }
     100% { transform: scale(1); }
-  }
-
-  /* ───────── Web confetti (homeowner sign celebration) ───────── */
-  .web-confetti-host {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    z-index: 9999;
-    overflow: hidden;
-  }
-  .web-confetti {
-    position: absolute;
-    top: -20px;
-    width: 8px;
-    height: 8px;
-    border-radius: 1px;
-    animation-name: webConfettiFall;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
-    animation-fill-mode: forwards;
-  }
-  @keyframes webConfettiFall {
-    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-    100% { transform: translateY(110vh) rotate(540deg); opacity: 0; }
   }
 
   /* ───────── Lightbox overlay (used by photos + sel-swatch zoom) ─────────
@@ -1333,6 +1313,20 @@
 
   /* ───────── Contract sign ───────── */
   .contract-sign { margin-top: 14px; }
+  /* The counter-sign button: the page's brand tokens (the retired inline
+     orange, then the inline green literal, are gone). */
+  .contract-sign-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 10px;
+    background: var(--brand); color: var(--surface);
+    font-family: inherit; font-weight: 800; font-size: 15px; cursor: pointer;
+    transition: background 150ms ease, opacity 150ms ease;
+  }
+  .contract-sign-btn:hover:not([disabled]) { background: var(--brand-dark); }
+  .contract-sign-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .contract-sign-line { min-height: 18px; margin-top: 8px; font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--text-2); }
+  .contract-sign-line:empty { display: none; }
+  .contract-sign-line[data-tone="error"] { color: var(--error); }
+  .contract-seal-host { margin: 12px 0 4px; }
 
   /* ───────── Closeout binder ───────── */
   .closeout { padding: 4px 0; }
@@ -2081,6 +2075,9 @@
   .esign-btn-danger { background: var(--error); color: #fff; }
   .esign-btn-cancel { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
   .esign-btn-cancel:hover { background: var(--bone-2); }
+  .esign-line { margin-top: 6px; }
+  .esign-line-note { margin-top: 8px; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+  .esign-actions.esign-line-mode #esign-submit { display: none; }
   .esign-legal {
     margin-top: 12px; font-size: 11px; line-height: 1.5;
     color: var(--text-muted); text-align: center;
@@ -2846,6 +2843,11 @@
 
       <div class="esign-error" id="esign-error"></div>
 
+      <!-- Approve / accept: the signing line (moments.js) takes the place of
+           the submit button. Decline keeps its button. -->
+      <div class="esign-line" id="esign-line" hidden></div>
+      <div class="esign-line-note" id="esign-line-note" hidden></div>
+
       <div class="esign-actions">
         <button type="button" class="esign-btn esign-btn-cancel" id="esign-cancel">Cancel</button>
         <button type="button" class="esign-btn esign-btn-primary" id="esign-submit">Sign &amp; approve</button>
@@ -2870,6 +2872,9 @@
     <footer class="drawer-footer" id="drawer-footer"></footer>
   </aside>
 
+<!-- MomentLine + sealResult. Loaded before the page script, which falls back to
+     a plain button and a plain note if it is missing. -->
+<script src="/portal/moments.js?v=2026-09-28-w3"></script>
 <script>
 (function () {
   'use strict';
@@ -2931,6 +2936,40 @@
     contractSignNamePlaceholder: 'Type your full legal name',
     contractSignButton: 'Sign and make binding',
     contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
+    // ── The signing moments (wave-next W3, MOMPORTAL) ─────────────────────
+    // ENGLISH ONLY, on purpose. No other language table on this page, and no
+    // bundle in utils/portalLanguages.ts, carries these keys: t() falls back
+    // here, so a Spanish, Portuguese, Chinese, Vietnamese or French reader
+    // sees these few lines in English until a reviewed human translation
+    // lands. Several of them state a legal effect (binding, approved,
+    // accepted) and are never machine-translated.
+    // scripts/moments-checks/portal.ts holds the list and fails if a key
+    // appears in any other table.
+    contractSignNameReason: 'Type your full legal name to sign.',
+    contractSignBusy: 'Waiting for the server to record your signature.',
+    contractSignAlready: 'Already signed. Updating the page.',
+    contractSignedSeal: 'Signed. This contract is binding.',
+    contractSealChip: 'Binding',
+    contractSignDeniedSigned: 'This contract is already signed.',
+    contractSignDeniedPending: 'Your contractor has not published this contract\'s terms to your portal yet, so it cannot be signed here. Nothing was signed. Check back once the terms appear.',
+    contractSignDeniedLink: 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.',
+    momentRecordedAt: 'Recorded {date}, {time} (server time).',
+    momentNoAnswer: 'No answer yet. Refresh the page to check before trying again.',
+    momentHint: 'Slide the handle to the end of the line, or press and hold Space.',
+    momentArmed: 'Tap again to confirm.',
+    momentBusy: 'Waiting for the server.',
+    momentCancelled: 'Cancelled. Nothing was sent.',
+    esignSlideApprove: 'Slide along the line to approve · {amount}',
+    esignSlideAccept: 'Slide along the line to accept',
+    esignSealApproved: 'APPROVED',
+    esignSealAccepted: 'ACCEPTED',
+    esignCOApproved: 'Change order #{number} approved. Your signature is recorded.',
+    esignProposalAccepted: 'Proposal accepted. Your signature is recorded.',
+    esignCONotRecorded: 'Not recorded. A decision on this change order was already on file.',
+    esignProposalNotRecorded: 'Not recorded. This proposal was already accepted.',
+    esignNeedName: 'Type your full legal name to sign.',
+    esignNeedSignature: 'Draw your signature to sign.',
+    esignNeedConsent: 'Tick the consent box to sign.',
     closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print or save as PDF',
     closeoutDelivered: 'Delivered',
     closeoutFinalized: 'Finalized',
@@ -3913,7 +3952,11 @@
       : '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + esc(contractCopy('explainer')) + '</p>' +
         '<div class="contract-sign">' +
           '<input type="text" id="contract-name-' + esc(c.id) + '" placeholder="' + esc(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #D7DAD4;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
-          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" style="width:100%;padding:14px;background:#2F6B3A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">' + esc(t('contractSignButton')) + '</button>' +
+          // D-7: the fine print below says "tapping Sign", so this stays a tap
+          // button. It is locked until a full name is typed, with the reason
+          // on the line under it (never an alert).
+          '<button type="button" class="contract-sign-btn" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" disabled aria-describedby="contract-sign-line-' + esc(c.id) + '">' + esc(t('contractSignButton')) + '</button>' +
+          '<div class="contract-sign-line" id="contract-sign-line-' + esc(c.id) + '" data-contract-sign-reason="1" data-tone="neutral" aria-live="polite">' + esc(t('contractSignNameReason')) + '</div>' +
           '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + esc(contractCopy('finePrint')) + '</p>' +
         '</div>';
     return '' +
@@ -4185,6 +4228,21 @@
   }
 
   // Contract-sign handler.
+  //
+  // D-7 (wave-next W3): the counter-sign stays a TAP. Its fine print is
+  // consent text that says "tapping Sign" in six languages, and a slide would
+  // make that sentence false; new fine print waits on the founder and counsel.
+  // What changed is the answer: the seal draws only after the server said
+  // {ok: true}; every other outcome is a plain line under the button (no
+  // pop-up box, no confetti), and nothing claims the contractor heard.
+  // 'change' too: a browser's autofill does not always fire 'input'.
+  ['input', 'change'].forEach(function (type) {
+    document.addEventListener(type, function (ev) {
+      var el = ev.target;
+      if (!el || !el.id || el.id.indexOf('contract-name-') !== 0) return;
+      syncContractSignGate(el.id.slice('contract-name-'.length));
+    });
+  });
   document.addEventListener('click', function (ev) {
     var target = ev.target.closest('[data-action="sign-contract"]');
     if (!target) return;
@@ -4195,13 +4253,17 @@
     var nameInput = document.getElementById('contract-name-' + contractId);
     var typedName = nameInput ? nameInput.value.trim() : '';
     if (!typedName || typedName.length < 3) {
-      alert('Type your full legal name to counter-sign the contract.');
+      target.disabled = true;
+      setContractSignLine(contractId, t('contractSignNameReason'), 'neutral');
       if (nameInput) nameInput.focus();
       return;
     }
     var api = data.portalApi;
+    // Busy: the button keeps its words, locked, with a line under it.
     target.disabled = true;
-    target.textContent = 'Signing…';
+    target.setAttribute('aria-busy', 'true');
+    if (nameInput) nameInput.readOnly = true;
+    setContractSignLine(contractId, t('contractSignBusy'), 'neutral');
     fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_sign_contract', {
       method: 'POST',
       headers: {
@@ -4222,17 +4284,25 @@
       return r.json().catch(function () { return {}; });
     })
     .then(function (res) {
+      target.removeAttribute('aria-busy');
       // {ok:true, already:true}: signed already — on another device, in
-      // person or on paper. Not a new signature: no confetti, no "binding"
+      // person or on paper. Not a new signature: no seal, no "binding"
       // ping, and no reload loop back onto a Sign box. Re-read the portal so
       // the card shows who signed (#65 / #13).
       if (res && res.already === true) {
-        showContractSignNote(target, 'Already signed — this contract was signed before. Updating the page…');
+        showContractSignNote(target, t('contractSignAlready'));
         refreshPortalSnapshot();
         return;
       }
+      // Only the server's {ok: true} is a signature. A 2xx with any other
+      // body is not proof of anything: say so, draw nothing.
+      if (!res || res.ok !== true) {
+        setContractSignLine(contractId, t('momentNoAnswer'), 'error');
+        return;
+      }
       // Fire-and-forget: ping the GC so they know the contract just
-      // became binding and can pull the signed PDF.
+      // became binding and can pull the signed PDF. Nothing on this page
+      // claims the ping arrived (notify may drop it by his preferences).
       notifyEvent('contract_signed', {
         project_id: data.project && data.project.id,
         portal_id: api.portalId,
@@ -4242,19 +4312,27 @@
         contract_value: data.contract && data.contract.contractValue,
         contract_title: data.contract && data.contract.title,
       });
-      // 🎉 Celebrate the moment for the homeowner. Pure CSS confetti burst,
-      // then re-read the portal: the live overlay now says 'signed'. (A reload
-      // re-booted the stale #d= hash first and flashed the Sign box again.)
-      fireWebConfetti();
-      showContractSignNote(target, 'Signed. Updating your portal…');
-      setTimeout(function () { refreshPortalSnapshot(); }, 1800);
+      // The seal closes the ring over the contractor's arc. The RPC returns
+      // no time, so the Recorded line waits for the re-read below: the
+      // snapshot's signed-at is the server's clock, never this device's.
+      var signHost = target.closest ? target.closest('.contract-sign') : null;
+      if (signHost) drawContractSeal(signHost, contractId, null, true);
+      setTimeout(function () {
+        refreshPortalSnapshot().then(function (fresh) {
+          var fc = fresh && fresh.contract;
+          var signedAt = (fc && fc.id === contractId && fc.status === 'signed' && fc.homeownerSignedAt) || null;
+          keepContractSeal(contractId, signedAt, !!(fc && fc.id === contractId && fc.status === 'signed'));
+        });
+      }, 1800);
     })
     .catch(function (err) {
-      target.disabled = false;
-      target.textContent = 'Sign & make binding';
+      target.removeAttribute('aria-busy');
       var denied = !!(err && /Sign failed: 4/.test(String(err.message)));
       if (!denied) {
-        alert('Could not sign — check your connection and try again.');
+        // No answer (offline, a timeout, a 5xx): the signature may or may
+        // not be on file. Never a seal, never "nothing was signed"; the
+        // button stays locked until a refresh shows which it was.
+        setContractSignLine(contractId, t('momentNoAnswer'), 'error');
         console.error(err);
         return;
       }
@@ -4262,18 +4340,19 @@
       // shows this contract signed, that is the answer (#65).
       refreshPortalSnapshot().then(function (fresh) {
         var fc = fresh && fresh.contract;
+        restoreContractName(contractId, typedName);
         if (fc && fc.id === contractId && fc.status === 'signed') {
-          alert('This contract is already signed.');
+          setContractSignLine(contractId, t('contractSignDeniedSigned'), 'error');
           return;
         }
         // contract_terms_pending: the server signs only terms the GC has
         // published to this portal. Not a bad link — the page re-reads and
         // shows the contract without a Sign box until they are here.
         if (fc && fc.contentPending === true) {
-          alert('Your contractor has not published this contract\'s terms to your portal yet, so it cannot be signed here. Nothing was signed. Check back once the terms appear.');
+          setContractSignLine(contractId, t('contractSignDeniedPending'), 'error');
           return;
         }
-        alert('To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.');
+        setContractSignLine(contractId, t('contractSignDeniedLink'), 'error');
       });
       console.error(err);
     });
@@ -4286,30 +4365,94 @@
     host.innerHTML = '<div class="prop-note" data-contract-sign-note="1">' + esc(text) + '</div>';
   }
 
-  // Lightweight web confetti — pure CSS keyframes, no library. Spawns
-  // ~50 particles at the top of the viewport with random color +
-  // horizontal drift + rotation, removes the host node when done.
-  function fireWebConfetti() {
-    var host = document.createElement('div');
-    host.className = 'web-confetti-host';
-    var colors = ['#2F6B3A', '#FFC83D', '#12806E', '#1E5BC6', '#E5484D', '#9B59B6'];
-    var count = 50;
-    for (var i = 0; i < count; i++) {
-      var p = document.createElement('div');
-      p.className = 'web-confetti';
-      p.style.left = (Math.random() * 100) + '%';
-      p.style.background = colors[i % colors.length];
-      p.style.animationDuration = (1.6 + Math.random() * 1.2) + 's';
-      p.style.animationDelay = (Math.random() * 0.3) + 's';
-      p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      if (i % 3 === 0) {
-        p.style.width = '4px';
-        p.style.height = '12px';
-      }
-      host.appendChild(p);
+  /** The live sign box for a contract (the card may have been re-rendered since the tap). */
+  function contractSignParts(contractId) {
+    var input = document.getElementById('contract-name-' + contractId);
+    var host = input && input.closest ? input.closest('.contract-sign') : null;
+    return {
+      input: input,
+      host: host,
+      button: host ? host.querySelector('[data-action="sign-contract"]') : null,
+      line: host ? host.querySelector('[data-contract-sign-reason]') : null,
+    };
+  }
+  /** The line under the button. With no sign box on the page any more (the card
+   *  now shows the contract signed, or waiting on terms), the same sentence
+   *  sits on the card as a note. */
+  function setContractSignLine(contractId, text, tone) {
+    var parts = contractSignParts(contractId);
+    if (parts.line) {
+      parts.line.textContent = text || '';
+      parts.line.setAttribute('data-tone', tone || 'neutral');
+      return;
     }
-    document.body.appendChild(host);
-    setTimeout(function () { host.remove(); }, 3000);
+    var sec = document.getElementById('sec-contract');
+    var card = sec ? sec.querySelector('.open-book') : null;
+    if (!card || !text) return;
+    var note = card.querySelector('[data-contract-sign-note]');
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'prop-note';
+      note.setAttribute('data-contract-sign-note', '1');
+      card.appendChild(note);
+    }
+    note.textContent = text;
+  }
+  /** Name under 3 characters: the button is locked and the line says why. */
+  function syncContractSignGate(contractId) {
+    var parts = contractSignParts(contractId);
+    if (!parts.button || !parts.input || parts.button.getAttribute('aria-busy') === 'true') return;
+    var short = parts.input.value.trim().length < 3;
+    parts.button.disabled = short;
+    setContractSignLine(contractId, short ? t('contractSignNameReason') : '', 'neutral');
+  }
+  /** After a refusal the typed name stays, even when the re-read redrew the card. */
+  function restoreContractName(contractId, typedName) {
+    var parts = contractSignParts(contractId);
+    if (!parts.input) return;
+    parts.input.readOnly = false;
+    if (!parts.input.value) parts.input.value = typedName;
+    syncContractSignGate(contractId);
+  }
+  /** The seal, or (moments.js missing) the same words as a plain note. `signedAt`
+   *  is ONLY ever the refreshed snapshot's homeownerSignedAt — the server's clock. */
+  function drawContractSeal(host, contractId, signedAt, animate) {
+    host.setAttribute('data-contract-seal', contractId);
+    var M = window.MageMoments;
+    if (M && M.sealResult) {
+      M.sealResult(host, {
+        label: t('contractSignedSeal'),
+        chip: t('contractSealChip'),
+        closing: true,
+        recordedAt: signedAt,
+        recordedTemplate: t('momentRecordedAt'),
+        animate: animate,
+      });
+      return;
+    }
+    host.innerHTML = '<div class="prop-note" data-contract-sign-note="1">' + esc(t('contractSignedSeal')) + '</div>';
+  }
+  /** The re-read landed: keep the seal on the signed card, and add the server's
+   *  Recorded time when the snapshot carries it (no time, no Recorded line). */
+  function keepContractSeal(contractId, signedAt, signedNow) {
+    var hosts = document.querySelectorAll('[data-contract-seal]');
+    for (var i = 0; i < hosts.length; i++) {
+      if (hosts[i].getAttribute('data-contract-seal') !== contractId) continue;
+      var M = window.MageMoments;
+      if (signedAt && M && M.sealRecorded) M.sealRecorded(hosts[i].querySelector('.mp-seal'), signedAt, t('momentRecordedAt'));
+      return;
+    }
+    // The re-read redrew the card as signed: the seal sits above who signed.
+    if (!signedNow) return;
+    var sec = document.getElementById('sec-contract');
+    var anchor = sec ? sec.querySelector('[data-contract-signed-line]') : null;
+    var card = sec ? sec.querySelector('.open-book') : null;
+    if (!card) return;
+    var host = document.createElement('div');
+    host.className = 'contract-seal-host';
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(host, anchor);
+    else card.appendChild(host);
+    drawContractSeal(host, contractId, signedAt, false);
   }
 
   // ───── Closeout binder ─────
@@ -6066,9 +6209,31 @@
   //   opts.consentLabel the checkbox sentence
   //   opts.legal        the line under the buttons
   //   opts.submitLabel / opts.busyLabel / opts.declinePlaceholder
-  //   opts.clientName   prefill for the name field
+  //                     (busyLabel is the DECLINE button's only: the approve
+  //                     path never swaps its words for a busy word)
+  //   opts.lineLabel    approve mode: what the signing line says
+  //   opts.lineNote     approve mode: a sentence kept beside the line
+  //   opts.clientName   prefill for the name field (D-4: kept until the
+  //                     founder decides the signer types it)
   //   opts.onConfirm    (result, ui) => void — result carries the signer name,
   //                     signature path data + stroke count, consent, reason.
+  //                     ui: setError / setBusy / close, and the three answers
+  //                     ui.confirmed({ title, chip, recordedAt, after }),
+  //                     (`after`, never `then`: an answer object with a
+  //                     then() is a thenable, and resolving the line's
+  //                     promise with it would run it at once, closing the
+  //                     sheet before the seal is seen)
+  //                     ui.refused(reason, final), ui.timeout(reason).
+  //
+  // APPROVE MODE IS A SLIDE (wave-next W3). The submit button becomes the
+  // signing line (marketing/portal/moments.js). The line runs onConfirm and
+  // shows ONLY what the caller reports from the server: the seal for
+  // ui.confirmed (the caller calls it for `recorded: true` alone), the reason
+  // for ui.refused / ui.setError, "No answer yet" for ui.timeout or a throw.
+  // The consent box and its disclosure are unchanged: the disclosure names
+  // typing, drawing and "I agree", not the button, so it stays true.
+  // Decline keeps its button. If moments.js did not load, approve keeps the
+  // button too, with the same answers as plain text (never a block).
   function showDocSignModal(opts) {
     var modal   = document.getElementById('esign-modal');
     var scopeEl = document.getElementById('esign-scope');
@@ -6086,11 +6251,17 @@
     var padWrap = document.getElementById('esign-pad-wrap');
     var padEl   = document.getElementById('esign-pad');
     var signedTag = document.getElementById('esign-signed-tag');
+    var lineHost = document.getElementById('esign-line');
+    var lineNoteEl = document.getElementById('esign-line-note');
+    var actions = submit ? submit.parentNode : null;
     if (!modal || !scopeEl) return;
 
     var isApprove = !!opts.approveMode;
     var submitLabel = opts.submitLabel || (isApprove ? 'Sign & approve' : 'Send decline');
-    var busyLabel = opts.busyLabel || (isApprove ? 'Sealing…' : 'Sending…');
+    var busyLabel = isApprove ? submitLabel : (opts.busyLabel || 'Sending…');
+    var Moments = window.MageMoments;
+    var useLine = isApprove && !!(Moments && Moments.MomentLine && lineHost);
+    var line = null;
 
     document.getElementById('esign-eyebrow').textContent = opts.eyebrow || '';
     document.getElementById('esign-title').textContent = opts.title || 'Review & sign';
@@ -6108,6 +6279,12 @@
     submit.textContent = submitLabel;
     errEl.className = 'esign-error';
     errEl.textContent = '';
+    if (actions) actions.className = 'esign-actions' + (useLine ? ' esign-line-mode' : '');
+    if (lineHost) { lineHost.hidden = !useLine; lineHost.textContent = ''; }
+    if (lineNoteEl) {
+      lineNoteEl.textContent = (isApprove && opts.lineNote) || '';
+      lineNoteEl.hidden = !(isApprove && opts.lineNote);
+    }
 
     nameEl.value = opts.clientName || '';
     declineNameEl.value = opts.clientName || '';
@@ -6122,6 +6299,13 @@
     if (pad) pad.clear();
 
     function nameValue() { return (isApprove ? nameEl.value : declineNameEl.value).replace(/^\s+|\s+$/g, ''); }
+    // What still stands between the signer and the slide, first one first.
+    function missingReason() {
+      if (nameValue().length < 3) return t('esignNeedName');
+      if (!pad || pad.pointCount() < 2) return t('esignNeedSignature');
+      if (!checkEl.checked) return t('esignNeedConsent');
+      return null;
+    }
     function refresh() {
       var ok = isApprove
         // All three ESIGN elements, or the button stays locked. Two sampled
@@ -6129,6 +6313,7 @@
         ? (nameValue().length >= 3 && !!pad && pad.pointCount() >= 2 && checkEl.checked)
         : (nameValue().length >= 2 && reasonEl.value.replace(/^\s+|\s+$/g, '').length >= 3);
       submit.disabled = !ok;
+      if (line) line.setDisabledReason(ok ? null : missingReason());
     }
     function setError(msg) {
       errEl.textContent = msg;
@@ -6152,20 +6337,72 @@
       modal.removeEventListener('click', onBackdrop);
       document.removeEventListener('keydown', onKey);
       if (pad) { pad.clear(); pad.destroy(); }
+      if (line) { line.destroy(); line = null; }
+      if (lineHost) { lineHost.textContent = ''; lineHost.hidden = true; }
+      if (actions) actions.className = 'esign-actions';
       cancel.disabled = false;
     }
     function onClear() { if (pad) pad.clear(); }
     function onBackdrop(e) { if (e.target === modal && !cancel.disabled) close(); }
     function onKey(e) { if (e.key === 'Escape' && !cancel.disabled) close(); }
-    function onSubmit() {
-      setError('');
-      opts.onConfirm({
+    function result() {
+      return {
         signerName: nameValue(),
         signatureData: pad ? pad.pathData() : '',
         strokeCount: pad ? pad.strokeCount() : 0,
         consentAccepted: isApprove ? !!checkEl.checked : true,
         reason: reasonEl.value.replace(/^\s+|\s+$/g, ''),
-      }, { setError: setError, setBusy: setBusy, close: close });
+      };
+    }
+    // The button path (decline, or approve without moments.js).
+    function onSubmit() {
+      setError('');
+      opts.onConfirm(result(), {
+        setError: setError,
+        setBusy: setBusy,
+        close: close,
+        confirmed: function (r) { if (r && typeof r.after === 'function') r.after(); },
+        refused: function (msg) { setBusy(false); setError(msg); },
+        timeout: function (msg) { setBusy(false); setError(msg); submit.disabled = true; },
+      });
+    }
+    // The line path: every answer resolves the line's commit exactly once.
+    function onLineCommit() {
+      setError('');
+      cancel.disabled = true;
+      var answered = false;
+      return new Promise(function (resolve) {
+        function answer(r) {
+          if (answered) return;
+          answered = true;
+          if (r.status !== 'confirmed') cancel.disabled = false;
+          resolve(r);
+        }
+        try {
+          opts.onConfirm(result(), {
+            setError: function (msg) { answer({ status: 'refused', reason: msg }); },
+            setBusy: function () { /* the line shows its own busy state */ },
+            close: close,
+            confirmed: function (r) {
+              answer({
+                status: 'confirmed',
+                after: r && r.after,
+                seal: {
+                  label: r && r.title,
+                  chip: r && r.chip,
+                  closing: false,
+                  recordedAt: (r && r.recordedAt) || null,
+                  recordedTemplate: t('momentRecordedAt'),
+                },
+              });
+            },
+            refused: function (msg, final) { answer({ status: 'refused', reason: msg, final: !!final }); },
+            timeout: function (msg) { answer({ status: 'timeout', reason: msg || t('momentNoAnswer') }); },
+          });
+        } catch (e) {
+          answer({ status: 'timeout', reason: t('momentNoAnswer') });
+        }
+      });
     }
 
     nameEl.addEventListener('input', refresh);
@@ -6179,6 +6416,25 @@
     document.addEventListener('keydown', onKey);
 
     modal.classList.add('open');
+    if (useLine) {
+      line = new Moments.MomentLine(lineHost, {
+        label: opts.lineLabel || submitLabel,
+        strings: {
+          hint: t('momentHint'),
+          armed: t('momentArmed'),
+          busy: t('momentBusy'),
+          cancelled: t('momentCancelled'),
+          noAnswer: t('momentNoAnswer'),
+        },
+        disabledReason: missingReason(),
+        onCommit: onLineCommit,
+        onDone: function (r) {
+          // After the seal has been on screen: the caller closes the sheet
+          // and redraws the section. A refusal or timeout keeps it open.
+          if (r && r.status === 'confirmed' && typeof r.after === 'function') r.after();
+        },
+      });
+    }
     refresh();
     // Canvas needs a layout pass before it can size itself to the card.
     setTimeout(function () {
@@ -6247,7 +6503,9 @@
         ? 'Signed electronically. Your contractor keeps a sealed copy of this record, and so can you.'
         : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.',
       submitLabel: isApprove ? 'Sign & approve' : 'Send decline',
-      busyLabel: isApprove ? 'Sealing…' : 'Sending…',
+      busyLabel: 'Sending…',
+      // Cents always: the amount the signer is approving, as the sheet shows it.
+      lineLabel: t('esignSlideApprove').replace('{amount}', function () { return deltaText; }),
       declinePlaceholder: 'Tell your contractor what needs to change before you can approve — price, scope, timing…',
       onConfirm: opts.onConfirm,
     });
@@ -6305,7 +6563,11 @@
         user_agent: payload.user_agent,
       });
       if (legacyRes && legacyRes.recorded === false) return legacyRes;
-      return { legacy: true, document_hash: payload.client_hash || null };
+      // The legacy RPC answers recorded:true for a row it stored. Carry the
+      // server's word through, never assume it: no `recorded: true`, no seal
+      // (and an answer without the field reads as "no answer yet", not as
+      // "already on file").
+      return { legacy: true, recorded: (legacyRes && legacyRes.recorded === true) ? true : undefined, document_hash: payload.client_hash || null };
     }
     throw new Error('Supabase ' + resp.status + ': ' + text);
   }
@@ -6634,7 +6896,10 @@
         ? 'Accepted electronically. Your contractor keeps a sealed copy of this record, and so can you.'
         : 'Saying not yet costs you nothing. It tells your contractor what to change before you can accept.',
       submitLabel: isAccept ? 'Sign & accept' : 'Send note',
-      busyLabel: isAccept ? 'Sealing…' : 'Sending…',
+      busyLabel: 'Sending…',
+      lineLabel: t('esignSlideAccept'),
+      // Accepting is not signing the agreement: said again beside the line.
+      lineNote: PROPOSAL_NOT_A_CONTRACT_NOTE,
       declinePlaceholder: 'Tell your contractor what needs to change before you can accept — price, scope, timing…',
       onConfirm: opts.onConfirm,
     });
@@ -7650,13 +7915,23 @@
                   hash: null,
                   otherDevice: true,
                 };
-                ui.close();
+                // Approve: the line says it was not recorded and stays open
+                // (locked); decline: the sheet closes as before.
+                if (isApprove) ui.refused(t('esignCONotRecorded'), true); else ui.close();
                 var decidedSec = document.getElementById('sec-changeOrders');
                 if (decidedSec) {
                   var decidedBody = decidedSec.querySelector('.section-body');
                   if (decidedBody) decidedBody.innerHTML = renderChangeOrders(co, true);
                   bindCOHandlers();
                 }
+                refreshPortalSnapshot();
+                return;
+              }
+              // A signature is sealed ONLY on the server's `recorded: true`.
+              // Anything else (an answer without the field) is no answer:
+              // nothing is saved here, nothing is drawn, the page is re-read.
+              if (isApprove && res.recorded !== true) {
+                ui.timeout(t('momentNoAnswer'));
                 refreshPortalSnapshot();
                 return;
               }
@@ -7669,13 +7944,6 @@
                 sealed: !!res.document_hash,
               });
               sessionCODecisions[coId] = { decision: decision, signer: result.signerName, at: signedAt, hash: stamp };
-              ui.close();
-              var sectionEl = document.getElementById('sec-changeOrders');
-              if (sectionEl) {
-                var body = sectionEl.querySelector('.section-body');
-                if (body) body.innerHTML = renderChangeOrders(co, true);
-                bindCOHandlers();
-              }
               notifyEvent(decision === 'approved' ? 'change_order_signed' : 'change_order_declined', {
                 project_id: data.project && data.project.id,
                 portal_id: data.portalApi.portalId,
@@ -7685,13 +7953,38 @@
                 signer_name: result.signerName,
                 document_hash: stamp,
               });
-              if (decision === 'approved') fireWebConfetti();
-              // The overlay now carries clientDecision for every device.
-              refreshPortalSnapshot();
+              var redraw = function () {
+                ui.close();
+                var sectionEl = document.getElementById('sec-changeOrders');
+                if (sectionEl) {
+                  var body = sectionEl.querySelector('.section-body');
+                  if (body) body.innerHTML = renderChangeOrders(co, true);
+                  bindCOHandlers();
+                }
+                // The overlay now carries clientDecision for every device.
+                refreshPortalSnapshot();
+              };
+              if (!isApprove) { redraw(); return; }
+              // The seal, then the sheet closes. The Recorded time is the
+              // server's sealed_at; without one there is no Recorded line.
+              ui.confirmed({
+                title: t('esignCOApproved').replace('{number}', function () { return String(c.number != null ? c.number : ''); }),
+                chip: t('esignSealApproved'),
+                recordedAt: res.sealed_at || null,
+                after: redraw,
+              });
             }).catch(function (err) {
               console.warn('CO decision failed', err);
               ui.setBusy(false);
               var errText = String(err && err.message);
+              var answered = /Supabase 4/.test(errText);
+              // Approve with no 4xx answer (offline, a timeout, a 5xx): the
+              // decision may or may not be on file. Never a seal, never
+              // "nothing was saved".
+              if (isApprove && !answered && !/co_not_shared/.test(errText)) {
+                ui.timeout(t('momentNoAnswer'));
+                return;
+              }
               // #44: the server refuses a CO the builder recalled or never
               // sent (co_not_shared). Say that, not "re-send your link".
               var msg = /co_not_shared/.test(errText)
@@ -7789,8 +8082,16 @@
               // so nothing here may present it as sealed: no confetti, no
               // "Accepted by <this person>", and no record hash offered as
               // their receipt — the hash that comes back belongs to the first
-              // signer. Read as `!== false` so an older server that predates
-              // the field still reads as recorded.
+              // signer.
+              //
+              // ACCEPT (the slide): the seal needs the server's
+              // `recorded: true`. An answer without the field is no answer:
+              // nothing saved, nothing drawn, the line says so. A decline
+              // (no signature, no seal) still reads `!== false` as before.
+              if (decision === 'accepted' && res.recorded !== true && res.recorded !== false) {
+                ui.timeout(t('momentNoAnswer'));
+                return;
+              }
               var wasRecorded = res.recorded !== false;
               var stamp = wasRecorded ? (res.document_hash || out.clientHash || null) : null;
               saveProposalDecision(proposal.id, {
@@ -7800,13 +8101,14 @@
                 signer: wasRecorded ? result.signerName : (res.signer_name || null),
                 hash: stamp,
               });
-              ui.close();
-              var sectionEl = document.getElementById('sec-proposal');
-              if (sectionEl) {
-                var body = sectionEl.querySelector('.section-body');
-                if (body) body.innerHTML = renderProposal(proposal, true);
-                bindProposalHandlers();
-              }
+              var redrawProposal = function () {
+                var sectionEl = document.getElementById('sec-proposal');
+                if (sectionEl) {
+                  var body = sectionEl.querySelector('.section-body');
+                  if (body) body.innerHTML = renderProposal(proposal, true);
+                  bindProposalHandlers();
+                }
+              };
               // NO notifyEvent() HERE, on purpose. The `notify` edge function
               // accepts exactly two events from an anon caller —
               // ANON_ALLOWED_EVENTS = {contract_signed, selection_chosen} in
@@ -7821,12 +8123,37 @@
               // 'proposal_accepted' to that allowlist (and a project resolver
               // for it in notify) is a separate, deployable change.
               //
-              // Confetti only for a signature that was actually stored. See
-              // wasRecorded above.
-              if (decision === 'accepted' && wasRecorded) fireWebConfetti();
+              //
+              // The seal only for a signature that was actually stored (see
+              // wasRecorded above); the sheet closes after it. Not stored:
+              // the line says so and stays, the section shows whose it is.
+              if (decision === 'accepted' && wasRecorded) {
+                ui.confirmed({
+                  title: t('esignProposalAccepted'),
+                  chip: t('esignSealAccepted'),
+                  recordedAt: res.sealed_at || null,
+                  after: function () { ui.close(); redrawProposal(); },
+                });
+                return;
+              }
+              if (decision === 'accepted') {
+                ui.refused(t('esignProposalNotRecorded'), true);
+                redrawProposal();
+                return;
+              }
+              ui.close();
+              redrawProposal();
             }).catch(function (err) {
               console.warn('proposal decision failed', err);
               ui.setBusy(false);
+              var status = err && err.status;
+              // Accept with no answer from the server (offline, a timeout, a
+              // 5xx): the acceptance may or may not be on file. Never a seal.
+              if (decision === 'accepted' && String(err && err.message) !== 'no_subtle_crypto'
+                  && !(typeof status === 'number' && status >= 400 && status < 500)) {
+                ui.timeout(t('momentNoAnswer'));
+                return;
+              }
               if (String(err && err.message) === 'no_subtle_crypto') {
                 ui.setError('This browser cannot seal a signature (it is missing the crypto features we hash the record with). Open the link in Safari or Chrome, or message your contractor.');
                 return;

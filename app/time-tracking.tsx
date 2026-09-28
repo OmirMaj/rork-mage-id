@@ -65,6 +65,9 @@ import {
   type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
 import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
+import { formatWeekdayL } from '@/i18n/format';
 
 /** A shift on the Live list: his own clock-in, or (#63) one his foreman
  *  clocked on a job he OWNS — its one action the owner's close — or (#99) one
@@ -73,6 +76,31 @@ import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
  *  `loggedBy` is the tag ("Logged by …"); `loggedByName` the bare name for a
  *  sentence (#106). */
 type LiveRow = { entry: TimeEntry; team: boolean; loggedBy?: string; loggedByName?: string; readOnly?: boolean };
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX
+ * (`{a}h`) rendered. Still ONE key (t() hands the template back with its
+ * placeholders intact); only the rendering is split (components/home/DailyLogCard.tsx).
+ */
+function parts(template: string, values: Record<string, React.ReactNode>): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
+
+/** A payroll weekday chip / period bound: the English is weekdayShort's, Spanish
+ *  from i18n/format (4 Jan 2026 is a Sunday, so the day index maps straight). */
+function weekdayChip(d: Weekday, lang: 'en' | 'es'): string {
+  return lang === 'en' ? weekdayShort(d) : formatWeekdayL(new Date(2026, 0, 4 + d), 'short', lang);
+}
 
 /** "a teammate" → "A teammate" where the name starts a sentence (#106). An
  *  email stays as typed. */
@@ -110,6 +138,7 @@ function LiveTimeCard({
   /** #99: someone else's shift on a job he does not own — shown, never acted on. */
   readOnly?: boolean;
 }) {
+  const { t } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -117,7 +146,7 @@ function LiveTimeCard({
   // dark-orange read at ~2.8:1 on the dark-theme soft chips.
   const statusColor = missed ? themeColors.dangerLabel : entry.status === 'clocked_in' ? themeColors.success : entry.status === 'break' ? themeColors.warningLabel : themeColors.textMuted;
   const statusBg = missed ? themeColors.dangerSoft : entry.status === 'clocked_in' ? themeColors.successSoft : entry.status === 'break' ? themeColors.warningSoft : themeColors.surfaceAlt;
-  const statusLabel = missed ? 'Missed clock-out' : entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On break' : 'Clocked out';
+  const statusLabel = missed ? t('field.time.status.missed', 'Missed clock-out') : entry.status === 'clocked_in' ? t('field.time.status.working', 'Working') : entry.status === 'break' ? t('field.time.status.onBreak', 'On break') : t('field.time.status.clockedOut', 'Clocked out');
   // Tick every 30s so the threshold pill flips at most ~30s after the
   // worker actually crosses the line — and while on break too, since the
   // net timer holds still then while the clock runs (#152).
@@ -161,7 +190,7 @@ function LiveTimeCard({
         </View>
         {loggedBy ? <Text style={styles.loggedByTag} testID={`time-entry-logged-by-${entry.id}`}>{loggedBy}</Text> : null}
         {!isUuid(entry.projectId) ? (
-          <Text style={styles.loggedByTag}>Not synced — clocked in with no job, so it stays on this phone.</Text>
+          <Text style={styles.loggedByTag}>{t('field.time.notSyncedClockedIn', 'Not synced — clocked in with no job, so it stays on this phone.')}</Text>
         ) : null}
 
         {entry.status !== 'clocked_out' && (
@@ -173,7 +202,7 @@ function LiveTimeCard({
               approachingThreshold && { color: themeColors.warningLabel },
             ]}>
               {missed
-                ? `In ${formatClockTime(Date.parse(entry.clockIn))}, ${formatCalendarDay(timeEntryDay(entry), { weekday: 'short', month: 'short', day: 'numeric' })}`
+                ? t('field.time.missedInAt', 'In {time}, {day}', { time: formatClockTime(Date.parse(entry.clockIn)), day: formatCalendarDay(timeEntryDay(entry), { weekday: 'short', month: 'short', day: 'numeric' }) })
                 : formatHoursMinutes(elapsedHrs)}
             </Text>
             {entry.notes ? (
@@ -190,8 +219,8 @@ function LiveTimeCard({
             <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: themeColors.dangerLabel }]}>
               {readOnly
-                ? 'Still on the clock from an earlier shift — whoever logged it has to enter the time they left. Not counted as on site.'
-                : 'Still on the clock from an earlier shift — enter the time they left. Not counted as on site.'}
+                ? t('field.time.stillOnTheClock', 'Still on the clock from an earlier shift — whoever logged it has to enter the time they left. Not counted as on site.')
+                : t('field.time.stillOnTheClockEnter', 'Still on the clock from an earlier shift — enter the time they left. Not counted as on site.')}
             </Text>
           </View>
         ) : entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
@@ -205,8 +234,8 @@ function LiveTimeCard({
             <AlertTriangle size={13} color={overThreshold ? themeColors.dangerLabel : themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: overThreshold ? themeColors.dangerLabel : themeColors.warningLabel }]}>
               {overThreshold
-                ? `Past ${alertThresholdHours}h shift — consider clocking out`
-                : `${(alertThresholdHours - elapsedHrs).toFixed(1)}h to ${alertThresholdHours}h shift`}
+                ? t('field.time.pastHShiftConsider', 'Past {limit}h shift — consider clocking out', { limit: alertThresholdHours })
+                : t('field.time.hoursToShift', '{left}h to {limit}h shift', { left: (alertThresholdHours - elapsedHrs).toFixed(1), limit: alertThresholdHours })}
             </Text>
           </View>
         )}
@@ -215,7 +244,7 @@ function LiveTimeCard({
           // #99: not his record and not his job — only whoever logged it (or
           // the job's owner) can end it. Said, not a dead button.
           <Text style={styles.loggedByTag} testID={`time-entry-readonly-${entry.id}`}>
-            On the clock on this project. Only the person who logged it, or the project owner, can clock them out.
+            {t('field.time.onTheClockOn', 'On the clock on this project. Only the person who logged it, or the project owner, can clock them out.')}
           </Text>
         ) : entry.status !== 'clocked_out' && (
           <View style={styles.liveCardActions}>
@@ -231,7 +260,7 @@ function LiveTimeCard({
                 testID={`time-entry-close-${entry.id}`}
               >
                 <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{missed ? 'Enter out time' : 'Clock out'}</Text>
+                <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{missed ? t('field.time.enterOutTime', 'Enter out time') : t('field.time.clockOut', 'Clock out')}</Text>
               </TouchableOpacity>
             ) : entry.status === 'clocked_in' ? (
               <>
@@ -241,7 +270,7 @@ function LiveTimeCard({
                   activeOpacity={0.7}
                 >
                   <Coffee size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>Break</Text>
+                  <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>{t('field.time.break', 'Break')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: themeColors.dangerSoft }]}
@@ -249,7 +278,7 @@ function LiveTimeCard({
                   activeOpacity={0.7}
                 >
                   <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock out</Text>
+                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{t('field.time.clockOut', 'Clock out')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -259,7 +288,7 @@ function LiveTimeCard({
                 activeOpacity={0.7}
               >
                 <Play size={14} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={[styles.actionBtnText, { color: themeColors.success }]}>Resume</Text>
+                <Text style={[styles.actionBtnText, { color: themeColors.success }]}>{t('field.time.resume', 'Resume')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -306,19 +335,23 @@ export default function TimeTrackingScreen() {
   return <TimeTrackingScreenInner ownTier={ownTier} />;
 }
 
-/** #155: why Clock In is off with no job — hours are always filed to one. */
-const NO_JOB_REASON = 'Create a project first \u2014 hours are filed against a job.';
+/** #155: why Clock In is off with no job — hours are always filed to one.
+ *  A function, never a module constant: t() reads the language at call time. */
+function noJobReason(): string {
+  return t('field.time.noJobReason', 'Create a project first \u2014 hours are filed against a job.');
+}
 
 /** Can this viewer clock crew in on `p`, going by the role stamped on the
  *  project (the picker's fast answer — the selected job is then checked
  *  against the live role, clockGate). The reason is shown on a blocked row. */
 function clockableReason(p: Project, ownTier: boolean): string | null {
   if (p.myRole === 'field' || p.myRole === 'editor') return null;
-  if (p.myRole === 'viewer') return 'Clocking in crew needs Field or Editor access. You have view access.';
-  return ownTier ? null : 'Clocking in crew on your own projects is on the Business plan.';
+  if (p.myRole === 'viewer') return t('field.time.needsFieldAccess', 'Clocking in crew needs Field or Editor access. You have view access.');
+  return ownTier ? null : t('field.time.needsBusinessPlan', 'Clocking in crew on your own projects is on the Business plan.');
 }
 
 function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
+  const { t, tn, lang, displayLang } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -446,9 +479,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   );
   // #155: no job he can clock crew onto means no clock-in — say which case.
   const clockInDisabledReason: string | null = allProjects.length === 0
-    ? NO_JOB_REASON
+    ? noJobReason()
     : projects.length === 0
-      ? `None of your jobs lets you clock crew in here. ${blockedProjects[0]?.reason ?? ''}`.trim()
+      ? t('field.time.noClockableProjects', 'None of your jobs lets you clock crew in here. {reason}', { reason: blockedProjects[0]?.reason ?? '' }).trim()
       : null;
 
   // ── Per-job gate (#62) ────────────────────────────────────────────────
@@ -500,7 +533,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     });
     return ordered.map(m => ({
       id: m.id,
+      // i18n-keep-english: stored on the time entry (workerName / trade), not display copy
       name: m.fullName || 'Crew member',
+      // i18n-keep-english: stored on the time entry (workerName / trade), not display copy
       trade: m.trades?.[0] ?? 'Crew',
     }));
   }, [isSeat, projectCrew.crew, selectedProject, getCrewForProject, crewMembers]);
@@ -609,10 +644,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       .filter(m => openShiftByWorker.has(m.id))
       .map(m => {
         const hit = openShiftByWorker.get(m.id)!;
-        const where = hit.entry.projectId !== selectedProject?.id && hit.entry.projectName ? ` on ${hit.entry.projectName}` : '';
-        return { ...m, reason: `On the clock${where} — ${hit.who ? `logged by ${hit.who}` : 'you clocked them in'}` };
+        const where = hit.entry.projectId !== selectedProject?.id && hit.entry.projectName ? hit.entry.projectName : '';
+        const vars = { project: where, who: hit.who ?? '' };
+        const reason = where
+          ? (hit.who ? t('field.time.onClockOnByWho', 'On the clock on {project} — logged by {who}', vars) : t('field.time.onClockOnByYou', 'On the clock on {project} — you clocked them in', { project: where }))
+          : (hit.who ? t('field.time.onClockByWho', 'On the clock — logged by {who}', { who: hit.who }) : t('field.time.onClockByYou', 'On the clock — you clocked them in'));
+        return { ...m, reason };
       }),
-    [roster, openShiftByWorker, selectedProject],
+    [roster, openShiftByWorker, selectedProject, t],
   );
   // #99: two devices offline (or two seats that can't see each other) can
   // still both clock the same man in. Every open, non-missed shift per worker
@@ -690,7 +729,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const offer = (raw: string | undefined) => {
       const key = normalizeTradeKey(raw);
       if (!byKey.has(key)) {
-        byKey.set(key, key === 'general' ? 'General labor' : (raw ?? '').trim());
+        byKey.set(key, key === 'general' ? t('field.time.generalLabor', 'General labor') : (raw ?? '').trim());
       }
     };
     entries.forEach(e => offer(e.trade));
@@ -706,7 +745,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     return [...byKey.entries()]
       .map(([key, label]) => ({ key, label }))
       .sort((a, b) => (a.key === 'general' ? 1 : b.key === 'general' ? -1 : a.label.localeCompare(b.label)));
-  }, [entries, ownedTeam, roster, rates, routeRateTrade]);
+  }, [entries, ownedTeam, roster, rates, routeRateTrade, t]);
   const focusRateKey = routeRateTrade ? normalizeTradeKey(routeRateTrade) : null;
 
   const openRatesModal = useCallback(() => {
@@ -807,12 +846,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     if (!outFor) return null;
     const minutes = parseClockTime(outText);
     const outMs = minutes === null ? NaN : outMsOnClockInDay(outFor.entry.clockIn, minutes, outNextDay ? 1 : 0);
-    const problem = outTimeProblem(outFor.entry, outMs, Date.now());
+    const problem = outTimeProblem(outFor.entry, outMs, Date.now(), displayLang);
     if (problem) return { problem, outMs, hours: 0, breakMinutes: 0 };
     const breakMinutes = breakMinutesAt(outFor.entry, outMs);
     const { totalHours } = computeShiftHours(outFor.entry.clockIn, new Date(outMs).toISOString(), breakMinutes);
     return { problem: null, outMs, hours: totalHours, breakMinutes };
-  }, [outFor, outText, outNextDay]);
+  }, [outFor, outText, outNextDay, displayLang]);
   // Moments (wave-next W2, lane MOMFIELD, C2): the out-time sheet's confirm is
   // the md slide. The picked time is read at RELEASE (commitOutTime), checked
   // again against now, and written through the awaited, honest calls
@@ -827,7 +866,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const { entry, team } = sheet;
     const minutes = parseClockTime(outText);
     const outMs = minutes === null ? NaN : outMsOnClockInDay(entry.clockIn, minutes, outNextDay ? 1 : 0);
-    const problem = outTimeProblem(entry, outMs, Date.now());
+    const problem = outTimeProblem(entry, outMs, Date.now(), displayLang);
     if (problem) return { status: 'refused', reason: problem };
     const outIso = new Date(outMs).toISOString();
     const breakMinutes = breakMinutesAt(entry, outMs);
@@ -842,7 +881,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const closed = await closeTeamShiftDetailed(entry.id, { clockOut: outIso, totalHours, breakMinutes });
     if (closed === 'not_own') return { status: 'refused', reason: fieldCopy.teamShiftNotOwn() };
     return fromWriteOutcome(closed, ok, words);
-  }, [outFor, outText, outNextDay, clockOutDetailed, closeTeamShiftDetailed]);
+  }, [outFor, outText, outNextDay, clockOutDetailed, closeTeamShiftDetailed, displayLang]);
   // A shift with no name on it takes the no-name sentence, never "Check 's shift".
   const outWriteOptions = useMemo<CommitWriteOptions>(() => (outFor?.entry.workerName?.trim() ? {
     idempotent: false,
@@ -976,12 +1015,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     if (!correcting) return;
     const hours = parseLenientNumber(correctHours);
     if (hours === null || hours < 0 || hours > 24) {
-      showAlert('Check the hours', 'Enter hours worked as a number between 0 and 24 (e.g. 7.5).');
+      showAlert(t('field.time.checkTheHours', 'Check the hours'), t('field.time.enterHoursWorkedAs', 'Enter hours worked as a number between 0 and 24 (e.g. 7.5).'));
       return;
     }
     const breakRaw = correctBreak.trim() === '' ? 0 : parseLenientNumber(correctBreak);
     if (breakRaw === null || breakRaw < 0 || breakRaw >= 24 * 60) {
-      showAlert('Check the break', 'Enter break time in whole minutes, or leave it blank for none.');
+      showAlert(t('field.time.checkTheBreak', 'Check the break'), t('field.time.enterBreakTimeIn', 'Enter break time in whole minutes, or leave it blank for none.'));
       return;
     }
     const breakMinutes = Math.round(breakRaw);
@@ -999,15 +1038,17 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       // team-row writer, which keeps the row theirs.
       const entry = correcting;
       showAlert(
-        'Change a shift you didn\u2019t log?',
-        `${entry.workerName}: ${totalHours.toFixed(2)} hours${breakMinutes > 0 ? `, ${breakMinutes}-min break` : ''}. ${sentenceName(correctingTeam)} logged this shift; it stays theirs, and their copy updates too.`,
+        t('field.time.changeAShiftYou', 'Change a shift you didn\u2019t log?'),
+        breakMinutes > 0
+          ? t('field.time.correctTeamBodyBreak', '{worker}: {hours} hours, {breakMinutes}-min break. {name} logged this shift; it stays theirs, and their copy updates too.', { worker: entry.workerName, hours: totalHours.toFixed(2), breakMinutes, name: sentenceName(correctingTeam) })
+          : t('field.time.correctTeamBody', '{worker}: {hours} hours. {name} logged this shift; it stays theirs, and their copy updates too.', { worker: entry.workerName, hours: totalHours.toFixed(2), name: sentenceName(correctingTeam) }),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
           {
-            text: 'Save',
+            text: t('common.action.save', 'Save'),
             onPress: () => {
               if (!closeTeamShift(entry.id, { totalHours, breakMinutes })) {
-                showAlert('Couldn\u2019t save', 'Only shifts on your own jobs can be corrected here.');
+                showAlert(t('field.time.couldntSave', 'Couldn\u2019t save'), t('field.time.onlyShiftsOnYour', 'Only shifts on your own jobs can be corrected here.'));
               }
               setCorrecting(null);
             },
@@ -1021,18 +1062,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     updateEntry(correcting.id, { totalHours, overtimeHours, breakMinutes, notes: correctNote.trim() });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCorrecting(null);
-  }, [correcting, correctingTeam, correctHours, correctBreak, correctNote, updateEntry, closeTeamShift]);
+  }, [correcting, correctingTeam, correctHours, correctBreak, correctNote, updateEntry, closeTeamShift, t]);
 
   const handleDeleteCorrection = useCallback(() => {
     if (!correcting || correctingTeam) return;
     const entry = correcting;
     showAlert(
-      'Delete this entry?',
-      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${formatCalendarDay(timeEntryDay(entry))}. It's removed from the payroll export and your cost history. This can't be undone.`,
+      t('field.time.deleteThisEntry', 'Delete this entry?'),
+      t('field.time.deleteEntryBody', "{worker} · {hours}h on {day}. It's removed from the payroll export and your cost history. This can't be undone.", { worker: entry.workerName, hours: entry.totalHours.toFixed(1), day: formatCalendarDay(timeEntryDay(entry)) }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.action.delete', 'Delete'),
           style: 'destructive',
           onPress: () => {
             deleteEntry(entry.id);
@@ -1041,7 +1082,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         },
       ],
     );
-  }, [correcting, correctingTeam, deleteEntry]);
+  }, [correcting, correctingTeam, deleteEntry, t]);
 
   const handleClockIn = useCallback((memberId: string) => {
     // The roster only renders when the gate is open; this is the belt to it.
@@ -1052,7 +1093,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // a row the server refuses (RLS can_access_project needs a real project),
     // so the shift never left the phone. No job, no clock-in — said, not silent.
     if (!selectedProject) {
-      showAlert('Pick a job first', NO_JOB_REASON);
+      showAlert(t('field.time.pickAJobFirst', 'Pick a job first'), noJobReason());
       return;
     }
     const project = selectedProject;
@@ -1070,7 +1111,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         trade: member.trade,
       });
       if (!made) {
-        showAlert('Couldn\u2019t clock in', `${project.name} hasn\u2019t synced to your account yet, so hours can\u2019t be filed against it. Try again once it has.`);
+        showAlert(t('field.time.couldntClockIn', 'Couldn\u2019t clock in'), t('field.time.hasntSyncedToYour', '{name} hasn\u2019t synced to your account yet, so hours can\u2019t be filed against it. Try again once it has.', { name: project.name }));
         return;
       }
 
@@ -1084,9 +1125,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const certCheck = () => {
       const warn = lapsedCertConfirmText(member.name, certFlagsByMember[member.id] ?? [], 'Clock them in');
       if (warn) {
-        showAlert('Certification lapsed', warn, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Clock in anyway', style: 'destructive', onPress: commit },
+        showAlert(t('field.time.certificationLapsed', 'Certification lapsed'), warn, [
+          { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+          { text: t('field.time.clockInAnyway', 'Clock in anyway'), style: 'destructive', onPress: commit },
         ]);
         return;
       }
@@ -1099,19 +1140,26 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // open shift is paid twice in job cost and payroll.
     const already = openShiftByWorker.get(member.id);
     if (already) {
-      const who = already.who ? `logged by ${already.who}` : 'you clocked them in';
+      const vars = { name: member.name, project: already.entry.projectName ?? '', who: already.who ?? '', time: formatClockTime(Date.parse(already.entry.clockIn)) };
+      const body = already.entry.projectName
+        ? (already.who
+          ? t('field.time.alreadyOnClockOnByWho', '{name} is already on the clock on {project} (logged by {who}, {time}). Clocking them in again opens a second shift, and both are paid unless one is closed.', vars)
+          : t('field.time.alreadyOnClockOnByYou', '{name} is already on the clock on {project} (you clocked them in, {time}). Clocking them in again opens a second shift, and both are paid unless one is closed.', { name: vars.name, project: vars.project, time: vars.time }))
+        : (already.who
+          ? t('field.time.alreadyOnClockByWho', '{name} is already on the clock (logged by {who}, {time}). Clocking them in again opens a second shift, and both are paid unless one is closed.', { name: vars.name, who: vars.who, time: vars.time })
+          : t('field.time.alreadyOnClockByYou', '{name} is already on the clock (you clocked them in, {time}). Clocking them in again opens a second shift, and both are paid unless one is closed.', { name: vars.name, time: vars.time }));
       showAlert(
-        'Already on the clock',
-        `${member.name} is already on the clock${already.entry.projectName ? ` on ${already.entry.projectName}` : ''} (${who}, ${formatClockTime(Date.parse(already.entry.clockIn))}). Clocking them in again opens a second shift, and both are paid unless one is closed.`,
+        t('field.time.alreadyOnTheClock', 'Already on the clock'),
+        body,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Clock in again', style: 'destructive', onPress: certCheck },
+          { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+          { text: t('field.time.clockInAgain', 'Clock in again'), style: 'destructive', onPress: certCheck },
         ],
       );
       return;
     }
     certCheck();
-  }, [clockGate.kind, doClockIn, selectedProject, roster, certFlagsByMember, openShiftByWorker]);
+  }, [clockGate.kind, doClockIn, selectedProject, roster, certFlagsByMember, openShiftByWorker, t]);
 
   // #105: pull-to-refresh waits for the real pulls (own + team) to settle.
   const [userPulling, setUserPulling] = useState(false);
@@ -1150,7 +1198,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const [crewPicks, setCrewPicks] = useState<string[]>([]);
   const picked = useMemo(() => livePicks(crewPicks, availableRoster), [crewPicks, availableRoster]);
   const allPicked = availableRoster.length > 0 && picked.length === availableRoster.length;
-  const batchButton = clockInButton(picked.length, !!selectedProject);
+  const batchButton = clockInButton(picked.length, !!selectedProject, displayLang);
   // A switch from one job to ANOTHER clears the ticks: a crew picked for one
   // job is not assumed to be the crew on the next. Picking the first job
   // (from none) keeps what he already ticked.
@@ -1162,18 +1210,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const handleBatchClockIn = useCallback(() => {
     if (clockGate.kind !== 'ok') return;
-    if (!selectedProject) { showAlert(PICK_JOB_FIRST, NO_JOB_REASON); return; }
+    if (!selectedProject) { showAlert(PICK_JOB_FIRST, noJobReason()); return; }
     const members = roster.filter(m => picked.includes(m.id));
     if (members.length === 0) return;
     // One worker is the single-tap path, unchanged (its own "Clock in again"
     // and lapsed-card confirms).
     if (members.length === 1) { setCrewPicks([]); handleClockIn(members[0].id); return; }
     const project = selectedProject;
-    const { go, note: onClockNote } = splitAlreadyOnClock(members, openShiftByWorker);
+    const { go, note: onClockNote } = splitAlreadyOnClock(members, openShiftByWorker, displayLang);
 
     const commit = (list: typeof members) => {
       if (list.length === 0) {
-        showAlert('Nobody clocked in', onClockNote ?? 'Everyone you ticked was left out.');
+        showAlert(t('field.time.nobodyClockedIn', 'Nobody clocked in'), onClockNote ?? t('field.time.everyoneYouTickedWas', 'Everyone you ticked was left out.'));
         return;
       }
       let made = 0;
@@ -1186,7 +1234,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           trade: m.trade,
         });
         if (!entry) {
-          showAlert('Couldn\u2019t clock in', `${project.name} hasn\u2019t finished saving to your account yet, so hours can\u2019t be filed against it. Try again once it has.`);
+          showAlert(t('field.time.couldntClockIn', 'Couldn\u2019t clock in'), t('field.time.hasntFinishedSavingTo', '{name} hasn\u2019t finished saving to your account yet, so hours can\u2019t be filed against it. Try again once it has.', { name: project.name }));
           break;
         }
         made++;
@@ -1195,24 +1243,24 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCrewPicks([]);
       setShowClockInModal(false);
-      if (onClockNote) showAlert(`Clocked in ${made} on ${project.name}`, onClockNote);
-      else nailIt(`Clocked in ${made} on ${project.name}`);
+      if (onClockNote) showAlert(t('field.time.clockedInOn', 'Clocked in {made} on {name}', { made, name: project.name }), onClockNote);
+      else nailIt(t('field.time.clockedInOn', 'Clocked in {made} on {name}', { made, name: project.name }));
     };
 
     // Safety #2, per worker, inside the batch: every expired card in the
     // batch is named in ONE confirm. Never skipped.
-    const lapsed = batchLapsedText(go, certFlagsByMember);
+    const lapsed = batchLapsedText(go, certFlagsByMember, displayLang);
     if (lapsed) {
       const rest = go.filter(m => !lapsed.ids.includes(m.id));
-      showAlert('Certification lapsed', lapsed.message, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: rest.length > 0 ? `Leave them out (${rest.length})` : 'Leave them out', onPress: () => commit(rest) },
-        { text: 'Clock in anyway', style: 'destructive', onPress: () => commit(go) },
+      showAlert(t('field.time.certificationLapsed', 'Certification lapsed'), lapsed.message, [
+        { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+        { text: rest.length > 0 ? t('field.time.leaveThemOut', 'Leave them out ({length})', { length: rest.length }) : t('field.time.leaveThemOutNone', 'Leave them out'), onPress: () => commit(rest) },
+        { text: t('field.time.clockInAnyway', 'Clock in anyway'), style: 'destructive', onPress: () => commit(go) },
       ]);
       return;
     }
     commit(go);
-  }, [clockGate.kind, selectedProject, roster, picked, handleClockIn, openShiftByWorker, doClockIn, certFlagsByMember]);
+  }, [clockGate.kind, selectedProject, roster, picked, handleClockIn, openShiftByWorker, doClockIn, certFlagsByMember, t, displayLang]);
 
   // ── Clock out everyone on a job (UX wave B1) ─────────────────────────
   // His own open shifts on ONE job, at ONE time he confirms (default now; it
@@ -1222,13 +1270,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // per job where he has 2+ open shifts — each names its job, none is guessed.
   const batchOutJobs = useMemo(
     () => batchClockOutJobs(entries, viewProjectId ?? selectedProjectId, nowMs, shiftAlertHours)
-      .map(j => ({ ...j, name: allProjects.find(p => p.id === j.projectId)?.name ?? 'this project' })),
-    [entries, viewProjectId, selectedProjectId, nowMs, shiftAlertHours, allProjects],
+      .map(j => ({ ...j, name: allProjects.find(p => p.id === j.projectId)?.name ?? t('field.time.thisProject', 'this project') })),
+    [entries, viewProjectId, selectedProjectId, nowMs, shiftAlertHours, allProjects, t],
   );
   const [batchOutJobId, setBatchOutJobId] = useState<string | null>(null);
   const batchOutJobName = useMemo(
-    () => (batchOutJobId ? allProjects.find(p => p.id === batchOutJobId)?.name ?? 'this project' : 'this project'),
-    [batchOutJobId, allProjects],
+    () => (batchOutJobId ? allProjects.find(p => p.id === batchOutJobId)?.name ?? t('field.time.thisProject', 'this project') : t('field.time.thisProject', 'this project')),
+    [batchOutJobId, allProjects, t],
   );
   const [batchOutOpen, setBatchOutOpen] = useState(false);
   const [batchOutText, setBatchOutText] = useState('');
@@ -1243,19 +1291,19 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     return planBatchClockOut({
       ownEntries: entries, projectId: batchOutJobId, jobName: batchOutJobName,
       outMs: batchOutMs(batchOutText, now), nowMs: now, alertHours: shiftAlertHours,
-    });
-  }, [batchOutOpen, entries, batchOutJobId, batchOutJobName, batchOutText, shiftAlertHours]);
+    }, displayLang);
+  }, [batchOutOpen, entries, batchOutJobId, batchOutJobName, batchOutText, shiftAlertHours, displayLang]);
   const handleBatchClockOut = useCallback(() => {
     if (!batchOutPlan) return;
-    if (batchOutPlan.problem) { showAlert('Check the out time', batchOutPlan.problem); return; }
+    if (batchOutPlan.problem) { showAlert(t('field.time.checkTheOutTime', 'Check the out time'), batchOutPlan.problem); return; }
     const outIso = new Date(batchOutMs(batchOutText, Date.now())).toISOString();
     let closed = 0;
     for (const e of batchOutPlan.targets) if (doClockOut(e.id, outIso)) closed++;
     setBatchOutOpen(false);
     if (Platform.OS !== 'web' && closed > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (closed === batchOutPlan.targets.length) nailIt(`Clocked out ${closed} on ${batchOutJobName}`);
-    else showAlert('Some were already clocked out', `${closed} of ${batchOutPlan.targets.length} shifts were ended. The rest had already ended — nothing was changed on them.`);
-  }, [batchOutPlan, batchOutText, doClockOut, batchOutJobName]);
+    if (closed === batchOutPlan.targets.length) nailIt(t('field.time.clockedOutOn', 'Clocked out {closed} on {project}', { closed, project: batchOutJobName }));
+    else showAlert(t('field.time.someWereAlreadyClocked', 'Some were already clocked out'), t('field.time.ofShiftsWereEnded', '{closed} of {length} shifts were ended. The rest had already ended — nothing was changed on them.', { closed, length: batchOutPlan.targets.length }));
+  }, [batchOutPlan, batchOutText, doClockOut, batchOutJobName, t]);
 
   // ── Payroll export (#64, #68, #63, #151) ─────────────────────────────
   // One pay period at a time — this payroll week by default, last week one tap
@@ -1289,11 +1337,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     ];
     return selectPayrollEntries(labelled, exportPeriod.start, exportPeriod.end, { projectId: exportProjectId });
   }, [entries, ownedTeam, exportPeriod, exportProjectId]);
-  const exportBlocked = payrollBlockedReason(exportSelection, exportPeriod);
-  const exportOpenNote = openShiftsNote(exportSelection.open);
+  const exportBlocked = payrollBlockedReason(exportSelection, exportPeriod, displayLang);
+  const exportOpenNote = openShiftsNote(exportSelection.open, displayLang);
 
   const handleExportCSV = useCallback(async () => {
-    if (exportBlocked) { showAlert('Nothing to export', exportBlocked); return; }
+    if (exportBlocked) { showAlert(t('field.time.nothingToExport', 'Nothing to export'), exportBlocked); return; }
     const rows = exportSelection.rows;
     // Overtime is allocated across every shift the device knows for each
     // worker (his and the team's, all jobs) under his rule — handoff from
@@ -1301,7 +1349,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const csv = buildTimeEntriesCSV(rows, overtimeRule, mergeTimeEntriesMirror(entries, teamEntries));
     const fileName = payrollFileName(exportPeriod, exportProjectName);
     const title = payrollTitle(exportPeriod, exportProjectName);
-    const counted = `${rows.length} finished shift${rows.length === 1 ? '' : 's'}`;
+    const n = rows.length;
     const tail = exportOpenNote ? ` ${exportOpenNote}.` : '';
     try {
       if (Platform.OS === 'web') {
@@ -1309,7 +1357,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         // as part of the tap (deliverTextFile clicks a download link on web).
         await deliverTextFile(fileName, csv, 'text/csv;charset=utf-8');
         setShowExport(false);
-        showAlert('Downloaded', `${fileName} — ${counted}.${tail}`);
+        showAlert(t('field.time.downloaded', 'Downloaded'), tn('field.time.downloadedBody', n, { one: '{file} — {count} finished shift.{tail}', other: '{file} — {count} finished shifts.{tail}' }, { file: fileName, tail }));
         return;
       }
       const uri = await deliverTextFile(fileName, csv, 'text/csv;charset=utf-8');
@@ -1317,16 +1365,16 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         // No share sheet: offer the rows TAB-separated, which splits into
         // columns when pasted into a spreadsheet.
         showAlert(
-          'Can\u2019t share a file here',
-          `This device couldn\u2019t open a share sheet for ${fileName}. Copy the ${counted} instead — they paste into a spreadsheet as columns.`,
+          t('field.time.cantShareAFile', 'Can\u2019t share a file here'),
+          tn('field.time.cantShareBody', n, { one: 'This device couldn\u2019t open a share sheet for {fileName}. Copy the {count} finished shift instead — they paste into a spreadsheet as columns.', other: 'This device couldn\u2019t open a share sheet for {fileName}. Copy the {count} finished shifts instead — they paste into a spreadsheet as columns.' }, { fileName }),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
             {
-              text: 'Copy rows',
+              text: t('field.time.copyRows', 'Copy rows'),
               onPress: () => {
                 Clipboard.setStringAsync(csvToTsv(csv))
-                  .then(() => showAlert('Copied', `${counted} copied — paste into a spreadsheet.${tail}`))
-                  .catch(() => showAlert('Couldn\u2019t copy', 'The clipboard refused the rows. Try again.'));
+                  .then(() => showAlert(t('field.time.copied', 'Copied'), tn('field.time.copiedBody', n, { one: '{count} finished shift copied — paste into a spreadsheet.{tail}', other: '{count} finished shifts copied — paste into a spreadsheet.{tail}' }, { tail })))
+                  .catch(() => showAlert(t('field.time.couldntCopy', 'Couldn\u2019t copy'), t('field.time.theClipboardRefusedThe', 'The clipboard refused the rows. Try again.')));
               },
             },
           ],
@@ -1348,9 +1396,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       setShowExport(false);
     } catch (err) {
       console.warn('[time-tracking] payroll export failed', err);
-      showAlert('Export failed', describeError(err, { action: 'export payroll' }).body);
+      showAlert(t('field.time.exportFailed', 'Export failed'), describeError(err, { action: 'export payroll' }).body);
     }
-  }, [exportBlocked, exportSelection, overtimeRule, entries, teamEntries, exportPeriod, exportProjectName, exportOpenNote]);
+  }, [exportBlocked, exportSelection, overtimeRule, entries, teamEntries, exportPeriod, exportProjectName, exportOpenNote, t, tn]);
+
+  // The rates sheet's bare-wage nudge: one sentence, split at {percent} as the
+  // JSX always rendered it. Built here, outside the rates map, whose `t` is
+  // the trade row.
+  const bareWageNudge = (percent: number) => parts(t('field.time.bareWageNudge', 'Looks like a bare wage. Loaded rates run ~{percent}% higher — add comp, taxes and small tools so your cost book prices labor from your real number. Leave overtime out: it is priced below.', { percent: '{percent}' }), { percent });
 
   // Desktop sheets (wave 6c): a capped card centred in the content column.
   // Clock In has no single primary — the crew member IS the action.
@@ -1372,29 +1425,32 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // History on desktop: one row per finished shift, sortable, searchable; a
   // click opens the same correction sheet the phone's card does.
   const historyColumns: DataTableColumn<HistoryRow>[] = useMemo(() => [
-    { key: 'worker', label: 'Worker', flex: 1, sortValue: (r) => r.entry.workerName, value: (r) => r.entry.workerName },
-    { key: 'trade', label: 'Trade', width: 140, hideBelow: 700, sortValue: (r) => r.entry.trade, value: (r) => r.entry.trade || null },
-    { key: 'job', label: 'Job', flex: 1, hideBelow: 560, sortValue: (r) => r.entry.projectName, value: (r) => r.entry.projectName || null },
+    { key: 'worker', label: t('field.time.col.worker', 'Worker'), flex: 1, sortValue: (r) => r.entry.workerName, value: (r) => r.entry.workerName },
+    { key: 'trade', label: t('field.time.col.trade', 'Trade'), width: 140, hideBelow: 700, sortValue: (r) => r.entry.trade, value: (r) => r.entry.trade || null },
+    { key: 'job', label: t('field.time.job', 'Job'), flex: 1, hideBelow: 560, sortValue: (r) => r.entry.projectName, value: (r) => r.entry.projectName || null },
     {
-      key: 'day', label: 'Day', width: 120,
+      key: 'day', label: t('field.time.col.day', 'Day'), width: 120,
       sortValue: (r) => `${timeEntryDay(r.entry)} ${r.entry.clockIn}`,
       value: (r) => formatCalendarDay(timeEntryDay(r.entry), { weekday: 'short', month: 'short', day: 'numeric' }),
     },
-    { key: 'hours', label: 'Hours', numeric: true, width: 80, sortValue: (r) => r.entry.totalHours, value: (r) => r.entry.totalHours.toFixed(1) },
+    { key: 'hours', label: t('field.time.col.hours', 'Hours'), numeric: true, width: 80, sortValue: (r) => r.entry.totalHours, value: (r) => r.entry.totalHours.toFixed(1) },
     {
-      key: 'ot', label: 'OT', numeric: true, width: 110,
+      key: 'ot', label: t('field.time.col.ot', 'OT'), numeric: true, width: 110,
       sortValue: (r) => overtimeFor(overtime, r.entry.id),
       value: (r) => {
         const ot = overtimeFor(overtime, r.entry.id);
-        return ot > 0 ? `+${ot.toFixed(1)}${overtime.provisional.has(r.entry.id) ? ' so far' : ''}` : null;
+        if (ot <= 0) return null;
+        return overtime.provisional.has(r.entry.id)
+          ? t('field.time.otCellSoFar', '+{hours} so far', { hours: ot.toFixed(1) })
+          : `+${ot.toFixed(1)}`;
       },
     },
-    { key: 'loggedBy', label: 'Logged by', width: 160, hideBelow: 900, value: (r) => (r.team ? r.loggedByName ?? null : 'You') },
+    { key: 'loggedBy', label: t('field.time.col.loggedBy', 'Logged by'), width: 160, hideBelow: 900, value: (r) => (r.team ? r.loggedByName ?? null : t('field.time.col.you', 'You')) },
     {
-      key: 'flags', label: 'Flags', width: 160,
-      value: (r) => [isAdjustedEntry(r.entry) ? 'Adjusted' : null, !isUuid(r.entry.projectId) ? 'Not synced' : null].filter(Boolean).join(' · ') || null,
+      key: 'flags', label: t('field.time.col.flags', 'Flags'), width: 160,
+      value: (r) => [isAdjustedEntry(r.entry) ? t('field.time.flag.adjusted', 'Adjusted') : null, !isUuid(r.entry.projectId) ? t('field.time.flag.notSynced', 'Not synced') : null].filter(Boolean).join(' · ') || null,
     },
-  ], [overtime]);
+  ], [overtime, t]);
 
   // Today's phone card, moved verbatim — below the desktop gate DataTable
   // renders exactly this, one per row.
@@ -1409,12 +1465,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 onPress={() => openCorrection(entry, loggedByName)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${formatCalendarDay(timeEntryDay(entry))}${loggedBy ? `, ${loggedBy}` : ''}${adjusted ? ', adjusted' : ''}. Tap to correct${loggedBy ? '' : ' or delete'}.`}
+                accessibilityLabel={loggedBy
+                  ? (adjusted
+                    ? t('field.time.historyA11yTeamAdjusted', '{worker}, {hours} hours on {day}, {loggedBy}, adjusted. Tap to correct.', { worker: entry.workerName, hours: entry.totalHours.toFixed(1), day: formatCalendarDay(timeEntryDay(entry)), loggedBy })
+                    : t('field.time.historyA11yTeam', '{worker}, {hours} hours on {day}, {loggedBy}. Tap to correct.', { worker: entry.workerName, hours: entry.totalHours.toFixed(1), day: formatCalendarDay(timeEntryDay(entry)), loggedBy }))
+                  : (adjusted
+                    ? t('field.time.historyA11yAdjusted', '{worker}, {hours} hours on {day}, adjusted. Tap to correct or delete.', { worker: entry.workerName, hours: entry.totalHours.toFixed(1), day: formatCalendarDay(timeEntryDay(entry)) })
+                    : t('field.time.historyA11y', '{worker}, {hours} hours on {day}. Tap to correct or delete.', { worker: entry.workerName, hours: entry.totalHours.toFixed(1), day: formatCalendarDay(timeEntryDay(entry)) }))}
                 testID={`time-entry-${entry.id}`}
               >
                 <View style={styles.historyHeader}>
                   <Text style={styles.historyName}>{entry.workerName}</Text>
-                  <Text style={styles.historyHours}>{entry.totalHours.toFixed(1)}h</Text>
+                  <Text style={styles.historyHours}>{parts(t('field.time.hoursShort', '{hours}h', { hours: '{hours}' }), { hours: entry.totalHours.toFixed(1) })}</Text>
                 </View>
                 <View style={styles.historyMeta}>
                   <Text style={styles.historyTrade}>{entry.trade}</Text>
@@ -1423,7 +1485,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </View>
                 {loggedBy ? <Text style={styles.loggedByTag} testID={`time-entry-logged-by-${entry.id}`}>{loggedBy}</Text> : null}
                 {!isUuid(entry.projectId) ? (
-                  <Text style={styles.loggedByTag}>Not synced — logged with no job, so it stays on this phone.</Text>
+                  <Text style={styles.loggedByTag}>{t('field.time.notSyncedLoggedWith', 'Not synced — logged with no job, so it stays on this phone.')}</Text>
                 ) : null}
                 <View style={styles.historyFooter}>
                   <Text style={styles.historyDate}>
@@ -1435,7 +1497,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   <View style={{ flexDirection: 'row', gap: 6 }}>
                     {adjusted && punched !== null ? (
                       <View style={styles.adjustedBadge} testID={`time-entry-adjusted-${entry.id}`}>
-                        <Text style={styles.adjustedBadgeText}>Adjusted · punched {punched.toFixed(2)}h</Text>
+                        <Text style={styles.adjustedBadgeText}>{parts(t('field.time.adjustedPunched', 'Adjusted · punched {hours}h', { hours: '{hours}' }), { hours: punched.toFixed(2) })}</Text>
                       </View>
                     ) : null}
                     {/* Allocated by the GC's rule across the worker's week (#65);
@@ -1443,7 +1505,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     {overtimeFor(overtime, entry.id) > 0 && (
                       <View style={styles.otBadge}>
                         <Text style={styles.otBadgeText}>
-                          +{overtimeFor(overtime, entry.id).toFixed(1)}h OT{overtime.provisional.has(entry.id) ? ' so far' : ''}
+                          {overtime.provisional.has(entry.id)
+                            ? parts(t('field.time.otBadgeSoFar', '+{hours}h OT so far', { hours: '{hours}' }), { hours: overtimeFor(overtime, entry.id).toFixed(1) })
+                            : parts(t('field.time.otBadge', '+{hours}h OT', { hours: '{hours}' }), { hours: overtimeFor(overtime, entry.id).toFixed(1) })}
                         </Text>
                       </View>
                     )}
@@ -1455,7 +1519,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Time tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: t('field.time.timeTracking', 'Time tracking'), headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
@@ -1470,7 +1534,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.statValue}>{todayStats.liveCount}</Text>
-            <Text style={styles.statLabel}>On site</Text>
+            <Text style={styles.statLabel}>{t('field.time.onSite', 'On site')}</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.info + '14' }]}>
@@ -1479,7 +1543,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             <Text style={styles.statValue}>{todayStats.totalHours.toFixed(1)}</Text>
             {/* Finished shifts plus the net hours so far of shifts still on
                 the clock (#152) — it read 0.0 at noon with a crew working. */}
-            <Text style={styles.statLabel} accessibilityLabel="Hours today, including crew still on the clock">Hours today</Text>
+            <Text style={styles.statLabel} accessibilityLabel={t('field.time.hoursTodayIncludingCrew', 'Hours today, including crew still on the clock')}>{t('field.time.hoursTodayLabel', 'Hours today')}</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? themeColors.warningSoft : themeColors.successSoft }]}>
@@ -1489,7 +1553,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             {/* So far: this week is still open, so more shifts can still
                 push today's hours into overtime (#65). Live: shifts still on
                 the clock count at their hours so far (#152). */}
-            <Text style={styles.statLabel} accessibilityLabel={`Overtime hours today so far, ${describeOvertimeRule(overtimeRule)}`}>OT so far</Text>
+            <Text style={styles.statLabel} accessibilityLabel={t('field.time.otSoFarA11y', 'Overtime hours today so far, {rule}', { rule: describeOvertimeRule(overtimeRule) })}>{t('field.time.otSoFar', 'OT so far')}</Text>
           </View>
         </TileGrid>
 
@@ -1507,7 +1571,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             testID="time-tracking-clock-in"
           >
             <Play size={18} color="#fff" strokeWidth={1.75} />
-            <Text style={styles.clockInButtonText}>Clock in crew</Text>
+            <Text style={styles.clockInButtonText}>{t('field.time.clockInCrew', 'Clock in crew')}</Text>
           </TouchableOpacity>
           {/* Payroll CSV for one pay period — a real .csv file (#64, #68). */}
           <TouchableOpacity
@@ -1520,11 +1584,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={openExport}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Export payroll CSV for a pay period"
+            accessibilityLabel={t('field.time.exportPayrollCsvFor', 'Export payroll CSV for a pay period')}
             testID="time-tracking-export"
           >
             <FileDown size={16} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text }}>Export CSV</Text>
+            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text }}>{t('field.time.exportCsv', 'Export CSV')}</Text>
           </TouchableOpacity>
         </View>
         {clockInDisabledReason ? (
@@ -1538,7 +1602,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 accessibilityRole="button"
                 testID="time-tracking-create-project"
               >
-                <Text style={styles.emptyCtaText}>Create a project</Text>
+                <Text style={styles.emptyCtaText}>{t('field.time.createAProject', 'Create a project')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1555,12 +1619,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={() => setShowAlertPicker(true)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Shift alert at ${shiftAlertHours} hours, tap to change`}
+            accessibilityLabel={t('field.time.shiftAlertAtHours', 'Shift alert at {hours} hours, tap to change', { hours: shiftAlertHours })}
             testID="time-tracking-alert-setting"
           >
             <Bell size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.alertSettingText}>
-              Alert at <Text style={styles.alertSettingHours}>{shiftAlertHours}h</Text>
+              {parts(t('field.time.alertAt', 'Alert at {hours}', { hours: '{hours}' }), { hours: <Text key="h" style={styles.alertSettingHours}>{shiftAlertHours}h</Text> })}
             </Text>
           </TouchableOpacity>
           {/* Loaded $/hr per trade — the input that turns these hours into
@@ -1574,11 +1638,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={openRatesModal}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Set labor rates"
+            accessibilityLabel={t('field.time.setLaborRates', 'Set labor rates')}
             testID="time-tracking-labor-rates"
           >
             <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.alertSettingText}>Labor rates</Text>
+            <Text style={styles.alertSettingText}>{t('field.time.laborRates', 'Labor rates')}</Text>
           </TouchableOpacity>
           ) : null}
         </View>
@@ -1587,14 +1651,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             there is something true to say. */}
         {!ownTier ? null : laborStats.sampledEntries > 0 ? (
           <Text style={styles.laborFeedLine} testID="labor-feed-line">
-            Feeding your labor rates: {laborStats.sampledEntries} entr{laborStats.sampledEntries === 1 ? 'y' : 'ies'} → your cost book
+            {tn('field.time.feedingRates', laborStats.sampledEntries, { one: 'Feeding your labor rates: {count} entry → your cost book', other: 'Feeding your labor rates: {count} entries → your cost book' })}
             {laborStats.tradesMissingRates.length > 0
-              ? ` · ${laborStats.tradesMissingRates.length} trade${laborStats.tradesMissingRates.length === 1 ? '' : 's'} still unpriced`
+              ? ` · ${tn('field.time.tradesUnpriced', laborStats.tradesMissingRates.length, { one: '{count} trade still unpriced', other: '{count} trades still unpriced' })}`
               : ''}
           </Text>
         ) : laborStats.eligibleEntries > 0 ? (
           <Text style={styles.laborFeedLine} testID="labor-feed-line">
-            {laborStats.eligibleEntries} finished shift{laborStats.eligibleEntries === 1 ? '' : 's'} logged — set labor rates to feed your cost book
+            {tn('field.time.finishedShiftsLoggedSet', laborStats.eligibleEntries, { one: '{count} finished shift logged — set labor rates to feed your cost book', other: '{count} finished shifts logged — set labor rates to feed your cost book' })}
           </Text>
         ) : null}
 
@@ -1605,11 +1669,15 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={() => setViewProjectId(null)}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`Showing ${viewProjectName ?? 'one job'} only. Tap to show all jobs.`}
+            accessibilityLabel={viewProjectName
+              ? t('field.time.showingOnly', 'Showing {name} only. Tap to show all jobs.', { name: viewProjectName })
+              : t('field.time.showingOneJob', 'Showing one job only. Tap to show all jobs.')}
             testID="time-tracking-job-filter"
           >
             <Briefcase size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.jobFilterText} numberOfLines={1}>{viewProjectName ?? 'This job'} only</Text>
+            <Text style={styles.jobFilterText} numberOfLines={1}>{viewProjectName
+              ? parts(t('field.time.nameOnly', '{name} only', { name: '{name}' }), { name: viewProjectName })
+              : t('field.time.thisJobOnly', 'This job only')}</Text>
             <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : null}
@@ -1621,7 +1689,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, selectedTab === 'live' && styles.tabTextActive]}>
-              Live ({liveRows.length})
+              {t('field.time.live', 'Live ({length})', { length: liveRows.length })}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1630,7 +1698,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, selectedTab === 'history' && styles.tabTextActive]}>
-              History ({historyRows.length})
+              {t('field.time.history', 'History ({length})', { length: historyRows.length })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1642,7 +1710,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           <View style={[styles.thresholdBanner, { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]} testID="time-tracking-double-clocked">
             <AlertTriangle size={13} color={themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: themeColors.warningLabel }]}>
-              {doubleClocked.map(list => `${list[0].workerName} has ${list.length} open shifts`).join('; ')} — close the extra one so they aren&apos;t paid twice.
+              {parts(t('field.time.doubleClocked', "{list} — close the extra one so they aren't paid twice.", { list: '{list}' }), {
+                list: doubleClocked.map(list => tn('field.time.openShiftsOf', list.length, { one: '{name} has {count} open shift', other: '{name} has {count} open shifts' }, { name: list[0].workerName })).join('; '),
+              })}
             </Text>
           </View>
         ) : null}
@@ -1656,12 +1726,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={() => openBatchOut(job.projectId)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={`Clock out everyone on ${job.name}, ${job.count} crew members`}
+            accessibilityLabel={tn('field.time.clockOutEveryoneOn', job.count, { one: 'Clock out everyone on {name}, {count} crew members', other: 'Clock out everyone on {name}, {count} crew members' }, { name: job.name })}
             testID={i === 0 ? 'time-tracking-clock-out-all' : `time-tracking-clock-out-all-${job.projectId}`}
           >
             <Square size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={styles.clockOutAllText} numberOfLines={1}>
-              Clock out everyone on {job.name} ({job.count})
+              {t('field.time.clockOutEveryoneOn2', 'Clock out everyone on {name} ({count})', { name: job.name, count: job.count })}
             </Text>
           </TouchableOpacity>
         )) : null}
@@ -1670,16 +1740,16 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           liveRows.length === 0 ? (
             <View style={styles.emptyState}>
               <Clock size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No active time cards</Text>
+              <Text style={styles.emptyTitle}>{t('field.time.noActiveTimeCards', 'No active time cards')}</Text>
               <Text style={styles.emptyDesc}>
-                {clockInDisabledReason ?? 'Tap Clock in crew above, pick a worker and project, and their hours start logging here in real time.'}
+                {clockInDisabledReason ?? t('field.time.tapClockInCrew', 'Tap Clock in crew above, pick a worker and project, and their hours start logging here in real time.')}
               </Text>
             </View>
           ) : (
             <View style={[styles.listSection, isDesktop && styles.listSectionDesktop]}>
               {missedLiveRows.length > 0 ? (
                 <Text style={styles.listGroupTitle} testID="time-tracking-missed-group">
-                  Missed clock-out ({missedLiveRows.length}) — enter when they left
+                  {t('field.time.missedClockOutEnter', 'Missed clock-out ({length}) — enter when they left', { length: missedLiveRows.length })}
                 </Text>
               ) : null}
               {[...missedLiveRows, ...activeLiveRows].map(r => (
@@ -1705,17 +1775,25 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               onRowOpen={(r) => openCorrection(r.entry, r.loggedByName)}
               defaultSort={{ key: 'day', dir: 'desc' }}
               searchText={(r) => [r.entry.workerName, r.entry.trade, r.entry.projectName, r.loggedByName ?? ''].join(' ')}
-              searchPlaceholder="Search shifts"
+              searchPlaceholder={t('field.time.searchShifts', 'Search shifts')}
               renderCard={renderHistoryCard}
             />
             {historyRows.length > 0 && (
               // The row is a plain card; nothing about it says it is editable,
               // and a foreman is not going to speculatively tap a payroll
               // record. Say so once, under the list.
-              <Text style={styles.historyHint}>{`${isDesktopWeb ? 'Click' : 'Tap'} an entry to correct its hours`}{historyRows.some(r => r.team) ? ' (delete is for your own clock-ins)' : ' or delete it'}.</Text>
+              <Text style={styles.historyHint}>{historyRows.some(r => r.team)
+                ? (isDesktopWeb
+                  ? t('field.time.hintClickTeam', 'Click an entry to correct its hours (delete is for your own clock-ins).')
+                  : t('field.time.hintTapTeam', 'Tap an entry to correct its hours (delete is for your own clock-ins).'))
+                : (isDesktopWeb
+                  ? t('field.time.hintClick', 'Click an entry to correct its hours or delete it.')
+                  : t('field.time.hintTap', 'Tap an entry to correct its hours or delete it.'))}</Text>
             )}
             {historyRows.length === 0 ? (
-              <Text style={styles.historyHint}>No finished shifts{viewProjectName ? ` on ${viewProjectName}` : ''} yet.</Text>
+              <Text style={styles.historyHint}>{viewProjectName
+                ? t('field.time.noFinishedShiftsOn', 'No finished shifts on {name} yet.', { name: viewProjectName })
+                : t('field.time.noFinishedShifts', 'No finished shifts yet.')}</Text>
             ) : null}
           </View>
         )}
@@ -1725,12 +1803,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fClockIn.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card, fClockIn.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Clock in</Text>
-              <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.time.clockIn', 'Clock in')}</Text>
+              <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Tick who&apos;s on site, then clock them in together</Text>
+            <Text style={styles.modalSubtitle}>{t('field.time.tickWhosOnSite', "Tick who's on site, then clock them in together")}</Text>
 
             {/* Project picker — defaults to the GC's first project but lets
                 them pick another job before clocking the worker in. With no
@@ -1742,18 +1820,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 onPress={() => setShowProjectPicker(v => !v)}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Choose project"
+                accessibilityLabel={t('field.time.chooseProject', 'Choose project')}
               >
                 <View style={styles.projectPickerIcon}>
                   <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.projectPickerLabel}>Project</Text>
+                  <Text style={styles.projectPickerLabel}>{t('field.time.project', 'Project')}</Text>
                   <Text style={styles.projectPickerValue} numberOfLines={1} testID="clock-in-job-name">
                     {selectedProject?.name ?? PICK_JOB_FIRST}
                   </Text>
                 </View>
-                <Text style={styles.projectPickerChange}>{showProjectPicker ? 'Done' : 'Change'}</Text>
+                <Text style={styles.projectPickerChange}>{showProjectPicker ? t('common.action.done', 'Done') : t('field.time.change', 'Change')}</Text>
                 <ChevronDown
                   size={16}
                   color={themeColors.textMuted}
@@ -1808,14 +1886,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             {clockGate.kind === 'loading' ? (
               <View style={styles.rosterEmpty} testID="clock-in-gate-loading">
                 <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.rosterEmptyBody}>Checking your access on this project…</Text>
+                <Text style={styles.rosterEmptyBody}>{t('field.time.checkingYourAccessOn', 'Checking your access on this project…')}</Text>
               </View>
             ) : clockGate.kind === 'error' ? (
               <View style={styles.rosterEmpty} testID="clock-in-gate-error">
                 <AlertTriangle size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
-                <Text style={styles.rosterEmptyBody}>Couldn&apos;t check your access on this job. Check your connection and try again.</Text>
+                <Text style={styles.rosterEmptyBody}>{t('field.time.couldntCheckYourAccess', "Couldn't check your access on this job. Check your connection and try again.")}</Text>
                 <TouchableOpacity style={styles.rosterEmptyBtn} onPress={roleState.refetch} activeOpacity={0.85} testID="clock-in-gate-retry">
-                  <Text style={styles.rosterEmptyBtnText}>Try again</Text>
+                  <Text style={styles.rosterEmptyBtnText}>{t('field.time.tryAgain', 'Try again')}</Text>
                 </TouchableOpacity>
               </View>
             ) : clockGate.kind === 'blocked' ? (
@@ -1826,24 +1904,24 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             ) : isSeat && projectCrew.isLoading ? (
               <View style={styles.rosterEmpty} testID="clock-in-crew-loading">
                 <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.rosterEmptyBody}>Loading the crew on this project…</Text>
+                <Text style={styles.rosterEmptyBody}>{t('field.time.loadingTheCrewOn', 'Loading the crew on this project…')}</Text>
               </View>
             ) : isSeat && projectCrew.crew.length === 0 && (projectCrew.isPaused || (projectCrew.isError && projectCrew.offline)) ? (
               // #100: offline with nothing saved yet. Never "No crew assigned"
               // — that would state as fact something this phone can't know.
               <View style={styles.rosterEmpty} testID="clock-in-crew-offline">
                 <AlertTriangle size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
-                <Text style={styles.rosterEmptyBody}>You&apos;re offline, and this job&apos;s crew hasn&apos;t been loaded on this phone yet. Open Time Tracking on this job once you have signal and the crew list is saved for next time.</Text>
+                <Text style={styles.rosterEmptyBody}>{t('field.time.youreOfflineAndThis', "You're offline, and this job's crew hasn't been loaded on this phone yet. Open Time Tracking on this job once you have signal and the crew list is saved for next time.")}</Text>
                 <TouchableOpacity style={styles.rosterEmptyBtn} onPress={projectCrew.refetch} activeOpacity={0.85} accessibilityRole="button">
-                  <Text style={styles.rosterEmptyBtnText}>Try again</Text>
+                  <Text style={styles.rosterEmptyBtnText}>{t('field.time.tryAgain', 'Try again')}</Text>
                 </TouchableOpacity>
               </View>
             ) : isSeat && projectCrew.isError ? (
               <View style={styles.rosterEmpty} testID="clock-in-crew-error">
                 <AlertTriangle size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
-                <Text style={styles.rosterEmptyBody}>Couldn&apos;t load the crew your GC assigned to this job. Check your connection and try again.</Text>
+                <Text style={styles.rosterEmptyBody}>{t('field.time.couldntLoadTheCrew', "Couldn't load the crew your GC assigned to this job. Check your connection and try again.")}</Text>
                 <TouchableOpacity style={styles.rosterEmptyBtn} onPress={projectCrew.refetch} activeOpacity={0.85} accessibilityRole="button">
-                  <Text style={styles.rosterEmptyBtnText}>Try again</Text>
+                  <Text style={styles.rosterEmptyBtnText}>{t('field.time.tryAgain', 'Try again')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -1856,9 +1934,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               ) : null}
               {/* #105: who is on the clock comes from the team's pull. */}
               {pulling ? (
-                <Text style={styles.memberTrade} testID="clock-in-pulling">Checking who is already on the clock…</Text>
+                <Text style={styles.memberTrade} testID="clock-in-pulling">{t('field.time.checkingWhoIsAlready', 'Checking who is already on the clock…')}</Text>
               ) : pullFailed ? (
-                <Text style={styles.memberTrade} testID="clock-in-pull-failed">Couldn&apos;t reach the server to check who your team has on the clock — the list may be out of date.</Text>
+                <Text style={styles.memberTrade} testID="clock-in-pull-failed">{t('field.time.couldntReachTheServer', "Couldn't reach the server to check who your team has on the clock — the list may be out of date.")}</Text>
               ) : null}
               {/* UX wave B1: "All N on this job" ticks the whole available
                   crew; a row tap ticks one. Nothing is written until "Clock
@@ -1874,7 +1952,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 >
                   <Users size={16} color={allPicked ? themeColors.accentLabel : themeColors.text} strokeWidth={1.75} />
                   <Text style={[styles.allCrewChipText, allPicked && { color: themeColors.accentLabel }]}>
-                    {allCrewChipLabel(availableRoster.length, allPicked)}
+                    {allCrewChipLabel(availableRoster.length, allPicked, displayLang)}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -1924,17 +2002,17 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 // A seat cannot add crew to the GC's roster — say whose move it is.
                 <View style={styles.rosterEmpty} testID="clock-in-seat-no-crew">
                   <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.rosterEmptyTitle}>No crew assigned to this project</Text>
+                  <Text style={styles.rosterEmptyTitle}>{t('field.time.noCrewAssignedTo', 'No crew assigned to this project')}</Text>
                   <Text style={styles.rosterEmptyBody}>
-                    Your GC assigns crew to each project. Once they do, the crew shows here.
+                    {t('field.time.yourGcAssignsCrew', 'Your GC assigns crew to each project. Once they do, the crew shows here.')}
                   </Text>
                 </View>
               ) : roster.length === 0 ? (
                 <View style={styles.rosterEmpty}>
                   <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.rosterEmptyTitle}>No crew added yet</Text>
+                  <Text style={styles.rosterEmptyTitle}>{t('field.time.noCrewAddedYet', 'No crew added yet')}</Text>
                   <Text style={styles.rosterEmptyBody}>
-                    Add your crew in the Crew screen (verify IDs, set trades), then clock them in here.
+                    {t('field.time.addYourCrewIn', 'Add your crew in the Crew screen (verify IDs, set trades), then clock them in here.')}
                   </Text>
                   <TouchableOpacity
                     style={styles.rosterEmptyBtn}
@@ -1942,11 +2020,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     activeOpacity={0.85}
                     testID="clock-in-add-crew"
                   >
-                    <Text style={styles.rosterEmptyBtnText}>Add crew</Text>
+                    <Text style={styles.rosterEmptyBtnText}>{t('field.time.addCrew', 'Add crew')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : availableRoster.length === 0 ? (
-                <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
+                <Text style={styles.allClockedIn}>{t('field.time.allCrewMembersAre', 'All crew members are currently clocked in')}</Text>
               ) : null}
               {/* #99: already on the clock — greyed, with who has him, never
                   silently missing. */}
@@ -2004,13 +2082,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fAlert.overlay]}>
           <Animated.View style={[styles.modalCard, fAlert.card, fAlert.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Shift alert</Text>
-              <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.time.shiftAlert', 'Shift alert')}</Text>
+              <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>
-              Push a notification to this device when an active crew member's elapsed time crosses this threshold. Break minutes are excluded.
+              {t('field.time.pushANotificationTo', "Push a notification to this device when an active crew member's elapsed time crosses this threshold. Break minutes are excluded.")}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 16 }}>
               {[4, 6, 8, 10, 12].map(h => {
@@ -2046,15 +2124,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fRates.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fRates.card, fRates.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Labor rates</Text>
-              <TouchableOpacity onPress={commitRateDrafts} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Save and close">
+              <Text style={styles.modalTitle}>{t('field.time.laborRates', 'Labor rates')}</Text>
+              <TouchableOpacity onPress={commitRateDrafts} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('field.time.saveAndClose', 'Save and close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>
-              Loaded cost per hour for each trade you self-perform (wages plus burden).
-              Clocked hours × these rates feed your cost book, so estimates price labor
-              from your real numbers. Leave blank to keep a trade out.
+              {t('field.time.loadedCostPerHour', 'Loaded cost per hour for each trade you self-perform (wages plus burden). Clocked hours × these rates feed your cost book, so estimates price labor from your real numbers. Leave blank to keep a trade out.')}
             </Text>
             <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
               {rateTrades.map(t => {
@@ -2081,23 +2157,23 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     </View>
                     {bareWarn ? (
                       <Text style={styles.rateBurdenNudge} testID={`labor-rate-burden-nudge-${t.key}`}>
-                        Looks like a bare wage. Loaded rates run ~{burdenPercentLabel(t.key)}% higher — add comp, taxes and small tools so your cost book prices labor from your real number. Leave overtime out: it is priced below.
+                        {bareWageNudge(burdenPercentLabel(t.key))}
                       </Text>
                     ) : null}
                   </View>
                 );
               })}
               {rateTrades.length === 0 ? (
-                <Text style={styles.allClockedIn}>Clock in crew (or add trades to your roster) and their trades appear here.</Text>
+                <Text style={styles.allClockedIn}>{t('field.time.clockInCrewOr', 'Clock in crew (or add trades to your roster) and their trades appear here.')}</Text>
               ) : null}
 
               {/* How he pays overtime (#153, #65). Saved on the same close as
                   the rates. The multiplier echoes its clamped value on blur
                   (a typed 15 becomes 3), and until he sets one the field shows
                   the default AS the default, not as his setting. */}
-              <Text style={styles.otSectionTitle}>Overtime</Text>
+              <Text style={styles.otSectionTitle}>{t('field.time.overtime', 'Overtime')}</Text>
               <View style={styles.rateRow}>
-                <Text style={styles.rateTradeLabel}>Overtime pays ×</Text>
+                <Text style={styles.rateTradeLabel}>{t('field.time.overtimePays', 'Overtime pays ×')}</Text>
                 <View style={styles.rateInputWrap}>
                   <TextInput
                     style={styles.rateInput}
@@ -2107,7 +2183,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     keyboardType="decimal-pad"
                     placeholder={String(DEFAULT_OVERTIME_MULTIPLIER)}
                     placeholderTextColor={themeColors.textMuted}
-                    accessibilityLabel="Overtime pay multiplier"
+                    accessibilityLabel={t('field.time.overtimePayMultiplier', 'Overtime pay multiplier')}
                     testID="labor-ot-multiplier-input"
                   />
                   <Text style={styles.rateInputSuffix}>×</Text>
@@ -2115,8 +2191,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               </View>
               <Text style={styles.otHint} testID="labor-ot-multiplier-hint">
                 {otMultiplierDraft.trim() === ''
-                  ? `${DEFAULT_OVERTIME_MULTIPLIER}× — time-and-a-half, the default. Type your own (1 to 3) if you pay more, e.g. 2 for double time.`
-                  : `Overtime hours are priced at your rate × ${otMultiplierDraft.trim()}. Allowed range 1 to 3.`}
+                  ? t('field.time.timeAndAHalf', '{multiplier}× — time-and-a-half, the default. Type your own (1 to 3) if you pay more, e.g. 2 for double time.', { multiplier: DEFAULT_OVERTIME_MULTIPLIER })
+                  : t('field.time.otMultiplierHint', 'Overtime hours are priced at your rate × {multiplier}. Allowed range 1 to 3.', { multiplier: otMultiplierDraft.trim() })}
               </Text>
               <TouchableOpacity
                 style={styles.rateRow}
@@ -2124,15 +2200,15 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 activeOpacity={0.75}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: otDailyDraft }}
-                accessibilityLabel={`Also pay overtime after ${DAILY_OVERTIME_HOURS} hours in a day`}
+                accessibilityLabel={t('field.time.alsoPayOvertimeAfter', 'Also pay overtime after {daily} hours in a day', { daily: DAILY_OVERTIME_HOURS })}
                 testID="labor-ot-daily-toggle"
               >
-                <Text style={styles.rateTradeLabel}>Also after {DAILY_OVERTIME_HOURS}h in a day</Text>
+                <Text style={styles.rateTradeLabel}>{t('field.time.alsoAfterHIn', 'Also after {daily}h in a day', { daily: DAILY_OVERTIME_HOURS })}</Text>
                 <View style={[styles.otCheck, otDailyDraft && styles.otCheckOn]}>
                   {otDailyDraft ? <Check size={14} color="#fff" strokeWidth={2} /> : null}
                 </View>
               </TouchableOpacity>
-              <Text style={styles.otHint}>Payroll week starts</Text>
+              <Text style={styles.otHint}>{t('field.time.payrollWeekStarts', 'Payroll week starts')}</Text>
               <View style={styles.otWeekRow}>
                 {([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map(d => (
                   <TouchableOpacity
@@ -2143,18 +2219,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     accessibilityState={{ selected: otWeekStartDraft === d }}
                     testID={`labor-ot-week-${d}`}
                   >
-                    <Text style={[styles.alertPickerChipText, otWeekStartDraft === d && styles.alertPickerChipTextActive]}>{weekdayShort(d)}</Text>
+                    <Text style={[styles.alertPickerChipText, otWeekStartDraft === d && styles.alertPickerChipTextActive]}>{weekdayChip(d, lang)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
               <Text style={styles.otHint}>
-                Overtime is every hour past 40 in a worker&apos;s payroll week
-                {otDailyDraft ? `, or past ${DAILY_OVERTIME_HOURS} in one day (never both for the same hour)` : ''}, across all
-                your projects. The project they worked the late hours on carries the premium.
+                {otDailyDraft
+                  ? t('field.time.otRuleDaily', "Overtime is every hour past 40 in a worker's payroll week, or past {daily} in one day (never both for the same hour), across all your projects. The project they worked the late hours on carries the premium.", { daily: DAILY_OVERTIME_HOURS })
+                  : t('field.time.otRuleWeekly', "Overtime is every hour past 40 in a worker's payroll week, across all your projects. The project they worked the late hours on carries the premium.")}
               </Text>
               {!ratesFromAccount ? (
                 <Text style={styles.otHint} testID="labor-rates-device-only">
-                  Not synced to your account yet. These save on this device now and go up when you&apos;re back online.
+                  {t('field.time.notSyncedToYour', "Not synced to your account yet. These save on this device now and go up when you're back online.")}
                 </Text>
               ) : null}
             </ScrollView>
@@ -2168,8 +2244,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fCorrect.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fCorrect.card, fCorrect.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Correct entry</Text>
-              <TouchableOpacity onPress={() => setCorrecting(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.time.correctEntry', 'Correct entry')}</Text>
+              <TouchableOpacity onPress={() => setCorrecting(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -2186,7 +2262,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </Text>
 
                 <View style={styles.rateRow}>
-                  <Text style={styles.rateTradeLabel}>Hours worked</Text>
+                  <Text style={styles.rateTradeLabel}>{t('field.time.hoursWorked', 'Hours worked')}</Text>
                   <View style={styles.rateInputWrap}>
                     <TextInput
                       style={styles.rateInput}
@@ -2202,7 +2278,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </View>
 
                 <View style={styles.rateRow}>
-                  <Text style={styles.rateTradeLabel}>Break</Text>
+                  <Text style={styles.rateTradeLabel}>{t('field.time.break', 'Break')}</Text>
                   <View style={styles.rateInputWrap}>
                     <TextInput
                       style={styles.rateInput}
@@ -2222,14 +2298,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     note and overwrite it on save. */}
                 {correctingTeam ? (
                   <Text style={styles.correctNoteHint} testID="correct-entry-note-blocked">
-                    Notes belong to the person who logged the shift — {correctingTeam}&apos;s note stays as they wrote it.
+                    {t('field.time.notesBelongToThe', "Notes belong to the person who logged the shift — {correctingTeam}'s note stays as they wrote it.", { correctingTeam })}
                   </Text>
                 ) : (
                   <TextInput
                     style={styles.correctNoteInput}
                     value={correctNote}
                     onChangeText={setCorrectNote}
-                    placeholder="Note (why it changed)"
+                    placeholder={t('field.time.noteWhyItChanged', 'Note (why it changed)')}
                     placeholderTextColor={themeColors.textMuted}
                     multiline
                     testID="correct-entry-note"
@@ -2240,12 +2316,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     The punch stamps stay as recorded because the hook cannot
                     persist an edited one (see openCorrection). */}
                 <Text style={styles.correctNoteHint}>
-                  Clock-in and clock-out stay as they were punched — the record if pay is
-                  ever disputed. When the hours no longer match them, the entry is marked
-                  Adjusted here and in the payroll export. Hours are what payroll and your
-                  cost book read — overtime is worked out from each worker&apos;s week under
-                  your overtime rule ({describeOvertimeRule(overtimeRule)}).
-                  {correctingTeam ? ` This shift was logged by ${correctingTeam}; it stays theirs, only its hours change.` : ''}
+                  {t('field.time.correctionHint', "Clock-in and clock-out stay as they were punched — the record if pay is ever disputed. When the hours no longer match them, the entry is marked Adjusted here and in the payroll export. Hours are what payroll and your cost book read — overtime is worked out from each worker's week under your overtime rule ({rule}).", { rule: describeOvertimeRule(overtimeRule) })}
+                  {correctingTeam ? ` ${t('field.time.correctionHintTeam', 'This shift was logged by {name}; it stays theirs, only its hours change.', { name: correctingTeam })}` : ''}
                 </Text>
 
                 <TouchableOpacity
@@ -2256,13 +2328,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   testID="correct-entry-save"
                 >
                   <Check size={16} color="#fff" strokeWidth={2} />
-                  <Text style={styles.correctSaveBtnText}>Save correction</Text>
+                  <Text style={styles.correctSaveBtnText}>{t('field.time.saveCorrection', 'Save correction')}</Text>
                 </TouchableOpacity>
 
                 {correctingTeam ? (
                   // Someone else's record: correct its hours, don't erase it.
                   <Text style={styles.correctNoteHint} testID="correct-entry-delete-blocked">
-                    Only the person who logged a shift can delete it. Correct the hours instead.
+                    {t('field.time.onlyThePersonWho', 'Only the person who logged a shift can delete it. Correct the hours instead.')}
                   </Text>
                 ) : (
                 <TouchableOpacity
@@ -2272,7 +2344,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   accessibilityRole="button"
                   testID="correct-entry-delete"
                 >
-                  <Text style={styles.correctDeleteBtnText}>Delete entry</Text>
+                  <Text style={styles.correctDeleteBtnText}>{t('field.time.deleteEntry', 'Delete entry')}</Text>
                 </TouchableOpacity>
                 )}
               </>
@@ -2288,28 +2360,32 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fOut.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fOut.card, fOut.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Clock-out time</Text>
-              <TouchableOpacity onPress={closeOutSheet} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.time.clockOutTime', 'Clock-out time')}</Text>
+              <TouchableOpacity onPress={closeOutSheet} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {outFor ? (
               <>
                 <Text style={styles.modalSubtitle}>
-                  {outFor.entry.workerName} clocked in {formatClockTime(Date.parse(outFor.entry.clockIn))} on {formatCalendarDay(timeEntryDay(outFor.entry), { weekday: 'short', month: 'short', day: 'numeric' })}.
-                  {outFor.loggedBy ? ` ${outFor.loggedBy}.` : ''} When did they leave?
+                  {parts(t('field.time.outSheetClockedIn', '{worker} clocked in {time} on {day}.', { worker: '{worker}', time: '{time}', day: '{day}' }), {
+                    worker: outFor.entry.workerName,
+                    time: formatClockTime(Date.parse(outFor.entry.clockIn)),
+                    day: formatCalendarDay(timeEntryDay(outFor.entry), { weekday: 'short', month: 'short', day: 'numeric' }),
+                  })}
+                  {outFor.loggedBy ? ` ${outFor.loggedBy}.` : ''}{' '}{t('field.time.outSheetWhenLeft', 'When did they leave?')}
                 </Text>
                 <View style={styles.rateRow}>
-                  <Text style={styles.rateTradeLabel}>Out at</Text>
+                  <Text style={styles.rateTradeLabel}>{t('field.time.outAt', 'Out at')}</Text>
                   <View style={styles.rateInputWrap}>
                     <TextInput
                       style={styles.rateInput}
                       value={outText}
                       onChangeText={setOutText}
-                      placeholder="3:30 pm"
+                      placeholder={t('field.time.timePlaceholder', '3:30 pm')}
                       placeholderTextColor={themeColors.textMuted}
                       autoCapitalize="none"
-                      accessibilityLabel="Clock-out time"
+                      accessibilityLabel={t('field.time.clockOutTime', 'Clock-out time')}
                       testID="out-time-input"
                     />
                   </View>
@@ -2322,15 +2398,17 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     accessibilityState={{ checked: outNextDay }}
                     testID="out-time-next-day"
                   >
-                    <Text style={[styles.alertPickerChipText, outNextDay && styles.alertPickerChipTextActive]}>Next day</Text>
+                    <Text style={[styles.alertPickerChipText, outNextDay && styles.alertPickerChipTextActive]}>{t('field.time.nextDay', 'Next day')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={setOutToNow} style={styles.alertPickerChip} accessibilityRole="button" testID="out-time-now">
-                    <Text style={styles.alertPickerChipText}>Now</Text>
+                    <Text style={styles.alertPickerChipText}>{t('field.time.now', 'Now')}</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={[styles.correctNoteHint, outPreview?.problem ? { color: themeColors.dangerLabel } : null]} testID="out-time-preview">
                   {outPreview?.problem
-                    ?? `Records ${outPreview?.hours.toFixed(2) ?? '0.00'} hours${outPreview && outPreview.breakMinutes > 0 ? ` after a ${outPreview.breakMinutes}-min break` : ''}. The out time is saved as the clock-out.`}
+                    ?? (outPreview && outPreview.breakMinutes > 0
+                      ? t('field.time.outPreviewBreak', 'Records {hours} hours after a {breakMinutes}-min break. The out time is saved as the clock-out.', { hours: outPreview.hours.toFixed(2), breakMinutes: outPreview.breakMinutes })
+                      : t('field.time.outPreview', 'Records {hours} hours. The out time is saved as the clock-out.', { hours: outPreview?.hours.toFixed(2) ?? '0.00' }))}
                 </Text>
                 {outFor.team ? (
                   // The foreman's record: said above the track, not in a second Alert.
@@ -2400,30 +2478,30 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fBatchOut.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fBatchOut.card, fBatchOut.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} testID="clock-out-all-title">{batchOutPlan?.title ?? 'Clock out'}</Text>
-              <TouchableOpacity onPress={() => setBatchOutOpen(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle} testID="clock-out-all-title">{batchOutPlan?.title ?? t('field.time.clockOut', 'Clock out')}</Text>
+              <TouchableOpacity onPress={() => setBatchOutOpen(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>{batchOutPlan ? batchOutPlan.message : ''}</Text>
             <View style={styles.rateRow}>
-              <Text style={styles.rateTradeLabel}>Out at</Text>
+              <Text style={styles.rateTradeLabel}>{t('field.time.outAt', 'Out at')}</Text>
               <View style={styles.rateInputWrap}>
                 <TextInput
                   style={styles.rateInput}
                   value={batchOutText}
                   onChangeText={setBatchOutText}
-                  placeholder="3:30 pm"
+                  placeholder={t('field.time.timePlaceholder', '3:30 pm')}
                   placeholderTextColor={themeColors.textMuted}
                   autoCapitalize="none"
-                  accessibilityLabel="Clock-out time for everyone"
+                  accessibilityLabel={t('field.time.clockOutTimeFor', 'Clock-out time for everyone')}
                   testID="clock-out-all-time"
                 />
               </View>
             </View>
             <View style={styles.otWeekRow}>
               <TouchableOpacity onPress={() => setBatchOutText(defaultBatchOutText(Date.now()))} style={styles.alertPickerChip} accessibilityRole="button" testID="clock-out-all-now">
-                <Text style={styles.alertPickerChipText}>Now</Text>
+                <Text style={styles.alertPickerChipText}>{t('field.time.now', 'Now')}</Text>
               </TouchableOpacity>
             </View>
             {batchOutPlan?.problem ? (
@@ -2438,7 +2516,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               testID="clock-out-all-save"
             >
               <Check size={16} color={Colors.textOnAccent} strokeWidth={2} />
-              <Text style={styles.correctSaveBtnText}>{batchOutPlan && !batchOutPlan.problem ? `Clock out ${batchOutPlan.targets.length}` : 'Clock out'}</Text>
+              <Text style={styles.correctSaveBtnText}>{batchOutPlan && !batchOutPlan.problem ? t('field.time.clockOutN', 'Clock out {length}', { length: batchOutPlan.targets.length }) : t('field.time.clockOut', 'Clock out')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -2449,12 +2527,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fExport.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fExport.card, fExport.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Export payroll CSV</Text>
-              <TouchableOpacity onPress={() => setShowExport(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.time.exportPayrollCsv', 'Export payroll CSV')}</Text>
+              <TouchableOpacity onPress={() => setShowExport(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.otHint}>Pay period ({weekdayShort(overtimeRule.weekStartsOn)}–{weekdayShort(((overtimeRule.weekStartsOn + 6) % 7) as Weekday)})</Text>
+            <Text style={styles.otHint}>{parts(t('field.time.payPeriod', 'Pay period ({start}–{end})', { start: '{start}', end: '{end}' }), { start: weekdayChip(overtimeRule.weekStartsOn, lang), end: weekdayChip(((overtimeRule.weekStartsOn + 6) % 7) as Weekday, lang) })}</Text>
             <View style={styles.otWeekRow}>
               {([0, -1] as const).map(off => (
                 <TouchableOpacity
@@ -2465,14 +2543,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   accessibilityState={{ selected: exportWeekOffset === off }}
                   testID={`export-week-${off === 0 ? 'this' : 'last'}`}
                 >
-                  <Text style={[styles.alertPickerChipText, exportWeekOffset === off && styles.alertPickerChipTextActive]}>{off === 0 ? 'This week' : 'Last week'}</Text>
+                  <Text style={[styles.alertPickerChipText, exportWeekOffset === off && styles.alertPickerChipTextActive]}>{off === 0 ? t('field.time.thisWeek', 'This week') : t('field.time.lastWeek', 'Last week')}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <Text style={styles.otHint} testID="export-period">{formatCalendarDay(exportPeriod.start, { month: 'short', day: 'numeric' })} – {formatCalendarDay(exportPeriod.end, { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
             {viewProjectId ? (
               <>
-                <Text style={styles.otHint}>Job</Text>
+                <Text style={styles.otHint}>{t('field.time.job', 'Job')}</Text>
                 <View style={styles.otWeekRow}>
                   <TouchableOpacity
                     onPress={() => setExportProjectId(viewProjectId)}
@@ -2480,7 +2558,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     accessibilityRole="button"
                     testID="export-job-this"
                   >
-                    <Text style={[styles.alertPickerChipText, exportProjectId === viewProjectId && styles.alertPickerChipTextActive]} numberOfLines={1}>{viewProjectName ?? 'This job'}</Text>
+                    <Text style={[styles.alertPickerChipText, exportProjectId === viewProjectId && styles.alertPickerChipTextActive]} numberOfLines={1}>{viewProjectName ?? t('field.time.thisJob', 'This job')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setExportProjectId(null)}
@@ -2488,14 +2566,22 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                     accessibilityRole="button"
                     testID="export-job-all"
                   >
-                    <Text style={[styles.alertPickerChipText, exportProjectId === null && styles.alertPickerChipTextActive]}>All jobs</Text>
+                    <Text style={[styles.alertPickerChipText, exportProjectId === null && styles.alertPickerChipTextActive]}>{t('field.time.allJobs', 'All jobs')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : null}
             <Text style={styles.correctNoteHint} testID="export-summary">
               {exportBlocked
-                ?? `${exportSelection.rows.length} finished shift${exportSelection.rows.length === 1 ? '' : 's'}${exportProjectName ? ` on ${exportProjectName}` : ' across all jobs'}.${exportOpenNote ? ` ${exportOpenNote}.` : ''}${exportSelection.rows.some(r => r.loggedByLabel) ? ' Shifts your team clocked on your jobs are included, named in the Logged by column.' : ''}${exportSelection.rows.some(r => !isUuid(r.projectId)) ? ' Shifts filed under no job were never synced — they are marked \u201cNot synced\u201d in the Logged by column.' : ''} Overtime by your rule (${describeOvertimeRule(overtimeRule)}).`}
+                ?? [
+                  exportProjectName
+                    ? tn('field.time.exportShiftsOn', exportSelection.rows.length, { one: '{count} finished shift on {name}.', other: '{count} finished shifts on {name}.' }, { name: exportProjectName })
+                    : tn('field.time.exportShiftsAll', exportSelection.rows.length, { one: '{count} finished shift across all jobs.', other: '{count} finished shifts across all jobs.' }),
+                  exportOpenNote ? `${exportOpenNote}.` : null,
+                  exportSelection.rows.some(r => r.loggedByLabel) ? t('field.time.exportTeamIncluded', 'Shifts your team clocked on your jobs are included, named in the Logged by column.') : null,
+                  exportSelection.rows.some(r => !isUuid(r.projectId)) ? t('field.time.exportNoJob', 'Shifts filed under no job were never synced — they are marked \u201cNot synced\u201d in the Logged by column.') : null,
+                  t('field.time.exportOtRule', 'Overtime by your rule ({rule}).', { rule: describeOvertimeRule(overtimeRule) }),
+                ].filter(Boolean).join(' ')}
             </Text>
             <TouchableOpacity
               style={[styles.correctSaveBtn, exportBlocked ? { opacity: 0.5 } : null]}
@@ -2506,7 +2592,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               testID="export-run"
             >
               <FileDown size={16} color="#fff" strokeWidth={2} />
-              <Text style={styles.correctSaveBtnText}>{Platform.OS === 'web' ? 'Download .csv' : 'Share .csv'}</Text>
+              <Text style={styles.correctSaveBtnText}>{Platform.OS === 'web' ? t('field.time.downloadCsv', 'Download .csv') : t('field.time.shareCsv', 'Share .csv')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>

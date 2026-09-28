@@ -288,7 +288,7 @@ console.log('\n#65 / #153 Time Tracking reads the allocation and sets the multip
   // W1 UXDOORS: the overtime hint ended on a sentence with no figure in it
   // ("This week's overtime is so far."); the live figure is the OT so far tile.
   ok('the overtime hint has no figure-less sentence and names the crew as they',
-    !/overtime is so far/.test(tt) && /The project they worked the late hours on carries the premium\.\s*<\/Text>/.test(tt));
+    !/overtime is so far/.test(tt) && /The project they worked the late hours on carries the premium\."\)\}\s*<\/Text>/.test(tt));
   ok('the correction copy no longer promises "over 8h"', !/recalculated over 8h/.test(tt) && /describeOvertimeRule\(overtimeRule\)/.test(tt));
   const ute = src('hooks/useTimeEntries.ts');
   ok('computeShiftHours documents its OT as the unread legacy per-shift figure', /NOTHING in this build\s+\/\/?\s*\*?\s*reads it|NOTHING in this build/.test(ute));

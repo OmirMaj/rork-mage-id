@@ -7,7 +7,7 @@ import type { EsCatalog } from '../../types';
 
 export const ES_NAV: EsCatalog = {
   "nav.tab.home": { s: "Inicio", src: "52f50eae", note: "Tab bar, ≤10 chars" },
-  "nav.tab.yourProjects": { s: "Tus obras", src: "fbee0844", note: "Tab bar, ≤10 chars" },
+  "nav.tab.yourProjects": { s: "Proyectos", src: "64fda4d7", note: "Tab bar, ≤10 chars; the tab reads Projects since the W1 copy pass (glossary: lists say Proyectos)" },
   "nav.tab.summary": { s: "Resumen", src: "414eb5b3", note: "Tab bar, ≤10 chars" },
   "nav.tab.discover": { s: "Descubrir", src: "fa18c0ee", note: "Tab bar, ≤10 chars" },
   "nav.tab.settings": { s: "Ajustes", src: "4b058728", note: "Tab bar, ≤10 chars" },
@@ -47,4 +47,23 @@ export const ES_NAV: EsCatalog = {
   "nav.item.contacts": { s: "Contactos", src: "c8ae1110" },
   "nav.item.crew": { s: "Cuadrilla", src: "15f02898" },
   "nav.item.settings": { s: "Ajustes", src: "4b058728" },
+  // W3 ESSHELL (surface field.shell): the Phase 1 screens' native header titles and the tab VoiceOver label. Reviewed-draft.
+  "nav.title.tabA11yPosition": { s: "{label}, pestaña, {position} de {count}", src: "9a90bc6b", note: "VoiceOver label of a tab" },
+  "nav.title.crew": { s: "Cuadrilla", src: "15f02898", note: "Native header title + back label" },
+  "nav.title.dailyReport": { s: "Reporte diario", src: "50421080", note: "Native header title + back label" },
+  "nav.title.deliveries": { s: "Entregas de material", src: "bc7167e9", note: "Native header title + back label" },
+  "nav.title.materialReceipt": { s: "Recepción de material", src: "e3675364", note: "Native header title + back label" },
+  "nav.title.photoTriage": { s: "Clasificar fotos", src: "e32a678d", note: "Native header title + back label" },
+  "nav.title.punchList": { s: "Lista de pendientes", src: "6d290e25", note: "Native header title + back label" },
+  "nav.title.safety": { s: "Seguridad", src: "b04d1727", note: "Native header title + back label" },
+  "nav.title.safetyCertifications": { s: "Certificaciones", src: "37d2214a", note: "Native header title + back label" },
+  "nav.title.safetyForms": { s: "Biblioteca de formularios", src: "374ea7bf", note: "Native header title + back label" },
+  "nav.title.safetyHazards": { s: "Registro de peligros", src: "32e50017", note: "Native header title + back label" },
+  "nav.title.safetyIncidents": { s: "Incidentes", src: "aab0d11c", note: "Native header title + back label" },
+  "nav.title.safetyInspections": { s: "Inspecciones", src: "d9528b40", note: "Native header title + back label" },
+  "nav.title.safetyJha": { s: "Análisis de riesgos (JHA)", src: "ed1779fb", note: "Native header title + back label" },
+  "nav.title.safetyOsha": { s: "Registro OSHA 300", src: "002935bf", note: "Native header title + back label" },
+  "nav.title.safetyToolbox": { s: "Charlas de seguridad", src: "c03cae1f", note: "Native header title + back label" },
+  "nav.title.timeTracking": { s: "Control de horas", src: "1f803315", note: "Native header title + back label" },
+  "nav.title.tomorrowLineup": { s: "Plan de mañana", src: "06db2b77", note: "Native header title + back label" },
 };

@@ -58,7 +58,7 @@ export const dailyReportVoice: TutorialDef = {
       kind: 'do',
       route: DFR,
       target: 'dfr.saveDraft',
-      text: '{Tap} Save Draft',
+      text: '{Tap} Save draft',
       gesture: 'tap',
       until: { signal: 'dfr.saved' },
       success: {

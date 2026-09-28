@@ -51,7 +51,7 @@ import {
   alreadyClosedCycleReason, withMarkedApproved, planSheetsAfterDelete, fieldSeatCreatesDraft,
   // Wave 5 (w5-join-core)
   ownerClientPortalForWrite, localOnlyOwnedProjectIds, localOnlyProjectInsertRow, localOnlyProjectLineId, LOCAL_ONLY_PROJECT_REASON, withServerConfirmed,
-  subcontractorExtrasFromRow, subcontractorExtraColumns, photoGeoFromRow, photoGeoColumns, prequalReviewRow,
+  subcontractorExtrasFromRow, subcontractorExtraColumns, subcontractorLanguageFromRow, subcontractorLanguageColumn, photoGeoFromRow, photoGeoColumns, prequalReviewRow,
   deleteProjectSafetyRefusal, localSafetyIncidentCount, SAFETY_CHECK_OFFLINE_REASON, DELETE_SAFETY_ACTION,
   type PrequalReviewPatch,
 } from '@/utils/projectContextPure';
@@ -3442,6 +3442,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // verification stamps and the W-9 path — saved on the phone and
               // lost at the next read until these were mapped.
               ...subcontractorExtrasFromRow(r),
+              // Spanish Phase 1b: the language his lineup text goes out in.
+              ...subcontractorLanguageFromRow(r),
             })) as Subcontractor[];
             await saveOwnedLocal(userId, SUBS_KEY, mapped);
             return mapped;
@@ -7944,6 +7946,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         notes: sub.notes, created_at: sub.createdAt, updated_at: sub.updatedAt,
         // CONTRACT 17: only the ones this copy holds a value for.
         ...subcontractorExtraColumns(sub),
+        ...subcontractorLanguageColumn(sub),
       });
     }
   }, [subcontractors, saveSubsMutation, canSync, userId]);
@@ -7976,6 +7979,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           // CONTRACT 17: only the ones this copy holds a value for, so a copy
           // that never loaded a stamp cannot null one set on another device.
           ...subcontractorExtraColumns(s),
+          ...subcontractorLanguageColumn(s),
         });
       }
     }
@@ -11045,6 +11049,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           w9_on_file: s.w9OnFile, bid_history: s.bidHistory, assigned_projects: s.assignedProjects,
           notes: s.notes, created_at: s.createdAt, updated_at: s.updatedAt,
           ...subcontractorExtraColumns(s),
+          ...subcontractorLanguageColumn(s),
         }));
         result.subcontractors = add.length;
       }

@@ -14,12 +14,19 @@
 //   - The screens pass these as writeOptions.copy.refused / copy.timeout and
 //     as the confirmed title / next. They never inline a moment string and
 //     never join two of these with `+` or inside a template.
-//   - W3 lane ESCLOCK wraps the time-clock and punch functions in t(), one
-//     key per function. Prefer English whose Spanish avoids gender agreement.
+//   - W3 lane ESCLOCK wrapped the time-clock (C1, C2) and punch (C3)
+//     functions in t(): ONE key per function, the data as {placeholders}
+//     (field.time.moment.* / field.punch.moment.*; the sheet title reuses the
+//     seed key field.time.clockOut). The Spanish avoids gender agreement. C4
+//     (closeout binder) and C5 (WIP) stay English until Phase 2.
 //   - docs/VOICE.md: sentence case, no exclamation marks, no em dash, never a
 //     pronoun for a user (a worker is named, or "they"), project not job.
 //
-// Pure: no imports. scripts/moments-checks/field-sites.ts calls every export.
+// Pure apart from t() (i18n/core, pure; read at call time, so English is the
+// inline string byte for byte). scripts/moments-checks/field-sites.ts calls
+// every export.
+
+import { t } from '@/i18n/core';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C1 + C2: clocking out (app/time-tracking.tsx)
@@ -27,82 +34,82 @@
 
 /** The own-shift sheet's title. */
 export function clockOutSheetTitle(): string {
-  return 'Clock out';
+  return t('field.time.clockOut', 'Clock out');
 }
 
 /** The summary above the slide, no break taken: "Jose has been on the clock 8h 12m. This ends the shift and records 8.20 hours." */
 export function clockOutSummary(workerName: string, onClock: string, hours: string): string {
-  return `${workerName} has been on the clock ${onClock}. This ends the shift and records ${hours} hours.`;
+  return t('field.time.moment.clockOutSummary', '{name} has been on the clock {onClock}. This ends the shift and records {hours} hours.', { name: workerName, onClock, hours });
 }
 
 /** The summary above the slide after a break: net time and the break named. */
 export function clockOutSummaryAfterBreak(workerName: string, onClock: string, net: string, breakMinutes: number, hours: string): string {
-  return `${workerName} has been on the clock ${onClock} (${net} after a ${breakMinutes}-min break). This ends the shift and records ${hours} hours.`;
+  return t('field.time.moment.clockOutSummaryAfterBreak', '{name} has been on the clock {onClock} ({net} after a {breakMinutes}-min break). This ends the shift and records {hours} hours.', { name: workerName, onClock, net, breakMinutes, hours });
 }
 
 /** The track label. */
 export function clockOutSlideLabel(): string {
-  return 'Slide to clock out';
+  return t('field.time.moment.clockOutSlideLabel', 'Slide to clock out');
 }
 
 /** While the write runs. */
 export function clockOutBusy(): string {
-  return 'Clocking out…';
+  return t('field.time.moment.clockOutBusy', 'Clocking out…');
 }
 
 /** The screen-reader button: "Clock out Jose". */
 export function clockOutSrLabel(workerName: string): string {
-  return `Clock out ${workerName}`;
+  return t('field.time.moment.clockOutSrLabel', 'Clock out {name}', { name: workerName });
 }
 
 /** The screen-reader Confirm half. */
 export function clockOutSrConfirm(): string {
-  return 'Confirm clock out';
+  return t('field.time.moment.clockOutSrConfirm', 'Confirm clock out');
 }
 
 /** Confirmed (the server has it): "Clocked out · 8h 12m". */
 export function clockedOutTitle(recorded: string): string {
-  return `Clocked out · ${recorded}`;
+  return t('field.time.moment.clockedOutTitle', 'Clocked out · {recorded}', { recorded });
 }
 
 /** Queued (kept on this phone, sends when online): honest, never a green check. */
 export function clockOutQueued(): string {
-  return 'Clocked out on this phone · sends when online';
+  return t('field.time.moment.clockOutQueued', 'Clocked out on this phone · sends when online');
 }
 
 /** The shift had already ended (a second tap, or another phone): nothing written. */
 export function clockOutAlready(): string {
-  return 'Already clocked out. Nothing was changed.';
+  return t('field.time.moment.clockOutAlready', 'Already clocked out. Nothing was changed.');
 }
 
 /** The write was refused; the shift is back on the clock exactly as it was. */
 export function clockOutRefused(): string {
-  return 'Not clocked out. Something went wrong on our side, so the shift is still open.';
+  return t('field.time.moment.clockOutRefused', 'Not clocked out. Something went wrong on our side, so the shift is still open.');
 }
 
 /** No answer in time: it may still have gone through. "No answer yet. Check Jose's shift before trying again." */
 export function clockOutTimeout(workerName: string): string {
-  return `No answer yet. Check ${workerName}'s shift before trying again.`;
+  return t('field.time.moment.clockOutTimeout', "No answer yet. Check {name}'s shift before trying again.", { name: workerName });
 }
 
 /** No answer in time, and no name on the shift. */
 export function clockOutTimeoutNoName(): string {
-  return 'No answer yet. Check the shift before trying again.';
+  return t('field.time.moment.clockOutTimeoutNoName', 'No answer yet. Check the shift before trying again.');
 }
 
 /** C2: a crew member's shift on your project, closed from the out-time sheet (the caption above the track). */
 export function teamShiftCaption(loggedByName: string): string {
-  return `${loggedByName} logged this shift. It stays theirs, and their copy updates too.`;
+  return t('field.time.moment.teamShiftCaption', '{name} logged this shift. It stays theirs, and their copy updates too.', { name: loggedByName });
 }
 
 /** C2: the same, when the name of whoever logged it is not known. */
 export function teamShiftCaptionUnnamed(): string {
-  return 'A teammate logged this shift. It stays theirs, and their copy updates too.';
+  return t('field.time.moment.teamShiftCaptionUnnamed', 'A teammate logged this shift. It stays theirs, and their copy updates too.');
 }
 
 /** C2: not a shift on a project you own (nothing written). */
 export function teamShiftNotOwn(): string {
-  return 'Only shifts on your own projects can be closed here.';
+  return t('field.time.moment.teamShiftNotOwn', 'Only shifts on your own projects can be closed here.');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,82 +118,82 @@ export function teamShiftNotOwn(): string {
 
 /** The inline banner once the last punch item closes. */
 export function punchAllClosedBanner(projectName: string): string {
-  return `Every punch item on ${projectName} is closed.`;
+  return t('field.punch.moment.punchAllClosedBanner', 'Every punch item on {project} is closed.', { project: projectName });
 }
 
 /** The banner's tap, and the close sheet's title. */
 export function closeProjectAction(): string {
-  return 'Close the project';
+  return t('field.punch.moment.closeProjectAction', 'Close the project');
 }
 
 /** The close sheet's body: what closing does, as the code does it. */
 export function closeProjectSheetBody(projectName: string): string {
-  return `${projectName} is marked closed and moves to Closeout in your projects list.`;
+  return t('field.punch.moment.closeProjectSheetBody', '{project} is marked closed and moves to Closeout in your projects list.', { project: projectName });
 }
 
 /** The track label. */
 export function closeProjectSlideLabel(): string {
-  return 'Slide to close the project';
+  return t('field.punch.moment.closeProjectSlideLabel', 'Slide to close the project');
 }
 
 /** While the write runs. */
 export function closeProjectBusy(): string {
-  return 'Closing the project…';
+  return t('field.punch.moment.closeProjectBusy', 'Closing the project…');
 }
 
 /** The screen-reader button: "Close Kitchen remodel". */
 export function closeProjectSrLabel(projectName: string): string {
-  return `Close ${projectName}`;
+  return t('field.punch.moment.closeProjectSrLabel', 'Close {project}', { project: projectName });
 }
 
 /** The screen-reader button when the project has no name on file. */
 export function closeProjectNoNameSrLabel(): string {
-  return 'Close the project';
+  return t('field.punch.moment.closeProjectNoNameSrLabel', 'Close the project');
 }
 
 /** The screen-reader Confirm half. */
 export function closeProjectSrConfirm(): string {
-  return 'Confirm close';
+  return t('field.punch.moment.closeProjectSrConfirm', 'Confirm close');
 }
 
 /** Disabled while any punch item is still open. */
 export function closeProjectBlocked(): string {
-  return 'Close every punch item first.';
+  return t('field.punch.moment.closeProjectBlocked', 'Close every punch item first.');
 }
 
 /** Confirmed. */
 export function projectClosedTitle(): string {
-  return 'Project closed';
+  return t('field.punch.moment.projectClosedTitle', 'Project closed');
 }
 
 /** Next line, only when the project's closeout binder is finalized. */
 export function projectClosedNextBinder(): string {
-  return 'The closeout binder is ready to hand over.';
+  return t('field.punch.moment.projectClosedNextBinder', 'The closeout binder is ready to hand over.');
 }
 
 /** Next line otherwise: where the closed project now lives (the Closeout filter on the projects list). */
 export function projectClosedNextFind(): string {
-  return 'Find it under Closeout in your projects list.';
+  return t('field.punch.moment.projectClosedNextFind', 'Find it under Closeout in your projects list.');
 }
 
 /** Queued. */
 export function projectCloseQueued(): string {
-  return 'Closed on this phone · sends when online';
+  return t('field.punch.moment.projectCloseQueued', 'Closed on this phone · sends when online');
 }
 
 /** Refused: nothing changed locally. */
 export function projectCloseRefused(): string {
-  return 'Not closed. Something went wrong on our side, so the project is still open.';
+  return t('field.punch.moment.projectCloseRefused', 'Not closed. Something went wrong on our side, so the project is still open.');
 }
 
 /** No answer in time: "No answer yet. Check Kitchen remodel before trying again." */
 export function closeProjectTimeout(projectName: string): string {
-  return `No answer yet. Check ${projectName} before trying again.`;
+  return t('field.punch.moment.closeProjectTimeout', 'No answer yet. Check {project} before trying again.', { project: projectName });
 }
 
 /** No answer in time, and the project has no name on file. */
 export function closeProjectTimeoutNoName(): string {
-  return 'No answer yet. Check the project before trying again.';
+  return t('field.punch.moment.closeProjectTimeoutNoName', 'No answer yet. Check the project before trying again.');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

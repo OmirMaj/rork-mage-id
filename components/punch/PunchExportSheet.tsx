@@ -91,13 +91,15 @@ import {
   writeNativeCsv,
   type PrintWindowHandle,
 } from '@/utils/punchExportDelivery';
+import { useT } from '@/contexts/LanguageContext';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Header button
 // ───────────────────────────────────────────────────────────────────────────
 
 export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // Desktop web: the sheet prints (a print tab) as well as exporting, so the
   // header says so. The phone keeps 'Export'.
@@ -108,12 +110,12 @@ export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
       style={styles.headerBtn}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Export the punch list"
-      accessibilityHint={isDesktopWeb ? 'Print, save as PDF, or download a spreadsheet' : 'PDF report or spreadsheet'}
+      accessibilityLabel={t('field.punchWalk.export.exportThePunchList', 'Export the punch list')}
+      accessibilityHint={isDesktopWeb ? t('field.punchWalk.export.printSaveAsPdf', 'Print, save as PDF, or download a spreadsheet') : t('field.punchWalk.export.pdfReportOrSpreadsheet', 'PDF report or spreadsheet')}
       testID="punch-export-open"
     >
-      <FileDown size={18} color={t.accent} strokeWidth={1.75} />
-      <Text style={styles.headerBtnText}>{isDesktopWeb ? 'Print / export' : 'Export'}</Text>
+      <FileDown size={18} color={tc.accent} strokeWidth={1.75} />
+      <Text style={styles.headerBtnText}>{isDesktopWeb ? t('field.punchWalk.export.printExport', 'Print / export') : t('field.punchWalk.export.export', 'Export')}</Text>
     </TouchableOpacity>
   );
 }
@@ -161,11 +163,12 @@ function causeOf(err: unknown): unknown {
 }
 
 export function PunchExportSheet(props: PunchExportSheetProps) {
+  const { t, tn } = useT();
   const {
     visible, onClose, projectId, allItems, filteredItems, selectedIds, activeList,
     filterStatus, filterSub, filterPriority, filterLocationKey, filterLocationLabel,
   } = props;
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { getProject, settings, projectPhotos, getPlanSheetsForProject } = useProjects();
@@ -303,8 +306,9 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
   const handOver = useCallback((uri: string, kind: 'pdf' | 'csv') => {
     // The sheet is gone by the time the share sheet fails, so the failure is
     // told in an alert rather than in the (closed) sheet.
+    const shareTitle = t('field.punchWalk.export.shareTitle', 'Punch list · {projectName}', { projectName });
     const share = () => {
-      void shareExportFile(uri, kind, `Punch list · ${projectName}`).then(res => {
+      void shareExportFile(uri, kind, shareTitle).then(res => {
         if (res.ok) return;
         const copy = shareFailureCopy(kind);
         showAlert(copy.title, copy.body);
@@ -324,7 +328,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
       onClose();
       share();
     }
-  }, [projectName, onClose]);
+  }, [projectName, onClose, t]);
 
   const fail = useCallback((stage: PunchExportStage, err?: unknown) => {
     busyRef.current = false;
@@ -395,12 +399,12 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
     trackDone(blockedState.model, 'pdf', blockedState.photoCount);
     setPhase({ kind: 'idle' });
     onClose();
-    nailIt('Report opened in a new tab. Print or save it as a PDF.');
-  }, [trackDone, onClose]);
+    nailIt(t('field.punchWalk.export.reportOpenedInA', 'Report opened in a new tab. Print or save it as a PDF.'));
+  }, [trackDone, onClose, t]);
 
   const runWebPdf = useCallback(async (id: number, handle: PrintWindowHandle, model: PunchExportModel, includePhotos: boolean) => {
     const signal = abortRef.current?.signal;
-    handle.setStatus('Preparing your punch list…');
+    handle.setStatus(t('field.punchWalk.export.preparing', 'Preparing your punch list…'));
     try {
       const [assets, branding] = await Promise.all([
         resolveExportAssets(model, {
@@ -432,7 +436,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
       const copy = fail(stageOf(err), causeOf(err));
       handle.setStatus(copy.title);
     }
-  }, [rawBranding, fail, finishWeb]);
+  }, [rawBranding, fail, finishWeb, t]);
 
   const reopenBlocked = useCallback((state: BlockedPhase) => {
     const h = openPrintWindow();
@@ -486,7 +490,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
         trackDone(model, 'csv', 0);
         busyRef.current = false;
         onClose();
-        nailIt(`Downloaded ${fileName}`);
+        nailIt(t('field.punchWalk.export.downloaded', 'Downloaded {fileName}', { fileName }));
         return;
       }
       setPhase({ kind: 'running', step: 'building', done: 0, total: 1 });
@@ -514,7 +518,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
   }, [
     disabledReason, phase, reopenBlocked, format, target, scopeInput, effScope, crewOn, projectId, projectName,
     project?.location, getPlanSheetsForProject, markupByItemId, trackDone, onClose, runNativeCsv, runWebPdf,
-    runNativePdf, photos, fail,
+    runNativePdf, photos, fail, t,
   ]);
 
   const handleClose = useCallback(() => {
@@ -551,7 +555,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <View style={styles.headerText}>
-                <Text style={styles.title}>Export punch list</Text>
+                <Text style={styles.title}>{t('field.punchWalk.export.exportPunchList', 'Export punch list')}</Text>
                 <Text style={styles.subtitle} numberOfLines={1}>{projectName}</Text>
               </View>
               <TouchableOpacity
@@ -559,14 +563,14 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                 hitSlop={10}
                 style={styles.closeBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Close"
+                accessibilityLabel={t('field.punchWalk.export.close', 'Close')}
                 testID="punch-export-close"
               >
-                <X size={20} color={t.textSecondary} strokeWidth={1.75} />
+                <X size={20} color={tc.textSecondary} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionLabel}>What to export</Text>
+            <Text style={styles.sectionLabel}>{t('field.punchWalk.export.whatToExport', 'What to export')}</Text>
             <View accessibilityRole="radiogroup">
               {options.map(o => {
                 const checked = o.scope === effScope;
@@ -602,26 +606,26 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                 style={styles.checkRow}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: includeCrew, disabled: running }}
-                accessibilityLabel="Include the crew list (internal)"
+                accessibilityLabel={t('field.punchWalk.export.includeTheCrewList', 'Include the crew list (internal)')}
                 testID="punch-export-crew"
               >
                 <View style={[styles.checkbox, includeCrew && styles.checkboxOn]}>
-                  {includeCrew ? <Check size={14} color={t.accentLabel} strokeWidth={2.5} /> : null}
+                  {includeCrew ? <Check size={14} color={tc.accentLabel} strokeWidth={2.5} /> : null}
                 </View>
                 <View style={styles.optionText}>
-                  <Text style={styles.optionLabel}>Include the crew list (internal)</Text>
+                  <Text style={styles.optionLabel}>{t('field.punchWalk.export.includeTheCrewList', 'Include the crew list (internal)')}</Text>
                   <Text style={styles.optionDetail}>
-                    Marked INTERNAL in the PDF and the file name. Turn it off for a copy you send to the client.
+                    {t('field.punchWalk.export.markedInternalInThe', 'Marked INTERNAL in the PDF and the file name. Turn it off for a copy you send to the client.')}
                   </Text>
                 </View>
               </TouchableOpacity>
             ) : null}
 
-            <Text style={styles.sectionLabel}>Format</Text>
+            <Text style={styles.sectionLabel}>{t('field.punchWalk.export.format', 'Format')}</Text>
             <View style={styles.chipRow}>
               {([
-                { f: 'pdf' as const, label: 'PDF report', Icon: FileText },
-                { f: 'csv' as const, label: 'Spreadsheet (CSV)', Icon: FileSpreadsheet },
+                { f: 'pdf' as const, label: t('field.punchWalk.export.formatPdf', 'PDF report'), Icon: FileText },
+                { f: 'csv' as const, label: t('field.punchWalk.export.formatCsv', 'Spreadsheet (CSV)'), Icon: FileSpreadsheet },
               ]).map(({ f, label, Icon }) => {
                 const on = format === f;
                 return (
@@ -635,7 +639,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                     accessibilityLabel={label}
                     testID={`punch-export-format-${f}`}
                   >
-                    <Icon size={15} color={on ? t.accentLabel : t.textSecondary} strokeWidth={1.75} />
+                    <Icon size={15} color={on ? tc.accentLabel : tc.textSecondary} strokeWidth={1.75} />
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
                   </TouchableOpacity>
                 );
@@ -643,27 +647,27 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
             </View>
             {format === 'csv' ? (
               <Text style={styles.note}>
-                One row per item with every field, dates as YYYY-MM-DD, ready for Excel, Numbers or Google Sheets. A cell that starts with = + - or @ gets a leading apostrophe so it never runs as a formula.
+                {t('field.punchWalk.export.oneRowPerItem', 'One row per item with every field, dates as YYYY-MM-DD, ready for Excel, Numbers or Google Sheets. A cell that starts with = + - or @ gets a leading apostrophe so it never runs as a formula.')}
               </Text>
             ) : null}
 
             {format === 'pdf' ? (
               <>
-                <Text style={styles.sectionLabel}>Photos</Text>
+                <Text style={styles.sectionLabel}>{t('field.punchWalk.export.photos', 'Photos')}</Text>
                 <TouchableOpacity
                   onPress={togglePhotos}
                   disabled={running}
                   style={styles.checkRow}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: photos, disabled: running }}
-                  accessibilityLabel={`Include photos, ${photoCount} photo${photoCount === 1 ? '' : 's'}`}
+                  accessibilityLabel={tn('field.punchWalk.export.includePhotosPhotos', photoCount, { one: 'Include photos, {count} photo', other: 'Include photos, {count} photos' })}
                   testID="punch-export-photos"
                 >
                   <View style={[styles.checkbox, photos && styles.checkboxOn]}>
-                    {photos ? <Check size={14} color={t.accentLabel} strokeWidth={2.5} /> : null}
+                    {photos ? <Check size={14} color={tc.accentLabel} strokeWidth={2.5} /> : null}
                   </View>
-                  <Text style={[styles.optionLabel, styles.flex1]}>Include photos</Text>
-                  <Text style={styles.optionDetail}>{photoCount} photo{photoCount === 1 ? '' : 's'}</Text>
+                  <Text style={[styles.optionLabel, styles.flex1]}>{t('field.punchWalk.export.includePhotos', 'Include photos')}</Text>
+                  <Text style={styles.optionDetail}>{tn('field.punchWalk.export.photos2', photoCount, { one: '{count} photo', other: '{count} photos' })}</Text>
                 </TouchableOpacity>
                 {notes.map(n => <Text key={n} style={styles.note}>{n}</Text>)}
               </>
@@ -673,7 +677,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
               {progress ? (
                 <>
                   <View style={styles.statusRow}>
-                    <ActivityIndicator size="small" color={t.accent} />
+                    <ActivityIndicator size="small" color={tc.accent} />
                     <Text style={styles.statusText}>{exportProgressCopy(progress, target)}</Text>
                   </View>
                   {determinate ? (
@@ -691,8 +695,8 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
               {phase.kind === 'blocked' ? (
                 <Text style={styles.statusText}>
                   {phase.reason === 'blocked'
-                    ? 'Your browser blocked the new tab — tap Open PDF to show it.'
-                    : 'The print tab was closed before the PDF was ready — tap Open PDF.'}
+                    ? t('field.punchWalk.export.yourBrowserBlockedThe', 'Your browser blocked the new tab — tap Open PDF to show it.')
+                    : t('field.punchWalk.export.thePrintTabWas', 'The print tab was closed before the PDF was ready — tap Open PDF.')}
                 </Text>
               ) : null}
               {phase.kind === 'error' ? (
@@ -708,7 +712,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
 
             {crewWarning ? (
               <View style={styles.warnRow}>
-                <AlertTriangle size={14} color={t.warningLabel} strokeWidth={2} />
+                <AlertTriangle size={14} color={tc.warningLabel} strokeWidth={2} />
                 <Text style={styles.warnText}>{crewWarning}</Text>
               </View>
             ) : null}
@@ -720,14 +724,14 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                 loading={running}
                 disabled={!!disabledReason || running}
                 iconLeft={format === 'csv'
-                  ? <FileSpreadsheet size={18} color={t.accentLabel} strokeWidth={1.75} />
-                  : <FileDown size={18} color={t.accentLabel} strokeWidth={1.75} />}
+                  ? <FileSpreadsheet size={18} color={tc.accentLabel} strokeWidth={1.75} />
+                  : <FileDown size={18} color={tc.accentLabel} strokeWidth={1.75} />}
                 fullWidth
                 size="lg"
                 testID="punch-export-primary"
               />
               <Button
-                label={running ? 'Stop' : 'Cancel'}
+                label={running ? t('field.punchWalk.export.stop', 'Stop') : t('field.punchWalk.export.cancel', 'Cancel')}
                 onPress={handleClose}
                 variant="ghost"
                 fullWidth

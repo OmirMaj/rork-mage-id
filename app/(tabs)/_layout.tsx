@@ -17,6 +17,7 @@ import { tabFadeThrough, tabFadeThroughReduced } from '@/components/ui/motion';
 import { pageTypeForTab } from '@/utils/desktopPage';
 import { actionRailVisible, attentionBadgeLabel } from '@/utils/sidebarRail';
 import { useShellDock } from '@/components/desktop/ShellDock';
+import { useT } from '@/contexts/LanguageContext';
 
 // Route-level recovery for everything under (tabs). expo-router wraps a module
 // that exports `ErrorBoundary` in its own <Try>, so a crash in a tab screen is
@@ -139,6 +140,9 @@ function DesktopHomeRail({ userRole }: { userRole: string | null | undefined }) 
 
 export default function TabLayout() {
   const layout = useResponsiveLayout();
+  // Tab titles in the app language (Spanish Phase 1b; nav.tab.*, ≤ 10
+  // characters in Spanish). Computed at render; the persona logic is unchanged.
+  const { t } = useT();
   const { total: attentionCount, sourceFailed } = useBrainWatch();
   const { colors: themeColors } = useTheme();
   const { userRole } = useCoreData();
@@ -193,7 +197,7 @@ export default function TabLayout() {
   // fix and is far too large for this; naming the four positions is exact.
   const visibleTabCount = isMinimalPersona ? 2 : 4;
   const tabA11yLabel = (label: string, position: number) =>
-    `${label}, tab, ${position} of ${visibleTabCount}`;
+    t('nav.title.tabA11yPosition', '{label}, tab, {position} of {count}', { label, position, count: visibleTabCount });
 
   // Right-rail "Action Required" column: Home only, on wide desktops
   // (DesktopHomeRail above). Below 1280 there is no room for a clean three-
@@ -228,11 +232,11 @@ export default function TabLayout() {
                 Using `href: null` rather than conditional render so the
                 Tabs router keeps a stable screen registry across persona
                 switches (avoids "tab not found" routing flicker). */}
-            <Tabs.Screen name="summary" options={isMinimalPersona ? { href: null } : { title: 'Summary' }} />
-            <Tabs.Screen name="(home)" options={{ title: isMinimalPersona ? 'Home' : 'Projects' }} />
-            <Tabs.Screen name="discover" options={isMinimalPersona ? { href: null } : { title: 'Discover' }} />
-            <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-            <Tabs.Screen name="mage-id-bids" options={isMinimalPersona ? { href: null } : { title: 'MAGE ID Bids' }} />
+            <Tabs.Screen name="summary" options={isMinimalPersona ? { href: null } : { title: t('nav.tab.summary', 'Summary') }} />
+            <Tabs.Screen name="(home)" options={{ title: isMinimalPersona ? t('nav.tab.home', 'Home') : t('nav.tab.yourProjects', 'Projects') }} />
+            <Tabs.Screen name="discover" options={isMinimalPersona ? { href: null } : { title: t('nav.tab.discover', 'Discover') }} />
+            <Tabs.Screen name="settings" options={{ title: t('nav.tab.settings', 'Settings') }} />
+            <Tabs.Screen name="mage-id-bids" options={isMinimalPersona ? { href: null } : { title: t('nav.tab.mageIdBids', 'MAGE ID Bids') }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
@@ -304,8 +308,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="summary"
         options={isMinimalPersona ? { href: null } : {
-          title: 'Summary',
-          tabBarAccessibilityLabel: tabA11yLabel('Summary', 1),
+          title: t('nav.tab.summary', 'Summary'),
+          tabBarAccessibilityLabel: tabA11yLabel(t('nav.tab.summary', 'Summary'), 1),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageSummary} color={color} focused={focused} />
           ),
@@ -317,12 +321,13 @@ export default function TabLayout() {
           // Clients see this tab labeled "Home" because it renders the
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
-          title: isMinimalPersona ? 'Home' : 'Projects',
+          title: isMinimalPersona ? t('nav.tab.home', 'Home') : t('nav.tab.yourProjects', 'Projects'),
           // A '!' badge reads as an exclamation mark and nothing else to
           // VoiceOver, so the reason is stated in the label.
+          // i18n-keep-english: the ", couldn't reach MAGE" suffix is pinned verbatim by validate-shell-6c (a Spanish key for it is an orchestrator item)
           tabBarAccessibilityLabel: (isMinimalPersona
-            ? tabA11yLabel('Home', 1)
-            : tabA11yLabel('Projects', 2)
+            ? tabA11yLabel(t('nav.tab.home', 'Home'), 1)
+            : tabA11yLabel(t('nav.tab.yourProjects', 'Projects'), 2)
           ) + (sourceFailed && !isPropertyManager ? ", couldn't reach MAGE" : ''),
           tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
@@ -341,8 +346,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="discover"
         options={isMinimalPersona ? { href: null } : {
-          title: 'Discover',
-          tabBarAccessibilityLabel: tabA11yLabel('Discover', 3),
+          title: t('nav.tab.discover', 'Discover'),
+          tabBarAccessibilityLabel: tabA11yLabel(t('nav.tab.discover', 'Discover'), 3),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageDiscover} color={color} focused={focused} />
           ),
@@ -351,8 +356,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarAccessibilityLabel: tabA11yLabel('Settings', isMinimalPersona ? 2 : 4),
+          title: t('nav.tab.settings', 'Settings'),
+          tabBarAccessibilityLabel: tabA11yLabel(t('nav.tab.settings', 'Settings'), isMinimalPersona ? 2 : 4),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Settings} color={color} focused={focused} />
           ),

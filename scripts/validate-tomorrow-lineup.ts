@@ -23,6 +23,12 @@ import {
 } from '../utils/tomorrowLineup';
 import { resolveScheduleAnchor, scheduleDayOnCalendar, isTaskActiveOnScheduleDay } from '../utils/scheduleOps';
 import { parseCalendarDay, toCalendarDayString, addCalendarDays } from '../utils/calendarDate';
+import {
+  lineupLanguageFor, lineupRowStatusLabel, lineupRowStatusLabelIn, noPhoneNote, textAllLabel, queueBanner, NO_PHONE_NOTE,
+  OPENED_IN_MESSAGES, SHARE_SHEET_OPENED, YOU_MARKED_SENT, NOT_SENT_YET, type LineupRowStatus,
+} from '../utils/lineupTexts';
+import { LANGUAGE_PICKER_ENABLED } from '../i18n/flags';
+import { subcontractorLanguageFromRow, subcontractorLanguageColumn } from '../utils/projectContextPure';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -356,6 +362,145 @@ console.log('\nthe 3 pm weekday reminder:');
   ok('the reminder row is wrapped in a lineup- testID (stripped from goldens)', /testID="lineup-reminder"/.test(SCREEN));
   const ROUTES_SRC = readFileSync(join(ROOT, 'supabase/functions/notify/routes.ts'), 'utf8');
   ok("routes.ts maps tomorrow_lineup → /tomorrow-lineup", /case 'tomorrow_lineup':[\s\S]{0,300}pathname: '\/tomorrow-lineup'/.test(ROUTES_SRC));
+}
+
+// ── 11. Spanish Phase 1b: each sub's text in the SUB's language (W3 ESSHELL) ──
+// docs/I18N.md §9: the recipient's language, never the sender's; order
+// override → the sub's record → English; never guessed; usted in anything sent
+// out; dates never numeric in Spanish; "Opened in Messages" is never "Sent" in
+// either language; and with Spanish switched off (LANGUAGE_PICKER_ENABLED, off
+// until the bilingual review) every text is the English it was.
+console.log('\nper-sub language (Spanish Phase 1b):');
+{
+  const ES_SUBS = [sub('A', 'Acme Drywall', { preferredLanguage: 'es' }), sub('B', 'Bolt Electric', { preferredLanguage: 'en' }), sub('N', 'Nocontact Tile', { phone: '', email: '', preferredLanguage: null })];
+  const RICH = input({
+    subs: ES_SUBS,
+    accessReservations: [RES('r1', { window: '07:00-09:00', confirmationRef: 'BK-12' }), RES('r2', { kind: 'dock', status: 'requested', window: '10:00-11:00' }), RES('r5', { kind: 'badging', window: undefined })],
+    deliveries: [DELIV('d1', { description: 'Board', commitmentId: 'kA', window: '08:00-09:00' }), DELIV('d4', { description: 'Studs', commitmentId: 'kA', status: 'scheduled' })],
+    permits: [PERMIT([{ id: 'i1', name: 'Plumbing rough', scheduledFor: '2026-09-29', result: 'scheduled', recordedAt: '' }])],
+  });
+  const english = buildLineup(RICH);
+  const on = buildLineup({ ...RICH, languageFor: s => lineupLanguageFor(s, undefined, true) });
+  const byId = (L: ReturnType<typeof buildLineup>, id: string) => L.perSub.find(x => x.sub.id === id)!;
+
+  // Gating first: the flag is off today, and off means English for everyone.
+  ok('LANGUAGE_PICKER_ENABLED is still false (Spanish reaches no sub before the review)', LANGUAGE_PICKER_ENABLED === false);
+  eq('flag off: a sub marked Spanish gets English (the default reads the flag)', lineupLanguageFor({ preferredLanguage: 'es' }), 'en');
+  eq('flag off: even a per-send override is English', lineupLanguageFor({ preferredLanguage: 'es' }, 'es', false), 'en');
+  const off = buildLineup({ ...RICH, languageFor: s => lineupLanguageFor(s) });
+  eq('flag off: the Spanish-marked sub\'s message is byte-identical English', byId(off, 'A').message, byId(english, 'A').message);
+  ok('flag off: every message and the whole lineup are byte-identical to the English-only build', JSON.stringify(off) === JSON.stringify(english));
+
+  // Flag on: the recipient's language.
+  eq('order: override → record → English (es record)', lineupLanguageFor({ preferredLanguage: 'es' }, undefined, true), 'es');
+  eq('order: the override wins over the record', lineupLanguageFor({ preferredLanguage: 'es' }, 'en', true), 'en');
+  eq('order: …both ways', lineupLanguageFor({ preferredLanguage: 'en' }, 'es', true), 'es');
+  eq('order: no record → English (never guessed from a name)', lineupLanguageFor({ preferredLanguage: null }, undefined, true), 'en');
+  eq('order: a junk value on the record → English', lineupLanguageFor({ preferredLanguage: 'fr' as never }, undefined, true), 'en');
+  eq('the Spanish sub is marked es', byId(on, 'A').lang, 'es');
+  eq('an en sub\'s message is byte-identical English', byId(on, 'B').message, byId(english, 'B').message);
+  eq('a sub with no language set gets byte-identical English', byId(on, 'N').message, byId(english, 'N').message);
+  ok('the app-language parts (summary, gaps, site-wide) stay in the app language', on.summary === english.summary && JSON.stringify(on.gaps) === JSON.stringify(english.gaps) && JSON.stringify(on.siteWide) === JSON.stringify(english.siteWide));
+
+  const es = byId(on, 'A').message;
+  ok('es: the text is Spanish, usted, whole sentences', es.startsWith('Acme Drywall: mañana (mar 29 sept) en 123 Main St: ') && es.endsWith('Responda para confirmar que estará ahí.'), es);
+  ok('es: usted — no tú form', !/\b(tú|tienes|puedes|responde|confirmas|estarás|tu|te)\b/i.test(es), es);
+  ok('es: no English sentence left in it', !/\b(at|Reply|Access:|Deliveries:|Inspections:|time not set|booked|requested|from|window|inspection|milestone|more)\b/.test(es), es);
+  ok('es: the confirmed slot, the requested slot and the unset time read in Spanish', es.includes('elevador de carga: reserva confirmada, 07:00-09:00, ref. BK-12') && es.includes('muelle de carga 10:00-11:00: solicitud hecha; el edificio aún no la confirma') && es.includes('acreditación: reserva confirmada, (hora sin fijar)'), es);
+  ok('es: deliveries through the record, unconfirmed said so', es.includes('Board de Supply Co, horario 08:00-09:00') && es.includes('Studs de Supply Co, hora sin fijar (sin confirmar por el proveedor)'), es);
+  ok('es: the inspection is "hora sin fijar", never a guessed time', es.includes('Inspección de Plumbing rough: hora sin fijar'), es);
+  ok('es: the records\' own data (task names, windows, refs) is untouched', es.includes('Hang board (2nd fl)') && es.includes('BK-12'));
+  ok('es: no numeric date (9/29, 29/9, 2026-09-29)', !/\b\d{1,2}\/\d{1,2}\b|\d{4}-\d{2}-\d{2}/.test(es), es);
+  eq('es: dayPhrase for tomorrow names the day in words', dayPhraseFor('2026-09-29', NOW, 'es'), 'mañana (mar 29 sept)');
+  eq('es: dayPhrase for a later day', dayPhraseFor('2026-09-30', NOW, 'es'), 'el mié 30 sept');
+  eq('en: dayPhrase unchanged', dayPhraseFor('2026-09-29', NOW, 'en'), 'tomorrow (Tue, Sep 29)');
+  const esLong = buildLineup({ ...input({ subs: ES_SUBS, schedule: { ...SCHED, tasks: Array.from({ length: 40 }, (_, i) => T(`t${i}`, 21, 1, { title: `A fairly long task name number ${i}`, phase: 'Level 2 east wing', assignedSubId: 'A' })) } }), languageFor: s => lineupLanguageFor(s, undefined, true) });
+  const esM = byId(esLong, 'A').message;
+  ok('es: a crowded day stays near one SMS screen and says how many more in Spanish', esM.length <= 650 && /\+\d+ más/.test(esM), `${esM.length}: ${esM}`);
+
+  // No invented time in Spanish either (same property as §7).
+  const TIME = /\b\d{1,2}:\d{2}\b|\b\d{1,2}\s?(?:am|pm|a\.m\.|p\.m\.)\b/gi;
+  let seed = 11; const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const windows = ['07:00-09:00', '8-10', undefined, 'morning'];
+  let bad = '';
+  for (let k = 0; k < 100 && !bad; k++) {
+    const dels = Array.from({ length: rnd(3) }, (_, i) => DELIV(`e${k}-${i}`, { commitmentId: 'kA', window: windows[rnd(windows.length)] }));
+    const res = Array.from({ length: rnd(3) }, (_, i) => RES(`q${k}-${i}`, { window: windows[rnd(windows.length)], status: (['confirmed', 'requested'] as const)[rnd(2)] }));
+    const L = buildLineup({ ...input({ subs: ES_SUBS, deliveries: dels, accessReservations: res }), languageFor: s => lineupLanguageFor(s, undefined, true) });
+    const allowed = [...dels.map(d => d.window), ...res.map(r => r.window)].filter(Boolean).join(' ');
+    for (const s of L.perSub) for (const m of s.message.match(TIME) ?? []) if (!allowed.includes(m)) bad = `${m} in ${s.message}`;
+  }
+  ok('es: every time in 100 generated Spanish lineups comes from a record window', bad === '', bad);
+
+  // The screen's own words, in the app language (tú), English byte-identical.
+  const esApp = buildLineup({ ...RICH, lang: 'es' });
+  ok('app es: the summary is Spanish with a worded date', (esApp.summary ?? '').startsWith('Mañana (mar 29 sept) en 123 Main St: ') && !/\d{1,2}\/\d{1,2}/.test(esApp.summary ?? ''), esApp.summary ?? '');
+  ok('app es: the unassigned-task gap is one Spanish sentence', esApp.gaps.some(g => g.startsWith('1 tarea para mañana no tiene subcontratista asignado; no va en ningún mensaje: Clean-up.')), JSON.stringify(esApp.gaps));
+  ok('app es: the SUB still gets English when the app is Spanish (recipient, not sender)', byId(esApp, 'B').message === byId(english, 'B').message);
+  eq('app es: headline', lineupHeadline(new Date(2026, 8, 28, 15, 0), 'es'), 'Plan de mañana: listo para enviar');
+  eq('app es: the no-schedule sentence', buildLineup({ ...input({ schedule: null }), lang: 'es' }).emptyNote, 'Este proyecto no tiene cronograma. El plan toma las tareas del cronograma.');
+
+  // Honesty in both languages.
+  const statuses: LineupRowStatus[] = ['opened', 'shared', 'marked_sent', 'not_sent'];
+  eq('en row labels unchanged', statuses.map(lineupRowStatusLabel), [OPENED_IN_MESSAGES, SHARE_SHEET_OPENED, YOU_MARKED_SENT, NOT_SENT_YET]);
+  const esLabels = statuses.map(x => lineupRowStatusLabelIn(x, 'es'));
+  eq('es: "Opened in Messages" is "Se abrió en Mensajes"', esLabels[0], 'Se abrió en Mensajes');
+  ok('es: no row label is a bare "Enviado"/"Enviada"/"Sent"', esLabels.every(l => !/^(Enviad[oa]|Sent)\.?$/i.test((l ?? '').trim())), esLabels.join(' | '));
+  ok('en: no row label is a bare "Sent"', statuses.map(lineupRowStatusLabel).every(l => l !== 'Sent'));
+
+  // L1 copy fix and the helpers' English.
+  eq('NO_PHONE_NOTE lost its em dash (L1)', NO_PHONE_NOTE, 'No phone on file. Send opens the share sheet so you can pick how.');
+  eq('noPhoneNote() is NO_PHONE_NOTE in English', noPhoneNote(), NO_PHONE_NOTE);
+  ok('noPhoneNote in Spanish is Spanish', noPhoneNote('es').startsWith('No hay teléfono registrado.'));
+  eq('textAllLabel English unchanged', [textAllLabel(1), textAllLabel(4)], ['Text the sub', 'Text all 4']);
+  eq('queueBanner English unchanged', queueBanner(['b', 'c'], 4, id => id.toUpperCase()), 'Next: B (3 of 4)');
+}
+
+// ── 11b. The sub's language on the record (L4) ─────────────────────────────
+// subcontractors.preferred_language ↔ Subcontractor.preferredLanguage. The
+// column's CHECK allows only 'en' | 'es' | null: anything else sent would be a
+// terminal write that takes the whole sub edit down with it.
+console.log('\nthe sub\'s language on the record:');
+{
+  eq('row es → es', subcontractorLanguageFromRow({ preferred_language: 'es' }), { preferredLanguage: 'es' });
+  eq('row en → en', subcontractorLanguageFromRow({ preferred_language: 'en' }), { preferredLanguage: 'en' });
+  eq('row null → not set (absent)', subcontractorLanguageFromRow({ preferred_language: null }), {});
+  eq('row junk → not set (never guessed)', subcontractorLanguageFromRow({ preferred_language: 'Spanish' }), {});
+  eq('es → column', subcontractorLanguageColumn({ preferredLanguage: 'es' }), { preferred_language: 'es' });
+  eq('a deliberate "Not set" (null) → null', subcontractorLanguageColumn({ preferredLanguage: null }), { preferred_language: null });
+  eq('a copy that never loaded it (undefined) sends nothing', subcontractorLanguageColumn({ companyName: 'X' }), {});
+  eq('anything outside the CHECK is never sent', subcontractorLanguageColumn({ preferredLanguage: 'fr' as never }), {});
+  const PC = readFileSync(join(ROOT, 'contexts/ProjectContext.tsx'), 'utf8');
+  const subsQ = PC.slice(PC.indexOf("queryKey: ['subcontractors', userId],"), PC.indexOf('const punchItemsQuery = useQuery({'));
+  const add = PC.slice(PC.indexOf('const addSubcontractor = useCallback('), PC.indexOf('const updateSubcontractor = useCallback('));
+  const upd = PC.slice(PC.indexOf('const updateSubcontractor = useCallback('), PC.indexOf('const deleteSubcontractor = useCallback('));
+  const imp = PC.slice(PC.indexOf('if (payload.subcontractors?.length) {'), PC.indexOf('result.subcontractors = add.length;'));
+  ok('the subs load reads it, add / edit / bulk import send it', /\.\.\.subcontractorLanguageFromRow\(r\),/.test(subsQ)
+    && /\.\.\.subcontractorLanguageColumn\(sub\),/.test(add) && /\.\.\.subcontractorLanguageColumn\(s\),/.test(upd) && /\.\.\.subcontractorLanguageColumn\(s\),/.test(imp));
+  const SUBS = readFileSync(join(ROOT, 'app/(tabs)/subs/index.tsx'), 'utf8');
+  ok('the sub editor saves the language only with Spanish switched on', (SUBS.match(/\.\.\.\(LANGUAGE_PICKER_ENABLED \? \{ preferredLanguage \} : \{\}\)/g) ?? []).length === 2
+    && /\{LANGUAGE_PICKER_ENABLED \? \(\s*<View testID="sub-language-row">/.test(SUBS));
+  ok('the Language row offers English / Español endonyms and Not set, with the hint', /\[null, 'Not set'\], \['en', 'English'\], \['es', 'Español'\]/.test(SUBS) && /Used for texts we send them\./.test(SUBS));
+  const SCREEN = readFileSync(join(ROOT, 'app/tomorrow-lineup.tsx'), 'utf8');
+  ok('the lineup screen builds each sub\'s text through lineupLanguageFor (the flag inside it)', /languageFor: \(sub: Subcontractor\) => lineupLanguageFor\(sub, langOverride\[sub\.id\]\)/.test(SCREEN));
+  ok('the "Send in" override row renders only with Spanish switched on', /\{LANGUAGE_PICKER_ENABLED \? \(\s*<View style=\{styles\.langRow\}/.test(SCREEN));
+}
+
+// ── 12. The 3 pm reminder speaks the DEVICE user's language (tú) ────────────
+console.log('\nreminder copy (device language):');
+{
+  const R = await import('../utils/lineupReminder');
+  const core = await import('../i18n/core');
+  eq('English reminder copy is byte-identical', [R.lineupReminderCopy.title, R.lineupReminderCopy.toggle, R.lineupReminderCopy.web],
+    ['Tomorrow’s lineup', 'Remind me at 3 pm on weekdays', 'Reminders work in the iPhone app.']);
+  core.setLang('es');
+  try {
+    eq('es: the toggle reads in Spanish at read time (a getter, not a frozen constant)', R.lineupReminderCopy.toggle, 'Recuérdame a las 3 p.m. entre semana');
+    ok('es: the notification body is tú Spanish and carries no project/sub data', R.lineupReminderRequests().every(r => r.content.body === 'Son las 3 p.m.: revisa el plan de mañana y envía a cada subcontratista su mensaje.'));
+  } finally {
+    core.setLang('en');
+  }
+  eq('back in English', R.lineupReminderCopy.toggle, 'Remind me at 3 pm on weekdays');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

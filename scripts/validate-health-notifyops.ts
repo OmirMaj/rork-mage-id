@@ -247,7 +247,7 @@ async function main() {
     // control is guarded rather than hidden.)
     const pIdx = punchSrc.indexOf('<StatusPipeline');
     const pipe = pIdx > -1 ? punchSrc.slice(pIdx, punchSrc.indexOf('/>', punchSrc.indexOf('updatePunchItem(editingItem.id, patch)', pIdx))) : '';
-    ok('punch edit-sheet StatusPipeline advance returns early on recordWriteBlock before it writes', pipe.length > 0 && /onAdvance=\{\(next\) => \{/.test(pipe) && guardedBefore(pipe.slice(pipe.indexOf('onAdvance=')), 'recordWriteBlock', /updatePunchItem\(/) && /if \(recordWriteBlock\) \{\s*showAlert\("Can't change status", recordWriteBlock\);\s*return;/.test(pipe));
+    ok('punch edit-sheet StatusPipeline advance returns early on recordWriteBlock before it writes', pipe.length > 0 && /onAdvance=\{\(next\) => \{/.test(pipe) && guardedBefore(pipe.slice(pipe.indexOf('onAdvance=')), 'recordWriteBlock', /updatePunchItem\(/) && /if \(recordWriteBlock\) \{\s*showAlert\(t\('field\.punch\.cantChangeStatus', "Can't change status"\), recordWriteBlock\);\s*return;/.test(pipe));
     // The row rail's Reject opens a note modal; a viewer is told why up front
     // instead of typing a note that cannot be saved.
     const rIdx = punchSrc.indexOf('onReject: item => {');

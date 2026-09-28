@@ -327,7 +327,7 @@ async function main(): Promise<void> {
   ok('daily-report has no `if (!project?.location) return` gate (a country-only location is not an address)',
     !/if \(!project\?\.location\) return/.test(dfr) && /if \(!weatherQuery\) \{/.test(dfr));
   ok('daily-report: a tapped fetch with no usable address says why (NO_ADDRESS_WEATHER_CAUSE); the auto one stays quiet',
-    /if \(!weatherQuery\) \{\s*if \(opts\?\.auto !== true\) showAlert\('No jobsite address', NO_ADDRESS_WEATHER_CAUSE\);\s*return;\s*\}/.test(dfr));
+    /if \(!weatherQuery\) \{\s*if \(opts\?\.auto !== true\) showAlert\(t\('field\.dfr\.noJobsiteAddress', 'No jobsite address'\), NO_ADDRESS_WEATHER_CAUSE\);\s*return;\s*\}/.test(dfr));
   ok('daily-report: the mount fetch is gated on weatherQuery', /if \(!existingReport && weatherQuery\) \{\s*void fetchWeather\(\{ auto: true \}\);/.test(dfr));
   ok("daily-report reads wttr.in's nearest_area for the place it read",
     /data\?\.nearest_area\?\.\[0\]/.test(dfr) && /setWeatherPlace\(\[area\?\.areaName\?\.\[0\]\?\.value, area\?\.region\?\.\[0\]\?\.value\]\.filter\(Boolean\)\.join\(', '\) \|\| weatherQuery\)/.test(dfr));

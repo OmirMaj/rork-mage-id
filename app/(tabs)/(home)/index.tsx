@@ -105,6 +105,26 @@ import { JobLevel } from '@/components/level/JobLevel';
 import { actionRailVisible } from '@/utils/sidebarRail';
 import { stageLabel } from '@/utils/projectStage';
 import { clientFieldsProblem, editedPrimaryContact, readNewJobThen, type NewJobThen } from '@/utils/uxDoors';
+import { useT } from '@/contexts/LanguageContext';
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX rendered
+ * (components/home/DailyLogCard.tsx). Still ONE key; only the rendering is
+ * split, so the element tree of the field rows is unchanged.
+ */
+function sentenceParts(template: string, values: Record<string, string | number>): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
 
 // Status filter buckets. ONE label map for the dense table's section header,
 // the chips and the empty-bucket state, so "No closeout jobs" names the same
@@ -149,6 +169,10 @@ const TODAY_ON_SITE_TASKS = 3;
 export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function HomeScreen() {
+  // Spanish Phase 1b (W3 ESSHELL): only the rows a field user sees on Home —
+  // TODAY ON SITE — go through t() (field.home.*). The rest of Home is office
+  // UI (Phase 2) and stays English.
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { openCreate, then: thenParam } = useLocalSearchParams<{ openCreate?: string; then?: string }>();
@@ -1023,7 +1047,7 @@ export default function HomeScreen() {
   const todayOnSiteBlock = todayOnSite.length > 0 ? (
     <View style={[styles.todaySection, responsive.isDesktop && styles.todaySectionDesktop]}>
       <Text style={styles.sectionHeader}>
-        TODAY ON SITE{todayOnSiteHidden > 0 ? ` · ${todayOnSite.length}` : ''}
+        {t('field.home.todayOnSite', 'TODAY ON SITE')}{todayOnSiteHidden > 0 ? ` · ${todayOnSite.length}` : ''}
       </Text>
       <View style={styles.todayCard}>
         {todayOnSiteShown.map((entry, idx) => {
@@ -1043,7 +1067,7 @@ export default function HomeScreen() {
                 <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
                 <Text style={styles.todayTasks} numberOfLines={1}>
                   {/* Three titles are not all of them when there are five. */}
-                  {entry.activeTaskTitles.join(' · ')}{moreTasks > 0 ? ` · +${moreTasks} more` : ''}
+                  {entry.activeTaskTitles.join(' · ')}{moreTasks > 0 ? ` · ${t('field.home.moreTasks', '+{count} more', { count: moreTasks })}` : ''}
                 </Text>
               </View>
               <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1058,11 +1082,11 @@ export default function HomeScreen() {
             activeOpacity={0.7}
             style={styles.todayRow}
             accessibilityRole="button"
-            accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'project' : 'projects'} on site today. Opens summary.`}
+            accessibilityLabel={tn('field.home.moreOnSiteA11y', todayOnSiteHidden, { one: '{count} more project on site today. Opens summary.', other: '{count} more projects on site today. Opens summary.' })}
             testID="today-on-site-more"
           >
             <Text style={styles.todayMoreText}>
-              +{todayOnSiteHidden} more on site today
+              {sentenceParts(t('field.home.moreOnSite', '+{todayOnSiteHidden} more on site today', { todayOnSiteHidden: '{todayOnSiteHidden}' }), { todayOnSiteHidden })}
             </Text>
             <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>

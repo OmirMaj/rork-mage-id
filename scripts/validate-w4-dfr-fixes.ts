@@ -103,17 +103,17 @@ console.log('\n#59/#133 a field seat\'s report and photos land as drafts:');
   ok('both mirrored-photo paths, the new report and the no-work day pass it (4 sites)', calls.length === 4, calls.length);
   const save = code.slice(code.indexOf('const handleSave = useCallback('), code.indexOf('const handleLogDelayEvent') > 0 ? code.indexOf('const handleLogDelayEvent') : code.length);
   ok('…inside handleSave: the new report and both addProjectPhoto calls', (save.match(/portalState: dfrNewPortalState\(publishAccess\.allowed\),/g) ?? []).length >= 3);
-  ok('the no-work day keeps publishAccess.allowed in its deps', /\}, \[projectId, reportDate, weather, stableReportId, addDailyReport, goBack, draftKey, publishAccess\.allowed\]\);/.test(code));
+  ok('the no-work day keeps publishAccess.allowed in its deps', /\}, \[projectId, reportDate, weather, stableReportId, addDailyReport, goBack, draftKey, publishAccess\.allowed(, t)?\]\);/.test(code));
 }
 
 console.log('\n#17/#59 what a field seat is told:');
 {
   const n = P.dfrPortalSeatNote;
   ok('a publisher gets nothing (his SendToClientButton says it)', n({ canPublish: true, portalEnabled: true, status: 'draft', isNew: false }) === null);
-  ok('no portal on the job → says so', /no homeowner portal/.test(n({ canPublish: false, portalEnabled: false, status: 'sent', isNew: false }) ?? ''));
-  ok('a new report → the GC reviews it and its photos first', n({ canPublish: false, portalEnabled: true, status: null, isNew: true }) === 'Your GC reviews this report and its photos before anything reaches the homeowner.');
+  ok('no portal on the job → says so', /no client portal/.test(n({ canPublish: false, portalEnabled: false, status: 'sent', isNew: false }) ?? ''));
+  ok('a new report → the GC reviews it and its photos first', n({ canPublish: false, portalEnabled: true, status: null, isNew: true }) === 'Your GC reviews this report and its photos before anything reaches the client.');
   ok('a draft row → the GC reviews it first', /GC reviews/.test(n({ canPublish: false, portalEnabled: true, status: 'draft', isNew: false }) ?? ''));
-  ok('a row the GC shared → "Shared … by your GC" (only when it really is shared)', /^Shared in the homeowner.s portal by your GC/.test(n({ canPublish: false, portalEnabled: true, status: 'sent', isNew: false }) ?? ''));
+  ok('a row the GC shared → "Shared … by your GC" (only when it really is shared)', /^Shared in the client.s portal by your GC/.test(n({ canPublish: false, portalEnabled: true, status: 'sent', isNew: false }) ?? ''));
   ok('a recalled row is not called shared', !/^Shared/.test(n({ canPublish: false, portalEnabled: true, status: 'recalled', isNew: false }) ?? ''));
   ok('the screen renders it for every seat, new reports included', /const portalSeatNote = dfrPortalSeatNote\(\{\s*canPublish: publishAccess\.allowed,\s*portalEnabled: project\.clientPortal\?\.enabled === true,/.test(code) && /\{portalSeatNote && \(/.test(code));
   ok('no unconditional "Shared in the homeowner\'s portal." for a field seat is left', !/'Shared in the homeowner\\u2019s portal\. '/.test(code));
@@ -172,7 +172,7 @@ console.log('\n#122 someone else\'s case is never blind-written:');
   ok('while loading the lock reason is not computed (no "tell the GC" on his own case)',
     /const caseNotYoursReason = caseLogLoading \? null : dfrCaseNotYoursReason\(\{/.test(code));
   ok('…the classification is not a known fact while loading', /const classificationKnown = !caseNotYoursReason && !caseLogLoading;/.test(code));
-  ok('…the screen says it is loading', /\{caseLogLoading && \(\s*<Text style=\{styles\.incidentRegisterNote\} testID="dfr-incident-case-loading">Loading the injury log/.test(code));
+  ok('…the screen says it is loading', /\{caseLogLoading && \(\s*<Text style=\{styles\.incidentRegisterNote\} testID="dfr-incident-case-loading">\{t\('field\.dfr\.loadingTheInjuryLog', 'Loading the injury log/.test(code));
   ok('…and the case write is HELD (fileCaseWhenHydrated), re-deciding the lock with the case in hand',
     /if \(caseLogLoading\) \{[\s\S]{0,1400}fileCaseWhenHydrated\(dfrCaseId, \(linked\) => \{\s*if \(dfrCaseNotYoursReason\(\{ caseVisible: !!linked,[\s\S]{0,200}\}\)\) return null;/.test(code));
   ok('…a case the log holds keeps its own classification (the pickers were not editable)',
@@ -266,18 +266,18 @@ console.log('\n#58 the homeowner update on a submitted report:');
   ok('the button renders only while the update differs from what is saved', /\{hsEditableWhenLocked && hsUpdateDirty && \(/.test(code) && /testID="hs-save-update"/.test(code));
   const back = code.slice(code.indexOf('const handleBack = useCallback('), code.indexOf('if (!project) {'));
   ok('the back guard asks about an unsaved update BEFORE the sent-report early exit', back.indexOf('if (hsUpdateDirty) {') > -1 && back.indexOf('if (hsUpdateDirty) {') < back.indexOf("if (!isDirty || existingReport?.status === 'sent') { goBack(); return; }"));
-  ok('…and offers "Save update", never "Save draft", on a sent report', /text: 'Save update', onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
+  ok('…and offers "Save update", never "Save draft", on a sent report', /text: t\('field\.dfr\.saveUpdate', 'Save update'\), onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
   ok('a field/viewer seat on a sent report is told the owner decides', /testID="hs-locked-owner-decides"/.test(code));
 }
 
 console.log('\n#62 a submitted report can be printed / shared again:');
 {
-  ok('the locked top bar carries Print / Share PDF', /label=\{sharingPdf \? 'Making PDF…' : 'Print \/ Share PDF'\}/.test(code) && /onPress=\{handlePrintOrShareLocked\}/.test(code) && /testID="dfr-locked-print-share"/.test(code));
+  ok('the locked top bar carries Print / Share PDF', /label=\{sharingPdf \? t\('field\.dfr\.makingPdf', 'Making PDF…'\) : t\('field\.dfr\.printSharePdf', 'Print \/ Share PDF'\)\}/.test(code) && /onPress=\{handlePrintOrShareLocked\}/.test(code) && /testID="dfr-locked-print-share"/.test(code));
   const fn = code.slice(code.indexOf('const handlePrintOrShareLocked = useCallback('), code.indexOf('const handleConfirmSend = useCallback('));
   ok('web prints (the synchronous tab), the phone shares generateDFRPDF with the send path\'s inputs', /if \(Platform\.OS === 'web'\) \{ handlePrintCopy\(\); return; \}/.test(fn)
     && /generateDFRPDF\(doc, project, brandingOrBlank\(\), \{\s*photos: await resolveDfrPhotosForDocument\(doc\.photos, galleryPhotos\),\s*incidentClassification: documentClassification,/.test(fn));
   ok('…and saves nothing, stamps nothing', !/updateDailyReport|handleSave|addDailyReport/.test(fn));
-  ok('…a failure says so', /showAlert\('Could not make the PDF'/.test(fn));
+  ok('…a failure says so', /showAlert\(t\('field\.dfr\.couldNotMakeThe', 'Could not make the PDF'\)/.test(fn));
   ok('the document record of a sent report is "sent"', /status: existingReport\?\.status === 'sent' \? 'sent' : 'draft',/.test(code));
 }
 
@@ -296,7 +296,7 @@ console.log('\n#76 Draft CO: client-facing description, one line per item:');
   const leak = code.slice(code.indexOf('const handleDraftLeakCO = useCallback('), code.indexOf('const scheduleTasks = useMemo'));
   ok('the Draft-CO handler sends prefillLines + the neutral description, not the old string', /prefillDescription: prefill\.prefillDescription,\s*prefillLines: prefill\.prefillLines,/.test(leak)
     && !/NEEDS PRICE: \$\{/.test(leak) && !/~\$\$\{/.test(leak) && !/reportQuote/.test(leak) && !/prefillAmount/.test(leak));
-  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\('Change orders', DFR_GC_CREATES_COS\); return; \}/.test(leak));
+  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report\.'\)\); return; \}/.test(leak));
 }
 
 console.log('\n#41 (time-labor handoff) the roster reads the GC\'s shift-alert hours:');

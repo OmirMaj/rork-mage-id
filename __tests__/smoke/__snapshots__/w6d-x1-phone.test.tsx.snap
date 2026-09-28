@@ -130,17 +130,17 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManage
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportSheet — dark 1`] = `
 {
-  "lines": 86,
+  "lines": 84,
   "modalCount": 1,
-  "sha256": "df49f1d103cb8c35731a732ed5b4525e79fda04f59a93c28e99bc706f3b91909",
+  "sha256": "871800a937a3526eb31145d76220b4af2ce6b30385db009b74c542439e7445ad",
 }
 `;
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportSheet — light 1`] = `
 {
-  "lines": 86,
+  "lines": 84,
   "modalCount": 1,
-  "sha256": "7cd869f7ffdf114a15064bf5ad396526d2a140787641ea0c598a42648a38d097",
+  "sha256": "08cee5ed9f1784d7e7ff55ee502c5a9a8e9c48595be9e3bbb5f5b0487c6cc1d5",
 }
 `;
 

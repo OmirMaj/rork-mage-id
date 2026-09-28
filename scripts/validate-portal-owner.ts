@@ -1734,11 +1734,19 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   })();
   ok('the handler branches on whether the SERVER stored the row',
     /var wasRecorded = res\.recorded !== false;/.test(handlerSrc), handlerSrc.slice(0, 200));
-  ok('…reading !== false, so an older server that predates the field still seals',
-    !/res\.recorded === true/.test(handlerSrc));
-  ok('confetti fires only for a signature that was actually recorded',
-    /if \(decision === 'accepted' && wasRecorded\) fireWebConfetti\(\);/.test(handlerSrc),
-    handlerSrc.slice(handlerSrc.indexOf('fireWebConfetti') - 200, handlerSrc.indexOf('fireWebConfetti') + 60));
+  // W3 MOMPORTAL (spec: "success only on recorded: true"): an ACCEPT whose
+  // answer carries no `recorded` field is no answer — the line says "No answer
+  // yet", nothing is saved, no seal. The held RPC always sends the field, so
+  // no real server loses its seal; a decline keeps reading `!== false`.
+  ok('…an accept with no `recorded` field is no answer: nothing saved, no seal, before wasRecorded is read',
+    /if \(decision === 'accepted' && res\.recorded !== true && res\.recorded !== false\) \{\s*ui\.timeout\(t\('momentNoAnswer'\)\);\s*return;\s*\}\s*var wasRecorded/.test(handlerSrc),
+    handlerSrc.slice(0, 400));
+  ok('the seal plays only for a signature that was actually recorded (no confetti anywhere)',
+    /if \(decision === 'accepted' && wasRecorded\) \{\s*ui\.confirmed\(\{/.test(handlerSrc)
+    && !/fireWebConfetti/.test(handlerSrc),
+    handlerSrc.slice(handlerSrc.indexOf('ui.confirmed') - 200, handlerSrc.indexOf('ui.confirmed') + 60));
+  ok('…and an acceptance the server did not store says "Not recorded" on the line, locked',
+    /if \(decision === 'accepted'\) \{\s*ui\.refused\(t\('esignProposalNotRecorded'\), true\);/.test(handlerSrc));
   ok('…and no receipt hash is kept for a row this device did not create',
     /var stamp = wasRecorded \? \(res\.document_hash \|\| out\.clientHash \|\| null\) : null;/.test(handlerSrc));
   ok('…and the name and time shown are the ORIGINAL signer\'s, not this person\'s',

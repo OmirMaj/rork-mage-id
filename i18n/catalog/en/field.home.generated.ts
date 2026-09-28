@@ -4,4 +4,21 @@
 
 import type { EnCatalog } from '../../types';
 
-export const EN: EnCatalog = {};
+export const EN: EnCatalog = {
+  "field.home.moreOnSite": "+{todayOnSiteHidden} more on site today",
+  "field.home.moreOnSiteA11y": { one: "{count} more project on site today. Opens summary.", other: "{count} more projects on site today. Opens summary." },
+  "field.home.moreTasks": "+{count} more",
+  "field.home.qfu.inProgress": "{task} → in progress",
+  "field.home.qfu.issueLogged": "Issue logged on {task}",
+  "field.home.qfu.markedComplete": "{task} marked complete",
+  "field.home.qfu.noSchedule": "No schedule on this project.",
+  "field.home.qfu.noteAdded": "Note added to {task}",
+  "field.home.qfu.pickProject": "Pick a project with a schedule first.",
+  "field.home.qfu.placeholder": "e.g. \"drywall done floor 3\" or \"framing 80%\"",
+  "field.home.qfu.project": "Project",
+  "field.home.qfu.taskCount": { one: "{count} task", other: "{count} tasks" },
+  "field.home.qfu.taskGone": "Not saved — {task} is no longer on this schedule. Pull to refresh and try again.",
+  "field.home.qfu.title": "Quick field update",
+  "field.home.qfu.viewOnly": "Not saved — you have view-only access to {project}. Ask the project owner for field or editor access.",
+  "field.home.todayOnSite": "TODAY ON SITE",
+};

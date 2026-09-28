@@ -15,6 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ClaimedWorkerSelfView } from './crew';
+import { useT } from '@/contexts/LanguageContext';
 
 // Worker claim redemption. Opened from the magic-link invite
 // (https://app.mageid.app/claim-crew?token=crew_...). MagicLinkHandler
@@ -48,6 +49,7 @@ type ClaimState =
   | 'invalid';
 
 export default function ClaimCrewScreen() {
+  const { t } = useT();
   const { token } = useLocalSearchParams<{ token?: string }>();
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -141,7 +143,7 @@ export default function ClaimCrewScreen() {
     if (!token) return;
     const addr = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(addr)) {
-      setSendError('Enter the email the invite was sent to.');
+      setSendError(t('field.crew.claim.enterEmail', 'Enter the email the invite was sent to.'));
       return;
     }
     setSending(true);
@@ -150,11 +152,11 @@ export default function ClaimCrewScreen() {
       await requestFreshClaimLink(addr, token);
       setSentTo(addr);
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : "Couldn't send a new link. Try again.");
+      setSendError(e instanceof Error ? e.message : t('field.crew.claim.sendFailed', "Couldn't send a new link. Try again."));
     } finally {
       setSending(false);
     }
-  }, [email, token]);
+  }, [email, token, t]);
 
   // ── done: his profile, right here ─────────────────────────────────────────
   // claim-crew is exempt from every gate; /crew is not (a new account has no
@@ -163,31 +165,31 @@ export default function ClaimCrewScreen() {
   if (state === 'done') {
     return (
       <View style={styles.page}>
-        <Stack.Screen options={{ title: 'Claim profile' }} />
+        <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim profile') }} />
         {myRows.length > 0 ? (
           <ClaimedWorkerSelfView
             members={myRows}
             embedded
             header={(
               <View style={styles.doneHeader}>
-                <Text style={styles.title}>Profile claimed</Text>
+                <Text style={styles.title}>{t('field.crew.profileClaimed', 'Profile claimed')}</Text>
                 <Text style={styles.msg}>
-                  This is your crew profile. Keep your phone, email and trades up to date here.
+                  {t('field.crew.thisIsYourCrew', 'This is your crew profile. Keep your phone, email and trades up to date here.')}
                 </Text>
               </View>
             )}
             footer={(
               <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">
-                Set up your own MAGE account
+                {t('field.crew.setUpYourOwn', 'Set up your own MAGE account')}
               </Text>
             )}
           />
         ) : (
           <View style={styles.container}>
             <ActivityIndicator color={Colors.primary} />
-            <Text style={styles.msg}>Profile claimed. Loading it…</Text>
+            <Text style={styles.msg}>{t('field.crew.profileClaimedLoadingIt', 'Profile claimed. Loading it…')}</Text>
             <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">
-              Set up your own MAGE account
+              {t('field.crew.setUpYourOwn', 'Set up your own MAGE account')}
             </Text>
           </View>
         )}
@@ -197,29 +199,29 @@ export default function ClaimCrewScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Claim profile' }} />
+      <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim profile') }} />
 
       {(state === 'waiting' || state === 'redeeming') && (
         <>
           <ActivityIndicator color={Colors.primary} />
-          <Text style={styles.msg}>Confirming your profile…</Text>
+          <Text style={styles.msg}>{t('field.crew.confirmingYourProfile', 'Confirming your profile…')}</Text>
         </>
       )}
 
       {state === 'link_expired' && (
         <View style={styles.block} testID="claim-link-expired">
           <Text style={styles.msg}>
-            This sign-in link has expired or was already used. Your invite is still good. Sign in to finish claiming your profile.
+            {t('field.crew.thisSignInLink', 'This sign-in link has expired or was already used. Your invite is still good. Sign in to finish claiming your profile.')}
           </Text>
           {sentTo ? (
-            <Text style={styles.msg}>We sent a new link to {sentTo}. Open it on this device to finish.</Text>
+            <Text style={styles.msg}>{t('field.crew.weSentANew', 'We sent a new link to {sentTo}. Open it on this device to finish.', { sentTo })}</Text>
           ) : (
             <>
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="The email the invite was sent to"
+                placeholder={t('field.crew.theEmailTheInvite', 'The email the invite was sent to')}
                 placeholderTextColor={themeColors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -235,7 +237,7 @@ export default function ClaimCrewScreen() {
                 accessibilityRole="button"
                 testID="claim-send-fresh"
               >
-                <Text style={styles.primaryBtnText}>{sending ? 'Sending…' : 'Email me a new link'}</Text>
+                <Text style={styles.primaryBtnText}>{sending ? t('field.crew.sending', 'Sending…') : t('field.crew.emailMeANew', 'Email me a new link')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -246,14 +248,14 @@ export default function ClaimCrewScreen() {
             accessibilityRole="button"
             testID="claim-sign-in"
           >
-            <Text style={styles.secondaryBtnText}>Sign in</Text>
+            <Text style={styles.secondaryBtnText}>{t('field.crew.signIn', 'Sign in')}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {state === 'retry' && (
         <View style={styles.block}>
-          <Text style={styles.msg}>Couldn’t reach MAGE ID. Your invite is still good.</Text>
+          <Text style={styles.msg}>{t('field.crew.couldntReachMageId', 'Couldn’t reach MAGE ID. Your invite is still good.')}</Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => setRetryKey(k => k + 1)}
@@ -261,22 +263,22 @@ export default function ClaimCrewScreen() {
             accessibilityRole="button"
             testID="claim-retry"
           >
-            <Text style={styles.primaryBtnText}>Retry</Text>
+            <Text style={styles.primaryBtnText}>{t('field.crew.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {state === 'already_claimed' && (
-        <Text style={styles.msg}>This invite link has already been used. Ask your contractor to resend it.</Text>
+        <Text style={styles.msg}>{t('field.crew.thisInviteLinkHas', 'This invite link has already been used. Ask your contractor to resend it.')}</Text>
       )}
       {state === 'invalid' && (
-        <Text style={styles.msg}>This invite link is invalid or already used. Ask your contractor to resend it.</Text>
+        <Text style={styles.msg}>{t('field.crew.thisInviteLinkIs', 'This invite link is invalid or already used. Ask your contractor to resend it.')}</Text>
       )}
 
       {/* A way out in every state except the few seconds a redeem is actually
           in flight (it was hidden for the whole wait). */}
       {state !== 'redeeming' && (
-        <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">Go to app</Text>
+        <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">{t('field.crew.goToApp', 'Go to app')}</Text>
       )}
     </View>
   );

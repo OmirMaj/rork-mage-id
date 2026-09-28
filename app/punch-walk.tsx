@@ -136,6 +136,8 @@ const selectNoSamplePlanSandbox = (s: RunState): string | null =>
   s.status === 'running' && s.flags?.samplePlan === false ? s.sandboxProjectId : null;
 import { PUNCH_SAMPLE } from '@/utils/tutorial/fixtures';
 import { samplePhotoImage } from '@/utils/tutorial/sandbox';
+import { useT } from '@/contexts/LanguageContext';
+import { t, tn } from '@/i18n/core';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -158,6 +160,46 @@ function aiTradeToSubTrade(aiTrade: string): SubTrade {
 }
 
 const TRADE_ORDER: SubTrade[] = SUB_TRADES;
+
+/** A SubTrade's label in the app's language. The VALUE (the enum) is what is
+ *  saved and matched on; only the label is translated. */
+function subTradeLabel(trade: SubTrade): string {
+  switch (trade) {
+    case 'General': return t('field.punchWalk.trade.general', 'General');
+    case 'Demolition': return t('field.punchWalk.trade.demolition', 'Demolition');
+    case 'Framing': return t('field.punchWalk.trade.framing', 'Framing');
+    case 'Concrete': return t('field.punchWalk.trade.concrete', 'Concrete');
+    case 'Electrical': return t('field.punchWalk.trade.electrical', 'Electrical');
+    case 'Plumbing': return t('field.punchWalk.trade.plumbing', 'Plumbing');
+    case 'HVAC': return t('field.punchWalk.trade.hvac', 'HVAC');
+    case 'Controls / BMS': return t('field.punchWalk.trade.controls', 'Controls / BMS');
+    case 'Fire Protection': return t('field.punchWalk.trade.fireProtection', 'Fire Protection');
+    case 'Fire Alarm': return t('field.punchWalk.trade.fireAlarm', 'Fire Alarm');
+    case 'Low Voltage / Cabling': return t('field.punchWalk.trade.lowVoltage', 'Low Voltage / Cabling');
+    // i18n-keep-english: acronym (audio-visual), the same in Spanish
+    case 'AV': return 'AV';
+    case 'Security': return t('field.punchWalk.trade.security', 'Security');
+    case 'Roofing': return t('field.punchWalk.trade.roofing', 'Roofing');
+    case 'Drywall': return t('field.punchWalk.trade.drywall', 'Drywall');
+    case 'Acoustical Ceilings': return t('field.punchWalk.trade.acousticalCeilings', 'Acoustical Ceilings');
+    case 'Millwork': return t('field.punchWalk.trade.millwork', 'Millwork');
+    case 'Glazing': return t('field.punchWalk.trade.glazing', 'Glazing');
+    case 'Doors & Hardware': return t('field.punchWalk.trade.doorsHardware', 'Doors & Hardware');
+    case 'Painting': return t('field.punchWalk.trade.painting', 'Painting');
+    case 'Flooring': return t('field.punchWalk.trade.flooring', 'Flooring');
+    case 'Landscaping': return t('field.punchWalk.trade.landscaping', 'Landscaping');
+    case 'Other': return t('field.punchWalk.trade.other', 'Other');
+  }
+  return trade;
+}
+
+/** A punch priority's label (lowercase, as the enum printed before). */
+function priorityLabel(p: PunchItemPriority): string {
+  if (p === 'high') return t('field.punchWalk.priority.high', 'high');
+  if (p === 'low') return t('field.punchWalk.priority.low', 'low');
+  return t('field.punchWalk.priority.medium', 'medium');
+}
+
 
 /**
  * How many location chips sit in the inline rail before the rest move behind
@@ -327,6 +369,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   onDelete: (id: string) => void;
   onBack: () => void;
 }) {
+  const { t, tn } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -649,7 +692,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     } else {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        showAlert('Camera access needed', 'Grant camera permission in Settings to attach punch photos.');
+        showAlert(t('field.punchWalk.cameraAccessNeeded', 'Camera access needed'), t('field.punchWalk.grantCameraPermissionIn', 'Grant camera permission in Settings to attach punch photos.'));
         return;
       }
       result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
@@ -698,7 +741,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         }, Platform.OS === 'ios' ? CAMERA_DISMISS_MS : 0);
       }
     }
-  }, [planSheetCount, dismissedNoPlan, projectId]);
+  }, [planSheetCount, dismissedNoPlan, projectId, t]);
   handleCameraRef.current = handleCamera;
 
   const handlePinNext = useCallback((pin: WalkPin, sheetLabel: string) => {
@@ -757,7 +800,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     try {
       const img = await samplePhotoImage();
       if (!img) {
-        showAlert('Sample photo unavailable', 'Use Photo to take one instead.');
+        showAlert(t('field.punchWalk.samplePhotoUnavailable', 'Sample photo unavailable'), t('field.punchWalk.usePhotoToTake', 'Use Photo to take one instead.'));
         return;
       }
       setDraft(d => ({ ...d, photoUri: img.uri, photoStamp: undefined }));
@@ -770,7 +813,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     } finally {
       setSamplePhotoBusy(false);
     }
-  }, [samplePhotoBusy, projectId, planSheetCount, dismissedNoPlan, openPinStep]);
+  }, [samplePhotoBusy, projectId, planSheetCount, dismissedNoPlan, openPinStep, t]);
 
   // Opened with start=pin: the plan first. With no plan the step IS the
   // "Add your floor plan" screen, and it latches a sheet that hydrates late.
@@ -846,11 +889,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   const handleSave = useCallback(() => {
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert(t('field.punchWalk.cantSave', "Can't save"), writeBlock);
       return;
     }
     if (!draft.description.trim()) {
-      showAlert('Nothing to save', 'Dictate or type a description first.');
+      showAlert(t('field.punchWalk.nothingToSave', 'Nothing to save'), t('field.punchWalk.dictateOrTypeA', 'Dictate or type a description first.'));
       return;
     }
     // A new draft: the next item's "where is this" is unanswered.
@@ -966,7 +1009,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       Keyboard.dismiss();
       openPinStep();
     }
-  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep, getPlanSheetsForProject, writeBlock]);
+  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep, getPlanSheetsForProject, writeBlock, t]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -987,9 +1030,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   const crewFill = neutralInk(themeColors);
   const listStake = isPunch
     ? (clientSeesPunch
-        ? 'Your client sees this list in their portal.'
-        : 'The formal list your client walks. This project’s client portal doesn’t show the punch list.')
-    : 'Internal. Never shown to your client.';
+        ? t('field.punchWalk.stake.clientSees', 'Your client sees this list in their portal.')
+        : t('field.punchWalk.stake.formalNotShown', 'The formal list your client walks. This project’s client portal doesn’t show the punch list.'))
+    : t('field.punchWalk.stake.internal', 'Internal. Never shown to your client.');
   const sessionPunchCount = session.filter(c => c.listType === 'punch').length;
   const sessionCrewCount = session.length - sessionPunchCount;
 
@@ -1008,10 +1051,10 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   // and shares its row with the count; a longer sentence truncates on a 320pt
   // phone, and "CARRIED FROM LAST IT…" is worse than no warning at all.
   const locationEyebrow =
-    !locationIsSet ? 'No location set'
-    : draft.locationOrigin === 'carried' ? 'Carried from last item'
-    : draft.locationOrigin === 'gps' ? 'From photo GPS'
-    : 'Location';
+    !locationIsSet ? t('field.punchWalk.location.none', 'No location set')
+    : draft.locationOrigin === 'carried' ? t('field.punchWalk.location.carried', 'Carried from last item')
+    : draft.locationOrigin === 'gps' ? t('field.punchWalk.location.gps', 'From photo GPS')
+    : t('field.punchWalk.location.label', 'Location');
 
   // Desktop sheets (wave 6c). The punch.modalUp sentinel below still lists
   // exactly these three flags; nothing here adds a Modal.
@@ -1032,13 +1075,15 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             reaches the child, so an exact-size wrapper cut the button's
             hitSlop off and shrank its touch area below 44 pt on every walk. */}
         <TutorialTarget id="punch.back" style={styles.backTarget}>
-          <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.back', 'Back')}><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </TutorialTarget>
         <View style={{ flex: 1 }}>
           {/* The eyebrow names the ACTIVE list, in its own ink, so the list is
               readable even with the card scrolled off screen. */}
           <Text style={[styles.headerEyebrow, { color: listInk }]}>
-            {`Walk mode · ${pinFirst ? 'Pin first · ' : ''}${isPunch ? 'Punch list' : 'Crew list'}`}
+            {pinFirst
+              ? (isPunch ? t('field.punchWalk.eyebrow.pinFirstPunch', 'Walk mode · Pin first · Punch list') : t('field.punchWalk.eyebrow.pinFirstCrew', 'Walk mode · Pin first · Crew list'))
+              : (isPunch ? t('field.punchWalk.eyebrow.punch', 'Walk mode · Punch list') : t('field.punchWalk.eyebrow.crew', 'Walk mode · Crew list'))}
           </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
         </View>
@@ -1092,13 +1137,13 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                     accessibilityRole="tab"
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={l === 'punch'
-                      ? `Punch list${clientSeesPunch ? ', your client sees this list' : ', client-facing'}`
-                      : 'Crew list, internal, never shown to your client'}
+                      ? (clientSeesPunch ? t('field.punchWalk.tab.punchClientSees', 'Punch list, your client sees this list') : t('field.punchWalk.tab.punchClientFacing', 'Punch list, client-facing'))
+                      : t('field.punchWalk.crewListInternalNever', 'Crew list, internal, never shown to your client')}
                     testID={`walk-list-${l}`}
                   >
                     <Icon size={14} color={active ? ink : themeColors.textMuted} strokeWidth={2} />
                     <Text style={[styles.listSegText, { color: ink }]}>
-                      {l === 'punch' ? 'Punch list' : 'Crew list'}
+                      {l === 'punch' ? t('field.punchWalk.punchList', 'Punch list') : t('field.punchWalk.crewList', 'Crew list')}
                     </Text>
                     {active && <Check size={13} color={ink} strokeWidth={2.5} />}
                   </TouchableOpacity>
@@ -1124,7 +1169,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               </Text>
               {filedHereThisWalk > 0 && (
                 <Text style={styles.locationCount}>
-                  {filedHereThisWalk} this walk
+                  {t('field.punchWalk.thisWalk', '{n} this walk', { n: filedHereThisWalk })}
                 </Text>
               )}
             </View>
@@ -1151,8 +1196,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                       accessibilityRole="button"
                       accessibilityState={{ selected: isActive }}
                       accessibilityLabel={o.source === 'plan'
-                        ? `${o.label}, from your plans, no punch items yet`
-                        : `${o.label}, ${o.count} punch item${o.count === 1 ? '' : 's'}`}
+                        ? t('field.punchWalk.fromYourPlansNo', '{label}, from your plans, no punch items yet', { label: o.label })
+                        : tn('field.punchWalk.punchItems', o.count, { one: '{label}, {count} punch item', other: '{label}, {count} punch items' }, { label: o.label })}
                       testID={`walk-location-chip-${o.key}`}
                     >
                       {/* A plan room has no count to show — the icon says why
@@ -1182,10 +1227,10 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                     onPress={() => setShowAllLocations(true)}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel={`Show all ${locationOptions.length} rooms on this project`}
+                    accessibilityLabel={t('field.punchWalk.showAllRoomsOn', 'Show all {length} rooms on this project', { length: locationOptions.length })}
                     testID="walk-location-all"
                   >
-                    <Text style={styles.locChipAllText}>All {locationOptions.length}</Text>
+                    <Text style={styles.locChipAllText}>{t('field.punchWalk.all', 'All {length}', { length: locationOptions.length })}</Text>
                     <ChevronRight size={11} color={themeColors.accent} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
@@ -1194,7 +1239,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               // No punch items yet and no analysed plans. Say what will fix it
               // rather than showing an empty strip that looks broken.
               <Text style={styles.chipRailEmpty}>
-                No rooms on this project yet {'—'} type one below and it becomes a one-tap chip.
+                {t('field.punchWalk.noRoomsOnThis', 'No rooms on this project yet — type one below and it becomes a one-tap chip.')}
               </Text>
             )}
 
@@ -1209,13 +1254,13 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                   // reading as carried forward the moment he touches it.
                   locationOrigin: v.trim() ? 'typed' : 'none',
                 }))}
-                placeholder="Type a room (e.g. Hall 2, Unit 204, Kitchen)"
+                placeholder={t('field.punchWalk.typeARoomE', 'Type a room (e.g. Hall 2, Unit 204, Kitchen)')}
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="words"
                 testID="walk-location"
               />
               {draft.location.length > 0 && (
-                <TouchableOpacity onPress={handleClearLocation} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear location">
+                <TouchableOpacity onPress={handleClearLocation} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.clearLocation', 'Clear location')}>
                   <X size={15} color={themeColors.textMuted} strokeWidth={2} />
                 </TouchableOpacity>
               )}
@@ -1223,7 +1268,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
             {!locationIsSet && (
               <Text style={styles.locationWarnNote}>
-                No room given {'—'} it won{'’'}t group with a room on the punch list or in a sub{'’'}s handoff, and a sub{'’'}s portal will say “No room given”.
+                {t('field.punchWalk.noRoomGivenIt', 'No room given — it won’t group with a room on the punch list or in a sub’s handoff, and a sub’s portal will say “No room given”.')}
               </Text>
             )}
           </View>
@@ -1235,7 +1280,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               style={styles.descInput}
               value={draft.description}
               onChangeText={(v) => setDraft(d => ({ ...d, description: v }))}
-              placeholder={'What\u2019s the issue?\nTap mic and talk, or type here.'}
+              placeholder={t('field.punchWalk.whatsTheIssueTap', 'What’s the issue?\nTap mic and talk, or type here.')}
               placeholderTextColor={themeColors.textMuted}
               multiline
               autoCapitalize="sentences"
@@ -1249,10 +1294,10 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 onPress={applySampleLine}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={`Use the sample line: ${PUNCH_SAMPLE.line}`}
+                accessibilityLabel={t('field.punchWalk.useTheSampleLine', 'Use the sample line: {line}', { line: PUNCH_SAMPLE.line })}
                 testID="walk-sample-line"
               >
-                <Text style={styles.sampleChipLabel}>Sample line</Text>
+                <Text style={styles.sampleChipLabel}>{t('field.punchWalk.sampleLine', 'Sample line')}</Text>
                 <Text style={styles.sampleChipText} numberOfLines={2}>{'“'}{PUNCH_SAMPLE.line}{'”'}</Text>
               </TouchableOpacity>
             ) : null}
@@ -1262,7 +1307,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             <View style={styles.metaRow}>
               <TouchableOpacity style={styles.metaChip} onPress={cycleTrade}>
                 <View style={[styles.metaDot, { backgroundColor: tradeColor(draft.trade, themeColors) }]} />
-                <Text style={styles.metaChipText}>{draft.trade}</Text>
+                <Text style={styles.metaChipText}>{subTradeLabel(draft.trade)}</Text>
                 {draft.matchedKeyword && (
                   <Text style={styles.metaChipHint}>· {draft.matchedKeyword}</Text>
                 )}
@@ -1271,11 +1316,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
               <TouchableOpacity style={[styles.metaChip, { backgroundColor: `${priorityColor}18` }]} onPress={cyclePriority}>
                 <Flag size={11} color={priorityColor} strokeWidth={1.75} />
-                <Text style={[styles.metaChipText, { color: priorityColor }]}>{draft.priority.toUpperCase()}</Text>
+                <Text style={[styles.metaChipText, { color: priorityColor }]}>{priorityLabel(draft.priority).toUpperCase()}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.metaChipGhost} onPress={() => setShowTradeOverride(true)}>
-                <Text style={styles.metaChipGhostText}>Pick trade</Text>
+                <Text style={styles.metaChipGhostText}>{t('field.punchWalk.pickTrade', 'Pick trade')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -1289,24 +1334,26 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 setShowSubPicker(true);
               }}
               accessibilityRole="button"
-              accessibilityLabel={proposedSub ? `Assigned to ${proposedSub.companyName}. Change or clear` : 'No sub assigned. Pick one'}
+              accessibilityLabel={proposedSub ? t('field.punchWalk.assignedToChangeOr', 'Assigned to {companyName}. Change or clear', { companyName: proposedSub.companyName }) : t('field.punchWalk.noSubAssignedPick', 'No sub assigned. Pick one')}
               testID="walk-sub-line"
             >
               <Text style={[styles.subLineText, !proposedSub && styles.subLineMuted]} numberOfLines={2}>
                 {projectSubs.isLoading
-                  ? (projectSubs.isOwner ? 'Checking your subs…' : 'Loading your GC’s subs on this project…')
+                  ? (projectSubs.isOwner ? t('field.punchWalk.checkingYourSubs', 'Checking your subs…') : t('field.punchWalk.loadingYourGcsSubs', 'Loading your GC’s subs on this project…'))
                   : projectSubs.isError
-                    ? 'Couldn’t load subs. Tap to retry. The item saves unassigned.'
+                    ? t('field.punchWalk.couldntLoadSubsTap', 'Couldn’t load subs. Tap to retry. The item saves unassigned.')
                     : proposedSub
-                      ? `→ ${proposedSub.companyName} (on this project)`
+                      ? t('field.punchWalk.onThisProject', '→ {companyName} (on this project)', { companyName: proposedSub.companyName })
                       : subChoice.mode === 'none'
-                        ? 'No sub · Saves unassigned'
+                        ? t('field.punchWalk.noSubSavesUnassigned', 'No sub · Saves unassigned')
                         : projectSubs.isOwner
-                          ? `No ${draft.trade === 'General' ? '' : `${draft.trade} `}sub on this project`
-                          : `Trade: ${draft.trade} — GC to assign`}
+                          ? (draft.trade === 'General'
+                            ? t('field.punchWalk.sub.noneOnProject', 'No sub on this project')
+                            : t('field.punchWalk.sub.noTradeOnProject', 'No {trade} sub on this project', { trade: subTradeLabel(draft.trade) }))
+                          : t('field.punchWalk.tradeGcToAssign', 'Trade: {trade} — GC to assign', { trade: subTradeLabel(draft.trade) })}
               </Text>
               {!projectSubs.isLoading && !projectSubs.isError ? (
-                <Text style={styles.subLineAction}>{proposedSub ? 'Change' : 'Pick'}</Text>
+                <Text style={styles.subLineAction}>{proposedSub ? t('field.punchWalk.change', 'Change') : t('field.punchWalk.pick', 'Pick')}</Text>
               ) : null}
             </TouchableOpacity>
 
@@ -1314,7 +1361,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             {draft.photoUri && (
               <View style={styles.photoPreview}>
                 <Image source={{ uri: draft.photoUri }} style={styles.photoImg} />
-                <TouchableOpacity style={styles.photoRemove} onPress={() => setDraft(d => ({ ...d, photoUri: undefined }))} accessibilityRole="button" accessibilityLabel="Close">
+                <TouchableOpacity style={styles.photoRemove} onPress={() => setDraft(d => ({ ...d, photoUri: undefined }))} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.close', 'Close')}>
                   <X size={12} color="#fff" strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -1331,17 +1378,21 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                   onPress={openPinStep}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={`Pinned on ${draft.pinLabel ?? 'plan'}. Change the pin`}
+                  accessibilityLabel={draft.pinLabel
+                    ? t('field.punchWalk.pin.chipA11y', 'Pinned on {sheet}. Change the pin', { sheet: draft.pinLabel })
+                    : t('field.punchWalk.pin.chipA11yNoSheet', 'Pinned on plan. Change the pin')}
                   testID="walk-pin-chip"
                 >
                   <MapPin size={12} color={ON_ACCENT_INK} strokeWidth={2.5} />
-                  <Text style={styles.pinChipText} numberOfLines={1}>Pinned on {draft.pinLabel ?? 'plan'}</Text>
+                  <Text style={styles.pinChipText} numberOfLines={1}>{draft.pinLabel
+                    ? sentenceParts(t('field.punchWalk.pin.chip', 'Pinned on {sheet}', { sheet: '{sheet}' }), { sheet: draft.pinLabel })
+                    : t('field.punchWalk.pin.chipNoSheet', 'Pinned on plan')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleRemovePin}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove the pin"
+                  accessibilityLabel={t('field.punchWalk.removeThePin', 'Remove the pin')}
                   testID="walk-pin-remove"
                 >
                   <X size={15} color={themeColors.textMuted} strokeWidth={2} />
@@ -1352,11 +1403,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 style={styles.pinAdd}
                 onPress={openPinStep}
                 accessibilityRole="button"
-                accessibilityLabel="Pin this item on the plan"
+                accessibilityLabel={t('field.punchWalk.pinThisItemOn', 'Pin this item on the plan')}
                 testID="walk-pin-open"
               >
                 <MapPin size={12} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.pinAddText}>Not pinned {'·'} Pin on plan</Text>
+                <Text style={styles.pinAddText}>{t('field.punchWalk.notPinnedPinOn', 'Not pinned · Pin on plan')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1367,13 +1418,13 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               <VoiceRecorder
                 onTranscriptReady={handleTranscript}
                 isLoading={isTranscribing}
-                title="Capture a punch item"
-                contextLine={projectName ? `for ${projectName}` : undefined}
+                title={t('field.punchWalk.captureAPunchItem', 'Capture a punch item')}
+                contextLine={projectName ? t('field.punchWalk.voice.forProject', 'for {projectName}', { projectName }) : undefined}
                 suggestions={[
-                  'Master bath, light fixture loose',
-                  'Hallway 2, paint touch-up near the door frame',
-                  'Kitchen, GFCI outlet not working',
-                  'Front door, weather strip torn — replace before final walk',
+                  t('field.punchWalk.voice.example1', 'Master bath, light fixture loose'),
+                  t('field.punchWalk.voice.example2', 'Hallway 2, paint touch-up near the door frame'),
+                  t('field.punchWalk.voice.example3', 'Kitchen, GFCI outlet not working'),
+                  t('field.punchWalk.voice.example4', 'Front door, weather strip torn — replace before final walk'),
                 ]}
               />
             </View>
@@ -1383,11 +1434,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 style={styles.cameraBtn}
                 onPress={openPinStep}
                 accessibilityRole="button"
-                accessibilityLabel="Pin the next item on the plan, then take its photo"
+                accessibilityLabel={t('field.punchWalk.pinTheNextItem', 'Pin the next item on the plan, then take its photo')}
                 testID="walk-pin-first-open"
               >
                 <MapPinPlus size={18} color={themeColors.text} strokeWidth={1.75} />
-                <Text style={styles.cameraBtnText}>Pin next item</Text>
+                <Text style={styles.cameraBtnText}>{t('field.punchWalk.pinNextItem', 'Pin next item')}</Text>
               </TouchableOpacity>
             )}
             {/* Pinned first, no photo yet: the photo is the next action (and the
@@ -1398,17 +1449,17 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 style={[styles.cameraBtn, styles.cameraBtnEmphasis]}
                 onPress={handleCamera}
                 accessibilityRole="button"
-                accessibilityLabel={Platform.OS === 'web' ? 'Add the photo for this item' : 'Take the photo for this item'}
+                accessibilityLabel={Platform.OS === 'web' ? t('field.punchWalk.addThePhotoFor', 'Add the photo for this item') : t('field.punchWalk.takeThePhotoFor', 'Take the photo for this item')}
                 testID="walk-camera"
               >
                 <Camera size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 {/* Web opens a file picker, not a camera — don't promise one. */}
-                <Text style={[styles.cameraBtnText, styles.cameraBtnTextEmphasis]}>{Platform.OS === 'web' ? 'Add photo' : 'Take photo'}</Text>
+                <Text style={[styles.cameraBtnText, styles.cameraBtnTextEmphasis]}>{Platform.OS === 'web' ? t('field.punchWalk.addPhoto', 'Add photo') : t('field.punchWalk.takePhoto', 'Take photo')}</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera} accessibilityRole="button" accessibilityLabel="Take a photo, then pin it on the plan" testID="walk-camera">
+              <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.takeAPhotoThen', 'Take a photo, then pin it on the plan')} testID="walk-camera">
                 <Camera size={18} color={themeColors.text} strokeWidth={1.75} />
-                <Text style={styles.cameraBtnText}>Photo</Text>
+                <Text style={styles.cameraBtnText}>{t('field.punchWalk.photo', 'Photo')}</Text>
               </TouchableOpacity>
             )}
             {/* The tutorial's sample photo — only while its step is live on the
@@ -1420,10 +1471,10 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 disabled={samplePhotoBusy}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Use the sample photo, an illustration of an outlet with no cover"
+                accessibilityLabel={t('field.punchWalk.useTheSamplePhoto', 'Use the sample photo, an illustration of an outlet with no cover')}
                 testID="walk-sample-photo"
               >
-                <Text style={styles.sampleChipText}>{samplePhotoBusy ? 'Loading…' : 'Use sample photo'}</Text>
+                <Text style={styles.sampleChipText}>{samplePhotoBusy ? t('field.punchWalk.loading', 'Loading…') : t('field.punchWalk.useSamplePhoto', 'Use sample photo')}</Text>
               </TouchableOpacity>
             ) : null}
             </TutorialTarget>
@@ -1436,12 +1487,12 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             onPress={() => setPinFirst(v => !v)}
             accessibilityRole="switch"
             accessibilityState={{ checked: pinFirst }}
-            accessibilityLabel={pinFirst ? 'Pin first is on: tap the plan before the photo' : 'Pin first is off: photo, then pin'}
+            accessibilityLabel={pinFirst ? t('field.punchWalk.pinFirstIsOn', 'Pin first is on: tap the plan before the photo') : t('field.punchWalk.pinFirstIsOff', 'Pin first is off: photo, then pin')}
             testID="walk-pin-first-toggle"
           >
             <MapPinPlus size={14} color={pinFirst ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
             <Text style={[styles.pinFirstToggleText, pinFirst && { color: themeColors.accentLabel }]}>
-              {pinFirst ? 'Pin first is on: tap the plan before the photo' : 'Pin first is off: photo, then pin'}
+              {pinFirst ? t('field.punchWalk.pinFirstIsOn', 'Pin first is on: tap the plan before the photo') : t('field.punchWalk.pinFirstIsOff', 'Pin first is off: photo, then pin')}
             </Text>
           </TouchableOpacity>
 
@@ -1456,8 +1507,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiPunchBtnTitle}>Punch from photos</Text>
-              <Text style={styles.aiPunchBtnSub}>Take a few photos. MAGE drafts the punch items.</Text>
+              <Text style={styles.aiPunchBtnTitle}>{t('field.punchWalk.punchFromPhotos', 'Punch from photos')}</Text>
+              <Text style={styles.aiPunchBtnSub}>{t('field.punchWalk.takeAFewPhotos', 'Take a few photos. MAGE drafts the punch items.')}</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -1473,8 +1524,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiPunchBtnTitle}>Photo triage</Text>
-              <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>
+              <Text style={styles.aiPunchBtnTitle}>{t('field.punchWalk.photoTriage', 'Photo triage')}</Text>
+              <Text style={styles.aiPunchBtnSub}>{t('field.punchWalk.mixedBatchSortsTo', 'Mixed batch — sorts to punch, RFI, daily report, progress')}</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -1490,7 +1541,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             <Check size={18} color={'#FFFFFF'} strokeWidth={1.75} />
             {/* Names the list, so the last thing he reads before the tap is
                 where the item is going. */}
-            <Text style={styles.saveBtnText}>Save to {isPunch ? 'punch list' : 'crew list'}</Text>
+            <Text style={styles.saveBtnText}>{isPunch ? t('field.punchWalk.saveToPunch', 'Save to punch list') : t('field.punchWalk.saveToCrew', 'Save to crew list')}</Text>
           </TouchableOpacity>
           </TutorialTarget>
           {/* LS-5: a viewer seat cannot file — the control says why. */}
@@ -1498,18 +1549,18 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
           {pinFirst && (
             <Text style={styles.hint}>
-              Pin first: tap the spot, the camera opens, then say what{'’'}s wrong. Save opens the plan for the next one.
+              {t('field.punchWalk.pinFirstTapThe', 'Pin first: tap the spot, the camera opens, then say what’s wrong. Save opens the plan for the next one.')}
             </Text>
           )}
           <Text style={styles.hint}>
-            The list and the room stay between saves; the room is labelled {'“'}carried{'”'} until you confirm it {'—'} tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.
+            {t('field.punchWalk.theListAndThe', 'The list and the room stay between saves; the room is labelled “carried” until you confirm it — tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.')}
           </Text>
 
           {/* Session roll-up */}
           {session.length > 0 && (
             <View style={styles.sessionCard}>
               <Text style={styles.sessionTitle}>
-                Captured this walk · {sessionPunchCount} punch · {sessionCrewCount} crew
+                {t('field.punchWalk.capturedThisWalkPunch', 'Captured this walk · {p} punch · {c} crew', { p: sessionPunchCount, c: sessionCrewCount })}
               </Text>
               {session.map(c => (
                 <View key={c.id} style={styles.sessionRow}>
@@ -1518,10 +1569,10 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                     <Text style={styles.sessionDesc} numberOfLines={2}>{c.description}</Text>
                     <Text style={styles.sessionMeta}>
                       <Text style={{ color: c.listType === 'punch' ? themeColors.dangerLabel : themeColors.textSecondary, fontWeight: '700' }}>
-                        {c.listType === 'punch' ? 'Punch' : 'Crew'}
+                        {c.listType === 'punch' ? t('field.punchWalk.punch', 'Punch') : t('field.punchWalk.crew', 'Crew')}
                       </Text>
-                      {' · '}{punchLocationText(c.location) ?? PUNCH_NO_ROOM_TEXT} · {c.trade} · {c.priority}
-                      {c.pinLabel ? ` · pinned on ${c.pinLabel}` : ''}
+                      {' · '}{punchLocationText(c.location) ?? PUNCH_NO_ROOM_TEXT} · {subTradeLabel(c.trade)} · {priorityLabel(c.priority)}
+                      {c.pinLabel ? t('field.punchWalk.session.pinnedOnFact', ' · pinned on {sheet}', { sheet: c.pinLabel }) : ''}
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleUndo(c.id)} hitSlop={12}>
@@ -1537,9 +1588,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               <Mic size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>
                 {pinFirst
-                  ? 'Tap where the item is on the plan, take its photo, then say what\u2019s wrong. Save and the plan comes back for the next one. '
+                  ? t('field.punchWalk.empty.pinFirstIntro', 'Tap where the item is on the plan, take its photo, then say what\u2019s wrong. Save and the plan comes back for the next one. ')
                   : ''}
-                Tap the mic below and say what you see. Fix the trade or priority later from the punch list.
+                {t('field.punchWalk.empty.micHint', 'Tap the mic below and say what you see. Fix the trade or priority later from the punch list.')}
               </Text>
             </View>
           )}
@@ -1565,11 +1616,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         }}
         importPdfBlockedReason={pdfBlocked}
         {...(pinFirst && !draft.photoUri ? {
-          title: 'Where’s the next item?',
-          nextLabel: Platform.OS === 'web' ? 'Next: add the photo' : 'Next: take the photo',
-          skipLabel: 'Skip pin',
-          skipHint: Platform.OS === 'web' ? 'Skip pin to add the photo without a pin' : 'Skip pin to take the photo without a pin',
-          closeLabel: 'Back to the walk',
+          title: t('field.punchWalk.pinFirst.title', 'Where’s the next item?'),
+          nextLabel: Platform.OS === 'web' ? t('field.punchWalk.pinFirst.nextWeb', 'Next: add the photo') : t('field.punchWalk.pinFirst.next', 'Next: take the photo'),
+          skipLabel: t('field.punchWalk.pinFirst.skip', 'Skip pin'),
+          skipHint: Platform.OS === 'web' ? t('field.punchWalk.pinFirst.skipHintWeb', 'Skip pin to add the photo without a pin') : t('field.punchWalk.pinFirst.skipHint', 'Skip pin to take the photo without a pin'),
+          closeLabel: t('field.punchWalk.pinFirst.close', 'Back to the walk'),
         } : {})}
       />
 
@@ -1578,24 +1629,24 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         <View style={[styles.modalOverlay, fTrade.overlay]}>
           <View style={[styles.modalSheet, fTrade.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pick trade</Text>
-              <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.punchWalk.pickTrade', 'Pick trade')}</Text>
+              <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.close', 'Close')}>
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 12 }}>
-              {TRADE_ORDER.map(t => (
+              {TRADE_ORDER.map(tr => (
                 <TouchableOpacity
-                  key={t}
-                  style={[styles.tradeOption, draft.trade === t && styles.tradeOptionActive]}
+                  key={tr}
+                  style={[styles.tradeOption, draft.trade === tr && styles.tradeOptionActive]}
                   onPress={() => {
-                    setDraft(d => ({ ...d, trade: t, matchedKeyword: undefined }));
+                    setDraft(d => ({ ...d, trade: tr, matchedKeyword: undefined }));
                     setShowTradeOverride(false);
                   }}
                 >
-                  <View style={[styles.metaDot, { backgroundColor: tradeColor(t, themeColors) }]} />
-                  <Text style={styles.tradeOptionText}>{t}</Text>
-                  {draft.trade === t && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
+                  <View style={[styles.metaDot, { backgroundColor: tradeColor(tr, themeColors) }]} />
+                  <Text style={styles.tradeOptionText}>{subTradeLabel(tr)}</Text>
+                  {draft.trade === tr && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1608,8 +1659,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         <View style={[styles.modalOverlay, fSub.overlay]}>
           <View style={[styles.modalSheet, fSub.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Who fixes this?</Text>
-              <TouchableOpacity onPress={() => setShowSubPicker(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.punchWalk.whoFixesThis', 'Who fixes this?')}</Text>
+              <TouchableOpacity onPress={() => setShowSubPicker(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.close', 'Close')}>
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -1619,7 +1670,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 onPress={() => { setSubChoice({ mode: 'none' }); setShowSubPicker(false); }}
                 testID="walk-sub-none"
               >
-                <Text style={styles.tradeOptionText}>{projectSubs.isOwner ? 'No sub (leave unassigned)' : 'No sub (your GC assigns it)'}</Text>
+                <Text style={styles.tradeOptionText}>{projectSubs.isOwner ? t('field.punchWalk.noSubLeaveUnassigned', 'No sub (leave unassigned)') : t('field.punchWalk.noSubYourGc', 'No sub (your GC assigns it)')}</Text>
                 {!proposedSub && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
               {subsOnJob.map(s => (
@@ -1636,8 +1687,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               {subsOnJob.length === 0 ? (
                 <Text style={styles.subPickerEmpty}>
                   {projectSubs.isOwner
-                    ? 'No subs are assigned to this project yet. Add them under Subs, then they show here.'
-                    : 'Your GC has no subs assigned to this project yet. The item saves unassigned and your GC assigns it.'}
+                    ? t('field.punchWalk.noSubsAreAssigned', 'No subs are assigned to this project yet. Add them under Subs, then they show here.')
+                    : t('field.punchWalk.yourGcHasNo', 'Your GC has no subs assigned to this project yet. The item saves unassigned and your GC assigns it.')}
                 </Text>
               ) : null}
             </ScrollView>
@@ -1652,8 +1703,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         <View style={[styles.modalOverlay, fRooms.overlay]}>
           <View style={[styles.modalSheet, fRooms.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Rooms on this project</Text>
-              <TouchableOpacity onPress={() => setShowAllLocations(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.modalTitle}>{t('field.punchWalk.roomsOnThisProject', 'Rooms on this project')}</Text>
+              <TouchableOpacity onPress={() => setShowAllLocations(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.close', 'Close')}>
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -1663,12 +1714,12 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                   style={styles.locRow}
                   onPress={handleClearLocation}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear the location on this item"
+                  accessibilityLabel={t('field.punchWalk.clearTheLocationOn', 'Clear the location on this item')}
                 >
                   <X size={14} color={themeColors.textMuted} strokeWidth={2} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.locRowTitle}>No location</Text>
-                    <Text style={styles.locRowSub}>Saves with no room given</Text>
+                    <Text style={styles.locRowTitle}>{t('field.punchWalk.noLocation', 'No location')}</Text>
+                    <Text style={styles.locRowSub}>{t('field.punchWalk.savesWithNoRoom', 'Saves with no room given')}</Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -1708,15 +1759,40 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 }
 
 /**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX rendered
+ * (the phone goldens record one line per string child). The sentence is still
+ * ONE key. (Same helper as components/home/DailyLogCard.tsx.)
+ */
+function sentenceParts(template: string, values: Record<string, string | number>): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
+
+/**
  * The sub-line under a room in the All-rooms sheet. Only counts that exist —
  * a plan room genuinely has no items, and printing "0 items" for it would read
  * as a finished room rather than an untouched one.
  */
 function describeLocationOption(o: PunchLocationOption): string {
-  if (o.source === 'plan') return 'From your plans · nothing filed here yet';
-  const items = `${o.count} item${o.count === 1 ? '' : 's'}`;
-  const open = o.openCount > 0 ? `${o.openCount} open` : 'all closed';
-  return o.onPlan ? `${items} · ${open} · on your plans` : `${items} · ${open}`;
+  if (o.source === 'plan') return t('field.punchWalk.rooms.fromPlans', 'From your plans · nothing filed here yet');
+  // A list of facts joined by ' · ', never one sentence: each fact is its own key.
+  const facts = [
+    tn('field.punchWalk.rooms.items', o.count, { one: '{count} item', other: '{count} items' }),
+    o.openCount > 0
+      ? tn('field.punchWalk.rooms.open', o.openCount, { one: '{count} open', other: '{count} open' })
+      : t('field.punchWalk.rooms.allClosed', 'all closed'),
+    ...(o.onPlan ? [t('field.punchWalk.rooms.onPlans', 'on your plans')] : []),
+  ];
+  return facts.join(' · ');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1727,6 +1803,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
   onPick: (projectId: string) => void;
   onBack: () => void;
 }) {
+  const { t } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -1737,17 +1814,17 @@ function ProjectPicker({ projects, onPick, onBack }: {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('field.punchWalk.back', 'Back')}><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Walk mode · Punch</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Pick a project</Text>
+          <Text style={styles.headerEyebrow}>{t('field.punchWalk.walkModePunch', 'Walk mode · Punch')}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{t('field.punchWalk.pickAProject', 'Pick a project')}</Text>
         </View>
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.emptyText}>No projects on file. Create one first, then come back to walk punch items.</Text>
+            <Text style={styles.emptyText}>{t('field.punchWalk.noProjectsOnFile', 'No projects on file. Create one first, then come back to walk punch items.')}</Text>
           </View>
         ) : (
           projects.map(p => (

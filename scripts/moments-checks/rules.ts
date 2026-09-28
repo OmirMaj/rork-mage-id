@@ -30,14 +30,33 @@
 //      fireWebConfetti( calls in marketing/portal/index.html (its definition
 //      excluded) may not rise above today's CEILINGS. Below a ceiling prints
 //      "lower the ceiling to N". W2 retires the app sites; W3 takes both to 0.
+//   R6 confetti is gone (W3 close-out, lane MOMPORTAL): ZERO occurrences of
+//      fireConfetti / ConfettiHost / fireWebConfetti in the code of app/,
+//      components/ (moments included) and marketing/ — definitions, imports
+//      and JSX included, the deleted components/animations/Confetti.tsx not
+//      excepted. Comments are stripped first: a sentence that explains why a
+//      thing is gone is not the thing. Success is the capsule's check and the
+//      seal, never confetti (plan rule 4).
 
 import type { MomentsCtx } from '../validate-moments';
 import { lintMomentCopy } from '../../utils/moments/copy';
 
 type Fails = string[];
 
-/** Today's measured counts (2026-09-28, base f0dbd267): app = contract x1 + project-detail x2; portal = 3 calls. */
-export const CONFETTI_CEILING = { app: 0, portal: 3 } as const;
+/** Both at 0 since W3 (2026-09-28): the app's burst was deleted (ESSHELL), the portal's retired (MOMPORTAL). */
+export const CONFETTI_CEILING = { app: 0, portal: 0 } as const;
+
+/** R6: every name the confetti ever went by. */
+export const CONFETTI_NAMES = /\b(fireConfetti|ConfettiHost|fireWebConfetti)\b/g;
+/** R6 over one file's comment-stripped text: each hit as `name@line`. */
+export function confettiHits(codeText: string): string[] {
+  const out: string[] = [];
+  for (const m of codeText.matchAll(CONFETTI_NAMES)) {
+    const line = codeText.slice(0, m.index ?? 0).split('\n').length;
+    out.push(`${m[1]}@${line}`);
+  }
+  return out;
+}
 
 const MOMENT_TAGS = ['SlideToConfirm', 'SigningCeremony'] as const;
 const QUEUE_BACKED = /\b(supabaseWrite|supabaseWriteDetailed|supabaseRpcDetailed|addToOfflineQueue|enqueue\w*)\s*\(/;
@@ -463,6 +482,34 @@ export default function run(ctx: MomentsCtx): void {
   // The ratchet itself bites, proven on synthetic numbers and planted code,
   // never on today's live count (a lane that retires a site must stay green).
   for (const [name, pass] of confettiRatchetProofs()) ok(name, pass);
+
+  // R6: nothing named confetti is left in the shipped code.
+  const r6Files = [
+    ...listFiles('app', ['.ts', '.tsx']),
+    ...listFiles('components', ['.ts', '.tsx']),
+    ...listFiles('marketing', ['.html', '.js', '.css', '.ts', '.tsx']),
+  ];
+  const r6: string[] = [];
+  for (const path of r6Files) {
+    const src = read(path);
+    const hits = confettiHits(path.endsWith('.html') ? stripHtmlComments(src, stripComments) : stripComments(src));
+    if (hits.length) r6.push(`${path}: ${hits.join(', ')}`);
+  }
+  ok(`R6 zero fireConfetti / ConfettiHost / fireWebConfetti in the code of app/, components/ and marketing/ (${r6Files.length} files, definitions included)`,
+    r6Files.length > 200 && r6.length === 0, r6.join('\n') || `only ${r6Files.length} files scanned: the walk is broken`);
+  for (const [name, pass] of confettiGoneProofs(stripComments)) ok(name, pass);
+}
+
+/** R6 planted proofs: a definition, an import, JSX and a portal call are each found; a comment is not. */
+export function confettiGoneProofs(strip: (s: string) => string): [string, boolean][] {
+  const hit = (s: string) => confettiHits(strip(s)).length > 0;
+  return [
+    ['R6 red on planted: a fireConfetti definition', hit('export function fireConfetti(opts?: { count: number }) {}')],
+    ['R6 red on planted: an import of ConfettiHost', hit("import { ConfettiHost } from '@/components/animations/Confetti';")],
+    ['R6 red on planted: <ConfettiHost /> in a layout', hit('return (<View>{children}<ConfettiHost /></View>);')],
+    ['R6 red on planted: a fireWebConfetti call in a page script', hit("if (ok) fireWebConfetti();")],
+    ['R6 a comment that says why confetti is gone stays green', !hit('// No fireConfetti here: success is the seal.\n/* ConfettiHost was deleted in W3. */\nconst x = 1;')],
+  ];
 }
 
 /** R5 planted proofs, independent of the live counts and of the ceiling's value. */
