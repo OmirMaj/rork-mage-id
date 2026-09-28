@@ -249,7 +249,7 @@ const cardCode = [
   pageHelpers,
   liftFn(html, 'fmtDate'), liftVar(html, 'CAL_MONTHS'), liftFn(html, 'fmtDateShort'), liftFn(html, 'fmtCalendarDate'),
   liftVar(html, 'CONTRACT_COPY'), liftVar(html, 'WARRANTY_PLACEHOLDER_MARK'), liftVar(html, 'CONTRACT_MISSING_COPY'),
-  liftFn(html, 'contractCopy'), liftFn(html, 'contractTermsMissing'), liftFn(html, 'contractSignable'),
+  liftFn(html, 'contractCopy'), liftFn(html, 'contractUsesLine'), liftFn(html, 'contractTermsMissing'), liftFn(html, 'contractSignable'),
   liftFn(html, 'renderContractTerms'), liftFn(html, 'contractSignedLine'), liftFn(html, 'renderContractCard'),
   'var window = { __portalData: { language: "en" } };',
   'function t(k) { return ({ contractTitleLabel: "Title", contractValueLabel: "Contract value", contractStatusSigned: "Signed by both parties", contractSignedDisclaimer: "Keep it", contractSignNamePlaceholder: "Name", contractSignButton: "Sign & make binding" })[k] || k; }',
@@ -257,7 +257,7 @@ const cardCode = [
 ].join('\n');
 const page = runJs<{
   card: (c: unknown) => string; missing: (c: unknown) => string | null; signable: (c: unknown) => boolean;
-  win: { __portalData: { language: string } };
+  win: { __portalData: { language: string }; MageMoments?: unknown };
 }>(cardCode, 'api');
 const block = { id: 'c-1', status: 'sent', contractValue: 100_000.5, title: 'Agreement', needsSignature: true, content };
 const sentHtml = page.card(block);
@@ -295,6 +295,19 @@ ok('the evidence path is never rendered', !page.card({ ...block, status: 'signed
 page.win.__portalData.language = 'es';
 ok('the corrected copy is translated (and not read from a stale uiStrings bundle)',
   page.card(block).includes('Lea abajo el alcance') && !/en la app/.test(page.card(block)));
+// D-7: with moments.js loaded, English signs on the line under the slide
+// sentence; Spanish keeps the tap under its own sentence, word for word.
+page.win.MageMoments = { MomentLine: function () {} };
+const esWithLine = page.card(block);
+page.win.__portalData.language = 'en';
+const enWithLine = page.card(block);
+delete page.win.MageMoments;
+ok('D-7: Spanish keeps the tap button and "pulsar Firmar" even with moments.js loaded',
+  esWithLine.includes('data-action="sign-contract"') && !esWithLine.includes('data-contract-line=') && esWithLine.includes('Al escribir su nombre y pulsar Firmar'));
+ok('D-7: English with moments.js draws the line host, no tap button, and never the "tapping Sign" sentence',
+  enWithLine.includes('data-contract-line="c-1"') && !enWithLine.includes('data-action="sign-contract"') && !/tapping Sign/.test(enWithLine)
+  && enWithLine.includes('data-contract-fine-print="slide"'));
+page.win.__portalData.language = 'es';
 ok('no locale block in the page still says "in the app" / "emailed to you"',
   !/in the app, then enter your full legal name/.test(html) && !/The signed PDF will be available in this portal/.test(html));
 ok('the section, the legacy list and the published list all ask contractSignable',

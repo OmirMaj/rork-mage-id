@@ -17,9 +17,13 @@
 //      is a line, never a seal (text rules AND an executed jsdom run).
 //   P6 no signing result line says "notified".
 //   P7 "(server time)" only next to a time the server stored.
-//   P8 the contract fine print (seven copies), both e-sign disclosures and the
-//      proposal note are byte-identical to pinned hashes, and the contract
-//      counter-sign is still a TAP (D-7: the fine print says "tapping Sign").
+//   P8 the contract fine print (the seven "tapping Sign" copies, and the one
+//      English slide sentence D-7 added), both e-sign disclosures and the
+//      proposal note are byte-identical to pinned hashes. D-7 (founder,
+//      2026-09-28): the counter-sign is the slide ONLY in English with
+//      moments.js loaded, under the slide sentence; the other five languages,
+//      and English without moments.js, keep the tap button under "tapping
+//      Sign". Each control sits with the one sentence that describes it.
 //   P9 every NEW string is in the English table and in no other language
 //      table (the page's CONTRACT_COPY, COMMERCIAL_PASSPORT_STRINGS, and every
 //      bundle in utils/portalLanguages.ts).
@@ -52,6 +56,8 @@ export const NEW_PORTAL_KEYS = [
   'esignSlideApprove', 'esignSlideAccept', 'esignSealApproved', 'esignSealAccepted',
   'esignCOApproved', 'esignProposalAccepted', 'esignCONotRecorded', 'esignProposalNotRecorded',
   'esignNeedName', 'esignNeedSignature', 'esignNeedConsent',
+  // D-7: the contract slide's label and its consent sentence (English only).
+  'contractSlideLabel', 'contractFinePrintSlide',
 ] as const;
 /** Two of them are sentences the page already said (moved out of alert() calls, words unchanged). */
 const MOVED_SENTENCES = new Set(['contractSignDeniedPending', 'contractSignDeniedLink']);
@@ -65,6 +71,8 @@ export const PINNED = {
   esign: 'fd347f8ed5bd8934c14563241ed7407dc95acf499ea1e2a1666d3114c3872eaa',
   proposal: 'd849236eb869597138afb69fa7de634f7e2c4f9b22778f43b34637d38d0b8da2',
   note: '78fb1382fcd46b50766c58ee500e2fae6098961f580d4b85c580bfcf43424bab',
+  /** D-7 (founder, 2026-09-28): the English consent line under the slide. */
+  slideFinePrint: '2ea7c78ac6592109f90ec4748586f674d12d57156c1bc9ac3f1120ee88e9a512',
 } as const;
 
 const MUT = process.env.PORTAL_MUT_DIR;
@@ -128,13 +136,19 @@ export function pageRules(pageCode: string, fullPage: string): string[] {
   // to showContractSignNote (comments are stripped, so anchor on code).
   const signAt = pageCode.indexOf(`ev.target.closest('[data-action="sign-contract"]')`);
   const clickAt = signAt < 0 ? -1 : pageCode.lastIndexOf("document.addEventListener('click'", signAt);
-  const noteAt = clickAt < 0 ? -1 : pageCode.indexOf('function showContractSignNote(', clickAt);
+  // D-7: the tap handler ends where the shared request and the line begin;
+  // the line's commit runs up to showContractSignNote.
+  const lineAt = clickAt < 0 ? -1 : pageCode.indexOf('function postContractSignature(', clickAt);
+  const commitAt = lineAt < 0 ? -1 : pageCode.indexOf('function commitContractLine(', lineAt);
+  const noteAt = commitAt < 0 ? -1 : pageCode.indexOf('function showContractSignNote(', commitAt);
   const contract = clickAt >= 0 && noteAt > clickAt ? pageCode.slice(clickAt, noteAt) : '';
+  const tap = clickAt >= 0 && lineAt > clickAt ? pageCode.slice(clickAt, lineAt) : '';
+  const lineCommit = commitAt >= 0 && noteAt > commitAt ? pageCode.slice(commitAt, noteAt) : '';
   const docSign = between(pageCode, 'function showDocSignModal(opts) {', 'function showCOSignModal(opts) {');
   const coHandler = between(pageCode, 'function handleCODecision(', 'function bindCOHandlers(');
   const propHandler = between(pageCode, 'function handleProposalDecision(', 'function bindProposalHandlers(');
-  if (!contract || !docSign || !coHandler || !propHandler) {
-    f.push(`P0 a signing path is missing (contract ${!!contract}, modal ${!!docSign}, CO ${!!coHandler}, proposal ${!!propHandler})`);
+  if (!contract || !tap || !lineCommit || !docSign || !coHandler || !propHandler) {
+    f.push(`P0 a signing path is missing (contract ${!!contract}, tap ${!!tap}, line ${!!lineCommit}, modal ${!!docSign}, CO ${!!coHandler}, proposal ${!!propHandler})`);
     return f;
   }
   const paths: [string, string][] = [['contract counter-sign', contract], ['e-sign sheet', docSign], ['CO decision', coHandler], ['proposal decision', propHandler]];
@@ -143,17 +157,32 @@ export function pageRules(pageCode: string, fullPage: string): string[] {
   if (/fireWebConfetti|web-confetti/.test(fullPage)) f.push('P4 fireWebConfetti / web-confetti is still in the page');
   if (/#FF6A1A/i.test(fullPage)) f.push("P4 the retired '#FF6A1A' is in the page");
   for (const w of ['Signing…', 'Sealing…', 'Signing...', 'Sealing...']) if (fullPage.includes(w)) f.push(`P4 "${w}" button text is still in the page`);
-  // P5 contract: the seal is drawn only after the already-answer and the ok-check returned.
-  const okGate = contract.indexOf('if (!res || res.ok !== true) {');
-  const firstSeal = contract.indexOf('drawContractSeal(');
-  const already = contract.indexOf('if (res && res.already === true) {');
-  const catchAt = contract.lastIndexOf('.catch(function (err)');
+  // P5 contract (the tap): the seal is drawn only after the already-answer and the ok-check returned.
+  const okGate = tap.indexOf('if (!res || res.ok !== true) {');
+  const firstSeal = tap.indexOf('drawContractSeal(');
+  const already = tap.indexOf('if (res && res.already === true) {');
+  const catchAt = tap.lastIndexOf('.catch(function (err)');
   if (okGate < 0) f.push('P5 the contract handler does not check the server\'s {ok: true} before sealing');
   if (already < 0) f.push('P5 the contract handler lost its {already: true} branch');
   if (firstSeal < 0) f.push('P5 the contract handler never draws the seal');
   if (okGate >= 0 && firstSeal >= 0 && (firstSeal < okGate || firstSeal < already)) f.push('P5 the contract seal is drawn before the {ok: true} check');
-  if (catchAt >= 0 && /drawContractSeal\(|keepContractSeal\(|sealResult\(/.test(contract.slice(catchAt))) f.push('P5 a seal in the contract failure path');
-  if (!/if \(!res \|\| res\.ok !== true\) \{\s*setContractSignLine\(contractId, t\('momentNoAnswer'\), 'error'\);\s*return;\s*\}/.test(contract)) f.push('P5 a 2xx without {ok: true} must read "No answer yet" and return');
+  if (catchAt < 0) f.push('P5 the contract tap lost its failure path');
+  if (catchAt >= 0 && /drawContractSeal\(|keepContractSeal\(|sealResult\(|contractSealOpts\(/.test(tap.slice(catchAt))) f.push('P5 a seal in the contract failure path');
+  if (!/if \(!res \|\| res\.ok !== true\) \{\s*setContractSignLine\(contractId, t\('momentNoAnswer'\), 'error'\);\s*return;\s*\}/.test(tap)) f.push('P5 a 2xx without {ok: true} must read "No answer yet" and return');
+  // P5 contract (the line, D-7): 'confirmed' once, after the already-answer
+  // and the ok-check; the rejection path never seals; no answer locks it.
+  const lOk = /if \(!res \|\| res\.ok !== true\) \{\s*return \{ status: 'timeout', reason: t\('momentNoAnswer'\) \};\s*\}/.exec(lineCommit);
+  const lAlready = lineCommit.indexOf('if (res && res.already === true) {');
+  const lConfirmed = [...lineCommit.matchAll(/status: 'confirmed'/g)].map((m) => m.index ?? -1);
+  const lReject = lineCommit.indexOf('}, function (err) {');
+  if (!lOk) f.push('P5 the contract line must read a 2xx without {ok: true} as no answer (timeout)');
+  if (lAlready < 0) f.push('P5 the contract line lost its {already: true} branch');
+  if (lReject < 0) f.push('P5 the contract line lost its failure path');
+  if (lConfirmed.length !== 1) f.push(`P5 the contract line answers 'confirmed' ${lConfirmed.length} times (want exactly 1)`);
+  else if (!lOk || lAlready < 0 || lConfirmed[0] < lOk.index || lConfirmed[0] < lAlready) f.push('P5 the contract line seals before the {ok: true} check');
+  if (lAlready >= 0 && lOk && /contractSealOpts\(|sealResult\(|drawContractSeal\(|'confirmed'/.test(lineCommit.slice(lAlready, lOk.index))) f.push('P5 a seal on the contract line\'s {already: true} answer');
+  if (lReject >= 0 && /contractSealOpts\(|sealResult\(|drawContractSeal\(|keepContractSeal\(|'confirmed'/.test(lineCommit.slice(lReject))) f.push('P5 a seal in the contract line failure path');
+  if (!/if \(!\(err && \/Sign failed: 4\/\.test\(String\(err\.message\)\)\)\) \{\s*return \{ status: 'timeout', reason: t\('momentNoAnswer'\) \};/.test(lineCommit)) f.push('P5 no answer on the contract line must read "No answer yet" and lock (timeout)');
   // P5 CO: ui.confirmed once, after the recorded:false return and the !== true guard.
   const coConfirmed = [...coHandler.matchAll(/ui\.confirmed\(/g)].map((m) => m.index ?? -1);
   const coFalse = coHandler.indexOf('if (res.recorded === false) {');
@@ -183,14 +212,27 @@ export function pageRules(pageCode: string, fullPage: string): string[] {
   const recAt = [...pageCode.matchAll(/recordedAt:\s*([^,\n}]+)/g)].map((m) => m[1].trim());
   const allowedRec = new Set(['signedAt', 'res.sealed_at || null', '(r && r.recordedAt) || null']);
   for (const r of recAt) if (!allowedRec.has(r)) f.push(`P7 recordedAt: ${r} is not a server time`);
-  if (!/drawContractSeal\(signHost, contractId, null, true\)/.test(contract)) f.push('P7 the first contract seal must carry no time (the RPC returns none)');
-  if (!/var signedAt = \(fc && fc\.id === contractId && fc\.status === 'signed' && fc\.homeownerSignedAt\) \|\| null;/.test(contract)) f.push("P7 the contract's Recorded time must come from the refreshed snapshot's homeownerSignedAt");
+  if (!/drawContractSeal\(signHost, contractId, null, true\)/.test(tap)) f.push('P7 the first contract seal must carry no time (the RPC returns none)');
+  if (!/seal: contractSealOpts\(null, true\)/.test(lineCommit)) f.push('P7 the contract line\'s seal must carry no time (the RPC returns none)');
+  const snapTime = /var signedAt = \(fc && fc\.id === contractId && fc\.status === 'signed' && fc\.homeownerSignedAt\) \|\| null;/g;
+  if ((contract.match(snapTime) ?? []).length !== 2) f.push("P7 the contract's Recorded time (tap and line) must come from the refreshed snapshot's homeownerSignedAt");
   if (/new Date\(\)/.test(contract)) f.push('P7 the contract handler reads the device clock');
   const serverTime = (fullPage.match(/\(server time\)/g) ?? []).length;
   if (serverTime !== 1) f.push(`P7 "(server time)" appears ${serverTime} times in the page (want 1: the momentRecordedAt template)`);
-  // P8 D-7: the counter-sign is a tap button with the fine print under it.
-  if (!/'<button type="button" class="contract-sign-btn" data-action="sign-contract"/.test(pageCode)) f.push('P8 the contract counter-sign must stay a tap button (D-7)');
-  if (/MomentLine/.test(contract)) f.push('P8 the contract counter-sign became a slide without D-7 approval');
+  // P8 D-7: the slide only in English with moments.js; the tap everywhere
+  // else; each control with the one sentence that describes it.
+  if (!/'<button type="button" class="contract-sign-btn" data-action="sign-contract"/.test(pageCode)) f.push('P8 the tap button must stay (the other five languages, and English without moments.js)');
+  if (/MomentLine/.test(tap)) f.push('P8 the tap handler must stay a tap');
+  const uses = between(pageCode, 'function contractUsesLine() {', '\n  }');
+  if (!/var lang = String\(d\.language \|\| 'en'\)\.slice\(0, 2\)\.toLowerCase\(\);/.test(uses) || !/return lang === 'en' && !!\(M && M\.MomentLine\);/.test(uses)) f.push('P8 D-7: the slide must be English-only and need moments.js (contractUsesLine)');
+  const card = between(pageCode, 'function renderContractCard(c) {', 'function renderSelections(');
+  const slideHost = card.indexOf('data-contract-line="');
+  const slideFp = card.indexOf(`data-contract-fine-print="slide">' + esc(t('contractFinePrintSlide'))`);
+  const tapBtn = card.indexOf('data-action="sign-contract"');
+  const tapFp = card.indexOf(`data-contract-fine-print="tap">' + esc(contractCopy('finePrint'))`);
+  if (!/var slide = contractUsesLine\(\);/.test(card) || !/\(slide\s*\?\s*'<div class="contract-line-name"/.test(card)) f.push('P8 the contract card must choose the slide through contractUsesLine()');
+  if ([slideHost, slideFp, tapBtn, tapFp].some((i) => i < 0) || !(slideHost < slideFp && slideFp < tapBtn && tapBtn < tapFp)) f.push('P8 each control must sit with its own fine print (the line with the slide sentence, the button with "tapping Sign")');
+  if ((pageCode.match(/contractFinePrintSlide/g) ?? []).length !== 2) f.push('P8 the slide sentence may appear only in the English table and under the line');
   return f;
 }
 
@@ -200,6 +242,7 @@ export function copyRules(page: string, langs: string): string[] {
   const fb = fallbackTable(page);
   const fine = fb.get('contractFinePrint') ?? '';
   if (sha(fine) !== PINNED.fallbackFinePrint) f.push('P8 FALLBACK contractFinePrint changed (consent text: D-7 decision needed)');
+  if (sha(fb.get('contractFinePrintSlide') ?? '') !== PINNED.slideFinePrint) f.push('P8 FALLBACK contractFinePrintSlide changed (the English consent line under the slide)');
   const cc = between(page, 'var CONTRACT_COPY = {', 'function contractCopy(');
   const fps = [...cc.matchAll(/finePrint: (['"])((?:(?!\1)[^\\]|\\.)*)\1,/g)].map((m) => m[2]);
   if (fps.length !== 6 || sha(fps.join('\n')) !== PINNED.contractCopyFinePrint) f.push(`P8 CONTRACT_COPY finePrint changed in some language (${fps.length} found)`);
@@ -323,7 +366,7 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
 
   // P4-P8 on the page
   const pr = pageRules(pageCode, page);
-  ok('P4-P8 the signing paths: no alert(, no confetti, no retired orange, no busy-word swap; the seal only on the server\'s yes; no "notified"; "(server time)" only on a server time; the counter-sign still a tap', pr.length === 0, pr.join('\n'));
+  ok('P4-P8 the signing paths: no alert(, no confetti, no retired orange, no busy-word swap; the seal only on the server\'s yes (tap and line); no "notified"; "(server time)" only on a server time; the slide only in English with moments.js, the tap everywhere else', pr.length === 0, pr.join('\n'));
   const cr = copyRules(page, langs);
   ok(`P8-P9 fine print and disclosures byte-identical; ${NEW_PORTAL_KEYS.length} new keys in English only, lint clean`, cr.length === 0, cr.join('\n'));
 
@@ -348,7 +391,13 @@ function plantedProofs(ctx: MomentsCtx, page: string, js: string, css: string, l
   out.push(['P6 "notified" on the contract path', pr(swap(page, "showContractSignNote(target, t('contractSignAlready'));", "showContractSignNote(target, 'Signed. Your contractor has been notified.');")).some((x) => /P6/.test(x))]);
   out.push(['P7 the device clock labelled server time', pr(swap(page, "drawContractSeal(signHost, contractId, null, true)", "drawContractSeal(signHost, contractId, new Date().toISOString(), true)")).some((x) => /P7/.test(x))]);
   out.push(['P7 a recordedAt from the device clock in the sheet', pr(swap(page, 'recordedAt: res.sealed_at || null,', 'recordedAt: new Date().toISOString(),')).some((x) => /P7 recordedAt/.test(x))]);
-  out.push(['P8 the counter-sign turned into a slide', pr(swap(page, "'<button type=\"button\" class=\"contract-sign-btn\" data-action=\"sign-contract\"", "'<div class=\"mp-line\" data-action=\"sign-contract\"")).some((x) => /P8/.test(x))]);
+  out.push(['P8 the tap button removed (the other languages lose their control)', pr(swap(page, "'<button type=\"button\" class=\"contract-sign-btn\" data-action=\"sign-contract\"", "'<div class=\"mp-line\" data-action=\"sign-contract\"")).some((x) => /P8/.test(x))]);
+  out.push(['P8 the slide in every language (D-7 is English only)', pr(swap(page, "return lang === 'en' && !!(M && M.MomentLine);", 'return !!(M && M.MomentLine);')).some((x) => /P8 D-7/.test(x))]);
+  out.push(['P8 the "tapping Sign" sentence under the slide', pr(swap(page, `data-contract-fine-print="slide">' + esc(t('contractFinePrintSlide'))`, `data-contract-fine-print="slide">' + esc(contractCopy('finePrint'))`)).some((x) => /P8 each control/.test(x))]);
+  out.push(['P8 the English slide sentence edited', copyRules(swap(page, 'sliding along the line, you accept', 'sliding, you accept'), langs).some((x) => /P8 FALLBACK contractFinePrintSlide/.test(x))]);
+  out.push(['P5 the contract line seals before the ok check', pr(swap(page, "      if (!res || res.ok !== true) {\n        return { status: 'timeout'", "      if (res) return { status: 'confirmed', seal: contractSealOpts(null, true) };\n      if (!res || res.ok !== true) {\n        return { status: 'timeout'")).some((x) => /P5 the contract line/.test(x))]);
+  out.push(['P5 the contract line seals on a network error', pr(swap(page, '      console.error(err);\n      if (!(err && /Sign failed: 4/', "      console.error(err);\n      if (err) return { status: 'confirmed', seal: contractSealOpts(null, true) };\n      if (!(err && /Sign failed: 4/")).some((x) => /P5 the contract line|P5 a seal in the contract line/.test(x))]);
+  out.push(['P7 the contract line sealed with the device clock', pr(swap(page, 'seal: contractSealOpts(null, true)', 'seal: contractSealOpts(new Date().toISOString(), true)')).some((x) => /P7/.test(x))]);
   out.push(['P8 one language\'s fine print edited', copyRules(swap(page, 'Al escribir su nombre y pulsar Firmar', 'Al escribir su nombre y deslizar'), langs).some((x) => /P8 CONTRACT_COPY/.test(x))]);
   out.push(['P8 the CO disclosure edited', copyRules(swap(page, 'you consent to sign this change order electronically', 'you consent to slide this change order electronically'), langs).some((x) => /P8 ESIGN/.test(x))]);
   out.push(['P9 a new key machine-translated into the Spanish contract table', copyRules(swap(page, "    es: {\n      explainer:", "    es: {\n      contractSignedSeal: 'Firmado. Este contrato es vinculante.',\n      explainer:"), langs).some((x) => /P9 contractSignedSeal appears in CONTRACT_COPY/.test(x))]);
@@ -444,7 +493,9 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   ok('E1 EXECUTED: …and the second tap commits', dCalls === 1);
   lineDom.window.close();
 
-  // ── E2 the page: the contract counter-sign (tap) and the CO approval (slide) ──
+  // ── E2 the page: the contract counter-sign as the TAP (Spanish: D-7 keeps
+  //    the tap outside English), the CO approval (slide); E4 the contract
+  //    counter-sign as the SLIDE (English) ──
   const contract = {
     id: 'c-1', projectId: 'p1', userId: 'gc-1', version: 1, title: 'Construction Agreement', contractValue: 100000.5,
     scopeText: 'Kitchen remodel per plans.', termsText: 'Terms.', warrantyText: 'One year.', startDate: '2026-10-05', durationDays: 90,
@@ -458,17 +509,28 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     changeOrders: [{ id: 'co1', projectId: 'p1', number: 4, description: 'Add a window', reason: '', date: '2026-09-01', status: 'submitted', changeAmount: 4200, lineItems: [] }],
     supabaseUrl: 'https://nteoqhcswappxxjlpvap.supabase.co', supabaseAnonKey: 'anon',
   } as any);
-  const b64 = Buffer.from(JSON.stringify(snap)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const html = page.replace(/<script src="\/portal\/moments\.js\?v=[\w-]+"><\/script>/, () => `<script>${js}</script>`);
+  // The same portal in Spanish: D-7 keeps its counter-sign a tap.
+  const snapEs: any = buildPortalSnapshot({
+    project: { id: 'p1', name: 'Maple St', status: 'in_progress', updatedAt: 'x' },
+    portal: { portalId: 'pid', enabled: true, showChangeOrders: true, coApprovalEnabled: true, homeownerLanguage: 'es' },
+    contract,
+    changeOrders: [],
+    supabaseUrl: 'https://nteoqhcswappxxjlpvap.supabase.co', supabaseAnonKey: 'anon',
+  } as any);
+  const ES = { snap: snapEs };
+  const enc = (x: unknown) => Buffer.from(JSON.stringify(x)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const withJs = (p: string) => p.replace(/<script src="\/portal\/moments\.js\?v=[\w-]+"><\/script>/, () => `<script>${js}</script>`);
+  const html = withJs(page);
 
   type Plan = { sign?: () => unknown; co?: () => unknown; server?: () => unknown };
-  async function boot(plan: Plan) {
+  async function boot(plan: Plan, opt: { snap?: any; html?: string } = {}) {
+    const bootSnap = opt.snap ?? snap;
     const errors: string[] = [];
     const calls: string[] = [];
     const vc = new VirtualConsole();
     vc.on('jsdomError', (e: any) => { const m = String(e?.message ?? e); if (!/Not implemented/.test(m)) errors.push(m); });
-    const dom = new JSDOM(html, {
-      url: `https://mageid.app/portal/pid?t=tok#d=${b64}`, runScripts: 'dangerously', virtualConsole: vc, pretendToBeVisual: true,
+    const dom = new JSDOM(opt.html ?? html, {
+      url: `https://mageid.app/portal/pid?t=tok#d=${enc(bootSnap)}`, runScripts: 'dangerously', virtualConsole: vc, pretendToBeVisual: true,
       beforeParse(w: any) {
         w.IntersectionObserver = class { observe() {} disconnect() {} };
         w.open = () => null;
@@ -484,7 +546,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
           };
           if (url.includes('portal_sign_contract')) return answer(plan.sign);
           if (url.includes('portal_submit_co_approval_signed')) return answer(plan.co);
-          if (url.includes('portal_get_snapshot_v2')) return answer(plan.server ?? (() => ({ body: { status: 'ok', snapshot: snap } })));
+          if (url.includes('portal_get_snapshot_v2')) return answer(plan.server ?? (() => ({ body: { status: 'ok', snapshot: bootSnap } })));
           return json({});
         };
       },
@@ -506,14 +568,19 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   const scen: ((ok: OkFn) => Promise<void>)[] = [];
   scen.push(async (ok) => {
     // ok -> seal now, Recorded line only once the re-read carries the server's signed-at.
-    const signedSnap = { ...snap, contract: { ...snap.contract, status: 'signed', needsSignature: false, homeownerSignerName: 'Dana Reyes', homeownerSignedAt: '2026-09-27T18:41:00.000Z', homeownerSignatureMethod: 'portal' } };
+    const signedSnap = { ...snapEs, contract: { ...snapEs.contract, status: 'signed', needsSignature: false, homeownerSignerName: 'Dana Reyes', homeownerSignedAt: '2026-09-27T18:41:00.000Z', homeownerSignatureMethod: 'portal' } };
     let signed = false;
     const s = await boot({
       sign: () => { signed = true; return { body: { ok: true } }; },
-      server: () => ({ body: { status: 'ok', snapshot: signed ? signedSnap : snap } }),
-    });
+      server: () => ({ body: { status: 'ok', snapshot: signed ? signedSnap : snapEs } }),
+    }, ES);
     const alerts: string[] = [];
     s.w.alert = (m: string) => alerts.push(m);
+    const esFine = s.d.querySelector('#sec-contract [data-contract-fine-print]');
+    ok('E2 Spanish (D-7): the counter-sign stays the tap button, no line, and the Spanish fine print is byte-identical ("pulsar Firmar")',
+      !!signBtn(s.d) && !s.d.querySelector('[data-contract-line]') && esFine?.getAttribute('data-contract-fine-print') === 'tap'
+      && esFine.textContent === 'Al escribir su nombre y pulsar Firmar, acepta el acuerdo como legalmente vinculante. Su contratista conserva la copia firmada y sellada y puede enviársela.',
+      esFine?.outerHTML);
     ok('E2 the contract sign button renders locked, with the reason under it', signBtn(s.d)?.disabled === true && signLine(s.d) === 'Type your full legal name to sign.',
       `errors: ${s.errors.join(' | ')}; portal ${s.d.getElementById('portal')?.style.display}; sections ${s.d.getElementById('sections')?.innerHTML.length}; calls ${s.calls.join(', ')}`);
     if (!signBtn(s.d)) { s.close(); return; }
@@ -539,7 +606,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     s.close();
   });
   scen.push(async (ok) => {
-    const s = await boot({ sign: () => new TypeError('Failed to fetch') });
+    const s = await boot({ sign: () => new TypeError('Failed to fetch') }, ES);
     s.w.alert = () => { throw new Error('alert'); };
     typeName(s.w, s.d, 'Dana Reyes');
     signBtn(s.d).click();
@@ -550,7 +617,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     s.close();
   });
   scen.push(async (ok) => {
-    const s = await boot({ sign: () => ({ body: { ok: true, already: true } }) });
+    const s = await boot({ sign: () => ({ body: { ok: true, already: true } }) }, ES);
     typeName(s.w, s.d, 'Dana Reyes');
     signBtn(s.d).click();
     await wait(80);
@@ -559,7 +626,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     s.close();
   });
   scen.push(async (ok) => {
-    const s = await boot({ sign: () => ({ body: { message: 'sign_denied' }, status: 403 }) });
+    const s = await boot({ sign: () => ({ body: { message: 'sign_denied' }, status: 403 }) }, ES);
     typeName(s.w, s.d, 'Dana Reyes');
     signBtn(s.d).click();
     await wait(200);
@@ -568,11 +635,120 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     s.close();
   });
   scen.push(async (ok) => {
-    const s = await boot({ sign: () => ({ body: {} }) });
+    const s = await boot({ sign: () => ({ body: {} }) }, ES);
     typeName(s.w, s.d, 'Dana Reyes');
     signBtn(s.d).click();
     await wait(80);
     ok('E2 EXECUTED: a 2xx without {ok: true} is not a signature: "No answer yet", no seal', /No answer yet/.test(signLine(s.d)) && !s.d.querySelector('.mp-seal'));
+    s.close();
+  });
+
+  // ── E4 D-7: the contract counter-sign as the slide (English) ───────────────
+  const lineOf = (d: any) => d.querySelector('[data-contract-line="c-1"]');
+  const lineHead = (d: any) => lineOf(d)?.querySelector('.mp-head');
+  const lineReason = (d: any) => (lineOf(d)?.querySelector('.mp-reason')?.textContent ?? '') as string;
+  const holdSpace = async (w: Win, head: any) => { head.dispatchEvent(new w.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })); await wait(MOMENT_TIMING.holdFill + 150); };
+  const posts = (s: { calls: string[] }) => s.calls.filter((u) => u.includes('portal_sign_contract')).length;
+  const settle = MOMENT_TIMING.minBusy + MOMENT_TIMING.failHomeLeadAt + 800;
+  const SLIDE_FINE = 'By typing your name and sliding along the line, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.';
+  scen.push(async (ok) => {
+    const signedSnap = { ...snap, contract: { ...snap.contract, status: 'signed', needsSignature: false, homeownerSignerName: 'Dana Reyes', homeownerSignedAt: '2026-09-27T18:41:00.000Z', homeownerSignatureMethod: 'portal' } };
+    let signed = false;
+    const s = await boot({
+      sign: () => { signed = true; return { body: { ok: true } }; },
+      server: () => ({ body: { status: 'ok', snapshot: signed ? signedSnap : snap } }),
+    });
+    const alerts: string[] = [];
+    s.w.alert = (m: string) => alerts.push(m);
+    const fine = s.d.querySelector('#sec-contract [data-contract-fine-print]');
+    ok('E4 English: the counter-sign is the line ("Slide along the line to make it binding"), no tap button, and the fine print names the slide',
+      !!lineHead(s.d) && !signBtn(s.d) && /Slide along the line to make it binding/.test(lineOf(s.d).textContent)
+      && fine?.getAttribute('data-contract-fine-print') === 'slide' && fine.textContent === SLIDE_FINE,
+      `errors: ${s.errors.join(' | ')}; ${s.d.getElementById('sec-contract')?.innerHTML.slice(-1500)}`);
+    if (!lineHead(s.d)) { s.close(); return; }
+    ok('E4 the line starts locked: "Type your full legal name to sign."', lineHead(s.d).disabled === true && lineReason(s.d) === 'Type your full legal name to sign.');
+    typeName(s.w, s.d, 'Da');
+    const shortLocked = lineHead(s.d).disabled === true && lineReason(s.d) === 'Type your full legal name to sign.';
+    typeName(s.w, s.d, 'Dana Reyes');
+    ok('E4 EXECUTED: under 3 characters the line stays locked with the reason; a full name unlocks it and sits on the line',
+      shortLocked && lineHead(s.d).disabled === false && lineReason(s.d) === '' && s.d.getElementById('contract-line-name-c-1')?.textContent === 'Dana Reyes');
+    await holdSpace(s.w, lineHead(s.d));
+    ok('E4 EXECUTED: press-and-hold Space sends one signature; no seal while the answer is pending; the name is locked',
+      posts(s) === 1 && !s.d.querySelector('.mp-seal') && !!lineOf(s.d).querySelector('[data-state="busy"]') && s.d.getElementById('contract-name-c-1').readOnly === true);
+    await wait(MOMENT_TIMING.minBusy + 150);
+    const seal = lineOf(s.d)?.querySelector('.mp-seal[data-moment-seal="closing"]');
+    ok('E4 EXECUTED: {ok: true} closes the ring on the line: "Binding", "Signed. This contract is binding.", no Recorded line yet, no "notified"',
+      !!seal && seal.querySelector('.mp-chip')?.textContent === 'Binding' && /Signed\. This contract is binding\./.test(seal.textContent)
+      && seal.querySelector('.mp-seal-record')?.hidden === true && !/notified/i.test(s.d.getElementById('sec-contract')?.textContent ?? ''),
+      lineOf(s.d)?.outerHTML.slice(0, 900));
+    await wait(MOMENT_TIMING.holdMs + 600);
+    const kept = s.d.querySelector('#sec-contract [data-contract-seal="c-1"] .mp-seal-record');
+    ok('E4 EXECUTED: after the re-read the seal stays on the signed card with the snapshot\'s server time; one POST; no alert(), no page error',
+      !!kept && kept.hidden === false && /^Recorded Sep 27, 2026, \d{1,2}:41 [AP]M \(server time\)\.$/.test(kept.textContent)
+      && posts(s) === 1 && alerts.length === 0 && s.errors.length === 0, `${kept?.textContent} / posts ${posts(s)} / ${s.errors.join(' | ')}`);
+    s.close();
+  });
+  scen.push(async (ok) => {
+    const s = await boot({ sign: () => ({ body: { ok: true, already: true } }) });
+    typeName(s.w, s.d, 'Dana Reyes');
+    // A screen reader's activation: the first arms, the second confirms.
+    lineHead(s.d).click();
+    const armedOnly = posts(s) === 0;
+    lineHead(s.d).click();
+    await wait(150);
+    ok('E4 EXECUTED: a double activation signs once; {already: true} reads "Already signed. Updating the page." with no seal',
+      armedOnly && posts(s) === 1 && /Already signed\. Updating the page\./.test(s.d.querySelector('#sec-contract').textContent) && !s.d.querySelector('.mp-seal'));
+    s.close();
+  });
+  scen.push(async (ok) => {
+    const s = await boot({ sign: () => ({ body: { message: 'sign_denied' }, status: 403 }) });
+    typeName(s.w, s.d, 'Dana Reyes');
+    await holdSpace(s.w, lineHead(s.d));
+    await wait(settle);
+    const input = s.d.getElementById('contract-name-c-1');
+    ok('E4 EXECUTED: a 4xx reads the re-send-the-link reason under the line, no seal, the typed name restored and editable, the line open to try again',
+      /re-send your portal link/.test(lineReason(s.d)) && !s.d.querySelector('.mp-seal') && input?.value === 'Dana Reyes' && input.readOnly === false && lineHead(s.d)?.disabled === false,
+      `${lineReason(s.d)} / ${input?.value} / ro ${input?.readOnly} / head ${lineHead(s.d)?.disabled}`);
+    s.close();
+  });
+  // Offline mid-sign, run on the real page and on a planted page whose line
+  // seals on a network error: the check must pass the first and fail the second.
+  const lineOffline = async (h: string) => {
+    const s = await boot({ sign: () => new TypeError('Failed to fetch') }, { html: h });
+    typeName(s.w, s.d, 'Dana Reyes');
+    await holdSpace(s.w, lineHead(s.d));
+    await wait(settle);
+    const honest = lineReason(s.d) === 'No answer yet. Refresh the page to check before trying again.' && !s.d.querySelector('.mp-seal')
+      && lineHead(s.d)?.disabled === true && s.d.getElementById('contract-name-c-1')?.value === 'Dana Reyes';
+    const detail = `${lineReason(s.d)} / seal ${!!s.d.querySelector('.mp-seal')} / head ${lineHead(s.d)?.disabled}`;
+    s.close();
+    return { honest, detail };
+  };
+  scen.push(async (ok) => {
+    const real = await lineOffline(html);
+    ok('E4 EXECUTED: offline mid-sign reads "No answer yet. Refresh the page…", never a seal; the line locks and the name stays', real.honest, real.detail);
+    const planted = page.replace('      console.error(err);\n      if (!(err && /Sign failed: 4/', "      console.error(err);\n      if (err) return { status: 'confirmed', seal: contractSealOpts(null, true) };\n      if (!(err && /Sign failed: 4/");
+    const mut = planted === page ? { honest: true, detail: 'NOT PLANTED' } : await lineOffline(withJs(planted));
+    ok('E4 red on planted (executed): a line that seals on a network error fails the offline check', !mut.honest, mut.detail);
+  });
+  scen.push(async (ok) => {
+    const s = await boot({ sign: () => ({ body: {} }) });
+    typeName(s.w, s.d, 'Dana Reyes');
+    await holdSpace(s.w, lineHead(s.d));
+    await wait(settle);
+    ok('E4 EXECUTED: a 2xx without {ok: true} on the line is no answer: "No answer yet", no seal, the line locks',
+      /No answer yet/.test(lineReason(s.d)) && !s.d.querySelector('.mp-seal') && lineHead(s.d)?.disabled === true);
+    s.close();
+  });
+  scen.push(async (ok) => {
+    // English, but moments.js did not load: the tap button under the "tapping Sign" sentence.
+    const s = await boot({ sign: () => ({ body: { ok: true } }) }, { html: page });
+    const fine = s.d.querySelector('#sec-contract [data-contract-fine-print]');
+    typeName(s.w, s.d, 'Dana Reyes');
+    ok('E4 English without moments.js falls back to the tap button and its "tapping Sign" fine print',
+      !!signBtn(s.d) && signBtn(s.d).disabled === false && !s.d.querySelector('[data-contract-line]') && fine?.getAttribute('data-contract-fine-print') === 'tap'
+      && fine.textContent === 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
+      `${s.errors.join(' | ')} / ${fine?.outerHTML}`);
     s.close();
   });
 
