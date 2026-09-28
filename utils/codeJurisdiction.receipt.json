@@ -521,6 +521,54 @@
         }
       ]
     },
+    "state:MD": {
+      "label": "Maryland (state)",
+      "verifiedOn": "2026-09-28",
+      "checkedOn": "2026-09-28",
+      "sourceUrl": "https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "claimId": "IBC|2021|https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "Agency Bldgs Building LABOR (Div of Labor & Industry) 2021 IBC (MBPS) 2021 IBC (MPC) 2021 IBC (MPC) Residential LABOR (Div"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "claimId": "IRC|2021|https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "IBC (MPC) Residential LABOR (Div of Labor & Industry) 2021 IRC (MBPS) 2021 IRC (MPC) 2021 IRC (MPC) Energy LABOR (Div of L"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "claimId": "IECC|2021|https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "2021 IRC (MPC) Energy LABOR (Div of Labor & Industry) 2021 IECC (MBPS) 2021 IECC (MPC) 2021 IECC (MPC) Existing Building LA"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "claimId": "IEBC|2021|https://labor.maryland.gov/labor/build/buildcodematrix.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "MPC) Existing Building LABOR (Div of Labor & Industry) 2021 IEBC (MBRC) 2021 IEBC (MBRC) 2021 IEBC (MBRC) Livability LABOR ("
+        }
+      ]
+    },
     "city:NY:new york city": {
       "label": "New York City, NY",
       "verifiedOn": "2026-09-26",
@@ -1149,6 +1197,192 @@
           "verdict": "confirmed",
           "evidence": "\"An ordinance amending Chapter 56, 'Dallas Electrical Code,' of the Dallas City Code, as amended, adopting with certain changes the 2023 Edition of the National Electrical Code of the National Fire Protection Association, Inc.\" — and, page 3: \"Pages 70-1, 70-2, and 70-10 through 70-23 of the 2023 National Electrical Code\". EXECUTED, not a draft: ordinance number 33081 is stamped in the margin on five pages, the signature block reads \"Passed APR 2 8 2025\", and the City Secretary's \"PROOF OF PUBLICATION - LEGAL ADVERTISING\" page gives \"DATE ADOPTED BY CITY COUNCIL / APR 2 8 2025\". Checked specifically because this row twice shipped a wrong NEC edition.",
           "readFrom": "https://web.archive.org/web/20260513201721/https://dallascityhall.com/departments/pnv/Documents/AH%20Memos/Chapter%2056%20Amendment,%20Dallas%20Electrical%20Code,.pdf"
+        }
+      ]
+    },
+    "city:MD:baltimore city": {
+      "label": "Baltimore City, MD",
+      "verifiedOn": "2026-09-28",
+      "checkedOn": "2026-09-28",
+      "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IBC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "more: Maryland Building Performance Standard s / March 2023 International Building Code / 2021 National Electrical Code / 2020 International Fuel G"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IRC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "e Code / 2021 International Energy Conservation Code / 2021 International Residential Code , 1- and 2- Family Dwellings / 2021 International Green Con"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IECC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "erty Maintenance Code / 2021 International Fire Code / 2021 International Energy Conservation Code / 2021 International Residential Code , 1- and 2- Family Dw"
+        },
+        {
+          "family": "IFC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IFC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "Code / 2021 International Property Maintenance Code / 2021 International Fire Code / 2021 International Energy Conservation Code / 2021 Intern"
+        },
+        {
+          "family": "IPC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IPC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "l Fuel Gas Code / 2021 International Mechanical Code / 2021 International Plumbing Code / 2021 International Property Maintenance Code / 2021 Inter"
+        },
+        {
+          "family": "IMC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IMC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "l Electrical Code / 2020 International Fuel Gas Code / 2021 International Mechanical Code / 2021 International Plumbing Code / 2021 International Pro"
+        },
+        {
+          "family": "IFGC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "IFGC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "tional Building Code / 2021 National Electrical Code / 2020 International Fuel Gas Code / 2021 International Mechanical Code / 2021 International P"
+        },
+        {
+          "family": "NEC",
+          "edition": "2020",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "claimId": "NEC|2020|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "Standard s / March 2023 International Building Code / 2021 National Electrical Code / 2020 International Fuel Gas Code / 2021 International Mec"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes/II/index.full.html",
+          "claimId": "IEBC|2021|https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes/II/index.full.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "he Maryland Building Rehabilitation Code comprises the 2021 International Existing Building Code, with State modifications. } Exception 3: {Per MBPS Modific"
+        }
+      ]
+    },
+    "city:MD:baltimore county": {
+      "label": "Baltimore County, MD",
+      "verifiedOn": "2026-09-28",
+      "checkedOn": "2026-09-28",
+      "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IBC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "d Fire Codes in Effect BUILDING CODES: Building Code - 2021 International Building Code – adopted/amended by Baltimore County Bill #49-24 (Effectiv"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IRC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "e: September 3, 2024) One & Two Family Dwelling Code – 2021 International Residential Code – adopted/amended by Baltimore County Bill #49-24 (Effectiv"
+        },
+        {
+          "family": "IMC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IMC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "(Effective date: September 3, 2024) Mechanical Code – 2021 International Mechanical Code – adopted by Baltimore County Bill #49-24 (Effective date:"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IECC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "de) also see Bill #49-24 for amendments. Energy Code - 2021 International Energy Code – adopted and amended by Baltimore County Bill #49-24 (Effe"
+        },
+        {
+          "family": "IPC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IPC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "24 (Effective date: September 3, 2024) Plumbing Code - 2021 International Plumbing Code adopted/amended by Baltimore County Bill #94-23 (Effective"
+        },
+        {
+          "family": "NEC",
+          "edition": "2026",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "NEC|2026|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "94-23 (Effective date: July 1, 2024) Electrical Code - 2026 NEC – Effective September 1, 2026 (Most recent edition year of"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "IEBC|2021|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "COMAR 09.12.58 Maryland Building Rehabilitation Code. (2021 International Existing Building Code) (Effective March 29, 2023) Note: It shall be the responsib"
+        },
+        {
+          "family": "LOCAL",
+          "edition": "2018",
+          "sourceUrl": "https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "claimId": "LOCAL|2018|https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-28",
+          "verdict": "confirmed",
+          "evidence": "(Effective date: September 3, 2024) FIRE CODES Life Safety Code - 2018 NFPA 101 – adopted/amended by Baltimore County Bill"
         }
       ]
     }

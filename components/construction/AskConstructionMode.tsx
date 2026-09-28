@@ -14,8 +14,17 @@
 // first three carry a Try again that re-runs the kept question. Sources list
 // only what the answer used; everything else the engine looked at is shown
 // muted under "Also checked" (audit #120).
+//
+// Building record (Baltimore lane, 2026-09-28): when the linked job's public
+// building record is LOADED (NYC DOB, Baltimore City or Baltimore County open
+// data, via useJobBuildingRecord), its summary block rides with the question
+// so the answer can cite it with its as-of date. Ask never starts a lookup:
+// the lookup is the contractor's tap on the job's Building record card. The
+// jurisdiction resolves through jurisdictionQueryForProject, so a job whose
+// location ends in a ZIP that lies in one government, or whose parcel side
+// the contractor confirmed, gets that government's codes.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, Linking, Platform, StyleSheet,
@@ -38,29 +47,53 @@ import {
   MAX_QUESTION_CHARS, consultedSummary,
   type ConstructionAnswerResponse,
 } from '@/utils/constructionAnswer';
-import type { AnswerCitation, ConstructionAnswerJurisdiction } from '@/types/constructionAnswer';
-import { codesSummary, jobsiteAddressForProject, resolveCodeJurisdiction, type AddressableProject } from '@/utils/codeJurisdiction';
-
-type ProjectLite = AddressableProject & { id: string; name: string };
+import type {
+  AnswerCitation, ConstructionAnswerBuildingRecord, ConstructionAnswerJurisdiction,
+} from '@/types/constructionAnswer';
+import type { Project } from '@/types';
+import { codesSummary, jurisdictionQueryForProject, resolveCodeJurisdiction, type AddressableProject } from '@/utils/codeJurisdiction';
+import { formatCalendarDay } from '@/utils/calendarDate';
+import { useJobBuildingRecord, type JobBuildingRecordState } from '@/hooks/useJobBuildingRecord';
 
 /** The selected job's verified adoption record, or null (unknown place / no job). */
-function jurisdictionForAsk(project: ProjectLite | null): ConstructionAnswerJurisdiction | null {
+function jurisdictionForAsk(
+  project: AddressableProject | null,
+  confirmedCounty: string | null,
+): ConstructionAnswerJurisdiction | null {
   if (!project) return null;
-  const addr = jobsiteAddressForProject(project);
-  const r = resolveCodeJurisdiction(addr);
+  const q = jurisdictionQueryForProject(project, confirmedCounty);
+  const r = resolveCodeJurisdiction(q);
   if (r.kind === 'unknown') return null;
+  // A Baltimore address that names neither government (the mailing name
+  // "Baltimore" is used by both) says so in the jobsite line, so the model is
+  // never handed Maryland's state codes as if they settled it.
+  const ambiguity = r.kind === 'state' ? r.localAmbiguity : undefined;
+  const place = [q.city, q.state].filter(Boolean).join(', ');
   return {
     authority: r.entry.authorityName,
     codesInForce: codesSummary(r.entry.codes),
     checkedOn: r.entry.checkedOn,
     sourceUrl: r.entry.sourceUrl,
-    place: [addr.city, addr.state].filter(Boolean).join(', '),
+    place: ambiguity
+      ? `${place} (${ambiguity.candidates.join(' or ')}: not decided, so no local code is grounded)`
+      : place,
     scope: r.kind,
   };
 }
 
+/** The loaded building record to send with the question, or null. Only a
+ *  record the contractor already loaded (phase 'ready') is sent. */
+export function buildingRecordForAsk(
+  building: Pick<JobBuildingRecordState, 'supported' | 'phase' | 'summary' | 'sourceLabel' | 'asOf'>,
+): ConstructionAnswerBuildingRecord | null {
+  if (!building.supported || building.phase !== 'ready') return null;
+  const block = building.summary.promptBlock;
+  if (!block) return null;
+  return { source: building.sourceLabel, asOf: building.asOf, block };
+}
+
 interface Props {
-  projects: ProjectLite[];
+  projects: Project[];
   bottomInset: number;
 }
 
@@ -86,6 +119,17 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
 
   const canSubmit = question.trim().length > 3 && !loading;
 
+  // Called on every render (hook order); inert when no job is linked.
+  const linkedProject = projects.find((p) => p.id === projectId) ?? null;
+  const building = useJobBuildingRecord(linkedProject);
+  const attachedRecord = useMemo(
+    () => buildingRecordForAsk(building),
+    // The fields buildingRecordForAsk reads; the state object itself is new each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [building.supported, building.phase, building.summary, building.sourceLabel, building.asOf],
+  );
+  const confirmedCounty = building.confirmedCounty;
+
   const runAsk = useCallback(async () => {
     if (!canAsk) { setShowPaywall(true); return; }
     if (!canSubmit) return;
@@ -95,8 +139,12 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
     setErrCode(null);
     setErrMsg(null);
     try {
-      const project = projects.find((p) => p.id === projectId) ?? null;
-      const res = await askConstruction({ question: question.trim(), projectId, jurisdiction: jurisdictionForAsk(project) });
+      const res = await askConstruction({
+        question: question.trim(),
+        projectId,
+        jurisdiction: jurisdictionForAsk(linkedProject, confirmedCounty),
+        buildingRecord: attachedRecord,
+      });
       setResult(res);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -108,7 +156,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [canAsk, canSubmit, question, projectId, projects]);
+  }, [canAsk, canSubmit, question, projectId, linkedProject, confirmedCounty, attachedRecord]);
 
   const openCitation = useCallback((c: AnswerCitation) => {
     if (c.kind === 'web' && c.url) { void Linking.openURL(c.url); return; }
@@ -161,6 +209,19 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
               })}
             </View>
           </ScrollView>
+          {attachedRecord ? (
+            <Text style={styles.recordNote} testID="construction-ask-record">
+              {`Using the building record from ${attachedRecord.source} (${attachedRecord.asOf ? `as of ${formatCalendarDay(attachedRecord.asOf)}` : 'as-of date not published'}).`}
+            </Text>
+          ) : linkedProject && building.supported && (building.phase === 'loading' || building.phase === 'resolving') ? (
+            <Text style={styles.recordNote} testID="construction-ask-record-loading">
+              Loading the job&apos;s building record. It is added to your question once it loads.
+            </Text>
+          ) : linkedProject && building.supported ? (
+            <Text style={styles.recordNote} testID="construction-ask-record-missing">
+              Building record not loaded. Open the job&apos;s Building record card to add it.
+            </Text>
+          ) : null}
         </>
       )}
 
@@ -359,6 +420,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   chipActive: { backgroundColor: c.accentFill, borderColor: c.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.text, maxWidth: 160 },
   chipTextActive: { color: '#FFF' },
+  recordNote: { fontSize: Type.caption1.fontSize, color: c.textMuted, lineHeight: 18, marginTop: 6 },
   presetList: { gap: 8, marginTop: 12 },
   presetPill: {
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.card,

@@ -15,6 +15,10 @@
 //    paraphrase the model or this file wrote.
 // 4. THE MODEL ASKS; IT DOES NOT ASSERT. The prompt carries no persona and
 //    forbids stating code requirements, fees or legal consequences.
+// 5. DOB IS NYC ONLY. Every string built for a job outside NYC (Baltimore
+//    included) is worded without DOB, and the NYC strings are byte-identical
+//    to what they were before Baltimore (scripts/validate-baltimore-ai.ts
+//    holds their baseline).
 
 import type { Project } from '@/types';
 import type { BuildingRecord, BuildingRecordRow, BuildingRecordSummary } from '@/utils/buildingRecord';
@@ -117,6 +121,16 @@ export interface QuestionRouting {
   /** The matched filing, and only the matched one. */
   filing: BuildingRecordRow | null;
   filingAsOf: string | null;
+  /**
+   * The prompt's filing lines, when this routing is not NYC's. Absent on every
+   * NYC routing, so the NYC prompt is built exactly as before (filingFactFor).
+   */
+  filingFacts?: string[];
+  /**
+   * Who the email is addressed to in the prompt when nobody is named (the
+   * office, in the department row's own words). Absent on NYC routings.
+   */
+  addressedTo?: string;
 }
 
 function clean(v: string | null | undefined): string {
@@ -152,7 +166,11 @@ export function routeQuestion(args: {
   department: BuildingDepartment;
   job: JobFiling;
   nyc: boolean;
+  /** A Baltimore City / Baltimore County job: routes by the contractor's
+   *  chosen stage and Baltimore's permits data instead (routeMdQuestion). */
+  md?: MdQuestionInput | null;
 }): QuestionRouting {
+  if (args.md) return routeMdQuestion({ department: args.department, ...args.md });
   const { department, nyc, job } = args;
   const filing = job.state === 'matched' ? job.filing : null;
   const stage: DepartmentQuestionStage =
@@ -199,13 +217,248 @@ export function routeQuestion(args: {
     toName: null,
     toDetail: null,
     toEmail: clean(department.email) || null,
+    // Outside NYC nothing here read DOB, so the filing lines never name it.
+    filingFacts: neutralFilingFactFor(base),
   };
 }
 
-/** The prompt's filing fact, one per state. Never "none" for an unread list. */
-export function filingFactFor(
+/** The filing lines for a job outside NYC with no Baltimore data: the same
+ *  states as filingFactFor, in words that never name DOB. */
+export function neutralFilingFactFor(
   routing: Pick<QuestionRouting, 'filingState' | 'filing' | 'filingAsOf'> & { filingReason?: UnmatchedReason | null },
 ): string[] {
+  const asOf = routing.filingAsOf ? ` (as of ${routing.filingAsOf.slice(0, 10)})` : '';
+  switch (routing.filingState) {
+    case 'matched': {
+      const f = routing.filing;
+      return [
+        `- Filing number: ${clean(f?.jobFilingNumber) || clean(f?.primary)}`,
+        `- Filing status (as published): ${f?.status ?? '(no status published)'}`,
+      ];
+    }
+    case 'none':
+      return [`- Filings listed for this building in the records MAGE read: none${asOf}.`];
+    case 'unmatched':
+      return ['- Filing: not identified, so do not cite or describe any filing and do not say whether anything has been filed.'];
+    case 'not_checked':
+    default:
+      return ["- Filing: not checked. MAGE did not read the building department's records for this job, so do not say whether anything has been filed."];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Baltimore City and Baltimore County (Maryland)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Separate governments, never merged: Baltimore City's DHCD and Baltimore
+// County's PAI each have their own department row (utils/codeJurisdiction.ts)
+// and their own permits dataset. The types below are STRUCTURAL copies of the
+// fields this file reads off utils/buildingRecord.ts's MdBuildingRecord, so
+// this module stays pure and needs nothing new from that file.
+//
+// What the permits data can and cannot say (both layers' field lists read
+// live on 2026-09-28):
+//  - Baltimore City, "Housing and Building Permits 2019-Present"
+//    https://baltegis.baltimorecity.gov/mapping/rest/services/Housing/DHCD_Open_Baltimore_Datasets/FeatureServer/3?f=json
+//    (item https://www.arcgis.com/sharing/rest/content/items/189e6d1c65df4e13b38c0027cee574f6?f=json).
+//    Fields: CaseNumber, Description, ExpirationDate, IssuedDate, Address, BLOCKLOT, ... There is NO status field, so a City
+//    permit's status is never described. Its applicant/project-name fields are never read by MAGE.
+//  - Baltimore County, "Cityworks Permits"
+//    https://bcgisdata.baltimorecountymd.gov/arcgis/rest/services/DevelopmentManagement/ActiveDevelopment/MapServer/4?f=json
+//    Has STATUS; distinct values read live 2026-09-28: EXPIRED, CANCELLED, CLOSED, OPEN, BL-EXPIRED, ISSUE. Shown raw, as the
+//    County publishes it, never interpreted.
+// Neither dataset publishes an applicant MAGE may show, so no Baltimore
+// routing ever names a person: it names the office.
+// The stage is the CONTRACTOR'S choice. Nothing here infers it from a permit
+// (City data has no status; County STATUS is not a review stage).
+
+export type MdSideLike = 'baltimore_city' | 'baltimore_county';
+
+/** The fields of utils/buildingRecord.ts MdPermitRow this file reads. */
+export interface MdPermitLike {
+  number: string;
+  issued: string | null;
+  status: string | null;
+}
+
+/** The fields of MdBuildingRecord['permits'] this file reads. */
+export interface MdPermitsRead {
+  status: 'ok' | 'failed' | 'timeout';
+  asOf: string | null;
+  truncated: boolean;
+}
+
+export type MdFilingState = 'matched' | 'unmatched' | 'no_number' | 'not_checked';
+
+/** Which government, in the words the prompt and card use. */
+export function mdSideName(side: MdSideLike): string {
+  return side === 'baltimore_city' ? 'Baltimore City' : 'Baltimore County';
+}
+
+/** The permits dataset MAGE reads for a side, as the prompt names it. */
+export function mdPermitsSourceFor(side: MdSideLike): string {
+  return side === 'baltimore_city'
+    ? "Baltimore City's permits open data (2019 to present)"
+    : "Baltimore County's permits open data";
+}
+
+const mdNorm = (x: string | null | undefined) => (x ?? '').toUpperCase().replace(/[\s-]+/g, '');
+
+/** True when the job has at least one permit number worth matching. */
+export function mdHasPermitNumber(permitNumbers: ReadonlyArray<string | null | undefined>): boolean {
+  return permitNumbers.some((n) => mdNorm(n).length >= MIN_PERMIT_NO);
+}
+
+/**
+ * What MAGE knows about THIS job's Baltimore permit. `match` is the row the
+ * caller matched with utils/buildingRecord.ts mdPermitForNumber (which
+ * already returns null for a permits read that is not 'ok').
+ *  - not_checked: the record was not loaded, or the permits read failed or
+ *    timed out. Never "none".
+ *  - matched:     a permit row is this job's.
+ *  - no_number:   the job has no permit number in MAGE to match.
+ *  - unmatched:   the list was read and none of it is this job's.
+ */
+export function mdFilingStateFor(args: {
+  permits: MdPermitsRead | null | undefined;
+  permitNumbers: ReadonlyArray<string | null | undefined>;
+  match: MdPermitLike | null | undefined;
+}): MdFilingState {
+  if (!args.permits || args.permits.status !== 'ok') return 'not_checked';
+  if (args.match) return 'matched';
+  if (!mdHasPermitNumber(args.permitNumbers)) return 'no_number';
+  return 'unmatched';
+}
+
+/** The prompt's filing line for a Baltimore job, one per state. The City line
+ *  never describes a permit's status: the City publishes none. */
+export function mdFilingFactFor(args: {
+  state: MdFilingState;
+  side: MdSideLike;
+  match: MdPermitLike | null | undefined;
+  asOf: string | null | undefined;
+  truncated?: boolean;
+}): string {
+  const source = mdPermitsSourceFor(args.side);
+  const asOf = clean(args.asOf).slice(0, 10);
+  const asOfText = asOf ? `as of ${asOf}` : 'as-of date not published';
+  switch (args.state) {
+    case 'matched': {
+      const m = args.match;
+      const number = clean(m?.number);
+      const issued = clean(m?.issued).slice(0, 10);
+      const issuedText = issued ? `issued ${issued}` : 'with no issue date published';
+      const statusText = args.side === 'baltimore_county'
+        ? (clean(m?.status)
+          ? `Status '${clean(m?.status)}' as the County publishes it.`
+          : 'The County publishes no status on this permit, so do not describe its status.')
+        : "The City's open data does not publish permit status, so do not describe the permit's status.";
+      return `- Filing: permit ${number} ${issuedText} in ${mdSideName(args.side)} open data (${asOfText}). ${statusText}`;
+    }
+    case 'unmatched':
+      if (args.truncated) {
+        return `- Filing: not identified. MAGE read only the newest permits listed for this address in ${source} and none of those is this job's, so do not cite or describe any filing and do not say whether anything has been filed.`;
+      }
+      return `- Filing: not identified. None of the permits listed for this address in ${source} (${asOfText}) matches this job's permit number, so do not cite or describe any filing.`;
+    case 'no_number':
+      return '- Filing: not identified. This job has no permit number in MAGE, so do not cite or describe any filing.';
+    case 'not_checked':
+    default:
+      return `- Filing: not checked. MAGE did not read ${source} for this job, so do not say whether anything has been filed.`;
+  }
+}
+
+/** Who a Baltimore question goes to when nobody can be named: the office.
+ *  It never claims the data has no applicant: the City's permits layer does
+ *  carry a permit name and the County's an initiator and contractor. MAGE
+ *  simply never copies a person's name out of it. */
+export function mdNoRecipientLine(side: MdSideLike, officeLabel: string | null | undefined): string {
+  const office = clean(officeLabel) || 'building department';
+  return `No person is named here: MAGE does not copy names from ${mdPermitsSourceFor(side)}. Ask the ${mdSideName(side)} ${office} directly.`;
+}
+
+export interface MdQuestionInput {
+  side: MdSideLike;
+  /** The authority's name as the department row gives it. */
+  authorityName: string;
+  /** The office the contractor picked, by its channel label. A department
+   *  row can list several channels for one stage (Baltimore City has four
+   *  'general' ones: Zoning, CHAP, Planning, Fire Marshal), so the pick is the
+   *  label, not the stage. Never inferred from a permit. */
+  channelLabel?: string | null;
+  /** Used only when no channelLabel matches: the first channel of this stage. */
+  stage?: DepartmentQuestionStage | null;
+  filingState: MdFilingState;
+  match: MdPermitLike | null | undefined;
+  permitsAsOf: string | null | undefined;
+  permitsTruncated?: boolean;
+}
+
+/** The channels a contractor can put a question to: the ones with a phone
+ *  or an email. A reference link (Baltimore City's "Work exempt from permit"
+ *  list) is a channel in the row but not an office. */
+export function mdOfficeChannels(department: BuildingDepartment): DepartmentChannel[] {
+  return (department.questionChannels ?? []).filter((c) => !!clean(c.email) || !!clean(c.phone));
+}
+
+/**
+ * Routing for a Baltimore City or Baltimore County job: the office the
+ * contractor picked (else the first office for the stage, else a general
+ * one), that office's own email, and never a person's name. An office with
+ * no email gets none: MAGE never sends a zoning question to the permits desk
+ * because that desk has an address. The department's email is used only when
+ * the row has no office channel at all.
+ */
+export function routeMdQuestion(args: MdQuestionInput & { department: BuildingDepartment }): QuestionRouting {
+  const { department } = args;
+  const channels = mdOfficeChannels(department);
+  const picked = clean(args.channelLabel);
+  const channel =
+    (picked ? channels.find((c) => c.label === picked) : undefined) ??
+    (args.stage ? channels.find((c) => c.stage === args.stage) : undefined) ??
+    channels.find((c) => c.stage === 'general') ??
+    channels[0] ??
+    null;
+  const why = [channel ? channel.note : '', clean(department.applicantOfRecordNote)]
+    .filter((s) => s.length > 0)
+    .join(' ');
+  const office = channel?.label ?? null;
+  const authority = clean(args.authorityName) || mdSideName(args.side);
+  const jobState: JobFilingState =
+    args.filingState === 'matched' ? 'matched' : args.filingState === 'not_checked' ? 'not_checked' : 'unmatched';
+  const reason: UnmatchedReason | null =
+    args.filingState === 'no_number' ? 'no_numbers'
+      : args.filingState === 'unmatched' ? (args.permitsTruncated ? 'partial' : 'complete')
+        : null;
+  return {
+    toName: null,
+    toDetail: null,
+    toEmail: channel ? (clean(channel.email) || null) : (clean(department.email) || null),
+    toFallback: mdNoRecipientLine(args.side, office),
+    channel,
+    whyThisChannel: why,
+    filingState: jobState,
+    filingReason: reason,
+    filing: null,
+    filingAsOf: clean(args.permitsAsOf) || null,
+    filingFacts: [mdFilingFactFor({
+      state: args.filingState, side: args.side, match: args.match,
+      asOf: args.permitsAsOf, truncated: args.permitsTruncated,
+    })],
+    addressedTo: office ? `the ${office} at ${authority}` : authority,
+  };
+}
+
+/** The prompt's filing fact, one per state. Never "none" for an unread list.
+ *  A routing built outside NYC carries its own lines (no DOB wording); those
+ *  win. NYC routings carry none, so their lines are exactly as before. */
+export function filingFactFor(
+  routing: Pick<QuestionRouting, 'filingState' | 'filing' | 'filingAsOf'> & {
+    filingReason?: UnmatchedReason | null;
+    filingFacts?: string[];
+  },
+): string[] {
+  if (routing.filingFacts) return [...routing.filingFacts];
   const asOf = routing.filingAsOf ? ` (as of ${routing.filingAsOf.slice(0, 10)})` : '';
   switch (routing.filingState) {
     case 'matched': {
@@ -280,10 +533,11 @@ export function buildQuestionPrompt(args: {
   if (clean(args.bin)) facts.push(`- BIN: ${clean(args.bin)}`);
   if (clean(args.topic)) facts.push(`- Topic: ${clean(args.topic)}`);
   if (lines.length) facts.push(`- Scope lines: ${lines.join('; ')}`);
+  // NYC routings carry no filingFacts / addressedTo, so they build exactly as before.
   facts.push(...filingFactFor(routing));
   const recipient = routing.toName
     ? `${routing.toName}${routing.toDetail ? ` (${routing.toDetail})` : ''}`
-    : 'the registered design professional or expeditor on the job';
+    : routing.addressedTo ?? 'the registered design professional or expeditor on the job';
   const block = clean(buildingSummary?.promptBlock);
 
   const prompt = `Draft a short email from a general contractor asking a question about a construction job.

@@ -59,7 +59,7 @@ export interface ScopeGapsInput {
   scopeNotes?: readonly (string | null | undefined)[];
   jobKind: 'residential' | 'commercial';
   projectType?: ProjectType | null;
-  address?: { city?: string; county?: string; state?: string } | null;
+  address?: { city?: string; county?: string; state?: string; zip?: string } | null;
   changeOrders?: readonly ChangeOrder[];
   projectId?: string;
   costDb: CostDatabase;

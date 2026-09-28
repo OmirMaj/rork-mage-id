@@ -58,6 +58,25 @@ export function bothChip(entered: number, pluto: number): string {
   return `You entered ${entered} · PLUTO lists ${pluto}`;
 }
 
+// Baltimore (lane RECORD, 2026-09-28): the year built from the confirmed
+// parcel's Baltimore City Real Property or Baltimore County tax-parcel record.
+// City and County are named separately; neither is "Baltimore" alone.
+export function mdRecordChip(year: number, side: 'baltimore_city' | 'baltimore_county'): string {
+  return `${side === 'baltimore_city' ? 'Baltimore City' : 'Baltimore County'} data lists built ${year}`;
+}
+export function mdBothChip(entered: number, recordYear: number, side: 'baltimore_city' | 'baltimore_county'): string {
+  return `You entered ${entered} · ${side === 'baltimore_city' ? 'Baltimore City' : 'Baltimore County'} data lists ${recordYear}`;
+}
+/** Maryland's rental lead law, worded from MDE's page (fetched 2026-09-28):
+ *  https://mde.maryland.gov/programs/Land/LeadPoisoningPrevention/Pages/rentalowners.aspx
+ *  "Owners of rental homes built before 1978 must register their properties
+ *  with the state, renew annually, and provide valid lead inspection
+ *  certificates at each tenant turnover—unless the property is certified
+ *  lead-free." The rental condition is STATED, never assumed: MAGE does not
+ *  know whether the home is rented. */
+export const MD_LEAD_RENTAL_LINE =
+  'Maryland: if this is a rental home, the owner must register it with MDE and have a lead inspection certificate at each tenant turnover, unless it is certified lead-free.';
+
 export const YEAR_MISSING_NYC =
   'Year built not on file. Look up the building record on this project, or enter the year.';
 export const YEAR_MISSING_ELSEWHERE = 'Year built not on file. Enter it to check lead and asbestos rules.';

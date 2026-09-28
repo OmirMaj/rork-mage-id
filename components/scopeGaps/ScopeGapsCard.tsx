@@ -45,7 +45,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
-import { groundingFactsFor, jobsiteAddressForProject } from '@/utils/codeJurisdiction';
+import { groundingFactsFor, jurisdictionQueryForProject } from '@/utils/codeJurisdiction';
 import type { ScopeLine } from '@/utils/scopeCoverage';
 import { scopeRateFor } from '@/utils/scopePricing';
 import {
@@ -168,8 +168,12 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
   );
   const address = useMemo(() => {
     if (!project) return null;
-    const a = jobsiteAddressForProject(project);
-    return { city: a.city, county: a.county, state: a.state };
+    // jurisdictionQueryForProject: the same city / county / state as
+    // jobsiteAddressForProject, plus the jobsite ZIP (also read off a
+    // location-only project's text), so a ZIP-keyed row such as Baltimore
+    // City or Baltimore County can answer.
+    const a = jurisdictionQueryForProject(project);
+    return { city: a.city, county: a.county, state: a.state, zip: a.zip };
   }, [project]);
   const jobKind: JobKind = props.mode === 'project'
     ? (project?.type === 'commercial' ? 'commercial' : 'residential')

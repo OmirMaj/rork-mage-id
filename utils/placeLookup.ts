@@ -97,8 +97,8 @@ export interface PlaceLookupState {
 
 /**
  * The place for `q`, looked up once per distinct address. `q === null` (not a
- * NY/NJ/CT jobsite, or no address) stays 'idle' and never touches storage or
- * the network.
+ * NY/NJ/CT/MD jobsite, or no address) stays 'idle' and never touches storage
+ * or the network.
  */
 export function usePlaceLookup(q: PlaceQuery | null): PlaceLookupState {
   const key = q ? placeCacheKey(q) : null;

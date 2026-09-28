@@ -1,21 +1,31 @@
-// components/buildingRecord/DraftQuestionButton.tsx — "Draft a question".
+// components/buildingRecord/MdDraftQuestion.tsx — "Draft a question" for a
+// Baltimore City or Baltimore County job.
 //
-// The contractor types what he needs to ask; the model drafts a subject and
-// body; he edits both and sends it HIMSELF from his mail app (or copies it).
-// NOTHING IS SENT FROM HERE — no edge function, no email service. The routing
-// card says who the question goes to (NYC: the applicant of record on the
-// filing, from DOB's public dataset) and why that channel, in the verified
-// department row's own words. MAGE has no email for an applicant of record,
-// and says so rather than inventing one.
+// Rendered by DraftQuestionButton's Maryland branch, which runs BEFORE that
+// component's NYC decision (a job whose address is only "Baltimore, MD" has
+// no department until the Census place lookup answers).
 //
-// Renders null unless the job's building department is a verified row
-// (departmentFor — NYC today), decided BEFORE any hook or effect runs.
+// SAME RULES AS THE NYC SHEET. The contractor types the question, the model
+// drafts a subject and body through the same client path (mageAISmart +
+// buildQuestionPrompt), and he sends it himself from his mail app or copies
+// it. Nothing is sent from here: no edge function, no email service.
 //
-// A Maryland job goes to MdDraftQuestion FIRST (Baltimore City / Baltimore
-// County, same "sends nothing" rules). That branch sits above the NYC
-// decision because a job whose address is only "Baltimore, MD" has no
-// department until the Census place lookup answers. Both are early returns
-// before any hook, so hook order never changes.
+// WHICH GOVERNMENT. Baltimore City (DHCD) and Baltimore County (PAI) are
+// separate governments. The department comes from the verified rows in
+// utils/codeJurisdiction.ts, resolved first from the job's own address (its
+// county, a ZIP that lies in one of them, or the side of a parcel the
+// contractor confirmed on the Building record card), then from the Census
+// county of the place lookup. Any other Maryland county renders nothing here:
+// the Department card shows its name-only office, and MAGE never drafts to an
+// office it has not verified.
+//
+// WHO. Baltimore's permits data publishes no applicant MAGE may show, so the
+// card names the office, never a person. The office is the contractor's pick
+// among the row's channels that have a phone or an email; nothing infers it
+// from a permit. An office with no email gets none (never another desk's).
+// FILING FACTS. The job's permit number is matched with mdPermitForNumber;
+// the prompt says "not checked" when the record was not loaded or the read
+// failed, and never describes a City permit's status (the City publishes none).
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -29,57 +39,88 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useBuildingRecord } from '@/hooks/useBuildingRecord';
-import { isMdJobsite, isNycJobsite } from '@/utils/buildingRecord';
+import { useJobBuildingRecord } from '@/hooks/useJobBuildingRecord';
+import { mdPermitForNumber, type MdPermitRow } from '@/utils/buildingRecord';
 import {
   departmentFor,
-  jobsiteAddressForProject,
+  jurisdictionQueryForProject,
   resolveCodeJurisdiction,
   type BuildingDepartment,
+  type ResolvedCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
-import { buildQuestionPrompt, jobFilingFor, routeQuestion } from '@/utils/departmentQuestion';
+import {
+  buildQuestionPrompt,
+  mdFilingStateFor,
+  mdOfficeChannels,
+  routeQuestion,
+  type JobFiling,
+  type MdSideLike,
+} from '@/utils/departmentQuestion';
+import { placeQueryForProject } from '@/utils/permitOffices';
+import { usePlaceLookup } from '@/utils/placeLookup';
 import { mageAISmart } from '@/utils/mageAI';
 import { copyToClipboard } from '@/utils/clipboard';
 import { showAlert } from '@/utils/alert';
-import { MdDraftQuestion } from './MdDraftQuestion';
 
 const draftSchema = z.object({
   subject: z.string().catch('').default(''),
   body: z.string().catch('').default(''),
 });
 
-interface DraftQuestionProps {
-  project: Project | null | undefined;
+/** Maryland routing reads Baltimore's permits data, never an NYC filing. */
+const NO_NYC_FILING: JobFiling = { state: 'not_checked', filing: null, asOf: null };
+
+/** The side a verified Baltimore row stands for, or null for any other row. */
+export function mdSideForResolved(r: ResolvedCodeJurisdiction | null | undefined): MdSideLike | null {
+  if (!r || r.kind !== 'city' || r.entry.state !== 'MD') return null;
+  if (r.entry.name === 'Baltimore City') return 'baltimore_city';
+  if (r.entry.name === 'Baltimore County') return 'baltimore_county';
+  return null;
+}
+
+export interface MdDraftQuestionProps {
+  project: Project;
   permitNumber?: string | null;
-  /** The job's own permit numbers (e.g. its tracked permits). An applicant is
-   *  named only when a DOB filing matches one of these or `permitNumber`. */
   permitNumbers?: ReadonlyArray<string | null | undefined>;
   topic?: string;
   testID?: string;
 }
 
-export function DraftQuestionButton({ project, permitNumber, permitNumbers, topic, testID }: DraftQuestionProps) {
-  // Maryland first: a plain "Baltimore, MD" job has no department until the
-  // place lookup answers, so the NYC decision below would drop it.
-  if (project && isMdJobsite(jobsiteAddressForProject(project))) {
-    return (
-      <MdDraftQuestion
-        project={project}
-        permitNumber={permitNumber}
-        permitNumbers={permitNumbers}
-        topic={topic}
-        testID={testID}
-      />
-    );
+export function MdDraftQuestion({ project, permitNumber, permitNumbers, topic, testID }: MdDraftQuestionProps) {
+  const building = useJobBuildingRecord(project);
+  // The job's own address first (county, single-government ZIP, or the parcel
+  // side the contractor confirmed).
+  const first = resolveCodeJurisdiction(jurisdictionQueryForProject(project, building.confirmedCounty));
+  const firstDepartment = departmentFor(first);
+  // Only when that settles nothing does the Census place lookup run.
+  const placeQuery = useMemo(
+    () => (firstDepartment ? null : placeQueryForProject(project)),
+    [firstDepartment, project],
+  );
+  const lookup = usePlaceLookup(placeQuery);
+
+  let resolved: ResolvedCodeJurisdiction | null = firstDepartment ? first : null;
+  if (!resolved && lookup.status === 'done' && lookup.place?.county?.name) {
+    resolved = resolveCodeJurisdiction({
+      ...jurisdictionQueryForProject(project, building.confirmedCounty),
+      county: lookup.place.county.name,
+    });
   }
-  // Pure, and decided before any hook below it can run: a job with no
-  // verified building department renders nothing at all.
-  const department = departmentFor(resolveCodeJurisdiction(jobsiteAddressForProject(project)));
-  if (!department || !project) return null;
+  const department = resolved ? departmentFor(resolved) : null;
+  const side = mdSideForResolved(resolved);
+  if (!department || !side || !resolved || resolved.kind !== 'city') return null;
+
+  // The loaded record counts only when it is for the same government.
+  const md = building.md;
+  const record = md.phase === 'ready' && md.side === side ? md.record : null;
   return (
-    <DraftQuestionInner
+    <MdDraftSheet
       project={project}
       department={department}
+      authorityName={resolved.entry.authorityName}
+      side={side}
+      record={record}
+      summary={record ? md.summary : null}
       permitNumber={permitNumber}
       permitNumbers={permitNumbers}
       topic={topic}
@@ -88,16 +129,20 @@ export function DraftQuestionButton({ project, permitNumber, permitNumbers, topi
   );
 }
 
-function DraftQuestionInner({
-  project,
-  department,
-  permitNumber,
-  permitNumbers,
-  topic,
-  testID,
+export default MdDraftQuestion;
+
+type MdRecord = NonNullable<ReturnType<typeof useJobBuildingRecord>['md']['record']>;
+type MdSummary = ReturnType<typeof useJobBuildingRecord>['md']['summary'];
+
+function MdDraftSheet({
+  project, department, authorityName, side, record, summary, permitNumber, permitNumbers, topic, testID,
 }: {
   project: Project;
   department: BuildingDepartment;
+  authorityName: string;
+  side: MdSideLike;
+  record: MdRecord | null;
+  summary: MdSummary | null;
   permitNumber?: string | null;
   permitNumbers?: ReadonlyArray<string | null | undefined>;
   topic?: string;
@@ -105,8 +150,10 @@ function DraftQuestionInner({
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const building = useBuildingRecord(project);
+  // Only the channels with a phone or an email are offices to ask.
+  const channels = useMemo(() => mdOfficeChannels(department), [department]);
   const [open, setOpen] = useState(false);
+  const [officeLabel, setOfficeLabel] = useState<string | null>(channels[0]?.label ?? null);
   const [question, setQuestion] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [subject, setSubject] = useState('');
@@ -114,14 +161,34 @@ function DraftQuestionInner({
   const [error, setError] = useState<string | null>(null);
 
   // A stable key for the job's permit numbers, so a fresh array each render
-  // does not re-resolve the filing.
+  // does not re-match.
   const numbersKey = [permitNumber ?? '', ...(permitNumbers ?? []).map((n) => n ?? '')].join('\u0001');
-  const job = useMemo(
-    () => jobFilingFor(building.record, numbersKey.split('\u0001')),
-    [building.record, numbersKey],
+  const match = useMemo<MdPermitRow | null>(() => {
+    if (!record) return null;
+    for (const n of numbersKey.split('\u0001')) {
+      const hit = mdPermitForNumber(record, n);
+      if (hit) return hit;
+    }
+    return null;
+  }, [record, numbersKey]);
+  const filingState = useMemo(
+    () => mdFilingStateFor({ permits: record?.permits ?? null, permitNumbers: numbersKey.split('\u0001'), match }),
+    [record, numbersKey, match],
   );
-  const nyc = useMemo(() => isNycJobsite(jobsiteAddressForProject(project)), [project]);
-  const routing = useMemo(() => routeQuestion({ department, job, nyc }), [department, job, nyc]);
+  const routing = useMemo(() => routeQuestion({
+    department,
+    job: NO_NYC_FILING,
+    nyc: false,
+    md: {
+      side,
+      authorityName,
+      channelLabel: officeLabel,
+      filingState,
+      match,
+      permitsAsOf: record?.permits.asOf ?? null,
+      permitsTruncated: record?.permits.truncated ?? false,
+    },
+  }), [department, side, authorityName, officeLabel, filingState, match, record]);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -133,8 +200,7 @@ function DraftQuestionInner({
       project,
       routing,
       question,
-      buildingSummary: building.summary,
-      bin: building.record?.bin ?? null,
+      buildingSummary: summary,
       topic: topic ?? null,
     });
     try {
@@ -151,7 +217,7 @@ function DraftQuestionInner({
     } finally {
       setDrafting(false);
     }
-  }, [question, drafting, project, routing, building.summary, building.record, topic]);
+  }, [question, drafting, project, routing, summary, topic]);
 
   const openInMail = useCallback(async () => {
     const recipients = routing.toEmail ? [routing.toEmail] : [];
@@ -173,12 +239,9 @@ function DraftQuestionInner({
   }, [subject, body]);
 
   const hasDraft = subject.trim().length > 0 || body.trim().length > 0;
-  const toLine = routing.toName
-    ? `To: ${routing.toName}${routing.toDetail ? ` (${routing.toDetail})` : ''}`
-    : routing.toFallback;
   const emailLine = routing.toEmail
     ? routing.toEmail
-    : 'MAGE has no email for them — pick them from your contacts.';
+    : 'MAGE has no email for this office. Pick it from your contacts.';
 
   return (
     <View style={styles.wrap}>
@@ -211,12 +274,30 @@ function DraftQuestionInner({
           testID: testID ? `${testID}-copy` : undefined,
         }}
       >
+        {channels.length > 1 ? (
+          <>
+            <Text style={styles.label}>Which office?</Text>
+            <View style={styles.offices}>
+              {channels.map((c) => (
+                <Button
+                  key={c.label}
+                  label={c.label}
+                  size="sm"
+                  variant={c.label === routing.channel?.label ? 'primary' : 'secondary'}
+                  onPress={() => setOfficeLabel(c.label)}
+                  testID={testID ? `${testID}-office-${channels.indexOf(c)}` : undefined}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <Text style={styles.label}>What do you need to ask?</Text>
         <TextInput
           style={[styles.input, styles.multiline]}
           value={question}
           onChangeText={setQuestion}
-          placeholder="e.g. Is a separate plumbing filing needed for the kitchen relocation?"
+          placeholder="e.g. Does the rear deck need its own permit?"
           placeholderTextColor={colors.textMuted}
           multiline
           accessibilityLabel="What do you need to ask?"
@@ -252,10 +333,18 @@ function DraftQuestionInner({
         />
 
         <View style={styles.routing}>
-          <Text style={styles.routeTo} testID={testID ? `${testID}-to` : undefined}>{toLine}</Text>
+          <Text style={styles.routeTo} testID={testID ? `${testID}-to` : undefined}>{routing.toFallback}</Text>
           <Text style={styles.meta} testID={testID ? `${testID}-email` : undefined}>{emailLine}</Text>
           {routing.channel ? <Text style={styles.channel}>{routing.channel.label}</Text> : null}
+          {routing.channel?.phone ? (
+            <Text style={styles.meta} testID={testID ? `${testID}-phone` : undefined}>{routing.channel.phone}</Text>
+          ) : null}
           {routing.whyThisChannel ? <Text style={styles.meta}>{routing.whyThisChannel}</Text> : null}
+          {!record ? (
+            <Text style={styles.meta} testID={testID ? `${testID}-not-loaded` : undefined}>
+              Building record not loaded, so the job&apos;s permits were not checked. Open the job&apos;s Building record card to add it.
+            </Text>
+          ) : null}
         </View>
       </Sheet>
     </View>
@@ -266,6 +355,7 @@ const makeStyles = (t: ThemeColors) =>
   StyleSheet.create({
     wrap: { marginTop: 8, alignItems: 'flex-start' },
     label: { ...Type.footnote, color: t.textSecondary, marginTop: 12, marginBottom: 4 },
+    offices: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs },
     input: {
       ...Type.body,
       color: t.text,
@@ -284,5 +374,3 @@ const makeStyles = (t: ThemeColors) =>
     routeTo: { ...Type.subhead, color: t.text },
     channel: { ...Type.footnoteEmphasized, color: t.text, marginTop: 6 },
   });
-
-export default DraftQuestionButton;

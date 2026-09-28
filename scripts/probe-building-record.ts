@@ -6,6 +6,16 @@
 //   bun run scripts/probe-building-record.ts --nj-only --write
 //                                                        only the New Jersey probe
 //                                                        (nj-*.json fixtures)
+//   bun run scripts/probe-building-record.ts --md-only   only the Baltimore probe:
+//                                                        every City / County layer
+//                                                        (fields vs SAFE, count, as-of,
+//                                                        cadence) + a resolve and a
+//                                                        record per test address run
+//                                                        through md.ts's own builders
+//   bun run scripts/probe-building-record.ts --md-fixtures
+//                                                        print the trimmed live bodies
+//                                                        validate-building-record keeps
+//                                                        inline (MD_FIXTURES_JSON)
 //
 // It uses the SAME builders and normalizers the function uses
 // (supabase/functions/building-record/normalize.ts), so what it prints is what
@@ -15,7 +25,9 @@
 // 'Test Applicant'); the offline validator reads them.
 //
 // Read-only: it only GETs NYC Open Data and NYC Planning GeoSearch — and, for
-// the NJ probe, the Census geocoder, the NJGIN parcel layer and data.nj.gov.
+// the NJ probe, the Census geocoder, the NJGIN parcel layer and data.nj.gov;
+// for the MD probe, the Baltimore City and Baltimore County ArcGIS services
+// (and the Census geocoder, for the outside-both case).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,10 +40,18 @@ import {
   addressKey, assembleNjRecord, censusFirstMatch, censusLocationsUrl, mergeNjCandidates, njMuniFreshnessUrl,
   njParcelAddressUrl, njParcelBufferUrl, njPermitsUrl, normalizeNjFreshness, normalizeNjPermits, rankNjCandidates,
 } from '../supabase/functions/building-record/nj';
-import { summarizeBuildingRecord, summarizeNjBuildingRecord } from '../utils/buildingRecord';
+import {
+  MD_LAYERS, asOfFrom, asOfUrl, assembleMdRecord, attributeQueryUrl, censusCounty, censusCountyUrl, cityGeocodeUrl,
+  countyGeocodeUrl, geocodePoints, isAllowedMdUrl, mdAddressInput, mdCensusFallback, mdRecordComplete, mdRecordPlan, mdResolveOutcome,
+  parcelHitFrom, parcelPointUrl, planMdResolve, pointQueryUrl, probeIsRedundant, runBounded,
+  type MdFetched, type MdJobId, type MdLayerId, type MdProbe, type MdProbeResult, type MdSide,
+} from '../supabase/functions/building-record/md';
+import { summarizeBuildingRecord, summarizeMdBuildingRecord, summarizeNjBuildingRecord, type MdBuildingRecord } from '../utils/buildingRecord';
 
 const WRITE = process.argv.includes('--write');
 const NJ_ONLY = process.argv.includes('--nj-only');
+const MD_ONLY = process.argv.includes('--md-only');
+const MD_FIXTURES = process.argv.includes('--md-fixtures');
 const FIX_DIR = join('scripts', 'fixtures', 'building-record');
 const BIN = '1001026';
 const BBL = '1000477501';
@@ -141,8 +161,141 @@ async function probeNj(today: Date) {
   for (const [name, data] of fixtures) save(name, data);
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Baltimore (Maryland)
+// ─────────────────────────────────────────────────────────────────────
+
+/** Published cadence, as the dataset's own item text says it (read 2026-09-28). */
+const MD_CADENCE: Partial<Record<MdLayerId, string>> = {
+  C3: 'weekly ("Data is updated on a weekly basis", item 64110b108565433d8da40dd0e422064e)',
+  C6: 'daily ("Data is updated on a daily basis", item 691d65a5f85640e6aaa46930bd9dc102)',
+};
+const MD_DATASET_IDS: Partial<Record<MdLayerId, string>> = {
+  C3: '64110b108565433d8da40dd0e422064e', C4: '189e6d1c65df4e13b38c0027cee574f6', C6: '691d65a5f85640e6aaa46930bd9dc102',
+  C8: 'dc7bf04cec4e41ef85cc6b391652e1e7', C9: '2aa812e5042e4fc8950ffff2a6ce9291', C12: '517933b8965b47949f85a879cbdc954c',
+  K4: 'cfd6eb593b524875a80e3c45e4575fa9',
+};
+
+async function getMd(url: string | null): Promise<unknown> {
+  if (!url || !isAllowedMdUrl(url)) throw new Error(`refused ${url}`);
+  const r = await get(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.rows;
+}
+
+async function mdResolveLive(text: string): Promise<ReturnType<typeof mdResolveOutcome>> {
+  const input = mdAddressInput(text);
+  if (!input) throw new Error('bad text');
+  const [cg, kg] = await Promise.allSettled([getMd(cityGeocodeUrl(input)), getMd(countyGeocodeUrl(input))]);
+  let probes = planMdResolve(
+    cg.status === 'fulfilled' ? geocodePoints(cg.value, 'city', input) : [],
+    kg.status === 'fulfilled' ? geocodePoints(kg.value, 'county', input) : [],
+  );
+  let census: ReturnType<typeof censusCounty> = null;
+  if (!probes.length) {
+    census = censusCounty(await getMd(censusCountyUrl(text)).catch(() => null));
+    const fb = mdCensusFallback(census, null);
+    if ('outcome' in fb) return fb.outcome;
+    probes = fb.points.map((point) => ({ point, order: ['baltimore_city', 'baltimore_county'] as MdSide[] }));
+  }
+  const probeOne = async (p: MdProbe): Promise<MdProbeResult> => {
+    const hits: MdProbeResult['hits'] = [];
+    for (const side of p.order) {
+      let hit: MdProbeResult['hits'][number]['hit'];
+      try { hit = parcelHitFrom(await getMd(parcelPointUrl(side, p.point.lat, p.point.lon)), side, p.point); } catch { hit = 'failed'; }
+      hits.push({ side, hit });
+      if (typeof hit === 'object' && (hit.kind === 'parcel' || hit.kind === 'inside_no_parcel')) break;
+    }
+    return { probe: p, hits };
+  };
+  const pool = await runBounded(probes.map((p) => () => probeOne(p)), {
+    concurrency: 3, deadlineMs: 12_000,
+    skip: (i, done) => probeIsRedundant(probes[i], done.flatMap((d) => (d.result.status === 'ok' ? [d.result.value] : []))),
+  });
+  const results = pool.flatMap((r, i): MdProbeResult[] => (r.status === 'ok' ? [r.value] : r.status === 'skipped' ? [] : [{ probe: probes[i], hits: [{ side: probes[i].order[0], hit: r.status === 'timeout' ? 'timeout' : 'failed' }] }]));
+  const out = mdResolveOutcome(results, census);
+  if (out.status === 'md_outside' && !census) return { status: 'md_outside', county: censusCounty(await getMd(censusCountyUrl(text)).catch(() => null))?.county ?? null };
+  return out;
+}
+
+async function mdRecordJobs(side: MdSide, key: string, lat: number, lon: number): Promise<Partial<Record<MdJobId, MdFetched>>> {
+  const plan = mdRecordPlan(side, key, lat, lon);
+  if (!plan) throw new Error('no plan');
+  const pool = await runBounded(plan.map((j) => () => getMd(j.url)), { concurrency: 4, deadlineMs: 20_000 });
+  const jobs: Partial<Record<MdJobId, MdFetched>> = {};
+  plan.forEach((j, i) => { const r = pool[i]; jobs[j.id] = r.status === 'ok' ? { status: 'ok', body: r.value } : { status: r.status === 'failed' ? 'failed' : 'timeout' }; });
+  return jobs;
+}
+
+async function probeMd() {
+  console.log('\n== Baltimore layers (fields vs SAFE, rows, as-of, cadence)');
+  for (const id of Object.keys(MD_LAYERS) as MdLayerId[]) {
+    const L = MD_LAYERS[id];
+    try {
+      const meta = await getMd(`${L.layer}?f=json`) as { name?: string; maxRecordCount?: number; fields?: { name: string }[] };
+      const names = new Set((meta.fields ?? []).map((f) => f.name));
+      const missing = L.outFields.split(',').filter((f) => !names.has(f));
+      const count = await getMd(`${L.layer}/query?where=1%3D1&returnCountOnly=true&f=json`) as { count?: number };
+      const au = asOfUrl(id);
+      const asOf = au ? asOfFrom(id, await getMd(au).catch(() => null)) : { asOf: 'from each parcel (LDATE)', asOfKind: 'data' };
+      console.log(`  ${id} "${meta.name}"${MD_DATASET_IDS[id] ? ` item ${MD_DATASET_IDS[id]}` : ''}: rows ${count.count ?? '?'}, maxRecordCount ${meta.maxRecordCount}, SAFE fields ${missing.length ? `MISSING ${missing.join(',')}` : 'all present'}, as-of ${asOf.asOf ?? 'n/a'} (${asOf.asOfKind}), cadence ${MD_CADENCE[id] ?? 'none published'}`);
+    } catch (e) {
+      console.log(`  ${id}: ${String(e)}`);
+    }
+  }
+  const postal = await getMd('https://bcgisdata.baltimorecountymd.gov/arcgis/rest/services/Facilities/Address/MapServer/0/query?where=CITY_POSTAL%3D%27BALTIMORE%27&returnCountOnly=true&f=json').catch(() => null) as { count?: number } | null;
+  console.log(`  postal-city trap: County address points with CITY_POSTAL='BALTIMORE': ${postal?.count ?? 'not read'}`);
+
+  for (const text of ['620 E 31st St, Baltimore, MD 21218', '9616 Reisterstown Rd, Baltimore, MD', '400 Washington Ave, Towson, MD 21204', '1 Church Cir, Annapolis, MD 21401', '100 N Market St, Frederick, MD 21701']) {
+    const out = await mdResolveLive(text);
+    console.log(`\n== Resolve "${text}" → ${out.status}${out.status === 'md_outside' ? ` (${out.county ?? 'county not named'})` : ''}`);
+    if (out.status !== 'md_candidates') continue;
+    for (const c of out.candidates) console.log(`    ${c.side} ${c.label} (${c.match})`);
+    const c = out.candidates[0];
+    if (!c) continue;
+    const jobs = await mdRecordJobs(c.side, c.key, c.lat, c.lon);
+    const rec = assembleMdRecord({ side: c.side, key: c.key, fetchedAt: new Date(), jobs });
+    const sum = summarizeMdBuildingRecord(rec as unknown as MdBuildingRecord);
+    console.log(`  record complete: ${mdRecordComplete(rec)}; kind ${sum.kind}; promptBlock ${sum.promptBlock.length} chars\n  headline: ${sum.headline}`);
+    for (const l of sum.lines) console.log(`   - ${l}`);
+  }
+}
+
+/** The trimmed live bodies validate-building-record keeps inline (SAFE columns only). */
+async function printMdFixtures() {
+  const trimLayer = (b: unknown) => { const o = (b ?? {}) as { editingInfo?: unknown; fields?: { name: string }[] }; return { ...(o.editingInfo ? { editingInfo: o.editingInfo } : {}), fields: (o.fields ?? []).slice(0, 2).map((f) => ({ name: f.name })) }; };
+  const trimFeat = (b: unknown, n = 5) => ({ features: (((b ?? {}) as { features?: { attributes: unknown }[] }).features ?? []).slice(0, n).map((f) => ({ attributes: f.attributes })) });
+  const rec = async (side: MdSide, key: string, lat: number, lon: number) => {
+    const plan = mdRecordPlan(side, key, lat, lon)!;
+    const out: Record<string, unknown> = {};
+    for (const j of plan) {
+      const b = await getMd(j.url) as { features?: unknown; count?: number };
+      out[j.id] = j.id.startsWith('asof:') ? (b.features ? trimFeat(b, 1) : trimLayer(b)) : j.id === 'permits_count' ? { count: b.count } : trimFeat(b, j.id === 'permits_rows' ? 50 : 5);
+    }
+    return out;
+  };
+  const input = mdAddressInput('620 E 31st St, Baltimore, MD 21218')!;
+  const cityGeo = await getMd(cityGeocodeUrl(input)) as { candidates?: { address: string; location: { x: number; y: number }; score: number; attributes: Record<string, unknown> }[] };
+  const countyGeo = await getMd(countyGeocodeUrl(input)) as { candidates?: unknown[] };
+  const fx = {
+    cityGeo: { candidates: (cityGeo.candidates ?? []).map((c) => ({ address: c.address, location: { x: c.location.x, y: c.location.y }, score: c.score, attributes: { Addr_type: c.attributes.Addr_type, Postal: c.attributes.Postal } })) },
+    countyGeo: { candidates: countyGeo.candidates ?? [] },
+    city: await rec('baltimore_city', '4074C009', 39.326002256022, -76.60807094633),
+    county: await rec('baltimore_county', '2200002965', 39.404161179553775, -76.76314010859662),
+    thamesFlood: trimFeat(await getMd(pointQueryUrl('C12', 39.281164545142, -76.59487262271))),
+    woodlandParcel: trimFeat(await getMd(attributeQueryUrl('C3', 'baltimore_city', '4623 046', { limit: 5 }))),
+    towsonK3: trimFeat(await getMd(parcelPointUrl('baltimore_county', 39.399733, -76.60545))),
+  };
+  console.log(JSON.stringify(fx));
+}
+
 async function main() {
   const today = new Date();
+  if (MD_FIXTURES) { await printMdFixtures(); return; }
+  if (MD_ONLY) {
+    await probeMd();
+    return;
+  }
   if (NJ_ONLY) {
     await probeNj(today);
     console.log(WRITE ? `\nNJ fixtures written to ${FIX_DIR}` : '\n(print only; pass --write to refresh fixtures)');
@@ -208,6 +361,7 @@ async function main() {
   save('synthetic-6bgk-3dad-full-page.json', { id: '6bgk-3dad', asOfHeader: 'Fri, 25 Sep 2026 17:02:33 GMT', rows: synth });
 
   await probeNj(today);
+  await probeMd();
 
   console.log(WRITE ? `\nfixtures written to ${FIX_DIR}` : '\n(print only; pass --write to refresh fixtures)');
 }

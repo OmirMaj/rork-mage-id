@@ -16,7 +16,7 @@
 import type { Project, PunchItem } from '@/types';
 import {
   groundingFactsFor,
-  jobsiteAddressForProject,
+  jurisdictionQueryForProject,
   resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 import type { PrepItem } from '@/utils/inspectionPrep';
@@ -171,7 +171,7 @@ export function codeLookContext(a: {
   trade?: string | null;
   checklist?: string[];
 }): { jurisdictionBlock: string; trade?: string; checklist?: string[] } {
-  const grounding = groundingFactsFor(resolveCodeJurisdiction(jobsiteAddressForProject(a.project)));
+  const grounding = groundingFactsFor(resolveCodeJurisdiction(jurisdictionQueryForProject(a.project)));
   const out: { jurisdictionBlock: string; trade?: string; checklist?: string[] } = { jurisdictionBlock: grounding.promptBlock };
   const trade = (a.trade ?? '').trim();
   if (trade) out.trade = trade;

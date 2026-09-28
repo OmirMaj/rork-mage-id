@@ -136,7 +136,11 @@ const labelOf = (e: Row) => ('name' in e ? `${e.name}, ${e.state}` : `${(e as St
 const FAMILY_PHRASES: Record<string, RegExp[]> = {
   IBC: [/international\s+building\s+code/gi, /\bIBC\b/g],
   IRC: [/international\s+residential\s+code/gi, /\bIRC\b/g],
-  IECC: [/international\s+energy\s+conservation\s+code/gi, /\bIECC\b/g],
+  // Baltimore County's codes sheet (Rev 08/25/26) prints its energy code as
+  // "2021 International Energy Code" — no "Conservation". Without the second
+  // spelling a correctly-cited row reads as unconfirmed. It is word-bounded
+  // at both ends by "code", so it cannot match prose about energy in general.
+  IECC: [/international\s+energy\s+conservation\s+code/gi, /international\s+energy\s+code/gi, /\bIECC\b/g],
   IEBC: [/international\s+existing\s+building\s+code/gi, /\bIEBC\b/g],
   IPC: [/international\s+plumbing\s+code/gi, /\bIPC\b/g],
   IMC: [/international\s+mechanical\s+code/gi, /\bIMC\b/g],

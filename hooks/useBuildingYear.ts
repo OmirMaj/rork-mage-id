@@ -21,9 +21,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Project } from '@/types';
 import { useBuildingRecord } from '@/hooks/useBuildingRecord';
+import { useMdBuildingRecord } from '@/hooks/useMdBuildingRecord';
 import type { BuildingYear } from '@/utils/buildingScopeTriggers';
 import {
-  BUILDING_YEAR_KEY, enteredBuildingYear, parseBuildingYears, plutoBuildingYear, resolveBuildingYear,
+  BUILDING_YEAR_KEY, enteredBuildingYear, mdRecordBuildingYear, parseBuildingYears, plutoBuildingYear, resolveBuildingYear,
   withEnteredYear, withoutEnteredYear, type EnteredYears,
 } from '@/utils/buildingYear';
 
@@ -56,7 +57,8 @@ async function writeAll(map: EnteredYears): Promise<void> {
 export interface BuildingYearState {
   /** The year the rules use: entered, else PLUTO, else null. */
   year: BuildingYear | null;
-  /** PLUTO's year when the record is loaded (shown next to an entered one). */
+  /** The public record's year when it is loaded (shown next to an entered one):
+   *  PLUTO's for an NYC job, the Baltimore City / County record's for a Baltimore one. */
   pluto: BuildingYear | null;
   entered: BuildingYear | null;
   /** NYC jobsite (the building-record hook supports it). */
@@ -69,6 +71,9 @@ export interface BuildingYearState {
 export function useBuildingYear(project: Project | null | undefined): BuildingYearState {
   const currentYear = new Date().getFullYear();
   const record = useBuildingRecord(project);
+  // Baltimore: inert (no network, no storage) for any job outside Maryland, and
+  // never starts the first lookup (the card's tap does).
+  const mdRecord = useMdBuildingRecord(project);
   const [, setTick] = useState(0);
   const projectId = project?.id ?? null;
 
@@ -89,8 +94,9 @@ export function useBuildingYear(project: Project | null | undefined): BuildingYe
   const row = projectId ? shared[projectId] : undefined;
   const entered = useMemo(() => enteredBuildingYear(row, currentYear), [row, currentYear]);
   const pluto = useMemo(
-    () => plutoBuildingYear({ phase: record.phase, record: record.record }, currentYear),
-    [record.phase, record.record, currentYear],
+    () => plutoBuildingYear({ phase: record.phase, record: record.record }, currentYear)
+      ?? mdRecordBuildingYear({ phase: mdRecord.phase, record: mdRecord.record }, currentYear),
+    [record.phase, record.record, mdRecord.phase, mdRecord.record, currentYear],
   );
   const resolved = useMemo(() => resolveBuildingYear(entered, pluto), [entered, pluto]);
 

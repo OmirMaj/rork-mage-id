@@ -22,6 +22,7 @@ import njRoster from '../utils/generated/njConstructionOffices.json';
 import ctList from '../utils/generated/ctBuildingOfficials.json';
 import {
   DEPARTMENTS,
+  MD_COUNTY_OFFICES,
   NAME_ONLY_BADGE,
   NAME_ONLY_NOTE,
   NY_HAND_VERIFIED,
@@ -41,6 +42,18 @@ import {
   type PlaceLookupResult,
   type PlaceUnit,
 } from '../utils/permitOffices';
+import {
+  BALTIMORE_SPLIT_ZCTAS,
+  LOCAL_ADOPTIONS,
+  departmentFor,
+  groundingFactsFor,
+  issuingAuthorityForAddress,
+  jobsiteAddressForProject,
+  jurisdictionQueryForProject,
+  resolveCodeJurisdiction,
+  zipFromLocationText,
+  type AddressableProject,
+} from '../utils/codeJurisdiction';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean, extra = '') {
@@ -277,8 +290,8 @@ ok('the name-only badge says contact details are not verified', /not verified by
 
 // Every card
 const cards = Object.values(DEPARTMENTS);
-ok(`DEPARTMENTS holds ${cards.length} cards = 564 NJ + 174 CT + 12 NY`, cards.length === 564 + 174 + 12 && NY_HAND_VERIFIED.length === 12);
-ok('every card key is <state>:<id>', cards.every((c) => /^(NJ|CT|NY):[\w-]+$/.test(c.key)));
+ok(`DEPARTMENTS holds ${cards.length} cards = 564 NJ + 174 CT + 12 NY + 2 MD`, cards.length === 564 + 174 + 12 + 2 && NY_HAND_VERIFIED.length === 12);
+ok('every card key is <state>:<id>', cards.every((c) => /^(NJ|CT|NY|MD):[\w-]+$/.test(c.key)));
 ok('every card names its source', cards.every((c) => !!c.sourceLabel && (c.sourceUrl === null || c.sourceUrl.startsWith('https://'))));
 ok('every listed card phone either dials or is shown undialled (never a wrong number)',
   cards.every((c) => !c.phone || telUrlFor(c.phone) === null || /^tel:\d{10,11}$/.test(telUrlFor(c.phone)!)));
@@ -438,6 +451,279 @@ ok('DepartmentCard: the lookup runs only when departmentFor() is null and the jo
 ok('DepartmentCard: the outer component still calls no hook', !/\buse[A-Z]\w*\(/.test(outer));
 ok('DepartmentCard: renders permitOfficeFor()\'s answer and the name-only badge', /permitOfficeFor\(lookup\.place/.test(card) && /NAME_ONLY_BADGE/.test(card));
 ok('DepartmentCard: a nyc answer reuses the NYC block', /answer\.kind === 'nyc'/.test(card) && /NYC_DEPARTMENT/.test(card));
+
+// ── 11. Maryland: Baltimore City vs Baltimore County ────────────────────────
+// Lane PLACECODES (2026-09-28). These cases live here, not in the fenced
+// validate-code-jurisdiction.ts. Census answers below were recorded that day
+// from the live geocoder (see the header of supabase/functions/place-lookup).
+console.log('\n── 11. Maryland ─────────────────────────────────────────────');
+const MD_CITY = { name: 'Baltimore city', geoid: '24510' };
+const MD_COUNTY = { name: 'Baltimore County', geoid: '24005' };
+const ANNE_ARUNDEL = { name: 'Anne Arundel County', geoid: '24003' };
+const cityRow = LOCAL_ADOPTIONS.find((e) => e.state === 'MD' && e.name === 'Baltimore City');
+const countyRow = LOCAL_ADOPTIONS.find((e) => e.state === 'MD' && e.name === 'Baltimore County');
+const cityDept = cityRow?.department;
+const countyDept = countyRow?.department;
+ok('MD rows exist, named exactly "Baltimore City" and "Baltimore County", each with a department block',
+  !!cityDept && !!countyDept);
+
+// 11a. the permit-office cards
+const mdCity = permitOfficeFor(place({ state: 'MD', county: MD_CITY, incorporatedPlace: unit('Baltimore city', 'Baltimore', '2404000', 'city') }));
+ok('24510 → the hand-verified Baltimore City DHCD card, 443-984-1809',
+  mdCity.kind === 'office' && mdCity.office?.key === 'MD:24510' && mdCity.office.verification === 'hand-verified'
+    && mdCity.office.phone === '443-984-1809' && /DHCD/.test(mdCity.office.title) && mdCity.cautions.length === 0,
+  `${mdCity.office?.key} ${mdCity.office?.phone}`);
+const mdCounty = permitOfficeFor(place({ state: 'MD', county: MD_COUNTY, cdp: unit('Towson CDP', 'Towson', '2478425', 'CDP') }));
+ok('24005 → the hand-verified Baltimore County PAI card, 410-887-3353',
+  mdCounty.kind === 'office' && mdCounty.office?.key === 'MD:24005' && mdCounty.office.verification === 'hand-verified'
+    && mdCounty.office.phone === '410-887-3353' && /\(PAI\)/.test(mdCounty.office.title),
+  `${mdCounty.office?.key} ${mdCounty.office?.phone}`);
+ok('a Maryland election district in the town slot never changes the answer (MD keys on the county)',
+  permitOfficeFor(place({ state: 'MD', county: MD_COUNTY, town: unit('District 9', '9', '2400590748', '') })).office?.key === 'MD:24005');
+const annapolis = permitOfficeFor(place({ state: 'MD', county: ANNE_ARUNDEL, incorporatedPlace: unit('Annapolis city', 'Annapolis', '2401600', 'city') }));
+ok('24003 (Annapolis) → a NAME-ONLY Anne Arundel County card, labelled unverified, no invented contact',
+  annapolis.kind === 'office' && annapolis.office?.jurisdiction === 'Anne Arundel County' && annapolis.office.verification === 'name-only'
+    && annapolis.office.facts.includes(NAME_ONLY_NOTE) && !annapolis.office.phone && !annapolis.office.portalUrl && annapolis.office.key === 'MD:24003');
+ok('an incorporated city inside another MD county: a caution to check, never a claim either way',
+  annapolis.cautions.length === 1 && /Annapolis city/.test(annapolis.cautions[0]) && /Check whether it issues its own permits/.test(annapolis.cautions[0]));
+ok('no incorporated place → no such caution',
+  permitOfficeFor(place({ state: 'MD', county: ANNE_ARUNDEL })).cautions.length === 0);
+const mdPin = permitOfficeFor(place({ state: 'MD', match: 'approximate', county: MD_CITY }));
+ok('MD pin answer: "Looks like Baltimore City (from the map pin). Confirm."',
+  mdPin.headline === 'Looks like Baltimore City (from the map pin). Confirm.', String(mdPin.headline));
+const mdNone = permitOfficeFor(null, { state: 'MD', postalCity: 'Baltimore' });
+ok('MD none: never picks an office, and says a "Baltimore" address can be either government',
+  mdNone.kind === 'unresolved' && mdNone.office === null && /Baltimore City or Baltimore County/.test(mdNone.headline ?? ''));
+ok('Pennsylvania stays unsupported', permitOfficeFor(null, { state: 'PA', postalCity: 'Philadelphia' }).kind === 'unsupported'
+  && parsePlaceLookupResponse({ ...good, state: 'PA' }) === null);
+ok('the wire parser accepts a Maryland answer', parsePlaceLookupResponse({ ...good, state: 'MD', county: MD_CITY, town: null })?.state === 'MD');
+
+// ONE SOURCE: the card and the code-jurisdiction department block must agree.
+for (const [label, office, row] of [['City', mdCity.office, cityRow], ['County', mdCounty.office, countyRow]] as const) {
+  const d = row?.department;
+  ok(`MD ${label} card = the ${row?.name} department block (phone, email, portal, hours, source, title)`,
+    !!office && !!d && !!row && office.phone === (d.phone ?? null) && office.email === (d.email ?? null) && office.portalUrl === d.portalUrl
+      && office.hours === (d.hours ?? null) && office.sourceUrl === d.sourceUrl && office.title === row.authorityName
+      && office.sourceLabel === `${d.sourceLabel}, checked ${d.checkedOn}`);
+}
+ok('MD cards are keyed on exactly the two Baltimore county GEOIDs', JSON.stringify(Object.keys(MD_COUNTY_OFFICES).sort()) === '["24005","24510"]');
+
+// 11b. the query and the edge function
+const mdQ = placeQueryForProject({ location: '620 E 31st St, Baltimore, MD 21218' });
+ok('placeQueryForProject accepts MD and sends the whole location (the ZIP reaches Census)',
+  mdQ?.state === 'MD' && mdQ.address === '620 E 31st St, Baltimore, MD 21218' && mdQ.postalCity === 'Baltimore');
+ok('edge fn: FIPS 24 → MD, and Pennsylvania (42) is still not answered',
+  fn.TRISTATE_FIPS['24'] === 'MD' && fn.TRISTATE_FIPS['42'] === undefined);
+const BALT_GEOS = {
+  'County Subdivisions': [{ GEOID: '2451090000', NAME: 'Baltimore city', BASENAME: 'Baltimore', STATE: '24' }],
+  'Incorporated Places': [{ GEOID: '2404000', NAME: 'Baltimore city', BASENAME: 'Baltimore', STATE: '24' }],
+  Counties: [{ GEOID: '24510', NAME: 'Baltimore city', BASENAME: 'Baltimore', STATE: '24' }],
+};
+const TOWSON_GEOS = {
+  'County Subdivisions': [{ GEOID: '2400590748', NAME: 'District 9', BASENAME: '9', STATE: '24' }],
+  'Census Designated Places': [{ GEOID: '2478425', NAME: 'Towson CDP', BASENAME: 'Towson', STATE: '24' }],
+  Counties: [{ GEOID: '24005', NAME: 'Baltimore County', BASENAME: 'Baltimore', STATE: '24' }],
+};
+const baltAns = fn.answerFromGeographies(BALT_GEOS, 'address', '620 E 31ST ST, BALTIMORE, MD, 21218', 'T');
+ok('edge fn: 620 E 31st St → MD, county {Baltimore city, 24510}, town null',
+  baltAns.state === 'MD' && baltAns.county.name === 'Baltimore city' && baltAns.county.geoid === '24510' && baltAns.town === null);
+const towsonAns = fn.answerFromGeographies(TOWSON_GEOS, 'address', null, 'T');
+ok('edge fn: Towson → county 24005, the election district dropped, the CDP kept',
+  towsonAns.county.geoid === '24005' && towsonAns.town === null && towsonAns.cdp.basename === 'Towson');
+ok('edge fn → client → card, end to end: 24510 → MD:24510, 24005 → MD:24005',
+  permitOfficeFor(parsePlaceLookupResponse(baltAns)).office?.key === 'MD:24510'
+    && permitOfficeFor(parsePlaceLookupResponse(towsonAns)).office?.key === 'MD:24005');
+ok('edge fn: NY answers still carry their town (the MD rule is MD only)',
+  fn.answerFromGeographies(LEVITTOWN_GEOS, 'address', null, 'T').town?.geoid === '3605934000');
+
+// 11c. the resolver (X2) — County and City are decided by geography, never
+// by the postal name "Baltimore".
+const r = resolveCodeJurisdiction;
+const rowName = (x: ReturnType<typeof r>) => (x.kind === 'city' ? x.entry.name : x.kind === 'state' ? `state:${x.entry.state}` : 'unknown');
+const amb = (x: ReturnType<typeof r>) => x.kind === 'state' && !!x.localAmbiguity;
+ok('Baltimore + county "Baltimore city" → the City row', rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore city' })) === 'Baltimore City');
+ok('Towson + county "Baltimore County" → the County row', rowName(r({ state: 'MD', city: 'Towson', county: 'Baltimore County' })) === 'Baltimore County');
+{
+  const plain = r({ state: 'MD', city: 'Baltimore' });
+  ok('plain "Baltimore, MD" → the Maryland state row WITH localAmbiguity naming both rows',
+    plain.kind === 'state' && plain.entry.state === 'MD' && JSON.stringify(plain.localAmbiguity?.candidates) === '["Baltimore City","Baltimore County"]');
+}
+ok('"Annapolis, MD" → the state row with NO localAmbiguity', (() => { const a = r({ state: 'MD', city: 'Annapolis' }); return a.kind === 'state' && !a.localAmbiguity; })());
+ok('a City-only ZIP (21218) → the City row', rowName(r({ state: 'MD', city: 'Baltimore', zip: '21218' })) === 'Baltimore City');
+ok('a County-only ZIP (21204) → the County row, even under the postal name "Baltimore"',
+  rowName(r({ state: 'MD', city: 'Baltimore', zip: '21204' })) === 'Baltimore County');
+ok('a ZIP split between City and County (21206) → the state row, ambiguous',
+  (() => { const x = r({ state: 'MD', city: 'Rosedale', zip: '21206' }); return rowName(x) === 'state:MD' && amb(x); })());
+ok('a ZIP split between Baltimore County and Harford (21013) → the state row, ambiguous between THOSE two (never the City)',
+  (() => { const x = r({ state: 'MD', city: 'Kingsville', zip: '21013' }); return rowName(x) === 'state:MD' && x.kind === 'state'
+    && JSON.stringify(x.localAmbiguity?.candidates) === '["Baltimore County","Harford County"]' && x.localAmbiguity?.askFor === 'county'; })());
+ok('a ZIP split between the City and Anne Arundel (21225, "Brooklyn") → ambiguous between the City and Anne Arundel County',
+  (() => { const x = r(jurisdictionQueryForProject({ location: '1 Main St, Brooklyn, MD 21225' })); return rowName(x) === 'state:MD' && x.kind === 'state'
+    && JSON.stringify(x.localAmbiguity?.candidates) === '["Baltimore City","Anne Arundel County"]'; })());
+ok('"Baltimore, MD 21225" → all three: the postal name adds the County to the ZIP\'s City + Anne Arundel',
+  (() => { const x = r({ state: 'MD', city: 'Baltimore', zip: '21225' }); return x.kind === 'state'
+    && JSON.stringify(x.localAmbiguity?.candidates) === '["Baltimore City","Baltimore County","Anne Arundel County"]'; })());
+// 21230: the Census ZCTA is wholly City, but Baltimore County's own address
+// points use the USPS ZIP (10 points on Patapsco Ave / Marmenco Ct,
+// 2026-09-28), so it must never place an address in the City by itself.
+ok('location-only "4600 Patapsco Ave, Baltimore, MD 21230" (a County address) → the state row WITH localAmbiguity, never the City',
+  (() => { const x = r(jurisdictionQueryForProject({ location: '4600 Patapsco Ave, Baltimore, MD 21230' }));
+    return rowName(x) === 'state:MD' && amb(x) && x.kind === 'state' && x.localAmbiguity?.askFor === 'county'
+      && issuingAuthorityForAddress(jurisdictionQueryForProject({ location: '4600 Patapsco Ave, Baltimore, MD 21230' })) === null; })());
+ok('21230 with county "Baltimore city" → the City row; with "Baltimore County" → the County row',
+  rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore city', zip: '21230' })) === 'Baltimore City'
+    && rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore County', zip: '21230' })) === 'Baltimore County');
+ok('21230 is split (both governments), not in either row\'s ZIP list',
+  JSON.stringify(BALTIMORE_SPLIT_ZCTAS['21230']) === '["24005","24510"]'
+    && !(cityRow?.postalZip ?? []).includes('21230') && !(countyRow?.postalZip ?? []).includes('21230'));
+ok('a county field of just "Baltimore" is read as Baltimore County (pinned by validate-code-jurisdiction: a row answers to its first matchCounty)',
+  rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore' })) === 'Baltimore County');
+ok('city "Baltimore City" + county "Baltimore County" contradict → the state row, askFor fix-address, no authority',
+  (() => { const q = { state: 'MD', city: 'Baltimore City', county: 'Baltimore County' }; const x = r(q);
+    return rowName(x) === 'state:MD' && x.kind === 'state' && x.localAmbiguity?.askFor === 'fix-address' && issuingAuthorityForAddress(q) === null; })());
+ok('the contradiction rule is Maryland only (NYC with a stray county still answers NYC)',
+  rowName(r({ state: 'NY', city: 'Brooklyn', county: 'Baltimore County' })) === 'New York City');
+ok('a County ZIP with county "Baltimore city" given → the City row (the county wins)',
+  rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore city', zip: '21204' })) === 'Baltimore City');
+ok('a City ZIP with county "Baltimore County" given → the County row (the county wins)',
+  rowName(r({ state: 'MD', city: 'Baltimore', county: 'Baltimore County', zip: '21218' })) === 'Baltimore County');
+ok('a Baltimore ZIP with another county given → the state row, no ambiguity',
+  (() => { const x = r({ state: 'MD', county: 'Anne Arundel County', zip: '21218' }); return rowName(x) === 'state:MD' && !amb(x); })());
+ok('a Maryland ZIP never answers in another state', rowName(r({ state: 'PA', zip: '21218' })) !== 'Baltimore City');
+ok('"Baltimore City" typed as the city → the City row', rowName(r({ state: 'MD', city: 'Baltimore City' })) === 'Baltimore City');
+ok('a County postal name (Owings Mills) → the County row', rowName(r({ state: 'MD', city: 'Owings Mills' })) === 'Baltimore County');
+ok('a line-crossing postal name (Catonsville, 21228 split) is NOT a County postal name',
+  (() => { const x = r({ state: 'MD', city: 'Catonsville' }); return rowName(x) === 'state:MD'; })());
+
+// The data behind it.
+ok('no row matches the postal name "baltimore" (County addresses use it too)',
+  LOCAL_ADOPTIONS.every((e) => ![...(e.matchCity ?? []), ...(e.postalCity ?? [])].some((m) => m.trim().toLowerCase() === 'baltimore')));
+{
+  const cz = new Set(cityRow?.postalZip ?? []);
+  const kz = new Set(countyRow?.postalZip ?? []);
+  const split = Object.keys(BALTIMORE_SPLIT_ZCTAS);
+  ok('City and County ZIP lists are disjoint, and no split ZCTA is in either',
+    cz.size === 14 && kz.size === 28 && [...cz].every((z) => !kz.has(z)) && split.every((z) => !cz.has(z) && !kz.has(z)),
+    `${cz.size} / ${kz.size} / ${split.length}`);
+  ok('every split ZIP touches Baltimore City or Baltimore County, and at least two counties (31 from the Census file + 21230)',
+    split.length === 32 && split.every((z) => BALTIMORE_SPLIT_ZCTAS[z].length >= 2
+      && (BALTIMORE_SPLIT_ZCTAS[z].includes('24510') || BALTIMORE_SPLIT_ZCTAS[z].includes('24005'))));
+  ok('only Baltimore rows carry postalZip', LOCAL_ADOPTIONS.every((e) => !e.postalZip || (e.state === 'MD' && /^Baltimore /.test(e.name))));
+}
+
+// 11d. X4: the ZIP reaches the resolver from a location-only project.
+ok('zipFromLocationText: trailing ZIP', zipFromLocationText('620 E 31st St, Baltimore, MD 21218') === '21218');
+ok('zipFromLocationText: ZIP+4', zipFromLocationText('620 E 31st St, Baltimore, MD 21218-1234') === '21218');
+ok('zipFromLocationText: no ZIP → ""', zipFromLocationText('Baltimore, MD') === '');
+ok('zipFromLocationText: a leading house number is not a ZIP', zipFromLocationText('21218 Main St, Somewhere, MD') === '');
+ok('zipFromLocationText: empty / null → ""', zipFromLocationText('') === '' && zipFromLocationText(null) === '' && zipFromLocationText(undefined) === '');
+const loc = (location: string): AddressableProject => ({ location });
+const cityJob = loc('620 E 31st St, Baltimore, MD 21218');
+ok('location-only "620 E 31st St, Baltimore, MD 21218" → the City row (via the ZIP)',
+  rowName(r(jurisdictionQueryForProject(cityJob))) === 'Baltimore City');
+ok('…and jobsiteAddressForProject of the same job still has zip "" (the pinned AI-1 property)',
+  jobsiteAddressForProject(cityJob).zip === '');
+ok('location-only Towson 21204 (a County-only ZCTA) → the County row',
+  rowName(r(jurisdictionQueryForProject(loc('400 Washington Ave, Towson, MD 21204')))) === 'Baltimore County');
+ok('location-only "Baltimore, MD" 21204 (County ZIP, City-looking postal name) → the County row',
+  rowName(r(jurisdictionQueryForProject(loc('9 Any St, Baltimore, MD 21204')))) === 'Baltimore County');
+ok('location-only "Baltimore, MD" with no ZIP → the state row WITH localAmbiguity',
+  amb(r(jurisdictionQueryForProject(loc('Baltimore, MD')))));
+ok('…the same with confirmedCounty "Baltimore city" → the City row',
+  rowName(r(jurisdictionQueryForProject(loc('Baltimore, MD'), 'Baltimore city'))) === 'Baltimore City');
+ok('…the same with confirmedCounty "Baltimore County" → the County row',
+  rowName(r(jurisdictionQueryForProject(loc('Baltimore, MD'), 'Baltimore County'))) === 'Baltimore County');
+ok('structuredAddress { Baltimore, MD, 21218 } with no county → the City row',
+  rowName(r(jurisdictionQueryForProject({ structuredAddress: { city: 'Baltimore', state: 'MD', zip: '21218' } }))) === 'Baltimore City');
+ok('structuredAddress ZIP+4 is cut to five digits',
+  jurisdictionQueryForProject({ structuredAddress: { city: 'Baltimore', state: 'MD', zip: '21218-1234' } }).zip === '21218');
+ok("the address's own county wins over the confirmed side (a disagreement is never resolved silently the other way)",
+  rowName(r(jurisdictionQueryForProject({ structuredAddress: { city: 'Baltimore', state: 'MD', zip: '21218', county: 'Baltimore County' } }, 'Baltimore city'))) === 'Baltimore County');
+ok('issuingAuthorityForAddress: a location-only City job names the City authority',
+  issuingAuthorityForAddress(jurisdictionQueryForProject(cityJob)) === cityRow?.authorityName);
+ok('issuingAuthorityForAddress: the ambiguous shape stays null (a state row never issues permits)',
+  issuingAuthorityForAddress(jurisdictionQueryForProject(loc('Baltimore, MD'))) === null);
+ok('departmentFor: the City job gets the DHCD block; the ambiguous shape gets none',
+  departmentFor(r(jurisdictionQueryForProject(cityJob)))?.phone === '443-984-1809'
+    && departmentFor(r(jurisdictionQueryForProject(loc('Baltimore, MD')))) === null);
+
+// 11e. the grounding for the ambiguous shape
+{
+  const g = groundingFactsFor(r(jurisdictionQueryForProject(loc('Baltimore, MD'))));
+  const plainMd = groundingFactsFor(r({ state: 'MD', city: 'Annapolis' }));
+  ok('ambiguous: the chip says statewide only and asks for the ZIP or county',
+    g.chipLabel === "Maryland statewide codes only. Baltimore City or Baltimore County? Add the job's ZIP or county to get the local codes.", g.chipLabel);
+  ok('ambiguous: the prompt names BOTH local fire codes and BOTH electrical codes, from the rows',
+    /IFC 2021/.test(g.promptBlock) && /NFPA 1/.test(g.promptBlock) && /NEC 2020/.test(g.promptBlock) && /NEC 2026/.test(g.promptBlock));
+  ok('ambiguous: the fact is built from the rows themselves (authority names + codesSummary)',
+    !!cityRow && !!countyRow && g.promptBlock.includes(cityRow.authorityName) && g.promptBlock.includes(countyRow.authorityName));
+  ok('ambiguous: the prompt says only the statewide editions are grounded and forbids citing either local code',
+    /only Maryland's statewide editions are grounded/.test(g.promptBlock) && /Do not cite either local code/.test(g.promptBlock));
+  ok("ambiguous: its own cache key, 'state:MD:maryland:baltimore-ambiguous', different from the plain MD key",
+    g.cacheKey === 'state:MD:maryland:baltimore-ambiguous' && plainMd.cacheKey !== g.cacheKey && plainMd.cacheKey === 'state:MD:maryland (state adoption)');
+  ok('ambiguous: every fact is in the prompt verbatim', g.facts.every((f) => g.promptBlock.includes(f)));
+  {
+    const zipAmb = groundingFactsFor(r(jurisdictionQueryForProject(loc('1 Main St, X, MD 21212'))));
+    ok('split-ZIP ambiguity: the chip asks for the COUNTY, not the ZIP the job already has',
+      zipAmb.chipLabel === "Maryland statewide codes only. Baltimore City or Baltimore County? Add the job's county to get the local codes." && /add the job's county\.$/.test(zipAmb.facts[zipAmb.facts.length - 1]), zipAmb.chipLabel);
+    ok('split-ZIP ambiguity: its own cache key (never the plain-Baltimore one)',
+      zipAmb.cacheKey !== g.cacheKey && zipAmb.cacheKey.startsWith('state:MD:maryland:baltimore-ambiguous:'), zipAmb.cacheKey);
+    const aa = groundingFactsFor(r({ state: 'MD', city: 'Brooklyn', zip: '21225' }));
+    ok('City/Anne Arundel ambiguity: Anne Arundel is named as NOT researched; no fire/electrical claim is made for it',
+      /Anne Arundel County: not researched by MAGE/.test(aa.promptBlock) && !/own fire code/.test(aa.promptBlock)
+        && aa.chipLabel === "Maryland statewide codes only. Baltimore City or Anne Arundel County? Add the job's county.", aa.chipLabel);
+    ok('City/Anne Arundel ambiguity: the City half is still built from the City row', !!cityRow && aa.promptBlock.includes(cityRow.authorityName));
+    const fix = groundingFactsFor(r({ state: 'MD', city: 'Baltimore City', county: 'Baltimore County' }));
+    ok('contradicting fields: the chip asks to fix the address', fix.chipLabel === "Maryland statewide codes only. Baltimore City or Baltimore County? Fix the job's city or county so they agree.", fix.chipLabel);
+  }
+  ok('the County row names the State Fire Prevention Code its own sheet also lists (2024 NFPA 1 / 101, 23 June 2025)',
+    !!countyRow && /State Fire Prevention Code \(COMAR 29\.06\.01: the 2024 NFPA 1 and NFPA 101, effective 23 June 2025\)/.test(countyRow.notes ?? ''));
+  ok('plain MD (Annapolis): no Baltimore fact, the usual grounded chip',
+    !/Baltimore County\?/.test(plainMd.chipLabel) && !/could be in Baltimore City/.test(plainMd.promptBlock) && /^Grounded on /.test(plainMd.chipLabel));
+}
+
+// 11f. NON-MD REGRESSION: for every existing row and the golden fixtures, the
+// X4 query grounds exactly as the jobsiteAddressForProject path does.
+{
+  const fixtures: AddressableProject[] = [
+    { location: '4218 SE Rex St, Portland, OR 97206' },
+    { location: '124 Park Slope, Brooklyn NY 11215' },
+    { location: '94 Washington St, Hoboken, NJ 07030' },
+    { structuredAddress: { street: '1 Main St', city: 'Houston', state: 'TX', zip: '77002', county: 'Harris' } },
+  ];
+  for (const e of LOCAL_ADOPTIONS) {
+    if (e.state === 'MD') continue;
+    const m = e.matchCity?.[0];
+    if (m) fixtures.push({ structuredAddress: { city: m, state: e.state } }, { location: `${m}, ${e.state}` });
+  }
+  const drift = fixtures.filter((p) => {
+    const a = groundingFactsFor(r(jobsiteAddressForProject(p)));
+    const b = groundingFactsFor(r(jurisdictionQueryForProject(p)));
+    return a.promptBlock !== b.promptBlock || a.cacheKey !== b.cacheKey;
+  });
+  ok(`non-MD: ${fixtures.length} projects ground identically through jurisdictionQueryForProject`, drift.length === 0,
+    drift.map((p) => JSON.stringify(p)).slice(0, 4).join('; '));
+}
+
+// 11g. honesty in the department blocks
+{
+  const emails = [cityDept, countyDept].flatMap((d) => [d?.email, ...(d?.questionChannels ?? []).map((c) => c.email)]).filter((x): x is string => !!x);
+  ok('MD departments use only department mailboxes (no staff names)',
+    emails.length > 0 && emails.every((m) => /^(DHCD\.[A-Za-z]+|BCFD\.Plans|deptofplanning)@baltimorecity\.gov$|^(paipermitstatus|paibldgrvw)@baltimorecountymd\.gov$/.test(m)), emails.join(', '));
+  const review = countyDept?.questionChannels.find((c) => c.stage === 'in_review');
+  ok('County plans review: the two published phone numbers are named, neither is picked as THE number',
+    !!review && !review.phone && /410-887-3985/.test(review.note) && /410-887-3987/.test(review.note));
+  const chap = cityDept?.questionChannels.find((c) => /CHAP/.test(c.label));
+  ok('City CHAP phone is the one two official sources agree on (410-396-7526, not 410-396-4866)',
+    chap?.phone === '410-396-7526' && !JSON.stringify(cityDept).includes('4866'));
+  ok('City hours name the no-Wednesday rule AND the Help Center\'s conflicting listing',
+    /no in-person help on Wednesdays/.test(cityDept?.hours ?? '') && /call ahead/.test(cityDept?.hours ?? ''));
+  ok('no QuickTrac number (443-984-2776 was never on a City page)', !JSON.stringify([cityDept, countyDept]).includes('984-2776'));
+  ok('fees are links, never amounts', [cityDept, countyDept].every((d) => (d?.feeScheduleUrls ?? []).length > 0) && !/\$\d/.test(JSON.stringify([cityDept, countyDept])));
+  ok('portal labels and source labels are set (the card never falls back to NYC wording for MD)',
+    cityDept?.portalLabel === 'E-Permits portal' && cityDept.sourceLabel === 'baltimorecity.gov'
+      && countyDept?.portalLabel === 'Permits portal (PLL)' && countyDept.sourceLabel === 'baltimorecountymd.gov');
+}
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-permit-offices: ${pass} passed, ${fail} failed\n`);
 if (fail) process.exit(1);

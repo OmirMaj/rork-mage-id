@@ -9,10 +9,23 @@ export interface ConstructionAnswerJurisdiction {
   scope: 'city' | 'state';
 }
 
+/** The linked job's public building record, as construction-answer's
+ *  buildingRecordBlockFor reads it. Sent only when the contractor has loaded
+ *  the record on the job's Building record card (Ask never starts a lookup). */
+export interface ConstructionAnswerBuildingRecord {
+  /** Where the record came from, e.g. "DOB's public records". */
+  source: string;
+  /** The record's as-of day (YYYY-MM-DD), or null when not published. */
+  asOf: string | null;
+  /** The summary's promptBlock: header, headline, fact lines, RULES. */
+  block: string;
+}
+
 export interface ConstructionAnswerRequest {
   question: string;
   projectId?: string | null;
   jurisdiction?: ConstructionAnswerJurisdiction | null;
+  buildingRecord?: ConstructionAnswerBuildingRecord | null;
 }
 
 export interface AnswerCitation {
