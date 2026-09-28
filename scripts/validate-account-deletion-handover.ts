@@ -93,6 +93,25 @@ const missingMigCollab = migCollab.filter(([, t]) => !handoverTables.has(t));
 ok('every migration that creates a <t>_collab_insert policy has <t> in COLLABORATOR_FIELD_TABLES',
   missingMigCollab.length === 0, `missing: ${missingMigCollab.map(([f, t]) => `${t} (${f})`).join(', ')}`);
 
+// Backcharges (20260928160000, lane HEALTH): an EDITOR may write one on the
+// owner's project, and it is money the sub owes the owner. The table is not in
+// COLLABORATOR_FIELD_TABLES, so its author column must not cascade: user_id is
+// ON DELETE SET NULL, the row stays with the project and loses only its author.
+// If the FK ever becomes CASCADE, the table has to join the handover list first.
+{
+  const bcFile = migFiles.find(f => /_backcharges\.sql$/.test(f));
+  const bcSql = bcFile ? (migSrc.get(bcFile) ?? '').replace(/--[^\n]*/g, '') : '';
+  ok('the backcharges migration exists', !!bcFile);
+  const cascadesOnAuthor = /user_id[^,\n]*references auth\.users\(id\) on delete cascade/i.test(bcSql);
+  const setsNull = /user_id[^,\n]*references auth\.users\(id\) on delete set null/i.test(bcSql);
+  ok("an editor's backcharge on the owner's project survives the editor's account deletion (user_id ON DELETE SET NULL, or a handover path)",
+    (setsNull && !cascadesOnAuthor) || handoverTables.has('backcharges'),
+    'backcharges.user_id cascades on the author\'s auth delete and the table is not in COLLABORATOR_FIELD_TABLES');
+  ok('backcharges access rides on the project, never on user_id (a cleared author changes no one\'s access)',
+    /create policy backcharges_select on public\.backcharges\s+for select to authenticated\s+using \(public\.can_access_project\(project_id, 'editor'\)\);/.test(bcSql)
+    && !/using \([^;]*auth\.uid\(\) = user_id/.test(bcSql));
+}
+
 // Each handover table must actually carry the two columns the UPDATE filters on
 // (schema.sql first, else the migration that creates it).
 const cols = (t: string) => {

@@ -35,6 +35,8 @@ import { RegisterShell, exportRegisterCsv } from '@/components/registers/Registe
 import { rowsToCsv } from '@/utils/dataTable';
 import { logDayLabel } from '@/utils/logs/logRoutes';
 import { computeSubScorecards, type SubScorecardInput } from '@/utils/subScorecard';
+import { useBackcharges } from '@/hooks/useBackcharges';
+import { backchargesForScorecard } from '@/utils/backchargeRows';
 import {
   SUB_CSV_COLUMNS, complianceTone, subChipMatches, subRegisterRow, subSearchText, subStatusCounts,
   subTradeCounts, subsByUpdated, type SubChip, type SubRegisterRow,
@@ -70,10 +72,14 @@ export function SubsRegister({
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
-  // The same card /sub-scorecard renders — desktop only (this mounts only there).
+  // The same card /sub-scorecard renders — desktop only (this mounts only there),
+  // backcharges included, so both grade a sub the same — and only once the
+  // list is complete (backchargesForScorecard: "not counted" until then).
+  const { list: backchargeList, complete: backchargesRead } = useBackcharges();
+  const backcharges = backchargesForScorecard(backchargeList, backchargesRead);
   const scoreBySub = useMemo(() => new Map(
-    computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis }).cards.map((c) => [c.subId, c]),
-  ), [subcontractors, commitments, changeOrders, punchItems, projects, rfis]);
+    computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges }).cards.map((c) => [c.subId, c]),
+  ), [subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges]);
 
   // Read once a minute, so the rows keep their identity between renders.
   const nowMs = Math.floor(Date.now() / 60_000) * 60_000;

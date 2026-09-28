@@ -218,12 +218,27 @@ function pricedDollars(it: LinkedEstimateItem): number {
   return it.usesBulk ? Number(it.bulkPrice) : Number(it.unitPrice);
 }
 
+/** Optional widening of which projects estimateDrift checks. */
+export interface EstimateDriftOptions {
+  /** Projects checked WHATEVER their status. For the one project being sent
+   *  or signed (utils/priceDriftGate): at the moment of signing its status may
+   *  already have moved past 'estimated'. Every other project still needs an
+   *  OPEN status. Absent or empty = the default behaviour, unchanged. */
+  includeProjectIds?: readonly string[];
+}
+
 /**
  * Lines on an OPEN estimate whose price his latest reviewed receipt for the
  * exact same item (same key, same unit) contradicts by ≥ minPct.
  * Labor-looking lines are skipped: a receipt is never a labor rate.
  */
-export function estimateDrift(projects: Project[], receipts: MaterialReceipt[], minPct = 5): DriftFinding[] {
+export function estimateDrift(
+  projects: Project[],
+  receipts: MaterialReceipt[],
+  minPct = 5,
+  opts: EstimateDriftOptions = {},
+): DriftFinding[] {
+  const include = new Set(opts.includeProjectIds ?? []);
   const latestByKey = new Map<string, UsableLine>();
   for (const u of usableLines(receipts)) {
     const cur = latestByKey.get(u.key);
@@ -233,7 +248,7 @@ export function estimateDrift(projects: Project[], receipts: MaterialReceipt[], 
 
   const out: DriftFinding[] = [];
   for (const p of projects ?? []) {
-    if (!p || !OPEN_STATUSES.has(p.status)) continue;
+    if (!p || !(OPEN_STATUSES.has(p.status) || include.has(p.id))) continue;
     const items = p.linkedEstimate?.items;
     if (!Array.isArray(items)) continue;
     for (const it of items) {

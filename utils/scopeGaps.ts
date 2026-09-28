@@ -24,10 +24,11 @@ import {
 import { scopeRateCaption, scopeRateFor } from '@/utils/scopePricing';
 import { toCents } from '@/utils/brain/scopeCoDraft';
 import { CODE_SCOPE_RULES, type CodeScopeRule } from '@/utils/codeScopeTriggers';
+import { evaluateBuildingRules, type BuildingYear, type PricedBuildingGap } from '@/utils/buildingScopeTriggers';
 
 export type GapState = 'gap' | 'in_scope' | 'already_covered' | 'n_a' | 'suppressed';
 
-export interface PricedScopeGap {
+export interface PricedCodeGap {
   rule: CodeScopeRule;
   state: GapState;
   triggeredBy: string;
@@ -40,6 +41,15 @@ export interface PricedScopeGap {
   needsQuantity: boolean;
   totalCents: number | null;
   rateCaption: string;
+}
+
+/** A code-rule gap, or (project mode, when the card passes `building`) a
+ *  building-age line from utils/buildingScopeTriggers — same fields, plus
+ *  its `building` facts. */
+export type PricedScopeGap = PricedCodeGap | PricedBuildingGap;
+
+export function isBuildingGap(g: PricedScopeGap): g is PricedBuildingGap {
+  return 'building' in g && !!(g as PricedBuildingGap).building;
 }
 
 export type ScopeGapDismissals = Record<string, { verdict: 'already_covered' | 'n_a'; at: string }>;
@@ -60,6 +70,9 @@ export interface ScopeGapsInput {
   /** The one pricing path; defaults to utils/scopePricing.scopeRateFor. The
    *  card passes it explicitly so the shared path is visible at the call site. */
   rateFor?: typeof scopeRateFor;
+  /** Bet 1: the building's year built (entered, else PLUTO). Absent → the
+   *  result is exactly what it was before building rules existed. */
+  building?: { year: BuildingYear | null; pluto?: BuildingYear | null } | null;
 }
 
 export interface ScopeGapsResult {
@@ -173,6 +186,22 @@ export function evaluateScopeGaps(input: ScopeGapsInput): ScopeGapsResult {
       rule, state: gapState, triggeredBy, coverage, jurisdictionNote, suppressedReason,
       priced, unitRate, quantity, needsQuantity, totalCents: rowCents, rateCaption: scopeRateCaption(entry),
     });
+  }
+
+  if (input.building) {
+    const bldg = evaluateBuildingRules({
+      lines: input.lines, scopeNotes: input.scopeNotes, jobKind: input.jobKind, projectType: input.projectType,
+      address: input.address, year: input.building.year, pluto: input.building.pluto ?? null,
+      costDb: input.costDb, changeOrders: input.changeOrders, projectId: input.projectId,
+      dismissals: input.dismissals, rateFor: input.rateFor,
+    });
+    for (const g of bldg) {
+      if (g.state === 'gap') {
+        if (g.totalCents != null) totalCents += g.totalCents;
+        if (!g.priced) needsPriceCount += 1;
+      }
+      gaps.push(g);
+    }
   }
 
   return { gaps, totalCents, needsPriceCount, resolved };

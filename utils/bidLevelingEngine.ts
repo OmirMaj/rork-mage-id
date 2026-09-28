@@ -35,6 +35,9 @@ import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import type { BidPackage, BidPackageBid, Project, Commitment, MaterialReceipt } from '@/types';
+import {
+  applyLevelingHonestyPure, countBookRows, type LevelingBasisContext, type LevelingHonesty,
+} from '@/utils/levelingBasis';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +74,33 @@ const levelingResultSchema = z.object({
 });
 export type LevelingResult = z.infer<typeof levelingResultSchema>;
 export type AdjustmentBasis = 'your_history' | 'estimate' | 'market_guess';
+/** levelBids' result plus what the call actually carried (T7). basisContext is
+ *  a post-parse field, NOT part of levelingResultSchema: the model never sees
+ *  or fills it. */
+export type LevelBidsResult = LevelingResult & { basisContext?: LevelingBasisContext };
+
+/**
+ * THE PROMPT CARRIES NO ESTIMATE LINES. levelBids' prompt holds the bids, the
+ * package (name, phase, CSI, budget, scope description) and the cost-book
+ * facts — the package's linked estimate lines are never interpolated (only the
+ * schema comment and rule 3 mention them). So an 'estimate' row has nothing
+ * it could have been anchored on and is labelled not from the book. If the
+ * prompt ever carries estimate lines, flip this where they are added.
+ */
+const PROMPT_HAS_ESTIMATE_LINES = false;
+
+/**
+ * The honesty pass both screens run on levelBids' result before writing any
+ * normalizedAdjustment (utils/levelingBasis): an amount not from the GC's book
+ * is saved with "Not from your book: " on its reason; an exclusion that needs
+ * his price is saved at 0 with "Needs price: ", so it never moves the
+ * ranking; a recommended winner whose own exclusion needs a price is cleared.
+ * The context comes from levelBids (result.basisContext); a result without one
+ * trusts no model-claimed basis.
+ */
+export function applyLevelingHonesty(result: LevelBidsResult, bids: readonly BidPackageBid[]): LevelingHonesty<LevelBidsResult> {
+  return applyLevelingHonestyPure(result, bids);
+}
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -177,7 +207,7 @@ export function buildCostBookFacts(
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
-export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
+export async function levelBids(opts: LevelOpts): Promise<LevelBidsResult> {
   const { pkg, bids, projects = [], commitments = [], receipts = [], laborSamples = [], seeds = [] } = opts;
   // Leveling requires at least 2 bids — otherwise there's nothing to
   // normalize against. The screen guards this too, but utilities exposed
@@ -245,6 +275,10 @@ YOUR JOB
     feature: 'bidLeveling',
   });
 
+  // What this call actually carried — judged here, from buildCostBookFacts'
+  // entryCount, never re-derived by a screen.
+  const basisContext: LevelingBasisContext = { costBookEntries, promptHadEstimateLines: PROMPT_HAS_ESTIMATE_LINES };
+
   if (!r.success) {
     return {
       adjustments: bids.map(b => ({
@@ -254,13 +288,18 @@ YOUR JOB
       summary: '',
       recommendedWinnerBidId: '',
       recommendedWinnerReason: '',
+      basisContext,
     };
   }
 
-  const result = r.data as LevelingResult;
+  const result: LevelBidsResult = { ...(r.data as LevelingResult), basisContext };
 
-  // Attach a grounding summary to the summary so the GC understands the basis.
-  if (costBookEntries > 0 && result.summary) {
+  // Attach a grounding summary to the summary so the GC understands the basis
+  // — only when at least one leveled amount really came from the book. A book
+  // with rates in it whose every row came back market_guess is not "priced
+  // from your cost book" (T7).
+  const bookRows = countBookRows(result.adjustments, bids, basisContext);
+  if (bookRows > 0 && costBookEntries > 0 && result.summary) {
     // Count earned and self-reported trades separately — a GC whose book is
     // entirely seeded must not be told the adjustments came from their history.
     const earned = costBookEntries - costBookSeeded;

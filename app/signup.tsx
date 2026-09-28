@@ -34,6 +34,7 @@ import { layoutNext, reducedMotion, useSwapFade } from '@/components/ui/motion';
 import {
   INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
+import { captureGrowthRefFromLocation } from '@/utils/growthAttribution';
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
@@ -77,6 +78,11 @@ export default function SignupScreen() {
   const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
   const inviteToken = inviteParams[INVITE_PARAM];
   const { signup, signInWithGoogle, signInWithApple, isAuthenticated, isLoading: authLoading, session } = useAuth();
+  // T6: a visitor who reached sign-up from a "Built with MAGE ID" link carries
+  // ?ref=<page kind>. Web only, allow-listed, kept for the user_signed_up event.
+  // app/_layout.tsx reads it on first load too; this is the fallback.
+  useEffect(() => { captureGrowthRefFromLocation(); }, []);
+
   // #93: same restored-session check as login.tsx — the root gate leaves an
   // authenticated user on an invite-bearing /signup to this screen.
   const restoredCheckedRef = useRef(false);
