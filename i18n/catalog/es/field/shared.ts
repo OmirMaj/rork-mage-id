@@ -1,11 +1,11 @@
-// i18n/catalog/es/field.ts — Spanish, area "field". Follows docs/i18n-glossary-es.md.
+// i18n/catalog/es/field/shared.ts — Spanish, area "field": the Phase 0 seed keys (moved from es/field.ts). Follows docs/i18n-glossary-es.md.
 // `src` = fnv1a32 of the English each entry translates (stale check). Edit
 // `s`; when the English changes, re-translate and update `src` from the
 // validator's stale list — never just bump the hash.
 
-import type { EsCatalog } from '../../types';
+import type { EsCatalog } from '../../../types';
 
-export const ES_FIELD: EsCatalog = {
+export const ES_FIELD_SHARED: EsCatalog = {
   "field.dfr.title": { s: "Reporte diario", src: "ddef8560", note: "UI name. Never \"bitácora\" (a legal site log in Mexico)." },
   "field.dfr.pdfTitle": { s: "Informe diario de obra", src: "7262ed70", note: "PDF title only" },
   "field.dfr.weather": { s: "Clima", src: "66eab633" },

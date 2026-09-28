@@ -147,13 +147,18 @@ console.log('\nD. screens and context:');
     /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
       && /unsaved > 0 \? 'Delete and sign out'/.test(so));
   const INV = read('app', 'invoice.tsx');
-  const past = slice(INV, 'const commitPaymentPastUnsaved = useCallback(', 'const handleMarkPaid = useCallback(');
-  ok('the invoice screen asks before a payment over an unsaved append on the same invoice',
-    /unsavedPaymentAppends\(existingInvoice\.id\)/.test(past) && /would count it twice/.test(past) && /onPress: \(\) => openNotSavedFromPaymentSheet\(!sameMoney\)/.test(past));
-  // Final fix round 3: both paths enter through recordUnderLock (the
-  // one-payment-at-a-time lock), which runs commitPaymentPastUnsaved.
-  ok('...and every record path goes through it', !/\bcommitPayment\(decision\.amount\)/.test(INV) && !/commitPaymentPastUnsaved\(decision\.amount\)/.test(INV)
-    && (INV.match(/recordUnderLock\(decision\.amount\)/g) ?? []).length === 2 && /await commitPaymentPastUnsaved\(amt\);/.test(INV));
+  // Wave-next W2 (moments B3): the unsaved-append check is read while the
+  // record sheet is open (the slide's disabled reason, before any write); the
+  // link beside the slide does not bring the typed payment back when it is
+  // the same money (it would count it twice).
+  const chain = slice(INV, 'if (!showPaymentModal || !chainInvoiceId) return;', '}, [showPaymentModal, chainInvoiceId, paymentAmountCents]);');
+  ok('the invoice screen holds a payment over an unsaved append on the same invoice, before the slide',
+    /unsavedPaymentAppends\(chainInvoiceId\)/.test(chain) && /would have counted it twice|would count it twice/.test(chain)
+      && /onPress=\{\(\) => openNotSavedFromPaymentSheet\(!paymentChain\.sameMoney\)\}/.test(INV)
+      && /: paymentChain\.held \? payEarlierChangeReason\(\) : null;/.test(INV));
+  // One record path: the slide's write.
+  ok('...and every record path goes through it', (INV.match(/onCommit=\{recordPayment\}/g) ?? []).length === 1
+    && !/recordUnderLock|commitPaymentPastUnsaved|handleMarkPaid/.test(INV));
   const PILL = read('components', 'OfflineSyncPill.tsx');
   ok('only the app-wide pill answers a request for the sheet', /useEffect\(\(\) => \(floating \? onSyncSheetRequested\(presentSheet\) : undefined\), \[floating, presentSheet\]\);/.test(PILL));
   // Wave-4 final fix: a request always PRESENTS — marked open (an iOS Modal

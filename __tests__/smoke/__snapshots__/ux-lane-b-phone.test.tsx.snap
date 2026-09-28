@@ -37,8 +37,8 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code che
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
 {
-  "lines": 1646,
-  "sha256": "8fa803dcc17b3d13c8f91e96f4743a4fb2db59a74a2393631aa35cf81cc8ba62",
+  "lines": 1677,
+  "sha256": "5dcd144e07634f5f6164a737c688901d59aff65271b0b39fc30b92081fef961e",
 }
 `;
 
@@ -72,15 +72,15 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) scan 1`] = `
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking (no job) 1`] = `
 {
-  "lines": 627,
-  "sha256": "000089603590793bc226883fcb60e8dcb38b65a43bcb062bc02b554ccdd1db5e",
+  "lines": 644,
+  "sha256": "49a6ca3efe457e7d04afec6ad8d3786c9bd5afe382b3ad8098755bfb1a0f2f04",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking 1`] = `
 {
-  "lines": 652,
-  "sha256": "a29b018d5af0958955718cf49cb674fea0d595a9d5966a5bc175fff05d776ff5",
+  "lines": 669,
+  "sha256": "9957be153f514db175dc8a89a47abd2ad9ef9c4262d547378426e67af1f4c7ed",
 }
 `;
 

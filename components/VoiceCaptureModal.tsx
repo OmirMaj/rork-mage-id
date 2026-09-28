@@ -50,6 +50,7 @@ import {
   voiceContextKey,
   type AudioTranscribeTask,
 } from '@/utils/audioTranscribeCore';
+import { useT } from '@/contexts/LanguageContext';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'error' | 'saved';
 
@@ -115,13 +116,14 @@ const AUTO_START_DELAY_MS = 350;
 
 export default function VoiceCaptureModal({
   visible, onClose, onTranscriptReady,
-  title = 'Voice dictation',
+  title: titleProp,
   contextLine,
   suggestions = [],
   topicChecklist,
   queueKey,
   autoStart = false,
 }: Props) {
+  const { t } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // R-PANEL (wave 6d): on desktop the opaque full-window sheet becomes the
@@ -141,6 +143,9 @@ export default function VoiceCaptureModal({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
 
+  // `title` names the queue key and the stored clip label, so it stays the
+  // English default; only the sheet's heading follows the app language.
+  const title = titleProp ?? 'Voice dictation';
   const contextKey = queueKey ?? voiceContextKey(title, contextLine);
   const contextLabel = contextLine ? `${title} — ${contextLine}` : title;
   const [pendingClips, setPendingClips] = useState<AudioTranscribeTask[]>([]);
@@ -271,7 +276,7 @@ export default function VoiceCaptureModal({
     // record button and read as if THIS recording were already safe.
     setSavedMsg(null);
     if (Platform.OS === 'web') {
-      setErrorMsg('Voice dictation is not available on web. Use the iOS or Android app.');
+      setErrorMsg(t('field.chrome.voiceWebOnlyApp', 'Voice dictation is not available on web. Use the iOS or Android app.'));
       setStep('error');
       return;
     }
@@ -279,7 +284,7 @@ export default function VoiceCaptureModal({
       const { Audio } = require('expo-av');
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
-        setErrorMsg('Microphone permission denied. Open Settings → MAGE ID → Microphone to enable it.');
+        setErrorMsg(t('field.chrome.micDenied', 'Microphone permission denied. Open Settings → MAGE ID → Microphone to enable it.'));
         setStep('error');
         return;
       }
@@ -338,10 +343,10 @@ export default function VoiceCaptureModal({
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (err) {
       const msg = (err as Error)?.message || String(err);
-      setErrorMsg(`Couldn't start the microphone. ${msg}`);
+      setErrorMsg(t('field.chrome.micStartFailed', "Couldn't start the microphone. {reason}", { reason: msg }));
       setStep('error');
     }
-  }, [startPulse]);
+  }, [startPulse, t]);
   startRecordingRef.current = startRecording;
   useEffect(() => () => {
     if (autoStartTimerRef.current) clearTimeout(autoStartTimerRef.current);
@@ -355,7 +360,7 @@ export default function VoiceCaptureModal({
     recordingRef.current = null;
     const durationMs = startedAtRef.current > 0 ? Date.now() - startedAtRef.current : 0;
     if (!recording) {
-      setErrorMsg('Recording was lost. Tap to start again.');
+      setErrorMsg(t('field.chrome.recordingLost', 'Recording was lost. Tap to start again.'));
       setStep('error');
       return;
     }
@@ -384,7 +389,7 @@ export default function VoiceCaptureModal({
         // The server heard the upload and found no words. Queueing it would
         // just get the same empty answer on every retry, so this one really is
         // a re-record — unlike the failure below.
-        setErrorMsg("Didn't catch any speech. Try again — speak a bit louder or closer to the mic.");
+        setErrorMsg(t('field.chrome.noSpeech', "Didn't catch any speech. Try again — speak a bit louder or closer to the mic."));
         setStep('error');
         return;
       }
@@ -427,14 +432,14 @@ export default function VoiceCaptureModal({
           void refreshQueued();
           return;
         }
-        setErrorMsg(`Couldn't transcribe the recording, and this phone couldn't save it either. ${saved.reason ?? msg}`);
+        setErrorMsg(t('field.chrome.transcribeAndSaveFailed', "Couldn't transcribe the recording, and this phone couldn't save it either. {reason}", { reason: saved.reason ?? msg }));
         setStep('error');
         return;
       }
-      setErrorMsg(`Couldn't transcribe the recording. ${msg}`);
+      setErrorMsg(t('field.chrome.transcribeFailed', "Couldn't transcribe the recording. {reason}", { reason: msg }));
       setStep('error');
     }
-  }, [stopPulse, onTranscriptReady, onClose, contextKey, contextLabel, refreshQueued]);
+  }, [stopPulse, onTranscriptReady, onClose, contextKey, contextLabel, refreshQueued, t]);
 
   // Hand a transcript that finished in the background to the form that asked
   // for it, and remove it from the queue in the same step so it can't be
@@ -476,10 +481,10 @@ export default function VoiceCaptureModal({
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.title}>{titleProp ?? t('field.chrome.voiceDictation', 'Voice dictation')}</Text>
             {!!contextLine && <Text style={styles.contextLine}>{contextLine}</Text>}
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('field.chrome.close', 'Close')}><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -491,16 +496,16 @@ export default function VoiceCaptureModal({
               <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
               <View style={{ flex: 1, gap: 8 }}>
                 <Text style={styles.readyTitle}>
-                  {formatClipLength(readyClip.durationMs)} you dictated offline is transcribed
+                  {t('field.chrome.readyClipTitle', '{length} you dictated offline is transcribed', { length: formatClipLength(readyClip.durationMs) })}
                 </Text>
                 <Text style={styles.readyBody} numberOfLines={3}>“{readyClip.transcript}”</Text>
                 <TouchableOpacity
                   onPress={() => { void applyReadyClip(); }}
                   style={styles.readyBtn}
                   accessibilityRole="button"
-                  accessibilityLabel="Use the dictation you saved offline"
+                  accessibilityLabel={t('field.chrome.useSavedDictation', 'Use the dictation you saved offline')}
                 >
-                  <Text style={styles.readyBtnText}>Use it</Text>
+                  <Text style={styles.readyBtnText}>{t('field.chrome.useIt', 'Use it')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -519,9 +524,9 @@ export default function VoiceCaptureModal({
                   disabled={draining}
                   style={[styles.pendingBtn, draining && { opacity: 0.6 }]}
                   accessibilityRole="button"
-                  accessibilityLabel="Transcribe the dictation saved on this phone"
+                  accessibilityLabel={t('field.chrome.transcribeSavedDictation', 'Transcribe the dictation saved on this phone')}
                 >
-                  <Text style={styles.pendingBtnText}>{draining ? 'Trying…' : 'Transcribe now'}</Text>
+                  <Text style={styles.pendingBtnText}>{draining ? t('field.chrome.trying', 'Trying…') : t('field.chrome.transcribeNow', 'Transcribe now')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -535,7 +540,7 @@ export default function VoiceCaptureModal({
             <View style={styles.suggestionsCard}>
               <View style={styles.suggestionsHeaderRow}>
                 <MageAIMark size={16} color={themeColors.accent} />
-                <Text style={styles.suggestionsHeader}>Try saying</Text>
+                <Text style={styles.suggestionsHeader}>{t('field.chrome.trySaying', 'Try saying')}</Text>
               </View>
               <Text style={styles.suggestionItemHero}>
                 “{suggestions[rotatingIdx % suggestions.length]}”
@@ -563,7 +568,7 @@ export default function VoiceCaptureModal({
               gets skipped. */}
           {topicChecklist && topicChecklist.length > 0 && (
             <View style={styles.checklistCard}>
-              <Text style={styles.checklistHeader}>Cover all of these</Text>
+              <Text style={styles.checklistHeader}>{t('field.chrome.coverAll', 'Cover all of these')}</Text>
               {topicChecklist.map((topic, i) => (
                 <View key={i} style={styles.checklistRow}>
                   <View style={styles.checklistBullet}>
@@ -610,14 +615,14 @@ export default function VoiceCaptureModal({
 
             <Text style={styles.bigBtnLabel}>
               {isTranscribing
-                ? 'Transcribing your audio…'
+                ? t('field.chrome.transcribing', 'Transcribing your audio…')
                 : isRecording
-                  ? 'Recording — tap to finish'
+                  ? t('field.chrome.recordingTapFinish', 'Recording — tap to finish')
                   : isSaved
-                    ? 'Saved — tap to record another'
+                    ? t('field.chrome.savedTapAnother', 'Saved — tap to record another')
                     : step === 'error'
-                      ? 'Tap to try again'
-                      : 'Tap to start recording'}
+                      ? t('field.chrome.tapToTryAgain', 'Tap to try again')
+                      : t('field.chrome.tapToStart', 'Tap to start recording')}
             </Text>
 
             {!!savedMsg && (

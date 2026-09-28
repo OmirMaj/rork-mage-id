@@ -29,6 +29,7 @@ import {
 import { cleanProjectTypeOther, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import { PROJECT_TYPES, CONTRACT_MODES, CONTRACT_MODE_LABELS, CONTRACT_TERM_RANGES, type ContractMode, type Project, type ProjectContract, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
+import { COApproveSheet, coApproveConfirmCopy, contractAfterApprovalCents, useApprovalContract } from '@/components/moments-sites/COApproveSheet';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import BidConfidenceBadge from '@/components/BidConfidenceBadge';
@@ -84,7 +85,6 @@ import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
 import ProjectCodeChecksCard from '@/components/codeThread/ProjectCodeChecksCard';
 import ScopeGapsCard from '@/components/scopeGaps/ScopeGapsCard';
-import { fireConfetti } from '@/components/animations/Confetti';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
@@ -936,6 +936,12 @@ export default function ProjectDetailScreen() {
   // with schedule days now genuinely reflows the Gantt, so the GC sees which
   // task absorbs the days and what shifts before anything is written.
   const [coReflowPreview, setCoReflowPreview] = useState<ChangeOrder | null>(null);
+  // Wave-next W2 (moments, B2): a money-only CO's approve sheet (the row's
+  // "Approve CO #4" stays a tap; the slide lives in the sheet, never in the row).
+  const [approveSheetCO, setApproveSheetCO] = useState<ChangeOrder | null>(null);
+  // The active contract for the approved title ("contract $52,400.00" is the
+  // SIGNED contract plus approved COs), read only while an approve is open.
+  const approvalContract = useApprovalContract(project?.id, approveSheetCO !== null || (coReflowPreview !== null && coReflowPreview.status !== 'approved'));
   // Estimate revision detail modal — stores the revision being inspected, or null when closed.
   const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
   const fRev = useSheetFrame('panel', { visible: selectedRevision !== null, animationType: 'slide' });
@@ -3274,29 +3280,14 @@ export default function ProjectDetailScreen() {
                           // float + critical path recomputed). That is not something
                           // to do behind a one-handed jobsite tap, so it goes through
                           // the same preview-then-apply gesture resource leveling
-                          // uses. The money-only case keeps the plain confirm.
+                          // uses (its Apply is the slide). The money-only case
+                          // opens the approve sheet: one slide that turns green
+                          // only when the server has the approval.
                           if (impactDays > 0 && !co.scheduleImpactApplied && project?.schedule) {
                             setCoReflowPreview(co);
                             return;
                           }
-                          showAlert(
-                            `Approve CO #${co.number}?`,
-                            `This commits ${formatMoney(co.changeAmount)} to the contract. This can't be undone with a tap.`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Approve',
-                                onPress: () => {
-                                  updateChangeOrder(co.id, { status: 'approved' });
-                                  // Burst — change orders are real money/scope
-                                  // events; the GC celebrates each approval.
-                                  fireConfetti({ count: 35 });
-                                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                                  showAlert('Approved', `CO #${co.number} has been approved.`);
-                                },
-                              },
-                            ],
-                          );
+                          setApproveSheetCO(co);
                         }}
                         activeOpacity={0.7}
                       >
@@ -6418,20 +6409,37 @@ export default function ProjectDetailScreen() {
           intent={coReflowPreview.status === 'approved' ? 'place' : 'approve'}
           moneyLine={coReflowPreview.status === 'approved'
             ? undefined
-            : `Commits ${formatMoney(coReflowPreview.changeAmount)} to the contract. This can't be undone with a tap.`}
+            : coApproveConfirmCopy(coReflowPreview.number, coReflowPreview.changeAmount, (n) => formatMoney(n, 2)).message}
+          // Approve: the slide approves through approveChangeOrder(co.id, { anchorTaskId })
+          // and closes the preview after the result hold.
+          approveSlide={coReflowPreview.status === 'approved' ? undefined : {
+            coNumber: coReflowPreview.number,
+            contractAfterCents: contractAfterApprovalCents(project, changeOrders, coReflowPreview.id, approvalContract),
+          }}
           onClose={() => setCoReflowPreview(null)}
           onConfirm={(anchorTaskId) => {
+            // Place only (the CO is already approved): an explicit anchor lets
+            // the reflow run with no status change. No money moves, so no slide.
             const co = coReflowPreview;
-            const alreadyApproved = co.status === 'approved';
             setCoReflowPreview(null);
-            // Approving and placing-later both land in the same context call:
-            // an explicit anchor lets the reflow run on an already-approved CO.
-            updateChangeOrder(co.id, alreadyApproved ? {} : { status: 'approved' }, { anchorTaskId });
-            if (!alreadyApproved) fireConfetti({ count: 35 });
-            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            updateChangeOrder(co.id, {}, { anchorTaskId });
           }}
         />
       )}
+      {approveSheetCO !== null && (() => {
+        const copy = coApproveConfirmCopy(approveSheetCO.number, approveSheetCO.changeAmount, (n) => formatMoney(n, 2));
+        return (
+          <COApproveSheet
+            visible
+            changeOrder={approveSheetCO}
+            coNumber={approveSheetCO.number}
+            title={copy.title}
+            moneyLine={copy.message}
+            contractAfterCents={contractAfterApprovalCents(project, changeOrders, approveSheetCO.id, approvalContract)}
+            onClose={() => setApproveSheetCO(null)}
+          />
+        );
+      })()}
 
       {/* No local mic FAB here — hands-on UI pass 2026-09-07, finding 8.
           BrainSurface already mounts the global brand Brain FAB on every
@@ -6451,7 +6459,7 @@ export default function ProjectDetailScreen() {
           Zero-size, inert. */}
       {(activeTile !== null || detailModal !== null || selectedRevision !== null || showShareModal || showEditModal
         || showNoteModal || actionSheetRef !== null || lightboxPhoto !== null || portalPaywallOpen || coReflowPreview !== null
-        || codeLookTarget !== null)
+        || codeLookTarget !== null || approveSheetCO !== null)
         ? <TutorialTarget id="hub.modalUp" />
         : null}
     </View>

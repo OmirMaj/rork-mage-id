@@ -74,8 +74,56 @@ export interface CommitWriteOptions {
 export const COMMIT_TIMEOUT_MS = 20000;
 export const COMMIT_MIN_BUSY_MS = 500;
 
+// ── Wave-next W2 (lane ESTOOLS): the frames in any other language ────────
+// The frames below splice an English verb or noun into a sentence, which
+// Spanish cannot do (its past participles agree in gender). So in any
+// language but English each frame answers ONE verb-free whole sentence from
+// a provider the i18n layer binds (utils/moments/sealText.ts
+// installMomentLanguage). The provider answers null in English, so every
+// English output here is byte-identical. Only a site that breaks the
+// moment-copy rule ever reaches a frame (scripts/moments-checks/rules.ts).
+// This file stays import-free beyond networkErrors: the moments checks load
+// copies of it on their own.
+
+/** The frames' whole-sentence stand-ins, in the app's language. */
+export interface MomentFrameWords {
+  /** genericRefusedCopy(verb) */
+  refused: string;
+  /** timeoutCopy(subject) */
+  timeout: string;
+  /** legalQueuedCopy(verb) */
+  legalQueued: string;
+  /** transportCopy(verb, true) */
+  transport: string;
+  /** transportCopy(verb, false) */
+  transportUnknown: string;
+  /** offlineLegalReason('signing') */
+  offlineSigning: string;
+  /** offlineLegalReason('certifying') */
+  offlineCertifying: string;
+  /** A confirmed answer with no title of its own. */
+  done: string;
+}
+
+let frameWordsProvider: (() => MomentFrameWords | null) | null = null;
+
+/** Bound once by the i18n layer. null (or a provider answering null) = English. */
+export function bindMomentFrames(provider: (() => MomentFrameWords | null) | null): void {
+  frameWordsProvider = provider;
+}
+
+function framesNow(): MomentFrameWords | null {
+  try {
+    return frameWordsProvider ? frameWordsProvider() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** "No answer yet. Check CO #4 before trying again." */
 export function timeoutCopy(subject: string = ''): string {
+  const w = framesNow();
+  if (w) return w.timeout;
   const s = subject.trim();
   return s ? `No answer yet. Check ${s} before trying again.` : 'No answer yet. Check the record before trying again.';
 }
@@ -86,17 +134,23 @@ export function timeoutCopy(subject: string = ''): string {
  * was saved (runCommit never asks for that form; it uses timeoutCopy).
  */
 export function transportCopy(verb: string, idempotent: boolean): string {
+  const w = framesNow();
+  if (w) return idempotent ? w.transport : w.transportUnknown;
   if (idempotent) return `Not ${verb}. The connection dropped, so nothing was saved.`;
   return 'No answer yet. The connection dropped, so it may still go through.';
 }
 
 /** "Not signed. Signing needs a connection, so nothing was signed." */
 export function legalQueuedCopy(verb: string): string {
+  const w = framesNow();
+  if (w) return w.legalQueued;
   return `Not ${verb}. Signing needs a connection, so nothing was ${verb}.`;
 }
 
 /** "Not recorded. Something went wrong on our side." */
 export function genericRefusedCopy(verb: string): string {
+  const w = framesNow();
+  if (w) return w.refused;
   return `Not ${verb}. Something went wrong on our side.`;
 }
 
@@ -110,6 +164,8 @@ const OFFLINE_LEGAL_REASON: Record<OfflineLegalKind, string> = {
 
 /** The disabled reason for a legal slide while offline. Default 'signing' (byte-identical to the original). */
 export function offlineLegalReason(kind: OfflineLegalKind = 'signing'): string {
+  const w = framesNow();
+  if (w) return kind === 'certifying' ? w.offlineCertifying : w.offlineSigning;
   return OFFLINE_LEGAL_REASON[kind] ?? OFFLINE_LEGAL_REASON.signing;
 }
 
@@ -162,7 +218,7 @@ function normalise(r: unknown, opts: RunOpts): CommitResult {
   switch (o.status) {
     case 'confirmed': {
       const title = str(o.title);
-      if (!title) return { status: 'confirmed', title: 'Done', detail: str(o.detail), next: str(o.next), announce };
+      if (!title) return { status: 'confirmed', title: framesNow()?.done ?? 'Done', detail: str(o.detail), next: str(o.next), announce };
       return { status: 'confirmed', title, detail: str(o.detail), next: str(o.next), announce };
     }
     case 'queued':

@@ -37,6 +37,8 @@ import {
   planVoiceNoteFilings, requestVoiceNoteFiling, voiceClipHoldLine, voiceNoteWhen,
   type VoiceClipRow,
 } from '@/utils/voiceNoteFiling';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
 
 interface BacklogState {
   tasks: AudioTranscribeTask[];
@@ -77,15 +79,18 @@ export function useVoiceBacklog(enabled: boolean): BacklogState & { backlog: Voi
   return { ...state, backlog };
 }
 
-/** Where one clip stands, as a whole sentence. */
+/** Where one clip stands, as a whole sentence (t from i18n/core: read at call time). */
 function stateLine(row: VoiceClipRow, projectsLoaded: boolean): string {
-  if (row.state === 'waiting') return 'Waiting for signal. It will be transcribed when you have a connection.';
-  if (row.state === 'failed') return "Couldn't be transcribed yet. MAGE will try again, or tap Retry.";
+  if (row.state === 'waiting') return t('field.chrome.clipWaiting', 'Waiting for signal. It will be transcribed when you have a connection.');
+  if (row.state === 'failed') return t('field.chrome.clipFailed', "Couldn't be transcribed yet. MAGE will try again, or tap Retry.");
   if (!row.projectId) {
-    return `Transcribed. Open ${row.task.contextLabel || 'the form it was recorded on'} to use it.`;
+    return row.task.contextLabel
+      ? t('field.chrome.clipOpenForm', 'Transcribed. Open {form} to use it.', { form: row.task.contextLabel })
+      : t('field.chrome.clipOpenRecordedForm', 'Transcribed. Open the form it was recorded on to use it.');
   }
+  // voiceClipHoldLine is the filing rule's own sentence (utils/voiceNoteFiling): English until that module takes a language.
   if (row.hold) return voiceClipHoldLine(row.hold);
-  return projectsLoaded ? 'Transcribed. Adding it to the daily report.' : 'Transcribed.';
+  return projectsLoaded ? t('field.chrome.clipAdding', 'Transcribed. Adding it to the daily report.') : t('field.chrome.clipTranscribed', 'Transcribed.');
 }
 
 interface Props {
@@ -96,6 +101,7 @@ interface Props {
 }
 
 export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: Props) {
+  const { t } = useT();
   const styles = useThemedStyles(makeStyles);
   const { projects } = useCoreData();
   const frame = useSheetFrame('form', { visible, animationType: 'slide' });
@@ -121,26 +127,26 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
   );
   const now = Date.now();
   const nameOf = (row: VoiceClipRow): string => {
-    if (!row.projectId) return row.task.contextLabel || 'Dictation';
-    return projects.find(p => p.id === row.projectId)?.name ?? 'Project not on this phone';
+    if (!row.projectId) return row.task.contextLabel || t('field.chrome.dictation', 'Dictation');
+    return projects.find(p => p.id === row.projectId)?.name ?? t('field.chrome.projectNotOnPhone', 'Project not on this phone');
   };
 
   return (
     <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
       <View style={[styles.backdrop, frame.overlay]}>
         <View style={[styles.sheet, frame.card]} testID="voice-backlog-sheet">
-          <Text style={styles.title}>Voice notes on this phone</Text>
+          <Text style={styles.title}>{t('field.chrome.voiceNotesTitle', 'Voice notes on this phone')}</Text>
           <Text style={styles.detail}>
-            Recorded with no signal. Each one is added to its project&apos;s daily report for the day you recorded it, once it is transcribed.
+            {t('field.chrome.voiceNotesWhy', "Recorded with no signal. Each one is added to its project's daily report for the day you recorded it, once it is transcribed.")}
           </Text>
           <ScrollView style={styles.rows}>
             {rows.length === 0 ? (
-              <Text style={styles.detail}>Nothing is waiting. Every voice note is filed.</Text>
+              <Text style={styles.detail}>{t('field.chrome.voiceNotesNone', 'Nothing is waiting. Every voice note is filed.')}</Text>
             ) : rows.map(row => (
               <View key={row.task.id} style={styles.row} testID={`voice-backlog-row-${row.task.id}`}>
                 <Text style={styles.rowLabel} numberOfLines={1}>{nameOf(row)}</Text>
                 <Text style={styles.rowMeta}>
-                  Recorded {voiceNoteWhen(recordedAtMs(row.task), now)} · {formatClipLength(row.task.durationMs)}
+                  {t('field.chrome.recordedWhen', 'Recorded {when} · {length}', { when: voiceNoteWhen(recordedAtMs(row.task), now), length: formatClipLength(row.task.durationMs) })}
                 </Text>
                 <Text style={[styles.rowState, (row.state === 'failed' || row.hold) ? styles.rowStateFailed : null]}>
                   {stateLine(row, projectsLoaded)}
@@ -148,7 +154,7 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
                 {row.state === 'failed' ? (
                   <View style={styles.rowActions}>
                     <Button
-                      label={busy ? 'Trying…' : 'Retry'}
+                      label={busy ? t('field.chrome.trying', 'Trying…') : t('field.chrome.retry', 'Retry')}
                       variant="secondary"
                       loading={busy}
                       disabled={busy}
@@ -160,7 +166,7 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
               </View>
             ))}
           </ScrollView>
-          <Button label="Close" variant="ghost" onPress={onClose} fullWidth />
+          <Button label={t('field.chrome.close', 'Close')} variant="ghost" onPress={onClose} fullWidth />
         </View>
       </View>
     </Modal>

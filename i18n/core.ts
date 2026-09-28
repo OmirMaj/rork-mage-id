@@ -16,14 +16,13 @@
 // import time. Label maps become functions (`statusLabel(s)`); the validator
 // rejects module-scope calls in files that import this layer.
 //
-// PURE apart from the catalog import (itself pure data), so bun and the
+// PURE apart from the lazy catalog require (itself pure data), so bun and the
 // Hermes gate can load it.
 
 import type { CatalogValue, DisplayLang, EsCatalog, I18nKey, Lang, PluralForms, Vars } from './types';
 import { isPluralForms } from './types';
 import { selectPluralForm } from './plural';
 import { pseudoize } from './pseudo';
-import { ES_CATALOG } from './catalog/es';
 
 // ── Module-level language ────────────────────────────────────────────────
 // One source of truth, readable outside React (utils, ErrorBoundary, the
@@ -67,7 +66,19 @@ export function subscribe(fn: (l: DisplayLang) => void): () => void {
 
 // ── Catalog ──────────────────────────────────────────────────────────────
 
-let esCatalog: EsCatalog = ES_CATALOG;
+// Loaded LAZILY (docs/I18N.md §2): the Spanish catalog is required on the
+// first Spanish lookup, so an English user never parses it. In English t()
+// never reaches this function at all (the English guarantee above).
+
+let esCatalog: EsCatalog | null = null;
+
+function loadEs(): EsCatalog {
+  if (esCatalog === null) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    esCatalog = (require('./catalog/es') as { ES_CATALOG: EsCatalog }).ES_CATALOG;
+  }
+  return esCatalog;
+}
 
 /** Test seam: swap the Spanish catalog (validators only). Returns a restore fn. */
 export function __setEsCatalogForTest(cat: EsCatalog): () => void {
@@ -79,7 +90,7 @@ export function __setEsCatalogForTest(cat: EsCatalog): () => void {
 }
 
 function esValue(key: I18nKey): CatalogValue | undefined {
-  return esCatalog[key]?.s;
+  return loadEs()[key]?.s;
 }
 
 // ── Interpolation ────────────────────────────────────────────────────────

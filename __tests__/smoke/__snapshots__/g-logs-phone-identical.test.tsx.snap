@@ -16,22 +16,22 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a record) 1`] = `
 {
-  "lines": 1001,
-  "sha256": "54ae85cc431156680c85725a9aaeee3a909e9af48bb74a48a18e1f324325bd6b",
+  "lines": 1011,
+  "sha256": "250fe327ab2a1c04803f756b0acc039880d6f0cc78eecc20d04d132b62858238",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (project only) 1`] = `
 {
-  "lines": 1011,
-  "sha256": "fc35cf32142fb7d0c212e4aa9dba8127661b24539d454a9fd82b62719dcab2a7",
+  "lines": 1021,
+  "sha256": "04b199177b3bb5cace7b61b8bd1b260e56e6a8662d39e1a882f7dd2164113958",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the tutorial route, type=progress) 1`] = `
 {
-  "lines": 1022,
-  "sha256": "ade56bfeb35c354d0d6f5bf21be04560cf518254bd6d0caad8b45e3d807b31e0",
+  "lines": 1032,
+  "sha256": "75995298bbe3e4a60dafcb443e88894890d7fd4c91a38db4b797adcfaeaa45c0",
 }
 `;
 
@@ -86,7 +86,7 @@ exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) invoice (sent: reminder and pay link) 1`] = `
 {
-  "lines": 996,
-  "sha256": "dba63d7e122402a559715f8a9b0093684ab1f37cee590079ff95d6dd7ac2a8a5",
+  "lines": 1006,
+  "sha256": "cf53dc56114d0582cf38b06353e9e56b78e45badb2e7afcdb2c7150daa2296e7",
 }
 `;

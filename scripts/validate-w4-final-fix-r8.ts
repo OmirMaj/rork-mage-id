@@ -118,15 +118,23 @@ console.log('\nB. the settings twin');
 console.log('\nC. Record Payment after "Open Not saved", and after he left the invoice');
 {
   const INV = read('app/invoice.tsx');
-  const past = flat(slice(INV, 'const commitPaymentPastUnsaved = useCallback(', 'const recordUnderLock = useCallback('));
+  // Wave-next W2 (moments B3): the unsent-changes check is read while the
+  // sheet is open (the slide's disabled reason), and the link beside the track
+  // carries the same-money rule the old dialog did.
+  const chain = flat(slice(INV, 'useEffect(() => {\n    if (!showPaymentModal || !chainInvoiceId) return;', '}, [showPaymentModal, chainInvoiceId, paymentAmountCents]);'));
   ok('the same money as a waiting append is NOT resumed (retry it there; the next open starts fresh)',
-    /const sameMoney = waiting\.some\(\(w\) => Math\.round\(w \* 100\) === Math\.round\(amt \* 100\)\);/.test(past)
-      && /onPress: \(\) => openNotSavedFromPaymentSheet\(!sameMoney\)/.test(past), past.slice(0, 900));
-  const commit = flat(slice(INV, 'const commitPayment = useCallback(async (amt: number) => {', 'const commitPaymentPastUnsaved = useCallback('));
+    /const sameMoney = waiting\.some\(\(w\) => Math\.round\(w \* 100\) === paymentAmountCents\);/.test(chain)
+      && /onPress=\{\(\) => openNotSavedFromPaymentSheet\(!paymentChain\.sameMoney\)\}/.test(INV), chain.slice(0, 900));
+  // The end of a payment is the slide's onDone (after the result hold, only
+  // for a stored or waiting payment).
+  const done = flat(slice(INV, 'const onPaymentDone = useCallback((r: CommitResult) => {', '}, [router]);'));
   ok('the end of a payment closes the sheet and goes back only while the invoice is still in front',
-    /const stillInFront = screenInFrontRef\.current; if \(stillInFront\) \{ setShowPaymentModal\(false\);/.test(commit)
-      && /if \(stillInFront\) router\.back\(\);/.test(commit) && !/\);\s*router\.back\(\);\s*\}, \[paymentMethod/.test(commit), commit.slice(-900));
-  ok('...the result alert still shows either way', commit.indexOf('showAlert(\n') > -1 || /showAlert\( outcome === 'queued' \? 'Payment saved on this phone'/.test(commit));
+    /if \(r\.status !== 'confirmed' && r\.status !== 'queued'\) return; if \(!screenInFrontRef\.current\) return; setShowPaymentModal\(false\);/.test(done)
+      && /router\.back\(\);$/.test(done.trim()), done);
+  // The result shows either way: on the slide while the sheet is up, and as a
+  // toast when the answer lands after it closed (onResultAfterUnmount).
+  ok('...the result still shows either way', /onResultAfterUnmount=\{onPaymentLate\}/.test(INV)
+    && /if \(r\.status === 'confirmed'\) nailIt\(payRecordedToast\(paymentAttemptCentsRef\.current\)\);/.test(INV));
   ok('the invoice clears "in front" on blur and on unmount',
     /useFocusEffect\(useCallback\(\(\) => \{\s*screenInFrontRef\.current = true;\s*return \(\) => \{ screenInFrontRef\.current = false; \};\s*\}, \[\]\)\);/.test(INV)
       && /useEffect\(\(\) => \(\) => \{ screenInFrontRef\.current = false; \}, \[\]\);/.test(INV));

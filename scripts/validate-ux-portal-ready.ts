@@ -107,12 +107,21 @@ console.log('\n5. contract.tsx asks the helper');
   ok('recipients come from portalRecipients (one filter)', /const recipients = portalRecipients\(portalSettings\);/.test(c) && !/\.filter\(i => \(i\.email \?\? ''\)\.trim\(\)\.includes\('@'\)\)/.test(c));
   ok('the ready check is unchanged (validate-portal-owner pins it too)', /if \(project && portalUrl && recipients\.length > 0\)/.test(c));
   ok('the not-sent note is chosen by portalDeliveryState, with the owner id', /switch \(portalDeliveryState\(project, user\?\.id \?\? null\)\)/.test(c));
-  for (const note of [
-    'No client email on file. Share the portal link so the client can sign.',
-    'this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.',
-    'The client portal is off, so nothing was emailed. Turn it on in Client portal so the client can sign.',
-  ]) ok(`the old note survives verbatim: "${note.slice(0, 40)}…"`, c.includes(note));
-  ok('a collaborator is told the truth (only the owner can send), not "tap Save"', /case 'collaborator':\s*\n\s*emailNote = ' Only the project owner holds this portal\\'s signing link/.test(c));
+  // W2 MOMSIGN: the notes are now the signing letter's back-face line
+  // (utils/moments/sites/signingCopy.ts, one function per sentence). They
+  // survive verbatim where docs/VOICE.md allows; the no-key note lost its
+  // "Note:" prefix and its em dash, never its meaning.
+  const copy = read('utils/moments/sites/signingCopy.ts');
+  for (const [fn, note] of [
+    ['contractNotSentNoEmail', 'No client email on file. Share the portal link so the client can sign.'],
+    ['contractNotSentNoSigningKey', 'This portal has no secure signing key yet, so nothing was emailed. Open Client portal, tap Save, then share the link from there.'],
+    ['contractNotSentPortalOff', 'The client portal is off, so nothing was emailed. Turn it on in Client portal so the client can sign.'],
+  ] as const) {
+    ok(`the old note survives verbatim: "${note.slice(0, 40)}…"`, copy.includes(`'${note}'`) && new RegExp(`signingCopy\\.${fn}\\(\\)`).test(c));
+  }
+  ok('a collaborator is told the truth (only the owner can send), not "tap Save"',
+    /case 'collaborator':\s*\n\s*notSentReason = signingCopy\.contractNotSentCollaborator\(\);/.test(c)
+    && copy.includes(`"Only the project owner holds this portal's signing link, so nothing was emailed. Ask them to share it from the client portal."`));
   const helper = read('utils/portalReady.ts').replace(/\/\/.*$/gm, '');
   ok('the helper is pure', !/from 'react(-native)?'|AsyncStorage|supabase/.test(helper));
 }

@@ -18,12 +18,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   recordSignatureBlockReason, buildRecordedHomeownerSignature, recordHomeownerSignatureWith,
-  recordSignatureOutcomeMessage, homeownerSignatureMethodLabel, type RecordSignatureIO,
+  recordSignatureOutcomeMessage, homeownerSignatureMethodLabel, isOwnLandedPaperRecord, type RecordSignatureIO,
 } from '../utils/contractSignatureCore';
 import { jobProposalSplit, quotedSplitOf, resolvePaymentSplit } from '../utils/paymentTerms';
 import { portalSettingsDiffer } from '../utils/portalLiteSync';
 import { digestPortalGate } from '../supabase/functions/homeowner-weekly-digest/clientVisible';
-import type { ClientPortalSettings, ContractStatus } from '../types';
+import type { ClientPortalSettings, ContractSignature, ContractStatus } from '../types';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -98,18 +98,61 @@ async function main() {
     const o = await recordHomeownerSignatureWith(io, 'c1', paperSig);
     ok('a server refusal is "failed", not "offline"', o.kind === 'failed');
   }
+  // W2 integration (critic 2, issue 1): a paper flip that LANDED but whose
+  // answer was lost reads 'offline'; the retry re-reads the row and finds a
+  // signature on it. When that signature is this screen's own paper record
+  // (the page it uploaded), the retry is a confirmed record, never "the client
+  // already signed on the portal or another phone".
+  {
+    // One live row, driven by the IO: the first flip lands, then the answer drops.
+    const row: { status: ContractStatus; signature: ContractSignature | null } = { status: 'sent', signature: null };
+    let dropAnswer = true;
+    const io: RecordSignatureIO = {
+      async readState() { return { status: row.status, homeownerSigned: !!row.signature, signature: row.signature }; },
+      async flipIfStillSent(_id, patch) {
+        if (row.status !== 'sent' || row.signature) return 0;
+        row.status = 'signed'; row.signature = patch.homeowner_signature;
+        if (dropAnswer) { dropAnswer = false; throw new TypeError('Network request failed'); }
+        return 1;
+      },
+    };
+    const own = new Set(['u1/c1-signed-page-1.jpg']);
+    const first = await recordHomeownerSignatureWith(io, 'c1', paperSig);
+    ok('a paper flip that landed but lost its answer reads offline (it may have landed)', first.kind === 'offline' && row.status === 'signed');
+    const retry = await recordHomeownerSignatureWith(io, 'c1', paperSig);
+    ok('the retry re-reads the row: not_sent, signed, WITH the stored signature', retry.kind === 'not_sent' && retry.status === 'signed' && retry.homeownerSigned
+      && retry.kind === 'not_sent' && retry.signature?.evidencePath === 'u1/c1-signed-page-1.jpg', JSON.stringify(retry));
+    ok('…and it is this screen\'s OWN paper record (the page it uploaded): a confirmed record', isOwnLandedPaperRecord(retry, own));
+    ok('a page this screen never uploaded is someone else\'s record', !isOwnLandedPaperRecord(retry, new Set(['u1/c1-signed-page-OTHER.jpg'])));
+    const portal: typeof retry = { kind: 'not_sent', status: 'signed', homeownerSigned: true, signature: { name: 'Pat Doe', role: 'homeowner', signedAt: '2026-09-18T15:00:00.000Z' } as ContractSignature };
+    ok('a portal signature (no method, no page) is never the paper record', !isOwnLandedPaperRecord(portal, own));
+    const inPersonSig: typeof retry = { kind: 'not_sent', status: 'signed', homeownerSigned: true, signature: { ...padSig } };
+    ok('an in-person signature is never the paper record', !isOwnLandedPaperRecord(inPersonSig, own));
+    ok('a draft / void row is never "own"', !isOwnLandedPaperRecord({ kind: 'not_sent', status: 'void', homeownerSigned: false, signature: null }, own)
+      && !isOwnLandedPaperRecord({ kind: 'offline' }, own) && !isOwnLandedPaperRecord({ kind: 'signed' }, own));
+  }
   const engine = strip(read('utils/contractEngine.ts'));
+  ok('the IO reads the stored homeowner signature with the status (the retry compares it)',
+    /\.select\('status,homeowner_signature'\)/.test(engine) && /return \{ status: row\.status, homeownerSigned: !!row\.homeowner_signature, signature: row\.homeowner_signature \};/.test(engine));
   ok('the IO flips ONLY while still sent and unsigned', /\.eq\('status', 'sent'\)\s*\.is\('homeowner_signature', null\)/.test(engine));
   ok('the page photo goes to the owner-scoped secure-contracts bucket, never replaced',
     /from\('secure-contracts'\)\s*\.upload\(path, bytes, \{ contentType: 'image\/jpeg', upsert: false \}\)/.test(engine) && /`\$\{userId\}\/\$\{contractId\}-signed-page-/.test(engine));
   const contract = strip(read('app/contract.tsx'));
-  const rec = callbackBody(contract, 'handleRecordSignature');
+  // W2 MOMSIGN: the record is two moments now, one write each — the paper
+  // slide (recordPaper) and the in-person ceremony (recordInPerson). Each pin
+  // below keeps its rule on the write that now carries it.
+  const paper = callbackBody(contract, 'recordPaper');
+  const inPerson = callbackBody(contract, 'recordInPerson');
   ok('contract: "Record client signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record client signature"/.test(contract));
   ok('contract: paper uploads the photo BEFORE the write, and a failed upload records nothing',
-    rec.indexOf('uploadSignedPageEvidence(') > 0 && rec.indexOf('uploadSignedPageEvidence(') < rec.indexOf('recordHomeownerSignature(') && /return;\s*\}\s*\}\s*const sig/.test(rec));
-  ok('contract: after the record, the contract is re-read and the portal republished',
-    /loadActiveContract\(c\.projectId\)[\s\S]*requestPortalPublish\(c\.projectId\)/.test(rec));
-  ok('contract: the confirm is disabled with the reason printed', /disabled=\{recording \|\| !!blockReason\}/.test(contract) && /testID="contract-record-block-reason"/.test(read('app/contract.tsx')));
+    paper.indexOf('uploadSignedPageEvidence(') > 0 && paper.indexOf('uploadSignedPageEvidence(') < paper.indexOf('recordHomeownerSignature(')
+      && /return \{ status: 'refused', reason: signingCopy\.paperUploadRefused\(\) \};\s*\}\s*\}\s*const sig/.test(paper));
+  ok('contract: after the record, the contract is re-read and the portal republished (paper and in person)',
+    [paper, inPerson].every((h) => /if \(outcome\.kind !== 'signed'\) return recordOutcomeResult\(outcome\);[\s\S]*requestPortalPublish\(c\.projectId\)[\s\S]*loadActiveContract\(c\.projectId\)/.test(h)));
+  ok('contract: the confirm is disabled with the reason printed (the paper slide shows it whole)',
+    /<SlideToConfirm[\s\S]{0,1400}disabledReason=\{paperReason\}[\s\S]{0,600}testID="contract-record-paper-slide"/.test(contract)
+      && /const blockReason = recordSignatureBlockReason\(draft, todayCalendarDay\(\)\);/.test(contract)
+      && /const paperReason = paperSignedElsewhere \? signingCopy\.paperAlreadySigned\(\) : blockReason;/.test(contract));
 
   // ── #69 ──────────────────────────────────────────────────────────────────
   console.log('\n#69 — the contract seeds from what the homeowner was shown');
@@ -160,11 +203,17 @@ async function main() {
   // ── #12 ──────────────────────────────────────────────────────────────────
   console.log('\n#12 — every write the portal reads only at publish time asks for a publish');
   const send = callbackBody(contract, 'handleSignAndSend');
-  const flipAt = send.indexOf("setContractStatus(saved.id, 'sent'");
+  // W2 MOMSIGN: the flip is the online-only setContractStatusDetailed; its
+  // refusal returns before the publish. The "Contract sent" Alert retired:
+  // the signing letter's back face carries the words (signingCopy.ts).
+  const flipAt = send.indexOf("setContractStatusDetailed(saved.id, 'sent'");
   const pubAt = send.indexOf('requestPortalPublish(saved.projectId)');
-  ok('contract: the publish is requested AFTER the status flip succeeded', flipAt > 0 && pubAt > flipAt && send.indexOf('if (!ok)') < pubAt);
-  ok('contract: the alert no longer promises signing "in their portal" right now',
-    !/'The homeowner can review and counter-sign in their portal\./.test(send) && /Your client portal is being updated with the contract/.test(send));
+  const refusedAt = send.indexOf("if (status !== 'synced') return { status: 'refused'");
+  ok('contract: the publish is requested AFTER the status flip succeeded', flipAt > 0 && pubAt > flipAt && refusedAt > flipAt && refusedAt < pubAt);
+  const signingWords = read('utils/moments/sites/signingCopy.ts');
+  ok('contract: the letter no longer promises signing "in their portal" right now',
+    !/'The homeowner can review and counter-sign in their portal\./.test(send) && !/in their portal\.|right now/.test(signingWords)
+      && /moment\.fold\.body = signingCopy\.contractSentBody\(\);/.test(send));
   ok('contract email (#64 carry): no "read the full agreement" / "ask questions" promise', !/read the full agreement/.test(send) && !/ask questions inside the portal/.test(send));
   const sel = strip(read('app/selections.tsx'));
   ok('selections: every save handler republishes', (sel.match(/publishPortal\(\);/g) ?? []).length >= 6, String((sel.match(/publishPortal\(\);/g) ?? []).length));

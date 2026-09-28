@@ -201,7 +201,7 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
     };
     const mutants: [string, string, string][] = [
       ['local -> confirmed', 'a5-local-confirmed', mutate(
-        "return { status: 'queued', title: LOCAL_ONLY_TITLE, next: LOCAL_ONLY_NEXT };",
+        "return { status: 'queued', title: localOnlyTitle(), next: localOnlyNext() };",
         "return confirmed(ok);", 'local')],
       ['queued -> confirmed', 'a5-queued-confirmed', mutate(
         /case 'queued':\s*return \{/,

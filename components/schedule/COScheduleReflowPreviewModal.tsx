@@ -15,7 +15,7 @@
 // Every non-"ready" branch renders the plan's own message rather than a
 // generic promise — a CO that cannot move the schedule must say so.
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
@@ -31,7 +31,56 @@ import type { ChangeOrder, ProjectSchedule } from '@/types';
 import {
   describeAnchorReason,
   planCoScheduleReflow,
+  type CoReflowPlan,
 } from '@/utils/coScheduleReflowCore';
+import {
+  SlideToConfirm,
+  fromWriteOutcome,
+  type CommitResult,
+  type CommitWriteOptions,
+  type SlideToConfirmHandle,
+} from '@/components/moments/core/contract';
+import { useProjectCrossActions, type ChangeOrderFrozenFields } from '@/contexts/ProjectContext';
+import { nailIt } from '@/components/animations/NailItToast';
+import { calendarDayToDate } from '@/utils/cpm';
+import { formatCalendarDay, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { coApprovedTitle, coApprovedUnsignedTitle } from '@/components/moments-sites/COApproveSheet';
+import {
+  coApprovedToast,
+  coApprovedUnsignedToast,
+  coBusy,
+  coFinishMoves,
+  coQueued,
+  coRefused,
+  coSlideLabelWithSchedule,
+  coSrConfirm,
+  coSrLabel,
+  coTimeout,
+} from '@/utils/moments/sites/moneyCopy';
+
+/**
+ * The new finish as a calendar date ("Nov 14, 2026"), only when the reflow
+ * moves it and the schedule has a start date (the engine's day numbers are
+ * calendar days from it; a schedule with no start date has no dates to name).
+ */
+export function reflowFinishDate(schedule: ProjectSchedule | null | undefined, plan: Pick<CoReflowPlan, 'status' | 'finishDeltaDays' | 'finishAfter'>): string | null {
+  if (plan.status !== 'ready' || plan.finishDeltaDays === 0) return null;
+  const start = parseCalendarDay(schedule?.startDate ?? null);
+  if (!start) return null;
+  return formatCalendarDay(toCalendarDayString(calendarDayToDate(start, plan.finishAfter)));
+}
+
+/** What the approve slide needs from the screen (wave-next W2, lane MOMMONEY, B2). */
+export interface ReflowApproveSlide {
+  /** The CO's number as the server confirmed it. */
+  coNumber: number;
+  /** The contract total once this CO is approved, integer cents; null when the signed contract could not be read (the title then names the CO's own amount). */
+  contractAfterCents: number | null;
+  /** "Client approved without signing": no client signature, and the confirmed words say so. */
+  unsigned?: boolean;
+  /** #131: the tax frozen onto the CO in the same write as the approval. */
+  frozen?: ChangeOrderFrozenFields;
+}
 
 export function COScheduleReflowPreviewModal(props: {
   visible: boolean;
@@ -52,8 +101,18 @@ export function COScheduleReflowPreviewModal(props: {
    */
   intent?: 'approve' | 'place';
   /** Called with the anchor the user settled on (undefined = whatever the
-   *  rule picked, or nothing when no anchor resolved). */
+   *  rule picked, or nothing when no anchor resolved). The tap path: `place`,
+   *  and `approve` when the screen passes no `approveSlide`. */
   onConfirm: (anchorTaskId?: string) => void;
+  /**
+   * Wave-next W2 (moments, B2): with `intent === 'approve'`, Apply becomes the
+   * slide "Slide to approve and shift the schedule · +$4,200.00". The slide
+   * approves through ProjectContext.approveChangeOrder(co.id, { anchorTaskId })
+   * (the status is written first; the phone shows it only once stored or
+   * waiting to send) and closes the modal after the result hold. `place`
+   * never slides: no money moves.
+   */
+  approveSlide?: ReflowApproveSlide;
   onClose: () => void;
 }): React.JSX.Element {
   const { changeOrder, schedule, estimateItems, moneyLine, intent = 'approve' } = props;
@@ -89,6 +148,9 @@ export function COScheduleReflowPreviewModal(props: {
   // In `place` mode there is no money decision left to make, so a confirm that
   // cannot move anything would be a button that does nothing.
   const confirmDisabled = intent === 'place' && !isReady;
+  const slide = intent === 'approve' && props.approveSlide ? props.approveSlide : null;
+  const slideRef = useRef<SlideToConfirmHandle>(null);
+  const anchorForWrite = pickedAnchorId ?? plan.anchorTaskId ?? undefined;
 
   // Desktop (wave 6c): a centred 720 card. Cmd/Ctrl+Enter confirms when the
   // confirm is enabled; never Cmd+S — approving a change order is a decision
@@ -97,7 +159,10 @@ export function COScheduleReflowPreviewModal(props: {
   const frame = useSheetFrame('wide', { visible: props.visible, animationType: 'slide' });
   useSheetPrimaryHotkey(
     props.visible,
-    confirmDisabled ? null : () => props.onConfirm(pickedAnchorId ?? plan.anchorTaskId ?? undefined),
+    slide
+      // The slide: Cmd+Enter plays the 700 ms hold, never an instant approve.
+      ? () => slideRef.current?.playHoldToCommit()
+      : confirmDisabled ? null : () => props.onConfirm(anchorForWrite),
     { saveKey: false },
   );
 
@@ -242,6 +307,28 @@ export function COScheduleReflowPreviewModal(props: {
             )}
           </ScrollView>
 
+          {slide ? (
+            <View style={styles.slideFooter}>
+              <ReflowApproveSlideControl
+                ref={slideRef}
+                changeOrder={changeOrder}
+                slide={slide}
+                anchorTaskId={anchorForWrite}
+                finishDate={reflowFinishDate(schedule, plan)}
+                onClose={props.onClose}
+              />
+              <TouchableOpacity
+                onPress={props.onClose}
+                style={[styles.slideCancel, styles.btnSecondary]}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                testID="co-reflow-cancel"
+              >
+                <Text style={styles.btnSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View style={styles.footer}>
             <TouchableOpacity
               onPress={props.onClose}
@@ -265,11 +352,72 @@ export function COScheduleReflowPreviewModal(props: {
               <Text style={styles.btnPrimaryText}>{confirmLabel}</Text>
             </TouchableOpacity>
           </View>
+          )}
         </View>
       </View>
     </Modal>
   );
 }
+
+/**
+ * The approve slide (B2). Its own component so the context hook runs only when
+ * a screen asks for the slide (the tap path stays provider-free).
+ */
+const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
+  changeOrder: ChangeOrder;
+  slide: ReflowApproveSlide;
+  anchorTaskId: string | undefined;
+  finishDate: string | null;
+  onClose: () => void;
+}>(function ReflowApproveSlideControl({ changeOrder, slide, anchorTaskId, finishDate, onClose }, ref) {
+  const { approveChangeOrder } = useProjectCrossActions();
+  const amountCents = Number.isFinite(changeOrder.changeAmount) ? Math.round(changeOrder.changeAmount * 100) : 0;
+  const { coNumber, contractAfterCents, unsigned, frozen } = slide;
+
+  const approveAndShift = useCallback(async (): Promise<CommitResult> => {
+    const outcome = await approveChangeOrder(changeOrder.id, { anchorTaskId, ...(frozen ? { frozen } : {}) });
+    return fromWriteOutcome(
+      outcome,
+      {
+        title: unsigned ? coApprovedUnsignedTitle(coNumber, amountCents, contractAfterCents) : coApprovedTitle(coNumber, amountCents, contractAfterCents),
+        ...(finishDate ? { detail: coFinishMoves(finishDate) } : {}),
+      },
+      { refused: coRefused(), queued: coQueued() },
+    );
+  }, [approveChangeOrder, changeOrder.id, anchorTaskId, coNumber, amountCents, contractAfterCents, finishDate, unsigned, frozen]);
+
+  // Non-idempotent (plan rule 3): a timeout says "Check CO #4", never "nothing was saved".
+  const writeOptions = useMemo<CommitWriteOptions>(() => ({
+    idempotent: false,
+    copy: { refused: coRefused(), timeout: coTimeout(coNumber) },
+  }), [coNumber]);
+
+  const onDone = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed' || r.status === 'queued') onClose();
+  }, [onClose]);
+  const onLate = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed') nailIt(unsigned ? coApprovedUnsignedToast(coNumber) : coApprovedToast(coNumber));
+  }, [coNumber, unsigned]);
+
+  return (
+    <SlideToConfirm
+      ref={ref}
+      label={coSlideLabelWithSchedule(amountCents)}
+      busyLabel={coBusy()}
+      srLabel={coSrLabel(coNumber, amountCents)}
+      srConfirm={coSrConfirm(coNumber)}
+      onCommit={approveAndShift}
+      writeOptions={writeOptions}
+      size="lg"
+      tone="brand"
+      resultIcon="check"
+      onDone={onDone}
+      onLateResult={onLate}
+      onResultAfterUnmount={onLate}
+      testID="co-reflow-slide"
+    />
+  );
+});
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
@@ -356,6 +504,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   flipName: { fontWeight: '700', color: t.text },
 
   footer: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
+  slideFooter: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
+  slideCancel: { alignItems: 'center', justifyContent: 'center', paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card },
   btn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card,

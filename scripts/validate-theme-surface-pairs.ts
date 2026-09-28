@@ -54,7 +54,7 @@ const ALLOW_STYLE: Record<string, string> = {
   'app/client-portal-setup.tsx::budgetStatusBadge':
     'icon-only badge (Check / X, hardcoded colors) — budgetStatusValue is a sibling rendered outside it',
   'app/aia-pay-app.tsx::modalIconWrap':
-    'icon-only wrap (ShieldAlert, hardcoded #C26A00) — modalTitle renders outside it',
+    'icon-only wrap (ShieldAlert, warningLabel ink) — modalTitle renders outside it',
   'components/ClientPaywall.tsx::subCardTag':
     'contains only subCardTagText, which uses t.accent — a brand hue that does not invert',
 };

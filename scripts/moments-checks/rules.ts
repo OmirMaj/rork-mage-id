@@ -37,7 +37,7 @@ import { lintMomentCopy } from '../../utils/moments/copy';
 type Fails = string[];
 
 /** Today's measured counts (2026-09-28, base f0dbd267): app = contract x1 + project-detail x2; portal = 3 calls. */
-export const CONFETTI_CEILING = { app: 3, portal: 3 } as const;
+export const CONFETTI_CEILING = { app: 0, portal: 3 } as const;
 
 const MOMENT_TAGS = ['SlideToConfirm', 'SigningCeremony'] as const;
 const QUEUE_BACKED = /\b(supabaseWrite|supabaseWriteDetailed|supabaseRpcDetailed|addToOfflineQueue|enqueue\w*)\s*\(/;

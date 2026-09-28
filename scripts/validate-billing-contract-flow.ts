@@ -170,7 +170,8 @@ console.log('\n#132/#136 a paid draw shows PAID however it was paid');
   ok('the open-time repair runs the live read-verify-write, never a queued schedule array',
     /milestonePaidRepairs\(c\.paymentSchedule, invoicePaidRows\)/.test(CONTRACT) && /await markMilestonePaidByInvoice\(repairContractId, r\.invoiceId\)/.test(CONTRACT)
       && !/supabaseWrite\([^)]*project_contracts/.test(CONTRACT));
-  const pay = INVOICE.slice(INVOICE.indexOf('const commitPayment = useCallback'), INVOICE.indexOf('const handleMarkPaid = useCallback'));
+  // Wave-next W2 (moments B3): the record is the slide's recordPayment.
+  const pay = INVOICE.slice(INVOICE.indexOf('const recordPayment = useCallback'), INVOICE.indexOf('const paymentWriteOptions = useMemo'));
   ok('Record Payment tells him when the milestone flip did not land (no console.warn)',
     /\.then\(\(outcome\) => \{ if \(outcome === 'failed' \|\| outcome === 'not_found'\) flipFailed\(\); \}\)/.test(pay) && /\.catch\(flipFailed\)/.test(pay) && !/console\.warn\('\[Invoice\] milestone paid-flip/.test(pay));
 }
@@ -219,7 +220,8 @@ console.log('\n#133 a payment carries the day it arrived and its check number');
   const PRED_CODE = stripComments(PRED);
   ok('...and both history readers pass the payment row, not its bare .date',
     /daysBetween\(p\.dueDate, lastPayment\)/.test(PRED_CODE) && /daysBetween\(p\.issueDate, firstPayment\)/.test(PRED_CODE));
-  const pay = INVOICE.slice(INVOICE.indexOf('const commitPayment = useCallback'), INVOICE.indexOf('const handleMarkPaid = useCallback'));
+  // Wave-next W2 (moments B3): the record is the slide's recordPayment.
+  const pay = INVOICE.slice(INVOICE.indexOf('const recordPayment = useCallback'), INVOICE.indexOf('const paymentWriteOptions = useMemo'));
   ok('Record Payment stores the picked calendar day and the reference; `date` stays the recorded instant',
     /date: new Date\(\)\.toISOString\(\),/.test(pay) && /receivedDate: calendarDayOf\(paymentReceivedDate\) \?\? todayCalendarDay\(\),/.test(pay) && /\.\.\.\(reference \? \{ reference \} : \{\}\),/.test(pay));
   ok('the modal has a Date received picker (default today) and a Check # field',
@@ -249,15 +251,15 @@ console.log('\n#134 Record Payment reads "12,500.00" as $12,500.00');
     parsePositiveMoney('10,000', parseMoneyInput) === 10_000 && parsePositiveMoney('x', parseMoneyInput) === null && parsePositiveMoney('0', parseMoneyInput) === null);
   ok('parsePercentInput: "10", "7.5", "10%" read; "1,5" and "10abc" do not',
     parsePercentInput('10') === 10 && parsePercentInput('7.5') === 7.5 && parsePercentInput('10%') === 10 && parsePercentInput('1,5') === null && parsePercentInput('10abc') === null);
-  const mark = INVOICE.slice(INVOICE.indexOf('const handleMarkPaid = useCallback'), INVOICE.indexOf('// Stripe payment link', INVOICE.indexOf('const handleMarkPaid = useCallback')));
-  ok('handleMarkPaid decides through recordPaymentDecision(parseMoneyInput) and confirms an overpayment before writing',
-    /recordPaymentDecision\(paymentAmount, balanceDue, parseMoneyInput, formatCurrency\)/.test(mark) && !/parseFloat/.test(mark)
-      // Integration round 1: both paths go through commitPaymentPastUnsaved,
-      // which asks first when a payment on this invoice is under Not saved.
-      // Final fix round 3: under the one-at-a-time lock (recordUnderLock runs
-      // commitPaymentPastUnsaved), and Cancel / a dismissal frees the lock.
-      && /decision\.kind === 'confirm'[\s\S]{0,420}onPress: \(\) => \{ void recordUnderLock\(decision\.amount\); \}[\s\S]{0,80}\], \{ onDismiss: release \}\);\s*return;/.test(mark)
-      && /const recordUnderLock = useCallback\(async \(amt: number\) => \{\s*try \{\s*await commitPaymentPastUnsaved\(amt\);/.test(INVOICE));
+  // Wave-next W2 (moments B3): the decision reads BEFORE the slide. A refusal
+  // is the slide's disabled reason; an overpayment names the excess on the
+  // slide's label (and the line under it says why it is allowed), never an
+  // Alert after the release. Nothing parses with parseFloat.
+  ok('Record payment decides through recordPaymentDecision(parseMoneyInput) and names an overpayment before writing',
+    /const paymentDecision = useMemo\(\s*\(\) => recordPaymentDecision\(paymentAmount, balanceDue, parseMoneyInput, formatCurrency\),/.test(INVOICE)
+      && /paymentDecision\.kind === 'confirm'\s*\? paySlideLabelOver\(paymentAmountCents, paymentOverCents\)/.test(INVOICE)
+      && /const paymentDisabledReason = paymentDecision\.kind === 'refuse'\s*\? paymentAmountReason\(paymentAmount\)/.test(INVOICE)
+      && /onCommit=\{recordPayment\}/.test(INVOICE) && !/parseFloat\(paymentAmount/.test(INVOICE));
   const rel = INVOICE.slice(INVOICE.indexOf('const handleReleaseRetention = useCallback'), INVOICE.indexOf('const effectiveStatus ='));
   ok('the retention release parses with parseMoneyInput', /parsePositiveMoney\(retentionReleaseAmount, parseMoneyInput\)/.test(rel) && !/parseFloat/.test(rel));
   ok('the retainage ask parses a percentage strictly', /const retainageAskValue = parsePercentInput\(retainageAskInput\) \?\? NaN;/.test(INVOICE));

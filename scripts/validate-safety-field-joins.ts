@@ -65,7 +65,8 @@ ok('clock-in asks with ITS verb (the button says "Clock in anyway")',
 // The roster pre-fill lists the crew before anyone signs; calling that list
 // "attendees" counted people who never attended.
 ok('the toolbox card counts the sheet as "listed", and only signers as signed',
-  /\{item\.attendees\.length\} listed · \{signed\} signed/.test(read('app/safety-toolbox.tsx'))
+  (/\{item\.attendees\.length\} listed · \{signed\} signed/.test(read('app/safety-toolbox.tsx'))
+    || /'\{listed\} listed · \{signed\} signed', \{ listed: item\.attendees\.length, signed \}/.test(read('app/safety-toolbox.tsx')))
   && !/attendee\{item\.attendees\.length === 1/.test(read('app/safety-toolbox.tsx')));
 ok('an expiring-only worker gets no confirmation (not lapsed yet)', lapsedCertConfirmText('Ana', [f1[1]]) === null);
 
@@ -171,7 +172,7 @@ ok('JHA sign-off chip only follows a roster pick (typing clears the link)',
     && jha.includes('certFlagsForWorker(certifications, sigWorkerId, today)'));
 ok('JHA sign-off of a lapsed card asks first, with the JHA\'s own verb (the button says "Sign off anyway")',
   jha.includes("lapsedCertConfirmText(name, sigFlags, 'Sign them off')")
-    && jha.includes("{ text: 'Sign off anyway'")
+    && (jha.includes("{ text: 'Sign off anyway'") || jha.includes("{ text: t('safety.jha.signOffAnyway', 'Sign off anyway')"))
     && (lapsedCertConfirmText('Ana', f1, 'Sign them off') ?? '').endsWith('Sign them off anyway?'));
 // The marketing line must not promise a flag the app does not raise: only a
 // roster pick is linked to a card (a typed name never is), and clock-in warns too.

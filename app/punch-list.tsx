@@ -48,7 +48,7 @@ import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface, Button, EyebrowLabel, layoutNext, segmentedDesktop, useIsDesktop, useRiseOnOpen, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { cardSurface, Button, EyebrowLabel, layoutNext, segmentedDesktop, Sheet, useIsDesktop, useRiseOnOpen, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 // Pin items (after the photo), Pin first (before it) and the edit sheet's pin
 // controls — founder, 2026-09-18: "pin the location of each item before and
 // after taking photos". The decisions are pure (utils/punchPinQueue); every
@@ -82,7 +82,13 @@ import { useAuth } from '@/contexts/AuthContext';
 // the owner's subs on the job when he is a collaborator (#110).
 import { useProjectSubcontractors } from '@/hooks/useProjectSubcontractors';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
-import { nailIt } from '@/components/animations/NailItToast';
+import { nailIt, oops } from '@/components/animations/NailItToast';
+import {
+  SlideToConfirm, fromWriteOutcome,
+  type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
+} from '@/components/moments/core/contract';
+import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
+import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { recentPunchLocations } from '@/utils/recentChips';
 import { readFlag } from '@/utils/uxRoutes';
@@ -249,6 +255,17 @@ function isTradeWordOnly(name: string | undefined, subNames: ReadonlySet<string>
 function dueDateUnreadable(due: string | undefined): boolean {
   const v = (due ?? '').trim();
   return !!v && !parseCalendarDay(v.slice(0, 10));
+}
+
+/**
+ * A slide's answer that lands after this screen unmounted (moments rule 4:
+ * nailIt survives only here). Confirmed is the one success toast; a refusal
+ * or a timeout still says what did not happen; queued needs no toast.
+ */
+function momentAfterUnmount(r: CommitResult): void {
+  if (r.status === 'confirmed') nailIt(r.title);
+  else if (r.status === 'refused') oops(r.reason);
+  else if (r.status === 'timeout') oops(r.message);
 }
 
 function pluralDays(n: number): string {
@@ -882,7 +899,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }>();
   const openNew = readFlag(newParam);
   const queryClient = useQueryClient();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded, getCommitmentsForProject } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, closeProjectDetailed, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded, getCommitmentsForProject } = useProjects();
   const { user } = useAuth();
   // Backcharge the sub (edit sheet): the same plan gate sub-portal-setup puts
   // in front of backcharges, and the device-local backcharge list.
@@ -1246,6 +1263,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const shownPct = useCountTo(progressPercent, (n) => String(Math.round(n)));
   // Closing the PROJECT is across both lists: an open crew item is still work.
   const allClosed = allItems.length > 0 && allItems.every(i => i.status === 'closed');
+  // C3: set when the last open item closes here; the banner offers the close.
+  const [allClosedBanner, setAllClosedBanner] = useState(false);
 
   const filteredItems = useMemo(() => {
     let out = items;
@@ -1908,30 +1927,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       const allOthersClosed = others.length > 0 && others.every((p: PunchItem) => p.status === 'closed');
       const wasLastOpen = others.length === 0 || allOthersClosed;
       if (wasLastOpen && project.status === 'in_progress') {
-        // Defer past the current render so the badge animation doesn't
-        // fight the alert pop-in.
-        setTimeout(() => {
-          showAlert(
-            'All punch items closed',
-            `Nice — every punch and crew list item on ${project.name} is closed. Close the project so it stops showing in your active list?`,
-            [
-              { text: 'Not yet', style: 'cancel' },
-              {
-                text: 'Close project',
-                onPress: () => {
-                  // Land in the SAME terminal state the Close Project button
-                  // sets — 'closed' + closedAt — so both paths agree instead
-                  // of one leaving the project 'completed' and the other 'closed'.
-                  updateProject(project.id, { status: 'closed', closedAt: new Date().toISOString() });
-                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                },
-              },
-            ],
-          );
-        }, 250);
+        // The last open item just closed: an inline banner offers the close
+        // (moments C3). It never closes from an Alert button again; its tap
+        // opens the close sheet, whose slide is the confirm.
+        setAllClosedBanner(true);
       }
     }
-  }, [updatePunchItem, projectId, project, allItems, updateProject, recordWriteBlock]);
+  }, [updatePunchItem, projectId, project, allItems, recordWriteBlock]);
 
   // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
   // open → in_progress → ready_for_review → closed. Closed is terminal.
@@ -1965,24 +1967,58 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [rejectionNote, updatePunchItem, allItems, recordWriteBlock]);
 
+  // ── C3 (moments, lane MOMFIELD): closing the project ────────────────────
+  // A sheet whose footer slide is the confirm. "Close every punch item first."
+  // and a viewer's write block are the slide's disabled reason, computed up
+  // front (never an Alert on release). The write is closeProjectDetailed:
+  // success only when the server has the close; queued says so honestly.
+  const [closeSheetOpen, setCloseSheetOpen] = useState(false);
+  const [closeBusy, setCloseBusy] = useState(false);
+  // The next line names the binder only when this project's closeout binder
+  // is finalized (read when the sheet opens); otherwise where the project goes.
+  const [binderReady, setBinderReady] = useState(false);
+  useEffect(() => {
+    if (!closeSheetOpen || !projectId) return;
+    let live = true;
+    void fetchCloseoutBinder(projectId)
+      .then(b => { if (live) setBinderReady(!!b && (b.status === 'finalized' || b.status === 'sent')); })
+      .catch(() => { if (live) setBinderReady(false); });
+    return () => { live = false; };
+  }, [closeSheetOpen, projectId]);
   const handleCloseProject = useCallback(() => {
-    if (!allClosed) {
-      showAlert('Cannot close yet', 'Resolve every punch item before closing the project.');
-      return;
-    }
-    showAlert('Close project?', 'The project is marked closed and archived.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Close project',
-        onPress: () => {
-          updateProject(projectId ?? '', { status: 'closed', closedAt: new Date().toISOString() });
-          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          showAlert('Project closed', 'This project has been archived.');
-          router.back();
-        },
-      },
-    ]);
-  }, [allClosed, projectId, updateProject, router]);
+    setCloseSheetOpen(true);
+  }, []);
+  const closeProjectReason = recordWriteBlock ?? (allClosed ? null : fieldCopy.closeProjectBlocked());
+  const commitCloseProject = useCallback(async (): Promise<CommitResult> => {
+    if (!projectId) return { status: 'refused', reason: fieldCopy.projectCloseRefused() };
+    setCloseBusy(true);
+    const outcome = await closeProjectDetailed(projectId);
+    return fromWriteOutcome(outcome, {
+      title: fieldCopy.projectClosedTitle(),
+      next: binderReady ? fieldCopy.projectClosedNextBinder() : fieldCopy.projectClosedNextFind(),
+    }, {
+      refused: fieldCopy.projectCloseRefused(),
+      queued: fieldCopy.projectCloseQueued(),
+    });
+  }, [projectId, closeProjectDetailed, binderReady]);
+  // A project with no name takes the no-name sentence, never "Check  before".
+  const closeProjectWriteOptions = useMemo<CommitWriteOptions>(() => (project?.name?.trim() ? {
+    idempotent: false,
+    copy: { refused: fieldCopy.projectCloseRefused(), timeout: fieldCopy.closeProjectTimeout(project.name.trim()) },
+  } : {
+    idempotent: false,
+    copy: { refused: fieldCopy.projectCloseRefused(), timeout: fieldCopy.closeProjectTimeoutNoName() },
+  }), [project?.name]);
+  const closeSlideRef = useRef<SlideToConfirmHandle>(null);
+  const dismissCloseSheet = useCallback(() => { if (!closeBusy) setCloseSheetOpen(false); }, [closeBusy]);
+  // The sheet closes after the result hold, and the screen goes back with it.
+  const onCloseProjectDone = useCallback(() => {
+    setCloseBusy(false);
+    setCloseSheetOpen(false);
+    setAllClosedBanner(false);
+    router.back();
+  }, [router]);
+  useSheetPrimaryHotkey(closeSheetOpen, () => closeSlideRef.current?.playHoldToCommit(), { saveKey: false });
 
   // ── Bulk writes ──────────────────────────────────────────────────────────
   //
@@ -2968,7 +3004,22 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         </View>
       </View>
 
-      {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
+      {allClosed && allClosedBanner && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
+        <View style={styles.allClosedBanner} testID="punch-all-closed-banner">
+          <CheckCircle size={16} color={themeColors.successLabel} strokeWidth={1.75} />
+          <Text style={styles.allClosedBannerText}>{fieldCopy.punchAllClosedBanner(project.name)}</Text>
+          <TouchableOpacity
+            onPress={handleCloseProject}
+            accessibilityRole="button"
+            accessibilityLabel={fieldCopy.closeProjectAction()}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+            testID="punch-all-closed-close"
+          >
+            <Text style={styles.allClosedBannerAction}>{fieldCopy.closeProjectAction()}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {allClosed && !allClosedBanner && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
         <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Close project">
           <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.closeProjectBtnText}>Close project</Text>
@@ -3463,6 +3514,38 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           </View>
         </View>
       ) : null}
+
+      <Sheet
+        visible={closeSheetOpen}
+        onClose={dismissCloseSheet}
+        title={fieldCopy.closeProjectAction()}
+        size="dialog"
+        dismissOnBackdrop={!closeBusy}
+        testID="punch-close-project-sheet"
+        // Always the slide (a closed Modal draws nothing), so its disabled
+        // reason is decided by the data, never by when the sheet opened.
+        footer={(
+          <SlideToConfirm
+            ref={closeSlideRef}
+            label={fieldCopy.closeProjectSlideLabel()}
+            busyLabel={fieldCopy.closeProjectBusy()}
+            srLabel={project?.name?.trim() ? fieldCopy.closeProjectSrLabel(project.name.trim()) : fieldCopy.closeProjectNoNameSrLabel()}
+            srConfirm={fieldCopy.closeProjectSrConfirm()}
+            onCommit={commitCloseProject}
+            writeOptions={closeProjectWriteOptions}
+            queuedLabel={fieldCopy.projectCloseQueued()}
+            disabledReason={closeProjectReason}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps
+            // the sheet up until onDone, which goes back with it.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setCloseBusy(false); }}
+            onDone={onCloseProjectDone}
+            onResultAfterUnmount={momentAfterUnmount}
+            testID="punch-close-project-slide"
+          />
+        )}
+      >
+        <Text style={styles.closeSheetBody}>{project ? fieldCopy.closeProjectSheetBody(project.name) : ''}</Text>
+      </Sheet>
 
       <PunchExportSheet
         visible={showExport}
@@ -4576,6 +4659,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formPinText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
   formPinActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.success },
+  // C3: the last-item banner (success tint, never a surface card) and the close sheet's body.
+  allClosedBanner: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },
+  allClosedBannerText: { flex: 1, minWidth: 160, fontSize: Type.subhead.fontSize, color: themeColors.successLabel },
+  allClosedBannerAction: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.successLabel },
+  closeSheetBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   projectClosedNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },
   projectClosedNoteText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.success },

@@ -507,7 +507,7 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
       /accessibilityActions:\s*\[\s*\{\s*name:\s*'activate'/.test(hook) && /actionName\s*===\s*'activate'/.test(hook));
     ok('C14 announce( on busy, result, failure and the Confirm/Cancel open', (hook.match(/\bannounce\(/g) ?? []).length >= 6);
     ok('C14 SR mode renders a Confirm segment (focus target) and a Cancel segment',
-      /ref=\{capsule\.confirmRef\}/.test(slide) && /onPress=\{capsule\.confirm\}/.test(slide) && /onPress=\{capsule\.cancel\}/.test(slide) && />Cancel</.test(slide));
+      /ref=\{capsule\.confirmRef\}/.test(slide) && /onPress=\{capsule\.confirm\}/.test(slide) && /onPress=\{capsule\.cancel\}/.test(slide) && />\{t\('common\.moment\.cancel', 'Cancel'\)\}</.test(slide));
     ok('C14 setAccessibilityFocus moves focus to Confirm (and back on Cancel)', /setAccessibilityFocus/.test(hook) && /focusLater\(confirmRef/.test(hook) && /focusLater\(headRef/.test(hook));
   }
 

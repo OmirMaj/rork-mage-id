@@ -605,7 +605,7 @@ console.log('\nA6 — voice notes recorded with no signal are not lost:');
   ok('the global mic records under voice-note:<projectId>', /queueKey=\{project \? voiceNoteQueueKey\(project\.id\) : undefined\}/.test(mic));
   const pill = code('components/OfflineSyncPill.tsx');
   ok('the floating pill shows the waiting and failed voice lines separately',
-    /const voiceWaiting = floating \? voiceWaitingLine\(voice\.backlog\) : '';/.test(pill) && /const voiceFailed = floating \? voiceFailedLine\(voice\.backlog\) : '';/.test(pill)
+    /const voiceWaiting = floating && voiceWaitingLine\(voice\.backlog\)/.test(pill) && /const voiceFailed = floating && voiceFailedLine\(voice\.backlog\)/.test(pill)
     && /testID="offline-sync-voice-waiting"/.test(pill) && /testID="offline-sync-voice-failed"/.test(pill));
   ok('…the failed line in the failed colour, the waiting line in the pending one',
     /<Text style=\{\[styles\.text, \{ color: themeColors\.danger \}\]\} numberOfLines=\{1\}>\{voiceFailed\}<\/Text>/.test(pill)

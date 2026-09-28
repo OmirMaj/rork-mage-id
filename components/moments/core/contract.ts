@@ -68,8 +68,17 @@ export {
   LOCAL_ONLY_NEXT,
   EARLIER_CHANGE_PENDING_REASON,
   EARLIER_CHANGE_UNSAVED_REASON,
+  // wave-next W2 (ESTOOLS, additive): the same words in the app's language, read at call time
+  momentCopy,
+  localOnlyTitle,
+  localOnlyNext,
+  earlierChangePendingReason,
+  earlierChangeUnsavedReason,
 } from '@/utils/moments/copy';
-export type { MomentCopyDefaults } from '@/utils/moments/copy';
+export type { MomentCopyDefaults, MomentWords } from '@/utils/moments/copy';
+export type { MomentFrameWords } from '@/utils/moments/commitResult';
+// wave-next W2 (ESTOOLS, additive): binds the language providers above (idempotent).
+export { installMomentLanguage } from '@/utils/moments/sealText';
 
 // utils/moments/haptics.ts (RN + expo-haptics; web-safe)
 export { momentHaptic, announce } from '@/utils/moments/haptics';

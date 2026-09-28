@@ -773,10 +773,15 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
 // too, so both must keep doing it.
 {
   const cv = read('app/client-view.tsx');
-  ok('client-view still writes an auditTrail entry', /auditTrail: \[\.\.\.existingAudit, auditEntry\]/.test(cv));
+  // W2 MOMSIGN: approve and reject share buildCODecision, so the entry is d.auditEntry.
+  ok('client-view still writes an auditTrail entry', /auditTrail: \[\.\.\.d\.existingAudit, d\.auditEntry\]/.test(cv));
   ok('client-view builds the shared consent record', /buildCOConsentRecord\(/.test(cv));
+  // W2 MOMSIGN: approving is a signing ceremony; its line stays disabled
+  // ("Check the consent box") until the versioned box is ticked, and the
+  // answer is stored as consent_accepted (the "Consent required" Alert retired).
   ok('client-view requires the signing-consent checkbox before approving',
-    /!esignConsent/.test(cv) && /Consent required/.test(cv));
+    /consent=\{\{ version: ESIGN_DISCLOSURE_VERSION, text: signingCopy\.clientCoConsentLine\(\), checked: esignConsent, onChange: setEsignConsent \}\}/.test(cv)
+    && /consent_accepted: mode === 'approve' \? esignConsent : true/.test(cv));
   ok('client-view persists the sealed record columns',
     /consent_record:/.test(cv) && /document_hash:/.test(cv));
 }
@@ -2689,8 +2694,10 @@ console.log('\nno portal URL is built by string-concatenating a portalId:');
   ok('the contract-signing email builds its CTA with portalShareUrl',
     /const portalUrl = project \? portalShareUrl\(portalSettings\) : null;/.test(contract)
     && /if \(project && portalUrl && recipients\.length > 0\)/.test(contract));
+  // W2 MOMSIGN: the words are the signing letter's back-face line (signingCopy.ts).
   ok('…and when there is no key it says so instead of mailing a dead CTA',
-    /no secure signing key yet, so nothing was emailed/.test(contract));
+    /no secure signing key yet, so nothing was emailed/.test(read('utils/moments/sites/signingCopy.ts'))
+    && /case 'no_signing_key':\s*\n\s*notSentReason = signingCopy\.contractNotSentNoSigningKey\(\);/.test(contract));
   const detail = read('app/project-detail.tsx');
   ok('project-detail copies the link the client receives',
     /const portalLink = useMemo\(\s*\(\) => portalShareUrl\(project\?\.clientPortal\),/.test(detail)

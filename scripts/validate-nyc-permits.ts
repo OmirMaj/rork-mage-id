@@ -179,7 +179,7 @@ console.log('\napp/permits.tsx:');
   ok('the scopedProjectId form default is byte-identical',
     /projectId: scopedProjectId\s*\? \(projects\.some\(p => p\.id === scopedProjectId\) \? scopedProjectId : ''\)/.test(pm));
   ok('a new permit defaults its jurisdiction from the scoped job',
-    /jurisdiction: \(\(\) => \{ const sp = scopedProjectId \? projects\.find\(p => p\.id === scopedProjectId\) : undefined; return sp \? \(issuingAuthorityForAddress\(jobsiteAddressForProject\(sp\)\) \?\? ''\) : ''; \}\)\(\),/.test(pm));
+    /jurisdiction: \(\(\) => \{ const sp = scopedProjectId \? projects\.find\(p => p\.id === scopedProjectId\) : undefined; return sp \? \(issuingAuthorityForAddress\(jurisdictionQueryForProject\(sp\)\) \?\? ''\) : ''; \}\)\(\),/.test(pm));
   ok('the scoped job shows the building record and the department',
     /<BuildingRecordCard project=\{scopedProject\} variant="compact" testID="permits-building-record" \/><DepartmentCard project=\{scopedProject\} testID="permits-department" \/>/.test(pm));
   ok('the form shows the department under the jurisdiction field', /<DepartmentCard project=\{formProject\} testID="permit-form-department" \/>/.test(pm));

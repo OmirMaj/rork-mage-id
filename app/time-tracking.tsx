@@ -20,7 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { Project, TimeEntry } from '@/types';
 import {
   useTimeEntries, buildTimeEntriesCSV, computeShiftHours, timeEntryDay, mergeTimeEntriesMirror,
-  costingTeamRows, teamLoggedByLabel, teamLoggedByName, type TeamTimeEntry,
+  costingTeamRows, teamLoggedByLabel, teamLoggedByName, planClockOut, type TeamTimeEntry,
 } from '@/hooks/useTimeEntries';
 import { rateDraftBatch, reseedUntouchedDrafts, seedRateDrafts, type RateDrafts } from '@/utils/laborRateDraft';
 import { useLaborRates } from '@/hooks/useLaborRates';
@@ -44,7 +44,7 @@ import { parseLenientNumber } from '@/utils/formatters';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { useSafety } from '@/contexts/SafetyContext';
 import { certFlagsForWorker, lapsedCertConfirmText, type CertFlag } from '@/utils/safety/crewCerts';
-import { StatusPill, TileGrid, desktopCta, segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { Sheet, StatusPill, TileGrid, desktopCta, segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew, useProjectCrew, type ProjectCrewMember } from '@/contexts/CrewContext';
@@ -59,7 +59,12 @@ import {
   toggleCrewPick, toggleAllCrew, livePicks, clockInButton, allCrewChipLabel, splitAlreadyOnClock,
   batchLapsedText, batchClockOutJobs, batchOutMs, defaultBatchOutText, planBatchClockOut,
 } from '@/utils/crewClockBatch';
-import { nailIt } from '@/components/animations/NailItToast';
+import { nailIt, oops } from '@/components/animations/NailItToast';
+import {
+  SlideToConfirm, fromWriteOutcome,
+  type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
+} from '@/components/moments/core/contract';
+import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
 
 /** A shift on the Live list: his own clock-in, or (#63) one his foreman
  *  clocked on a job he OWNS — its one action the owner's close — or (#99) one
@@ -73,6 +78,18 @@ type LiveRow = { entry: TimeEntry; team: boolean; loggedBy?: string; loggedByNam
  *  email stays as typed. */
 function sentenceName(name: string): string {
   return name === 'a teammate' ? 'A teammate' : name;
+}
+
+/**
+ * A slide's answer that lands after this screen unmounted (moments rule 4:
+ * nailIt survives only here). Confirmed is the one success toast; a refusal
+ * or a timeout still says what did not happen; queued needs no toast (the row
+ * itself shows the shift ended on this phone).
+ */
+function momentAfterUnmount(r: CommitResult): void {
+  if (r.status === 'confirmed') nailIt(r.title);
+  else if (r.status === 'refused') oops(r.reason);
+  else if (r.status === 'timeout') oops(r.message);
 }
 
 function LiveTimeCard({
@@ -333,6 +350,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const {
     entries, teamEntries, liveEntries, historyEntries,
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut, closeTeamShift,
+    clockOutDetailed, closeTeamShiftDetailed,
     updateEntry, deleteEntry,
     shiftAlertHours, setShiftAlertHours, refresh: refreshEntries, pulling, pullFailed,
   } = useTimeEntries();
@@ -795,43 +813,103 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const { totalHours } = computeShiftHours(outFor.entry.clockIn, new Date(outMs).toISOString(), breakMinutes);
     return { problem: null, outMs, hours: totalHours, breakMinutes };
   }, [outFor, outText, outNextDay]);
-  const handleSaveOutTime = useCallback(() => {
-    if (!outFor || !outPreview) return;
-    if (outPreview.problem) { showAlert('Check the out time', outPreview.problem); return; }
-    const { entry, team, loggedByName } = outFor;
-    const outIso = new Date(outPreview.outMs).toISOString();
-    const summary = `${entry.workerName}: out at ${formatClockTime(outPreview.outMs)}${outNextDay ? ' (next day)' : ''} — records ${outPreview.hours.toFixed(2)} hours${outPreview.breakMinutes > 0 ? ` after a ${outPreview.breakMinutes}-min break` : ''}.`;
+  // Moments (wave-next W2, lane MOMFIELD, C2): the out-time sheet's confirm is
+  // the md slide. The picked time is read at RELEASE (commitOutTime), checked
+  // again against now, and written through the awaited, honest calls
+  // (clockOutDetailed / closeTeamShiftDetailed): the slide says what did and
+  // did not happen, so no Alert before or after it and no success haptic (the
+  // capsule plays its own). A team row's "it stays theirs" is the caption above
+  // the track, not a second Alert.
+  const commitOutTime = useCallback(async (): Promise<CommitResult> => {
+    const sheet = outFor;
+    if (!sheet) return { status: 'refused', reason: fieldCopy.clockOutRefused() };
+    setOutBusy(true);
+    const { entry, team } = sheet;
+    const minutes = parseClockTime(outText);
+    const outMs = minutes === null ? NaN : outMsOnClockInDay(entry.clockIn, minutes, outNextDay ? 1 : 0);
+    const problem = outTimeProblem(entry, outMs, Date.now());
+    if (problem) return { status: 'refused', reason: problem };
+    const outIso = new Date(outMs).toISOString();
+    const breakMinutes = breakMinutesAt(entry, outMs);
+    const { totalHours } = computeShiftHours(entry.clockIn, outIso, breakMinutes);
+    const ok = { title: fieldCopy.clockedOutTitle(formatHoursMinutes(totalHours)) };
+    const words = { refused: fieldCopy.clockOutRefused(), queued: fieldCopy.clockOutQueued() };
     if (!team) {
-      if (!doClockOut(entry.id, outIso)) {
-        showAlert('Already clocked out', `${entry.workerName}'s shift was already ended — nothing was changed. Correct it from History if the hours are wrong.`);
-      } else if (Platform.OS !== 'web') {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      setOutFor(null);
-      return;
+      const outcome = await clockOutDetailed(entry.id, outIso);
+      if (outcome === 'already') return { status: 'refused', reason: fieldCopy.clockOutAlready() };
+      return fromWriteOutcome(outcome, ok, words);
     }
-    // A team row is the foreman's record: say so before changing it.
-    showAlert(
-      'Clock out a shift you didn\u2019t log?',
-      // #106: the bare name — the label read "Logged by jose@… logged this shift".
-      `${summary} ${sentenceName(loggedByName ?? 'a teammate')} logged this shift; it stays theirs, and their copy updates too.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clock out',
-          style: 'destructive',
-          onPress: () => {
-            const done = closeTeamShift(entry.id, { clockOut: outIso, totalHours: outPreview.hours, breakMinutes: outPreview.breakMinutes });
-            if (!done) showAlert('Couldn\u2019t clock out', 'Only shifts on your own jobs can be closed here.');
-            setOutFor(null);
-          },
-        },
-      ],
-    );
-  }, [outFor, outPreview, outNextDay, doClockOut, closeTeamShift]);
+    const closed = await closeTeamShiftDetailed(entry.id, { clockOut: outIso, totalHours, breakMinutes });
+    if (closed === 'not_own') return { status: 'refused', reason: fieldCopy.teamShiftNotOwn() };
+    return fromWriteOutcome(closed, ok, words);
+  }, [outFor, outText, outNextDay, clockOutDetailed, closeTeamShiftDetailed]);
+  // A shift with no name on it takes the no-name sentence, never "Check 's shift".
+  const outWriteOptions = useMemo<CommitWriteOptions>(() => (outFor?.entry.workerName?.trim() ? {
+    idempotent: false,
+    copy: { refused: fieldCopy.clockOutRefused(), timeout: fieldCopy.clockOutTimeout(outFor.entry.workerName.trim()) },
+  } : {
+    idempotent: false,
+    copy: { refused: fieldCopy.clockOutRefused(), timeout: fieldCopy.clockOutTimeoutNoName() },
+  }), [outFor]);
+  const outSlideRef = useRef<SlideToConfirmHandle>(null);
+  // The sheet stays open through the result; a close tapped mid-write is held.
+  const [outBusy, setOutBusy] = useState(false);
+  const closeOutSheet = useCallback(() => { if (!outBusy) setOutFor(null); }, [outBusy]);
+
+  // ── C1: clocking out your own shift (the "Clock out?" Alert, retired) ──
+  // A small sheet: the same summary sentence, then the md slide. The out time
+  // is taken at RELEASE (commitClockOut), never when the sheet opened.
+  const [clockOutFor, setClockOutFor] = useState<TimeEntry | null>(null);
+  const [clockOutBusy, setClockOutBusy] = useState(false);
+  // The summary re-reads the clock while the sheet is open, so "records 8.20
+  // hours" stays what the slide would record now.
+  const [clockOutTick, setClockOutTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!clockOutFor) return;
+    setClockOutTick(Date.now());
+    const t = setInterval(() => setClockOutTick(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, [clockOutFor]);
+  const clockOutSummary = useMemo(() => {
+    if (!clockOutFor) return '';
+    // #152: quote the NET time and the exact hours the hook will save —
+    // computeShiftHours with the break so far (the running one included).
+    const breakSoFar = breakMinutesAt(clockOutFor, clockOutTick);
+    const grossHours = Math.max(0, (clockOutTick - Date.parse(clockOutFor.clockIn)) / 3_600_000);
+    const { totalHours: willRecord } = computeShiftHours(clockOutFor.clockIn, new Date(clockOutTick).toISOString(), breakSoFar);
+    return breakSoFar > 0
+      ? fieldCopy.clockOutSummaryAfterBreak(clockOutFor.workerName, formatHoursMinutes(grossHours), formatHoursMinutes(willRecord), breakSoFar, willRecord.toFixed(2))
+      : fieldCopy.clockOutSummary(clockOutFor.workerName, formatHoursMinutes(willRecord), willRecord.toFixed(2));
+  }, [clockOutFor, clockOutTick]);
+  const commitClockOut = useCallback(async (): Promise<CommitResult> => {
+    const entry = clockOutFor;
+    if (!entry) return { status: 'refused', reason: fieldCopy.clockOutRefused() };
+    setClockOutBusy(true);
+    // RELEASE time: the moment the slide committed, not when the sheet opened.
+    const releaseMs = Date.now();
+    const outIso = new Date(releaseMs).toISOString();
+    const plan = planClockOut(entry, outIso, releaseMs);
+    const outcome = await clockOutDetailed(entry.id, outIso);
+    if (outcome === 'already') return { status: 'refused', reason: fieldCopy.clockOutAlready() };
+    const recorded = formatHoursMinutes(plan.kind === 'ok' ? plan.totalHours : 0);
+    return fromWriteOutcome(outcome, { title: fieldCopy.clockedOutTitle(recorded) }, {
+      refused: fieldCopy.clockOutRefused(),
+      queued: fieldCopy.clockOutQueued(),
+    });
+  }, [clockOutFor, clockOutDetailed]);
+  const clockOutWriteOptions = useMemo<CommitWriteOptions>(() => (clockOutFor?.workerName?.trim() ? {
+    idempotent: false,
+    copy: { refused: fieldCopy.clockOutRefused(), timeout: fieldCopy.clockOutTimeout(clockOutFor.workerName.trim()) },
+  } : {
+    idempotent: false,
+    copy: { refused: fieldCopy.clockOutRefused(), timeout: fieldCopy.clockOutTimeoutNoName() },
+  }), [clockOutFor]);
+  const clockOutSlideRef = useRef<SlideToConfirmHandle>(null);
+  const closeClockOutSheet = useCallback(() => { if (!clockOutBusy) setClockOutFor(null); }, [clockOutBusy]);
 
   const handleAction = useCallback((entry: TimeEntry, action: string) => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Clock-out opens a sheet whose slide plays its own haptic.
+    if (action !== 'clock_out' && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // A team row (#63) or a missed clock-out (#66) ends through the out-time
     // sheet — never a one-tap "now".
@@ -840,7 +918,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // (its card shows none; this is the belt to that).
     if (!teamRow && !entries.some(x => x.id === entry.id)) return;
     if (action === 'clock_out' && (teamRow || isMissedClockOut(entry, Date.now(), shiftAlertHours))) {
-      openOutSheet(entry, !!teamRow, teamRow ? teamLoggedByLabel(teamRow) : undefined, teamRow ? teamLoggedByName(teamRow) : undefined);
+      // The caption gets the RAW name (#106): an unknown collaborator stays
+      // undefined so the sheet says "A teammate …", never "a teammate …".
+      openOutSheet(entry, !!teamRow, teamRow ? teamLoggedByLabel(teamRow) : undefined, teamRow?.loggedByName?.trim() || undefined);
       return;
     }
     if (teamRow) return;
@@ -851,39 +931,15 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       // Hook reads breakStartedAt from the row to compute elapsed minutes.
       resumeFromBreak(entry.id);
     } else if (action === 'clock_out') {
-      // Confirm BEFORE the write. This used to end the shift on the first tap
-      // and announce it afterwards, from a button sitting in a two-up row
-      // beside Break in the same styles.actionBtn — a foreman clocking in a
-      // six-man crew with a gloved thumb could end someone's day at 9:40am.
-      // Those hours feed the payroll CSV and the labor samples that seed the
-      // cost book, so the error propagates into pay and into future bids.
-      // Same shape as handleRemoveManpower in app/daily-report.tsx: name the
-      // person and what is about to be recorded.
-      // #152: quote the NET time and the exact hours the hook will save —
-      // computeShiftHours with the break so far (the running one included).
-      const now = Date.now();
-      const breakSoFar = breakMinutesAt(entry, now);
-      const grossHours = Math.max(0, (now - Date.parse(entry.clockIn)) / 3_600_000);
-      const { totalHours: willRecord } = computeShiftHours(entry.clockIn, new Date(now).toISOString(), breakSoFar);
-      showAlert(
-        'Clock out?',
-        breakSoFar > 0
-          ? `${entry.workerName} has been on the clock ${formatHoursMinutes(grossHours)} (${formatHoursMinutes(willRecord)} after a ${breakSoFar}-min break). This ends the shift and records ${willRecord.toFixed(2)} hours.`
-          : `${entry.workerName} has been on the clock ${formatHoursMinutes(willRecord)}. This ends the shift and records ${willRecord.toFixed(2)} hours.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Clock out',
-            style: 'destructive',
-            onPress: () => {
-              // The hook computes totalHours/overtimeHours and updates the row.
-              doClockOut(entry.id);
-            },
-          },
-        ],
-      );
+      // Confirm BEFORE the write, with a slide. This used to end the shift on
+      // the first tap and announce it afterwards, from a button sitting in a
+      // two-up row beside Break — a foreman clocking in a six-man crew with a
+      // gloved thumb could end someone's day at 9:40am. Those hours feed the
+      // payroll CSV and the labor samples that seed the cost book. The sheet
+      // names the person and what is about to be recorded; the slide commits.
+      setClockOutFor(entry);
     }
-  }, [startBreak, resumeFromBreak, doClockOut, ownedTeam, entries, shiftAlertHours, openOutSheet]);
+  }, [startBreak, resumeFromBreak, ownedTeam, entries, shiftAlertHours, openOutSheet]);
 
   // ── Correcting a finished entry ───────────────────────────────────────
   // hooks/useTimeEntries has exported updateEntry and deleteEntry since it was
@@ -1305,7 +1361,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const fCorrect = useSheetFrame('form', { visible: correcting !== null, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(correcting !== null, handleSaveCorrection);
   const fOut = useSheetFrame('dialog', { visible: outFor !== null, animationType: 'slide', rise: true });
-  useSheetPrimaryHotkey(outFor !== null, handleSaveOutTime);
+  // Cmd+Enter plays the slide's hold (never an instant commit); no Cmd+S.
+  useSheetPrimaryHotkey(outFor !== null, () => outSlideRef.current?.playHoldToCommit(), { saveKey: false });
+  useSheetPrimaryHotkey(clockOutFor !== null, () => clockOutSlideRef.current?.playHoldToCommit(), { saveKey: false });
   const fExport = useSheetFrame('form', { visible: showExport, animationType: 'slide', rise: true });
   const fBatchOut = useSheetFrame('dialog', { visible: batchOutOpen, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(batchOutOpen, handleBatchClockOut);
@@ -2226,12 +2284,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       {/* When did he actually leave? (#66 missed clock-out, #63 closing a
           shift the foreman logged). The time is on the clock-in day unless
           "next day" is on; it can't be before the clock-in or after now. */}
-      <Modal visible={outFor !== null} transparent animationType={fOut.animationType} onRequestClose={() => setOutFor(null)}>
+      <Modal visible={outFor !== null} transparent animationType={fOut.animationType} onRequestClose={closeOutSheet}>
         <View style={[styles.modalOverlay, fOut.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fOut.card, fOut.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock-out time</Text>
-              <TouchableOpacity onPress={() => setOutFor(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+              <TouchableOpacity onPress={closeOutSheet} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -2274,22 +2332,67 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   {outPreview?.problem
                     ?? `Records ${outPreview?.hours.toFixed(2) ?? '0.00'} hours${outPreview && outPreview.breakMinutes > 0 ? ` after a ${outPreview.breakMinutes}-min break` : ''}. The out time is saved as the clock-out.`}
                 </Text>
-                <TouchableOpacity
-                  style={[styles.correctSaveBtn, outPreview?.problem ? { opacity: 0.5 } : null]}
-                  onPress={handleSaveOutTime}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !!outPreview?.problem }}
-                  testID="out-time-save"
-                >
-                  <Check size={16} color="#fff" strokeWidth={2} />
-                  <Text style={styles.correctSaveBtnText}>Clock out</Text>
-                </TouchableOpacity>
+                {outFor.team ? (
+                  // The foreman's record: said above the track, not in a second Alert.
+                  <Text style={styles.correctNoteHint} testID="out-time-team-caption">
+                    {outFor.loggedByName ? fieldCopy.teamShiftCaption(outFor.loggedByName) : fieldCopy.teamShiftCaptionUnnamed()}
+                  </Text>
+                ) : null}
+                <SlideToConfirm
+                  ref={outSlideRef}
+                  size="md"
+                  label={fieldCopy.clockOutSlideLabel()}
+                  busyLabel={fieldCopy.clockOutBusy()}
+                  srLabel={fieldCopy.clockOutSrLabel(outFor.entry.workerName)}
+                  srConfirm={fieldCopy.clockOutSrConfirm()}
+                  onCommit={commitOutTime}
+                  writeOptions={outWriteOptions}
+                  queuedLabel={fieldCopy.clockOutQueued()}
+                  disabledReason={outPreview?.problem ?? null}
+                  // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+                  onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setOutBusy(false); }}
+                  onDone={() => { setOutBusy(false); setOutFor(null); }}
+                  onResultAfterUnmount={momentAfterUnmount}
+                  style={styles.momentSlide}
+                  testID="out-time-slide"
+                />
               </>
             ) : null}
           </Animated.View>
         </View>
       </Modal>
+
+      {/* C1 (moments, lane MOMFIELD): your own shift. The summary names the
+          person and the hours; the md slide in the footer is the confirm. */}
+      <Sheet
+        visible={clockOutFor !== null}
+        onClose={closeClockOutSheet}
+        title={fieldCopy.clockOutSheetTitle()}
+        size="dialog"
+        dismissOnBackdrop={!clockOutBusy}
+        testID="clock-out-sheet"
+        footer={clockOutFor ? (
+          <SlideToConfirm
+            ref={clockOutSlideRef}
+            size="md"
+            label={fieldCopy.clockOutSlideLabel()}
+            busyLabel={fieldCopy.clockOutBusy()}
+            srLabel={fieldCopy.clockOutSrLabel(clockOutFor.workerName)}
+            srConfirm={fieldCopy.clockOutSrConfirm()}
+            onCommit={commitClockOut}
+            writeOptions={clockOutWriteOptions}
+            queuedLabel={fieldCopy.clockOutQueued()}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setClockOutBusy(false); }}
+            onDone={() => { setClockOutBusy(false); setClockOutFor(null); }}
+            onResultAfterUnmount={momentAfterUnmount}
+            style={styles.momentSlide}
+            testID="clock-out-slide"
+          />
+        ) : null}
+      >
+        <Text style={styles.modalSubtitle} testID="clock-out-summary">{clockOutSummary}</Text>
+      </Sheet>
 
       {/* UX wave B1: clock out everyone on a job — one confirm that names the
           count and the time, and lets him adjust the time. */}
@@ -2686,6 +2789,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
   closeBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   modalSubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, marginBottom: 16 },
+  // A moment slide (md, 64% wide) sits centred under what it confirms.
+  momentSlide: { alignSelf: 'center', marginTop: 12 },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -35,6 +35,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { classifyError, describeError, errorCode, rawErrorMessage } from '../utils/errorCopy';
+import { setLang } from '../i18n/core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -441,6 +442,56 @@ for (const s of SAMPLES) {
   ok('app/change-order.tsx: the send catch folds in the thrown sentence when it is one',
     /const why = ownSentence\(e\) \?\? describeError\(e, \{ action: 'send the change order' \}\)\.body;/.test(co)
     && /nothing was saved\. \$\{why\} Your change order is still open here\./.test(co));
+}
+
+// ── 7. The whole-sentence title and every other language (wave-next W2) ───
+// A migrated screen passes its own WHOLE-sentence `title`; English callers
+// that pass none are byte-identical. In any other language the body is built
+// only from whole translated sentences: the caller's English `action`
+// fragment never enters it (docs/I18N.md, "Gender and sentence building").
+{
+  console.log('\nwhole-sentence title + other languages:');
+  setLang('en');
+  const ctxs = [{ action: 'save the report' }, { action: 'save the report', keptLocally: true }, { action: 'save the report', keptLocally: false }];
+  const before = SAMPLES.flatMap(sm => ctxs.map(c => describeError(sm.err, c)));
+  // A title replaces only the title, in English too; the body is untouched.
+  let bad = '';
+  SAMPLES.forEach((sm, i) => ctxs.forEach((c, j) => {
+    const plain = before[i * ctxs.length + j];
+    const titled = describeError(sm.err, { ...c, title: "Couldn't save the report" });
+    if (titled.title !== "Couldn't save the report" || titled.body !== plain.body || titled.kind !== plain.kind || titled.code !== plain.code) bad = sm.label;
+    const blank = describeError(sm.err, { ...c, title: '   ' });
+    if (blank.title !== plain.title || blank.body !== plain.body) bad = `${sm.label} (blank title)`;
+  }));
+  ok('a whole-sentence title replaces the title only (English body byte-identical; a blank title is ignored)', bad === '', bad);
+  ok('English with no title keeps the kind\'s title', describeError(new TypeError('Network request failed'), { action: 'save the report' }).title === "You're offline");
+
+  setLang('es');
+  let leak = '';
+  let english = '';
+  for (const sm of SAMPLES) for (const c of ctxs) {
+    const d = describeError(sm.err, c);
+    if (d.body.includes('save the report') || d.title.includes('save the report')) leak = sm.label;
+    if (/MAGE couldn't|Try again|\bthe server\b|this device|Nothing you entered/i.test(d.body) || /^(?:You're|Signed out|Not allowed|That )/.test(d.title)) english = `${sm.label}: ${d.title} / ${d.body}`;
+  }
+  ok('Spanish: the caller\'s English action never enters the title or body', leak === '', leak);
+  ok('Spanish: title and body are whole Spanish sentences (no English frame left)', english === '', english);
+  const off = describeError(new TypeError('Network request failed'), { action: 'save the report', keptLocally: true });
+  ok('Spanish offline: the kind\'s title, the cause + next step, and the work survived', off.title === 'Sin conexión' && off.body === 'Este dispositivo no se conecta a la red. Revisa tu señal o el Wi-Fi e inténtalo de nuevo. No se perdió nada de lo que escribiste. Sigue en este dispositivo.', `${off.title} / ${off.body}`);
+  const ref = describeError({ message: 'Internal Server Error', status: 500 }, { action: 'save the report' });
+  ok('Spanish server error: promises the reference only when it is printed', ref.body.endsWith('(Referencia: HTTP 500)') && ref.body.includes('la referencia de abajo'), ref.body);
+  const noRef = describeError(new Error('boom'), { action: 'save the report' });
+  ok('Spanish unknown with no code: no reference promised', !/referencia/i.test(noRef.body) && /cuéntale a soporte/.test(noRef.body), noRef.body);
+  ok('Spanish: a migrated screen\'s whole-sentence title wins', describeError(new Error('boom'), { action: 'x', title: 'No se pudo guardar el reporte' }).title === 'No se pudo guardar el reporte');
+  ok('Spanish: every kind has its own Spanish title (never the English one)', SAMPLES.every((sm, i) => { const es = describeError(sm.err, { action: 'x' }).title; return es.length > 0 && es !== before[i * ctxs.length].title; }));
+
+  setLang('xx');
+  const px = describeError(new TypeError('Network request failed'), { action: 'save the report', keptLocally: false });
+  ok('pseudo-locale: title and every body sentence come back bracketed', /^\[.*\]$/.test(px.title) && px.body.split('] [').length === 2 && px.body.startsWith('[') && px.body.endsWith(']'), `${px.title} / ${px.body}`);
+
+  setLang('en');
+  const after = SAMPLES.flatMap(sm => ctxs.map(c => describeError(sm.err, c)));
+  ok('back in English every sample is byte-identical to before (no language state leaks)', JSON.stringify(after) === JSON.stringify(before));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

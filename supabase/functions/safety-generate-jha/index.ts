@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
@@ -37,6 +38,8 @@ interface GenerateJhaRequest {
   trade?: string;
   taskDescription?: string;
   projectContext?: string;
+  /** 'es' asks for Spanish text; anything else (or absent) is English. */
+  locale?: string;
 }
 
 interface JhaStepOut {
@@ -102,7 +105,11 @@ serve(async (req) => {
     body.projectContext ? `Project context: ${String(body.projectContext).slice(0, 800)}` : null,
     `Task: ${taskDescription}`,
   ].filter(Boolean).join('\n');
-  const prompt = `${ctxLine}\n\n${JHA_PROMPT}`;
+  // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
+  // when the client sent locale "es". '' otherwise, so an English request's
+  // prompt is byte-identical to before. The JSON shape, enum values, numbers
+  // and OSHA citations are unchanged by the rule.
+  const prompt = `${ctxLine}\n\n${JHA_PROMPT}` + replyLanguageRule(body.locale);
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);

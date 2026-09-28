@@ -555,6 +555,45 @@ ok('the error-body sweep is live (planted shapes are flagged, legit ones are not
     /clientIpFrom\(req\.headers\)/.test(sm) && /import \{ clientIpFrom \} from ["']\.\.\/_shared\/notifyGuards\.ts["']/.test(sm));
 }
 
+// ── 20. safety AI answers in Spanish only when asked (wave-next W2, ESSAFETY) ──
+// docs/I18N.md §7: the three safety drafting functions take `locale` and APPEND
+// replyLanguageRule(body.locale) — '' unless 'es' — AFTER their JSON
+// instructions, so an English request's prompt is byte-identical and the JSON
+// shape / enum values / OSHA citations never change. The screens send
+// `locale: 'es'` only when the app is in Spanish, so an English request BODY is
+// byte-identical too (a spread of {} adds no key).
+{
+  const IMPORT = 'import { replyLanguageRule } from "../_shared/replyLanguage.ts";';
+  const fns: Array<[string, RegExp]> = [
+    ['safety-generate-jha', /const prompt = `\$\{ctxLine\}\\n\\n\$\{JHA_PROMPT\}` \+ replyLanguageRule\(body\.locale\);/],
+    ['safety-draft-incident', /\[\{ text: `\$\{ctxLine\}\\n\\n\$\{INCIDENT_PROMPT\}` \+ replyLanguageRule\(body\.locale\) \}\]/],
+    ['safety-detect-hazards', /\[\{ text: HAZARD_PROMPT \+ replyLanguageRule\(body\.locale\) \}\]/],
+  ];
+  for (const [fn, appended] of fns) {
+    const src = read(`supabase/functions/${fn}/index.ts`);
+    ok(`${fn} imports the shared reply-language rule`, src.includes(IMPORT));
+    ok(`${fn} appends replyLanguageRule(body.locale) once, after its JSON instructions`,
+      appended.test(src) && (src.match(/replyLanguageRule\(/g) ?? []).length === 1);
+    ok(`${fn} declares locale as an optional request field`, /\n  locale\?: string;\n\}/.test(src));
+  }
+  const inc = read('supabase/functions/safety-draft-incident/index.ts');
+  ok('safety-draft-incident still coerces the English enum values (the rule never translates them)',
+    inc.includes("const VALID_TYPES = ['injury', 'near_miss', 'property', 'environmental'];")
+    && inc.includes("const VALID_SEV = ['low', 'medium', 'high', 'critical'];"));
+  const LOCALE_SPREAD = "...(getLang() === 'es' ? { locale: 'es' } : {})";
+  const screens: Array<[string, number]> = [['app/safety-jha.tsx', 1], ['app/safety-incidents.tsx', 1], ['app/safety-hazards.tsx', 2]];
+  for (const [file, n] of screens) {
+    const src = read(file);
+    ok(`${file} sends locale 'es' only when the app is in Spanish (${n} request bod${n === 1 ? 'y' : 'ies'})`,
+      src.split(LOCALE_SPREAD).length - 1 === n && !/locale: getLang\(\)|locale: lang\b/.test(src));
+  }
+  // Behaviour of the spread itself: English adds nothing, Spanish adds exactly locale.
+  const bodyFor = (lang: string) => JSON.stringify({ trade: 'Framing', taskDescription: 'Set trusses', ...(lang === 'es' ? { locale: 'es' } : {}) });
+  ok('an English request body is byte-identical to the pre-Spanish body',
+    bodyFor('en') === JSON.stringify({ trade: 'Framing', taskDescription: 'Set trusses' }));
+  ok('a Spanish request body carries locale "es"', JSON.parse(bodyFor('es')).locale === 'es');
+}
+
 Promise.resolve()
   .then(hmacSelfTest)
   .then(digestSanitizerTest)

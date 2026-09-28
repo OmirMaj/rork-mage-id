@@ -99,17 +99,19 @@ console.log('\n#80 the retention release writes no ledger column');
 console.log('\n#80 commitPayment records through recordInvoicePayment');
 {
   const src = read('app/invoice.tsx');
-  const start = src.indexOf('const commitPayment = useCallback(');
-  const end = src.indexOf('const handleMarkPaid = useCallback(');
+  // Wave-next W2 (moments B3): the commit is the slide's recordPayment; its
+  // outcomes are the slide's reason lines (whole sentences, moneyCopy.ts).
+  const start = src.indexOf('const recordPayment = useCallback(');
+  const end = src.indexOf('const paymentWriteOptions = useMemo');
   const body = start > -1 && end > start ? src.slice(start, end) : '';
-  ok('commitPayment found', body.length > 0);
+  ok('recordPayment found', body.length > 0);
   ok('it appends ONE entry via recordInvoicePayment', /await recordInvoicePayment\(existingInvoice\.id, payment\)/.test(body));
   ok('it never hands updateInvoice a payments array, amountPaid or status', !/updateInvoice\(/.test(body));
-  // Integration round 1 put a three-line WHY comment above the alert: window 600.
-  // Round 2 (data-sync) put the HELD branch ('Payment not sent', also returns)
-  // before it: window 2000, and that branch is pinned too.
-  ok('a failed write is never reported as recorded', /if \(outcome === 'failed'\) \{[\s\S]{0,2000}Payment not recorded[\s\S]{0,400}return;/.test(body)
-    && /if \(held\) \{\s*showAlert\(\s*'Payment not sent',[\s\S]{0,600}?\);\s*return;\s*\}/.test(body));
+  // Both 'failed's (HELD: an earlier change of this invoice is waiting, the
+  // append was never sent; REFUSED: the server said no) end the write as
+  // refused with their own sentence, and nothing after it says recorded.
+  ok('a failed write is never reported as recorded',
+    /if \(outcome === 'failed'\) \{[\s\S]{0,1200}?held = await hasUnsavedChainForSession\('invoices', existingInvoice\.id\);[\s\S]{0,200}?return \{ status: 'refused', reason: held \? payHeld\(\) : payRefused\(\) \};\s*\}/.test(body));
   ok('the re-mint is driven by afterRecordedPayment (the server\'s balance)',
     /afterRecordedPayment\(outcome, server,/.test(body) && /mintPayLinkFor\(existingInvoice, follow\.remintFor\)/.test(body)
     && !/mintPayLinkFor\(existingInvoice, newBalance\)/.test(body));

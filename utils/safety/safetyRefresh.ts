@@ -18,6 +18,13 @@
 //       (requireTier(['business'])). safetyAiBlockedReason gates the buttons on
 //       the viewer's OWN tier, and aiLimitAlertTitle keeps "AI limit reached"
 //       for a real cap.
+//
+// SPANISH (wave-next W2): every sentence here is ONE catalog key read at call
+// time through t() (docs/I18N.md §3.4/§3.5) — never a frame filled with a
+// translated noun. In English t() returns the inline English, so every output
+// is byte-identical to before.
+
+import { t } from '@/i18n/core';
 
 /** The five project-scoped safety tables a refresh re-reads. Certifications
  *  and templates are company records of the signed-in user; nobody else
@@ -71,22 +78,45 @@ export const CREW_CARDS_LOADING = "Loading the GC's crew cards…";
 export const CREW_CARDS_UNAVAILABLE =
   "Couldn't load the GC's crew cards (offline?), so lapsed-card checks didn't run. Retry.";
 
+/** One of the two lines above in the app's language. The constants stay the
+ *  English source (validators and the screens' pinned expression read them);
+ *  anything else passes through unchanged. */
+export function crewCardsText(line: string): string {
+  if (line === CREW_CARDS_LOADING) return t('safety.crew.cardsLoading', "Loading the GC's crew cards…");
+  if (line === CREW_CARDS_UNAVAILABLE) {
+    return t('safety.crew.cardsUnavailable', "Couldn't load the GC's crew cards (offline?), so lapsed-card checks didn't run. Retry.");
+  }
+  return line;
+}
+
 // ── #121: what a crew seat sees ──────────────────────────────────────────
 export type CrewNoteKind = 'jha' | 'toolbox' | 'hazard';
 
-const NOUN: Record<CrewNoteKind, string> = { jha: 'JHAs', toolbox: 'toolbox talks', hazard: 'hazards' };
 
 /** The one-line note on the JHA / toolbox / hazard list for an invited crew
  *  seat. Not the incident note's 1904.29 reasoning — these records carry no
  *  injury detail; the rule is simply that he reads what he filed. */
 export function crewListNote(kind: CrewNoteKind): string {
-  return `Your list shows only the ${NOUN[kind]} you filed. They go to the job's owner; the owner's own ${NOUN[kind]} aren't shown to invited crew.`;
+  // One whole sentence per kind (never a translated noun in a frame). The
+  // English is exactly the NOUN-built sentence it always was.
+  switch (kind) {
+    case 'jha':
+      return t('safety.crew.listNoteJha', "Your list shows only the JHAs you filed. They go to the job's owner; the owner's own JHAs aren't shown to invited crew.");
+    case 'toolbox':
+      return t('safety.crew.listNoteToolbox', "Your list shows only the toolbox talks you filed. They go to the job's owner; the owner's own toolbox talks aren't shown to invited crew.");
+    case 'hazard':
+      return t('safety.crew.listNoteHazard', "Your list shows only the hazards you filed. They go to the job's owner; the owner's own hazards aren't shown to invited crew.");
+  }
 }
 
 /** Empty-state title for a crew seat, so an empty list doesn't read as
  *  "none exist on this job". */
 export function crewEmptyTitle(kind: CrewNoteKind): string {
-  return `You haven't filed any ${NOUN[kind]} on this job`;
+  switch (kind) {
+    case 'jha': return t('safety.crew.emptyJha', "You haven't filed any JHAs on this job");
+    case 'toolbox': return t('safety.crew.emptyToolbox', "You haven't filed any toolbox talks on this job");
+    case 'hazard': return t('safety.crew.emptyHazard', "You haven't filed any hazards on this job");
+  }
 }
 
 // ── #123: the safety AI buttons ──────────────────────────────────────────
@@ -103,11 +133,11 @@ export function safetyAiBlockedReason(kind: SafetyAiKind, ownTierIsBusinessOrAbo
   if (ownTierIsBusinessOrAbove) return null;
   switch (kind) {
     case 'hazard_scan':
-      return "AI hazard scan needs your own Business plan; your GC's plan doesn't cover it. Log the hazard by hand below — it still goes to the job's owner.";
+      return t('safety.ai.blockedHazardScan', "AI hazard scan needs your own Business plan; your GC's plan doesn't cover it. Log the hazard by hand below — it still goes to the job's owner.");
     case 'incident_draft':
-      return "Drafting with AI needs your own Business plan; your GC's plan doesn't cover it. Fill in the report below — it still goes to the job's owner.";
+      return t('safety.ai.blockedIncidentDraft', "Drafting with AI needs your own Business plan; your GC's plan doesn't cover it. Fill in the report below — it still goes to the job's owner.");
     case 'jha_generate':
-      return "Generating a JHA with AI needs your own Business plan; your GC's plan doesn't cover it. Add the steps by hand below.";
+      return t('safety.ai.blockedJhaGenerate', "Generating a JHA with AI needs your own Business plan; your GC's plan doesn't cover it. Add the steps by hand below.");
   }
 }
 
@@ -120,6 +150,6 @@ export function safetyAiServerRefusal(kind: SafetyAiKind, status: number): strin
  *  was actually used up; a tier block is a 'Business feature'. */
 export function aiLimitAlertTitle(reason: string | undefined): string {
   return reason === 'daily_cap' || reason === 'smart_cap' || reason === 'lifetime_cap'
-    ? 'AI limit reached'
-    : 'Business feature';
+    ? t('safety.ai.limitReachedTitle', 'AI limit reached')
+    : t('safety.ai.businessFeatureTitle', 'Business feature');
 }

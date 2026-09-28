@@ -6,7 +6,7 @@ import { punchListTypeOf, contractTermsAfterLoad, contractTermsSyncColumns } fro
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import { registerPreSignOutFlush } from '@/utils/preSignOutFlush';
 import type { Project, ProjectType, AppSettings, PaymentSplit, CompanyBranding, ProjectCollaborator, ChangeOrder, COAuditEntry, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus, PunchListType, ScheduleTask, InvoicePayment } from '@/types';
-import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
+import { fieldTicketFromStoredRow, sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { foldPlanSheets } from '@/utils/planSheetBatchCore';
 import { punchItemsFollowingSubRename, ownsProjectFor } from '@/utils/subPortalSnapshot';
 import { dayOrInstantDate, todayCalendarDay } from '@/utils/calendarDate';
@@ -1216,6 +1216,13 @@ export type SignFieldTicketInput =
  * decides on; `code` says why a refusal happened when it is known ('sealed':
  * a signed ticket's content cannot change, `message` lists the fields).
  */
+/**
+ * #131: the tax (and prior approved total) frozen onto a change order as it is
+ * approved without going out ("Client approved without signing"): written in
+ * the SAME status write as the approval, never a second update.
+ */
+export type ChangeOrderFrozenFields = Pick<ChangeOrder, 'taxRatePct' | 'taxAmount' | 'totalWithTax' | 'priorApprovedChangesTotal'>;
+
 export interface OnlineRecordResult<T> {
   status: OnlineWriteStatus;
   code?: OnlineRefusalCode;
@@ -1233,7 +1240,7 @@ type CrossDomainValue = {
    * updateChangeOrder itself, so the cascade has one home. On 'failed'
    * nothing changed on this device. 'local' = no signed-in account.
    */
-  approveChangeOrder: (id: string, opts?: { anchorTaskId?: string }) => Promise<RecordWriteOutcome>;
+  approveChangeOrder: (id: string, opts?: { anchorTaskId?: string; frozen?: ChangeOrderFrozenFields }) => Promise<RecordWriteOutcome>;
   /** Step 0: close a project with an answer. The close is written first; the device shows it only on 'synced' | 'queued' (or 'local'). */
   closeProjectDetailed: (id: string) => Promise<RecordWriteOutcome>;
   /** Step 0: sign a field ticket ONLINE ONLY (a signature is never queued). Local state only on 'synced'. A `{ ticket }` whose id this phone already holds is signed as an update of that record. */
@@ -11050,16 +11057,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Each returns the truth of the server write, so a slide turns green only on
   // a real confirmation. The older functions stay for every other caller.
 
-  const approveChangeOrder = useCallback(async (id: string, opts?: { anchorTaskId?: string }): Promise<RecordWriteOutcome> => {
+  const approveChangeOrder = useCallback(async (id: string, opts?: { anchorTaskId?: string; frozen?: ChangeOrderFrozenFields }): Promise<RecordWriteOutcome> => {
     const prior = changeOrdersRef.current.find(c => c.id === id);
     if (!prior) return 'failed';
     const reflow: ChangeOrderReflowIntent | undefined = opts?.anchorTaskId ? { anchorTaskId: opts.anchorTaskId } : undefined;
+    // #131: a freeze rides in the SAME write as the approval (and the local update).
+    const frozen: ChangeOrderFrozenFields = opts?.frozen ?? {};
     // No account to send as: this device only, as updateChangeOrder answers.
-    if (!canSync) return updateChangeOrder(id, { status: 'approved' }, reflow);
+    if (!canSync) return updateChangeOrder(id, { ...frozen, status: 'approved' }, reflow);
     const now = new Date().toISOString();
     // Built from the shared builder like every change_orders update (it can
     // never drop a column the insert writes; no audit_trail, no portal_state).
-    const statusRow = { ...changeOrderToRow({ ...prior, status: 'approved' }), updated_at: now };
+    const statusRow = { ...changeOrderToRow({ ...prior, ...frozen, status: 'approved' }), updated_at: now };
     // The status write FIRST, ordered exactly as updateChangeOrder orders its
     // UPDATE: behind the CO's own INSERT while that is on the wire or queued
     // (a direct UPDATE would match 0 rows and read 'synced').
@@ -11087,7 +11096,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // marker), the "marked approved" entry, grading. updateChangeOrder applies
     // them synchronously and writes the full row after; its answer does not
     // change what the approval already is on the server.
-    void updateChangeOrder(id, { status: 'approved' }, reflow).catch(() => undefined);
+    void updateChangeOrder(id, { ...frozen, status: 'approved' }, reflow).catch(() => undefined);
     return outcome;
   }, [canSync, updateChangeOrder, changeOrderToRow, beginCoWrite, endCoWrite]);
 
@@ -11111,6 +11120,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     updateProject(id, { status: 'closed', closedAt });
     return outcome;
   }, [canSync, updateProject]);
+
+  /** The stored field_tickets row for `id`, as a ticket (fieldTicketFromStoredRow); null when it cannot be read. */
+  const readStoredFieldTicket = useCallback(async (id: string, onPhone: FieldTicket): Promise<FieldTicket | null> => {
+    try {
+      const { data, error } = await supabase.from('field_tickets').select('*').eq('id', id).maybeSingle();
+      if (error || !data) return null;
+      return fieldTicketFromStoredRow(data as Record<string, unknown>, onPhone);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const signFieldTicket = useCallback(async (given: SignFieldTicketInput): Promise<OnlineRecordResult<FieldTicket>> => {
     // A signature is never kept on the phone only: no account, no signature.
@@ -11137,6 +11157,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const res = await touchedWrite(proDocWriteTouchRef, finalTicket.id, () =>
         supabaseWriteOnlineDetailed('field_tickets', 'insert', fieldTicketRow(finalTicket)));
       if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
+      if (res.landedEarlier) {
+        // A retry met its OWN earlier insert (that answer was lost): the
+        // server holds the FIRST attempt's ticket, so that stored row is what
+        // this phone keeps and what the result names. Unreadable: no answer
+        // yet (it is on file, but what is on file is not known here).
+        const stored = await readStoredFieldTicket(finalTicket.id, finalTicket);
+        if (!stored) return { status: 'unknown' };
+        commit(stored);
+        return { status: 'synced', record: stored };
+      }
       commit(finalTicket);
       return { status: 'synced', record: finalTicket };
     }
@@ -11154,7 +11184,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
     commit(next);
     return { status: 'synced', record: next };
-  }, [canSync, stageTicketPhotos, fieldTicketRow, saveFieldTicketsMutation]);
+  }, [canSync, stageTicketPhotos, fieldTicketRow, saveFieldTicketsMutation, readStoredFieldTicket]);
 
   const saveAIAPayAppOnline = useCallback(async (app: SavedAIAPayApp): Promise<OnlineRecordResult<SavedAIAPayApp>> => {
     // A certification is never kept on the phone only.

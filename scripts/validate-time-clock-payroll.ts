@@ -183,8 +183,11 @@ console.log('\nScreen wiring (source):');
   ok('#64 the export writes the period selection, not every entry',
     /buildTimeEntriesCSV\(rows, overtimeRule, mergeTimeEntriesMirror\(entries, teamEntries\)\)/.test(tt) && /selectPayrollEntries\(/.test(tt) && !/buildTimeEntriesCSV\(entries\)/.test(tt));
   ok('#63 team rows are the OWNED-project ones (costingTeamRows), never all teamEntries', /costingTeamRows\(teamEntries\)/.test(tt));
-  ok('#63 team rows close through closeTeamShift, never clockOut / updateEntry',
-    /closeTeamShift\(entry\.id, \{ clockOut: outIso/.test(tt) && /if \(teamRow\) return;/.test(tt));
+  // moments C2 (wave-next W2, MOMFIELD): the out-time sheet's slide closes a
+  // team row through the awaited closeTeamShiftDetailed (same plan as
+  // closeTeamShift), never clockOut / updateEntry.
+  ok('#63 team rows close through closeTeamShiftDetailed, never clockOut / updateEntry',
+    /closeTeamShiftDetailed\(entry\.id, \{ clockOut: outIso/.test(tt) && /if \(teamRow\) return;/.test(tt));
   ok('#63 the job-costing drill tags team rows the same way', /teamLoggedByLabel\(e as TeamTimeEntry\)/.test(jc) && /Time tracking lists all/.test(jc));
   ok('#66 missed shifts leave On Site and stop blocking a clock-in',
     // wave 4 #99: the block is now the open-shift-by-worker map availableRoster filters on.

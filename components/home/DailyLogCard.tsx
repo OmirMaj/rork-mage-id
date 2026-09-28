@@ -39,12 +39,34 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatCalendarDay } from '@/utils/calendarDate';
+import { useT } from '@/contexts/LanguageContext';
 
 const MAX_VISIBLE = 3;
+
+/**
+ * A translated sentence as React children, split at its {placeholders}: one
+ * child per value and per run of words, exactly as the pre-i18n JSX
+ * (`{a} of {b} working days logged`) rendered. The sentence is still ONE key
+ * (the template comes back from t() with its placeholders intact); only the
+ * rendering is split, so the rendered tree is unchanged.
+ */
+function sentenceParts(template: string, values: Record<string, string | number>): (string | number)[] {
+  const out: (string | number)[] = [];
+  let last = 0;
+  template.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, name: string, at: number) => {
+    if (at > last) out.push(template.slice(last, at));
+    out.push(Object.prototype.hasOwnProperty.call(values, name) ? values[name] : m);
+    last = at + m.length;
+    return m;
+  });
+  if (last < template.length) out.push(template.slice(last));
+  return out;
+}
 
 type Row = DailyLogGapRow;
 
 export default function DailyLogCard() {
+  const { t, tn } = useT();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -82,17 +104,20 @@ export default function DailyLogCard() {
   // A sum only belongs in that sentence when there is exactly one job for it
   // to be a sum of. With more than one, say how many jobs and attribute the
   // total to them ("between them") instead of to the window.
+  //
+  // Spanish (wave-next W2): each headline is ONE key with its count, so a
+  // translator never assembles a sentence from pieces (docs/I18N.md, "Gender and sentence building").
   const gapHeadline = jobsWithGaps === 1
-    ? `${totalMissed} working ${totalMissed === 1 ? 'day' : 'days'} in the last 30 ${totalMissed === 1 ? 'has' : 'have'} no log.`
-    : `${jobsWithGaps} jobs have gaps in the last 30 days — ${totalMissed} working days between them.`;
+    ? tn('field.dfr.card.gapOneProject', totalMissed, { one: '{count} working day in the last 30 has no daily report.', other: '{count} working days in the last 30 have no daily report.' })
+    : t('field.dfr.card.gapManyProjects', '{projects} projects have gaps in the last 30 days — {days} working days between them.', { projects: jobsWithGaps, days: totalMissed });
 
   const headline = owedToday > 0
-    ? `${owedToday} ${owedToday === 1 ? 'job has' : 'jobs have'} no log for today.`
+    ? tn('field.dfr.card.owedToday', owedToday, { one: '{count} project has no daily report for today.', other: '{count} projects have no daily report for today.' })
     : voiceToday > 0
-      ? `${voiceToday} ${voiceToday === 1 ? 'project has' : 'projects have'} only a voice note for today. Finish it to file the day.`
+      ? tn('field.dfr.card.voiceToday', voiceToday, { one: '{count} project has only a voice note for today. Finish it to file the day.', other: '{count} projects have only a voice note for today. Finish it to file the day.' })
       : jobsWithGaps > 0
         ? gapHeadline
-        : `${voiceJobs} ${voiceJobs === 1 ? 'project has' : 'projects have'} a voice note to finish.`;
+        : tn('field.dfr.card.voiceToFinish', voiceJobs, { one: '{count} project has a voice note to finish.', other: '{count} projects have a voice note to finish.' });
 
   const visible = rows.slice(0, MAX_VISIBLE);
   const overflow = rows.length - visible.length;
@@ -133,27 +158,39 @@ export default function DailyLogCard() {
     <View style={styles.card} testID="daily-log-card">
       <View style={styles.header}>
         <ClipboardList size={15} color={colors.accent} strokeWidth={2} />
-        <Text style={styles.eyebrow}>Daily log · last 30 days</Text>
+        <Text style={styles.eyebrow}>{t('field.dfr.card.eyebrow', 'Daily report · last 30 days')}</Text>
       </View>
 
       <Text style={styles.headline}>{headline}</Text>
       <Text style={styles.sub}>
-        A daily log is worth more for being complete than for being detailed. If nothing happened
-        on site, file the day and say so — that still counts. Tap a job with a gap to file its
-        most recent missing day, dated the day it covers.
+        {t('field.dfr.card.why', 'A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.')}
       </Text>
 
       <View style={styles.list}>
         {visible.map(r => {
           const needsToday = r.c.todayExpected && !r.c.todayFiled;
           const voice = dailyLogVoiceDraft(r);
+          // VOICE_NOTE_ONLY is the shared row label (utils/portfolio/attentionRows;
+          // the rail and /attention print it too), so it stays English here
+          // until that module takes a language.
           const state = voice
             ? VOICE_NOTE_ONLY
             : needsToday
-              ? 'Today not filed'
-              : `${r.c.missedDays} ${r.c.missedDays === 1 ? 'day' : 'days'} missing`;
+              ? t('field.dfr.card.todayNotFiled', 'Today not filed')
+              : tn('field.dfr.card.daysMissing', r.c.missedDays, { one: '{count} day missing', other: '{count} days missing' });
           const gapDay = needsToday ? undefined : r.c.missedDates[0];
           const gapLabel = gapDay ? formatCalendarDay(gapDay, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+          const logged = t('field.dfr.card.daysLogged', '{filed} of {expected} working days logged', { filed: r.c.filedDays, expected: r.c.closedExpectedDays });
+          const rowAction = voice
+            ? t('field.dfr.card.openVoiceNote', 'Open the voice note to finish it.')
+            : gapLabel
+              ? t('field.dfr.card.openReportFor', 'Open a report for {day}.', { day: gapLabel })
+              : t('field.dfr.card.openDailyReport', 'Open daily report.');
+          // The meta line is a list of facts joined by ' · ', never one sentence.
+          const loggedParts = sentenceParts(
+            t('field.dfr.card.daysLogged', '{filed} of {expected} working days logged', { filed: '{filed}', expected: '{expected}' }),
+            { filed: r.c.filedDays, expected: r.c.closedExpectedDays },
+          );
           return (
             <TouchableOpacity
               key={r.projectId}
@@ -161,14 +198,14 @@ export default function DailyLogCard() {
               onPress={() => open(r.projectId, gapDay)}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`${r.projectName}: ${state}. ${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged. ${voice ? 'Open the voice note to finish it.' : gapLabel ? `Open a report for ${gapLabel}.` : 'Open daily report.'}`}
+              accessibilityLabel={t('field.dfr.card.rowA11y', '{name}: {state}. {logged}. {action}', { name: r.projectName, state, logged, action: rowAction })}
             >
               <View style={styles.rowText}>
                 <Text style={styles.rowName} numberOfLines={1}>{r.projectName}</Text>
                 <Text style={styles.rowMeta} numberOfLines={1}>
-                  {r.c.filedDays} of {r.c.closedExpectedDays} working days logged
-                  {r.c.emptyDayFilings > 0 ? ` · ${r.c.emptyDayFilings} with no work on site` : ''}
-                  {gapLabel ? ` · opens ${gapLabel}` : ''}
+                  {loggedParts}
+                  {r.c.emptyDayFilings > 0 ? ` · ${t('field.dfr.card.noWorkDays', '{days} with no work on site', { days: r.c.emptyDayFilings })}` : ''}
+                  {gapLabel ? ` · ${t('field.dfr.card.opensDay', 'opens {day}', { day: gapLabel })}` : ''}
                 </Text>
               </View>
               <Text style={[styles.rowState, needsToday || voice ? styles.rowStateDue : styles.rowStateGap]}>
@@ -178,7 +215,7 @@ export default function DailyLogCard() {
             </TouchableOpacity>
           );
         })}
-        {overflow > 0 && <Text style={styles.overflow}>+{overflow} more</Text>}
+        {overflow > 0 && <Text style={styles.overflow}>{sentenceParts(t('field.dfr.card.more', '+{overflow} more', { overflow: '{overflow}' }), { overflow })}</Text>}
       </View>
     </View>
   );

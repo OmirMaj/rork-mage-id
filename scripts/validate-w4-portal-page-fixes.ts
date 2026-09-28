@@ -314,8 +314,11 @@ console.log('\n#70 — client-view opens the sealed PDF through the signed-URL h
 ok('the contract row routes through downloadSealedContractPdf (contract.userId folder)',
   /downloadSealedContractPdf\(\{ contract, userId: contract\.userId, supabase \}\)/.test(view)
   && /onPress=\{\(\) => \{ void openDocument\(doc\); \}\}/.test(view) && !/Linking\.openURL\(doc\.fileUrl!\)/.test(view));
+// W2 integration: the stamp moved into utils/coApprovalRetry (coSendStamp),
+// shared by the insert and the read-back of a retried approval.
 ok('client-view\'s in-person CO decision carries the send stamp portal_co_send_stamp computes',
-  /send_stamp: approvalCO\.portalState\s*\? `\$\{approvalCO\.portalState\.sentVersion \?\? 0\}@\$\{approvalCO\.portalState\.sentAt \?\? ''\}`\s*: 'unsent'/.test(view));
+  /send_stamp: coSendStamp\(approvalCO\),/.test(view)
+    && /return co\.portalState \? `\$\{co\.portalState\.sentVersion \?\? 0\}@\$\{co\.portalState\.sentAt \?\? ''\}` : 'unsent';/.test(read('utils/coApprovalRetry.ts')));
 
 // ═══ #137 — after a Pay tap ═════════════════════════════════════════════════
 console.log('\n#137 — the Pay return');

@@ -1,0 +1,76 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ESTOOLS — English golden (strings a person reads or hears) daily report card — one project with gaps 1`] = `
+[
+  "Daily report · last 30 days",
+  "1 working day in the last 30 has no daily report.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "accessibilityLabel: Elm Street addition: 1 day missing. 17 of 20 working days logged. Open a report for Thu, Sep 24.",
+  "Elm Street addition",
+  "17 of 20 working days logged · opens Thu, Sep 24",
+  "1 day missing",
+]
+`;
+
+exports[`ESTOOLS — English golden (strings a person reads or hears) daily report card — owes today, a gap, a voice note, overflow 1`] = `
+[
+  "Daily report · last 30 days",
+  "1 project has no daily report for today.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "accessibilityLabel: Henderson kitchen: Today not filed. 17 of 20 working days logged. Open daily report.",
+  "Henderson kitchen",
+  "17 of 20 working days logged",
+  "Today not filed",
+  "accessibilityLabel: Elm Street addition: 1 day missing. 17 of 20 working days logged. Open a report for Thu, Sep 24.",
+  "Elm Street addition",
+  "17 of 20 working days logged · 2 with no work on site · opens Thu, Sep 24",
+  "1 day missing",
+  "accessibilityLabel: Harbor view: 4 days missing. 17 of 20 working days logged. Open a report for Thu, Sep 24.",
+  "Harbor view",
+  "17 of 20 working days logged · opens Thu, Sep 24",
+  "4 days missing",
+  "+1 more",
+]
+`;
+
+exports[`ESTOOLS — English golden (strings a person reads or hears) sync pill — voice notes waiting and failed, sheet open 1`] = `
+[
+  "accessibilityLabel: 3 voice notes waiting",
+  "accessibilityHint: Shows the voice notes on this phone",
+  "3 voice notes waiting",
+  "accessibilityLabel: 1 voice note couldn't be transcribed",
+  "accessibilityHint: Shows the voice notes on this phone",
+  "1 voice note couldn't be transcribed",
+  "Voice notes on this phone",
+  "Recorded with no signal. Each one is added to its project's daily report for the day you recorded it, once it is transcribed.",
+  "Henderson kitchen",
+  "Recorded 9:14 AM · 0:42",
+  "Couldn't be transcribed yet. MAGE will try again, or tap Retry.",
+  "Retry",
+  "Shut job",
+  "Recorded 9:14 AM · 0:42",
+  "Its project is closed, so it was not added to a report.",
+  "Project not on this phone",
+  "Recorded 9:14 AM · 0:42",
+  "Its project is no longer on this phone, so it was not added to a report.",
+  "Henderson kitchen",
+  "Recorded 9:14 AM · 0:42",
+  "Waiting for signal. It will be transcribed when you have a connection.",
+  "Close",
+]
+`;
+
+exports[`ESTOOLS — English golden (strings a person reads or hears) voice capture sheet — open, idle 1`] = `
+[
+  "Voice dictation",
+  "for Henderson kitchen",
+  "accessibilityLabel: Close",
+  "Try saying",
+  "“Poured the east footing, six guys on site.”",
+  "Cover all of these",
+  "1",
+  "Crew on site",
+  "how many, which trades",
+  "Tap to start recording",
+]
+`;

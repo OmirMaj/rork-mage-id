@@ -37,7 +37,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
-  loadActiveContract, saveContractDetailed, setContractStatus,
+  loadActiveContract, saveContractDetailed, setContractStatusDetailed,
   markMilestonePaidByInvoice, recordHomeownerSignature, uploadSignedPageEvidence,
   buildDraftContract, buildProposalFromRevision,
   contractTimeline, contractTimelineSentence, suggestContractTimeline,
@@ -55,8 +55,9 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  recordSignatureBlockReason, buildRecordedHomeownerSignature, recordSignatureOutcomeMessage,
+  recordSignatureBlockReason, buildRecordedHomeownerSignature, isOwnLandedPaperRecord,
   homeownerSignatureMethodLabel, type RecordSignatureDraft, type RecordedSignatureMethod,
+  type RecordSignatureOutcome,
 } from '@/utils/contractSignatureCore';
 import { isTransportError } from '@/utils/networkErrors';
 import {
@@ -83,18 +84,24 @@ import { resolveClientContact, seedClientEverywhere, isUsableEmail } from '@/uti
 import { copyToClipboard } from '@/utils/clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Sheet } from '@/components/ui/Sheet';
-import SignaturePad from '@/components/SignaturePad';
 import { supabase } from '@/lib/supabase';
 import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE } from '@/utils/contractSealing';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { nailIt } from '@/components/animations/NailItToast';
-import { fireConfetti } from '@/components/animations/Confetti';
+import { SigningCeremony, type SigningCeremonyProps } from '@/components/moments/signing/SigningCeremony';
+import { HandoffTurn, useHandoffTurn } from '@/components/moments/signing/HandoffTurn';
+import { SlideToConfirm, type CommitResult, type SlideToConfirmHandle } from '@/components/moments/core/contract';
+import { useOffline } from '@/hooks/useOnline';
+import { nextBillableMilestone } from '@/utils/nextBillableMilestone';
+import * as signingCopy from '@/utils/moments/sites/signingCopy';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus, PaymentSplit, Project } from '@/types';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/PriceDriftCheck';
+import type { DriftAtSend } from '@/utils/priceDriftGate';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 
@@ -178,7 +185,17 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
-import { ActionBar, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { ActionBar, cardSurface, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+
+/**
+ * The record found someone else's signature already on the contract (the
+ * portal, or another phone): nothing of this record was stored. The in-person
+ * ceremony turns it into its neutral result; the paper slide refuses it, so
+ * neither ever plays a success over a signature that was not written.
+ */
+function wasSignedElsewhere(outcome: RecordSignatureOutcome): boolean {
+  return outcome.kind === 'not_sent' && (outcome.homeownerSigned || outcome.status === 'signed');
+}
 
 // Gate: contracts are a Pro billing tool alongside invoices, change orders,
 // and AIA pay apps — all of which hard-gate behind Pro. Previously the
@@ -245,11 +262,11 @@ function ContractScreenInner() {
   // Bumped by Retry to re-run the load effect.
   const [loadSeq, setLoadSeq] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
   // #67: "Record homeowner signature" — in person or on paper — on a sent contract.
   const [recordModal, setRecordModal] = useState(false);
-  const [recording, setRecording] = useState(false);
+  // Signing needs a connection (moments plan rule 2): every legal moment here is disabled offline.
+  const offline = useOffline();
   const [startDatePicker, setStartDatePicker] = useState(false);
   // Where a freshly seeded draft's split came from: this job's portal stamp
   // (the proposal the client was shown), his profile, or nowhere. null for a
@@ -297,6 +314,19 @@ function ContractScreenInner() {
   settingsRef.current = settings;
   const contractRef = useRef(contract);
   contractRef.current = contract;
+
+  // T2: the stale-price check before he signs. Read through a ref so
+  // handleSignPress keeps its one dependency. check is null while anything is
+  // unread — that never holds the signature, it only means no card.
+  const priceDrift = usePriceDriftAtSend(project?.linkedEstimate ? project.id : null);
+  const driftCheckRef = useRef(priceDrift.check);
+  driftCheckRef.current = priceDrift.check;
+  // Set by a sign press that found drift: the card shows in the signing sheet
+  // itself, in the ceremony's `above` slot, right over the card he signs
+  // (wave-next W2 moved signing into SigningCeremony). Cleared by "Sign at
+  // these prices" / "Keep these prices".
+  const [driftAsk, setDriftAsk] = useState(false);
+  const [driftNote, setDriftNote] = useState<string | null>(null);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
@@ -838,6 +868,14 @@ function ContractScreenInner() {
       askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
       return;
     }
+    // T2: a newer receipt of his contradicts a price on this job's estimate.
+    // Decided here, after the lock and the missing-terms asks, before the
+    // mode is consumed; the pad opens with the check above the signing card.
+    // Nothing is signed here and nothing legal is queued: the card writes only
+    // the estimate reprice, a normal project write.
+    const drift = driftCheckRef.current;
+    setDriftNote(null);
+    setDriftAsk(!!drift && drift.lines.length > 0);
     // C1: which pad is opening. Consumed here, so a later plain Sign & send
     // press is always 'send'.
     const mode = pendingSignModeRef.current;
@@ -873,6 +911,25 @@ function ContractScreenInner() {
     pendingSignModeRef.current = 'together';
     handleSignPress();
   }, [handleSignPress]);
+
+  // T2: "Sign at these prices" / "Keep these prices": the card goes and he
+  // signs in the sheet already open, the press he made (same mode).
+  const continueSignPastDrift = useCallback(() => {
+    setDriftAsk(false);
+    setDriftNote(null);
+  }, []);
+
+  // T2: Reprice moved the ESTIMATE. The contract value follows only while it
+  // still equals the estimate total it was drafted from (to the cent); a value
+  // he set himself stays his. Nothing is signed: he checks, then signs.
+  const handleDriftRepriced = useCallback((r: DriftAtSend) => {
+    const c = contractRef.current;
+    const followed = !!c && Math.round((c.contractValue ?? 0) * 100) === r.grandBeforeCents;
+    if (followed) handleValueChange(r.grandAfterCents / 100);
+    setDriftNote(followed
+      ? 'The contract value now matches the new estimate total. Check it, then sign.'
+      : 'The contract value is the one you set, so it did not change. Check it before you sign.');
+  }, [handleValueChange]);
 
   // C1: the homeowner's email — moved here verbatim from handleSignAndSend so
   // the "Signed by you, not delivered" Retry sends the same message. Returns
@@ -930,215 +987,238 @@ function ContractScreenInner() {
     return sendResults.filter(r => r.success).length;
   }, [settings, isFree]);
 
+  // ── A1 (moments, lane MOMSIGN): the GC's sign & send is a signing ceremony ──
+  // The write the ceremony gates: save, then the online-only status flip with
+  // the signature (never queued: a signature is a legal record), then the
+  // email. It resolves only after the email call returns, so the letter folds
+  // over a true answer: "Signed and sent to Jane" only when the email service
+  // accepted it, otherwise "Signed. Not sent yet." with the reason on the back
+  // face. The fold and its announce are read by the ceremony in the same tick
+  // the write resolves (before React re-renders), so they live in one stable
+  // object this write updates before it returns.
+  const gcMomentRef = useRef<{ fold: NonNullable<SigningCeremonyProps['fold']>; sentAnnounce: string; signed: { signedAt: string; name: string } | null }>({
+    fold: { to: '', email: '', sent: false },
+    sentAnnounce: '',
+    signed: null,
+  });
+
   // Sign + send — captures the GC's signature, status='sent'.
-  const handleSignAndSend = useCallback(async (signaturePaths: string[], typedName: string) => {
-    if (!contract) return;
-    // Last check, behind handleSignPress: a contract with no payment schedule
-    // or no warranty period is not sent, however the modal was reached.
-    // THE PAD STAYS UP WHILE THIS SPEAKS, like the "Name required" refusal
-    // three lines below (review round 6). Dismissing the Modal and presenting
-    // an Alert in the same tick is the iOS trap: an alert presented from a
-    // view controller that is already being dismissed is torn down with it, so
-    // the pad closed and said nothing — the exact outcome this refusal exists
-    // to prevent. The copy tells him to close it himself.
-    if (contract.paymentSchedule.length === 0 || hasWarrantyPlaceholder(contract.warrantyText)) {
-      showAlert(
-        'Set your terms first',
-        contract.paymentSchedule.length === 0
-          ? 'This contract has no payment schedule yet. Close the signature pad, set your payment terms, review them, then sign.'
-          : 'The warranty section has no period yet. Close the signature pad, set your warranty, review it, then sign.',
-      );
-      return;
+  const handleSignAndSend = useCallback(async (signaturePaths: string[], typedName: string): Promise<CommitResult> => {
+    const moment = gcMomentRef.current;
+    moment.signed = null;
+    moment.fold.sent = false;
+    moment.fold.title = signingCopy.contractNotSentTitle();
+    moment.fold.body = signingCopy.contractNotSentEmailFailed();
+    moment.sentAnnounce = signingCopy.contractNotSentTitle();
+    if (!contract) return { status: 'refused', reason: signingCopy.contractRefused() };
+    // Last check, behind handleSignPress (which opens the sheet only with
+    // terms and a warranty): the sheet shows these as the reason instead of
+    // the line, and a write that still reaches here refuses with the same words.
+    if (contract.paymentSchedule.length === 0) return { status: 'refused', reason: signingCopy.contractTermsReason() };
+    if (hasWarrantyPlaceholder(contract.warrantyText)) return { status: 'refused', reason: signingCopy.contractWarrantyReason() };
+    const name = typedName.trim();
+    // Save first to get an id.
+    const savedResult = await saveContractDetailed({ ...contract, id: contract.id || undefined });
+    if (!savedResult.ok) {
+      if (savedResult.reason === 'duplicate') {
+        // The sheet stays up while this speaks; closing it shows the one on file.
+        setContract(savedResult.existing);
+        setTermsSource(null);
+        return { status: 'refused', reason: signingCopy.contractDuplicate() };
+      }
+      return { status: 'refused', reason: signingCopy.contractRefused() };
     }
-    if (!typedName.trim()) {
-      showAlert('Name required', 'Type your full legal name to sign the contract.');
-      return;
-    }
-    setSigning(true);
-    try {
-      // Snapshot the current linked estimate before the contract is persisted
-      // (converted_to_contract milestone for estimate versioning).
-      if (project) {
-        const _cvSnap = snapshotPatch(project, 'converted_to_contract');
-        if (Object.keys(_cvSnap).length) ctxUpdateProject(project.id, _cvSnap);
-        // G4: fire-and-forget capture — ledger failure must never break signing
-        try {
-          const snapshotPayload = buildEstimateSnapshotPayload(project, projects, commitments, receipts, laborSamples, seeds);
-          if (snapshotPayload) {
-            recordPrediction(
-              'estimate_confidence_snapshot',
-              snapshotPayload.estimateId,
-              snapshotPayload as unknown as Record<string, unknown>,
-              project.id,
-            );
-          }
-        } catch { /* G4 */ }
-      }
-      // Save first to get an id.
-      const savedResult = await saveContractDetailed({ ...contract, id: contract.id || undefined });
-      if (!savedResult.ok) {
-        if (savedResult.reason === 'duplicate') {
-          // The pad stays up while this speaks (see the terms refusal above:
-          // an alert raised under a dismissing Modal is torn down with it).
-          setContract(savedResult.existing);
-          setTermsSource(null);
-          showAlert('This job already has a contract', 'Nothing was signed or sent — this would have been a second contract. Close the signature pad to see the one on file.');
-        } else {
-          showAlert('Save failed', 'Could not save the contract before signing.');
-        }
-        return;
-      }
-      const saved = savedResult.contract;
-      // Then attach the GC signature + flip status to 'sent'.
-      const ok = await setContractStatus(saved.id, 'sent', {
-        gcSignature: {
-          name: typedName.trim(),
-          role: 'gc',
-          signedAt: new Date().toISOString(),
-          signaturePaths,
-        },
-      });
-      if (!ok) {
-        showAlert('Send failed', 'Saved as draft but could not mark as sent.');
-        return;
-      }
-      const refreshed = await loadActiveContract(saved.projectId);
-      if (refreshed.ok && refreshed.contract) setContract(refreshed.contract);
-      // #12: the portal reads the contract only when a snapshot is published,
-      // and project_contracts is written directly here — no tracked project
-      // save marks the job. Ask the provider for a republish AFTER the flip
-      // (never before: a pass that read the draft would record a signature
-      // that then blocks the republish). The status flip below re-asks too.
-      requestPortalPublish(saved.projectId);
+    const saved = savedResult.contract;
+    // Then attach the GC signature + flip status to 'sent', online only.
+    const signedAt = new Date().toISOString();
+    const status = await setContractStatusDetailed(saved.id, 'sent', {
+      gcSignature: {
+        name,
+        role: 'gc',
+        signedAt,
+        signaturePaths,
+      },
+    });
+    if (status === 'unknown') return { status: 'timeout', message: signingCopy.contractTimeout() };
+    if (status !== 'synced') return { status: 'refused', reason: signingCopy.contractRefused() };
+    moment.signed = { signedAt, name };
 
-      // Milestone! Fire a celebratory confetti burst when the GC
-      // signs and sends. The homeowner counter-signing also fires one
-      // (handled separately on the portal side). Tiny bit of joy in
-      // an otherwise paperwork-heavy moment.
-      fireConfetti({ count: 50 });
-
-      // Connector: auto-create SelectionCategory rows from contract
-      // allowances so the GC doesn't have to re-type the same data into
-      // the selections screen. Idempotent — skips categories that
-      // already exist by name. Fire-and-forget; UX continues even if
-      // this fails.
-      const allowancesPayload = (saved.allowances ?? []).filter(a => a.category && a.amount > 0);
-      let createdCount = 0;
-      if (allowancesPayload.length > 0) {
-        try {
-          createdCount = await syncAllowancesToSelections(saved.projectId, allowancesPayload);
-        } catch (err) {
-          console.warn('[contract] allowance → selection sync failed', err);
-        }
-      }
-
-      // Connector: flip project to 'in_progress' so the schedule, budget
-      // tracker and portal all reflect the project actually being live.
-      // Only flip if we're upgrading from a pre-active state — never
-      // overwrite 'completed' or 'closed'.
-      if (project && (project.status === 'draft' || project.status === 'estimated')) {
-        ctxUpdateProject(project.id, { status: 'in_progress' });
-      }
-
-      // C1 — "Sign together now": no email goes out and none is claimed. The
-      // homeowner signs on this phone in the Record-homeowner-signature modal,
-      // which needs the SENT contract the flip above just made. The pad is
-      // dismissed first and the record modal opens after it (iOS tears down a
-      // modal presented while another is dismissing).
-      if (activeSignModeRef.current === 'together') {
-        activeSignModeRef.current = 'send';
-        setSignatureModal(false);
-        togetherRecordRef.current = true;
-        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimeout(() => setRecordModal(true), Platform.OS === 'ios' ? 450 : 0);
-        return;
-      }
-
-      // Email the homeowner the portal URL + a sign-and-send prompt.
-      // Pre-fix this was the audit's #4 finding — the contract status
-      // flipped to 'sent' but no email actually went out, so the homeowner
-      // had no idea there was anything to counter-sign. Best-effort —
-      // failure here doesn't roll back the contract send.
-      let emailNote = '';
-      // C1: what this device saw happen to the email, stamped below.
-      let deliveryMarker: ContractDelivery | null = null;
-      const deliveredAt = new Date().toISOString();
+    // The signature is stored. Everything below follows it, as before.
+    // Snapshot the linked estimate at conversion (converted_to_contract
+    // milestone for estimate versioning).
+    if (project) {
+      const _cvSnap = snapshotPatch(project, 'converted_to_contract');
+      if (Object.keys(_cvSnap).length) ctxUpdateProject(project.id, _cvSnap);
+      // G4: fire-and-forget capture — ledger failure must never break signing
       try {
-        const portalSettings = project?.clientPortal;
-        // Who can receive it, by the one rule utils/portalReady shares with
-        // the pre-send check (an '@' in the trimmed invitee address).
-        const recipients = portalRecipients(portalSettings);
-        // The link in this email IS the homeowner's authority to counter-sign:
-        // the portal's signing RPCs all gate on `?t=<accessToken>`. A bare
-        // `mageid.app/portal/<id>` opens a portal that cannot do the one thing
-        // this email asks for, and says nothing about why. portalShareUrl is
-        // the client mirror of _shared/portalLinks.portalUrlFor — it returns
-        // null rather than a token-less URL, and a null link is not a link to
-        // send. Tell the GC what is missing instead of mailing a dead CTA.
-        const portalUrl = project ? portalShareUrl(portalSettings) : null;
-        if (project && portalUrl && recipients.length > 0) {
-          // C1: the email itself lives in emailContractLink, so the
-          // "not delivered" Retry sends exactly what this sends.
-          const sentCount = await emailContractLink(contract, project, portalUrl, recipients);
-          if (sentCount > 0) {
-            emailNote = ` Emailed the portal link to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`;
-            deliveryMarker = { state: 'delivered', at: deliveredAt, count: sentCount };
-          } else {
-            emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
-            deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
-          }
-        } else {
-          // Why nothing went out, from utils/portalReady — the same answer the
-          // pre-send check gets. 'ready' cannot reach this branch (it is the
-          // `if` above); it shares the last note only to keep the switch total,
-          // and its marker records 'send_failed' — never "ready" for an email
-          // that did not go out.
-          switch (portalDeliveryState(project, user?.id ?? null)) {
-            case 'collaborator':
-              emailNote = ' Only the project owner holds this portal\'s signing link, so nothing was emailed. Ask them to share it from the client portal.';
-              break;
-            case 'no_email':
-              emailNote = ' No client email on file. Share the portal link so the client can sign.';
-              break;
-            case 'no_signing_key':
-              emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
-              break;
-            case 'portal_off':
-            case 'ready':
-              emailNote = ' The client portal is off, so nothing was emailed. Turn it on in Client portal so the client can sign.';
-              break;
-          }
-          const why = portalDeliveryState(project, user?.id ?? null);
-          deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: why === 'ready' ? 'send_failed' : why };
+        const snapshotPayload = buildEstimateSnapshotPayload(project, projects, commitments, receipts, laborSamples, seeds);
+        if (snapshotPayload) {
+          recordPrediction(
+            'estimate_confidence_snapshot',
+            snapshotPayload.estimateId,
+            snapshotPayload as unknown as Record<string, unknown>,
+            project.id,
+          );
         }
-      } catch (err) {
-        console.warn('[contract] email send failed', err);
-        emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
-        deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
-      }
-      // C1: remember on THIS device whether the email went out, so the status
-      // line never claims receipt it did not see (a second device has no
-      // marker and says only what is true everywhere).
-      if (deliveryMarker) {
-        setDelivery({ contractId: saved.id, d: deliveryMarker });
-        if (user?.id) {
-          void AsyncStorage.setItem(contractDeliveryKey(saved.id), stampContractDelivery(user.id, deliveryMarker)).catch(() => undefined);
-        }
-      }
-
-      setSignatureModal(false);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(
-        deliveryMarker?.state === 'delivered' ? 'Contract sent' : 'Signed — not delivered yet',
-        (createdCount > 0
-          ? `Your client portal is being updated with the contract; once it is, the client can review and counter-sign there. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
-          : 'Your client portal is being updated with the contract; once it is, the client can review and counter-sign there. You\'ll be notified when they do.')
-          + emailNote,
-      );
-    } finally {
-      setSigning(false);
+      } catch { /* G4 */ }
     }
-  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish, user?.id, emailContractLink]);
+    void loadActiveContract(saved.projectId)
+      .then((refreshed) => { if (refreshed.ok && refreshed.contract) setContract(refreshed.contract); })
+      .catch(() => undefined);
+    // #12: the portal reads the contract only when a snapshot is published,
+    // and project_contracts is written directly here — no tracked project
+    // save marks the job. Ask the provider for a republish AFTER the flip
+    // (never before: a pass that read the draft would record a signature
+    // that then blocks the republish). The status flip below re-asks too.
+    requestPortalPublish(saved.projectId);
+
+    // Connector: auto-create SelectionCategory rows from contract
+    // allowances so the GC doesn't have to re-type the same data into
+    // the selections screen. Idempotent — skips categories that
+    // already exist by name. Fire-and-forget; the signature never waits on it.
+    const allowancesPayload = (saved.allowances ?? []).filter(a => a.category && a.amount > 0);
+    if (allowancesPayload.length > 0) {
+      void syncAllowancesToSelections(saved.projectId, allowancesPayload).catch((err) => {
+        console.warn('[contract] allowance → selection sync failed', err);
+      });
+    }
+
+    // Connector: flip project to 'in_progress' so the schedule, budget
+    // tracker and portal all reflect the project actually being live.
+    // Only flip if we're upgrading from a pre-active state — never
+    // overwrite 'completed' or 'closed'.
+    if (project && (project.status === 'draft' || project.status === 'estimated')) {
+      ctxUpdateProject(project.id, { status: 'in_progress' });
+    }
+
+    // C1 — "Sign together now": no email goes out and none is claimed. The
+    // homeowner signs on this phone in the Record-homeowner-signature modal,
+    // which needs the SENT contract the flip above just made. The sheet
+    // closes in the ceremony's onDone and the record modal opens after it
+    // (iOS tears down a modal presented while another is dismissing).
+    if (activeSignModeRef.current === 'together') {
+      return { status: 'confirmed', title: signingCopy.contractSignedFirstTitle(), next: signingCopy.contractSignedFirstNext() };
+    }
+
+    // Email the homeowner the portal URL + a sign-and-send prompt.
+    // Pre-fix this was the audit's #4 finding — the contract status
+    // flipped to 'sent' but no email actually went out, so the homeowner
+    // had no idea there was anything to counter-sign. Best-effort —
+    // failure here doesn't roll back the contract send, and the fold says
+    // exactly what happened.
+    let notSentReason = signingCopy.contractNotSentEmailFailed();
+    // C1: what this device saw happen to the email, stamped below.
+    let deliveryMarker: ContractDelivery | null = null;
+    const deliveredAt = new Date().toISOString();
+    const portalSettings = project?.clientPortal;
+    // Who can receive it, by the one rule utils/portalReady shares with
+    // the pre-send check (an '@' in the trimmed invitee address).
+    const recipients = portalRecipients(portalSettings);
+    const clientName = (recipients[0]?.name ?? '').trim();
+    moment.fold.to = clientName;
+    moment.fold.email = recipients[0]?.email ?? signingCopy.contractNoEmailOnFile();
+    try {
+      // The link in this email IS the homeowner's authority to counter-sign:
+      // the portal's signing RPCs all gate on `?t=<accessToken>`. A bare
+      // `mageid.app/portal/<id>` opens a portal that cannot do the one thing
+      // this email asks for, and says nothing about why. portalShareUrl is
+      // the client mirror of _shared/portalLinks.portalUrlFor — it returns
+      // null rather than a token-less URL, and a null link is not a link to
+      // send. Tell the GC what is missing instead of mailing a dead CTA.
+      const portalUrl = project ? portalShareUrl(portalSettings) : null;
+      if (project && portalUrl && recipients.length > 0) {
+        // C1: the email itself lives in emailContractLink, so the
+        // "not delivered" Retry sends exactly what this sends.
+        const sentCount = await emailContractLink(contract, project, portalUrl, recipients);
+        if (sentCount > 0) {
+          deliveryMarker = { state: 'delivered', at: deliveredAt, count: sentCount };
+        } else {
+          notSentReason = signingCopy.contractNotSentEmailFailed();
+          deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
+        }
+      } else {
+        // Why nothing went out, from utils/portalReady — the same answer the
+        // pre-send check gets. 'ready' cannot reach this branch (it is the
+        // `if` above); it shares the last note only to keep the switch total,
+        // and its marker records 'send_failed' — never "ready" for an email
+        // that did not go out.
+        switch (portalDeliveryState(project, user?.id ?? null)) {
+          case 'collaborator':
+            notSentReason = signingCopy.contractNotSentCollaborator();
+            break;
+          case 'no_email':
+            notSentReason = signingCopy.contractNotSentNoEmail();
+            break;
+          case 'no_signing_key':
+            notSentReason = signingCopy.contractNotSentNoSigningKey();
+            break;
+          case 'portal_off':
+          case 'ready':
+            notSentReason = signingCopy.contractNotSentPortalOff();
+            break;
+        }
+        const why = portalDeliveryState(project, user?.id ?? null);
+        deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: why === 'ready' ? 'send_failed' : why };
+      }
+    } catch (err) {
+      console.warn('[contract] email send failed', err);
+      notSentReason = signingCopy.contractNotSentEmailFailed();
+      deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
+    }
+    // C1: remember on THIS device whether the email went out, so the status
+    // line never claims receipt it did not see (a second device has no
+    // marker and says only what is true everywhere).
+    if (deliveryMarker) {
+      setDelivery({ contractId: saved.id, d: deliveryMarker });
+      if (user?.id) {
+        void AsyncStorage.setItem(contractDeliveryKey(saved.id), stampContractDelivery(user.id, deliveryMarker)).catch(() => undefined);
+      }
+    }
+
+    const sent = deliveryMarker?.state === 'delivered';
+    if (sent) {
+      const title = clientName ? signingCopy.contractSentTitle(clientName) : signingCopy.contractSentTitleNoName();
+      moment.fold.sent = true;
+      moment.fold.title = title;
+      moment.fold.body = signingCopy.contractSentBody();
+      moment.sentAnnounce = clientName ? signingCopy.contractSentAnnounce(clientName) : signingCopy.contractSentAnnounceNoName();
+      return { status: 'confirmed', title, next: signingCopy.contractSentBody() };
+    }
+    // Stored but not delivered: never "sent". The back face says why.
+    moment.fold.sent = false;
+    moment.fold.title = signingCopy.contractNotSentTitle();
+    moment.fold.body = notSentReason;
+    moment.sentAnnounce = signingCopy.contractNotSentTitle();
+    return { status: 'confirmed', title: signingCopy.contractNotSentTitle(), next: notSentReason };
+  }, [contract, project, ctxUpdateProject, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish, user?.id, emailContractLink]);
+
+  // The ceremony held its result through the seal (and the fold): close the
+  // sheet now. After "Sign together now" the record sheet opens next, after
+  // this one has gone (iOS tears down a modal presented under a dismissing one).
+  const onSignCeremonyDone = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    setSignatureModal(false);
+    if (activeSignModeRef.current === 'together') {
+      activeSignModeRef.current = 'send';
+      togetherRecordRef.current = true;
+      setTimeout(() => setRecordModal(true), Platform.OS === 'ios' ? 450 : 0);
+    }
+  }, []);
+
+  // A confirmed answer that arrived after the ceremony said "No answer yet":
+  // the signature is stored. Reload what the server holds and say so once.
+  const onSignLateResult = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    const pid = projectRef.current?.id;
+    if (pid) {
+      void loadActiveContract(pid)
+        .then((fresh) => { if (fresh.ok && fresh.contract) setContract(fresh.contract); })
+        .catch(() => undefined);
+    }
+    setSignatureModal(false);
+    activeSignModeRef.current = 'send';
+    nailIt(r.title);
+  }, []);
 
   // ── C1: this device's delivery marker, the ask sheet, Retry, Copy link ────
   // The marker is read for the contract on screen. A read that finds nothing
@@ -1294,49 +1374,263 @@ function ContractScreenInner() {
   // C1: the marker for the contract on screen (never another contract's).
   const contractDelivery = delivery && contract?.id && delivery.contractId === contract.id ? delivery.d : null;
 
-  const handleRecordSignature = useCallback(async (draft: RecordSignatureDraft, pagePhotoUri: string | null) => {
+  // ── A2 / A3 (moments, lane MOMSIGN) ──────────────────────────────────────
+  // The two writes the record sheet gates. Both are the same non-queued IO as
+  // before (utils/contractSignatureCore: re-read, then flip only if the row is
+  // still 'sent' and unsigned); each answer maps to exactly one CommitResult,
+  // and only 'signed' (or the neutral "already signed") is confirmed.
+  // Invoices for the paper result's "the deposit invoice can go out" line.
+  const projectInvoicesRef = useRef(projectInvoices);
+  projectInvoicesRef.current = projectInvoices;
+  // Set by the in-person write when the contract was ALREADY signed elsewhere:
+  // the ceremony then resolves neutral (no seal, no check), never a seal over
+  // a signature that was not stored.
+  const recordNeutralRef = useRef(false);
+  // The stored homeowner signature (the ceremony's record reads it).
+  const recordedSigRef = useRef<{ signedAt: string; name: string } | null>(null);
+
+  /** Adopt the fresh row, never dropping a seal this session just wrote. */
+  const adoptFreshContract = useCallback((fresh: ProjectContract) => {
+    setContract(prev => (prev && prev.id === fresh.id && prev.signedPdfUrl && !fresh.signedPdfUrl
+      ? { ...fresh, signedPdfUrl: prev.signedPdfUrl, documentHash: prev.documentHash }
+      : fresh));
+  }, []);
+
+  /** A record outcome that is not 'signed', as one CommitResult. */
+  const recordOutcomeResult = useCallback((outcome: Exclude<Awaited<ReturnType<typeof recordHomeownerSignature>>, { kind: 'signed' }>): CommitResult => {
+    switch (outcome.kind) {
+      case 'not_sent':
+        if (wasSignedElsewhere(outcome)) {
+          // Someone else's signature is on it: nothing of ours was stored.
+          // Only the in-person ceremony reaches this (it reads isNeutral and
+          // plays no seal); recordPaper refuses the same outcome before here.
+          recordNeutralRef.current = true;
+          void recheckLockedContract();
+          return { status: 'confirmed', title: signingCopy.alreadySignedTitle() };
+        }
+        void recheckLockedContract();
+        return {
+          status: 'refused',
+          reason: outcome.status === 'draft' ? signingCopy.recordNotSentDraft()
+            : outcome.status === 'void' ? signingCopy.recordNotSentVoid()
+            : outcome.status === 'sent' ? signingCopy.recordRefused()
+            : signingCopy.recordNotOnFile(),
+        };
+      case 'offline':
+        // A transport error after the read: the flip may have landed. A retry
+        // is safe because the flip is conditional.
+        return { status: 'timeout', message: signingCopy.contractTimeout() };
+      case 'failed':
+      default:
+        return { status: 'refused', reason: signingCopy.recordRefused() };
+    }
+  }, [recheckLockedContract]);
+
+  // A2: the client signs in person on this phone.
+  const recordInPerson = useCallback(async (paths: string[], typedName: string): Promise<CommitResult> => {
+    recordNeutralRef.current = false;
+    recordedSigRef.current = null;
     const c = contractRef.current;
-    if (!c?.id || c.status !== 'sent' || !user?.id) return;
+    // The LIVE row decides whether it can be signed (recordHomeownerSignature
+    // re-reads it), never the local status: right after "Sign together" the
+    // local copy can still read draft until its refresh lands.
+    if (!c?.id || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
+    const draft: RecordSignatureDraft = { method: 'in_person', name: typedName, signaturePaths: paths };
+    const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString() });
+    const outcome = await recordHomeownerSignature(c.id, sig);
+    if (outcome.kind !== 'signed') return recordOutcomeResult(outcome);
+    recordedSigRef.current = { signedAt: sig.signedAt, name: sig.name };
+    // The portal shows the contract as signed from the next publish (#12).
+    requestPortalPublish(c.projectId);
+    void loadActiveContract(c.projectId)
+      .then((fresh) => { if (fresh.ok && fresh.contract) adoptFreshContract(fresh.contract); })
+      .catch(() => undefined);
+    const p = projectRef.current;
+    return {
+      status: 'confirmed',
+      title: signingCopy.inPersonSignedTitle(),
+      detail: p ? signingCopy.contractSummaryLine(p.name, formatMoney(c.contractValue ?? 0, 2)) : undefined,
+    };
+  }, [user?.id, recordOutcomeResult, requestPortalPublish, adoptFreshContract]);
+
+  // A3: the paper attempts this screen made. The pin is the page photo it
+  // uploaded, so a retry of the same page reuses it (never a second upload);
+  // every path it uploaded is kept, so the retry knows its OWN earlier record
+  // when that flip landed but its answer was lost.
+  const paperPinRef = useRef<{ contractId: string; photoUri: string; evidencePath: string } | null>(null);
+  const ownPaperEvidenceRef = useRef<Set<string>>(new Set());
+
+  // A3: a paper signature. Nothing is written until the page photo is on file.
+  const recordPaper = useCallback(async (draft: RecordSignatureDraft, pagePhotoUri: string | null): Promise<CommitResult> => {
+    const c = contractRef.current;
+    // The LIVE row decides (recordHomeownerSignature re-reads it), never the
+    // local status: a draft, void or signed row answers with its own sentence.
+    if (!c?.id || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
     const block = recordSignatureBlockReason({ ...draft, hasPagePhoto: !!pagePhotoUri }, todayCalendarDay());
-    if (block) { showAlert('Not recorded yet', block); return; }
-    setRecording(true);
+    if (block || !pagePhotoUri) return { status: 'refused', reason: block ?? signingCopy.paperUploadRefused() };
+    const pin = paperPinRef.current;
+    let evidencePath = pin && pin.contractId === c.id && pin.photoUri === pagePhotoUri ? pin.evidencePath : '';
+    if (!evidencePath) {
+      try {
+        evidencePath = await uploadSignedPageEvidence(user.id, c.id, pagePhotoUri);
+        paperPinRef.current = { contractId: c.id, photoUri: pagePhotoUri, evidencePath };
+        ownPaperEvidenceRef.current.add(evidencePath);
+      } catch (err) {
+        console.warn('[contract] signed page upload failed', err);
+        return { status: 'refused', reason: signingCopy.paperUploadRefused() };
+      }
+    }
+    const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString(), evidencePath });
+    const outcome = await recordHomeownerSignature(c.id, sig);
+    // The signature on file is this screen's own earlier paper record (its
+    // flip landed, the answer was lost): it IS stored, so it confirms below.
+    const ownLanded = isOwnLandedPaperRecord(outcome, ownPaperEvidenceRef.current);
+    if (!ownLanded) {
+      // Signed elsewhere first: this paper record was not stored, so the slide
+      // refuses it (no lock, no success tone) and the sheet stays open.
+      if (wasSignedElsewhere(outcome)) {
+        void recheckLockedContract();
+        return { status: 'refused', reason: signingCopy.paperAlreadySigned() };
+      }
+      if (outcome.kind !== 'signed') return recordOutcomeResult(outcome);
+    }
+    requestPortalPublish(c.projectId);
+    // "The deposit invoice can go out" only when the signed contract really
+    // has an unbilled deposit due (the same decision the Bill deposit door reads).
+    let next = signingCopy.paperRecordedNextNoDeposit();
     try {
-      let evidencePath: string | undefined;
-      if (draft.method === 'paper' && pagePhotoUri) {
-        try {
-          evidencePath = await uploadSignedPageEvidence(user.id, c.id, pagePhotoUri);
-        } catch (err) {
-          const msg = recordSignatureOutcomeMessage(isTransportError(err)
-            ? { kind: 'offline' }
-            : { kind: 'failed', error: `the page photo did not upload: ${err instanceof Error ? err.message : String(err)}` });
-          if (msg) showAlert(msg.title, msg.body);
-          return;
+      const fresh = await loadActiveContract(c.projectId);
+      if (fresh.ok && fresh.contract) {
+        adoptFreshContract(fresh.contract);
+        if (nextBillableMilestone({ contract: fresh.contract, invoices: projectInvoicesRef.current })?.kind === 'deposit') {
+          next = signingCopy.paperRecordedNext();
         }
       }
-      const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString(), evidencePath });
-      const outcome = await recordHomeownerSignature(c.id, sig);
-      const msg = recordSignatureOutcomeMessage(outcome);
-      if (msg) {
-        showAlert(msg.title, msg.body);
-        if (outcome.kind === 'not_sent') await recheckLockedContract();
-        return;
+    } catch { /* the signature is stored; the next line stays the plain one */ }
+    return { status: 'confirmed', title: signingCopy.paperRecordedTitle(), next };
+  }, [user?.id, recordOutcomeResult, recheckLockedContract, requestPortalPublish, adoptFreshContract]);
+
+  // Graft 7: after the client's signature closes the contract, seal it once.
+  // The evidence line appears only after the seal returned a real hash; on
+  // failure no hash shows and "Seal & save signed PDF" stays as the retry.
+  const [autoSeal, setAutoSeal] = useState<{ state: 'idle' | 'running' | 'sealed' | 'failed'; hash?: string }>({ state: 'idle' });
+  const autoSealStarted = useRef(false);
+  const runAutoSeal = useCallback(async () => {
+    if (autoSealStarted.current) return;
+    autoSealStarted.current = true;
+    const p = projectRef.current;
+    const held = contractRef.current;
+    if (!p || !held?.projectId || !user?.id) { setAutoSeal({ state: 'failed' }); return; }
+    setAutoSeal({ state: 'running' });
+    try {
+      const fresh = await loadActiveContract(held.projectId);
+      if (!fresh.ok || !fresh.contract || fresh.contract.status !== 'signed') { setAutoSeal({ state: 'failed' }); return; }
+      try {
+        const result = await sealSignedContract({
+          contract: fresh.contract,
+          project: p,
+          branding: settingsRef.current?.branding ?? {},
+          supabase,
+          userId: user.id,
+        });
+        setContract({ ...fresh.contract, signedPdfUrl: result.signedPdfUrl, documentHash: result.documentHash });
+        setAutoSeal({ state: 'sealed', hash: result.documentHash });
+      } catch (err) {
+        if (err instanceof SealAlreadyExistsError) {
+          // Sealed before: that counts as sealed. The hash shows only if the row carries it.
+          const again = await loadActiveContract(held.projectId).catch(() => null);
+          const row = again && again.ok ? again.contract : null;
+          if (row) setContract(row);
+          setAutoSeal({ state: 'sealed', hash: row?.documentHash });
+          return;
+        }
+        console.warn('[contract] auto-seal failed', err);
+        setAutoSeal({ state: 'failed' });
       }
-      const refreshed = await loadActiveContract(c.projectId);
-      if (refreshed.ok && refreshed.contract) setContract(refreshed.contract);
-      // The portal shows the contract as signed from the next publish (#12).
-      requestPortalPublish(c.projectId);
-      setRecordModal(false);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // C1: after "Sign together now" the record completes the pair.
-      const together = togetherRecordRef.current;
-      togetherRecordRef.current = false;
-      nailIt(together && draft.method === 'in_person'
-        ? 'Signed by both of you'
-        : draft.method === 'paper' ? 'Paper signature recorded' : 'Client signature recorded');
-    } finally {
-      setRecording(false);
+    } catch (err) {
+      console.warn('[contract] auto-seal failed', err);
+      setAutoSeal({ state: 'failed' });
     }
-  }, [user?.id, recheckLockedContract, requestPortalPublish]);
+  }, [user?.id]);
+  // Every open of the record sheet starts with no seal attempt behind it.
+  useEffect(() => {
+    if (!recordModal) return;
+    autoSealStarted.current = false;
+    setAutoSeal({ state: 'idle' });
+  }, [recordModal]);
+  const closeRecordModal = useCallback(() => {
+    setRecordModal(false);
+    togetherRecordRef.current = false;
+  }, []);
+  // A result that landed after the sheet closed: say it once.
+  const onRecordResultAfterUnmount = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed') nailIt(r.title);
+  }, []);
+  // A late confirmed answer after "No answer yet": reload what the server holds.
+  const onRecordLateResult = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    void recheckLockedContract();
+    nailIt(r.title);
+  }, [recheckLockedContract]);
+
+  // ── A4: seal the signed contract, for a portal or paper signature ─────────
+  // A one-shot legal write: the slide resolves confirmed only when the seal
+  // returned its hash (or the contract was already sealed). The row is
+  // adopted after the result hold (onDone), so the slide is not unmounted
+  // under its own result by the Download button replacing it.
+  const sealedPatchRef = useRef<ProjectContract | null>(null);
+  const sealWrite = useCallback(async (): Promise<CommitResult> => {
+    sealedPatchRef.current = null;
+    if (!project || !contract || !user?.id) return { status: 'refused', reason: signingCopy.sealRefused() };
+    try {
+      const result = await sealSignedContract({
+        contract,
+        project,
+        branding: settings?.branding ?? {},
+        supabase,
+        userId: user.id,
+      });
+      sealedPatchRef.current = { ...contract, signedPdfUrl: result.signedPdfUrl, documentHash: result.documentHash };
+      return { status: 'confirmed', title: signingCopy.sealedTitle(result.documentHash.slice(0, 12)), next: signingCopy.sealedNext() };
+    } catch (err) {
+      if (err instanceof SealAlreadyExistsError) {
+        void recheckLockedContract();
+        return { status: 'confirmed', title: signingCopy.alreadySealedTitle() };
+      }
+      console.error('[Contract] Seal error:', err);
+      if (isTransportError(err)) return { status: 'timeout', message: signingCopy.contractTimeout() };
+      // sealSignedContract throws sentences written for the user ("Sealing
+      // works in the mobile app…", "Both your signature and the client's are
+      // needed…"); those say what unlocks the seal, so they win.
+      return { status: 'refused', reason: ownSentence(err) ?? signingCopy.sealRefused() };
+    }
+  }, [project, contract, user?.id, settings?.branding, recheckLockedContract]);
+  const onSealDone = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    const patched = sealedPatchRef.current;
+    sealedPatchRef.current = null;
+    if (patched) setContract(prev => (prev && prev.id === patched.id ? { ...prev, signedPdfUrl: patched.signedPdfUrl, documentHash: patched.documentHash } : prev));
+  }, []);
+  const onSealLateResult = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    onSealDone(r);
+    void recheckLockedContract();
+    nailIt(r.title);
+  }, [onSealDone, recheckLockedContract]);
+
+  // The ceremonies read the STORED record (never the live fields) for the seal.
+  const gcRecordFrom = useCallback(() => ({
+    signedAtIso: gcMomentRef.current.signed?.signedAt ?? new Date().toISOString(),
+    timeSource: 'device' as const,
+    name: gcMomentRef.current.signed?.name ?? '',
+  }), []);
+  const recordInPersonFrom = useCallback(() => ({
+    signedAtIso: recordedSigRef.current?.signedAt ?? new Date().toISOString(),
+    timeSource: 'device' as const,
+    name: recordedSigRef.current?.name ?? '',
+  }), []);
+  const isRecordNeutral = useCallback(() => recordNeutralRef.current, []);
+  const runAutoSealOnce = useCallback(() => { void runAutoSeal(); }, [runAutoSeal]);
 
   const handleSealSignedContract = useCallback(async () => {
     if (!project || !contract || !user?.id) return;
@@ -2188,7 +2482,10 @@ function ContractScreenInner() {
                 </Text>
               </View>
             </View>
-            {!contract.signedPdfUrl && (
+            {/* A4: a contract the client signed in person was sealed on the spot
+                (auto-seal); this tap is only its retry. Portal and paper
+                signatures seal with the slide below. */}
+            {!contract.signedPdfUrl && contract.homeownerSignature?.method === 'in_person' && (
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
                 onPress={() => { void handleSealSignedContract(); }}
@@ -2199,6 +2496,33 @@ function ContractScreenInner() {
                 <FileText size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.primaryBtnText}>Seal &amp; save signed PDF</Text>
               </TouchableOpacity>
+            )}
+            {!contract.signedPdfUrl && contract.homeownerSignature?.method !== 'in_person' && (
+              <SlideToConfirm
+                label={signingCopy.sealLabel()}
+                busyLabel={signingCopy.sealBusyLabel()}
+                srLabel={signingCopy.sealSrLabel()}
+                srConfirm={signingCopy.sealSrConfirm()}
+                onCommit={sealWrite}
+                writeOptions={{
+                  idempotent: false,
+                  legal: true,
+                  copy: {
+                    refused: signingCopy.sealRefused(),
+                    timeout: signingCopy.contractTimeout(),
+                    legalQueued: signingCopy.sealLegalQueued(),
+                    offline: signingCopy.sealOffline(),
+                  },
+                }}
+                tone="ink"
+                resultIcon="lock"
+                offline={offline}
+                onDone={onSealDone}
+                onResultAfterUnmount={onSealDone}
+                onLateResult={onSealLateResult}
+                style={{ marginTop: 10 }}
+                testID="contract-seal-slide"
+              />
             )}
             {contract.signedPdfUrl && (
               <TouchableOpacity
@@ -2231,19 +2555,49 @@ function ContractScreenInner() {
       {/* #67: record a homeowner signature given in person or on paper */}
       <RecordHomeownerSignatureModal
         visible={recordModal}
-        onClose={() => setRecordModal(false)}
-        onRecord={handleRecordSignature}
-        recording={recording}
+        onClose={closeRecordModal}
+        contract={contract}
+        projectName={project.name}
+        clientName={resolveClientContact(project)?.name ?? ''}
+        gcName={user?.name ?? ''}
+        together={togetherRecordRef.current}
+        offline={offline}
+        recordInPerson={recordInPerson}
+        recordPaper={recordPaper}
+        isNeutral={isRecordNeutral}
+        recordFrom={recordInPersonFrom}
+        onBinding={runAutoSealOnce}
+        autoSeal={autoSeal}
+        onLateResult={onRecordLateResult}
+        onResultAfterUnmount={onRecordResultAfterUnmount}
       />
 
-      {/* Signature modal */}
+      {/* Signature modal (A1: the contractor's signing ceremony) */}
       <SignatureModal
         visible={signatureModal}
         onClose={() => setSignatureModal(false)}
         onSign={handleSignAndSend}
-        signing={signing}
         defaultName={user?.name ?? user?.email ?? ''}
         inPerson={padInPerson}
+        contract={contract}
+        projectName={project.name}
+        offline={offline}
+        moment={gcMomentRef.current}
+        recordFrom={gcRecordFrom}
+        onDone={onSignCeremonyDone}
+        onLateResult={onSignLateResult}
+        // T2: the stale-price check, opened by the sign press, in the ceremony's `above` slot.
+        above={driftAsk && contract?.status === 'draft' ? (
+          <PriceDriftCheck
+            project={project}
+            presentation="card"
+            action="sign"
+            repricedNote={driftNote}
+            onReprice={handleDriftRepriced}
+            onKeep={continueSignPastDrift}
+            onContinue={continueSignPastDrift}
+          />
+        ) : undefined}
       />
 
       {/* C1: "Where should we send it?" — mounted only while it is open. */}
@@ -2556,70 +2910,135 @@ function SignatureBlock({ label, name, signedAt, how }: { label: string; name: s
   );
 }
 
-function SignatureModal({ visible, onClose, onSign, signing, defaultName, inPerson = false }: {
+/** The rows on the ceremony's top panel: the contract value (cents) and the timeline. */
+function contractCeremonyTop(contract: ProjectContract, projectName: string): SigningCeremonyProps['top'] {
+  const rows: SigningCeremonyProps['top']['rows'] = [
+    { label: signingCopy.contractValueRowLabel(), value: formatMoney(contract.contractValue ?? 0, 2), mono: true },
+  ];
+  const t = contractTimeline(contract.startDate, contract.durationDays);
+  if (t) rows.push({ label: signingCopy.contractTimelineRowLabel(), value: signingCopy.contractTimelineValue(t.startLabel, t.completionLabel) });
+  return { title: signingCopy.contractDocTitle(contract.title ?? ''), subtitle: projectName, rows };
+}
+
+/** Why the contract cannot be signed from this sheet yet, or null. */
+function contractSignBlockReason(contract: ProjectContract | null): string | null {
+  if (!contract) return signingCopy.contractTermsReason();
+  if (contract.paymentSchedule.length === 0) return signingCopy.contractTermsReason();
+  if (hasWarrantyPlaceholder(contract.warrantyText)) return signingCopy.contractWarrantyReason();
+  return null;
+}
+
+/** The ceremony's height budget on the in-person hand-off (card + name field + hand-back). */
+const HANDOFF_MIN_HEIGHT = 600;
+
+type GcMoment = { fold: NonNullable<SigningCeremonyProps['fold']>; sentAnnounce: string };
+
+/**
+ * A1: the contractor's signature (moments, lane MOMSIGN). A signing ceremony
+ * on the line skin: sign above the line, slide along it, and only when the
+ * write comes back confirmed does the seal land; for sign & send the letter
+ * then folds and its back face says whether the email went out. Refusals and
+ * timeouts speak inside the sheet (the iOS dismiss-plus-alert trap is gone),
+ * the strokes and the name stay, and the sheet closes in onDone.
+ */
+export function SignatureModal({
+  visible, onClose, onSign, defaultName, inPerson = false, contract, projectName, offline, moment,
+  recordFrom, onDone, onLateResult, above,
+}: {
   visible: boolean;
   onClose: () => void;
-  onSign: (paths: string[], typedName: string) => void;
-  signing: boolean;
+  onSign: (paths: string[], typedName: string) => Promise<CommitResult>;
   defaultName: string;
-  /** C1 "Sign together now": his signature first, then the homeowner's on
+  /** C1 "Sign together now": his signature first, then the client's on
    *  this phone. Nothing is emailed, so the words never say "send". */
   inPerson?: boolean;
+  contract: ProjectContract | null;
+  projectName: string;
+  offline: boolean;
+  /** The fold and its announce, updated by the write before it returns (read live by the ceremony). */
+  moment: GcMoment;
+  recordFrom: SigningCeremonyProps['recordFrom'];
+  onDone: (r: CommitResult) => void;
+  onLateResult: (r: CommitResult) => void;
+  /** T2 (ideas-1): the stale-price check, shown in the ceremony's `above` slot over the signing card. */
+  above?: React.ReactNode;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors: themeColors } = useTheme();
   const [paths, setPaths] = useState<string[]>([]);
   const [typedName, setTypedName] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setPaths([]);
       setTypedName(defaultName);
+      setBusy(false);
     }
   }, [visible, defaultName]);
   const fSign = useSheetFrame('form', { visible, animationType: 'slide' });
-  // Signs the contract: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
-  useSheetPrimaryHotkey(visible && !signing && paths.length > 0 && !!typedName.trim(), () => onSign(paths, typedName), { saveKey: false });
+  // The slide is the commit: no Cmd+Enter and never Cmd+S (useSheetFrame
+  // already holds the dialog scope, so the page's own shortcuts stay off).
+  const blockReason = contractSignBlockReason(contract);
+  const write = useCallback(() => onSign(paths, typedName), [onSign, paths, typedName]);
+  const copy = useMemo(() => ({
+    label: inPerson ? signingCopy.contractSignFirstLabel() : signingCopy.contractSignSendLabel(),
+    srLabel: inPerson ? signingCopy.contractSignFirstSrLabel() : signingCopy.contractSignSendSrLabel(),
+    srConfirm: inPerson ? signingCopy.contractSignFirstSrConfirm() : signingCopy.contractSignSendSrConfirm(),
+    sealedAnnounce: signingCopy.contractGcSealedAnnounce(),
+    // Read when the letter folds, after the write said whether the email went out.
+    get sentAnnounce() { return moment.sentAnnounce; },
+  }), [inPerson, moment]);
 
   return (
-    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!signing) onClose(); }}>
+    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={[styles.modalOverlay, fSign.overlay]}>
-        <View style={[styles.modalCard, fSign.card]}>
+        <View style={[styles.modalCard, fSign.card]} testID="contract-sign-sheet">
           <Text style={styles.modalTitle}>{inPerson ? 'Your signature first' : 'Sign & send'}</Text>
           <Text style={styles.modalBody}>
             {inPerson
               ? 'Sign below and type your full legal name. Nothing is emailed. Next, hand the phone to the client to sign.'
               : 'Sign below and type your full legal name. The contract becomes binding when the client counter-signs in their portal.'}
           </Text>
-          <SignaturePad
-            initialPaths={paths}
-            onSave={setPaths}
-            onClear={() => setPaths([])}
-            height={150}
-          />
-          <TextInput
-            style={styles.modalNameInput}
-            value={typedName}
-            onChangeText={setTypedName}
-            placeholder="Your full legal name"
-            placeholderTextColor={themeColors.textMuted}
-            autoCapitalize="words"
-          />
+          {blockReason || !contract ? (
+            <Text style={styles.modalBody} testID="contract-sign-block-reason">{blockReason}</Text>
+          ) : visible ? (
+            <SigningCeremony
+              signer="gc"
+              mode="drawn"
+              method="drawn"
+              parties={2}
+              signedBefore={0}
+              sealVerb="SIGNED"
+              role="Contractor"
+              top={contractCeremonyTop(contract, projectName)}
+              name={{ value: typedName, onChange: setTypedName, label: signingCopy.contractGcNameLabel(), placeholder: signingCopy.contractGcNameLabel(), minLength: 2 }}
+              paths={paths}
+              onPathsChange={setPaths}
+              offline={offline}
+              copy={copy}
+              write={write}
+              writeOptions={{
+                idempotent: false,
+                copy: {
+                  refused: signingCopy.contractRefused(),
+                  timeout: signingCopy.contractTimeout(),
+                  legalQueued: signingCopy.contractLegalQueued(),
+                },
+              }}
+              recordFrom={recordFrom}
+              above={above}
+              fold={inPerson ? undefined : moment.fold}
+              onCommitStart={() => setBusy(true)}
+              onUncommit={() => setBusy(false)}
+              onDone={(r) => { setBusy(false); onDone(r); }}
+              onResultAfterUnmount={onLateResult}
+              onLateResult={onLateResult}
+              testID="contract-sign"
+            />
+          ) : null}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={signing}>
+            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={busy} accessibilityRole="button" testID="contract-sign-cancel">
               <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalConfirm, (paths.length === 0 || !typedName.trim()) && styles.primaryBtnDisabled]}
-              onPress={() => onSign(paths, typedName)}
-              disabled={signing || paths.length === 0 || !typedName.trim()}
-            >
-              {signing ? <ActivityIndicator size="small" color="#FFF" /> : (
-                <>
-                  <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.modalConfirmText}>{inPerson ? 'Sign, then hand over' : 'Sign & send'}</Text>
-                </>
-              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -2629,17 +3048,42 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName, inPers
 }
 
 /**
- * #67: record a homeowner signature given outside the portal. Two ways, and
- * the record says which: "In person" hands this phone to the homeowner for the
- * pad; "On paper" takes the name, the day on the page (never a future day) and
- * a REQUIRED photo of the signed page. The confirm stays disabled — with the
- * reason printed under it — until the draft passes recordSignatureBlockReason.
+ * #67: record a client signature given outside the portal. Two ways, and the
+ * record says which.
+ *
+ * In person (A2, moments lane MOMSIGN): a hand-off card, then the card turns
+ * to face the client (useHandoffTurn), who reviews and signs the ceremony
+ * themselves with their name EMPTY (never prefilled). On a confirmed record the
+ * seal closes the contract ("Binding"), the signed PDF is sealed once
+ * (onBinding), and a hand-back button turns the card back to the contractor's
+ * record card.
+ *
+ * On paper (A3): no ceremony. The name, the day on the page (never a future
+ * day) and a REQUIRED photo of the signed page, then a slide that stays
+ * disabled, with the reason, until the draft passes recordSignatureBlockReason.
  */
-function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }: {
+export function RecordHomeownerSignatureModal({
+  visible, onClose, contract, projectName, clientName, gcName, together, offline,
+  recordInPerson, recordPaper, isNeutral, recordFrom, onBinding, autoSeal, onLateResult, onResultAfterUnmount,
+}: {
   visible: boolean;
   onClose: () => void;
-  onRecord: (draft: RecordSignatureDraft, pagePhotoUri: string | null) => void;
-  recording: boolean;
+  contract: ProjectContract;
+  projectName: string;
+  /** The client's name on file, for the hand-off card ('' = unknown). */
+  clientName: string;
+  /** The contractor's name, for the hand-back button ('' = unknown). */
+  gcName: string;
+  together: boolean;
+  offline: boolean;
+  recordInPerson: (paths: string[], typedName: string) => Promise<CommitResult>;
+  recordPaper: (draft: RecordSignatureDraft, pagePhotoUri: string | null) => Promise<CommitResult>;
+  isNeutral: () => boolean;
+  recordFrom: SigningCeremonyProps['recordFrom'];
+  onBinding: () => void;
+  autoSeal: { state: 'idle' | 'running' | 'sealed' | 'failed'; hash?: string };
+  onLateResult: (r: CommitResult) => void;
+  onResultAfterUnmount: (r: CommitResult) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
@@ -2649,15 +3093,31 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
   const [signedDay, setSignedDay] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [dayPicker, setDayPicker] = useState(false);
+  // In person: 'handoff' (the contractor's card), 'client' (turned to the
+  // client), 'done' (confirmed; the hand-back waits), 'back' (the record card).
+  const [stage, setStage] = useState<'handoff' | 'client' | 'done' | 'back'>('handoff');
+  const [neutral, setNeutral] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // The paper write answered that the client already signed elsewhere: the
+  // slide stays disabled with that sentence (a second slide changes nothing).
+  const [paperSignedElsewhere, setPaperSignedElsewhere] = useState(false);
+  const turn = useHandoffTurn();
+  const paperSlideRef = useRef<SlideToConfirmHandle>(null);
 
   useEffect(() => {
     if (visible) {
       setMethod('in_person'); setPaths([]); setName(''); setSignedDay(todayCalendarDay()); setPhotoUri(null);
+      setStage('handoff'); setNeutral(false); setBusy(false); setPaperSignedElsewhere(false);
+      void turn.turn('front');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const draft: RecordSignatureDraft = { method, name, signaturePaths: paths, signedDay, hasPagePhoto: !!photoUri };
+  const draft = useMemo<RecordSignatureDraft>(() => ({ method, name, signaturePaths: paths, signedDay, hasPagePhoto: !!photoUri }), [method, name, paths, signedDay, photoUri]);
   const blockReason = recordSignatureBlockReason(draft, todayCalendarDay());
+  const paperReason = paperSignedElsewhere ? signingCopy.paperAlreadySigned() : blockReason;
+  const clientFirst = clientName.trim().split(/\s+/)[0] ?? '';
+  const gcFirst = gcName.trim().split(/\s+/)[0] ?? '';
 
   const pickPhoto = useCallback(async (source: 'camera' | 'library') => {
     const perm = source === 'camera'
@@ -2675,43 +3135,168 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
     setPhotoUri(result.assets[0].uri);
   }, []);
   const fRecord = useSheetFrame('form', { visible, animationType: 'slide' });
-  // Records the signed contract: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
-  useSheetPrimaryHotkey(visible && !recording && !blockReason, () => onRecord(draft, method === 'paper' ? photoUri : null), { saveKey: false });
+  // Records the signed contract: Cmd+Enter plays the paper slide's hold (never
+  // an instant commit), never Cmd+S (components/ui/Sheet saveKey). The
+  // in-person ceremony is signed by hand only.
+  useSheetPrimaryHotkey(visible && method === 'paper' && !paperReason && !busy, () => paperSlideRef.current?.playHoldToCommit(), { saveKey: false });
+
+  const writeInPerson = useCallback(() => recordInPerson(paths, name), [recordInPerson, paths, name]);
+  // The paper write holds the sheet: Cancel, Android back and the name field
+  // are off until the answer is in, so a refusal or "No answer yet" is always
+  // read on the open sheet (onResultAfterUnmount speaks only a confirmed one).
+  const writePaper = useCallback(async (): Promise<CommitResult> => {
+    setBusy(true);
+    const r = await recordPaper(draft, photoUri);
+    if (r.status === 'refused' && r.reason === signingCopy.paperAlreadySigned()) setPaperSignedElsewhere(true);
+    return r;
+  }, [recordPaper, draft, photoUri]);
+  const inPersonCopy = useMemo(() => ({
+    label: signingCopy.inPersonLabel(),
+    srLabel: signingCopy.inPersonSrLabel(),
+    srConfirm: signingCopy.inPersonSrConfirm(),
+    sealedAnnounce: signingCopy.inPersonSealedAnnounce(),
+  }), []);
+
+  const handOver = useCallback(() => {
+    setStage('client');
+    void turn.turn('back', signingCopy.handoffTurnAnnounce());
+  }, [turn]);
+  const handBack = useCallback(() => {
+    setStage('back');
+    void turn.turn('front', signingCopy.handBackAnnounce());
+  }, [turn]);
+
+  const sealLine = autoSeal.state === 'running'
+    ? signingCopy.autoSealRunning()
+    : autoSeal.state === 'sealed' && autoSeal.hash
+      ? signingCopy.sealEvidence(autoSeal.hash.slice(0, 12))
+      : autoSeal.state === 'failed' ? signingCopy.autoSealFailed() : null;
+
+  const front = stage === 'back' ? (
+    <View style={styles.recordCard} testID="contract-record-card">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.statusBannerTitle}>
+          {neutral ? signingCopy.alreadySignedTitle() : together ? signingCopy.recordCardTogetherTitle() : signingCopy.recordCardTitle()}
+        </Text>
+      </View>
+      <Text style={styles.modalBody}>
+        {neutral ? signingCopy.recordCardAlreadySigned() : signingCopy.recordCardSignedBy(name.trim())}
+      </Text>
+      {!neutral && !!sealLine && <Text style={styles.modalBody} testID="contract-record-seal-line">{sealLine}</Text>}
+      <Button label={signingCopy.recordCardDone()} onPress={onClose} testID="contract-record-done" />
+    </View>
+  ) : (
+    <View style={styles.recordCard} testID="contract-record-handoff">
+      <Text style={styles.modalBody}>
+        {clientName.trim() ? signingCopy.handoffBody(clientName.trim()) : signingCopy.handoffBodyNoName()}
+      </Text>
+      <Button
+        label={clientFirst ? signingCopy.handoffButton(clientFirst) : signingCopy.handoffButtonNoName()}
+        onPress={handOver}
+        disabled={stage !== 'handoff'}
+        testID="contract-record-hand-over"
+      />
+    </View>
+  );
+
+  const back = stage === 'handoff' ? null : (
+    <View>
+      <SigningCeremony
+        signer="homeowner"
+        mode="drawn"
+        method="in_person"
+        parties={2}
+        signedBefore={1}
+        sealVerb="SIGNED"
+        role="Owner"
+        top={contractCeremonyTop(contract, projectName)}
+        name={{ value: name, onChange: setName, label: signingCopy.inPersonNameLabel(), placeholder: signingCopy.inPersonNameLabel(), minLength: 2 }}
+        paths={paths}
+        onPathsChange={setPaths}
+        offline={offline}
+        copy={inPersonCopy}
+        write={writeInPerson}
+        writeOptions={{
+          idempotent: false,
+          copy: {
+            refused: signingCopy.recordRefused(),
+            timeout: signingCopy.contractTimeout(),
+            legalQueued: signingCopy.recordLegalQueued(),
+          },
+        }}
+        recordFrom={recordFrom}
+        isNeutral={isNeutral}
+        evidence={autoSeal.state === 'sealed' && autoSeal.hash ? signingCopy.sealEvidence(autoSeal.hash.slice(0, 12)) : undefined}
+        onBinding={onBinding}
+        onCommitStart={() => setBusy(true)}
+        onUncommit={() => setBusy(false)}
+        onDone={(r) => {
+          setBusy(false);
+          if (r.status !== 'confirmed') return;
+          setNeutral(isNeutral());
+          setStage('done');
+        }}
+        onLateResult={onLateResult}
+        onResultAfterUnmount={onResultAfterUnmount}
+        testID="contract-record-ceremony"
+      />
+      {stage === 'done' && (
+        <Button
+          label={gcFirst ? signingCopy.handBackButton(gcFirst) : signingCopy.handBackButtonNoName()}
+          onPress={handBack}
+          style={{ marginTop: 14 }}
+          testID="contract-record-hand-back"
+        />
+      )}
+    </View>
+  );
+
+  const inPersonStarted = method === 'in_person' && stage !== 'handoff';
 
   return (
-    <Modal visible={visible} animationType={fRecord.animationType} transparent onRequestClose={() => { if (!recording) onClose(); }}>
+    <Modal visible={visible} animationType={fRecord.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={[styles.modalOverlay, fRecord.overlay]}>
         <View style={[styles.modalCard, fRecord.card]} testID="contract-record-signature-modal">
           <Text style={styles.modalTitle}>Record client signature</Text>
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={[styles.modalCancel, method === 'in_person' && { borderColor: themeColors.accent }]}
-              onPress={() => setMethod('in_person')}
-              accessibilityRole="button"
-              accessibilityState={{ selected: method === 'in_person' }}
-              testID="contract-record-in-person"
-            >
-              <Text style={styles.modalCancelText}>In person</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalCancel, method === 'paper' && { borderColor: themeColors.accent }]}
-              onPress={() => setMethod('paper')}
-              accessibilityRole="button"
-              accessibilityState={{ selected: method === 'paper' }}
-              testID="contract-record-paper"
-            >
-              <Text style={styles.modalCancelText}>On paper</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.modalBody}>
-            {method === 'in_person'
-              ? 'Hand the phone to the client: they sign in the box and type their full legal name. It is recorded as signed in person on your device.'
-              : 'For a contract the client signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page — the photo is kept as the proof.'}
-          </Text>
+          {!inPersonStarted && (
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalCancel, method === 'in_person' && { borderColor: themeColors.accent }]}
+                // Never mid-write: switching would unmount the paper slide before its answer.
+                onPress={() => { if (!busy) setMethod('in_person'); }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: method === 'in_person' }}
+                testID="contract-record-in-person"
+              >
+                <Text style={styles.modalCancelText}>In person</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalCancel, method === 'paper' && { borderColor: themeColors.accent }]}
+                onPress={() => { if (!busy) setMethod('paper'); }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: method === 'paper' }}
+                testID="contract-record-paper"
+              >
+                <Text style={styles.modalCancelText}>On paper</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {method === 'in_person' ? (
-            <SignaturePad initialPaths={paths} onSave={setPaths} onClear={() => setPaths([])} height={150} />
+            visible ? (
+              <HandoffTurn
+                control={turn}
+                front={front}
+                back={back}
+                style={inPersonStarted ? { minHeight: HANDOFF_MIN_HEIGHT } : null}
+                testID="contract-record-turn"
+              />
+            ) : null
           ) : (
             <>
+              <Text style={styles.modalBody}>
+                For a contract the client signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page. The photo is kept as the proof.
+              </Text>
               <TouchableOpacity onPress={() => setDayPicker(true)} style={styles.modalNameInput} accessibilityRole="button" testID="contract-record-day">
                 <Text style={{ color: themeColors.text }}>{signedDay ? `Signed ${formatCalendarDay(signedDay)}` : 'Pick the signing day'}</Text>
               </TouchableOpacity>
@@ -2724,36 +3309,53 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
                 </TouchableOpacity>
               </View>
               {!!photoUri && <Text style={styles.modalBody}>Photo of the signed page added.</Text>}
+              <TextInput
+                style={styles.modalNameInput}
+                value={name}
+                onChangeText={setName}
+                placeholder="Client's full legal name"
+                placeholderTextColor={themeColors.textMuted}
+                autoCapitalize="words"
+                editable={!busy}
+                testID="contract-record-name"
+              />
+              <SlideToConfirm
+                ref={paperSlideRef}
+                label={signingCopy.paperLabel()}
+                busyLabel={signingCopy.paperBusyLabel()}
+                srLabel={signingCopy.paperSrLabel()}
+                srConfirm={signingCopy.paperSrConfirm()}
+                onCommit={writePaper}
+                writeOptions={{
+                  idempotent: false,
+                  legal: true,
+                  copy: {
+                    refused: signingCopy.recordRefused(),
+                    timeout: signingCopy.contractTimeout(),
+                    legalQueued: signingCopy.recordLegalQueued(),
+                    offline: signingCopy.paperOffline(),
+                  },
+                }}
+                tone="ink"
+                resultIcon="lock"
+                disabledReason={paperReason}
+                offline={offline}
+                // A confirmed record holds the sheet through its result; onDone closes it.
+                onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}
+                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}
+                onResultAfterUnmount={onResultAfterUnmount}
+                onLateResult={onLateResult}
+                testID="contract-record-paper-slide"
+              />
             </>
           )}
-          <TextInput
-            style={styles.modalNameInput}
-            value={name}
-            onChangeText={setName}
-            placeholder="Client's full legal name"
-            placeholderTextColor={themeColors.textMuted}
-            autoCapitalize="words"
-            testID="contract-record-name"
-          />
-          {!!blockReason && <Text style={styles.modalBody} testID="contract-record-block-reason">{blockReason}</Text>}
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={recording} accessibilityRole="button">
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalConfirm, !!blockReason && styles.primaryBtnDisabled]}
-              onPress={() => onRecord(draft, method === 'paper' ? photoUri : null)}
-              disabled={recording || !!blockReason}
-              testID="contract-record-confirm"
-            >
-              {recording ? <ActivityIndicator size="small" color="#FFF" /> : (
-                <>
-                  <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.modalConfirmText}>Record signature</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+          {!(method === 'in_person' && stage === 'back') && (
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={busy} accessibilityRole="button" testID="contract-record-cancel">
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
       <DatePickerModal
@@ -2766,6 +3368,7 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
     </Modal>
   );
 }
+
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
@@ -3093,6 +3696,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   statusBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: themeColors.accent },
   statusBannerBody:  { fontSize: Type.caption1.fontSize, color: themeColors.text, marginTop: 3, lineHeight: 17 },
+  // The in-person hand-off and record cards (A2): the shared card recipe.
+  recordCard: { ...cardSurface(themeColors, { radius: 'lg', pad: 16 }), gap: 12 },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },

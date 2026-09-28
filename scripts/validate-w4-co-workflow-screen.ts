@@ -42,7 +42,6 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 
 const B = evalBlock<{
   coPipelineFor: (s: St) => { stages: { key: St; label: string; terminal?: boolean }[]; current: St; canAdvance: boolean };
-  coApproveConfirmCopy: (n: number | null, amt: number, m: (n: number) => string) => { title: string; message: string };
   coTaxNote: (s: St | undefined, frozen: number | undefined, rate: number) => string;
   coPrefillLines: (raw: string | undefined, legacy: { amount?: string; reason?: string; description?: string }, id: () => string) => Line[] | null;
   coUnconfirmedPriceBlocker: (l: Line[], d: string, m: (n: number) => string) => { kind: 'refuse' | 'confirm'; title: string; message: string; lineIds?: string[] } | null;
@@ -54,11 +53,16 @@ const B = evalBlock<{
   coApprovalLineForViewer: <L extends { kind: string; who?: string; text: string }>(l: L, v: (string | null | undefined)[]) => L;
   coRevisionDraft: (src: { id: string; number: number; projectId: string; description: string; reason: string; lineItems: Line[]; scheduleImpactDays?: number; scheduleImpactTaskIds?: string[]; originalContractValue: number }, o: { id: string; number: number; nowIso: string; newId: () => string; actor: string }) => Record<string, unknown> & { lineItems: Line[]; changeAmount: number; status: string; revisesChangeOrderId: string; auditTrail: { action: string; detail?: string }[] };
 }>('app/change-order.tsx', 'co-w4', [
-  'coPipelineFor', 'coApproveConfirmCopy', 'coTaxNote', 'coPrefillLines', 'coUnconfirmedPriceBlocker',
+  'coPipelineFor', 'coTaxNote', 'coPrefillLines', 'coUnconfirmedPriceBlocker',
   'coRecordsRecipient', 'coPortalSendGate', 'coPdfAction', 'coFormDirty', 'coRevisionDraft',
   'coStaleNumberHold', 'coApprovalLineForViewer',
 ]);
 const CODE = stripComments(read('app/change-order.tsx'));
+// Wave-next W2 (moments B1/B2): the #79 money line moved next to the approve
+// sheet it heads, so the job page reads it without importing this route.
+const A = evalBlock<{
+  coApproveConfirmCopy: (n: number | null, amt: number, m: (n: number) => string) => { title: string; message: string };
+}>('components/moments-sites/COApproveSheet.tsx', 'co-approve-copy', ['coApproveConfirmCopy']);
 
 // ── #42 the tax note is keyed on status ────────────────────────────────────
 console.log('\n#42 the tax note never claims an approval that did not happen');
@@ -219,13 +223,23 @@ if (B) {
 
 // ── #79 Mark approved asks first ───────────────────────────────────────────
 console.log('\n#79 Mark approved confirms before it commits the money');
-if (B) {
-  const c = B.coApproveConfirmCopy(4, 5000, money);
+if (B && A) {
+  const c = A.coApproveConfirmCopy(4, 5000, money);
   ok('"Approve CO #4?" / "This commits $5000.00 to the contract."', c.title === 'Approve CO #4?' && /This commits \$5000\.00 to the contract\./.test(c.message));
-  ok('a credit says credits', /credits \$50\.00 back/.test(B.coApproveConfirmCopy(4, -50, money).message));
+  ok('a credit says credits', /credits \$50\.00 back/.test(A.coApproveConfirmCopy(4, -50, money).message));
+  ok('both approve screens read the money line from the sheet module, never from the change-order route',
+    /import \{[^}]*\bcoApproveConfirmCopy\b[^}]*\} from '@\/components\/moments-sites\/COApproveSheet';/.test(CODE)
+      && /import \{[^}]*\bcoApproveConfirmCopy\b[^}]*\} from '@\/components\/moments-sites\/COApproveSheet';/.test(read('app/project-detail.tsx'))
+      && !/from '@\/app\/change-order'/.test(read('app/project-detail.tsx')));
   const adv = CODE.slice(CODE.indexOf('onAdvance={pipe.canAdvance'), CODE.indexOf('advanceLabel={', CODE.indexOf('onAdvance={pipe.canAdvance')));
   ok('onAdvance: approved goes through confirmApprove, never a bare updateChangeOrder', /if \(next === 'approved'\) \{\s*confirmApprove\(existingCO\);\s*return;/.test(adv));
-  ok('confirmApprove writes only inside the Approve handler', /text: 'Approve',\s*onPress: \(\) => \{\s*updateChangeOrder\(co\.id, \{ status: 'approved' \}\);/.test(CODE));
+  // Wave-next W2 (moments B1): the confirm is the approve sheet. confirmApprove
+  // only opens it; the write happens on the slide, through approveChangeOrder
+  // (scripts/moments-checks/money-sites.ts M3 proves the sheet's handler).
+  ok('confirmApprove only opens the approve sheet (the slide writes, never the tap)',
+    // W2 integration: it also clears the "approved without signing" mark (a pipeline approve is not that action).
+    /const confirmApprove = useCallback\(\(co: ChangeOrder\) => \{\s*setApproveUnsigned\(null\);\s*setApproveSheetCO\(co\);\s*\}, \[\]\);/.test(CODE)
+      && /<COApproveSheet\b[\s\S]{0,400}moneyLine=\{copy\.message\}/.test(CODE));
   ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark approved'/.test(CODE));
 }
 

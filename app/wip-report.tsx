@@ -17,7 +17,13 @@ import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { ChipRail, useIsDesktopWeb, useSheetFrame } from '@/components/ui';
+import { ChipRail, Sheet, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { nailIt, oops } from '@/components/animations/NailItToast';
+import {
+  SlideToConfirm, fromWriteOutcome,
+  type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
+} from '@/components/moments/core/contract';
+import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
 import { DashboardColumns } from '@/components/desktop/DashboardColumns';
 import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { ToolbarActions, type ToolbarAction } from '@/components/desktop/ToolbarActions';
@@ -44,7 +50,7 @@ import {
   type WipEstimatedCost, type WipEtcEntry,
 } from '@/utils/wip';
 import DatePickerModal from '@/components/DatePickerModal';
-import { todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
@@ -154,6 +160,33 @@ const NOTHING_TO_REPORT =
   + 'There is nothing to freeze or export yet, and a bank or surety would read a schedule of '
   + 'zeros as your actual position.';
 
+/**
+ * Why a period cannot be locked, or null when it can (moments C5). These were
+ * four Alerts on release; they are the lock slide's disabled reason now,
+ * computed when the sheet opens. The four exits, in order: no saved period and
+ * nothing on the schedule, no saved period, an empty period (a period saved
+ * before the empty guard shipped can still be all-zero, and locking is
+ * irreversible, so the row count is checked on the PERIOD), an already-locked one.
+ */
+function lockRefusal(target: WipPeriodWithSources | undefined, hasLiveRows: boolean): string | null {
+  if (!target) {
+    // Two different prerequisites, and sending a GC with no projects to the
+    // Save button — which refuses for the same reason — is a loop.
+    if (!hasLiveRows) return NOTHING_TO_REPORT;
+    return fieldCopy.wipNoPeriodReason();
+  }
+  if (target.rows.length === 0) return `This period has no projects on it. ${NOTHING_TO_REPORT}`;
+  if (target.lockedAt) return fieldCopy.wipAlreadyLockedReason();
+  return null;
+}
+
+/** The lock slide's answer when it lands after this screen unmounted (nailIt survives only here). */
+function momentAfterUnmount(r: CommitResult): void {
+  if (r.status === 'confirmed') nailIt(r.title);
+  else if (r.status === 'refused') oops(r.reason);
+  else if (r.status === 'timeout') oops(r.message);
+}
+
 export default function WipReportScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
@@ -200,7 +233,7 @@ function WipReportScreenInner() {
     // and the two hooks below.
     equipment, permits,
   } = useProjects();
-  const { periods, addPeriod, lockPeriod } = useWip();
+  const { periods, addPeriod, lockPeriodDetailed } = useWip();
   const { getReceiptsForProject } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
   const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
@@ -959,28 +992,39 @@ function WipReportScreenInner() {
     save();
   }, [addPeriod, liveRows, liveRowsWithFlags, portfolio, periodEndDraft, periods, viewingFrozen]);
 
+  // ── C5 (moments, lane MOMFIELD): locking a period ─────────────────────
+  // Lock opens a sheet whose footer slide is the confirm (the "Lock period?"
+  // Alert and its Warning haptic are retired). The target and its refusal are
+  // taken when the sheet opens, so the slide cannot change under the thumb;
+  // the write is lockPeriodDetailed, and a lock is a neutral result (ink, the
+  // lock icon), never a celebration.
+  const [lockSheet, setLockSheet] = useState<{ id: string | null; periodEnd: string; reason: string | null } | null>(null);
+  const [lockBusy, setLockBusy] = useState(false);
+  const lockSlideRef = useRef<SlideToConfirmHandle>(null);
   const handleLock = useCallback(() => {
     const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periodsByEnd[0];
-    if (!target) {
-      // Two different prerequisites, and sending a GC with no projects to the
-      // Save button — which refuses for the same reason — is a loop.
-      if (liveRows.length === 0) { showAlert('Nothing to lock', NOTHING_TO_REPORT); return; }
-      showAlert('No period', 'Save a period snapshot first, then lock it.');
-      return;
-    }
-    // A period saved before this guard shipped can still be all-zero, and
-    // locking is irreversible — so the row count is checked on the PERIOD, not
-    // on today's live rows.
-    if (target.rows.length === 0) {
-      showAlert('Nothing to lock', `This period has no projects on it. ${NOTHING_TO_REPORT}`);
-      return;
-    }
-    if (target.lockedAt) { showAlert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
-    showAlert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Lock', style: 'destructive', onPress: () => { lockPeriod(target.id); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } },
-    ]);
-  }, [selectedPeriodId, periods, periodsByEnd, lockPeriod, liveRows]);
+    setLockSheet({ id: target?.id ?? null, periodEnd: target?.periodEndDate ?? '', reason: lockRefusal(target, liveRows.length > 0) });
+  }, [selectedPeriodId, periods, periodsByEnd, liveRows]);
+  // "September 2026" / "Sep 2026", from the period end, in the app language.
+  const lockMonth = lockSheet?.periodEnd ? formatCalendarDay(lockSheet.periodEnd, { month: 'long', year: 'numeric' }) : '';
+  const lockMonthShort = lockSheet?.periodEnd ? formatCalendarDay(lockSheet.periodEnd, { month: 'short', year: 'numeric' }) : '';
+  const commitLock = useCallback(async (): Promise<CommitResult> => {
+    const id = lockSheet?.id;
+    if (!id) return { status: 'refused', reason: fieldCopy.wipLockRefused() };
+    setLockBusy(true);
+    const outcome = await lockPeriodDetailed(id);
+    if (outcome === 'already') return { status: 'refused', reason: fieldCopy.wipLockAlready() };
+    return fromWriteOutcome(outcome, { title: fieldCopy.wipLockedTitle(lockMonthShort), next: fieldCopy.wipLockedNext() }, {
+      refused: fieldCopy.wipLockRefused(),
+      queued: fieldCopy.wipLockQueued(),
+    });
+  }, [lockSheet, lockPeriodDetailed, lockMonthShort]);
+  const lockWriteOptions = useMemo<CommitWriteOptions>(() => ({
+    idempotent: false,
+    copy: { refused: fieldCopy.wipLockRefused(), timeout: fieldCopy.wipLockTimeout(lockMonth) },
+  }), [lockMonth]);
+  const closeLockSheet = useCallback(() => { if (!lockBusy) setLockSheet(null); }, [lockBusy]);
+  useSheetPrimaryHotkey(lockSheet !== null, () => lockSlideRef.current?.playHoldToCommit(), { saveKey: false });
 
   const exportPeriod = useMemo((): WipPeriodWithSources | null => {
     if (selectedPeriodId) return periods.find((p) => p.id === selectedPeriodId) ?? null;
@@ -1802,6 +1846,39 @@ function WipReportScreenInner() {
         </View>
       </Modal>
 
+      <Sheet
+        visible={lockSheet !== null}
+        onClose={closeLockSheet}
+        title={fieldCopy.wipLockSheetTitle()}
+        size="dialog"
+        dismissOnBackdrop={!lockBusy}
+        testID="wip-lock-sheet"
+        footer={lockSheet ? (
+          <SlideToConfirm
+            ref={lockSlideRef}
+            tone="ink"
+            resultIcon="lock"
+            label={fieldCopy.wipLockSlideLabel(lockMonth)}
+            busyLabel={fieldCopy.wipLockBusy()}
+            srLabel={fieldCopy.wipLockSrLabel(lockMonth)}
+            srConfirm={fieldCopy.wipLockSrConfirm()}
+            onCommit={commitLock}
+            writeOptions={lockWriteOptions}
+            queuedLabel={fieldCopy.wipLockQueued()}
+            disabledReason={lockSheet.reason}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setLockBusy(false); }}
+            onDone={() => { setLockBusy(false); setLockSheet(null); }}
+            onResultAfterUnmount={momentAfterUnmount}
+            testID="wip-lock-slide"
+          />
+        ) : null}
+      >
+        {lockSheet?.periodEnd ? (
+          <Text style={styles.lockSheetBody}>{fieldCopy.wipLockSheetBody(formatCalendarDay(lockSheet.periodEnd))}</Text>
+        ) : null}
+      </Sheet>
+
       <DatePickerModal
         visible={periodDateOpen}
         value={periodEndDraft}
@@ -1892,6 +1969,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Reads as unavailable; the note below it carries the reason.
   actionBtnBlocked: { opacity: 0.45 },
   blockedNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 8 },
+  lockSheetBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: t.line,

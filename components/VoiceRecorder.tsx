@@ -26,6 +26,7 @@ import VoiceCaptureModal from './VoiceCaptureModal';
 import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useT } from '@/contexts/LanguageContext';
 
 interface VoiceRecorderProps {
   onTranscriptReady: (transcript: string) => void;
@@ -85,6 +86,7 @@ export default function VoiceRecorder({
   title, contextLine, suggestions, topicChecklist, label, bare = false,
   autoStart = false, queueKey,
 }: VoiceRecorderProps) {
+  const { t } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [modalOpen, setModalOpen] = useState(false);
@@ -113,7 +115,7 @@ export default function VoiceRecorder({
         <View style={[styles.micBtn, styles.micBtnDisabled]}>
           <MicOff size={20} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
-        <Text style={styles.webLabel}>Voice input not available on web</Text>
+        <Text style={styles.webLabel}>{t('field.chrome.voiceWebUnavailable', 'Voice input not available on web')}</Text>
       </View>
     );
   }
@@ -124,7 +126,7 @@ export default function VoiceRecorder({
         <View style={[styles.micBtn, styles.micBtnLocked]}>
           <Lock size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
-        <Text style={styles.lockedLabel}>Pro feature — tap to upgrade</Text>
+        <Text style={styles.lockedLabel}>{t('field.chrome.voiceProLocked', 'Pro feature — tap to upgrade')}</Text>
       </TouchableOpacity>
     );
   }
@@ -141,7 +143,7 @@ export default function VoiceRecorder({
           <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <Text style={styles.label}>
-          {isLoading ? 'Processing…' : (label ?? 'Tap to dictate')}
+          {isLoading ? t('field.chrome.processing', 'Processing…') : (label ?? t('field.chrome.tapToDictate', 'Tap to dictate'))}
         </Text>
       </TouchableOpacity>
       {/* Tutorial blocker sentinel: the capture sheet is an RN Modal that draws

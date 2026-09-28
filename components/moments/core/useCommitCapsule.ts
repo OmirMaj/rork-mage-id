@@ -43,7 +43,7 @@ import {
 } from '@/utils/moments/commitResult';
 import { CAPSULE_GEOMETRY, CAPSULE_RULES, MOMENT_EASE, MOMENT_SPRING, MOMENT_TIMING as MT, type SpringCfg } from '@/utils/moments/motionSpec';
 import { disabledTable, lockStep, notchStep, resist, resistanceTable, shouldCommit } from '@/utils/moments/capsuleMath';
-import { MOMENT_COPY } from '@/utils/moments/copy';
+import { momentCopy } from '@/utils/moments/copy';
 import { announce, momentHaptic } from '@/utils/moments/haptics';
 import { inputModality, installFocusModality, subscribeInputModality } from '@/utils/moments/focusModality';
 import type { CapsuleTone } from '@/utils/moments/colors';
@@ -579,7 +579,7 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
   }
 
   async function resolveQueued(g: number, r: Extract<CommitResult, { status: 'queued' }>, geom: CapsuleGeometryLive) {
-    const label = r.title ?? MOMENT_COPY.queued;
+    const label = r.title ?? momentCopy().queued;
     const rm = reducedMotion();
     tw(v.ring, 0, MT.ringOut);
     later(g, MT.ringOut + 20, stopSpin);
@@ -1075,7 +1075,7 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
     accessible: true,
     accessibilityRole: 'button' as const,
     accessibilityLabel: a11yLabel,
-    accessibilityHint: disabled ? reasonText : (copy.srHint ?? MOMENT_COPY.srHint),
+    accessibilityHint: disabled ? reasonText : (copy.srHint ?? momentCopy().srHint),
     accessibilityState: { disabled, busy: phase === 'busy' || phase === 'resolving' },
     accessibilityActions: [{ name: 'activate' as const }],
     onAccessibilityAction: (e: { nativeEvent: { actionName: string } }) => {

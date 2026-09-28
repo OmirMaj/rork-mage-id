@@ -218,11 +218,18 @@ console.log('\nB. a refused Record Payment is not also parked under Not saved');
     /opts\?: \{ callerOwnsRefusal\?: boolean; ledgerRetry\?: boolean \},[\s\S]{0,260}\.\.\.\(opts\?\.callerOwnsRefusal \? \{ callerOwnsRefusal: true \} : \{\}\),/.test(Q));
   const fail = Q.slice(Q.indexOf('function failDirectWrite('), Q.indexOf('// Forward to Sentry so we can see'));
   ok('failDirectWrite skips the ledger line AND the toast for it', /if \(ledger && !opts\?\.callerOwnsRefusal && !opts\?\.ledgerRetry && !foreignSession\) \{/.test(fail) && /if \(!opts\?\.callerOwnsRefusal && sameSession\) \{\s*try \{[\s\S]*?oops\(/.test(fail));
-  ok('the refused alert no longer blames the connection (a dropped signal queues)',
-    /'Payment not recorded', `The server did not accept the \$\{formatCurrency\(amt\)\} payment — nothing was recorded\./.test(INV) && !/could not be saved — nothing was recorded\. Check your connection/.test(INV));
-  ok('the queued alert says where it waits, not "You\'re offline" (and never calls it recorded)',
-    /payment saved on this phone\. It reaches your books as soon as it goes through\./.test(INV)
-    && !/You're offline, so it reaches your books/.test(INV) && !/sync queue/.test(INV));
+  // Wave-next W2 (moments B3): the outcomes are the slide's reason and result
+  // lines, whole sentences from utils/moments/sites/moneyCopy.ts. The rules stay.
+  const MONEY = read('utils/moments/sites/moneyCopy.ts');
+  const sentence = (fn: string) => (new RegExp(`export function ${fn}\\(\\): string \\{\\s*return ['"]([^'"]+)['"];`).exec(MONEY) ?? [])[1] ?? '';
+  ok('the refused line no longer blames the connection (a dropped signal queues)',
+    /return \{ status: 'refused', reason: held \? payHeld\(\) : payRefused\(\) \};/.test(INV)
+      && sentence('payRefused') === 'Not recorded. The server said no, so nothing was saved.'
+      && !/connection/i.test(sentence('payRefused')) && !/Check your connection/.test(INV));
+  ok('the queued line says where it waits, not "You\'re offline" (and never "recorded" without "on this phone")',
+    /status: 'queued',\s*title: payQueued\(\),/.test(INV)
+      && sentence('payQueued') === 'Recorded on this phone · sends when online'
+      && !/You're offline/.test(sentence('payQueued')) && !/You're offline, so it reaches your books/.test(INV) && !/sync queue/.test(INV + MONEY));
 }
 
 // A fake PostgREST that honours eq / is filters and answers .select() with

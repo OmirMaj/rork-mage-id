@@ -2424,6 +2424,13 @@ export interface OnlineWriteResult<T = unknown> {
   error?: string;
   /** What the server returned (an rpc's result, or the `returning` columns). */
   data?: T;
+  /**
+   * An insert that met its OWN row on the server (a primary-key duplicate the
+   * caller can see: a re-send after an attempt whose answer was lost). The
+   * row is stored, but what is stored is the EARLIER attempt's content, not
+   * this call's: a caller that shows or keeps the record re-reads it.
+   */
+  landedEarlier?: true;
 }
 
 export interface OnlineWriteOpts {
@@ -2552,15 +2559,17 @@ async function sendOnline(
     let error: { message: string; code?: string } | null = null;
     let status: number | undefined;
     let rows: unknown = undefined;
+    let landedEarlier = false;
     if (operation === 'insert') {
       const q = supabase.from(table).insert(data);
       const res = opts?.returning ? await q.select(opts.returning) : await q;
       error = res.error; status = res.status; rows = (res as { data?: unknown }).data;
       // A re-send of an insert whose first attempt got no answer meets its own
-      // row: that is success, when this user can see it (#122's rule).
+      // row: that is success, when this user can see it (#122's rule). The
+      // row holds the FIRST attempt's content, so the caller is told.
       if (error && typeof data?.id === 'string' && isAlreadyLandedInsert(error)) {
         const seen = await duplicateRowVisibility(table, data);
-        if (seen === 'visible') { error = null; rows = undefined; }
+        if (seen === 'visible') { error = null; rows = undefined; landedEarlier = true; }
         else if (seen === 'unknown') return { status: 'unknown', error: 'the duplicate row could not be re-read' };
       }
     } else if (operation === 'upsert') {
@@ -2585,7 +2594,7 @@ async function sendOnline(
     if (error) throw Object.assign(new Error(error.message), { code: error.code, status });
     // The network is up: whatever this session still has queued goes now.
     if (ownDepth > 0) scheduleQueueDrain();
-    return { status: 'synced', ...(rows !== undefined ? { data: rows } : {}) };
+    return { status: 'synced', ...(rows !== undefined ? { data: rows } : {}), ...(landedEarlier ? { landedEarlier: true as const } : {}) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (isNetworkError(err)) return { status: 'unknown', error: msg };

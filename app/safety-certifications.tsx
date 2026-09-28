@@ -33,14 +33,17 @@ import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useT } from '@/contexts/LanguageContext';
+import { t, tn } from '@/i18n/core';
 
 // Quick-pick common certification types. Free text is still allowed.
+// i18n-keep-english: certification names written into the record as its type
 const TYPE_QUICKPICKS = ['OSHA 10', 'OSHA 30', 'SST', 'CPR', 'First Aid'];
 
-const STATUS_STYLE = (t: ThemeColors): Record<CertificationStatus, { label: string; color: string }> => ({
-  valid:    { label: 'Valid',    color: t.success },
-  expiring: { label: 'Expiring', color: t.accent },
-  expired:  { label: 'Expired',  color: t.danger },
+const STATUS_STYLE = (tc: ThemeColors): Record<CertificationStatus, { label: string; color: string }> => ({
+  valid:    { label: t('safety.cert.statusValid', 'Valid'),       color: tc.success },
+  expiring: { label: t('safety.cert.statusExpiring', 'Expiring'), color: tc.accent },
+  expired:  { label: t('safety.cert.status.expired', 'Expired'),  color: tc.danger },
 });
 
 type StatusFilter = 'all' | 'expiring' | 'expired' | 'valid';
@@ -80,7 +83,10 @@ export function certRosterBanner(
   if (total <= 0) return null;
   if (expiringOrExpired > 0) {
     return {
-      text: `${expiringOrExpired} certification${expiringOrExpired === 1 ? '' : 's'} expiring soon or expired`,
+      text: tn('safety.cert.bannerAttention', expiringOrExpired, {
+        one: '{count} certification expiring soon or expired',
+        other: '{count} certifications expiring soon or expired',
+      }),
       tone: 'attention',
     };
   }
@@ -88,15 +94,24 @@ export function certRosterBanner(
   if (undated > 0) {
     return {
       text: dated === 0
-        ? `${total} certification${total === 1 ? '' : 's'} on file, none with an expiry date — nothing here for us to watch.`
-        : `${total} certifications on file — none of the ${dated} with a date expire in the next 30 days. ${undated} ${undated === 1 ? 'has' : 'have'} no expiry date.`,
+        ? tn('safety.cert.bannerAllUndated', total, {
+          one: '{count} certification on file, none with an expiry date — nothing here for us to watch.',
+          other: '{count} certifications on file, none with an expiry date — nothing here for us to watch.',
+        })
+        : tn('safety.cert.bannerSomeUndated', undated, {
+          one: '{total} certifications on file — none of the {dated} with a date expire in the next 30 days. {count} has no expiry date.',
+          other: '{total} certifications on file — none of the {dated} with a date expire in the next 30 days. {count} have no expiry date.',
+        }, { total, dated }),
       tone: 'attention',
     };
   }
   // The 30 days is certExpiryStatus's own window (utils/crew/certExpiry.ts),
   // not a number chosen for this sentence.
   return {
-    text: `${total} certification${total === 1 ? '' : 's'} on file — none expiring in the next 30 days`,
+    text: tn('safety.cert.bannerClean', total, {
+      one: '{count} certification on file — none expiring in the next 30 days',
+      other: '{count} certifications on file — none expiring in the next 30 days',
+    }),
     tone: 'clean',
   };
 }
@@ -118,6 +133,7 @@ export default function SafetyCertificationsScreen() {
 }
 
 function SafetyCertificationsInner() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -219,14 +235,16 @@ function SafetyCertificationsInner() {
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert(source === 'camera' ? 'Camera access needed' : 'Photo access needed',
-        `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to scan a card.`);
+      showAlert(source === 'camera' ? t('safety.cert.cameraAccessNeeded', 'Camera access needed') : t('safety.cert.photoAccessNeeded', 'Photo access needed'),
+        source === 'camera'
+          ? t('safety.cert.grantCamera', 'Grant camera access in Settings to scan a card.')
+          : t('safety.cert.grantPhoto', 'Grant photo access in Settings to scan a card.'));
       return;
     }
     // Same metering key as the crew ID scan: both call scan-credential, and the
     // server's monthly cap is the authoritative one.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
-    if (!limit.allowed) { showAlert('Scan limit reached', limit.message ?? 'Scan limit reached. See plans for more card scans.'); return; }
+    if (!limit.allowed) { showAlert(t('safety.cert.scanLimitReached', 'Scan limit reached'), limit.message ?? t('safety.cert.scanLimitReachedSee', 'Scan limit reached. See plans for more card scans.')); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
@@ -240,17 +258,28 @@ function SafetyCertificationsInner() {
       // model returned is left blank for him to type rather than stored as a
       // date certStatus would then flag 'expired'.
       const day = (v: string | undefined) => {
-        const t = (v ?? '').trim().slice(0, 10);
-        return /^\d{4}-\d{2}-\d{2}$/.test(t) && parseCalendarDay(t) ? t : '';
+        const ymd = (v ?? '').trim().slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(ymd) && parseCalendarDay(ymd) ? ymd : '';
       };
       if (fields.certType?.trim()) setType(fields.certType.trim());
       const iss = day(fields.issuedDate);
       const exp = day(fields.expiresDate);
       if (iss) setIssuedDate(iss);
       if (exp) setExpiresDate(exp);
+      // The AI honesty line is catalog text (docs/I18N.md §7.4), never model
+      // output: one whole sentence per case, then the second sentence.
+      const issuer = fields.issuer ?? '';
+      const number = fields.certNumber ?? '';
+      const readLine = issuer && number
+        ? t('safety.cert.readByAiIssuerNumber', 'Read from the card by AI (issuer: {issuer}), card no. {number}.', { issuer, number })
+        : issuer
+          ? t('safety.cert.readByAiIssuer', 'Read from the card by AI (issuer: {issuer}).', { issuer })
+          : number
+            ? t('safety.cert.readByAiNumber', 'Read from the card by AI, card no. {number}.', { number })
+            : t('safety.cert.readByAi', 'Read from the card by AI.');
       setScanNote(
-        `Read from the card by AI${fields.issuer ? ` (issuer: ${fields.issuer})` : ''}${fields.certNumber ? `, card no. ${fields.certNumber}` : ''}. `
-        + (exp ? 'Check the dates against the card before saving.' : 'No expiry date could be read. Type it from the card.'),
+        `${readLine} `
+        + (exp ? t('safety.cert.checkDates', 'Check the dates against the card before saving.') : t('safety.cert.noExpiryRead', 'No expiry date could be read. Type it from the card.')),
       );
     } catch (e) {
       // CONTRACT 26 (#124): scanCertification throws edgeFunctionError, so a
@@ -259,25 +288,25 @@ function SafetyCertificationsInner() {
       const code = edgeErrorCode(e);
       if (code === 'monthly_cap_reached' || code === 'tier_required') {
         const msg = e instanceof Error ? e.message : '';
-        setScanNote(msg || "Card scanning isn't available on your plan right now.");
+        setScanNote(msg || t('safety.cert.cardScanningIsntAvailable', "Card scanning isn't available on your plan right now."));
         showAlert(
-          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
-          msg || "Card scanning isn't available on your plan right now.",
+          code === 'tier_required' ? t('safety.cert.notIncludedInYour', 'Not included in your plan') : t('safety.cert.youveHitThisMonths', "You've hit this month's limit"),
+          msg || t('safety.cert.cardScanningIsntAvailable', "Card scanning isn't available on your plan right now."),
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+            { text: t('safety.cert.notNow', 'Not now'), style: 'cancel' },
+            { text: t('safety.cert.seePlans', 'See plans'), onPress: () => router.push('/paywall' as never) },
           ],
         );
       } else if (code === 'hourly_limit') {
-        setScanNote(e instanceof Error && e.message ? e.message : 'Scan limit reached for this hour. Try again later.');
+        setScanNote(e instanceof Error && e.message ? e.message : t('safety.cert.scanHourly', 'Scan limit reached for this hour. Try again later.'));
       } else {
         console.warn('[safety-certifications] scan failed', rawErrorMessage(e));
-        setScanNote(`${describeError(e, { action: 'read the card' }).body} A clearer, well-lit photo helps.`);
+        setScanNote(`${describeError(e, { action: 'read the card' }).body} ${t('safety.cert.clearerPhoto', 'A clearer, well-lit photo helps.')}`);
       }
     } finally {
       setScanning(false);
     }
-  }, [tier, router]);
+  }, [tier, router, t]);
 
   const pickMember = useCallback((member: CrewMember) => {
     setWorkerId(member.id);
@@ -287,18 +316,18 @@ function SafetyCertificationsInner() {
 
   const handleSave = useCallback(() => {
     const holder = holderName.trim();
-    if (!workerId && !holder) { showAlert('Add a holder', 'Pick a crew member or enter a holder name.'); return; }
-    if (!type.trim()) { showAlert('Add a certification type', 'Enter the certification type.'); return; }
+    if (!workerId && !holder) { showAlert(t('safety.cert.addAHolder', 'Add a holder'), t('safety.cert.pickACrewMember', 'Pick a crew member or enter a holder name.')); return; }
+    if (!type.trim()) { showAlert(t('safety.cert.addACertificationType', 'Add a certification type'), t('safety.cert.enterTheCertificationType', 'Enter the certification type.')); return; }
     // Reject an unparseable date rather than silently storing it (certStatus would
     // otherwise flag it 'expired'; catch the typo at entry so the user can fix it).
     const expTrim = expiresDate.trim();
     if (expTrim && Number.isNaN(Date.parse(expTrim))) {
-      showAlert('Check the expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
+      showAlert(t('safety.cert.checkTheExpiryDate', 'Check the expiry date'), t('safety.cert.enterTheExpiryAs', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).'));
       return;
     }
     const issTrim = issuedDate.trim();
     if (issTrim && Number.isNaN(Date.parse(issTrim))) {
-      showAlert('Check the issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
+      showAlert(t('safety.cert.checkTheIssuedDate', 'Check the issued date'), t('safety.cert.enterTheIssuedDate', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).'));
       return;
     }
     const status = certStatus(expiresDate || undefined, today);
@@ -316,24 +345,24 @@ function SafetyCertificationsInner() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [workerId, holderName, type, subId, issuedDate, expiresDate, documentUrl, today, editing, userId, addCertification, updateCertification, resetForm]);
+  }, [workerId, holderName, type, subId, issuedDate, expiresDate, documentUrl, today, editing, userId, addCertification, updateCertification, resetForm, t]);
 
   const handleDelete = useCallback((cert: Certification) => {
-    showAlert('Delete certification', `Delete "${cert.type}" for ${displayName(cert)}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteCertification(cert.id) },
+    showAlert(t('safety.cert.deleteCertification', 'Delete certification'), t('safety.cert.deleteConfirm', 'Delete "{type}" for {name}?', { type: cert.type, name: displayName(cert) }), [
+      { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+      { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteCertification(cert.id) },
     ]);
-  }, [deleteCertification, displayName]);
+  }, [deleteCertification, displayName, t]);
 
   const openDocument = useCallback((url: string) => {
-    void Linking.openURL(url).catch(() => showAlert("Couldn't open the document", "This document link couldn't be opened."));
-  }, []);
+    void Linking.openURL(url).catch(() => showAlert(t('safety.cert.couldntOpenTheDocument', "Couldn't open the document"), t('safety.cert.thisDocumentLinkCouldnt', "This document link couldn't be opened.")));
+  }, [t]);
 
   const filterChips: { key: StatusFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'expiring', label: 'Expiring' },
-    { key: 'expired', label: 'Expired' },
-    { key: 'valid', label: 'Valid' },
+    { key: 'all', label: t('safety.cert.filterAll', 'All') },
+    { key: 'expiring', label: t('safety.cert.statusExpiring', 'Expiring') },
+    { key: 'expired', label: t('safety.cert.status.expired', 'Expired') },
+    { key: 'valid', label: t('safety.cert.statusValid', 'Valid') },
   ];
 
   // Desktop sheet (wave 6c): the form opens as a capped card centred in the
@@ -343,7 +372,7 @@ function SafetyCertificationsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'Certifications' }} />
+      <Stack.Screen options={{ title: t('safety.cert.certifications', 'Certifications') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Expiring-soon summary banner. Every branch, and the decision not to
             render one at all, lives in certRosterBanner above — the header
@@ -385,7 +414,7 @@ function SafetyCertificationsInner() {
                     {isCrew && (
                       <View style={styles.crewTag}>
                         <User size={10} color={themeColors.accent} strokeWidth={2} />
-                        <Text style={styles.crewTagText}>Crew</Text>
+                        <Text style={styles.crewTagText}>{t('safety.cert.crew', 'Crew')}</Text>
                       </View>
                     )}
                   </View>
@@ -396,19 +425,19 @@ function SafetyCertificationsInner() {
                 </View>
               </View>
 
-              <Text style={styles.cardMeta}>{cert.expiresDate ? `Expires ${cert.expiresDate}` : 'No expiry'}</Text>
+              <Text style={styles.cardMeta}>{cert.expiresDate ? t('safety.cert.expires', 'Expires {expiresDate}', { expiresDate: cert.expiresDate }) : t('safety.cert.noExpiry', 'No expiry')}</Text>
 
               <View style={styles.chipRow}>
-                {sub ? <Text style={styles.subName}>Sub: {sub.companyName}</Text> : null}
+                {sub ? <Text style={styles.subName}>{t('safety.cert.sub', 'Sub: {companyName}', { companyName: sub.companyName })}</Text> : null}
                 {cert.documentUrl ? (
                   <TouchableOpacity
                     style={styles.docChip}
                     onPress={() => openDocument(cert.documentUrl!)}
                     accessibilityRole="button"
-                    accessibilityLabel="View document"
+                    accessibilityLabel={t('safety.cert.viewDocument', 'View document')}
                   >
                     <FileText size={11} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.docChipText}>View document</Text>
+                    <Text style={styles.docChipText}>{t('safety.cert.viewDocument', 'View document')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -420,11 +449,11 @@ function SafetyCertificationsInner() {
           <View style={{ minHeight: 340 }}>
             <EmptyState
               icon={<Award size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={certifications.length === 0 ? 'No certifications yet' : 'Nothing matches that filter'}
+              title={certifications.length === 0 ? t('safety.cert.noCertificationsYet', 'No certifications yet') : t('safety.cert.nothingMatchesThatFilter', 'Nothing matches that filter')}
               message={certifications.length === 0
-                ? 'Track OSHA cards, CPR, First Aid, SST, and trade licenses for your crew and subs. Link each cert to a crew member so it also shows on their profile — and get a heads-up before anything lapses.'
-                : `No certifications currently sit in "${filter}". Switch filters above to see the rest.`}
-              actionLabel={certifications.length === 0 ? 'Add first certification' : undefined}
+                ? t('safety.cert.trackOshaCardsCpr', 'Track OSHA cards, CPR, First Aid, SST, and trade licenses for your crew and subs. Link each cert to a crew member so it also shows on their profile — and get a heads-up before anything lapses.')
+                : t('safety.cert.noCertificationsCurrentlySit', 'No certifications currently sit in "{filter}". Switch filters above to see the rest.', { filter })}
+              actionLabel={certifications.length === 0 ? t('safety.cert.addFirstCertification', 'Add first certification') : undefined}
               onAction={certifications.length === 0 ? openNew : undefined}
             />
           </View>
@@ -432,7 +461,7 @@ function SafetyCertificationsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-certification">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add certification</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.cert.addCertification', 'Add certification')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -442,15 +471,15 @@ function SafetyCertificationsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit certification' : 'New certification'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={styles.formTitle}>{editing ? t('safety.cert.editCertification', 'Edit certification') : t('safety.cert.newCertification', 'New certification')}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
                 <ScrollView style={{ maxHeight: 540 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                   {/* Crew-member picker first — pick a person to anchor the cert. */}
-                  <Text style={styles.fieldLabel}>Crew member</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.cert.crewMember', 'Crew member')}</Text>
                   {activeMembers.length > 0 ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                       {activeMembers.map((m) => {
@@ -467,21 +496,21 @@ function SafetyCertificationsInner() {
                       })}
                     </ScrollView>
                   ) : (
-                    <Text style={styles.hintText}>No active crew members yet. Enter a holder name below.</Text>
+                    <Text style={styles.hintText}>{t('safety.cert.noActiveCrewMembers', 'No active crew members yet. Enter a holder name below.')}</Text>
                   )}
                   {workerId ? (
-                    <TouchableOpacity style={styles.clearMemberBtn} onPress={clearMember} accessibilityRole="button" accessibilityLabel="Unlink crew member">
+                    <TouchableOpacity style={styles.clearMemberBtn} onPress={clearMember} accessibilityRole="button" accessibilityLabel={t('safety.cert.unlinkCrewMember', 'Unlink crew member')}>
                       <X size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
-                      <Text style={styles.clearMemberText}>Not on the crew? Enter the name by hand</Text>
+                      <Text style={styles.clearMemberText}>{t('safety.cert.notOnTheCrew', 'Not on the crew? Enter the name by hand')}</Text>
                     </TouchableOpacity>
                   ) : null}
 
-                  <Text style={styles.fieldLabel}>Holder name{workerId ? '' : ' *'}</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.cert.holderName', 'Holder name')}{workerId ? '' : ' *'}</Text>
                   <TextInput
                     style={[styles.input, workerId ? { opacity: 0.6 } : null]}
                     value={holderName}
                     onChangeText={setHolderName}
-                    placeholder="Full name"
+                    placeholder={t('safety.cert.fullName', 'Full name')}
                     placeholderTextColor={themeColors.textMuted}
                     editable={!workerId}
                   />
@@ -489,16 +518,16 @@ function SafetyCertificationsInner() {
                   <View style={styles.scanRow}>
                     <TouchableOpacity style={styles.scanBtn} onPress={() => void handleScanCard('camera')} disabled={scanning} accessibilityRole="button" testID="cert-scan-camera">
                       <ScanLine size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
-                      <Text style={styles.scanBtnText}>{scanning ? 'Reading card…' : 'Scan card'}</Text>
+                      <Text style={styles.scanBtnText}>{scanning ? t('safety.cert.readingCard', 'Reading card…') : t('safety.cert.scanCard', 'Scan card')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.scanBtn} onPress={() => void handleScanCard('library')} disabled={scanning} accessibilityRole="button" testID="cert-scan-library">
                       <ImagePlus size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
-                      <Text style={styles.scanBtnText}>From photos</Text>
+                      <Text style={styles.scanBtnText}>{t('safety.cert.fromPhotos', 'From photos')}</Text>
                     </TouchableOpacity>
                   </View>
                   {scanNote ? <Text style={styles.hintText} testID="cert-scan-note">{scanNote}</Text> : null}
 
-                  <Text style={styles.fieldLabel}>Certification type *</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.cert.certificationType', 'Certification type *')}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                     {TYPE_QUICKPICKS.map((qp) => (
                       <TouchableOpacity
@@ -510,28 +539,28 @@ function SafetyCertificationsInner() {
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
-                  <TextInput style={styles.input} value={type} onChangeText={setType} placeholder="e.g. OSHA 30, Journeyman license" placeholderTextColor={themeColors.textMuted} testID="cert-type-input" />
+                  <TextInput style={styles.input} value={type} onChangeText={setType} placeholder={t('safety.cert.eGOsha30', 'e.g. OSHA 30, Journeyman license')} placeholderTextColor={themeColors.textMuted} testID="cert-type-input" />
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Issued date</Text>
-                      <TextInput style={styles.input} value={issuedDate} onChangeText={setIssuedDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                      <Text style={styles.fieldLabel}>{t('safety.cert.issuedDate', 'Issued date')}</Text>
+                      <TextInput style={styles.input} value={issuedDate} onChangeText={setIssuedDate} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Expiry date</Text>
-                      <TextInput style={styles.input} value={expiresDate} onChangeText={setExpiresDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                      <Text style={styles.fieldLabel}>{t('safety.cert.expiryDate', 'Expiry date')}</Text>
+                      <TextInput style={styles.input} value={expiresDate} onChangeText={setExpiresDate} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                     </View>
                   </View>
 
                   {subcontractors.length > 0 && (
                     <>
-                      <Text style={styles.fieldLabel}>Sub (optional)</Text>
+                      <Text style={styles.fieldLabel}>{t('safety.cert.subOptional', 'Sub (optional)')}</Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                         <TouchableOpacity
                           style={[styles.typeChip, !subId && styles.typeChipActive]}
                           onPress={() => setSubId('')}
                         >
-                          <Text style={[styles.typeChipText, !subId && styles.typeChipTextActive]}>None</Text>
+                          <Text style={[styles.typeChipText, !subId && styles.typeChipTextActive]}>{t('safety.cert.none', 'None')}</Text>
                         </TouchableOpacity>
                         {subcontractors.map((s) => (
                           <TouchableOpacity
@@ -546,7 +575,7 @@ function SafetyCertificationsInner() {
                     </>
                   )}
 
-                  <Text style={styles.fieldLabel}>Document URL (optional)</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.cert.documentUrlOptional', 'Document URL (optional)')}</Text>
                   <TextInput style={styles.input} value={documentUrl} onChangeText={setDocumentUrl} placeholder="https://" placeholderTextColor={themeColors.textMuted} autoCapitalize="none" keyboardType="url" />
                 </ScrollView>
 
@@ -557,10 +586,10 @@ function SafetyCertificationsInner() {
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-certification">
-                    <Text style={styles.saveBtnText}>{editing ? 'Update' : 'Save'}</Text>
+                    <Text style={styles.saveBtnText}>{editing ? t('safety.cert.update', 'Update') : t('common.action.save', 'Save')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

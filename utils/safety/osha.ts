@@ -9,6 +9,9 @@
 
 import type { SafetyIncident, SafetyIncidentSeverity, IncidentSeverity, OshaIllnessType, IncidentPerson } from '@/types';
 import { parseCalendarDay } from '@/utils/calendarDate';
+// Spanish (wave-next W2): the sentences below are catalog keys read at call
+// time; t() returns the inline English in English, so output is unchanged.
+import { t } from '@/i18n/core';
 
 export type IncidentType = 'injury' | 'near_miss' | 'property' | 'environmental';
 export type Treatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
@@ -144,23 +147,27 @@ export interface RecordabilityVerdict {
  */
 export function describeRecordability(input: IncidentClassInput): RecordabilityVerdict {
   const recordable = isOshaRecordable(input);
-  if (input.fatality) return { recordable, reason: 'Recordable — fatality.' };
+  if (input.fatality) return { recordable, reason: t('safety.osha.reasonFatality', 'Recordable — fatality.') };
   if (!isInjuryOrIllnessCase(input)) {
-    return {
-      recordable,
-      reason: `Not recordable — ${DFR_INCIDENT_TYPE_LABEL[input.type].toLowerCase()}, no injury.`,
-    };
+    // One whole sentence per type (never a translated label in a frame); the
+    // English equals the label-built sentence it always was.
+    const reason =
+      input.type === 'near_miss' ? t('safety.osha.reasonNearMiss', 'Not recordable — near miss, no injury.')
+        : input.type === 'property' ? t('safety.osha.reasonProperty', 'Not recordable — property damage, no injury.')
+          : input.type === 'environmental' ? t('safety.osha.reasonEnvironmental', 'Not recordable — environmental, no injury.')
+            : `Not recordable — ${DFR_INCIDENT_TYPE_LABEL[input.type].toLowerCase()}, no injury.`;
+    return { recordable, reason };
   }
-  if (input.daysAway > 0) return { recordable, reason: 'Recordable — days away from work.' };
-  if (hasRestriction(input)) return { recordable, reason: 'Recordable — restricted work or job transfer.' };
-  if (input.lostConsciousness) return { recordable, reason: 'Recordable — loss of consciousness.' };
+  if (input.daysAway > 0) return { recordable, reason: t('safety.osha.reasonDaysAway', 'Recordable — days away from work.') };
+  if (hasRestriction(input)) return { recordable, reason: t('safety.osha.reasonRestricted', 'Recordable — restricted work or job transfer.') };
+  if (input.lostConsciousness) return { recordable, reason: t('safety.osha.reasonConsciousness', 'Recordable — loss of consciousness.') };
   if (input.treatment === 'medical_beyond_first_aid') {
-    return { recordable, reason: 'Recordable — medical treatment beyond first aid.' };
+    return { recordable, reason: t('safety.osha.reasonMedical', 'Recordable — medical treatment beyond first aid.') };
   }
   if (input.treatment === 'first_aid') {
-    return { recordable, reason: 'Not recordable — first aid only, no days away, no restriction.' };
+    return { recordable, reason: t('safety.osha.reasonFirstAid', 'Not recordable — first aid only, no days away, no restriction.') };
   }
-  return { recordable, reason: 'Not recordable — no treatment, no days away, no restriction.' };
+  return { recordable, reason: t('safety.osha.reasonNoTreatment', 'Not recordable — no treatment, no days away, no restriction.') };
 }
 
 /**
@@ -395,14 +402,14 @@ export function recordableWorkerProblem(people: readonly IncidentPerson[]): stri
   const person = marked ?? (list.length === 1 ? list[0] : undefined);
   if (!person) {
     return list.length === 0
-      ? 'This case is OSHA-recordable, so the 300 log needs the injured person. Add them under People involved with their name and job title.'
-      : 'This case is OSHA-recordable. Mark which person was injured (tap "Injured?" on their row) so the 300 log names the right person.';
+      ? t('safety.osha.workerMissing', 'This case is OSHA-recordable, so the 300 log needs the injured person. Add them under People involved with their name and job title.')
+      : t('safety.osha.workerUnmarked', 'This case is OSHA-recordable. Mark which person was injured (tap "Injured?" on their row) so the 300 log names the right person.');
   }
   if (!person.privacyCase && !(person.name ?? '').trim()) {
-    return 'The injured person needs a name on the 300 log. Type it, or mark it a privacy case if 1904.29(b)(7) applies.';
+    return t('safety.osha.workerNoName', 'The injured person needs a name on the 300 log. Type it, or mark it a privacy case if 1904.29(b)(7) applies.');
   }
   if (!(person.role ?? '').trim()) {
-    return 'The injured person needs a job title on the 300 log (for example "Carpenter"). Add it on their row.';
+    return t('safety.osha.workerNoTitle', 'The injured person needs a job title on the 300 log (for example "Carpenter"). Add it on their row.');
   }
   return null;
 }
@@ -428,9 +435,11 @@ export function strictCalendarDay(value: string | null | undefined): string | nu
  *  optional field may be blank; a required one may not. */
 export function safetyDateProblem(value: string | null | undefined, label: string, opts: { optional?: boolean } = {}): string | null {
   const v = (value ?? '').trim();
-  if (!v) return opts.optional ? null : `${label} is required. Enter it as YYYY-MM-DD, for example ${EXAMPLE_DAY}.`;
+  // `label` is the caller's field name ('JHA date'); in Spanish the sentence
+  // names it as a quoted field, so no agreement hangs on it.
+  if (!v) return opts.optional ? null : t('safety.date.required', '{label} is required. Enter it as YYYY-MM-DD, for example {example}.', { label, example: EXAMPLE_DAY });
   if (strictCalendarDay(v)) return null;
-  return `${label} "${v}" is not a date MAGE can file. Enter it as YYYY-MM-DD, for example ${EXAMPLE_DAY}, so it lands in the right year's log.`;
+  return t('safety.date.invalid', '{label} "{value}" is not a date MAGE can file. Enter it as YYYY-MM-DD, for example {example}, so it lands in the right year\'s log.', { label, value: v, example: EXAMPLE_DAY });
 }
 const EXAMPLE_DAY = '2026-09-18';
 
@@ -469,13 +478,13 @@ export function safetySeatFor(args: {
 /** The reason a seat can't delete a safety record, or null when it can. */
 export function safetyDeleteBlockedReason(seat: SafetySeat): string | null {
   if (seat === 'owner') return null;
-  if (seat === 'checking') return 'Checking your role on this project. Try again in a moment.';
-  return 'Only the project owner can delete safety records. Ask your GC to remove it.';
+  if (seat === 'checking') return t('safety.seat.checkingRole', 'Checking your role on this project. Try again in a moment.');
+  return t('safety.seat.deleteOwnerOnly', 'Only the project owner can delete safety records. Ask your GC to remove it.');
 }
 
 /** The reason a seat can't file or edit safety records, or null when it can. */
 export function safetyWriteBlockedReason(seat: SafetySeat): string | null {
   return seat === 'viewer'
-    ? 'You were invited to this project as a viewer, so you can read its safety records but not file them. Ask your GC for field access.'
+    ? t('safety.seat.viewerOnly', 'You were invited to this project as a viewer, so you can read its safety records but not file them. Ask your GC for field access.')
     : null;
 }

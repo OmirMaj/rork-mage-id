@@ -23,8 +23,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) contract (signature sheets) 1`] = `
 {
-  "lines": 991,
-  "sha256": "ad8edaebdd3a47a782d892b84ba3318c3abe86c06e72388166cb508cce66ebd1",
+  "lines": 922,
+  "sha256": "a757934ab188d79a489e6bf7bb2f8997e4f6c89c6cd9752f1e9332f5c7291344",
 }
 `;
 
@@ -163,8 +163,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) prequal-mana
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-list (walk, filter and five more sheets) 1`] = `
 {
-  "lines": 1646,
-  "sha256": "8fa803dcc17b3d13c8f91e96f4743a4fb2db59a74a2393631aa35cf81cc8ba62",
+  "lines": 1677,
+  "sha256": "5dcd144e07634f5f6164a737c688901d59aff65271b0b39fc30b92081fef961e",
 }
 `;
 
@@ -205,15 +205,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-forms
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-hazards 1`] = `
 {
-  "lines": 464,
-  "sha256": "80c6cc25b3f37a750a2d9cab8ca2499e8aaf4a683886a632a8ff5a0b1e305bec",
+  "lines": 461,
+  "sha256": "f543ae616fc7fc8593e66a0d93456f13a5b6389f2cde2ebeabf28eb5a8068b8a",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-incidents (Report Incident) 1`] = `
 {
-  "lines": 536,
-  "sha256": "5555bdf225064c59fa64f544272e7d8c0675b158adfb2942e31e26213d926655",
+  "lines": 534,
+  "sha256": "2fe21f5f4e673d3496192f589079d30e682d8e4640a093f0a46145b783277498",
 }
 `;
 
@@ -261,15 +261,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) sub-scorecar
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking (Live, six sheets) 1`] = `
 {
-  "lines": 652,
-  "sha256": "a29b018d5af0958955718cf49cb674fea0d595a9d5966a5bc175fff05d776ff5",
+  "lines": 669,
+  "sha256": "9957be153f514db175dc8a89a47abd2ad9ef9c4262d547378426e67af1f4c7ed",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking: the History tab 1`] = `
 {
-  "lines": 648,
-  "sha256": "640e5788e2789ad3b97654bc967516713b63a5b5431019e50feb80a57852656e",
+  "lines": 665,
+  "sha256": "18512e4a6e487e14447a75793ce33a5af062b8a2ef6fdf36ef2bd9146449538c",
 }
 `;
 

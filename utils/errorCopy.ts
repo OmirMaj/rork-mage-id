@@ -21,9 +21,21 @@
 // one, a short reference code support can search on. A code is not a stack
 // trace; it is the one token that makes "it keeps happening" diagnosable.
 //
-// PURE ON PURPOSE — no react-native, no expo, no imports at all — so
-// scripts/validate-error-copy.ts can import it under bun and actually execute
-// the classifier instead of grepping for its shape.
+// PURE ON PURPOSE — no react-native, no expo; its one import is the pure
+// i18n runtime (i18n/core) — so scripts/validate-error-copy.ts can import it
+// under bun and actually execute the classifier instead of grepping for its
+// shape.
+//
+// SPANISH (wave-next W2, lane ESTOOLS; docs/I18N.md "Gender and sentence
+// building"): the English body splices the caller's `action` fragment into
+// "MAGE couldn't …", which cannot be translated as a frame. So English keeps
+// that exact composition, byte for byte, and every other language gets
+// verb-free WHOLE sentences (common.error.*): the kind's title, the kind's
+// cause + next step, whether the work survived, and the reference code. A
+// migrated screen names what failed by passing its own whole-sentence
+// `title` (e.g. t('field.dfr.error.saveTitle', "Couldn't save the report")).
+
+import { getDisplayLang, t } from '../i18n/core';
 
 /** What went wrong, at the granularity the copy differs on. */
 export type ErrorKind =
@@ -49,6 +61,10 @@ export interface ErrorContext {
    *  FALSE when it is definitively gone. Omit when the caller genuinely
    *  cannot tell — silence beats a guess about whether his work survived. */
   keptLocally?: boolean;
+  /** A WHOLE-sentence title that replaces the kind's title in every language
+   *  ("Couldn't save the report"), passed through t() by a migrated screen.
+   *  Blank or absent = the kind's title (English callers are unchanged). */
+  title?: string;
 }
 
 export interface ErrorCopy {
@@ -239,6 +255,60 @@ function fateOfHisWork(keptLocally: boolean | undefined): string {
   return '';
 }
 
+// ── Every language but English: whole sentences, one key each ──────────────
+// Read at call time (never at module scope). Their English is the translator's
+// source and what the pseudo-locale brackets; an English session never
+// reaches these functions.
+
+function titleL(kind: ErrorKind): string {
+  switch (kind) {
+    case 'offline': return t('common.error.title.offline', "You're offline");
+    case 'session': return t('common.error.title.session', 'Signed out');
+    case 'permission': return t('common.error.title.permission', 'Not allowed');
+    case 'rateLimit': return t('common.error.title.rateLimit', 'Too many requests');
+    case 'schema': return t('common.error.title.schema', 'MAGE needs to update');
+    case 'notFound': return t('common.error.title.notFound', 'That record is gone');
+    case 'conflict': return t('common.error.title.conflict', 'That already exists');
+    case 'timeout': return t('common.error.title.timeout', 'That took too long');
+    case 'cancelled': return t('common.error.title.cancelled', 'Cancelled');
+    case 'server': return t('common.error.title.server', 'MAGE hit a problem');
+    case 'unknown': return t('common.error.title.unknown', "That didn't go through");
+  }
+}
+
+function supportTailL(hasCode: boolean): string {
+  return hasCode
+    ? t('common.error.supportWithReference', 'Try again in a moment. If it keeps happening, send support the reference below.')
+    : t('common.error.supportNoReference', 'Try again in a moment. If it keeps happening, tell support what you were doing when it failed.');
+}
+
+function sentenceL(kind: ErrorKind, hasCode: boolean): string {
+  switch (kind) {
+    case 'offline': return t('common.error.body.offline', "This device isn't reaching the network. Check your signal or Wi-Fi, then try again.");
+    case 'session': return t('common.error.body.session', 'The server no longer recognizes this sign-in, even though the app still looks signed in. Sign out and back in from Settings, then try again.');
+    case 'permission': return t('common.error.body.permission', "This sign-in doesn't have access to that record. Ask whoever owns the account to give you access.");
+    case 'rateLimit': return t('common.error.body.rateLimit', 'Too many requests went out in a short window. Wait about a minute, then try again.');
+    case 'schema': return t('common.error.body.schema', "This build of the app is asking the server for something it doesn't have yet. Close the app fully, reopen it to pick up the latest update, then try again.");
+    case 'notFound': return t('common.error.body.notFound', "The record it needs isn't there any more. It may have been deleted on another device. Go back, reopen the screen, then try again.");
+    case 'conflict': return t('common.error.body.conflict', 'Something with the same number or name is already saved. Change it, then try again.');
+    case 'timeout': return t('common.error.body.timeout', "The server didn't answer in time. Try again in a moment.");
+    case 'cancelled': return t('common.error.body.cancelled', "MAGE stopped trying. Nothing was changed. Start it again when you're ready.");
+    case 'server': return `${t('common.error.body.server', 'The server returned an error.')} ${supportTailL(hasCode)}`;
+    case 'unknown': return `${t('common.error.body.unknown', "MAGE couldn't finish that.")} ${supportTailL(hasCode)}`;
+  }
+}
+
+function fateL(keptLocally: boolean | undefined): string {
+  if (keptLocally === true) return t('common.error.keptOnDevice', "Nothing you entered was lost. It's still on this device.");
+  if (keptLocally === false) return t('common.error.notSaved', 'What you entered was not saved.');
+  return '';
+}
+
+/** A caller's whole-sentence title, when it has words in it. */
+function givenTitle(s: string | undefined): string | undefined {
+  return typeof s === 'string' && s.trim() ? s : undefined;
+}
+
 /**
  * The one entry point. `showAlert(copy.title, copy.body)` at every call site
  * that used to pass `e.message`.
@@ -253,8 +323,13 @@ export function describeError(err: unknown, ctx: ErrorContext): ErrorCopy {
   // honest where the server actually spoke. An offline device got no code, and
   // a cancel is not a fault, so neither carries one.
   const showCode = code !== null && kind !== 'offline' && kind !== 'cancelled';
+  if (getDisplayLang() !== 'en') {
+    // Whole sentences only: the caller's English `action` never enters them.
+    const parts = [sentenceL(kind, showCode), fateL(ctx.keptLocally), showCode ? t('common.error.reference', '(Reference: {code})', { code: code as string }) : ''];
+    return { title: givenTitle(ctx.title) ?? titleL(kind), body: parts.filter(Boolean).join(' '), kind, code };
+  }
   return {
-    title: TITLES[kind],
+    title: givenTitle(ctx.title) ?? TITLES[kind],
     // `showCode` is computed BEFORE the sentence and handed to it: the body
     // may only promise "the reference below" when one is actually appended.
     body: sentence(kind, ctx.action, showCode) + fateOfHisWork(ctx.keptLocally) + (showCode ? ` (Reference: ${code})` : ''),

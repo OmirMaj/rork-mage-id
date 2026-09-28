@@ -500,7 +500,7 @@ export async function recordHomeownerSignature(
       if (error) throw error;
       if (!data) return null;
       const row = data as { status: ContractStatus; homeowner_signature: ContractSignature | null };
-      return { status: row.status, homeownerSigned: !!row.homeowner_signature };
+      return { status: row.status, homeownerSigned: !!row.homeowner_signature, signature: row.homeowner_signature };
     },
     async flipIfStillSent(id, patch) {
       const { data, error } = await supabase

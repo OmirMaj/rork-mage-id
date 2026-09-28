@@ -206,8 +206,9 @@ const SURFACES: Surface[] = [
   { surface: 'pay_link', file: 'marketing/paid/index.html', kind: 'html' },
   // Remove `pending` once the patch has landed; the file is checked either way
   // as soon as it carries the link. GROWTH-3 and GROWTH-4 landed in the
-  // integration onto main (2026-09-28), so a regression there now fails.
-  { surface: 'portal', file: 'app/client-view.tsx', kind: 'rn', pending: 'GROWTH-2' },
+  // integration onto main (2026-09-28), and GROWTH-2 in the wave-next W2
+  // integration, so a regression on any of them now fails.
+  { surface: 'portal', file: 'app/client-view.tsx', kind: 'rn' },
   { surface: 'portal', file: 'marketing/portal/index.html', kind: 'html' },
   { surface: 'lien_waiver', file: 'marketing/lien-waiver/index.html', kind: 'html' },
 ];

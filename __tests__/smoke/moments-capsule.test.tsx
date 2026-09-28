@@ -23,7 +23,7 @@ import React from 'react';
 import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { act, configure, fireEvent, render } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
-import { SlideToConfirm, type SlideToConfirmHandle, type SlideToConfirmProps } from '@/components/moments/SlideToConfirm';
+import { SlideToConfirm, reasonFitsTrack, type SlideToConfirmHandle, type SlideToConfirmProps } from '@/components/moments/SlideToConfirm';
 import type { CommitResult } from '@/utils/moments/commitResult';
 import { Theme } from '@/constants/colors';
 
@@ -140,11 +140,12 @@ function step(name: string, fn: () => Promise<void>) { STEPS.push([name, fn]); }
     }
   });
 
-  step('T2 disabled: the label is the reason, the state says disabled, activate speaks the reason, nothing commits', async () => {
-    const reason = 'Draw a signature and type a name first';
+  step('T2 disabled: a short reason is the label, the state says disabled, activate speaks the reason, nothing commits', async () => {
+    const reason = 'Type a name first';
     const u = mount({ disabledReason: reason });
     await advance(10);
     expect(u.getByTestId('slide-label').props.children).toBe(reason);
+    expect(u.queryByTestId('slide-disabled-reason')).toBeNull();
     const head = u.UNSAFE_root.findAll((n: any) => n.props?.accessibilityState?.disabled === true && n.props?.accessibilityRole === 'button');
     expect(head.length).toBeGreaterThan(0);
     await act(async () => {
@@ -155,6 +156,35 @@ function step(name: string, fn: () => Promise<void>) { STEPS.push([name, fn]); }
     await advance(1000);
     expect(u.onCommit).not.toHaveBeenCalled();
     u.unmount();
+  });
+
+  step('T2b disabled, a reason too long for the track on a 390-pt phone: the track keeps the short label, the WHOLE reason wraps under it, VoiceOver reads it all', async () => {
+    const reason = "An earlier change to this invoice hasn't sent yet. Review unsent changes first.";
+    expect(reasonFitsTrack(reason, 'lg')).toBe(false);
+    const u = mount({ disabledReason: reason });
+    await advance(10);
+    // The track label is the short action label, never the reason cut to one line.
+    expect(u.getByTestId('slide-label').props.children).toBe(LABEL);
+    const under = u.getByTestId('slide-disabled-reason');
+    expect(under.props.children).toBe(reason);
+    // Never clamped to a line count: the whole sentence shows.
+    expect(under.props.numberOfLines).toBeUndefined();
+    // Decorative text: the head speaks the full reason (label and hint).
+    expect(under.props.accessibilityElementsHidden).toBe(true);
+    const head = u.UNSAFE_root.findAll((n: any) => n.props?.accessibilityState?.disabled === true && n.props?.accessibilityRole === 'button');
+    expect(head.length).toBeGreaterThan(0);
+    expect(head[0].props.accessibilityLabel).toBe(reason);
+    expect(head[0].props.accessibilityHint).toBe(reason);
+    u.unmount();
+    // md (the 64%-wide clock-out track) holds fewer characters.
+    const mdReason = 'Pick an out time after 7:00 AM';
+    expect(reasonFitsTrack(mdReason, 'lg')).toBe(true);
+    expect(reasonFitsTrack(mdReason, 'md')).toBe(false);
+    const m = mount({ size: 'md', disabledReason: mdReason });
+    await advance(10);
+    expect(m.getByTestId('slide-label').props.children).toBe(LABEL);
+    expect(m.getByTestId('slide-disabled-reason').props.children).toBe(mdReason);
+    m.unmount();
   });
 
   step('T3 screen reader: one button with activate; Confirm commits once even pressed twice; Cancel does not commit', async () => {
@@ -253,7 +283,8 @@ function step(name: string, fn: () => Promise<void>) { STEPS.push([name, fn]); }
   step('T8 legal + offline: disabled with "You\'re offline. Signing needs a connection."', async () => {
     const u = mount({ offline: true, writeOptions: { idempotent: false, legal: true, subject: 'the contract', verb: 'signed' } });
     await advance(10);
-    expect(u.getByTestId('slide-label').props.children).toBe("You're offline. Signing needs a connection.");
+    expect(u.getByTestId('slide-label').props.children).toBe(LABEL);
+    expect(u.getByTestId('slide-disabled-reason').props.children).toBe("You're offline. Signing needs a connection.");
     const head = u.UNSAFE_root.findAll((n: any) => n.props?.accessibilityState?.disabled === true && n.props?.accessibilityRole === 'button');
     expect(head.length).toBeGreaterThan(0);
     u.unmount();
@@ -347,6 +378,6 @@ describe('SlideToConfirm (Commit Capsule, track skin)', () => {
         throw e;
       }
     }
-    expect(STEPS).toHaveLength(12);
+    expect(STEPS).toHaveLength(13);
   });
 });

@@ -286,7 +286,9 @@ console.log('\nOSHA 300A summary:');
     incSrc.includes('isOshaRecordable(classInput)') && incSrc.includes('describeRecordability(classInput)'),
     'two derivations of one determination drift.');
   ok('incident type is labelled Injury or illness',
-    incSrc.includes("{ value: 'injury', label: 'Injury or illness' }"),
+    // wave-next W2 (Spanish): the label is the catalog key with the same English.
+    incSrc.includes("{ value: 'injury', label: 'Injury or illness' }")
+      || incSrc.includes("{ value: 'injury', label: t('safety.incident.typeInjury', 'Injury or illness') }"),
     'a bare "Injury" label sends illnesses to Environ.');
 }
 

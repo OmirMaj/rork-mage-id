@@ -377,9 +377,11 @@ console.log('\nCmd+S never sends, signs, releases or approves (integration revie
   const SEND_OR_SIGN: readonly [string, RegExp][] = [
     ['app/daily-report.tsx', /useSheetPrimaryHotkey\(showSendRecipient, handleConfirmSend, \{ saveKey: false \}\);/],
     ['app/prequal-manager.tsx', /useSheetPrimaryHotkey\(!!sub, send, \{ saveKey: false \}\);/],
-    ['app/field-ticket.tsx', /useSheetPrimaryHotkey\([^;]*onSign\(name, title, role, paths\), \{ saveKey: false \}\);/],
-    ['app/contract.tsx', /useSheetPrimaryHotkey\([^;]*onSign\(paths, typedName\), \{ saveKey: false \}\);/],
-    ['app/contract.tsx', /useSheetPrimaryHotkey\([^;]*onRecord\(draft, [^;]*\), \{ saveKey: false \}\);/],
+    // W2 MOMSIGN: the GC and field ticket signatures are signing ceremonies
+    // (the slide is the commit, so those sheets bind no shortcut: pinned
+    // below); the paper record's Cmd+Enter plays its slide's hold, never Cmd+S
+    // (and not while the paper write holds the sheet: W2 integration).
+    ['app/contract.tsx', /useSheetPrimaryHotkey\(visible && method === 'paper' && !paperReason && !busy, \(\) => paperSlideRef\.current\?\.playHoldToCommit\(\), \{ saveKey: false \}\);/],
     // Wave 6d r2 (D5): a crew sign-off is permanent; a retention release
     // reopens settled invoices and restarts their payment clocks.
     ['app/safety-jha.tsx', /useSheetPrimaryHotkey\(signOffFor !== null, handleAddSignOff, \{ saveKey: false \}\);/],
@@ -387,6 +389,10 @@ console.log('\nCmd+S never sends, signs, releases or approves (integration revie
   ];
   for (const [file, re] of SEND_OR_SIGN) {
     ok(`${file}: its send/sign sheet binds Cmd+Enter only (${re.source.slice(0, 48)}…)`, re.test(code(read(file))));
+  }
+  for (const file of ['app/field-ticket.tsx', 'app/contract.tsx']) {
+    ok(`${file}: a signing ceremony's sheet binds no shortcut to the signature (the slide is the commit)`,
+      !/useSheetPrimaryHotkey\([^;]*onSign\(/.test(code(read(file))) && /<SigningCeremony\b/.test(code(read(file))));
   }
   // Any OTHER primary, anywhere in app/ or components/, whose arguments say
   // it commits must opt out too. Wave 6d r2 (R15): matched by WORDS, not

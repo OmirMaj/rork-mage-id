@@ -26,6 +26,7 @@ import { CapsuleShape, type CommitCapsule } from '@/components/moments/core/cont
 import type { MomentColors } from '@/utils/moments/colors';
 import { labelOpacityTable } from '@/utils/moments/capsuleMath';
 import { LINE_GEOMETRY as G } from '@/utils/moments/signTimeline';
+import { useT } from '@/contexts/LanguageContext';
 
 export interface SignatureLineProps {
   capsule: CommitCapsule;
@@ -81,6 +82,7 @@ function Under({ capsule, colors: mc, resolved, warm, testID }: SignatureLinePro
 }
 
 function Over({ capsule, colors: mc, label, srConfirm, readiness, showX = true, testID }: SignatureLineProps) {
+  const { t } = useT();
   const v = capsule.values;
   const xOpacity = useMemo(() => v.arm.interpolate({ inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp' }), [v.arm]);
   const labelOpacity = useMemo(() => {
@@ -137,7 +139,7 @@ function Over({ capsule, colors: mc, label, srConfirm, readiness, showX = true, 
         </Animated.Text>
       ) : null}
       <Animated.Text style={[s.label, { color: mc.busy, opacity: v.busy }]} numberOfLines={1} importantForAccessibility="no">
-        Signing…
+        {t('common.moment.signing', 'Signing…')}
       </Animated.Text>
       {capsule.srOpen ? (
         <Animated.View style={[s.srBar, { opacity: v.sr }]}>
@@ -159,7 +161,7 @@ function Over({ capsule, colors: mc, label, srConfirm, readiness, showX = true, 
             testID={testID ? `${testID}-sr-cancel` : undefined}
           >
             <Text style={[s.srText, { color: mc.ink }]} numberOfLines={1}>
-              Cancel
+              {t('common.moment.cancel', 'Cancel')}
             </Text>
           </Pressable>
         </Animated.View>

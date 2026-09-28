@@ -35,6 +35,7 @@ import type {
   FieldTicketEquipmentRow,
   FieldTicketLaborRow,
   FieldTicketMaterialRow,
+  FieldTicketPhoto,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { nextChangeOrderNumber } from '@/utils/coNumbering';
@@ -974,5 +975,42 @@ export function emptyFieldTicket(opts: {
     status: 'draft',
     createdAt: opts.nowISO,
     updatedAt: opts.nowISO,
+  };
+}
+
+/**
+ * The ticket a STORED field_tickets row holds: the loader's column mapping
+ * (contexts/ProjectContext.tsx fieldTickets query), without its photo URL
+ * resolution. Used when a signed ticket's insert met its OWN earlier row
+ * (supabaseWriteOnlineDetailed answers `landedEarlier`: an attempt whose
+ * answer was lost had landed). The stored row is the signed record, so it is
+ * what the phone keeps and what the result names, never the retry's copy,
+ * which can differ (the signed-at instant, the strokes, the GPS stamp, a draft
+ * edited between the attempts). A photo this phone still holds under the same
+ * id keeps its device copy; any other photo stays as stored until the next read.
+ */
+export function fieldTicketFromStoredRow(r: Record<string, unknown>, onPhone?: FieldTicket): FieldTicket {
+  const localById = new Map((onPhone?.photos ?? []).map((p) => [p.id, p] as const));
+  const stored = ((r.photos as FieldTicketPhoto[] | null) ?? []).filter(Boolean);
+  return {
+    id: r.id as string,
+    number: Number(r.number),
+    projectId: r.project_id as string,
+    date: r.date as string,
+    workDescription: (r.work_description as string) ?? '',
+    reasonExtra: (r.reason_extra as string) ?? '',
+    sourceDailyReportId: (r.source_daily_report_id as string | null) ?? undefined,
+    labor: (r.labor as FieldTicket['labor']) ?? [],
+    materials: (r.materials as FieldTicket['materials']) ?? [],
+    equipment: (r.equipment as FieldTicket['equipment']) ?? [],
+    photos: stored.map((p) => localById.get(p.id) ?? p),
+    markupPercent: r.markup_percent == null ? undefined : Number(r.markup_percent),
+    status: (r.status as FieldTicket['status']) ?? 'draft',
+    authorization: (r.authorization as FieldTicket['authorization']) ?? undefined,
+    convertedChangeOrderId: (r.converted_change_order_id as string | null) ?? undefined,
+    convertedAt: (r.converted_at as string | null) ?? undefined,
+    auditTrail: (r.audit_trail as FieldTicket['auditTrail']) ?? undefined,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
   };
 }
