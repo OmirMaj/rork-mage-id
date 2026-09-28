@@ -56,6 +56,11 @@ export interface OwnRateMatch {
   spreadMeaningful?: boolean;
   /** 0..1 — how confident we are this line IS that trade (not the rate itself). */
   matchScore: number;
+  /** CostBookEntry.lastSeen carried through — the ISO stamp of the most
+   *  recent MEASURED sample behind this rate, '' when the book can't attest
+   *  one. Feeds utils/stalePriceWarning so a line priced from an old learned
+   *  rate can say so before it goes on a signed number. */
+  lastSeen?: string;
 }
 
 /** Words that carry no trade meaning, so they can't earn a match on their own. */
@@ -192,6 +197,7 @@ export function matchOwnRate(
         variability: entry.variability ?? 0,
         spreadMeaningful: entry.spreadMeaningful,
         matchScore: score,
+        lastSeen: entry.lastSeen,
       };
     }
   }

@@ -77,6 +77,7 @@ import {
   type OwnRateMatch, type TakeoffRowSection,
 } from '@/utils/takeoffPricing';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+import { stalePriceNote } from '@/utils/stalePriceWarning';
 import { loadTakeoff, type PersistedTakeoff } from '@/utils/takeoffStorage';
 import { mageAI } from '@/utils/mageAI';
 import { formatMoney } from '@/utils/formatters';
@@ -1247,6 +1248,16 @@ function LineRow({
           <Text style={styles.provenance} numberOfLines={1}>
             {priceSourceLabel(line.priceSource, line.ownRate)}
           </Text>
+          {/* Honest age check: this line is priced from the contractor's own
+              learned rate AND that rate hasn't been re-measured in a while.
+              null (no date, or not old enough) renders nothing — see
+              utils/stalePriceWarning for why "not known" never reads "fresh". */}
+          {line.priceSource === 'yours' && line.ownRate && (() => {
+            const note = stalePriceNote(line.ownRate.lastSeen);
+            return note ? (
+              <Text style={styles.staleNote} numberOfLines={1}>{note}</Text>
+            ) : null;
+          })()}
           {/* Sources side by side. YOUR rate first — it's the only one built
               from jobs this contractor actually completed. */}
           {(line.engineRate || line.ownRate) && (
@@ -1558,6 +1569,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   provenance: {
     fontSize: Type.caption2.fontSize,
     color: t.textMuted,
+    marginTop: 2,
+  },
+  staleNote: {
+    fontSize: Type.caption2.fontSize,
+    color: t.warningLabel,
     marginTop: 2,
   },
   sourceRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
