@@ -164,6 +164,17 @@ export function checkFieldSite(path: string, code: string): Fails {
   }
   const tags = slideTags(code);
   if (tags.length === 0) f.push(`${path}: no <SlideToConfirm> (the moment is gone)`);
+  // W2 integration (critic 2, issue 6): a sheet whose slide plays a result
+  // hold (confirmed, or kept on this phone) stays busy, so it cannot be
+  // dismissed, until onDone; onResolved clears busy only for any other answer.
+  if (path === TT || path === PL || path === WR) {
+    for (const t of tags) {
+      const res = attr(t, 'onResolved') ?? '';
+      if (!/^\(r\) => \{ if \(r\.status !== 'confirmed' && r\.status !== 'queued'\) set\w+Busy\(false\); \}$/.test(res)) {
+        f.push(`${path}: a slide's onResolved clears busy on a confirmed or queued result (the sheet could be dismissed during the result hold, and onDone would never run): ${res.slice(0, 60)}`);
+      }
+    }
+  }
   for (const t of tags) {
     const wo = attr(t, 'writeOptions') ?? '';
     const woText = /^[A-Za-z_$][\w$]*$/.test(wo) ? bodyOf(code, wo) : wo;
@@ -224,7 +235,14 @@ export function checkFieldSite(path: string, code: string): Fails {
     const at = b.indexOf('new Date().toISOString()');
     const w = b.indexOf('saveCloseoutBinderDetailed(');
     if (!(at >= 0 && w > at && /status: 'finalized',\s*finalizedAt: now/.test(b))) f.push(`${CB}: commitFinalize must take finalizedAt at release and write through saveCloseoutBinderDetailed`);
-    if (!/void runPassportGeneration\(\)/.test(b) || b.indexOf("res.status === 'synced'") < 0 || b.indexOf('void runPassportGeneration()') < b.indexOf("res.status === 'synced'")) f.push(`${CB}: runPassportGeneration stays fire-and-forget, only after the stored finalize`);
+    // W2 integration (critic 2, issue 7): Home Passport can push the paywall or
+    // raise an Alert, so it runs fire-and-forget AFTER the confirmed result has
+    // played (onDone), never inside the write while the capsule animates.
+    if (/runPassportGeneration\(/.test(b)) f.push(`${CB}: commitFinalize runs Home Passport inside the write (it must run in onDone, after the confirmed result played)`);
+    const done = bodyOf(code, 'onFinalizeDone');
+    const confirmedAt = done.indexOf("if (r.status === 'confirmed') {");
+    const passAt = done.indexOf('void runPassportGeneration();');
+    if (confirmedAt < 0 || passAt < confirmedAt) f.push(`${CB}: onFinalizeDone must run Home Passport fire-and-forget after a confirmed finalize (void runPassportGeneration())`);
     if (/setStatus\('finalized'\)/.test(b)) f.push(`${CB}: commitFinalize flips the bar before the result hold (setStatus belongs in onDone)`);
     // Save draft stays locked from release until onDone on a confirmed
     // finalize (a tap in the hold would upsert the row back to draft), and the
@@ -362,6 +380,19 @@ function planted(ctx: MomentsCtx, real: Record<string, string>, copySrc: string)
     red(PL, sub(pl, 'const outcome = await closeProjectDetailed(projectId);', 'const outcome = await closeProjectDetailed(projectId); router.back();'), /navigates away/)]);
   out.push(['C3 red on planted: the last-item Alert back',
     red(PL, sub(pl, 'setAllClosedBanner(true);', "setTimeout(() => { showAlert('All punch items closed', 'x'); }, 250);"), /inline banner|retired moment text/)]);
+  out.push(['C1 red on planted: the clock-out sheet lets go in the result hold',
+    red(TT, sub(tt, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setClockOutBusy(false); }}", 'onResolved={() => setClockOutBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
+  out.push(['C2 red on planted: the out-time sheet lets go in the result hold',
+    red(TT, sub(tt, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setOutBusy(false); }}", 'onResolved={() => setOutBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
+  out.push(['C3 red on planted: the close sheet lets go in the result hold',
+    red(PL, sub(pl, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setCloseBusy(false); }}", 'onResolved={() => setCloseBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
+  out.push(['C5 red on planted: the lock sheet lets go in the result hold',
+    red(WR, sub(wr, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setLockBusy(false); }}", 'onResolved={() => setLockBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
+  const subRe = (src: string, a: RegExp, b: string) => (a.test(src) ? src.replace(a, b) : `${src}\n/* planted-anchor-missing */`);
+  out.push(['C4 red on planted: Home Passport runs inside the write, during the capsule',
+    red(CB, subRe(cb, /setFinalizedAt\(now\);/, 'setFinalizedAt(now); void runPassportGeneration();'), /runs Home Passport inside the write/)]);
+  out.push(['C4 red on planted: Home Passport never runs after the finalize',
+    red(CB, subRe(cb, /(setStatus\('finalized'\);\s*)void runPassportGeneration\(\);/, '$1'), /onFinalizeDone must run Home Passport/)]);
   out.push(['C4 red on planted: finalizedAt taken outside the commit',
     red(CB, sub(cb, "status: 'finalized',\n      finalizedAt: now,", "status: 'finalized',\n      finalizedAt,"), /finalizedAt at release/)]);
   out.push(['C4 red on planted: the "Couldn\'t finalize" Alert back',

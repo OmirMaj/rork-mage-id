@@ -30,6 +30,7 @@
  */
 
 import React, { useState } from 'react';
+import { Modal, Text } from 'react-native';
 import { render, act, fireEvent } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { momentHaptic } from '@/utils/moments/haptics';
@@ -139,7 +140,7 @@ function Ticket(p: { write: () => Promise<CommitResult>; offline?: boolean; amou
 
 const GC = 'contract-sign';
 type Moment = { fold: { to: string; email: string; sent?: boolean; title?: string; body?: string }; sentAnnounce: string };
-function Gc(p: { write: () => Promise<CommitResult>; moment: Moment; contract?: ProjectContract; offline?: boolean; onDone?: (r: CommitResult) => void }) {
+function Gc(p: { write: () => Promise<CommitResult>; moment: Moment; contract?: ProjectContract; offline?: boolean; onDone?: (r: CommitResult) => void; above?: React.ReactNode }) {
   return (
     <ContractSignSheet
       visible
@@ -153,6 +154,7 @@ function Gc(p: { write: () => Promise<CommitResult>; moment: Moment; contract?: 
       recordFrom={() => ({ signedAtIso: '2026-09-28T18:41:00.000Z', timeSource: 'device', name: 'Omir Majeed' })}
       onDone={p.onDone ?? (() => {})}
       onLateResult={() => {}}
+      above={p.above}
     />
   );
 }
@@ -294,6 +296,16 @@ describe('moments signing sites (MOMSIGN)', () => {
       expect(noTerms.getByText(S.contractTermsReason())).toBeTruthy();
       expect(noTerms.queryByTestId(`${GC}-card`)).toBeNull();
       noTerms.unmount();
+
+      // TRUST-2 (ideas-1, landed in the W2 integration): the stale-price check
+      // sits in the signing sheet, in the ceremony's `above` slot, over the card.
+      const drift = render(<Gc write={jest.fn()} moment={{ fold: { to: '', email: '' }, sentAnnounce: '' }} above={<Text testID="drift-card-stub">Prices moved</Text>} />);
+      expect(drift.getByTestId(`${GC}-above`)).toBeTruthy();
+      expect(drift.getByTestId('drift-card-stub')).toBeTruthy();
+      drift.unmount();
+      const plain = render(<Gc write={jest.fn()} moment={{ fold: { to: '', email: '' }, sentAnnounce: '' }} />);
+      expect(plain.queryByTestId(`${GC}-above`)).toBeNull();
+      plain.unmount();
 
       // offline
       const off = render(<Gc offline write={jest.fn()} moment={{ fold: { to: '', email: '' }, sentAnnounce: '' }} />);
@@ -465,35 +477,85 @@ describe('moments signing sites (MOMSIGN)', () => {
       // paper was being recorded: nothing of this record was stored, so the
       // slide refuses with its reason. No lock result, no success haptic, and
       // the sheet stays open (onClose runs only on a confirmed record).
-      (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///signed-page.jpg' }] });
-      (momentHaptic as jest.Mock).mockClear();
+      // W2 integration: WHILE the write runs the sheet holds (Cancel, Android
+      // back and the name field are off), so the refusal is read on the open
+      // sheet; after it the slide stays disabled with that sentence, and a
+      // second slide changes nothing.
       const PAPER = 'contract-record-paper-slide';
-      const paperWrite = jest.fn(async (): Promise<CommitResult> => ({ status: 'refused', reason: S.paperAlreadySigned() }));
+      const outerModal = (r: R) => r.UNSAFE_getAllByType(Modal).find((m) => m.props.visible && m.props.onRequestClose);
+      const readyPaper = async (r: R) => {
+        (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///signed-page.jpg' }] });
+        fireEvent.press(r.getByTestId('contract-record-paper'));
+        fireEvent.changeText(r.getByTestId('contract-record-name'), 'Jane Smith');
+        await act(async () => {
+          fireEvent.press(r.getByTestId('contract-record-photo-camera'));
+        });
+        await flush(200);
+        act(() => {
+          fireEvent(r.getByTestId(`${PAPER}-track`), 'layout', layout(352));
+        });
+        await flush(100);
+      };
+      const slidePaper = async (r: R) => {
+        fireEvent.press(r.getByTestId(`${PAPER}-rail`));
+        await flush(300);
+        fireEvent.press(r.getByTestId(`${PAPER}-confirm`));
+      };
+      /** Every way out of the sheet while it should be held: Cancel and Android back. */
+      const tryToClose = (r: R) => {
+        fireEvent.press(r.getByTestId('contract-record-cancel'));
+        act(() => { outerModal(r)?.props.onRequestClose(); });
+      };
+      (momentHaptic as jest.Mock).mockClear();
+      let answer: (r: CommitResult) => void = () => {};
+      const paperWrite = jest.fn(() => new Promise<CommitResult>((res) => { answer = res; }));
       const onClose = jest.fn();
       const p = render(<InPerson write={jest.fn()} paper={paperWrite} onClose={onClose} />);
-      fireEvent.press(p.getByTestId('contract-record-paper'));
-      fireEvent.changeText(p.getByTestId('contract-record-name'), 'Jane Smith');
-      await act(async () => {
-        fireEvent.press(p.getByTestId('contract-record-photo-camera'));
-      });
-      await flush(200);
+      await readyPaper(p);
       // The track label and the result pill are decorative (hidden from the a11y tree).
       expect(([] as unknown[]).concat(p.getByTestId(`${PAPER}-label`, { includeHiddenElements: true }).props.children).join('')).toBe(S.paperLabel());
-      act(() => {
-        fireEvent(p.getByTestId(`${PAPER}-track`), 'layout', layout(352));
-      });
-      await flush(100);
-      fireEvent.press(p.getByTestId(`${PAPER}-rail`));
-      await flush(300);
-      fireEvent.press(p.getByTestId(`${PAPER}-confirm`));
-      await flush(3000);
+      await slidePaper(p);
+      await flush(600);
       expect(paperWrite).toHaveBeenCalledTimes(1);
+      // The write is running: the sheet holds.
+      tryToClose(p);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(p.getByTestId('contract-record-name').props.editable).toBe(false);
+      expect(p.getByTestId('contract-record-cancel').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+      await act(async () => { answer({ status: 'refused', reason: S.paperAlreadySigned() }); });
+      await flush(3000);
       expect(p.getByTestId(`${PAPER}-reason`).props.children).toBe('Not recorded. The client already signed on the portal or another phone, so nothing was changed.');
       expect(p.queryByTestId(`${PAPER}-result`, { includeHiddenElements: true })).toBeNull();
       expect(momentHaptic).not.toHaveBeenCalledWith('success');
       expect(onClose).not.toHaveBeenCalled();
       expect(p.getByTestId('contract-record-name').props.value).toBe('Jane Smith');
+      // A second slide: disabled with the same sentence, nothing is written again.
+      // (Disabled: the one button's label and hint are the reason, not "Record…".)
+      const rail = p.getByTestId(`${PAPER}-rail`);
+      expect(rail.props.accessibilityLabel).toBe(S.paperAlreadySigned());
+      expect(rail.props.accessibilityHint).toBe(S.paperAlreadySigned());
+      fireEvent.press(rail);
+      await flush(300);
+      expect(p.queryByTestId(`${PAPER}-confirm`)).toBeNull();
+      expect(paperWrite).toHaveBeenCalledTimes(1);
+      // The answer is in: the sheet lets go again.
+      expect(p.getByTestId('contract-record-name').props.editable).toBe(true);
+      fireEvent.press(p.getByTestId('contract-record-cancel'));
+      expect(onClose).toHaveBeenCalledTimes(1);
       p.unmount();
+      await flush(200);
+
+      // "No answer yet" is read on the open sheet too: no way out while the write runs.
+      const tClose = jest.fn();
+      const t = render(<InPerson write={jest.fn()} paper={NEVER} onClose={tClose} />);
+      await readyPaper(t);
+      await slidePaper(t);
+      await flush(1000);
+      tryToClose(t);
+      await flush(21500, 250);
+      expect(t.getByTestId(`${PAPER}-reason`).props.children).toBe(S.contractTimeout());
+      expect(tClose).not.toHaveBeenCalled();
+      t.unmount();
       await flush(200);
     }
 

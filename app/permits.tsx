@@ -89,7 +89,7 @@ import {
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
 import DepartmentCard from '@/components/buildingRecord/DepartmentCard';
 import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionButton';
-import { issuingAuthorityForAddress, jobsiteAddressForProject } from '@/utils/codeJurisdiction';
+import { issuingAuthorityForAddress, jobsiteAddressForProject, jurisdictionQueryForProject } from '@/utils/codeJurisdiction';
 import { checkDobPermit } from '@/utils/buildingRecordClient';
 import { isNycJobsite, suggestPermitStatusFromDob, type DobPermitLookup } from '@/utils/buildingRecord';
 
@@ -716,7 +716,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       // The building department the scoped job's address resolves to (NYC:
       // "NYC Department of Buildings"). '' when the address does not resolve;
       // the free-text field below stays the override.
-      jurisdiction: (() => { const sp = scopedProjectId ? projects.find(p => p.id === scopedProjectId) : undefined; return sp ? (issuingAuthorityForAddress(jobsiteAddressForProject(sp)) ?? '') : ''; })(),
+      jurisdiction: (() => { const sp = scopedProjectId ? projects.find(p => p.id === scopedProjectId) : undefined; return sp ? (issuingAuthorityForAddress(jurisdictionQueryForProject(sp)) ?? '') : ''; })(),
     });
     setInspections([]);
     scanTicketRef.current = `new:${Date.now()}`;

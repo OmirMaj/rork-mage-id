@@ -390,14 +390,13 @@ export default function CloseoutBinderScreen() {
       setFinalizedAt(now);
       // #12: every stored save asks the provider for a portal publish.
       (requestPortalPublish as (id: string) => void)(projectId);
-      // Home Passport: index + pre-answer in the background. Never blocks or
-      // fails the finalize itself.
-      void runPassportGeneration();
+      // Home Passport runs in onFinalizeDone, AFTER the confirmed result has
+      // played: it can push the paywall or raise an Alert, never over the capsule.
     }
     const words = { refused: fieldCopy.binderFinalizeRefused(), timeout: fieldCopy.binderFinalizeTimeout() };
     if (res.status === 'refused' && res.error === 'offline') return { status: 'refused', reason: fieldCopy.binderFinalizeOffline() };
     return fromOnlineOutcome(res, { title: fieldCopy.binderFinalizedTitle(), next: fieldCopy.binderFinalizedNext() }, words);
-  }, [projectId, binderId, maintenance, notes, sentAt, requestPortalPublish, runPassportGeneration]);
+  }, [projectId, binderId, maintenance, notes, sentAt, requestPortalPublish]);
   const finalizeWriteOptions = useMemo<CommitWriteOptions>(() => ({
     idempotent: false,
     copy: { refused: fieldCopy.binderFinalizeRefused(), timeout: fieldCopy.binderFinalizeTimeout() },
@@ -405,8 +404,13 @@ export default function CloseoutBinderScreen() {
   // The slide shows its result, then the bar turns to the finalized actions.
   const onFinalizeDone = useCallback((r: CommitResult) => {
     setFinalizeBusy(false);
-    if (r.status === 'confirmed') setStatus('finalized');
-  }, []);
+    if (r.status === 'confirmed') {
+      setStatus('finalized');
+      // Home Passport: index + pre-answer in the background, fire-and-forget,
+      // once the confirmed result has played. Never blocks or fails the finalize.
+      void runPassportGeneration();
+    }
+  }, [runPassportGeneration]);
 
   const handleDeliver = useCallback(() => {
     if (!project) return;
@@ -1039,6 +1043,8 @@ export default function CloseoutBinderScreen() {
                 disabledReason={offline ? fieldCopy.binderFinalizeOffline() : saving ? fieldCopy.binderFinalizeSaving() : null}
                 onResolved={(r) => { if (r.status !== 'confirmed') setFinalizeBusy(false); }}
                 onDone={onFinalizeDone}
+                // A finalize stored after "No answer yet": the bar turns and Home Passport runs, as on time.
+                onLateResult={(r) => { if (r.status === 'confirmed') onFinalizeDone(r); }}
                 onResultAfterUnmount={momentAfterUnmount}
                 testID="binder-finalize"
               />

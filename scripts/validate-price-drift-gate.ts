@@ -284,6 +284,24 @@ console.log('\n── 7. wiring');
   assert(!/supabase|sendEmail|shareText|setContractStatus|onSign\b/.test(check.replace(/\/\/.*$/gm, '')), 'the check sends and signs nothing');
   const gate = read('utils/priceDriftGate.ts');
   assert(!/Date\.now\(|new Date\(/.test(gate), 'priceDriftGate reads no clock');
+  // TRUST-2, landed in the wave-next W2 integration: the contract's check sits
+  // in the signing sheet itself, in the SigningCeremony's `above` slot.
+  const contract = read('app/contract.tsx');
+  const press = contract.slice(contract.indexOf('const handleSignPress = useCallback('), contract.indexOf('const handleSignTogetherPress = useCallback('));
+  const termsAt = press.indexOf("askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');");
+  const driftAt = press.indexOf('setDriftAsk(!!drift && drift.lines.length > 0);');
+  const modeAt = press.indexOf('const mode = pendingSignModeRef.current;');
+  assert(termsAt > 0 && driftAt > termsAt && modeAt > driftAt,
+    'contract: the sign press decides the price check after the lock and missing-terms asks, before the mode is consumed');
+  assert(/const priceDrift = usePriceDriftAtSend\(project\?\.linkedEstimate \? project\.id : null\);/.test(contract)
+    && /driftCheckRef\.current = priceDrift\.check;/.test(contract), 'contract: the check reads the project\'s linked estimate (unread = no card, never a held signature)');
+  assert(/above=\{driftAsk && contract\?\.status === 'draft' \? \(\s*<PriceDriftCheck\s+project=\{project\}\s+presentation="card"\s+action="sign"/.test(contract)
+    && /onKeep=\{continueSignPastDrift\}\s+onContinue=\{continueSignPastDrift\}/.test(contract),
+    'contract: the card (action sign) is the signing sheet\'s `above`, and "Keep" / "Sign at these prices" clear it');
+  assert(/recordFrom=\{recordFrom\}\s+above=\{above\}/.test(contract), 'contract: SignatureModal hands `above` to the SigningCeremony');
+  const reprice = contract.slice(contract.indexOf('const handleDriftRepriced = useCallback('), contract.indexOf('}, [handleValueChange]);'));
+  assert(/Math\.round\(\(c\.contractValue \?\? 0\) \* 100\) === r\.grandBeforeCents/.test(reprice) && !/setSignatureModal|handleSignAndSend|onSign/.test(reprice),
+    'contract: Reprice moves the contract value only while it still equals the old estimate total (cents), and signs nothing');
   const field = read('components/proposal/ValidUntilField.tsx');
   assert(/DatePickerModal/.test(field) && /defaultValidUntil\(/.test(field) && /allowFuture/.test(field), 'ValidUntilField: the app picker, future allowed, 30-day default');
 }

@@ -73,13 +73,14 @@ export function buildRecordedHomeownerSignature(
 
 export type RecordSignatureOutcome =
   | { kind: 'signed' }
-  | { kind: 'not_sent'; status: ContractStatus | null; homeownerSigned: boolean }
+  /** `signature`: the homeowner signature the live row already holds (when the IO read it). */
+  | { kind: 'not_sent'; status: ContractStatus | null; homeownerSigned: boolean; signature?: ContractSignature | null }
   | { kind: 'offline' }
   | { kind: 'failed'; error: string };
 
 export interface RecordSignatureIO {
-  /** The live row's status. null = not found. Throws on a transport error. */
-  readState(contractId: string): Promise<{ status: ContractStatus; homeownerSigned: boolean } | null>;
+  /** The live row's status (and its homeowner signature, when read). null = not found. Throws on a transport error. */
+  readState(contractId: string): Promise<{ status: ContractStatus; homeownerSigned: boolean; signature?: ContractSignature | null } | null>;
   /** UPDATE … WHERE id AND status='sent' AND homeowner_signature IS NULL;
    *  resolves the number of rows written. Throws on error. */
   flipIfStillSent(contractId: string, patch: { homeowner_signature: ContractSignature; status: 'signed'; signed_at: string }): Promise<number>;
@@ -94,7 +95,7 @@ export async function recordHomeownerSignatureWith(
   try {
     const state = await io.readState(contractId);
     if (!state || state.status !== 'sent' || state.homeownerSigned) {
-      return { kind: 'not_sent', status: state?.status ?? null, homeownerSigned: !!state?.homeownerSigned };
+      return { kind: 'not_sent', status: state?.status ?? null, homeownerSigned: !!state?.homeownerSigned, signature: state?.signature ?? null };
     }
     const n = await io.flipIfStillSent(contractId, {
       homeowner_signature: signature,
@@ -104,11 +105,27 @@ export async function recordHomeownerSignatureWith(
     if (n === 1) return { kind: 'signed' };
     // Lost the race: re-read to say what happened instead.
     const after = await io.readState(contractId);
-    return { kind: 'not_sent', status: after?.status ?? null, homeownerSigned: !!after?.homeownerSigned };
+    return { kind: 'not_sent', status: after?.status ?? null, homeownerSigned: !!after?.homeownerSigned, signature: after?.signature ?? null };
   } catch (err) {
     if (isTransportError(err)) return { kind: 'offline' };
     return { kind: 'failed', error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * The record found a signature already on the row, and it is THIS device's own
+ * earlier paper record: the same uploaded page (its evidencePath is one this
+ * screen uploaded). That happens when a paper flip landed but its answer was
+ * lost (a transport error after the write reads as 'offline'), and the retry
+ * re-reads the row. The paper signature on file is the one being recorded, so
+ * the retry is a confirmed record, never "the client already signed".
+ * Anything else on the row (a portal or in-person signature, another page) is
+ * someone else's signature.
+ */
+export function isOwnLandedPaperRecord(o: RecordSignatureOutcome, ownEvidencePaths: ReadonlySet<string>): boolean {
+  if (o.kind !== 'not_sent' || o.status !== 'signed' || !o.homeownerSigned) return false;
+  const sig = o.signature;
+  return !!sig && sig.method === 'paper' && typeof sig.evidencePath === 'string' && ownEvidencePaths.has(sig.evidencePath);
 }
 
 /** The alert for a refused / failed record. null for 'signed'. */

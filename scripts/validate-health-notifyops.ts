@@ -213,7 +213,7 @@ async function main() {
       ['handleReject', /updatePunchItem\(/], ['runBulkUpdate', /updatePunchItems\(/], ['bulkSetStatus', /updatePunchItems\(/], ['moveItem', /updatePunchItem\(/],
     ], reason: /testID="punch-viewer-block"/ },
     { file: 'app/submittal.tsx', flag: 'writeBlock', handlers: [['takeScheduleDate', /updateSubmittal\(/]], reason: /testID="submittal-save-viewer"/ },
-    { file: 'app/field-ticket.tsx', flag: 'writeBlock', handlers: [['handleSign', /addFieldTicket\(|updateFieldTicket\(/], ['handleSaveUnsigned', /addFieldTicket\(/], ['handleVoid', /updateFieldTicket\(/]], reason: /testID="ticket-viewer-block"/ },
+    { file: 'app/field-ticket.tsx', flag: 'writeBlock', handlers: [['handleSign', /signFieldTicket\(/], ['handleSaveUnsigned', /addFieldTicket\(/], ['handleVoid', /updateFieldTicket\(/]], reason: /testID="ticket-viewer-block"/ },
     { file: 'app/photo-annotator.tsx', flag: 'writeBlock', handlers: [['handleSave', /updateProjectPhoto\(/]], reason: /testID="photo-markup-viewer-block"/ },
     { file: 'app/punch-walk.tsx', flag: 'writeBlock', handlers: [['handleSave', /onAdd\(/]], reason: /testID="walk-viewer-block"/ },
     { file: 'app/ai-punch.tsx', flag: 'writeBlock', handlers: [['handleAnalyze', /analyzePunchPhotos|fetch\(|invoke\(/], ['handleSaveOne', /addPunchItem\(/], ['handleSaveAll', /addPunchItems\(/]], reason: /testID="ai-punch-viewer-block"/ },

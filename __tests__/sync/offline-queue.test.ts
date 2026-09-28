@@ -34,6 +34,7 @@ import {
   retainOfflineQueueForUser,
   supabaseWrite,
   supabaseWriteDetailed,
+  supabaseWriteOnlineDetailed,
   supabaseRpcDetailed,
   configureAutoDrain,
   takeDoomedProjectIds,
@@ -1364,6 +1365,24 @@ describe('wave 4 — a duplicate id he cannot see is a conflict, not "already la
   test('live: a visible duplicate (a re-send of a timed-out insert) is success', async () => {
     installScript(pg('duplicate key value violates unique constraint "daily_reports_pkey"', '23505'));
     await expect(supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1' })).resolves.toBe('synced');
+  });
+
+  test('online: a re-sent insert that meets its OWN visible row is stored AND says so (landedEarlier), a fresh insert does not', async () => {
+    // W2 integration (critic 2, issue 2): the stored row is the FIRST
+    // attempt's; the caller (a signed field ticket) must re-read it instead
+    // of keeping the retry's copy.
+    installScript(pg('duplicate key value violates unique constraint "field_tickets_pkey"', '23505'));
+    await expect(supabaseWriteOnlineDetailed('field_tickets', 'insert', { id: 'ft1', project_id: 'p1' }))
+      .resolves.toEqual({ status: 'synced', landedEarlier: true });
+    installScript(ok);
+    const fresh = await supabaseWriteOnlineDetailed('field_tickets', 'insert', { id: 'ft2', project_id: 'p1' });
+    expect(fresh.status).toBe('synced');
+    expect(fresh.landedEarlier).toBeUndefined();
+    // A duplicate on any other unique constraint is a real conflict, never "landed".
+    installScript(pg('duplicate key value violates unique constraint "field_tickets_number_key"', '23505'));
+    const other = await supabaseWriteOnlineDetailed('field_tickets', 'insert', { id: 'ft3', project_id: 'p1' });
+    expect(other.status).toBe('refused');
+    expect(other.landedEarlier).toBeUndefined();
   });
 
   test('outside the author-scoped safety tables the old rule stands: a hidden _pkey duplicate is his landed re-send', async () => {

@@ -334,8 +334,8 @@ console.log('\n── 9. source pins (no injection seam exists for these) ──
     /unsaved\.map\(\(line\) =>/.test(pill) && /\{line\.line\}/.test(pill));
   ok('…and quotes status.badge rather than a locally built count', /status\.badge/.test(pill));
   ok('…and offers Retry only where the write can really be resent',
-    /\{line\.canRetry \? \(\s*<Button\s+label="Retry"/.test(pill)
-      && (pill.match(/label="Retry"/g) ?? []).length === 1,
+    /\{line\.canRetry \? \(\s*<Button\s+label=\{t\('field\.chrome\.retry', 'Retry'\)\}/.test(pill)
+      && (pill.match(/label=\{t\('field\.chrome\.retry', 'Retry'\)\}/g) ?? []).length === 1,
     'Retry must be gated on canRetry (isRetryableFailure), never offered for work that is gone');
   ok('…and says a dismiss does not recover the data',
     /doesn[’']t recover the data/.test(pill));

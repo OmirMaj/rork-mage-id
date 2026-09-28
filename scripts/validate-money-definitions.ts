@@ -2560,8 +2560,12 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
     && /showAlert\(\s*'This contract is already signed',/.test(signBody)
     && signBody.indexOf('return;', lockedIdx) < emptyIdx,
     `locked@${lockedIdx} empty@${emptyIdx} placeholder@${placeholderIdx} ask@${askIdx}`);
+  // W2 MOMSIGN (A1): the sign sheet is a signing ceremony. The terms states
+  // are the sheet's shown reason (contractSignBlockReason, no line to slide),
+  // and the write still refuses them itself as its last check.
   ok('…and handleSignAndSend refuses those states itself, as the last check',
-    /const handleSignAndSend = useCallback\(async[\s\S]{0,200}if \(contract\.paymentSchedule\.length === 0 \|\| hasWarrantyPlaceholder\(contract\.warrantyText\)\) \{[\s\S]{0,500}return;\s*\}/.test(code));
+    /const handleSignAndSend = useCallback\(async[\s\S]{0,1400}if \(contract\.paymentSchedule\.length === 0\) return \{ status: 'refused', reason: signingCopy\.contractTermsReason\(\) \};\s*if \(hasWarrantyPlaceholder\(contract\.warrantyText\)\) return \{ status: 'refused', reason: signingCopy\.contractWarrantyReason\(\) \};/.test(code)
+    && /const blockReason = contractSignBlockReason\(contract\);/.test(code));
   // …AND IT DOES NOT TEAR THE PAD DOWN UNDER ITS OWN ALERT (review round 6).
   // On iOS an Alert presented from a view controller that is being dismissed
   // goes away with it: `setSignatureModal(false)` in the same tick gives the
@@ -2569,14 +2573,16 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   // outcome this refusal exists to prevent. The sibling refusal two branches
   // below ("Name required") leaves the modal up; so must this one.
   {
+    // W2 MOMSIGN (A1): the refusal speaks INSIDE the sheet (the ceremony's
+    // reason line, no Alert at all), and the sheet closes only in onDone
+    // after a confirmed seal, never inside the write.
     const sendStart = code.indexOf('const handleSignAndSend = useCallback(async');
-    const refusalIdx = sendStart > 0 ? code.indexOf("'Set your terms first'", sendStart) : -1;
-    const body = sendStart > 0 && refusalIdx > sendStart ? code.slice(sendStart, refusalIdx) : '';
+    const doneIdx = sendStart > 0 ? code.indexOf('const onSignCeremonyDone = useCallback(', sendStart) : -1;
+    const body = sendStart > 0 && doneIdx > sendStart ? code.slice(sendStart, doneIdx) : '';
     ok('…without dismissing the signature Modal in the same tick as the alert',
-      sendStart > 0 && refusalIdx > sendStart && !/setSignatureModal\(false\)/.test(body)
-      && /Close the signature pad, set your payment terms/.test(code)
-      && /Close the signature pad, set your warranty/.test(code),
-      'match the "Name required" shape: speak, and let him close the pad');
+      body.length > 0 && !/setSignatureModal\(false\)/.test(body) && !/showAlert\(/.test(body)
+      && /const onSignCeremonyDone = useCallback\(\(r: CommitResult\) => \{\s*if \(r\.status !== 'confirmed'\) return;\s*setSignatureModal\(false\);/.test(code),
+      'the refusal is the reason line under the line; the sheet closes in onDone after a confirmed seal');
   }
 
   // ── The ask and its two scopes. ──

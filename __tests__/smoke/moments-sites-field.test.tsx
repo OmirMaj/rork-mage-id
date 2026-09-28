@@ -120,6 +120,27 @@ function textOf(id: string): string {
 }
 const hapticKinds = () => (momentHaptic as jest.Mock).mock.calls.map((c) => c[0]);
 
+/** The <Sheet> element itself (its onClose is every dismiss: backdrop, back, the close button). */
+function sheetOf(testID: string) {
+  const el = screen.UNSAFE_getAllByProps({ testID }).find((n) => typeof n.props.onClose === 'function' && 'dismissOnBackdrop' in n.props);
+  if (!el) throw new Error(`no <Sheet testID="${testID}">`);
+  return el;
+}
+
+/**
+ * W2 integration (critic 2, issue 6): during the result hold the sheet cannot
+ * be dismissed (a dismiss there unmounted the slide, so onDone never ran). Try
+ * every dismiss while the result shows; the slide must still be there. Then
+ * the hold ends and onDone closes the sheet itself.
+ */
+async function expectHeldThroughResult(sheetID: string, slideID: string) {
+  expect(sheetOf(sheetID).props.dismissOnBackdrop).toBe(false);
+  await act(async () => { sheetOf(sheetID).props.onClose(); });
+  expect(screen.queryByTestId(slideID)).toBeTruthy();
+  for (let i = 0; i < 30 && screen.queryByTestId(slideID); i++) await pump(1);
+  expect(screen.queryByTestId(slideID)).toBeNull();
+}
+
 const P = `projectId=${PROJECT_ID}`;
 
 describe('moments C1: clocking out', () => {
@@ -175,6 +196,8 @@ describe('moments C1: clocking out', () => {
     expect(result).toBe(fieldCopy.clockOutQueued());
     expect(result).not.toMatch(/^Clocked out · /);
     expect(hapticKinds()).not.toContain('success');
+    // Kept on this phone plays a hold too: the sheet holds until onDone.
+    await expectHeldThroughResult('clock-out-sheet', 'clock-out-slide');
   });
 });
 
@@ -213,7 +236,8 @@ describe('moments C5: locking a WIP period', () => {
     await primeWorld('populated');
     await seedPeriod('2026-09-28T13:00:00.000Z');
     await openLock();
-    expect(textOf('wip-lock-slide-label')).toBe(fieldCopy.wipAlreadyLockedReason());
+    // A reason this long wraps whole under the track (never cut to one line).
+    expect(textOf('wip-lock-slide-disabled-reason')).toBe(fieldCopy.wipAlreadyLockedReason());
     expect(screen.getByTestId('wip-lock-slide-rail').props.accessibilityHint).toBe(fieldCopy.wipAlreadyLockedReason());
   });
 
@@ -227,5 +251,7 @@ describe('moments C5: locking a WIP period', () => {
     expect(write.mock.calls.some((c) => c[0] === 'wip_periods')).toBe(true);
     expect(result).toBe(fieldCopy.wipLockedTitle('Sep 2026'));
     expect(hapticKinds()).not.toContain('success');
+    // The confirmed lock holds its sheet through the result; onDone closes it.
+    await expectHeldThroughResult('wip-lock-sheet', 'wip-lock-slide');
   });
 });

@@ -1282,19 +1282,19 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   );
   // CO being previewed before its schedule impact is applied (pipeline approve).
   const [reflowPreviewCO, setReflowPreviewCO] = useState<ChangeOrder | null>(null);
-  // Wave-next W2 (moments, B1/B2): the pipeline approve slides (the reflow
-  // preview's Apply becomes the slide); the unsigned approve keeps its tap,
-  // because its #131 tax freeze rides on updateChangeOrder with the status.
-  const [reflowApproveSlides, setReflowApproveSlides] = useState(false);
+  // Wave-next W2 (moments, B1/B2): every approve slides, and turns green only
+  // once approveChangeOrder has the approval (the reflow preview's Apply is
+  // the slide). W2 integration: "Client approved without signing" too, marked
+  // unsigned, with its #131 tax freeze written IN the approval's own write.
+  // An approve opened from "Client approved without signing": no client
+  // signature, and the tax freeze it carries (null for every other approve).
+  // A cancelled sheet or preview leaves the draft exactly as it was.
+  const [approveUnsigned, setApproveUnsigned] = useState<{ frozen: COFrozenFields } | null>(null);
   // B1: the change order in the approve sheet (a money-only approve).
   const [approveSheetCO, setApproveSheetCO] = useState<ChangeOrder | null>(null);
   // The active contract for the approved title ("contract $52,400.00" is the
   // SIGNED contract plus approved COs), read only while an approve is open.
-  const approvalContract = useApprovalContract(project?.id, approveSheetCO !== null || (reflowPreviewCO !== null && reflowApproveSlides));
-  // C5 (UX wave): the #131 tax freeze an unsigned approval carries into the
-  // schedule preview. It is written WITH the status flip on confirm, so a
-  // cancelled preview leaves the draft exactly as it was.
-  const reflowFreezeRef = useRef<COFrozenFields>({});
+  const approvalContract = useApprovalContract(project?.id, approveSheetCO !== null || reflowPreviewCO !== null);
   // #37: placing the days of an ALREADY approved CO (portal approval deferred them).
   const [placePreviewCO, setPlacePreviewCO] = useState<ChangeOrder | null>(null);
   // Pre-seed line items: single overage line so the dollar amount
@@ -2529,6 +2529,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // sheet approves through approveChangeOrder and turns green only when the
   // server has it; this only opens it.
   const confirmApprove = useCallback((co: ChangeOrder) => {
+    setApproveUnsigned(null);
     setApproveSheetCO(co);
   }, []);
 
@@ -2537,35 +2538,30 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // rule those taps enforce still runs: an unpriced line is refused (#76),
   // the tax is frozen the way going out freezes it (#131), a schedule impact
   // previews before it touches the Gantt, and the money is confirmed (#79)
-  // with its "no client signature on this path" line. The approval it writes
-  // is the manual one coApprovalLine labels "no client signature on file"
-  // on the card, the list and the PDF.
+  // with its "no client signature on this path" line (coApproveConfirmCopy,
+  // the approve sheet's money line). The approval it writes is the manual one
+  // coApprovalLine labels "no client signature on file" on the card, the list
+  // and the PDF.
+  // W2 integration (critic 2, issue 8): it is the SAME slide as every other
+  // approve (the approve sheet, or the reflow preview's slide), through
+  // approveChangeOrder with the freeze in the approval's own write. Nothing
+  // shows as approved, and no toast plays, before that write is confirmed;
+  // the confirmed words say "unsigned".
   const approveWithoutSigning = useCallback((co: ChangeOrder) => {
     const refusal = coUnconfirmedPriceBlocker(co.lineItems, co.description ?? '', formatCurrency);
     if (refusal?.kind === 'refuse') { showAlert(refusal.title, refusal.message); return; }
     const freeze: COFrozenFields = existingFrozenTaxRate == null ? coTaxFreeze(co.changeAmount, liveTaxRatePct) : {};
+    setApproveUnsigned({ frozen: freeze });
     if (
       (co.scheduleImpactDays ?? 0) > 0 &&
       !co.scheduleImpactApplied &&
       (project?.schedule?.tasks?.length ?? 0) > 0
     ) {
-      reflowFreezeRef.current = freeze;
-      setReflowApproveSlides(false);
       setReflowPreviewCO(co);
       return;
     }
-    const copy = coApproveConfirmCopy(confirmedNumber ?? co.number, co.changeAmount, formatCurrency);
-    showAlert(copy.title, copy.message, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Approve',
-        onPress: () => {
-          updateChangeOrder(co.id, { status: 'approved', ...freeze });
-          nailIt(`CO #${confirmedNumber ?? co.number} approved, unsigned`);
-        },
-      },
-    ]);
-  }, [existingFrozenTaxRate, liveTaxRatePct, project?.schedule?.tasks?.length, confirmedNumber, updateChangeOrder]);
+    setApproveSheetCO(co);
+  }, [existingFrozenTaxRate, liveTaxRatePct, project?.schedule?.tasks?.length]);
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
@@ -2717,8 +2713,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       !existingCO.scheduleImpactApplied &&
                       (project?.schedule?.tasks?.length ?? 0) > 0
                     ) {
-                      reflowFreezeRef.current = {};
-                      setReflowApproveSlides(true);
+                      setApproveUnsigned(null);
                       setReflowPreviewCO(existingCO);
                       return;
                     }
@@ -3725,19 +3720,17 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           moneyLine={reflowPreviewCO.changeAmount < 0
             ? `Credits ${formatCurrency(-reflowPreviewCO.changeAmount)} back to the contract.`
             : `Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
-          approveSlide={reflowApproveSlides ? {
+          // Every approve here is the slide (approveChangeOrder with the
+          // previewed anchor), the unsigned one included.
+          approveSlide={{
             coNumber: confirmedNumber ?? reflowPreviewCO.number,
             contractAfterCents: contractAfterApprovalCents(project, existingCOs, reflowPreviewCO.id, approvalContract),
-          } : undefined}
-          onClose={() => { reflowFreezeRef.current = {}; setReflowApproveSlides(false); setReflowPreviewCO(null); }}
-          onConfirm={(anchorTaskId) => {
-            const co = reflowPreviewCO;
-            const freeze = reflowFreezeRef.current;
-            reflowFreezeRef.current = {};
-            setReflowPreviewCO(null);
-            updateChangeOrder(co.id, { status: 'approved', ...freeze }, { anchorTaskId });
-            nailIt(`CO #${co.number} approved`);
+            ...(approveUnsigned ? { unsigned: true, frozen: approveUnsigned.frozen } : {}),
           }}
+          onClose={() => { setApproveUnsigned(null); setReflowPreviewCO(null); }}
+          // Never reached: with approveSlide the approve is the slide, and a
+          // tap never approves. A stray call only closes the preview.
+          onConfirm={() => { setApproveUnsigned(null); setReflowPreviewCO(null); }}
         />
       )}
       {approveSheetCO !== null && (() => {
@@ -3750,7 +3743,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             title={copy.title}
             moneyLine={copy.message}
             contractAfterCents={contractAfterApprovalCents(project, existingCOs, approveSheetCO.id, approvalContract)}
-            onClose={() => setApproveSheetCO(null)}
+            {...(approveUnsigned ? { unsigned: true, frozen: approveUnsigned.frozen } : {})}
+            onClose={() => { setApproveUnsigned(null); setApproveSheetCO(null); }}
           />
         );
       })()}

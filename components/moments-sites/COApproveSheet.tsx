@@ -26,7 +26,7 @@ import {
   type CommitWriteOptions,
   type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
-import { useProjectCrossActions } from '@/contexts/ProjectContext';
+import { useProjectCrossActions, type ChangeOrderFrozenFields } from '@/contexts/ProjectContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -39,6 +39,9 @@ import {
   coApproved,
   coApprovedNoTotal,
   coApprovedToast,
+  coApprovedUnsigned,
+  coApprovedUnsignedNoTotal,
+  coApprovedUnsignedToast,
   coBusy,
   coQueued,
   coRefused,
@@ -63,6 +66,13 @@ export interface COApproveSheetProps {
    * names the CO's own amount, never a guessed contract figure.
    */
   contractAfterCents: number | null;
+  /**
+   * "Client approved without signing": the approval carries NO client
+   * signature, and the confirmed words say so ("CO #4 approved, unsigned · …").
+   */
+  unsigned?: boolean;
+  /** #131: the tax frozen onto the CO in the same write as the approval (an unsigned approval never went out, so nothing froze it yet). */
+  frozen?: ChangeOrderFrozenFields;
   onClose: () => void;
   testID?: string;
 }
@@ -96,6 +106,11 @@ export function contractAfterApprovalCents(
 /** The confirmed title: "CO #4 approved · contract $52,400.00", or "CO #4 approved · +$4,200.00" when the contract is unread. */
 export function coApprovedTitle(coNumber: number, amountCents: number, contractAfterCents: number | null): string {
   return contractAfterCents == null ? coApprovedNoTotal(coNumber, amountCents) : coApproved(coNumber, contractAfterCents);
+}
+
+/** The same for an approval with no client signature: "CO #4 approved, unsigned · contract $52,400.00" (or the CO's own amount). */
+export function coApprovedUnsignedTitle(coNumber: number, amountCents: number, contractAfterCents: number | null): string {
+  return contractAfterCents == null ? coApprovedUnsignedNoTotal(coNumber, amountCents) : coApprovedUnsigned(coNumber, contractAfterCents);
 }
 
 /**
@@ -135,7 +150,7 @@ export function dollarsToCents(n: number | null | undefined): number {
 }
 
 export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
-  const { visible, changeOrder, coNumber, contractAfterCents, onClose } = props;
+  const { visible, changeOrder, coNumber, contractAfterCents, onClose, unsigned, frozen } = props;
   const { approveChangeOrder } = useProjectCrossActions();
   const styles = useThemedStyles(makeStyles);
   const slideRef = useRef<SlideToConfirmHandle>(null);
@@ -145,9 +160,11 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
   useSheetPrimaryHotkey(visible, () => slideRef.current?.playHoldToCommit(), { saveKey: false });
 
   const approve = useCallback(async (): Promise<CommitResult> => {
-    const outcome = await approveChangeOrder(changeOrder.id);
-    return fromWriteOutcome(outcome, { title: coApprovedTitle(coNumber, amountCents, contractAfterCents) }, { refused: coRefused(), queued: coQueued() });
-  }, [approveChangeOrder, changeOrder.id, coNumber, amountCents, contractAfterCents]);
+    const outcome = await (frozen ? approveChangeOrder(changeOrder.id, { frozen }) : approveChangeOrder(changeOrder.id));
+    return fromWriteOutcome(outcome, {
+      title: unsigned ? coApprovedUnsignedTitle(coNumber, amountCents, contractAfterCents) : coApprovedTitle(coNumber, amountCents, contractAfterCents),
+    }, { refused: coRefused(), queued: coQueued() });
+  }, [approveChangeOrder, changeOrder.id, coNumber, amountCents, contractAfterCents, unsigned, frozen]);
 
   // Non-idempotent (plan rule 3): a timeout says "Check CO #4", never "nothing was saved".
   const writeOptions = useMemo<CommitWriteOptions>(() => ({
@@ -162,8 +179,8 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
 
   // The sheet was closed before the answer came back: a confirmed approval still gets said.
   const onResultAfterUnmount = useCallback((r: CommitResult) => {
-    if (r.status === 'confirmed') nailIt(coApprovedToast(coNumber));
-  }, [coNumber]);
+    if (r.status === 'confirmed') nailIt(unsigned ? coApprovedUnsignedToast(coNumber) : coApprovedToast(coNumber));
+  }, [coNumber, unsigned]);
 
   return (
     <Sheet

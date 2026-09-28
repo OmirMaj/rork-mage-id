@@ -3535,7 +3535,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             writeOptions={closeProjectWriteOptions}
             queuedLabel={fieldCopy.projectCloseQueued()}
             disabledReason={closeProjectReason}
-            onResolved={() => setCloseBusy(false)}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps
+            // the sheet up until onDone, which goes back with it.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setCloseBusy(false); }}
             onDone={onCloseProjectDone}
             onResultAfterUnmount={momentAfterUnmount}
             testID="punch-close-project-slide"

@@ -1866,7 +1866,8 @@ function WipReportScreenInner() {
             writeOptions={lockWriteOptions}
             queuedLabel={fieldCopy.wipLockQueued()}
             disabledReason={lockSheet.reason}
-            onResolved={() => setLockBusy(false)}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setLockBusy(false); }}
             onDone={() => { setLockBusy(false); setLockSheet(null); }}
             onResultAfterUnmount={momentAfterUnmount}
             testID="wip-lock-slide"

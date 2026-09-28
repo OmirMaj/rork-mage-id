@@ -55,7 +55,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  recordSignatureBlockReason, buildRecordedHomeownerSignature,
+  recordSignatureBlockReason, buildRecordedHomeownerSignature, isOwnLandedPaperRecord,
   homeownerSignatureMethodLabel, type RecordSignatureDraft, type RecordedSignatureMethod,
   type RecordSignatureOutcome,
 } from '@/utils/contractSignatureCore';
@@ -100,6 +100,8 @@ import { snapshotPatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/PriceDriftCheck';
+import type { DriftAtSend } from '@/utils/priceDriftGate';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 
@@ -312,6 +314,19 @@ function ContractScreenInner() {
   settingsRef.current = settings;
   const contractRef = useRef(contract);
   contractRef.current = contract;
+
+  // T2: the stale-price check before he signs. Read through a ref so
+  // handleSignPress keeps its one dependency. check is null while anything is
+  // unread — that never holds the signature, it only means no card.
+  const priceDrift = usePriceDriftAtSend(project?.linkedEstimate ? project.id : null);
+  const driftCheckRef = useRef(priceDrift.check);
+  driftCheckRef.current = priceDrift.check;
+  // Set by a sign press that found drift: the card shows in the signing sheet
+  // itself, in the ceremony's `above` slot, right over the card he signs
+  // (wave-next W2 moved signing into SigningCeremony). Cleared by "Sign at
+  // these prices" / "Keep these prices".
+  const [driftAsk, setDriftAsk] = useState(false);
+  const [driftNote, setDriftNote] = useState<string | null>(null);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
@@ -853,6 +868,14 @@ function ContractScreenInner() {
       askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
       return;
     }
+    // T2: a newer receipt of his contradicts a price on this job's estimate.
+    // Decided here, after the lock and the missing-terms asks, before the
+    // mode is consumed; the pad opens with the check above the signing card.
+    // Nothing is signed here and nothing legal is queued: the card writes only
+    // the estimate reprice, a normal project write.
+    const drift = driftCheckRef.current;
+    setDriftNote(null);
+    setDriftAsk(!!drift && drift.lines.length > 0);
     // C1: which pad is opening. Consumed here, so a later plain Sign & send
     // press is always 'send'.
     const mode = pendingSignModeRef.current;
@@ -888,6 +911,25 @@ function ContractScreenInner() {
     pendingSignModeRef.current = 'together';
     handleSignPress();
   }, [handleSignPress]);
+
+  // T2: "Sign at these prices" / "Keep these prices": the card goes and he
+  // signs in the sheet already open, the press he made (same mode).
+  const continueSignPastDrift = useCallback(() => {
+    setDriftAsk(false);
+    setDriftNote(null);
+  }, []);
+
+  // T2: Reprice moved the ESTIMATE. The contract value follows only while it
+  // still equals the estimate total it was drafted from (to the cent); a value
+  // he set himself stays his. Nothing is signed: he checks, then signs.
+  const handleDriftRepriced = useCallback((r: DriftAtSend) => {
+    const c = contractRef.current;
+    const followed = !!c && Math.round((c.contractValue ?? 0) * 100) === r.grandBeforeCents;
+    if (followed) handleValueChange(r.grandAfterCents / 100);
+    setDriftNote(followed
+      ? 'The contract value now matches the new estimate total. Check it, then sign.'
+      : 'The contract value is the one you set, so it did not change. Check it before you sign.');
+  }, [handleValueChange]);
 
   // C1: the homeowner's email — moved here verbatim from handleSignAndSend so
   // the "Signed by you, not delivered" Retry sends the same message. Returns
@@ -1389,7 +1431,10 @@ function ContractScreenInner() {
     recordNeutralRef.current = false;
     recordedSigRef.current = null;
     const c = contractRef.current;
-    if (!c?.id || c.status !== 'sent' || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
+    // The LIVE row decides whether it can be signed (recordHomeownerSignature
+    // re-reads it), never the local status: right after "Sign together" the
+    // local copy can still read draft until its refresh lands.
+    if (!c?.id || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
     const draft: RecordSignatureDraft = { method: 'in_person', name: typedName, signaturePaths: paths };
     const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString() });
     const outcome = await recordHomeownerSignature(c.id, sig);
@@ -1408,28 +1453,47 @@ function ContractScreenInner() {
     };
   }, [user?.id, recordOutcomeResult, requestPortalPublish, adoptFreshContract]);
 
+  // A3: the paper attempts this screen made. The pin is the page photo it
+  // uploaded, so a retry of the same page reuses it (never a second upload);
+  // every path it uploaded is kept, so the retry knows its OWN earlier record
+  // when that flip landed but its answer was lost.
+  const paperPinRef = useRef<{ contractId: string; photoUri: string; evidencePath: string } | null>(null);
+  const ownPaperEvidenceRef = useRef<Set<string>>(new Set());
+
   // A3: a paper signature. Nothing is written until the page photo is on file.
   const recordPaper = useCallback(async (draft: RecordSignatureDraft, pagePhotoUri: string | null): Promise<CommitResult> => {
     const c = contractRef.current;
-    if (!c?.id || c.status !== 'sent' || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
+    // The LIVE row decides (recordHomeownerSignature re-reads it), never the
+    // local status: a draft, void or signed row answers with its own sentence.
+    if (!c?.id || !user?.id) return { status: 'refused', reason: signingCopy.recordRefused() };
     const block = recordSignatureBlockReason({ ...draft, hasPagePhoto: !!pagePhotoUri }, todayCalendarDay());
     if (block || !pagePhotoUri) return { status: 'refused', reason: block ?? signingCopy.paperUploadRefused() };
-    let evidencePath: string;
-    try {
-      evidencePath = await uploadSignedPageEvidence(user.id, c.id, pagePhotoUri);
-    } catch (err) {
-      console.warn('[contract] signed page upload failed', err);
-      return { status: 'refused', reason: signingCopy.paperUploadRefused() };
+    const pin = paperPinRef.current;
+    let evidencePath = pin && pin.contractId === c.id && pin.photoUri === pagePhotoUri ? pin.evidencePath : '';
+    if (!evidencePath) {
+      try {
+        evidencePath = await uploadSignedPageEvidence(user.id, c.id, pagePhotoUri);
+        paperPinRef.current = { contractId: c.id, photoUri: pagePhotoUri, evidencePath };
+        ownPaperEvidenceRef.current.add(evidencePath);
+      } catch (err) {
+        console.warn('[contract] signed page upload failed', err);
+        return { status: 'refused', reason: signingCopy.paperUploadRefused() };
+      }
     }
     const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString(), evidencePath });
     const outcome = await recordHomeownerSignature(c.id, sig);
-    // Signed elsewhere first: this paper record was not stored, so the slide
-    // refuses it (no lock, no success tone) and the sheet stays open.
-    if (wasSignedElsewhere(outcome)) {
-      void recheckLockedContract();
-      return { status: 'refused', reason: signingCopy.paperAlreadySigned() };
+    // The signature on file is this screen's own earlier paper record (its
+    // flip landed, the answer was lost): it IS stored, so it confirms below.
+    const ownLanded = isOwnLandedPaperRecord(outcome, ownPaperEvidenceRef.current);
+    if (!ownLanded) {
+      // Signed elsewhere first: this paper record was not stored, so the slide
+      // refuses it (no lock, no success tone) and the sheet stays open.
+      if (wasSignedElsewhere(outcome)) {
+        void recheckLockedContract();
+        return { status: 'refused', reason: signingCopy.paperAlreadySigned() };
+      }
+      if (outcome.kind !== 'signed') return recordOutcomeResult(outcome);
     }
-    if (outcome.kind !== 'signed') return recordOutcomeResult(outcome);
     requestPortalPublish(c.projectId);
     // "The deposit invoice can go out" only when the signed contract really
     // has an unbilled deposit due (the same decision the Bill deposit door reads).
@@ -2522,6 +2586,18 @@ function ContractScreenInner() {
         recordFrom={gcRecordFrom}
         onDone={onSignCeremonyDone}
         onLateResult={onSignLateResult}
+        // T2: the stale-price check, opened by the sign press, in the ceremony's `above` slot.
+        above={driftAsk && contract?.status === 'draft' ? (
+          <PriceDriftCheck
+            project={project}
+            presentation="card"
+            action="sign"
+            repricedNote={driftNote}
+            onReprice={handleDriftRepriced}
+            onKeep={continueSignPastDrift}
+            onContinue={continueSignPastDrift}
+          />
+        ) : undefined}
       />
 
       {/* C1: "Where should we send it?" — mounted only while it is open. */}
@@ -2867,7 +2943,7 @@ type GcMoment = { fold: NonNullable<SigningCeremonyProps['fold']>; sentAnnounce:
  */
 export function SignatureModal({
   visible, onClose, onSign, defaultName, inPerson = false, contract, projectName, offline, moment,
-  recordFrom, onDone, onLateResult,
+  recordFrom, onDone, onLateResult, above,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -2884,6 +2960,8 @@ export function SignatureModal({
   recordFrom: SigningCeremonyProps['recordFrom'];
   onDone: (r: CommitResult) => void;
   onLateResult: (r: CommitResult) => void;
+  /** T2 (ideas-1): the stale-price check, shown in the ceremony's `above` slot over the signing card. */
+  above?: React.ReactNode;
 }) {
   const styles = useThemedStyles(makeStyles);
   const [paths, setPaths] = useState<string[]>([]);
@@ -2948,6 +3026,7 @@ export function SignatureModal({
                 },
               }}
               recordFrom={recordFrom}
+              above={above}
               fold={inPerson ? undefined : moment.fold}
               onCommitStart={() => setBusy(true)}
               onUncommit={() => setBusy(false)}
@@ -3019,13 +3098,16 @@ export function RecordHomeownerSignatureModal({
   const [stage, setStage] = useState<'handoff' | 'client' | 'done' | 'back'>('handoff');
   const [neutral, setNeutral] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The paper write answered that the client already signed elsewhere: the
+  // slide stays disabled with that sentence (a second slide changes nothing).
+  const [paperSignedElsewhere, setPaperSignedElsewhere] = useState(false);
   const turn = useHandoffTurn();
   const paperSlideRef = useRef<SlideToConfirmHandle>(null);
 
   useEffect(() => {
     if (visible) {
       setMethod('in_person'); setPaths([]); setName(''); setSignedDay(todayCalendarDay()); setPhotoUri(null);
-      setStage('handoff'); setNeutral(false); setBusy(false);
+      setStage('handoff'); setNeutral(false); setBusy(false); setPaperSignedElsewhere(false);
       void turn.turn('front');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3033,6 +3115,7 @@ export function RecordHomeownerSignatureModal({
 
   const draft = useMemo<RecordSignatureDraft>(() => ({ method, name, signaturePaths: paths, signedDay, hasPagePhoto: !!photoUri }), [method, name, paths, signedDay, photoUri]);
   const blockReason = recordSignatureBlockReason(draft, todayCalendarDay());
+  const paperReason = paperSignedElsewhere ? signingCopy.paperAlreadySigned() : blockReason;
   const clientFirst = clientName.trim().split(/\s+/)[0] ?? '';
   const gcFirst = gcName.trim().split(/\s+/)[0] ?? '';
 
@@ -3055,10 +3138,18 @@ export function RecordHomeownerSignatureModal({
   // Records the signed contract: Cmd+Enter plays the paper slide's hold (never
   // an instant commit), never Cmd+S (components/ui/Sheet saveKey). The
   // in-person ceremony is signed by hand only.
-  useSheetPrimaryHotkey(visible && method === 'paper' && !blockReason, () => paperSlideRef.current?.playHoldToCommit(), { saveKey: false });
+  useSheetPrimaryHotkey(visible && method === 'paper' && !paperReason && !busy, () => paperSlideRef.current?.playHoldToCommit(), { saveKey: false });
 
   const writeInPerson = useCallback(() => recordInPerson(paths, name), [recordInPerson, paths, name]);
-  const writePaper = useCallback(() => recordPaper(draft, photoUri), [recordPaper, draft, photoUri]);
+  // The paper write holds the sheet: Cancel, Android back and the name field
+  // are off until the answer is in, so a refusal or "No answer yet" is always
+  // read on the open sheet (onResultAfterUnmount speaks only a confirmed one).
+  const writePaper = useCallback(async (): Promise<CommitResult> => {
+    setBusy(true);
+    const r = await recordPaper(draft, photoUri);
+    if (r.status === 'refused' && r.reason === signingCopy.paperAlreadySigned()) setPaperSignedElsewhere(true);
+    return r;
+  }, [recordPaper, draft, photoUri]);
   const inPersonCopy = useMemo(() => ({
     label: signingCopy.inPersonLabel(),
     srLabel: signingCopy.inPersonSrLabel(),
@@ -3172,7 +3263,8 @@ export function RecordHomeownerSignatureModal({
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalCancel, method === 'in_person' && { borderColor: themeColors.accent }]}
-                onPress={() => setMethod('in_person')}
+                // Never mid-write: switching would unmount the paper slide before its answer.
+                onPress={() => { if (!busy) setMethod('in_person'); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: method === 'in_person' }}
                 testID="contract-record-in-person"
@@ -3181,7 +3273,7 @@ export function RecordHomeownerSignatureModal({
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalCancel, method === 'paper' && { borderColor: themeColors.accent }]}
-                onPress={() => setMethod('paper')}
+                onPress={() => { if (!busy) setMethod('paper'); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: method === 'paper' }}
                 testID="contract-record-paper"
@@ -3246,9 +3338,10 @@ export function RecordHomeownerSignatureModal({
                 }}
                 tone="ink"
                 resultIcon="lock"
-                disabledReason={blockReason}
+                disabledReason={paperReason}
                 offline={offline}
-                onResolved={() => setBusy(false)}
+                // A confirmed record holds the sheet through its result; onDone closes it.
+                onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}
                 onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}
                 onResultAfterUnmount={onResultAfterUnmount}
                 onLateResult={onLateResult}

@@ -255,6 +255,48 @@ describe('B1 the approve sheet', () => {
   });
 });
 
+describe('B1 "Client approved without signing" is the same slide (W2 integration)', () => {
+  test('the sheet carries the freeze into the approval write and says unsigned; a failed write says so and changes nothing', async () => {
+    const frozen = { taxRatePct: 8.875, taxAmount: 372.75, totalWithTax: 4572.75 };
+    mockApprove.mockResolvedValue('synced');
+    const onClose = jest.fn();
+    const u = render(
+      <Shell>
+        <COApproveSheet visible changeOrder={CO} coNumber={4} title="Approve CO #4?" moneyLine="x" contractAfterCents={5240000} unsigned frozen={frozen} onClose={onClose} />
+      </Shell>,
+    );
+    await advance(10);
+    await srConfirm(u, 'co-approve-slide');
+    await advance(2500);
+    expect(mockApprove).toHaveBeenCalledWith('co-4', { frozen });
+    expect(textOf(u, 'co-approve-slide-result')).toBe('CO #4 approved, unsigned · contract $52,400.00');
+    await advance(2000);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    u.unmount();
+  });
+
+  test('the reflow preview\'s slide carries the anchor AND the freeze, and says unsigned', async () => {
+    const frozen = { taxRatePct: 8.875, taxAmount: 372.75, totalWithTax: 4572.75 };
+    mockApprove.mockResolvedValue('synced');
+    const co = { ...CO, scheduleImpactDays: 3, scheduleImpactTaskIds: ['a'] } as ChangeOrder;
+    const u = render(
+      <Shell>
+        <COScheduleReflowPreviewModal
+          visible changeOrder={co} schedule={SCHEDULE} onConfirm={jest.fn()} onClose={jest.fn()}
+          approveSlide={{ coNumber: 4, contractAfterCents: null, unsigned: true, frozen }}
+        />
+      </Shell>,
+    );
+    await advance(10);
+    expect(u.queryByTestId('co-reflow-confirm')).toBeNull();
+    await srConfirm(u, 'co-reflow-slide');
+    await advance(2500);
+    expect(mockApprove).toHaveBeenCalledWith('co-4', { anchorTaskId: 'a', frozen });
+    expect(textOf(u, 'co-reflow-slide-result')).toBe('CO #4 approved, unsigned · +$4,200.00');
+    u.unmount();
+  });
+});
+
 const SCHEDULE = {
   id: 's1', name: 'Pantry schedule', projectId: 'p1', startDate: '2026-09-14', workingDaysPerWeek: 7, bufferDays: 0,
   tasks: [
@@ -464,13 +506,13 @@ describe('B3 record a payment (the real invoice screen)', () => {
 
   test('a refused amount is one whole sentence that says why the slide waits', async () => {
     const tree = await openPaymentSheet(() => ({ kind: 'ok', latencyMs: 0 }), { amount: '' });
-    expect(tree.getByTestId('record-payment-slide-label').props.children).toBe('Type the amount received to record a payment.');
+    expect(tree.getByTestId('record-payment-slide-disabled-reason').props.children).toBe('Type the amount received to record a payment.');
     await act(async () => { fireEvent.changeText(tree.getByTestId('record-payment-amount'), '12.5.0'); });
     await pump(200);
-    expect(tree.getByTestId('record-payment-slide-label').props.children).toBe("Couldn't read that amount. Type it like 12500.00 or 12,500.00.");
+    expect(tree.getByTestId('record-payment-slide-disabled-reason').props.children).toBe("Couldn't read that amount. Type it like 12500.00 or 12,500.00.");
     await act(async () => { fireEvent.changeText(tree.getByTestId('record-payment-amount'), '0'); });
     await pump(200);
-    expect(tree.getByTestId('record-payment-slide-label').props.children).toBe('Enter an amount above $0.00 to record a payment.');
+    expect(tree.getByTestId('record-payment-slide-disabled-reason').props.children).toBe('Enter an amount above $0.00 to record a payment.');
     expect(appends).toHaveLength(0);
   });
 
@@ -510,7 +552,7 @@ async function reviewUnsent(tree: Awaited<ReturnType<typeof openPaymentSheet>>) 
 describe('B3 the unsent-changes hold, on the slide', () => {
   test('the SAME money waiting: the slide is held with the reason; after its retry the next open starts fresh and nothing counts twice', async () => {
     const tree = await openPaymentSheet(() => ({ kind: 'ok', latencyMs: 0 }), { lines: [WAITING_5000(Date.now())], amount: '5000', reference: '1234' });
-    expect(tree.getByTestId('record-payment-slide-label').props.children).toBe("An earlier change to this invoice hasn't sent yet. Review unsent changes first.");
+    expect(tree.getByTestId('record-payment-slide-disabled-reason').props.children).toBe("An earlier change to this invoice hasn't sent yet. Review unsent changes first.");
     // Said once (the track); the row below holds only the link.
     expect(tree.getAllByText("An earlier change to this invoice hasn't sent yet. Review unsent changes first.")).toHaveLength(1);
     expect(tree.getByText('Review unsent changes')).toBeTruthy();
@@ -722,7 +764,7 @@ describe('B4 certify an AIA pay app (the real screen)', () => {
     const tree = await openCertify();
     await act(async () => { onlineManager.setOnline(false); });
     await pump(200);
-    expect(tree.getByTestId('aia-certify-slide-label').props.children).toBe("You're offline. Certifying needs a connection.");
+    expect(tree.getByTestId('aia-certify-slide-disabled-reason').props.children).toBe("You're offline. Certifying needs a connection.");
     await act(async () => {
       fireEvent(tree.getByTestId('aia-certify-slide-rail'), 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
     });

@@ -2,26 +2,15 @@
   "version": 1,
   "counts": {
     "app/(tabs)/(home)/index.tsx": {
-      "R01": 1,
-      "R03": 1,
-      "R08": 1,
       "R10": 1,
       "R18": 1
     },
     "app/(tabs)/construction-ai/index.tsx": {
-      "R08": 2,
-      "R09": 2,
-      "R10": 1,
-      "R11": 1,
-      "R14": 2,
-      "R15": 3,
+      "R14": 1,
+      "R15": 1,
       "R17": 1
     },
     "app/(tabs)/discover/tools.tsx": {
-      "R05": 2,
-      "R06": 1,
-      "R15": 2,
-      "R17": 1,
       "R19": 1
     },
     "app/(tabs)/summary/index.tsx": {
@@ -31,7 +20,6 @@
       "R16": 1
     },
     "app/area-takeoff.tsx": {
-      "R15": 1,
       "R16": 3
     },
     "app/bid-leveling.tsx": {
@@ -43,18 +31,6 @@
     "app/buyout.tsx": {
       "R16": 3
     },
-    "app/change-order.tsx": {
-      "R01": 3,
-      "R07": 1,
-      "R08": 2,
-      "R09": 1,
-      "R10": 4,
-      "R11": 1,
-      "R13": 1,
-      "R14": 6,
-      "R15": 6,
-      "R17": 1
-    },
     "app/client-update.tsx": {
       "R09": 1
     },
@@ -62,14 +38,9 @@
       "R15": 3
     },
     "app/contract.tsx": {
-      "R01": 1,
-      "R08": 1,
-      "R09": 1,
-      "R10": 5,
       "R13": 1,
-      "R14": 5,
-      "R17": 2,
-      "R19": 14
+      "R14": 4,
+      "R17": 2
     },
     "app/cost-database.tsx": {
       "R16": 1
@@ -100,31 +71,18 @@
     },
     "app/estimate-wizard.tsx": {
       "R01": 1,
-      "R08": 2,
-      "R09": 2,
-      "R10": 1,
-      "R14": 1,
-      "R15": 2
+      "R14": 1
     },
     "app/invoice.tsx": {
-      "R07": 1,
-      "R08": 4,
-      "R11": 2,
-      "R14": 2,
-      "R15": 10,
+      "R15": 3,
       "R16": 2,
-      "R17": 1,
       "R19": 1
     },
     "app/lien-waivers.tsx": {
-      "R09": 1,
-      "R14": 4
+      "R14": 3
     },
     "app/onboarding.tsx": {
       "R16": 1
-    },
-    "app/payments.tsx": {
-      "R15": 1
     },
     "app/paywall.tsx": {
       "R16": 5
@@ -132,7 +90,7 @@
     "app/project-detail.tsx": {
       "R01": 2,
       "R08": 7,
-      "R11": 6,
+      "R11": 5,
       "R13": 1,
       "R14": 12,
       "R15": 18,
@@ -140,48 +98,24 @@
       "R17": 1
     },
     "app/punch-list.tsx": {
-      "R01": 2,
-      "R08": 1,
-      "R11": 1,
-      "R13": 4,
-      "R14": 7,
-      "R15": 3,
+      "R15": 1,
       "R16": 1
     },
     "app/quick-quote.tsx": {
       "R16": 1
     },
     "app/rfi.tsx": {
-      "R01": 4,
-      "R08": 4,
-      "R09": 1,
-      "R10": 1,
-      "R11": 4,
+      "R01": 2,
       "R13": 1,
-      "R14": 1,
-      "R15": 4,
+      "R15": 1,
       "R16": 1
-    },
-    "app/safety-certifications.tsx": {
-      "R09": 1
-    },
-    "app/safety-hazards.tsx": {
-      "R09": 1
-    },
-    "app/safety-incidents.tsx": {
-      "R09": 1
-    },
-    "app/safety-jha.tsx": {
-      "R09": 1
     },
     "app/safety-osha.tsx": {
       "R10": 2
     },
     "app/scan.tsx": {
       "R09": 1,
-      "R11": 1,
-      "R12": 1,
-      "R14": 2
+      "R12": 1
     },
     "app/schedule-wizard.tsx": {
       "R09": 1
@@ -197,16 +131,12 @@
       "R12": 1
     },
     "app/takeoff-estimate.tsx": {
-      "R10": 1,
       "R14": 1
     },
     "app/time-tracking.tsx": {
-      "R09": 1,
       "R11": 2,
-      "R12": 9,
-      "R14": 10,
-      "R15": 1,
-      "R17": 3
+      "R14": 5,
+      "R17": 1
     },
     "app/weekly-snapshot.tsx": {
       "R16": 2
@@ -224,13 +154,8 @@
     "components/DesktopActionRail.tsx": {
       "R10": 3
     },
-    "components/DesktopSidebar.tsx": {
-      "R10": 1,
-      "R15": 2
-    },
     "components/NextStepHero.tsx": {
-      "R05": 1,
-      "R10": 1
+      "R05": 1
     },
     "components/Paywall.tsx": {
       "R15": 1,
@@ -241,9 +166,6 @@
     },
     "components/SquareFootEstimator.tsx": {
       "R16": 1
-    },
-    "components/UniversalMicButton.tsx": {
-      "R05": 1
     },
     "components/codeThread/ProjectCodeChecksCard.tsx": {
       "R14": 1

@@ -69,6 +69,20 @@ export interface SlideToConfirmHandle {
 const LABEL_OPACITY = labelOpacityTable();
 const LABEL_DRIFT = labelDriftTable();
 
+/**
+ * How many characters of a disabled reason the one-line track label holds on a
+ * 390-pt phone beside the head (lg: the callout label; md: the 64%-wide
+ * clock-out track). A longer reason is never cut off: the track keeps the
+ * short action label and the whole reason wraps on the line under the track.
+ * VoiceOver reads the full reason from the head either way (its label and hint).
+ */
+export const TRACK_REASON_MAX: Readonly<Record<'lg' | 'md', number>> = { lg: 32, md: 18 };
+
+/** True when this disabled reason fits the track label whole (else it goes under the track). */
+export function reasonFitsTrack(reason: string, size: 'lg' | 'md'): boolean {
+  return reason.length <= TRACK_REASON_MAX[size];
+}
+
 // The moments' own words follow the app language (wave-next W2): binds the
 // providers utils/moments/copy.ts and commitResult.ts read at call time.
 installMomentLanguage();
@@ -124,7 +138,9 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
     lockRim: v.lockRim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45], extrapolate: 'clamp' }),
   }), [v]);
 
-  const labelText = capsule.disabled ? (disabledReason ?? props.label) : props.label;
+  // A long disabled reason moves under the track, whole; a short one stays in it.
+  const reasonUnder = capsule.disabled && !!disabledReason && !reasonFitsTrack(disabledReason, size);
+  const labelText = capsule.disabled && !reasonUnder ? (disabledReason ?? props.label) : props.label;
   const labelStyle = size === 'md' ? styles.labelMd : styles.labelLg;
   const labelBox = { paddingLeft: D + 14, paddingRight: 18 };
   const display = capsule.display;
@@ -221,6 +237,12 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
         </Pressable>
       </View>
       <View style={styles.under}>
+        {reasonUnder && reason?.text !== disabledReason ? (
+          // Decorative like the track label: the head already speaks this reason.
+          <Text {...hidden} style={[styles.underText, { color: mc.label }]} testID={tid ? `${tid}-disabled-reason` : undefined}>
+            {disabledReason}
+          </Text>
+        ) : null}
         {reason ? (
           <Animated.Text
             accessibilityLiveRegion="polite"

@@ -773,7 +773,10 @@ console.log('\nfield access sees hours and quantities, not the office\'s rates:'
   ok('...the signing moment reads its amount through signedAmount (null when blinded), on both sign sheets',
     /const signedAmount = useCallback\(\(n: number\) => \(moneyBlinded \? null : money\(n\)\), \[moneyBlinded\]\);/.test(screen)
       && /amount=\{moneyBlinded \? null : draftTotals\.billableTotal\}/.test(screen)
-      && /amount \? signingCopy\.ticketSignedTitle\(label, amount\) : signingCopy\.ticketSignedTitleNoAmount\(label\)/.test(screen));
+      // W2 integration: the confirmed title names the STORED ticket (doneLabel), the landed-retry one too (landedLabel).
+      && /amount \? signingCopy\.ticketSignedTitle\(doneLabel, amount\) : signingCopy\.ticketSignedTitleNoAmount\(doneLabel\)/.test(screen)
+      && /landedAmount \? signingCopy\.ticketSignedTitle\(landedLabel, landedAmount\) : signingCopy\.ticketSignedTitleNoAmount\(landedLabel\)/.test(screen)
+      && /const landedAmount = signedAmount\(computeFieldTicketTotals\(landed\)\.billableTotal\);/.test(screen));
 }
 
 // ── W2 MOMSIGN (A5): a signature needs signal and is never queued ───────────

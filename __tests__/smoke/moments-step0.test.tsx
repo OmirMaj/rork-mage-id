@@ -147,11 +147,11 @@ describe('moments Step 0 primitives', () => {
     {
       const u = mountSlide({ writeOptions: { idempotent: false, legal: true, copy: SLIDE_COPY }, offline: true });
       await advance(10);
-      expect(u.getByTestId('slide-label').props.children).toBe("You're offline. Certifying needs a connection.");
+      expect(u.getByTestId('slide-disabled-reason').props.children).toBe("You're offline. Certifying needs a connection.");
       u.unmount();
       const d = mountSlide({ writeOptions: { idempotent: false, legal: true }, offline: true });
       await advance(10);
-      expect(d.getByTestId('slide-label').props.children).toBe("You're offline. Signing needs a connection.");
+      expect(d.getByTestId('slide-disabled-reason').props.children).toBe("You're offline. Signing needs a connection.");
       d.unmount();
     }
 

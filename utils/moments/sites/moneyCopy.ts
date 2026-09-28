@@ -89,6 +89,21 @@ export function coApprovedToast(coNumber: number): string {
   return `CO #${coNumber} approved`;
 }
 
+/** Confirmed, approved with NO client signature ("Client approved without signing"): "CO #4 approved, unsigned · contract $52,400.00". */
+export function coApprovedUnsigned(coNumber: number, contractCents: number): string {
+  return `CO #${coNumber} approved, unsigned · contract ${money(contractCents)}`;
+}
+
+/** The same, when the signed contract could not be read: "CO #4 approved, unsigned · +$4,200.00". */
+export function coApprovedUnsignedNoTotal(coNumber: number, amountCents: number): string {
+  return `CO #${coNumber} approved, unsigned · ${signed(amountCents)}`;
+}
+
+/** An unsigned approval confirmed after the sheet is gone (a toast): "CO #4 approved, unsigned". */
+export function coApprovedUnsignedToast(coNumber: number): string {
+  return `CO #${coNumber} approved, unsigned`;
+}
+
 // ── Invoice record payment (B3) ─────────────────────────────────────────────
 
 /** The track label: "Slide to record $4,200.00". */

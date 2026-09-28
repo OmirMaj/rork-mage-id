@@ -448,15 +448,18 @@ ok('a mis-punched time entry can be corrected and deleted',
 // a notification that the shift is already over. Pin the ORDER, not the
 // presence: everything between the branch and the write must include the
 // prompt and a destructive button to hang the write on.
-const clockOutBranch = timeSrc.indexOf("action === 'clock_out'");
-const clockOutWrite = timeSrc.indexOf('doClockOut(entry.id)', clockOutBranch);
-const beforeTheWrite = clockOutBranch >= 0 && clockOutWrite > clockOutBranch
-  ? timeSrc.slice(clockOutBranch, clockOutWrite)
-  : '';
+// moments C1 (wave-next W2, MOMFIELD): the confirm is now a slide. The tap
+// only opens the clock-out sheet; the write lives in the slide's commit.
+const clockOutBranchAt = timeSrc.indexOf("} else if (action === 'clock_out') {");
+const clockOutBranch = clockOutBranchAt >= 0 ? timeSrc.slice(clockOutBranchAt, timeSrc.indexOf('\n    }\n', clockOutBranchAt)) : '';
+const commitAt = timeSrc.indexOf('const commitClockOut = useCallback(');
+const commitBody = commitAt >= 0 ? timeSrc.slice(commitAt, timeSrc.indexOf('}, [clockOutFor, clockOutDetailed]);', commitAt)) : '';
 ok('ending a shift is confirmed before the write',
-  beforeTheWrite.includes('showAlert(') && beforeTheWrite.includes("style: 'destructive'"),
-  'app/time-tracking.tsx handleAction must confirm BEFORE calling doClockOut, not alert after it. '
-  + 'The Clock Out button sits in a two-up row beside Break in the same styles.actionBtn.');
+  /setClockOutFor\(entry\)/.test(clockOutBranch) && !/doClockOut\(|clockOutDetailed\(/.test(clockOutBranch)
+  && /await clockOutDetailed\(entry\.id, outIso\)/.test(commitBody)
+  && /<SlideToConfirm[\s\S]{0,400}onCommit=\{commitClockOut\}/.test(timeSrc),
+  'app/time-tracking.tsx handleAction must only OPEN the clock-out sheet; the write (clockOutDetailed) '
+  + 'belongs to the slide\'s commit, never the tap. The Clock Out button sits in a two-up row beside Break.');
 
 const warrantySrc = read(join('app', 'warranties.tsx'));
 ok('a warranty claim can be created from the warranty screen',

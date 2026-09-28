@@ -40,13 +40,14 @@ import {
   type CommitWriteOptions,
   type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
-import { useProjectCrossActions } from '@/contexts/ProjectContext';
+import { useProjectCrossActions, type ChangeOrderFrozenFields } from '@/contexts/ProjectContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import { calendarDayToDate } from '@/utils/cpm';
 import { formatCalendarDay, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
-import { coApprovedTitle } from '@/components/moments-sites/COApproveSheet';
+import { coApprovedTitle, coApprovedUnsignedTitle } from '@/components/moments-sites/COApproveSheet';
 import {
   coApprovedToast,
+  coApprovedUnsignedToast,
   coBusy,
   coFinishMoves,
   coQueued,
@@ -75,6 +76,10 @@ export interface ReflowApproveSlide {
   coNumber: number;
   /** The contract total once this CO is approved, integer cents; null when the signed contract could not be read (the title then names the CO's own amount). */
   contractAfterCents: number | null;
+  /** "Client approved without signing": no client signature, and the confirmed words say so. */
+  unsigned?: boolean;
+  /** #131: the tax frozen onto the CO in the same write as the approval. */
+  frozen?: ChangeOrderFrozenFields;
 }
 
 export function COScheduleReflowPreviewModal(props: {
@@ -367,16 +372,19 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
 }>(function ReflowApproveSlideControl({ changeOrder, slide, anchorTaskId, finishDate, onClose }, ref) {
   const { approveChangeOrder } = useProjectCrossActions();
   const amountCents = Number.isFinite(changeOrder.changeAmount) ? Math.round(changeOrder.changeAmount * 100) : 0;
-  const { coNumber, contractAfterCents } = slide;
+  const { coNumber, contractAfterCents, unsigned, frozen } = slide;
 
   const approveAndShift = useCallback(async (): Promise<CommitResult> => {
-    const outcome = await approveChangeOrder(changeOrder.id, { anchorTaskId });
+    const outcome = await approveChangeOrder(changeOrder.id, { anchorTaskId, ...(frozen ? { frozen } : {}) });
     return fromWriteOutcome(
       outcome,
-      { title: coApprovedTitle(coNumber, amountCents, contractAfterCents), ...(finishDate ? { detail: coFinishMoves(finishDate) } : {}) },
+      {
+        title: unsigned ? coApprovedUnsignedTitle(coNumber, amountCents, contractAfterCents) : coApprovedTitle(coNumber, amountCents, contractAfterCents),
+        ...(finishDate ? { detail: coFinishMoves(finishDate) } : {}),
+      },
       { refused: coRefused(), queued: coQueued() },
     );
-  }, [approveChangeOrder, changeOrder.id, anchorTaskId, coNumber, amountCents, contractAfterCents, finishDate]);
+  }, [approveChangeOrder, changeOrder.id, anchorTaskId, coNumber, amountCents, contractAfterCents, finishDate, unsigned, frozen]);
 
   // Non-idempotent (plan rule 3): a timeout says "Check CO #4", never "nothing was saved".
   const writeOptions = useMemo<CommitWriteOptions>(() => ({
@@ -388,8 +396,8 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
     if (r.status === 'confirmed' || r.status === 'queued') onClose();
   }, [onClose]);
   const onLate = useCallback((r: CommitResult) => {
-    if (r.status === 'confirmed') nailIt(coApprovedToast(coNumber));
-  }, [coNumber]);
+    if (r.status === 'confirmed') nailIt(unsigned ? coApprovedUnsignedToast(coNumber) : coApprovedToast(coNumber));
+  }, [coNumber, unsigned]);
 
   return (
     <SlideToConfirm

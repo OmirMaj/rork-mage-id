@@ -32,6 +32,7 @@
 import type { MomentsCtx } from '../validate-moments';
 import { lintMomentCopy } from '../../utils/moments/copy';
 import * as S from '../../utils/moments/sites/signingCopy';
+import { coApprovalConflictVerdict, coSendStamp, isDecisionAlreadyOnFile, ONE_DECISION_PER_SEND_INDEX } from '../../utils/coApprovalRetry';
 import { checkSite, closeOf, countCalls, jsxElements } from './rules';
 
 type Fails = string[];
@@ -39,6 +40,8 @@ type Fails = string[];
 const CONTRACT = 'app/contract.tsx';
 const TICKET = 'app/field-ticket.tsx';
 const CLIENT_VIEW = 'app/client-view.tsx';
+const CTX = 'contexts/ProjectContext.tsx';
+const QUEUE = 'utils/offlineQueue.ts';
 const SCREENS = [CONTRACT, TICKET, CLIENT_VIEW] as const;
 
 const QUEUE_BACKED = /\b(supabaseWrite|supabaseWriteDetailed|supabaseRpcDetailed|addToOfflineQueue|enqueue\w*)\s*\(/;
@@ -184,6 +187,44 @@ export function checkApproveFlipsOnConfirmed(code: string): Fails {
   return f;
 }
 
+/**
+ * S4b (A6, W2 integration): an approval whose earlier answer was lost. The
+ * retry is refused by change_order_approvals_one_per_send; the write reads the
+ * decision for this send back and resolves from it: this portal's approval is
+ * CONFIRMED (the same flip), another decision is "already has a decision", an
+ * unreadable read is "no answer yet". Never "Not approved… went wrong" over a
+ * stored approval.
+ */
+export function checkApproveRetry(code: string): Fails {
+  const f: Fails = [];
+  const body = bodyOf(code, 'approveWrite') ?? '';
+  const catchAt = body.search(/\}\s*catch\s*\(err\)\s*\{/);
+  const catchEnd = catchAt < 0 ? -1 : body.indexOf('\n    }', catchAt + 1);
+  const c = catchAt < 0 ? '' : body.slice(catchAt, catchEnd);
+  const gate = c.indexOf("if (!isDecisionAlreadyOnFile(err)) return { status: 'refused', reason: signingCopy.clientCoRefused() };");
+  const readAt = c.indexOf('rows = await readCODecisionForSend(co, project.id);');
+  if (gate < 0 || readAt < gate) f.push('app/client-view.tsx: S4b a duplicate for this send is read back (readCODecisionForSend) before any refusal');
+  if (!/\} catch \(readErr\) \{[\s\S]*?return \{ status: 'timeout', message: signingCopy\.clientCoTimeout\(co\.number\) \};/.test(c)) f.push('app/client-view.tsx: S4b an unreadable read-back is "no answer yet", never a guess');
+  if (!/const verdict = coApprovalConflictVerdict\(rows, portal\.portalId\);\s*if \(verdict === 'decided'\) return \{ status: 'refused', reason: signingCopy\.clientCoAlreadyDecided\(co\.number\) \};\s*if \(verdict === 'none'\) return \{ status: 'refused', reason: signingCopy\.clientCoRefused\(\) \};\s*onFile = rows\[0\];/.test(c)) {
+    f.push('app/client-view.tsx: S4b only THIS portal\'s approval on file falls through to the confirmed flip; any other decision says so (clientCoAlreadyDecided)');
+  }
+  if (!/send_stamp: coSendStamp\(approvalCO\),/.test(bodyOf(code, 'insertCODecision') ?? '') || !/\.eq\('send_stamp', coSendStamp\(co\)\)/.test(bodyOf(code, 'readCODecisionForSend') ?? '')) {
+    f.push('app/client-view.tsx: S4b the insert and the read-back name the send with the same coSendStamp');
+  }
+  // The pure rules, executed.
+  const dup = { code: '23505', message: `duplicate key value violates unique constraint "${ONE_DECISION_PER_SEND_INDEX}"` };
+  if (!isDecisionAlreadyOnFile(dup) || isDecisionAlreadyOnFile({ code: '42501', message: 'permission denied' }) || isDecisionAlreadyOnFile(new TypeError('Network request failed'))) f.push('utils/coApprovalRetry.ts: S4b isDecisionAlreadyOnFile is the unique-key refusal only');
+  const row = (decision: string, portal_id: string) => ({ decision, portal_id, signer_name: 'Jane', sealed_at: '2026-09-28T18:41:00.000Z' });
+  if (coApprovalConflictVerdict([row('approved', 'portal-1')], 'portal-1') !== 'approved') f.push('utils/coApprovalRetry.ts: S4b this portal\'s approval on file is "approved"');
+  if (coApprovalConflictVerdict([row('declined', 'portal-1')], 'portal-1') !== 'decided'
+    || coApprovalConflictVerdict([row('approved', 'portal-2')], 'portal-1') !== 'decided'
+    || coApprovalConflictVerdict([row('approved', '')], '') !== 'decided') f.push('utils/coApprovalRetry.ts: S4b a decline or another portal\'s decision is "decided", never "approved"');
+  if (coApprovalConflictVerdict([], 'portal-1') !== 'none' || coApprovalConflictVerdict(null, 'portal-1') !== 'none') f.push('utils/coApprovalRetry.ts: S4b nothing on file for this send is "none"');
+  if (coSendStamp({}) !== 'unsent' || coSendStamp({ portalState: { sentAt: '2026-09-28T12:00:00.000Z' } }) !== '0@2026-09-28T12:00:00.000Z'
+    || coSendStamp({ portalState: { sentVersion: 3 } }) !== '3@') f.push('utils/coApprovalRetry.ts: S4b coSendStamp is portal_co_send_stamp\'s text ("<sentVersion>@<sentAt>", \'unsent\')');
+  return f;
+}
+
 /** S5 (A1): the fold says "sent" only when the email service accepted it; the email is awaited in the write. */
 export function checkFoldHonesty(code: string): Fails {
   const f: Fails = [];
@@ -244,6 +285,64 @@ export function checkRecordHonesty(code: string): Fails {
   return f;
 }
 
+/**
+ * S6b (A2/A3, W2 integration): a retry after a landed-but-unanswered paper
+ * flip, and the paper sheet while its write runs.
+ *   - The live row decides: neither record handler refuses on the LOCAL
+ *     status (right after "Sign together" the local copy still reads draft).
+ *   - One upload per page: a retry of the same photo reuses the pinned
+ *     evidence path, and every path this screen uploaded is kept.
+ *   - The signature on file that IS this screen's own paper record confirms
+ *     (isOwnLandedPaperRecord gates the signed-elsewhere refusal), never
+ *     "the client already signed".
+ *   - After a signed-elsewhere refusal the slide stays disabled with that
+ *     sentence (a second slide changes nothing).
+ *   - The write holds the sheet: busy from the write's first line, Cancel,
+ *     Android back and the name field off while busy, and a confirmed record
+ *     keeps it until onDone closes the sheet.
+ */
+export function checkPaperRetry(code: string): Fails {
+  const f: Fails = [];
+  const paper = bodyOf(code, 'recordPaper') ?? '';
+  const inPerson = bodyOf(code, 'recordInPerson') ?? '';
+  if (!paper || !inPerson) return ['app/contract.tsx: S6b recordPaper / recordInPerson are missing'];
+  for (const [name, body] of [['recordPaper', paper], ['recordInPerson', inPerson]] as const) {
+    if (/\bc\.status\s*!==\s*'sent'/.test(body)) f.push(`app/contract.tsx: S6b ${name} refuses on the LOCAL status (c.status !== 'sent'); the live row decides (recordHomeownerSignature re-reads it)`);
+  }
+  if (!/let evidencePath = pin && pin\.contractId === c\.id && pin\.photoUri === pagePhotoUri \? pin\.evidencePath : '';/.test(paper)
+    || !/if \(!evidencePath\) \{/.test(paper)) {
+    f.push('app/contract.tsx: S6b a paper retry of the same page reuses the pinned evidence path (never a second upload)');
+  }
+  if (!/evidencePath = await uploadSignedPageEvidence\([^)]*\);\s*paperPinRef\.current = \{ contractId: c\.id, photoUri: pagePhotoUri, evidencePath \};\s*ownPaperEvidenceRef\.current\.add\(evidencePath\);/.test(paper)) {
+    f.push('app/contract.tsx: S6b every uploaded page is pinned and kept as this screen\'s own (ownPaperEvidenceRef)');
+  }
+  const writeAt = paper.indexOf('await recordHomeownerSignature(');
+  const own = /const ownLanded = isOwnLandedPaperRecord\(outcome, ownPaperEvidenceRef\.current\);\s*if \(!ownLanded\) \{/.exec(paper);
+  const guardAt = paper.indexOf('if (wasSignedElsewhere(outcome))');
+  const mapAt = paper.indexOf("if (outcome.kind !== 'signed') return recordOutcomeResult(outcome);");
+  if (!own || writeAt < 0 || own.index < writeAt || guardAt < own.index || mapAt < own.index) {
+    f.push('app/contract.tsx: S6b the retry that finds its OWN paper record confirms: isOwnLandedPaperRecord gates the signed-elsewhere refusal and the mapper');
+  }
+  if (!/const paperReason = paperSignedElsewhere \? signingCopy\.paperAlreadySigned\(\) : blockReason;/.test(code)) {
+    f.push('app/contract.tsx: S6b after a signed-elsewhere refusal the paper slide is disabled with signingCopy.paperAlreadySigned()');
+  }
+  const slide = jsxElements(code, 'SlideToConfirm').find((e) => e.attrs.get('testID') === '"contract-record-paper-slide"');
+  if (!slide) f.push('app/contract.tsx: S6b the paper slide is missing');
+  else {
+    if (slide.attrs.get('disabledReason') !== 'paperReason') f.push('app/contract.tsx: S6b the paper slide takes disabledReason={paperReason}');
+    if (!/^\(r\) => \{ if \(r\.status !== 'confirmed'\) setBusy\(false\); \}$/.test(slide.attrs.get('onResolved') ?? '')) {
+      f.push('app/contract.tsx: S6b the paper slide keeps the sheet busy through a confirmed result (onResolved clears busy only for any other answer)');
+    }
+  }
+  const wp = bodyOf(code, 'writePaper') ?? '';
+  const busyAt = wp.indexOf('setBusy(true);');
+  if (busyAt < 0 || wp.indexOf('recordPaper(') < busyAt) f.push('app/contract.tsx: S6b writePaper sets busy BEFORE the record runs (the sheet holds while the write runs)');
+  if (!/onPress=\{onClose\} disabled=\{busy\}[^>]*testID="contract-record-cancel"/.test(code)) f.push('app/contract.tsx: S6b Cancel is off while busy');
+  if (!/onRequestClose=\{\(\) => \{ if \(!busy\) onClose\(\); \}\}/.test(code)) f.push('app/contract.tsx: S6b Android back is off while busy');
+  if (!/editable=\{!busy\}\s*testID="contract-record-name"/.test(code)) f.push('app/contract.tsx: S6b the name field is off while busy');
+  return f;
+}
+
 /** S7 (A5): the attestation is the verbatim screen text; the amount is behind the money blind on both mounts. */
 export function checkTicket(code: string): Fails {
   const f: Fails = [];
@@ -253,16 +352,58 @@ export function checkTicket(code: string): Fails {
   const mounts = [...code.matchAll(/<SignatureModal\b[\s\S]*?\/>/g)].map((m) => m[0]);
   if (mounts.length !== 2) f.push(`app/field-ticket.tsx: S7 expected the two sign sheet mounts, found ${mounts.length}`);
   for (const m of mounts) if (!/amount=\{moneyBlinded \? null : /.test(m)) f.push('app/field-ticket.tsx: S7 every sign sheet takes amount={moneyBlinded ? null : …}');
-  // A new ticket keeps one id and number per draft: a retry after a timed-out
-  // insert that landed meets its own row, never a second signed ticket.
+  // A new ticket keeps one id per draft: a retry after a timed-out insert
+  // that landed meets its own row, never a second signed ticket. Its number
+  // is read fresh on each slide (a teammate's ticket may have taken the old one).
   const sign = bodyOf(code, 'handleSign') ?? '';
-  if (!/if \(!existing && !newTicketPinRef\.current\) newTicketPinRef\.current = \{ id: generateUUID\(\), number: nextFieldTicketNumber\(tickets\) \};/.test(sign)
-    || !/id: pin\?\.id \?\? generateUUID\(\),/.test(sign) || !/number: pin\?\.number \?\? nextFieldTicketNumber\(tickets\),/.test(sign)) {
-    f.push('app/field-ticket.tsx: S7 handleSign signs a new ticket under the draft\'s pinned id and number (newTicketPinRef), the same on every retry');
+  if (!/if \(!existing && !newTicketPinRef\.current\) newTicketPinRef\.current = \{ id: generateUUID\(\) \};/.test(sign)
+    || !/id: pin\?\.id \?\? generateUUID\(\),/.test(sign)) {
+    f.push('app/field-ticket.tsx: S7 handleSign signs a new ticket under the draft\'s pinned id (newTicketPinRef), the same on every retry');
+  }
+  if (!/number: nextFieldTicketNumber\(tickets\),/.test(sign) || /pin\?\.number/.test(sign)) {
+    f.push('app/field-ticket.tsx: S7 a new ticket\'s number is read fresh on every slide, never a pinned number a teammate may have taken');
+  }
+  // W2 integration (critic 2, issue 2): the STORED row names the result.
+  if (!/const stored = result\.status === 'synced' \? result\.record : undefined;/.test(sign)
+    || !/if \(stored\) signedTotal = computeFieldTicketTotals\(stored\)\.billableTotal;/.test(sign)
+    || !/const doneLabel = stored \? fieldTicketLabel\(stored\.number\) : label;/.test(sign)
+    || !/signingCopy\.ticketSignedTitle\(doneLabel, amount\)/.test(sign)) {
+    f.push('app/field-ticket.tsx: S7 the confirmed title and amount come from the record the server stored (result.record), never the retry\'s copy');
+  }
+  const landedAt = sign.indexOf("const landed = !existing && pin ? fieldTickets.find(x => x.id === pin.id && x.status === 'signed') : undefined;");
+  if (landedAt < 0 || landedAt > sign.indexOf('await signFieldTicket(')) {
+    f.push('app/field-ticket.tsx: S7 a pinned ticket already on this phone as signed (its landed insert, read back) confirms from that row before any second write');
   }
   const clears = [...code.matchAll(/newTicketPinRef\.current = null/g)];
   const reset = bodyOf(code, 'resetComposer') ?? '';
   if (clears.length !== 1 || !/newTicketPinRef\.current = null/.test(reset)) f.push('app/field-ticket.tsx: S7 the ticket pin clears only in resetComposer (a fresh draft), never between retries');
+  return f;
+}
+
+/**
+ * S7b (A5, W2 integration): a signed insert that met its OWN earlier row
+ * (supabaseWriteOnlineDetailed answers landedEarlier) keeps the STORED row on
+ * this phone, read back by id, never the retry's copy; unreadable, it is "no
+ * answer yet". The online write says so only for a visible _pkey duplicate.
+ */
+export function checkTicketStoredRow(ctxCode: string, queueCode: string): Fails {
+  const f: Fails = [];
+  const at = ctxCode.indexOf('const signFieldTicket = useCallback(');
+  const body = at < 0 ? '' : ctxCode.slice(at, ctxCode.indexOf('\n  }, [', at));
+  const landed = /if \(res\.landedEarlier\) \{([\s\S]*?)\n      \}/.exec(body);
+  if (!landed
+    || !/const stored = await readStoredFieldTicket\(finalTicket\.id, finalTicket\);/.test(landed[1])
+    || !/if \(!stored\) return \{ status: 'unknown' \};/.test(landed[1])
+    || !/commit\(stored\);\s*return \{ status: 'synced', record: stored \};/.test(landed[1])
+    || /commit\(finalTicket\)/.test(landed[1])) {
+    f.push('contexts/ProjectContext.tsx: S7b signFieldTicket keeps the STORED row (readStoredFieldTicket) on a landedEarlier insert, "unknown" when it cannot be read, never the retry\'s copy');
+  } else if (landed.index > body.indexOf('commit(finalTicket);')) {
+    f.push('contexts/ProjectContext.tsx: S7b the landedEarlier branch runs before the retry\'s copy is committed');
+  }
+  if (!/if \(seen === 'visible'\) \{ error = null; rows = undefined; landedEarlier = true; \}/.test(queueCode)
+    || !/\.\.\.\(landedEarlier \? \{ landedEarlier: true as const \} : \{\}\)/.test(queueCode)) {
+    f.push('utils/offlineQueue.ts: S7b an online insert that met its own visible row answers landedEarlier');
+  }
   return f;
 }
 
@@ -339,7 +480,10 @@ function plants(code: Record<string, string>): Plant[] {
     ['S2 the GC flip through the old queue-backed call', () => checkLegalWrites(CONTRACT, mutate(c, "setContractStatusDetailed(saved.id, 'sent'", "setContractStatus(saved.id, 'sent'")), /S2 handleSignAndSend/],
     ['S3 a confetti burst', () => checkNoConfetti(CONTRACT, mutate(c, 'requestPortalPublish(saved.projectId);', 'requestPortalPublish(saved.projectId); fireConfetti({ count: 50 });')), /S3 fireConfetti/],
     ['S4 the CO flips before the insert', () => checkApproveFlipsOnConfirmed(mutate(v, 'const d = await buildCODecision(co, \'approve\');', "const d = await buildCODecision(co, 'approve'); updateChangeOrder(co.id, { status: 'approved' });")), /S4/],
-    ['S4 the CO flips on failure too', () => checkApproveFlipsOnConfirmed(mutate(v, "      return { status: 'refused', reason: signingCopy.clientCoRefused() };\n    }\n", "      updateChangeOrder(co.id, { status: 'approved' });\n      return { status: 'refused', reason: signingCopy.clientCoRefused() };\n    }\n")), /S4/],
+    ['S4 the CO flips on failure too', () => checkApproveFlipsOnConfirmed(mutate(v, "      onFile = rows[0];\n    }\n", "      onFile = rows[0];\n      updateChangeOrder(co.id, { status: 'approved' });\n    }\n")), /S4/],
+    ['S4b a stored approval refused as a failure', () => checkApproveRetry(mutate(v, "if (!isDecisionAlreadyOnFile(err)) return { status: 'refused', reason: signingCopy.clientCoRefused() };", "return { status: 'refused', reason: signingCopy.clientCoRefused() };")), /S4b a duplicate for this send is read back/],
+    ['S4b another decision flipped as approved', () => checkApproveRetry(mutate(v, "      if (verdict === 'decided') return { status: 'refused', reason: signingCopy.clientCoAlreadyDecided(co.number) };\n", '')), /S4b only THIS portal's approval/],
+    ['S4b an unreadable read-back guessed', () => checkApproveRetry(mutate(v, /\} catch \(readErr\) \{\s*console\.warn\('\[client-view\] CO approval read-back failed:', readErr\);\s*return \{ status: 'timeout', message: signingCopy\.clientCoTimeout\(co\.number\) \};/, "} catch (readErr) {\n        return { status: 'refused', reason: signingCopy.clientCoRefused() };")), /S4b an unreadable read-back/],
     ['S5 "sent" without a delivered email', () => checkFoldHonesty(mutate(c, "const sent = deliveryMarker?.state === 'delivered';", 'const sent = true;')), /S5 fold\.sent = true only inside/],
     ['S5 a fold that always says sent', () => checkFoldHonesty(mutate(c, '    moment.fold.sent = false;\n    moment.fold.title = signingCopy.contractNotSentTitle();\n    moment.fold.body = notSentReason;', '    moment.fold.sent = true;\n    moment.fold.title = signingCopy.contractNotSentTitle();\n    moment.fold.body = notSentReason;')), /S5 fold\.sent = true must be set exactly once/],
     ['S6 evidence before a hash', () => checkRecordHonesty(mutate(c, "evidence={autoSeal.state === 'sealed' && autoSeal.hash ? ", 'evidence={true ? ')), /S6 sealEvidence/],
@@ -347,11 +491,23 @@ function plants(code: Record<string, string>): Plant[] {
     ['S6 paper success over a record signed elsewhere', () => checkRecordHonesty(mutate(c, /\n\s*if \(wasSignedElsewhere\(outcome\)\) \{\s*void recheckLockedContract\(\);\s*return \{ status: 'refused', reason: signingCopy\.paperAlreadySigned\(\) \};\s*\}/, '')), /S6 recordPaper refuses the signed-elsewhere outcome/],
     ['S6 paper already-signed as a confirmed', () => checkRecordHonesty(mutate(c, "return { status: 'refused', reason: signingCopy.paperAlreadySigned() };", "return { status: 'confirmed', title: signingCopy.alreadySignedTitle() };")), /S6 recordPaper/],
     ['S6 a narrowed signed-elsewhere check', () => checkRecordHonesty(mutate(c, "outcome.kind === 'not_sent' && (outcome.homeownerSigned || outcome.status === 'signed')", "outcome.kind === 'not_sent' && outcome.homeownerSigned")), /S6 wasSignedElsewhere/],
+    ['S6b the local status decides the paper record', () => checkPaperRetry(mutate(c, 'if (!c?.id || !user?.id) return { status: \'refused\', reason: signingCopy.recordRefused() };\n    const block', 'if (!c?.id || c.status !== \'sent\' || !user?.id) return { status: \'refused\', reason: signingCopy.recordRefused() };\n    const block')), /S6b recordPaper refuses on the LOCAL status/],
+    ['S6b the local status decides the in-person record', () => checkPaperRetry(mutate(c, 'if (!c?.id || !user?.id) return { status: \'refused\', reason: signingCopy.recordRefused() };\n    const draft', 'if (!c?.id || c.status !== \'sent\' || !user?.id) return { status: \'refused\', reason: signingCopy.recordRefused() };\n    const draft')), /S6b recordInPerson refuses on the LOCAL status/],
+    ['S6b a second upload on every retry', () => checkPaperRetry(mutate(c, "let evidencePath = pin && pin.contractId === c.id && pin.photoUri === pagePhotoUri ? pin.evidencePath : '';", "let evidencePath = '';")), /S6b a paper retry of the same page reuses/],
+    ['S6b the uploaded page never kept as its own', () => checkPaperRetry(mutate(c, 'ownPaperEvidenceRef.current.add(evidencePath);', '')), /S6b every uploaded page is pinned/],
+    ['S6b its own landed record refused as signed elsewhere', () => checkPaperRetry(mutate(c, 'const ownLanded = isOwnLandedPaperRecord(outcome, ownPaperEvidenceRef.current);', 'const ownLanded = false;')), /S6b the retry that finds its OWN paper record confirms/],
+    ['S6b a second slide after signed-elsewhere', () => checkPaperRetry(mutate(c, 'const paperReason = paperSignedElsewhere ? signingCopy.paperAlreadySigned() : blockReason;', 'const paperReason = blockReason;')), /S6b after a signed-elsewhere refusal/],
+    ['S6b the paper write that never holds the sheet', () => checkPaperRetry(mutate(c, /(const writePaper = useCallback\(async \(\): Promise<CommitResult> => \{\s*)setBusy\(true\);/, '$1')), /S6b writePaper sets busy BEFORE/],
+    ['S6b a confirmed paper hold that lets go', () => checkPaperRetry(mutate(c, "onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}", "onResolved={() => setBusy(false)}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}")), /S6b the paper slide keeps the sheet busy/],
     ['S6 the client prefilled as the GC signer', () => checkRecordHonesty(mutate(c, /signer="homeowner"(\s+mode="drawn"\s+method="in_person")/, 'signer="gc"$1')), /S6 the in-person ceremony signs as signer="homeowner"/],
     ['S7 an amount shown to a blinded role', () => checkTicket(mutate(t, 'amount={moneyBlinded ? null : draftTotals.billableTotal}', 'amount={draftTotals.billableTotal}')), /S7 every sign sheet/],
     ['S7 a new ticket id per slide', () => checkTicket(mutate(t, 'id: pin?.id ?? generateUUID(),', 'id: generateUUID(),')), /S7 handleSign signs a new ticket under the draft's pinned id/],
-    ['S7 a new ticket number per slide', () => checkTicket(mutate(t, 'number: pin?.number ?? nextFieldTicketNumber(tickets),', 'number: nextFieldTicketNumber(tickets),')), /S7 handleSign signs a new ticket under the draft's pinned id/],
+    ['S7 a stale pinned ticket number', () => checkTicket(mutate(t, /(projectId: activeProjectId,\s*)number: nextFieldTicketNumber\(tickets\),/, '$1number: pin?.number ?? nextFieldTicketNumber(tickets),')), /S7 a new ticket's number is read fresh/],
+    ['S7 the retry\'s copy names the result', () => checkTicket(mutate(t, "const stored = result.status === 'synced' ? result.record : undefined;", 'const stored = undefined as FieldTicket | undefined;')), /S7 the confirmed title and amount come from the record the server stored/],
+    ['S7 a landed ticket written a second time', () => checkTicket(mutate(t, "const landed = !existing && pin ? fieldTickets.find(x => x.id === pin.id && x.status === 'signed') : undefined;", 'const landed = undefined as FieldTicket | undefined;')), /S7 a pinned ticket already on this phone as signed/],
     ['S7 the pin cleared on each slide', () => checkTicket(mutate(t, 'signedTicketRef.current = null;', 'signedTicketRef.current = null; newTicketPinRef.current = null;')), /S7 the ticket pin clears only in resetComposer/],
+    ['S7b the retry\'s copy kept on a landed insert', () => checkTicketStoredRow(mutate(code[CTX], /const stored = await readStoredFieldTicket\(finalTicket\.id, finalTicket\);\s*if \(!stored\) return \{ status: 'unknown' \};\s*commit\(stored\);\s*return \{ status: 'synced', record: stored \};/, "commit(finalTicket);\n        return { status: 'synced', record: finalTicket };"), code[QUEUE]), /S7b signFieldTicket keeps the STORED row/],
+    ['S7b a landed insert that never says so', () => checkTicketStoredRow(code[CTX], mutate(code[QUEUE], "if (seen === 'visible') { error = null; rows = undefined; landedEarlier = true; }", "if (seen === 'visible') { error = null; rows = undefined; }")), /S7b an online insert that met its own visible row answers landedEarlier/],
     ['S8 an unversioned consent box', () => checkConsent(mutate(v, 'version: ESIGN_DISCLOSURE_VERSION, text:', "version: '', text:")), /S8/],
   ];
 }
@@ -362,6 +518,8 @@ export default function run(ctx: MomentsCtx): void {
   const { ok, read, stripComments } = ctx;
   const code: Record<string, string> = {};
   for (const p of SCREENS) code[p] = stripComments(read(p));
+  code[CTX] = stripComments(read(CTX));
+  code[QUEUE] = stripComments(read(QUEUE));
 
   // Planted proofs first.
   for (const [name, check, expect] of plants(code)) {
@@ -380,12 +538,18 @@ export default function run(ctx: MomentsCtx): void {
   }
   const s4 = checkApproveFlipsOnConfirmed(code[CLIENT_VIEW]);
   ok('S4 client-view flips the local change order only after the approval insert is confirmed', s4.length === 0, s4.join('\n'));
+  const s4b = checkApproveRetry(code[CLIENT_VIEW]);
+  ok('S4b client-view: an approval retried after its answer was lost resolves from the decision stored for this send', s4b.length === 0, s4b.join('\n'));
   const s5 = checkFoldHonesty(code[CONTRACT]);
   ok('S5 contract: the letter says sent only when the email service accepted it', s5.length === 0, s5.join('\n'));
   const s6 = checkRecordHonesty(code[CONTRACT]);
   ok('S6 contract: the seal evidence needs a real hash, the deposit line needs a due deposit, the client types their own name', s6.length === 0, s6.join('\n'));
+  const s6b = checkPaperRetry(code[CONTRACT]);
+  ok('S6b contract: a paper retry that finds its own record confirms, one upload per page, the live row decides, and the paper write holds its sheet', s6b.length === 0, s6b.join('\n'));
   const s7 = checkTicket(code[TICKET]);
   ok('S7 field ticket: the attestation is verbatim and the amount stays behind the money blind', s7.length === 0, s7.join('\n'));
+  const s7b = checkTicketStoredRow(code[CTX], code[QUEUE]);
+  ok('S7b field ticket: a retry that met its own landed insert keeps and names the STORED row', s7b.length === 0, s7b.join('\n'));
   const s8 = checkConsent(code[CLIENT_VIEW]);
   ok('S8 client-view: the consent box is the stored version with its verbatim line', s8.length === 0, s8.join('\n'));
   const s9 = checkCopy();

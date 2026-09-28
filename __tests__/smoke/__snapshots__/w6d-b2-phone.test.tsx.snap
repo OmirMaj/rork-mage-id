@@ -37,14 +37,14 @@ exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports: Pr
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report (drill sheet + period picker mounted) 1`] = `
 {
-  "lines": 696,
-  "sha256": "7531e3cd06bf86dbf6534c1c57e0e08b897adfa2eb9e0c6fee3633a8125e940c",
+  "lines": 712,
+  "sha256": "3626f2f74aa4283b4f357c3423b4b8f85b21bda59f4e581ea5f3c571a20d5c65",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report: the first project row pressed (the drill sheet drawn) 1`] = `
 {
-  "lines": 783,
-  "sha256": "7603d076a83d14869554cd0749167e64e8853bd2e240dae95b8287ebe38a80d5",
+  "lines": 799,
+  "sha256": "869c714b3a73c7c9061fc33d38422980d0f875a1c2d7e1cc313e14816cb674b1",
 }
 `;

@@ -122,7 +122,7 @@ export const SURFACES: Surface[] = [
     files: ['app/daily-report.tsx', 'components/AIDailyReportGen.tsx', 'components/AIDFRFromPhotos.tsx', 'components/home/DailyLogCard.tsx', 'utils/dailyLogCompletion.ts'],
   },
   {
-    id: 'field.safety', phase: 1, state: 'pending', keyPrefixes: ['safety.'], lane: 'W2 ESSAFETY',
+    id: 'field.safety', phase: 1, state: 'migrated', keyPrefixes: ['safety.'], lane: 'W2 ESSAFETY',
     files: [
       'app/safety.tsx', 'app/safety-jha.tsx', 'app/safety-toolbox.tsx', 'app/safety-incidents.tsx',
       'app/safety-hazards.tsx', 'app/safety-inspections.tsx', 'app/safety-certifications.tsx',

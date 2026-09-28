@@ -143,9 +143,11 @@ console.log('\nE. "Open Not saved" from the Record Payment sheet actually opens 
     .filter((i) => !INV.slice(Math.max(0, i - 200), i).includes('const openNotSavedFromPaymentSheet'))
     .filter((i) => !/^import /m.test(INV.slice(INV.lastIndexOf('\n', i) + 1, i)));
   ok('no other requestSyncSheet on the invoice screen (none can run while showPaymentModal is true)', bare.length === 0, bare);
-  const opens = INV.match(/text: 'Review unsent changes', onPress: [^}]*\}/g) ?? [];
-  ok('every "Open Not saved" button on the screen goes through the helper (3 dialogs, 2 button specs)',
-    opens.length === 2 && opens.every((o) => /onPress: \(\) => openNotSavedFromPaymentSheet\(/.test(o)), opens);
+  // Wave-next W2 (moments B3): the dialogs are gone; the one door is the
+  // "Review unsent changes" link beside the record slide.
+  const opens = INV.match(/onPress=\{\(\) => openNotSavedFromPaymentSheet\([^)]*\)\}/g) ?? [];
+  ok('every "Review unsent changes" door on the screen goes through the helper (the link beside the record slide)',
+    opens.length === 1 && !/text: 'Review unsent changes'/.test(INV) && /testID="record-payment-review-unsent"/.test(INV), opens);
   const PILL = read('components/OfflineSyncPill.tsx');
   ok('the pill re-presents a request even when its sheet is already marked open (a swallowed Modal never wedges it)',
     /if \(!sheetOpenRef\.current\) \{ setSheetOpen\(true\); return; \}\s*setSheetOpen\(false\);\s*setTimeout\(\(\) => setSheetOpen\(true\), 0\);/.test(PILL)
@@ -157,24 +159,26 @@ console.log('\nF. Record Payment records one payment per tap-burst, and a resume
   // invoice_append_payment de-duplicates by entry id only and every tap mints
   // a new id: a second tap while the append was on the wire recorded the same
   // check twice (critic round 6, jest replay). The mount-level proof is
-  // __tests__/smoke/record-payment-once.test.tsx; these pin the shape.
+  // __tests__/smoke/moments-sites-money.test.tsx (B3); these pin the shape.
   const INV = read('app/invoice.tsx');
-  const mark = flat(slice(INV, 'const handleMarkPaid = useCallback(() => {', '// Stripe payment link'));
-  ok('a synchronous ref lock is checked and taken before any dialog',
-    /if \(!existingInvoice\) return; .{0,200}if \(recordingPaymentRef\.current\) return; recordingPaymentRef\.current = true; setRecordingPayment\(true\);/.test(mark)
-      && mark.indexOf('recordingPaymentRef.current = true') < mark.indexOf('recordPaymentDecision('), mark.slice(0, 400));
-  ok('a refusal and the overpayment Cancel / dismissal free it',
-    /if \(decision\.kind === 'refuse'\) \{ release\(\);/.test(mark)
-      && /\{ text: 'Cancel', style: 'cancel', onPress: release \}/.test(mark) && /\{ onDismiss: release \}/.test(mark), mark);
-  const lock = flat(slice(INV, 'const recordUnderLock = useCallback(', '}, [commitPaymentPastUnsaved]);'));
-  ok('the whole chain is awaited and the lock freed in a finally',
-    /try \{ await commitPaymentPastUnsaved\(amt\); \} finally \{ recordingPaymentRef\.current = false; setRecordingPayment\(false\); \}/.test(lock), lock);
-  const past = flat(slice(INV, 'const commitPaymentPastUnsaved = useCallback(', 'const recordUnderLock = useCallback('));
-  ok('...all the way into the append (awaited, not fire-and-forget)', /if \(!held\) \{ await commitPayment\(amt\); return; \}/.test(past) && !/void commitPayment\(/.test(INV));
-  const btn = flat(slice(INV, 'testID="record-payment-submit"', '</TouchableOpacity>'));
-  const btnOpen = flat(INV.slice(INV.lastIndexOf('<TouchableOpacity', INV.indexOf('testID="record-payment-submit"')), INV.indexOf('testID="record-payment-submit"')));
-  ok('the sheet button is disabled while recording and says so',
-    /disabled=\{recordingPayment\}/.test(btnOpen) && /\{recordingPayment \? 'Recording…' : 'Record payment'\}/.test(btn), btnOpen + btn);
+  // Wave-next W2 (moments B3): one payment per SHEET SESSION. The id is
+  // minted once when the sheet opens and every attempt in it reuses it, so a
+  // retry after "No answer yet" is the same entry to the server; the slide's
+  // capsule locks at commit (a second slide or Confirm cannot start a second
+  // append). The mount-level proof is __tests__/smoke/moments-sites-money.test.tsx.
+  const commit = flat(slice(INV, 'const recordPayment = useCallback(', 'const paymentWriteOptions = useMemo'));
+  ok('the payment id is minted once per sheet session and every attempt reuses it',
+    /if \(!paymentIdRef\.current\) paymentIdRef\.current = createId\('pay'\);/.test(commit) && /id: paymentIdRef\.current,/.test(commit)
+      && (INV.match(/createId\('pay'\)/g) ?? []).length === 2 && (INV.match(/paymentIdRef\.current = null/g) ?? []).length === 1, commit.slice(0, 600));
+  ok('the decision and the unsent-changes check are the slide\'s disabled reason, read before any write',
+    /const paymentDisabledReason = paymentDecision\.kind === 'refuse' \? paymentAmountReason\(paymentAmount\) : paymentChain\.held \? payEarlierChangeReason\(\) : null;/.test(flat(INV))
+      && /disabledReason=\{paymentDisabledReason\}/.test(INV));
+  ok('...the append is awaited inside the slide\'s write (not fire-and-forget)',
+    /outcome = await recordInvoicePayment\(existingInvoice\.id, payment\);/.test(commit) && !/void recordInvoicePayment\(/.test(INV) && /onCommit=\{recordPayment\}/.test(INV));
+  ok('after a timeout the fields lock, so a retry sends the same payment',
+    /if \(r\.status === 'timeout'\) setPaymentAwaitingAnswer\(true\);/.test(INV) && (INV.match(/editable=\{!paymentAwaitingAnswer\}/g) ?? []).length === 2);
+  ok('the sheet records with the slide, never a tap button (record-payment-submit is now the footer that holds the slide)',
+    /<View style=\{styles\.paymentSlideWrap\} testID="record-payment-submit">\s*<SlideToConfirm/.test(INV) && /testID="record-payment-slide"/.test(INV) && !/onPress=\{handleMarkPaid\}/.test(INV));
   const helper = flat(slice(INV, 'const openNotSavedFromPaymentSheet = useCallback((resume: boolean = true) => {', '}, []);'));
   ok('"Open Not saved" marks the sheet for resume (or not — round 8, same money) before closing it',
     helper.indexOf('resumePaymentSheetRef.current = resume;') > -1 && helper.indexOf('resumePaymentSheetRef.current = resume;') < helper.indexOf('setShowPaymentModal(false);'), helper);

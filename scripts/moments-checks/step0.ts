@@ -114,7 +114,7 @@ type CO = { id: string; number: number; projectId: string; status: string; audit
 async function checkApprove(CTX: string): Promise<Fails> {
   const f: Fails = [];
   // (a) the approve alone, with updateChangeOrder recorded.
-  const run = async (write: string, opts?: { createQueued?: boolean; canSync?: boolean; anchor?: string }) => {
+  const run = async (write: string, opts?: { createQueued?: boolean; canSync?: boolean; anchor?: string; frozen?: Row }) => {
     const events: string[] = [];
     const updates: unknown[][] = [];
     const queued: Row[] = [];
@@ -130,10 +130,11 @@ async function checkApprove(CTX: string): Promise<Fails> {
       supabaseWriteDetailed: async (table: string, op: string, data: Row, o?: Row) => { events.push('write'); writes.push({ table, op, data, opts: o }); return write; },
       beginCoWrite: () => events.push('begin'), endCoWrite: () => events.push('end'),
       updateChangeOrder: async (...a: unknown[]) => { events.push('update'); updates.push(a); return 'synced'; },
-      changeOrderToRow: (co: CO) => ({ id: co.id, status: co.status, number: co.number }),
+      changeOrderToRow: (co: CO) => ({ id: co.id, status: co.status, number: co.number, ...('taxRatePct' in co ? { tax_rate_pct: (co as Row).taxRatePct } : {}) }),
     };
-    const approve = runCallback<(id: string, o?: { anchorTaskId?: string }) => Promise<string>>(CTX, 'approveChangeOrder', scope);
-    const out = await approve('c1', opts?.anchor ? { anchorTaskId: opts.anchor } : undefined);
+    const approve = runCallback<(id: string, o?: { anchorTaskId?: string; frozen?: Row }) => Promise<string>>(CTX, 'approveChangeOrder', scope);
+    const o = { ...(opts?.anchor ? { anchorTaskId: opts.anchor } : {}), ...(opts?.frozen ? { frozen: opts.frozen } : {}) };
+    const out = await approve('c1', Object.keys(o).length ? o : undefined);
     await tick();
     return { out, events, updates, queued, writes, unchanged: JSON.stringify(changeOrdersRef.current) === before };
   };
@@ -150,6 +151,20 @@ async function checkApprove(CTX: string): Promise<Fails> {
   if (q.out !== 'queued' || q.writes.length !== 0 || q.queued.length !== 1 || (q.queued[0].data as Row).status !== 'approved' || q.updates.length !== 1) f.push(`create still queued -> ${JSON.stringify({ out: q.out, writes: q.writes.length, queued: q.queued })} (queue behind it, then the cascade)`);
   const local = await run('synced', { canSync: false });
   if (local.writes.length !== 0 || local.updates.length !== 1) f.push(`no account -> ${JSON.stringify(local)} (this device only, through updateChangeOrder)`);
+  // W2 integration (critic 2, issue 8): "Client approved without signing"
+  // approves through this write with its #131 tax freeze. The freeze rides IN
+  // the approval's own status write (never a second update), the local
+  // update applies it with the status, and a refused write changes nothing.
+  const frozen = { taxRatePct: 8.875, taxAmount: 372.75, totalWithTax: 4572.75 };
+  const fz = await run('synced', { frozen });
+  if (fz.writes.length !== 1 || fz.writes[0].data.status !== 'approved' || fz.writes[0].data.tax_rate_pct !== 8.875
+    || JSON.stringify(fz.updates[0]?.slice(0, 2)) !== JSON.stringify(['c1', { ...frozen, status: 'approved' }])) {
+    f.push(`frozen + synced -> ${JSON.stringify({ writes: fz.writes, updates: fz.updates })} (the freeze rides in the approval's own write and its local update)`);
+  }
+  const fzFailed = await run('failed', { frozen });
+  if (fzFailed.out !== 'failed' || fzFailed.updates.length !== 0 || !fzFailed.unchanged) f.push('frozen + failed -> something local changed (a refused unsigned approve changes nothing)');
+  const fzLocal = await run('synced', { frozen, canSync: false });
+  if (JSON.stringify(fzLocal.updates[0]?.slice(0, 2)) !== JSON.stringify(['c1', { ...frozen, status: 'approved' }])) f.push(`frozen, no account -> ${JSON.stringify(fzLocal.updates)} (the freeze is applied with the status)`);
 
   // (b) chained with the REAL updateChangeOrder: approved, reflow exactly once, the marker respected.
   let reflows = 0;
@@ -235,8 +250,9 @@ async function checkCloseProject(CTX: string): Promise<Fails> {
 async function checkSignFieldTicket(CTX: string): Promise<Fails> {
   const f: Fails = [];
   const draft = { id: 'ft1', projectId: 'p1', number: 12, status: 'draft', labor: [{ id: 'l1', hours: 8 }], materials: [], equipment: [], photos: [], auditTrail: [] };
-  const run = async (input: unknown, answer: { status: string; code?: string }, opts?: { canSync?: boolean; existing?: Row[] }) => {
+  const run = async (input: unknown, answer: { status: string; code?: string; landedEarlier?: true }, opts?: { canSync?: boolean; existing?: Row[]; stored?: Row | null }) => {
     const writes: { table: string; op: string; data: Row }[] = [];
+    const reads: string[] = [];
     const fieldTicketsRef = { current: (opts?.existing ?? []) as Row[] };
     let state: Row[] = fieldTicketsRef.current;
     let saved = 0;
@@ -247,9 +263,11 @@ async function checkSignFieldTicket(CTX: string): Promise<Fails> {
       fieldTicketRow: (t: Row) => ({ id: t.id, user_id: 'u1', project_id: t.projectId, status: t.status, authorization: t.authorization ?? null }),
       sealedFieldTicketViolations,
       supabaseWriteOnlineDetailed: async (table: string, op: string, data: Row) => { writes.push({ table, op, data }); return answer; },
+      // The stored row read back by id (W2 integration: a landedEarlier insert).
+      readStoredFieldTicket: async (id: string) => { reads.push(id); return opts?.stored === undefined ? null : opts.stored; },
     };
     const sign = runCallback<(i: unknown) => Promise<{ status: string; code?: string; record?: Row }>>(CTX, 'signFieldTicket', scope);
-    return { out: await sign(input), writes, state: () => state, saved };
+    return { out: await sign(input), writes, reads, state: () => state, saved };
   };
   const signedNew = { ...draft, status: 'signed', authorization: { name: 'Pat', role: 'owner_rep', signedAt: 'now', signaturePaths: ['M1,1 L2,2'] } };
   let r = await run({ ticket: signedNew }, { status: 'synced' });
@@ -280,6 +298,20 @@ async function checkSignFieldTicket(CTX: string): Promise<Fails> {
   if (r.out.status !== 'refused' || r.out.code !== 'sealed' || r.writes.length !== 0) f.push(`{ticket} over a signed ticket with new hours -> ${JSON.stringify(r.out)} with ${r.writes.length} writes (must be refused 'sealed', nothing sent)`);
   r = await run({ ticket: signedNew }, { status: 'synced' }, { canSync: false });
   if (r.out.status !== 'refused' || r.out.code !== 'no_account' || r.writes.length !== 0) f.push(`no account -> ${JSON.stringify(r.out)} (a signature is never kept on the phone only)`);
+  // W2 integration (critic 2, issue 2): a retry after a landed-but-unanswered
+  // insert meets its own row (landedEarlier). The server holds the FIRST
+  // attempt's ticket (its signed-at, strokes, hours); that stored row is what
+  // this phone keeps and what the result names, never the retry's copy.
+  const firstAttempt = { ...signedNew, number: 12, labor: [{ id: 'l1', hours: 6 }], authorization: { ...signedNew.authorization, signedAt: 'first' } };
+  r = await run({ ticket: { ...signedNew, number: 13, authorization: { ...signedNew.authorization, signedAt: 'retry' } } }, { status: 'synced', landedEarlier: true }, { stored: firstAttempt });
+  const kept = r.state().find((t) => t.id === 'ft1') as Row | undefined;
+  if (r.out.status !== 'synced' || r.reads[0] !== 'ft1' || (r.out.record as Row | undefined)?.number !== 12
+    || ((r.out.record as Row | undefined)?.authorization as Row | undefined)?.signedAt !== 'first'
+    || (kept?.authorization as Row | undefined)?.signedAt !== 'first' || (kept?.labor as Row[] | undefined)?.[0]?.hours !== 6 || r.state().length !== 1) {
+    f.push(`a landed retry -> ${JSON.stringify({ out: r.out, kept })} (must keep and return the STORED first attempt: number 12, signed 'first', 6 hours)`);
+  }
+  r = await run({ ticket: signedNew }, { status: 'synced', landedEarlier: true }, { stored: null });
+  if (r.out.status !== 'unknown' || r.state().length !== 0 || r.saved !== 0) f.push(`a landed retry whose stored row cannot be read -> ${JSON.stringify(r.out)} with ${r.state().length} kept (must be 'unknown', nothing kept)`);
   return f;
 }
 
@@ -579,7 +611,7 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
     results.push(['approveChangeOrder applies the cascade on failed', !!m1 && (await checkApprove(m1)).length > 0]);
     const m2 = plant(HOOK, "      return 'failed';\n    }\n    cancelShiftAlert(entryId);\n    return outcome;", "    }\n    cancelShiftAlert(entryId);\n    return outcome;");
     results.push(['clockOutDetailed keeps the clock-out on failed', !!m2 && (await checkShifts(m2.replace(/setEntries\(prev => prev\.map\(x => x\.id === entryId\n\s*\? \{\n\s*\.\.\.x,\n\s*status: prior\.status,[\s\S]*?: x\)\);\n/, ''))).length > 0]);
-    const m3 = plant(CTX, "      if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };\n      commit(finalTicket);", '      commit(finalTicket);');
+    const m3 = plant(CTX, "      if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };\n      if (res.landedEarlier) {", '      if (res.landedEarlier) {');
     results.push(['signFieldTicket commits a refused new ticket', !!m3 && (await checkSignFieldTicket(m3)).length > 0]);
     const m4 = plant(WIP, "    if (target.lockedAt) return 'already';\n", '');
     results.push(['lockPeriodDetailed re-locks a locked period', !!m4 && (await checkLock(m4)).length > 0]);

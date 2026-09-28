@@ -2349,7 +2349,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   writeOptions={outWriteOptions}
                   queuedLabel={fieldCopy.clockOutQueued()}
                   disabledReason={outPreview?.problem ?? null}
-                  onResolved={() => setOutBusy(false)}
+                  // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+                  onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setOutBusy(false); }}
                   onDone={() => { setOutBusy(false); setOutFor(null); }}
                   onResultAfterUnmount={momentAfterUnmount}
                   style={styles.momentSlide}
@@ -2381,7 +2382,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onCommit={commitClockOut}
             writeOptions={clockOutWriteOptions}
             queuedLabel={fieldCopy.clockOutQueued()}
-            onResolved={() => setClockOutBusy(false)}
+            // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+            onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setClockOutBusy(false); }}
             onDone={() => { setClockOutBusy(false); setClockOutFor(null); }}
             onResultAfterUnmount={momentAfterUnmount}
             style={styles.momentSlide}

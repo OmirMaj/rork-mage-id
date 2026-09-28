@@ -167,14 +167,14 @@ export function checkCoApprove(files: { sheet: string; reflow: string; co: strin
     if (!/\bapproveChangeOrder\(/.test(hs[0])) f.push(`M3 ${path}: the slide does not approve through approveChangeOrder(`);
     if (/\bupdateChangeOrder\(/.test(hs[0])) f.push(`M3 ${path}: the slide approves through updateChangeOrder(`);
   }
-  if (!/approveChangeOrder\(changeOrder\.id, \{ anchorTaskId \}\)/.test(files.reflow)) f.push(`M3 ${REFLOW}: the reflow slide does not pass the anchor it previewed`);
+  if (!/approveChangeOrder\(changeOrder\.id, \{ anchorTaskId, \.\.\.\(frozen \? \{ frozen \} : \{\}\) \}\)/.test(files.reflow)) f.push(`M3 ${REFLOW}: the reflow slide does not pass the anchor it previewed (and the freeze an unsigned approve carries)`);
   // The confirmed contract figure is the SIGNED contract plus approved COs
   // (resolveContractSum, MONEY-CONTRACT-1), and an unread contract names the
   // CO's own amount instead of a guess.
   const after = blockBody(files.sheet, 'contractAfterApprovalCents') ?? '';
   if (!/if \(contract === undefined\) return null;/.test(after) || !/resolveContractSum\(project, contract\)\.value/.test(after) || /getContractValue/.test(files.sheet)) f.push(`M3 ${SHEET}: the contract after approval is not the signed contract (resolveContractSum) plus approved COs, or it guesses when the contract is unread`);
   for (const [path, code] of [[SHEET, files.sheet], [REFLOW, files.reflow]] as const) {
-    if (!/title: coApprovedTitle\(coNumber, amountCents, contractAfterCents\)/.test(code) || /\bcoApproved\(/.test(code.replace(/export function coApprovedTitle[\s\S]*?\n\}/, ''))) f.push(`M3 ${path}: the confirmed title does not go through coApprovedTitle (the unread-contract fallback)`);
+    if (!/title: unsigned \? coApprovedUnsignedTitle\(coNumber, amountCents, contractAfterCents\) : coApprovedTitle\(coNumber, amountCents, contractAfterCents\)/.test(code) || /\bcoApproved\(/.test(code.replace(/export function coApprovedTitle[\s\S]*?\n\}/, ''))) f.push(`M3 ${path}: the confirmed title does not go through coApprovedTitle / coApprovedUnsignedTitle (the unread-contract fallback)`);
   }
   for (const [path, code] of [[CO, files.co], [HUB, files.hub]] as const) {
     const calls = code.match(/contractAfterApprovalCents\([^)]*\)/g) ?? [];
@@ -185,7 +185,29 @@ export function checkCoApprove(files: { sheet: string; reflow: string; co: strin
   if (!/setApproveSheetCO\(co\)/.test(confirm)) f.push(`M3 ${CO}: confirmApprove does not open the approve sheet`);
   if (/\bupdateChangeOrder\(|\bshowAlert\(|\bnailIt\(/.test(confirm)) f.push(`M3 ${CO}: confirmApprove still writes, asks or toasts itself`);
   if (!/<COApproveSheet\b/.test(files.co)) f.push(`M3 ${CO}: no approve sheet rendered`);
-  if (!/approveSlide=\{reflowApproveSlides \?/.test(files.co)) f.push(`M3 ${CO}: the pipeline approve preview does not slide`);
+  if (!/approveSlide=\{\{/.test(files.co)) f.push(`M3 ${CO}: the approve preview does not slide`);
+  // W2 integration (critic 2, issue 8): "Client approved without signing" is
+  // the same slide (the approve sheet, or the reflow preview's slide) through
+  // approveChangeOrder with its #131 freeze in the approval's own write, and
+  // the confirmed words say "unsigned". Nothing approves on a tap, and no
+  // toast plays before the write is confirmed.
+  const unsignedBody = blockBody(files.co, 'approveWithoutSigning') ?? '';
+  if (!unsignedBody) f.push(`M3 ${CO}: approveWithoutSigning is missing`);
+  if (/\bupdateChangeOrder\(|\bnailIt\(|coApproveConfirmCopy/.test(unsignedBody)) f.push(`M3 ${CO}: approveWithoutSigning approves, confirms or toasts on the tap (it must open the slide: the approve sheet or the reflow preview)`);
+  if (!/setApproveUnsigned\(\{ frozen: freeze \}\);/.test(unsignedBody) || !/setApproveSheetCO\(co\);/.test(unsignedBody) || !/setReflowPreviewCO\(co\);/.test(unsignedBody) || !/coTaxFreeze\(/.test(unsignedBody)) {
+    f.push(`M3 ${CO}: approveWithoutSigning opens the slide marked unsigned with its tax freeze (setApproveUnsigned, then the approve sheet or the reflow preview)`);
+  }
+  const unsignedPass = files.co.match(/\.\.\.\(approveUnsigned \? \{ unsigned: true, frozen: approveUnsigned\.frozen \} : \{\}\)/g) ?? [];
+  if (unsignedPass.length !== 2) f.push(`M3 ${CO}: both approve surfaces (the sheet and the reflow slide) carry unsigned + the freeze (found ${unsignedPass.length})`);
+  for (const el of files.co.match(/<COScheduleReflowPreviewModal\b[\s\S]*?\/>/g) ?? []) {
+    if (!/approveSlide=/.test(el)) continue;
+    const confirm = /onConfirm=\{([\s\S]*?)\}\s*\/>/.exec(el)?.[1] ?? el;
+    if (/\bupdateChangeOrder\(|\bnailIt\(/.test(confirm)) f.push(`M3 ${CO}: the approve preview's tap path (onConfirm) approves or toasts on a tap`);
+  }
+  if (!/await \(frozen \? approveChangeOrder\(changeOrder\.id, \{ frozen \}\) : approveChangeOrder\(changeOrder\.id\)\)/.test(files.sheet)) f.push(`M3 ${SHEET}: the approve sheet does not pass the freeze an unsigned approve carries`);
+  for (const [path, code] of [[SHEET, files.sheet], [REFLOW, files.reflow]] as const) {
+    if (!/nailIt\(unsigned \? coApprovedUnsignedToast\(coNumber\) : coApprovedToast\(coNumber\)\)/.test(code)) f.push(`M3 ${path}: a late unsigned approval must still say "unsigned"`);
+  }
   if (!/<COApproveSheet\b/.test(files.hub)) f.push(`M3 ${HUB}: no approve sheet rendered`);
   if (!/approveSlide=\{coReflowPreview\.status === 'approved' \? undefined : \{/.test(files.hub)) f.push(`M3 ${HUB}: the reflow preview's approve does not slide`);
   if (/updateChangeOrder\([^)]*status: 'approved'/.test(files.hub)) f.push(`M3 ${HUB}: an approve still goes through updateChangeOrder`);
@@ -286,9 +308,9 @@ export default function run(ctx: MomentsCtx): void {
   const m3 = checkCoApprove(files);
   ok('M3 CO approve goes through approveChangeOrder in the sheet and the reflow slide; confirmApprove only opens the sheet; the job page lost its Alerts', m3.length === 0, m3.join('\n'));
   ok('M3 red on planted: the sheet approves through updateChangeOrder',
-    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'await approveChangeOrder(changeOrder.id)', "await updateChangeOrder(changeOrder.id, { status: 'approved' })") })));
+    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'await (frozen ? approveChangeOrder(changeOrder.id, { frozen }) : approveChangeOrder(changeOrder.id))', "await updateChangeOrder(changeOrder.id, { status: 'approved' })") })));
   ok('M3 red on planted: the reflow slide drops the anchor',
-    red(() => checkCoApprove({ ...files, reflow: mutate(files.reflow, 'approveChangeOrder(changeOrder.id, { anchorTaskId })', 'approveChangeOrder(changeOrder.id)') })));
+    red(() => checkCoApprove({ ...files, reflow: mutate(files.reflow, 'approveChangeOrder(changeOrder.id, { anchorTaskId, ...(frozen ? { frozen } : {}) })', 'approveChangeOrder(changeOrder.id)') })));
   ok('M3 red on planted: confirmApprove writes on the tap',
     red(() => checkCoApprove({ ...files, co: mutate(files.co, 'setApproveSheetCO(co);', "updateChangeOrder(co.id, { status: 'approved' });") })));
   ok('M3 red on planted: the contract figure from the estimate again (getContractValue)',
@@ -296,7 +318,17 @@ export default function run(ctx: MomentsCtx): void {
   ok('M3 red on planted: an unread contract guessed as the estimate',
     red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'if (contract === undefined) return null;', '') })));
   ok('M3 red on planted: the reflow title skips the unread fallback',
-    red(() => checkCoApprove({ ...files, reflow: mutate(files.reflow, 'title: coApprovedTitle(coNumber, amountCents, contractAfterCents)', 'title: coApproved(coNumber, contractAfterCents ?? 0)') })));
+    red(() => checkCoApprove({ ...files, reflow: mutate(files.reflow, ': coApprovedTitle(coNumber, amountCents, contractAfterCents)', ': coApproved(coNumber, contractAfterCents ?? 0)') })));
+  ok('M3 red on planted: "Client approved without signing" approves and toasts on the tap again',
+    red(() => checkCoApprove({ ...files, co: mutate(files.co, 'setApproveUnsigned({ frozen: freeze });', "updateChangeOrder(co.id, { status: 'approved', ...freeze }); nailIt(`CO #${co.number} approved, unsigned`); setApproveUnsigned({ frozen: freeze });") })));
+  ok('M3 red on planted: the approve preview\'s tap approves again',
+    red(() => checkCoApprove({ ...files, co: mutate(files.co, /onConfirm=\{\(\) => \{ setApproveUnsigned\(null\); setReflowPreviewCO\(null\); \}\}/, "onConfirm={(anchorTaskId) => { updateChangeOrder(reflowPreviewCO.id, { status: 'approved' }, { anchorTaskId }); nailIt('approved'); }}") })));
+  ok('M3 red on planted: the unsigned approval loses its freeze',
+    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'await (frozen ? approveChangeOrder(changeOrder.id, { frozen }) : approveChangeOrder(changeOrder.id))', 'await approveChangeOrder(changeOrder.id)') })));
+  ok('M3 red on planted: an unsigned approval confirmed as signed',
+    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'title: unsigned ? coApprovedUnsignedTitle(', 'title: false ? coApprovedUnsignedTitle(') })));
+  ok('M3 red on planted: the sheet opened unmarked from "Client approved without signing"',
+    red(() => checkCoApprove({ ...files, co: mutate(files.co, 'setApproveUnsigned({ frozen: freeze });', '') })));
   ok('M3 red on planted: the job page imports the change-order route again',
     red(() => checkCoApprove({ ...files, hub: `import { coTaxNote } from '@/app/change-order';\n${files.hub}` })));
   ok('M3 red on planted: the job page approves with updateChangeOrder again',

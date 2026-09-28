@@ -24,6 +24,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { usePortalSnapshot, type PortalSnapshotStatus } from '@/hooks/usePortalSnapshot';
 import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
+import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
+import { openGrowthLink } from '@/utils/growthAttribution';
 import { formatMoney } from '@/utils/formatters';
 import { calendarDayStart } from '@/utils/calendarDate';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, ChangeOrderStatus, RFIStatus, DocumentStatus } from '@/types';
@@ -39,6 +41,7 @@ import type { CommitResult } from '@/components/moments/core/contract';
 import { useOffline } from '@/hooks/useOnline';
 import * as signingCopy from '@/utils/moments/sites/signingCopy';
 import { isTransportError } from '@/utils/networkErrors';
+import { coApprovalConflictVerdict, coSendStamp, isDecisionAlreadyOnFile, type StoredCODecision } from '@/utils/coApprovalRetry';
 import { nailIt } from '@/components/animations/NailItToast';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -824,12 +827,25 @@ export default function ClientViewScreen() {
         // Stamped, the portal RPCs match it by equality; unstamped, the
         // server fell back to comparing created_at with the GC device's
         // sentAt clock (20260920060000). Needs that migration's column.
-        send_stamp: approvalCO.portalState
-          ? `${approvalCO.portalState.sentVersion ?? 0}@${approvalCO.portalState.sentAt ?? ''}`
-          : 'unsent',
+        send_stamp: coSendStamp(approvalCO),
       });
     if (insertError) throw insertError;
   }, [portal, inviteId, approverName, rejectionReason, esignConsent]);
+
+  // The decision already stored for this CO's current send (oldest first).
+  // Throws when it cannot be read (the caller says "no answer yet").
+  const readCODecisionForSend = useCallback(async (co: ChangeOrder, projectId: string): Promise<StoredCODecision[]> => {
+    const { data, error } = await supabase
+      .from('change_order_approvals')
+      .select('decision, portal_id, signer_name, sealed_at')
+      .eq('project_id', projectId)
+      .eq('change_order_id', co.id)
+      .eq('send_stamp', coSendStamp(co))
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (error) throw error;
+    return (data ?? []) as StoredCODecision[];
+  }, []);
 
   // A6 (moments, lane MOMSIGN): approving is a signature, so it is a
   // signing ceremony. The write is the change_order_approvals insert,
@@ -844,13 +860,30 @@ export default function ClientViewScreen() {
     if (!co || !project) return { status: 'refused', reason: signingCopy.clientCoRefused() };
     if (!isSupabaseConfigured || !portal?.portalId) return { status: 'refused', reason: signingCopy.clientCoPreviewReason() };
     const d = await buildCODecision(co, 'approve');
+    // The stored approval this confirmed result names (its own time and name
+    // when an earlier attempt of it is what is on file).
+    let onFile: StoredCODecision | null = null;
     try {
       await insertCODecision(co, project.id, 'approve', d);
     } catch (err) {
       console.warn('[client-view] CO approval insert failed:', err);
       // The request may have landed when the connection dropped: never "nothing was saved".
       if (isTransportError(err)) return { status: 'timeout', message: signingCopy.clientCoTimeout(co.number) };
-      return { status: 'refused', reason: signingCopy.clientCoRefused() };
+      // One decision per send (change_order_approvals_one_per_send): a
+      // decision for this send is already stored, most often THIS approval,
+      // whose earlier answer was lost. Read it back and say what is on file.
+      if (!isDecisionAlreadyOnFile(err)) return { status: 'refused', reason: signingCopy.clientCoRefused() };
+      let rows: StoredCODecision[];
+      try {
+        rows = await readCODecisionForSend(co, project.id);
+      } catch (readErr) {
+        console.warn('[client-view] CO approval read-back failed:', readErr);
+        return { status: 'timeout', message: signingCopy.clientCoTimeout(co.number) };
+      }
+      const verdict = coApprovalConflictVerdict(rows, portal.portalId);
+      if (verdict === 'decided') return { status: 'refused', reason: signingCopy.clientCoAlreadyDecided(co.number) };
+      if (verdict === 'none') return { status: 'refused', reason: signingCopy.clientCoRefused() };
+      onFile = rows[0];
     }
     // Confirmed: the approval is stored. Only now does this view show it.
     updateChangeOrder(co.id, {
@@ -858,10 +891,10 @@ export default function ClientViewScreen() {
       approvers: d.nextApprovers,
       auditTrail: [...d.existingAudit, d.auditEntry],
     });
-    approvedRecordRef.current = { signedAt: d.now, name: approverName.trim() };
+    approvedRecordRef.current = { signedAt: onFile?.sealed_at ?? d.now, name: onFile?.signer_name ?? approverName.trim() };
     const signed = `${co.changeAmount > 0 ? '+' : ''}${formatMoney(co.changeAmount, 2)}`;
     return { status: 'confirmed', title: signingCopy.clientCoApprovedTitle(co.number, signed), next: signingCopy.clientCoApprovedNext() };
-  }, [approvalCO, localProject, portal, approverName, buildCODecision, insertCODecision, updateChangeOrder]);
+  }, [approvalCO, localProject, portal, approverName, buildCODecision, insertCODecision, readCODecisionForSend, updateChangeOrder]);
   const approveRecordFrom = useCallback(() => ({
     signedAtIso: approvedRecordRef.current?.signedAt ?? new Date().toISOString(),
     timeSource: 'device' as const,
@@ -1964,7 +1997,16 @@ export default function ClientViewScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Globe size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.footerText}>Powered by MAGE ID · Secure client portal</Text>
+          {/* T6: the tracked "Built with MAGE ID" link (utils/growthLink). On web it
+              opens with 'noopener,noreferrer', so this portal's ?t= never leaves. */}
+          <Text
+            style={styles.footerText}
+            onPress={() => openGrowthLink('portal')}
+            accessibilityRole="link"
+            testID="growth-link-portal"
+          >
+            {`${GROWTH_LINK_TEXT} · Secure client portal`}
+          </Text>
         </View>
       </ScrollView>
 

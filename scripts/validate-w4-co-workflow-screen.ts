@@ -237,7 +237,8 @@ if (B && A) {
   // only opens it; the write happens on the slide, through approveChangeOrder
   // (scripts/moments-checks/money-sites.ts M3 proves the sheet's handler).
   ok('confirmApprove only opens the approve sheet (the slide writes, never the tap)',
-    /const confirmApprove = useCallback\(\(co: ChangeOrder\) => \{\s*setApproveSheetCO\(co\);\s*\}, \[\]\);/.test(CODE)
+    // W2 integration: it also clears the "approved without signing" mark (a pipeline approve is not that action).
+    /const confirmApprove = useCallback\(\(co: ChangeOrder\) => \{\s*setApproveUnsigned\(null\);\s*setApproveSheetCO\(co\);\s*\}, \[\]\);/.test(CODE)
       && /<COApproveSheet\b[\s\S]{0,400}moneyLine=\{copy\.message\}/.test(CODE));
   ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark approved'/.test(CODE));
 }

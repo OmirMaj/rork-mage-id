@@ -627,6 +627,11 @@ export function clientCoTimeout(coNumber: number): string {
   return `No answer yet. Check CO #${coNumber} with your contractor before trying again.`;
 }
 
+/** Refused: a decision for this send of the change order is already on file (not this approval), so nothing was changed. */
+export function clientCoAlreadyDecided(coNumber: number): string {
+  return `Not approved. CO #${coNumber} already has a decision on file, so nothing was changed.`;
+}
+
 /** A legal write answered "queued" (it never can). */
 export function clientCoLegalQueued(): string {
   return 'Not approved. Approving needs a connection, so nothing was approved.';

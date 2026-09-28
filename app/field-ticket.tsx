@@ -298,12 +298,15 @@ export default function FieldTicketScreen() {
     [openTicketId, fieldTickets],
   );
 
-  // A new ticket keeps ONE id and number for the whole draft, across every
-  // slide and every reopen of the sign sheet: a slide that timed out after the
-  // insert landed, then slid again, meets its own row (a primary-key duplicate
-  // the online write reads as stored), never a second signed ticket billed
-  // twice. A fresh draft (resetComposer) gets a fresh pin.
-  const newTicketPinRef = useRef<{ id: string; number: number } | null>(null);
+  // A new ticket keeps ONE id for the whole draft, across every slide and
+  // every reopen of the sign sheet: a slide that timed out after the insert
+  // landed, then slid again, meets its own row (a primary-key duplicate the
+  // online write answers as landedEarlier), never a second signed ticket
+  // billed twice, and the STORED row is what the phone keeps. The number is
+  // read fresh on every slide (a teammate's ticket may have taken it since);
+  // a landed retry is named by the stored row's own number. A fresh draft
+  // (resetComposer) gets a fresh pin.
+  const newTicketPinRef = useRef<{ id: string } | null>(null);
   const resetComposer = useCallback(() => {
     newTicketPinRef.current = null;
     setWorkDescription(''); setReasonExtra('');
@@ -443,10 +446,25 @@ export default function FieldTicketScreen() {
   ): Promise<CommitResult> => {
     signedTicketRef.current = null;
     const existing = signTargetId ? fieldTickets.find(x => x.id === signTargetId) : undefined;
-    if (!existing && !newTicketPinRef.current) newTicketPinRef.current = { id: generateUUID(), number: nextFieldTicketNumber(tickets) };
+    if (!existing && !newTicketPinRef.current) newTicketPinRef.current = { id: generateUUID() };
     const pin = newTicketPinRef.current;
-    const label = fieldTicketLabel(existing ? existing.number : (pin?.number ?? nextFieldTicketNumber(tickets)));
+    const label = fieldTicketLabel(existing ? existing.number : nextFieldTicketNumber(tickets));
     if (!activeProjectId || (signTargetId && !existing)) return { status: 'refused', reason: signingCopy.ticketRefused(label) };
+    // The pinned ticket is already on this phone, signed: an earlier slide's
+    // insert landed without an answer and a read has since brought the stored
+    // row in. That stored ticket IS the signature: say so, write nothing twice.
+    const landed = !existing && pin ? fieldTickets.find(x => x.id === pin.id && x.status === 'signed') : undefined;
+    if (landed) {
+      signedTicketRef.current = { id: landed.id, isNew: true, signedAt: landed.authorization?.signedAt ?? landed.updatedAt, name: landed.authorization?.name ?? '' };
+      const landedLabel = fieldTicketLabel(landed.number);
+      const landedAmount = signedAmount(computeFieldTicketTotals(landed).billableTotal);
+      return {
+        status: 'confirmed',
+        title: landedAmount ? signingCopy.ticketSignedTitle(landedLabel, landedAmount) : signingCopy.ticketSignedTitleNoAmount(landedLabel),
+        detail: signingCopy.ticketLockedDetail(),
+        next: signingCopy.ticketLockedNext(),
+      };
+    }
     // LS-5: a viewer's seat refuses with its reason (the button is off for them too).
     if (writeBlock) {
       return { status: 'refused', reason: writeBlock };
@@ -491,12 +509,12 @@ export default function FieldTicketScreen() {
         },
       });
     } else {
-      // The draft's pinned id and number (see newTicketPinRef), the same on a retry.
+      // The draft's pinned id (see newTicketPinRef), the same on a retry; the number read now.
       const ticket: FieldTicket = {
         ...emptyFieldTicket({
           id: pin?.id ?? generateUUID(),
           projectId: activeProjectId,
-          number: pin?.number ?? nextFieldTicketNumber(tickets),
+          number: nextFieldTicketNumber(tickets),
           nowISO: now,
           sourceDailyReportId,
           markupPercent: Number(markup) || 0,
@@ -513,11 +531,21 @@ export default function FieldTicketScreen() {
       signedTotal = computeFieldTicketTotals(ticket).billableTotal;
       result = await signFieldTicket({ ticket });
     }
-    if (result.status === 'synced') signedTicketRef.current = { id: ticketId, isNew: !existing, signedAt: now, name: name.trim() };
+    // What the server STORED names the result (a retry that met its own
+    // earlier insert gets that first attempt's row back, not this copy).
+    const stored = result.status === 'synced' ? result.record : undefined;
+    if (stored) signedTotal = computeFieldTicketTotals(stored).billableTotal;
+    const doneLabel = stored ? fieldTicketLabel(stored.number) : label;
+    if (result.status === 'synced') {
+      signedTicketRef.current = {
+        id: stored?.id ?? ticketId, isNew: !existing,
+        signedAt: stored?.authorization?.signedAt ?? now, name: stored?.authorization?.name ?? name.trim(),
+      };
+    }
     if (result.status === 'refused' && result.code === 'no_account') return { status: 'refused', reason: signingCopy.ticketNoAccount() };
     const amount = signedAmount(signedTotal);
     return fromOnlineOutcome(result, {
-      title: amount ? signingCopy.ticketSignedTitle(label, amount) : signingCopy.ticketSignedTitleNoAmount(label),
+      title: amount ? signingCopy.ticketSignedTitle(doneLabel, amount) : signingCopy.ticketSignedTitleNoAmount(doneLabel),
       detail: signingCopy.ticketLockedDetail(),
       next: signingCopy.ticketLockedNext(),
     }, {

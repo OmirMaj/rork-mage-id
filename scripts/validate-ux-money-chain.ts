@@ -271,12 +271,19 @@ console.log('\n6. the screens');
     /contract\.status === 'sent' && contractDelivery\?\.state === 'delivered' && \([\s\S]{0,300}Sent to the client/.test(contractSrc)
     && (contractSrc.match(/>Sent to the client</g) ?? []).length === 1);
   ok('C1: not delivered shows Retry and Copy link', /Signed by you, not delivered/.test(contractSrc) && /contract-delivery-retry/.test(contractSrc) && /contract-delivery-copy/.test(contractSrc));
+  // W2 MOMSIGN (A1/A2): the write returns confirmed BEFORE any email in
+  // together mode; the record sheet opens from the ceremony's onDone (after
+  // the seal held), and its record card says "Signed by both of you".
   ok('C1: Sign together returns BEFORE any email and opens the record modal', (() => {
     const t = contractSrc.indexOf("if (activeSignModeRef.current === 'together') {");
-    const e = contractSrc.indexOf('let emailNote = \'\';');
-    return t > 0 && e > t && contractSrc.slice(t, e).includes('setRecordModal(true)') && contractSrc.slice(t, e).includes('return;');
+    const e = contractSrc.indexOf('let notSentReason = signingCopy.contractNotSentEmailFailed();');
+    const d0 = contractSrc.indexOf('const onSignCeremonyDone = useCallback(');
+    const done = d0 > 0 ? contractSrc.slice(d0, contractSrc.indexOf('const onSignLateResult = useCallback(', d0)) : '';
+    return t > 0 && e > t && /return \{ status: 'confirmed', title: signingCopy\.contractSignedFirstTitle\(\)/.test(contractSrc.slice(t, e))
+      && /if \(activeSignModeRef\.current === 'together'\) \{[\s\S]{0,200}togetherRecordRef\.current = true;[\s\S]{0,160}setRecordModal\(true\)/.test(done);
   })());
-  ok('C1: the record after Sign together says "Signed by both of you"', /Signed by both of you/.test(contractSrc));
+  ok('C1: the record after Sign together says "Signed by both of you"',
+    /together \? signingCopy\.recordCardTogetherTitle\(\)/.test(contractSrc) && /'Signed by both of you'/.test(read('utils/moments/sites/signingCopy.ts')));
   ok('C1: the marker key goes through the swept mageid_ helper', /contractDeliveryKey\(saved\.id\)/.test(contractSrc));
 
   const pay = read('app/payments.tsx');
@@ -307,10 +314,15 @@ console.log('\n6. the screens');
 
   const co = read('app/change-order.tsx');
   ok('C5: one "Client approved without signing" action with the warning', /Client approved without signing/.test(co) && /the weakest proof in a dispute/.test(co));
+  // W2 integration: the #79 confirm is the approve sheet (its money line is
+  // coApproveConfirmCopy), the same slide as every approve; the #131 freeze
+  // rides in the approval's own write, marked unsigned.
   ok('C5: it keeps the #76 refusal, the #131 freeze, the reflow preview and the #79 confirm', (() => {
     const at = co.indexOf('const approveWithoutSigning = useCallback(');
     const body = co.slice(at, co.indexOf('\n  }, [', at));
-    return /coUnconfirmedPriceBlocker/.test(body) && /coTaxFreeze/.test(body) && /setReflowPreviewCO\(co\)/.test(body) && /coApproveConfirmCopy/.test(body);
+    return /coUnconfirmedPriceBlocker/.test(body) && /coTaxFreeze/.test(body) && /setReflowPreviewCO\(co\)/.test(body)
+      && /setApproveUnsigned\(\{ frozen: freeze \}\);/.test(body) && /setApproveSheetCO\(co\)/.test(body)
+      && /const copy = coApproveConfirmCopy\(confirmedNumber \?\? approveSheetCO\.number, approveSheetCO\.changeAmount, formatCurrency\);/.test(co);
   })());
   ok('C5: the approver comes from resolveClientContact, never invented', /resolveClientContact\(project, \{\s*need: 'email',/.test(co) && /NO_CLIENT_ON_FILE/.test(co));
 

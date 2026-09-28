@@ -129,15 +129,19 @@ console.log('\nC. one record key everywhere:');
 console.log('\nD. the invoice screen:');
 {
   const INV = read('app', 'invoice.tsx');
-  const past = slice(INV, 'const commitPaymentPastUnsaved = useCallback(', 'const handleMarkPaid = useCallback(');
+  // Wave-next W2 (moments B3): the hold is read BEFORE the slide (its
+  // disabled reason, "An earlier change to this invoice hasn't sent yet.
+  // Review unsent changes first."), and a HELD 'failed' at write time has its
+  // own sentence (payHeld), checked before the refused one.
+  const chain = slice(INV, 'if (!showPaymentModal || !chainInvoiceId) return;', '}, [showPaymentModal, chainInvoiceId, paymentAmountCents]);');
   ok('no "Record a new payment" button (it could never record)', !/Record a new payment/.test(INV));
   ok('a payment over ANY unsaved change of the invoice is held with the instruction, not attempted',
-    /held = await hasUnsavedChainForSession\('invoices', existingInvoice\.id\)/.test(past) && /if \(!held\) \{ await commitPayment\(amt\); return; \}/.test(past)
-      && /retried or discarded/.test(past));
-  const commit = slice(INV, 'const commitPayment = useCallback(', 'const commitPaymentPastUnsaved = useCallback(');
-  ok("a 'failed' that was HELD says Not sent, never \"the server did not accept\"",
+    /held = await hasUnsavedChainForSession\('invoices', chainInvoiceId\)/.test(chain)
+      && /: paymentChain\.held \? payEarlierChangeReason\(\) : null;/.test(INV) && /disabledReason=\{paymentDisabledReason\}/.test(INV));
+  const commit = slice(INV, 'const recordPayment = useCallback(', 'const paymentWriteOptions = useMemo');
+  ok("a 'failed' that was HELD says it was not sent, never \"the server said no\"",
     /held = await hasUnsavedChainForSession\('invoices', existingInvoice\.id\)/.test(commit)
-      && commit.indexOf("'Payment not sent'") > 0 && commit.indexOf("'Payment not sent'") < commit.indexOf("'Payment not recorded'"));
+      && /reason: held \? payHeld\(\) : payRefused\(\)/.test(commit));
 }
 
 console.log('\nE. an unreadable queue:');

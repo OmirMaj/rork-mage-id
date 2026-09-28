@@ -2,8 +2,8 @@
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with a draft (the Save draft / Sign & send row) 1`] = `
 {
-  "lines": 991,
-  "sha256": "eef2c383e81414ed6286a3f0656795cdc579bff6c86d5c9e4eb6c562b1e440a8",
+  "lines": 922,
+  "sha256": "e454a5a704ed1f5564fd49a960553983be315894d238cb1406dc57859da23bd0",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 1997,
-  "sha256": "307fffdb4d4c6e58f8d5ccf8e6d1e0b40b32489fed594c10871c6ad93a0ac2ee",
+  "sha256": "4b3c4993d0cf772bce0073cded0af69b616d177a3fbfd643c2124b3313932b09",
 }
 `;
 
