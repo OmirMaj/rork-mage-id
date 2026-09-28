@@ -43,16 +43,19 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
-import SignaturePad from '@/components/SignaturePad';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/Button';
-import { cardSurface, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { cardSurface, labelOn, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateFieldTicketPDF } from '@/utils/pdfGenerator';
 import { nailIt } from '@/components/animations/NailItToast';
+import { SigningCeremony } from '@/components/moments/signing/SigningCeremony';
+import { fromOnlineOutcome, offlineLegalReason, EARLIER_CHANGE_PENDING_REASON, EARLIER_CHANGE_UNSAVED_REASON, type CommitResult } from '@/components/moments/core/contract';
+import { useOffline } from '@/hooks/useOnline';
+import * as signingCopy from '@/utils/moments/sites/signingCopy';
 import {
   buildChangeOrderFromTicket, buildPricingAuditEntries, checkFieldTicketConversion,
   checkFieldTicketReadiness, computeFieldTicketTotals, emptyFieldTicket,
@@ -208,7 +211,7 @@ export default function FieldTicketScreen() {
 
   const {
     projects, getProject, settings,
-    fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject,
+    fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, signFieldTicket,
     changeOrders, addChangeOrder, getChangeOrdersForProject,
     getEquipmentForProject,
   } = useProjects();
@@ -266,6 +269,8 @@ export default function FieldTicketScreen() {
   const [markup, setMarkup] = useState('');
 
   const [signOpen, setSignOpen] = useState(false);
+  // A signature needs a connection (moments plan rule 2, founder decision D-1).
+  const offline = useOffline();
   /** null = signing the composer draft; an id = signing a saved unsigned ticket. */
   const [signTargetId, setSignTargetId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -293,7 +298,14 @@ export default function FieldTicketScreen() {
     [openTicketId, fieldTickets],
   );
 
+  // A new ticket keeps ONE id and number for the whole draft, across every
+  // slide and every reopen of the sign sheet: a slide that timed out after the
+  // insert landed, then slid again, meets its own row (a primary-key duplicate
+  // the online write reads as stored), never a second signed ticket billed
+  // twice. A fresh draft (resetComposer) gets a fresh pin.
+  const newTicketPinRef = useRef<{ id: string; number: number } | null>(null);
   const resetComposer = useCallback(() => {
+    newTicketPinRef.current = null;
     setWorkDescription(''); setReasonExtra('');
     setWorkDate(todayCalendarDay());
     setLabor([]); setMaterials([]); setEquipment([]); setPhotos([]); setMarkup('');
@@ -417,64 +429,74 @@ export default function FieldTicketScreen() {
   // Owner-only conversion (#41 interim): see fieldTicketConvertBlockReason.
   const convertBlockReason = fieldTicketConvertBlockReason(projectRole, project?.ownerUserId, user?.id, projectRoleError);
   const moneyHiddenReason = fieldTicketMoneyHiddenReason(pricingRole, projectRoleError);
-  /** A ticket's amount for a toast — nothing for a blinded role. */
-  const amountSuffix = useCallback((n: number) => (moneyBlinded ? '' : ` — ${money(n)}`), [moneyBlinded]);
+  /** A ticket's amount for the signing moment (cents) — nothing for a blinded role. */
+  const signedAmount = useCallback((n: number) => (moneyBlinded ? null : money(n)), [moneyBlinded]);
 
+  // ── A5 (moments, lane MOMSIGN): the field ticket's signing ceremony ──────
+  // A signature is a legal record: it is written ONLINE ONLY through
+  // signFieldTicket (never queued), and the ticket shows as signed on this
+  // phone only once the server stored it. Offline, the line is disabled with
+  // "You're offline. Signing needs a connection." (founder decision D-1).
+  const signedTicketRef = useRef<{ id: string; isNew: boolean; signedAt: string; name: string } | null>(null);
   const handleSign = useCallback(async (
     name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[],
-  ) => {
-    if (!activeProjectId) return;
+  ): Promise<CommitResult> => {
+    signedTicketRef.current = null;
+    const existing = signTargetId ? fieldTickets.find(x => x.id === signTargetId) : undefined;
+    if (!existing && !newTicketPinRef.current) newTicketPinRef.current = { id: generateUUID(), number: nextFieldTicketNumber(tickets) };
+    const pin = newTicketPinRef.current;
+    const label = fieldTicketLabel(existing ? existing.number : (pin?.number ?? nextFieldTicketNumber(tickets)));
+    if (!activeProjectId || (signTargetId && !existing)) return { status: 'refused', reason: signingCopy.ticketRefused(label) };
+    // LS-5: a viewer's seat refuses with its reason (the button is off for them too).
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
-      return;
+      return { status: 'refused', reason: writeBlock };
     }
-    setBusy(true);
-    try {
-      // Best-effort GPS on the signature itself — proves it was signed on site
-      // and not typed up in the truck three days later. Never blocks the save.
-      const stamp = Platform.OS === 'web' ? null : await stampPhotoLocation();
-      const now = new Date().toISOString();
-      const authorization = {
-        name: name.trim(),
-        title: title.trim() || undefined,
-        role,
-        signedAt: now,
-        signaturePaths: paths,
-        ...(stamp ? {
-          latitude: stamp.latitude,
-          longitude: stamp.longitude,
-          locationLabel: stamp.label,
-        } : null),
-      };
-      const auditEntry = {
-        id: generateUUID(),
-        action: 'signed_on_site',
-        actor: name.trim(),
-        timestamp: now,
-        detail: stamp?.label,
-      };
+    // Best-effort GPS on the signature itself — proves it was signed on site
+    // and not typed up in the truck three days later. Never blocks the save.
+    const stamp = Platform.OS === 'web' ? null : await stampPhotoLocation().catch(() => null);
+    const now = new Date().toISOString();
+    const authorization = {
+      name: name.trim(),
+      title: title.trim() || undefined,
+      role,
+      signedAt: now,
+      signaturePaths: paths,
+      ...(stamp ? {
+        latitude: stamp.latitude,
+        longitude: stamp.longitude,
+        locationLabel: stamp.label,
+      } : null),
+    };
+    const auditEntry = {
+      id: generateUUID(),
+      action: 'signed_on_site',
+      actor: name.trim(),
+      timestamp: now,
+      detail: stamp?.label,
+    };
 
+    let result: Awaited<ReturnType<typeof signFieldTicket>>;
+    let signedTotal: number;
+    let ticketId: string;
+    if (existing) {
       // Signing a ticket that already exists (saved unsigned earlier).
-      if (signTargetId) {
-        const existing = fieldTickets.find(x => x.id === signTargetId);
-        if (!existing) return;
-        updateFieldTicket(signTargetId, {
+      ticketId = existing.id;
+      signedTotal = computeFieldTicketTotals(existing).billableTotal;
+      result = await signFieldTicket({
+        id: existing.id,
+        updates: {
           status: 'signed',
           authorization,
           auditTrail: [...(existing.auditTrail ?? []), auditEntry],
-        });
-        setSignOpen(false);
-        setSignTargetId(null);
-        setOpenTicketId(signTargetId);
-        nailIt(`${fieldTicketLabel(existing.number)} signed${amountSuffix(computeFieldTicketTotals(existing).billableTotal)}`);
-        return;
-      }
-
+        },
+      });
+    } else {
+      // The draft's pinned id and number (see newTicketPinRef), the same on a retry.
       const ticket: FieldTicket = {
         ...emptyFieldTicket({
-          id: generateUUID(),
+          id: pin?.id ?? generateUUID(),
           projectId: activeProjectId,
-          number: nextFieldTicketNumber(tickets),
+          number: pin?.number ?? nextFieldTicketNumber(tickets),
           nowISO: now,
           sourceDailyReportId,
           markupPercent: Number(markup) || 0,
@@ -487,18 +509,53 @@ export default function FieldTicketScreen() {
         authorization,
         auditTrail: [auditEntry],
       };
-      addFieldTicket(ticket);
-      setSignOpen(false);
+      ticketId = ticket.id;
+      signedTotal = computeFieldTicketTotals(ticket).billableTotal;
+      result = await signFieldTicket({ ticket });
+    }
+    if (result.status === 'synced') signedTicketRef.current = { id: ticketId, isNew: !existing, signedAt: now, name: name.trim() };
+    if (result.status === 'refused' && result.code === 'no_account') return { status: 'refused', reason: signingCopy.ticketNoAccount() };
+    const amount = signedAmount(signedTotal);
+    return fromOnlineOutcome(result, {
+      title: amount ? signingCopy.ticketSignedTitle(label, amount) : signingCopy.ticketSignedTitleNoAmount(label),
+      detail: signingCopy.ticketLockedDetail(),
+      next: signingCopy.ticketLockedNext(),
+    }, {
+      refused: signingCopy.ticketRefused(label),
+      timeout: signingCopy.ticketTimeout(label),
+      sealed: signingCopy.ticketAlreadySigned(label),
+      earlierPending: EARLIER_CHANGE_PENDING_REASON,
+      earlierUnsaved: EARLIER_CHANGE_UNSAVED_REASON,
+      offline: offlineLegalReason('signing'),
+    });
+  }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
+      reasonExtra, labor, materials, equipment, photos, signFieldTicket,
+      signTargetId, fieldTickets, signedAmount, writeBlock]);
+
+  // The seal held its result: close the sheet and open the signed ticket.
+  const onSignDone = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    const signed = signedTicketRef.current;
+    setSignOpen(false);
+    setSignTargetId(null);
+    if (!signed) return;
+    if (signed.isNew) {
       resetComposer();
       setView('list');
-      setOpenTicketId(ticket.id);
-      nailIt(`${fieldTicketLabel(ticket.number)} signed${amountSuffix(computeFieldTicketTotals(ticket).billableTotal)}`);
-    } finally {
-      setBusy(false);
     }
-  }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
-      reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer,
-      signTargetId, fieldTickets, updateFieldTicket, amountSuffix, writeBlock]);
+    setOpenTicketId(signed.id);
+  }, [resetComposer]);
+  // A signature stored after the sheet said "No answer yet", or after it closed.
+  const onSignLateResult = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    onSignDone(r);
+    nailIt(r.title);
+  }, [onSignDone]);
+  const signRecordFrom = useCallback(() => ({
+    signedAtIso: signedTicketRef.current?.signedAt ?? new Date().toISOString(),
+    timeSource: 'device' as const,
+    name: signedTicketRef.current?.name ?? '',
+  }), []);
 
   /** Save without a signature. Honest about what it is: a reminder, not evidence. */
   const handleSaveUnsigned = useCallback(() => {
@@ -1003,11 +1060,16 @@ export default function FieldTicketScreen() {
         {signOpen && (
           <SignatureModal
             visible
-            busy={busy}
             amount={moneyBlinded ? null : totals.billableTotal}
             summary={openTicket.workDescription}
+            ticketLabel={fieldTicketLabel(openTicket.number)}
+            workDate={openTicket.date}
+            offline={offline}
             onClose={() => { setSignOpen(false); setSignTargetId(null); }}
             onSign={handleSign}
+            onDone={onSignDone}
+            onLateResult={onSignLateResult}
+            recordFrom={signRecordFrom}
           />
         )}
 
@@ -1357,11 +1419,16 @@ export default function FieldTicketScreen() {
         {signOpen && (
           <SignatureModal
             visible
-            busy={busy}
-            amount={draftTotals.billableTotal}
+            amount={moneyBlinded ? null : draftTotals.billableTotal}
             summary={workDescription}
+            ticketLabel={fieldTicketLabel(draft.number)}
+            workDate={workDate}
+            offline={offline}
             onClose={() => setSignOpen(false)}
             onSign={handleSign}
+            onDone={onSignDone}
+            onLateResult={onSignLateResult}
+            recordFrom={signRecordFrom}
           />
         )}
       </View>
@@ -1781,19 +1848,27 @@ function ReadBlock({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * The signature capture. Deliberately spells out what the signer is attesting
- * to (work performed and hours, NOT pricing) — that framing is what keeps a
- * ticket usable when the owner later disputes the rate rather than the hours,
- * and it's the same claim printed on the PDF.
+ * The signature capture (A5, moments lane MOMSIGN): a signing ceremony on the
+ * line skin. Deliberately spells out what the signer is attesting to (work
+ * performed and hours, NOT pricing) — that framing is what keeps a ticket
+ * usable when the owner later disputes the rate rather than the hours, and
+ * the attestation is shown here verbatim (founder decision D-5 keeps the
+ * screen's wording). The seal lands only once the server stored the
+ * signature; a refusal or a timeout keeps the strokes, the name and the role.
  */
-function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
+export function SignatureModal({ visible, amount, summary, ticketLabel, workDate, offline, onClose, onSign, onDone, onLateResult, recordFrom }: {
   visible: boolean;
-  busy: boolean;
-  /** Null for a role blinded from money — the button then reads "Sign & seal". */
+  /** Null for a role blinded from money — the line then reads "Slide along the line to sign". */
   amount: number | null;
   summary: string;
+  ticketLabel: string;
+  workDate: string;
+  offline: boolean;
   onClose: () => void;
-  onSign: (name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[]) => void;
+  onSign: (name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[]) => Promise<CommitResult>;
+  onDone: (r: CommitResult) => void;
+  onLateResult: (r: CommitResult) => void;
+  recordFrom: () => { signedAtIso: string; timeSource: 'device' | 'server'; name: string };
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
@@ -1801,6 +1876,7 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
   const [title, setTitle] = useState('');
   const [role, setRole] = useState<FieldTicketAuthorizerRole>('owner_rep');
   const [paths, setPaths] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
   // The modal stays mounted between opens, so wipe it every time it appears.
   // Carrying one signer's strokes and name into the next ticket would attach
@@ -1810,100 +1886,112 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
     if (visible) { setName(''); setTitle(''); setRole('owner_rep'); setPaths([]); }
   }, [visible]);
 
-  const ready = name.trim().length > 0 && paths.length > 0;
   const fSign = useSheetFrame('wide', { visible, animationType: 'slide' });
-  // Records a signature: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
-  useSheetPrimaryHotkey(visible && ready && !busy, () => onSign(name, title, role, paths), { saveKey: false });
+  // The slide is the commit: no Cmd+Enter and never Cmd+S (useSheetFrame
+  // already holds the dialog scope, so the page's own shortcuts stay off).
+  const write = useCallback(() => onSign(name, title, role, paths), [onSign, name, title, role, paths]);
+  const amountText = amount == null ? null : money(amount);
+  const copy = useMemo(() => ({
+    label: amountText ? signingCopy.ticketSignLabel(amountText) : signingCopy.ticketSignLabelNoAmount(),
+    srLabel: signingCopy.ticketSrLabel(),
+    srConfirm: signingCopy.ticketSrConfirm(),
+    sealedAnnounce: signingCopy.ticketSealedAnnounce(ticketLabel),
+  }), [amountText, ticketLabel]);
+  const rows = [
+    { label: signingCopy.ticketWorkRowLabel(), value: summary },
+    { label: signingCopy.ticketDateRowLabel(), value: formatTicketDate(workDate) },
+    ...(amountText ? [{ label: signingCopy.ticketAmountRowLabel(), value: amountText, mono: true }] : []),
+  ];
+  const roleLabel = ROLE_CHIPS.find(r => r.key === role)?.label ?? '';
 
   return (
-    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={[styles.modalOverlay, fSign.overlay]}>
         <View style={[styles.modalCard, fSign.card]}>
-          {/* Only the WHO half scrolls. The signature pad drives its own
-              PanResponder, and nesting that inside a ScrollView makes the two
-              fight over the gesture — the drag either scrolls the sheet or
+          {/* Only the words scroll. The signature pad drives its own
+              gesture, and nesting that inside a ScrollView makes the two
+              fight over the drag — the drag either scrolls the sheet or
               draws, depending on which wins, and the loser is the signature.
-              Keeping the pad outside the scroll region removes the contention
-              entirely and has the side benefit of keeping it always visible. */}
+              Keeping the ceremony (and its pad) outside the scroll region
+              removes the contention entirely. */}
           <ScrollView
             style={styles.modalScroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.modalTitle}>Sign for the work</Text>
-            <Text style={styles.modalBody} numberOfLines={3}>{summary}</Text>
-            <Text style={styles.modalAttest}>
-              By signing you confirm this work was performed and the hours and quantities shown are
-              accurate. Pricing is billed under the contract&apos;s T&amp;M rates.
-            </Text>
-
-            <View style={styles.chipWrap}>
-              {ROLE_CHIPS.map(r => (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[styles.chip, role === r.key && styles.chipOn]}
-                  onPress={() => setRole(r.key)}
-                  testID={`ticket-sign-role-${r.key}`}
-                >
-                  <Text style={[styles.chipText, role === r.key && styles.chipTextOn]}>{r.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Full name"
-              placeholderTextColor={t.textMuted}
-              autoCapitalize="words"
-              testID="ticket-sign-name"
-            />
-            <TextInput
-              style={[styles.input, styles.inputSpaced]}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Title / company (optional)"
-              placeholderTextColor={t.textMuted}
-              testID="ticket-sign-title"
-            />
+            <Text style={styles.modalAttest}>{signingCopy.ticketAttestation()}</Text>
           </ScrollView>
 
-          <View style={styles.sigPadWrap}>
-            <SignaturePad
-              initialPaths={paths}
-              onSave={setPaths}
-              onClear={() => setPaths([])}
-              height={150}
-            />
+          <View style={styles.sigCeremonyWrap}>
+            {visible ? (
+              <SigningCeremony
+                signer="authorizer"
+                mode="drawn"
+                method="drawn"
+                parties={1}
+                signedBefore={0}
+                sealVerb="SIGNED ON SITE"
+                role={roleLabel}
+                top={{ title: ticketLabel, subtitle: signingCopy.ticketAttestation(), rows }}
+                above={(
+                  <>
+                    <View style={styles.chipWrap}>
+                      {ROLE_CHIPS.map(r => (
+                        <TouchableOpacity
+                          key={r.key}
+                          style={[styles.chip, role === r.key && styles.chipOn]}
+                          onPress={() => setRole(r.key)}
+                          testID={`ticket-sign-role-${r.key}`}
+                        >
+                          <Text style={[styles.chipText, role === r.key && styles.chipTextOn]}>{r.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      value={title}
+                      onChangeText={setTitle}
+                      placeholder="Title / company (optional)"
+                      placeholderTextColor={t.textMuted}
+                      testID="ticket-sign-title"
+                    />
+                  </>
+                )}
+                name={{ value: name, onChange: setName, label: signingCopy.ticketNameLabel(), placeholder: signingCopy.ticketNameLabel(), minLength: 2 }}
+                paths={paths}
+                onPathsChange={setPaths}
+                offline={offline}
+                copy={copy}
+                write={write}
+                writeOptions={{
+                  idempotent: false,
+                  copy: {
+                    refused: signingCopy.ticketRefused(ticketLabel),
+                    timeout: signingCopy.ticketTimeout(ticketLabel),
+                    legalQueued: signingCopy.ticketLegalQueued(),
+                  },
+                }}
+                recordFrom={recordFrom}
+                onCommitStart={() => setBusy(true)}
+                onUncommit={() => setBusy(false)}
+                onDone={(r) => { setBusy(false); onDone(r); }}
+                onLateResult={onLateResult}
+                onResultAfterUnmount={onLateResult}
+                testID="ticket-sign"
+              />
+            ) : null}
           </View>
 
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={busy}>
+            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={busy} testID="ticket-sign-cancel">
               <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalConfirm, !ready && styles.signBtnDisabled]}
-              onPress={() => onSign(name, title, role, paths)}
-              disabled={!ready || busy}
-              testID="ticket-sign-confirm"
-            >
-              {busy ? <ActivityIndicator size="small" color="#FFF" /> : (
-                <>
-                  <Check size={16} color={ready ? '#FFF' : t.textMuted} strokeWidth={2.5} />
-                  <Text style={[styles.modalConfirmText, !ready && styles.disabledText]}>
-                    Sign and seal{amount == null ? '' : ` · ${money(amount)}`}
-                  </Text>
-                </>
-              )}
             </TouchableOpacity>
           </View>
           <View style={styles.sealNote}>
             <Lock size={12} color={t.textMuted} strokeWidth={1.75} />
             <Text style={styles.sealNoteText}>
-              {ready
-                ? 'Once signed the ticket is locked. Nothing above can be changed afterward.'
-                : 'Type the signer’s name and capture a signature to continue.'}
+              Once signed the ticket is locked. Nothing above can be changed afterward.
             </Text>
           </View>
         </View>
@@ -1911,6 +1999,7 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
     </Modal>
   );
 }
+
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -1948,7 +2037,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   chipOn: { backgroundColor: t.accentFill, borderColor: t.accent },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   chipTextSm: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
-  chipTextOn: { color: '#FFFFFF' },
+  // White on the brand fill, from the fill itself (never a hex literal).
+  chipTextOn: { color: labelOn(t.accentFill) },
 
   sectionHead: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -2171,7 +2261,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: Tokens.spacing.xs, marginBottom: Tokens.spacing.sm,
   },
   modalScroll: { flexGrow: 0, flexShrink: 1 },
-  sigPadWrap: { marginTop: Tokens.spacing.sm, alignItems: 'center' },
+  sigCeremonyWrap: { marginTop: Tokens.spacing.sm },
   modalActions: { flexDirection: 'row', gap: 8, marginTop: Tokens.spacing.md },
   modalCancel: {
     paddingHorizontal: 18, height: Tokens.touchTarget.comfortable,

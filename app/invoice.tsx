@@ -46,6 +46,13 @@ import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { loadCashFlowSettings } from '@/utils/cashFlowStorage';
 import { nailIt } from '@/components/animations/NailItToast';
+import { SlideToConfirm, type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle } from '@/components/moments/core/contract';
+import {
+  payAmountEmpty, payAmountNotAboveZero, payAmountUnreadable,
+  payBusy, payEarlierChangeReason, payHeld, payOverDetail, payPaidInFull, payQueued, payQueuedPayLinkNext,
+  payRecorded, payRecordedOnInvoice, payRecordedToast, payRefused, payReviewUnsentLink, paySlideLabel,
+  paySlideLabelOver, paySrConfirm, paySrLabel, payTimeout,
+} from '@/utils/moments/sites/moneyCopy';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment } from '@/types';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
@@ -151,6 +158,18 @@ function createId(_prefix: string): string {
 
 // HEALTH-F5: sign-correct money — one formatter (utils/formatters), no local Math.abs copy.
 const formatCurrency = (n: number): string => formatMoney(n, 2);
+
+/**
+ * The record slide's disabled reason for an amount recordPaymentDecision
+ * refused (wave-next W2, moments B3): one whole sentence that says why the
+ * slide waits and what unlocks it. Empty, unreadable (parseMoneyInput null,
+ * the decision's own test), or not above $0.00.
+ */
+function paymentAmountReason(typed: string): string {
+  if (!typed.trim()) return payAmountEmpty();
+  const parsed = parseMoneyInput(typed);
+  return parsed == null || !Number.isFinite(parsed) ? payAmountUnreadable() : payAmountNotAboveZero();
+}
 
 // The per-device session invoice-number max (#3 part c) lives in
 // utils/billingFlowCore so app/bill-from-estimate.tsx shares it.
@@ -720,16 +739,20 @@ function InvoiceInner() {
     return '30';
   });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  // One payment at a time, the #34 pattern. invoice_append_payment
-  // de-duplicates by entry id only and every tap mints a new id, while the
-  // sheet stays up through the ledger reads, the append and the re-read — on
-  // job-site signal, seconds. A second tap of Record Payment in that window
-  // recorded the same check twice, and nothing in the app can take an entry
-  // back out (invoices_ledger_guard re-merges it). A ref, not only state: a
-  // fast double tap runs both handlers from ONE render. The state copy drives
-  // the disabled "Recording…" button.
-  const recordingPaymentRef = useRef(false);
-  const [recordingPayment, setRecordingPayment] = useState(false);
+  // One payment per sheet session, the #34 rule (wave-next W2, moments B3).
+  // invoice_append_payment de-duplicates by entry id only, and nothing in the
+  // app can take an entry back out (invoices_ledger_guard re-merges it). The
+  // id is minted once when the sheet opens and reused by every retry in it;
+  // the slide's capsule locks at commit, so a double slide or Confirm cannot
+  // start a second append.
+  const paymentIdRef = useRef<string | null>(null);
+  const paymentSlideRef = useRef<SlideToConfirmHandle>(null);
+  const paymentAttemptCentsRef = useRef(0);
+  // The unsent-changes check, read while the sheet is open (see recordPayment).
+  const [paymentChain, setPaymentChain] = useState<{ held: boolean; sameMoney: boolean }>({ held: false, sameMoney: false });
+  // True after "No answer yet": the fields lock until the sheet closes, so a
+  // retry sends the same payment under the same id.
+  const [paymentAwaitingAnswer, setPaymentAwaitingAnswer] = useState(false);
   // "Open Not saved" from the sheet closes it so iOS can present the other
   // Modal. The next open (after Retry / Discard) comes back to what he typed —
   // the amount, the day received and the check # — instead of the full
@@ -2004,8 +2027,59 @@ function InvoiceInner() {
     setTimeout(requestSyncSheet, Platform.OS === 'ios' ? 450 : 0);
   }, []);
 
-  const commitPayment = useCallback(async (amt: number) => {
-    if (!existingInvoice) return;
+  // ── Record payment: one slide (wave-next W2, moments B3) ─────────────────
+  // What used to ask AFTER the tap now reads BEFORE the slide: the amount
+  // decision (#134 recordPaymentDecision: refuse -> the disabled reason; an
+  // overpayment -> the label names it and a line under the track says why it
+  // is allowed) and the unsent-changes check (a payment is held behind any
+  // earlier change to this invoice that has not sent, the queue's park rule)
+  // run while the sheet is open and on every amount change.
+  //
+  // #34 without a lock: invoice_append_payment de-duplicates by entry id, and
+  // the id is minted ONCE per sheet session (openRecordPayment) and reused on
+  // every retry, so a retry after "No answer yet" can never count the check
+  // twice; after a timeout the fields lock, so the retry is the same payment.
+  // The capsule locks at commit, so a second slide or a double Confirm cannot
+  // start a second append (the old one-payment-at-a-time lock).
+  const paymentDecision = useMemo(
+    () => recordPaymentDecision(paymentAmount, balanceDue, parseMoneyInput, formatCurrency),
+    [paymentAmount, balanceDue],
+  );
+  const paymentAmountCents = paymentDecision.kind === 'refuse' ? 0 : Math.round(paymentDecision.amount * 100);
+  const paymentOverCents = paymentDecision.kind === 'confirm'
+    ? paymentAmountCents - Math.round(Math.max(0, balanceDue) * 100)
+    : 0;
+  const chainInvoiceId = existingInvoice?.id ?? null;
+  useEffect(() => {
+    if (!showPaymentModal || !chainInvoiceId) return;
+    let live = true;
+    (async () => {
+      let waiting: number[] = [];
+      try { waiting = await unsavedPaymentAppends(chainInvoiceId); } catch { waiting = []; }
+      let held = waiting.length > 0;
+      if (!held) { try { held = await hasUnsavedChainForSession('invoices', chainInvoiceId); } catch { held = false; } }
+      // Same money as a waiting append: the link does not bring the typed
+      // payment back after the unsent-changes sheet (retrying THAT one is the
+      // way to record it; typing it again here would count it twice).
+      const sameMoney = waiting.some((w) => Math.round(w * 100) === paymentAmountCents);
+      if (live) setPaymentChain({ held, sameMoney });
+    })();
+    return () => { live = false; };
+  }, [showPaymentModal, chainInvoiceId, paymentAmountCents]);
+  // A refused amount is one whole sentence that says why the slide waits and
+  // what unlocks it (paymentAmountReason); recordPaymentDecision stays the
+  // one judge of WHETHER it is refused.
+  const paymentDisabledReason = paymentDecision.kind === 'refuse'
+    ? paymentAmountReason(paymentAmount)
+    : paymentChain.held ? payEarlierChangeReason() : null;
+
+  const recordPayment = useCallback(async (): Promise<CommitResult> => {
+    if (!existingInvoice || paymentDecision.kind === 'refuse') return { status: 'refused', reason: payRefused() };
+    const amt = paymentDecision.amount;
+    const amountCents = Math.round(amt * 100);
+    paymentAttemptCentsRef.current = amountCents;
+    // ONE id per sheet session: a retry is the same entry to the server.
+    if (!paymentIdRef.current) paymentIdRef.current = createId('pay');
 
     // #133: `date` stays the instant it was recorded (the QuickBooks
     // reconciler matches on it); `receivedDate` is the day he says the money
@@ -2013,14 +2087,14 @@ function InvoiceInner() {
     // of "when was this paid" prefers (billingFlowCore.paymentReceivedDay).
     const reference = paymentReference.trim();
     const payment: InvoicePayment & RecordedPaymentFields = {
-      id: createId('pay'),
+      id: paymentIdRef.current,
       date: new Date().toISOString(),
       amount: amt,
       method: paymentMethod,
       receivedDate: calendarDayOf(paymentReceivedDate) ?? todayCalendarDay(),
       ...(reference ? { reference } : {}),
     };
-    // The LOCAL guess at the new status — only reported when the server's
+    // The LOCAL guess at the new status — only used when the server's
     // answer is not in (queued); the ledger decides everything else.
     // To the cent: two float adds of $0.10 are not $0.20.
     const newPaid = Math.round((amountPaid + amt) * 100) / 100;
@@ -2044,29 +2118,15 @@ function InvoiceInner() {
       outcome = 'failed';
     }
     if (outcome === 'failed') {
-      // Never "Payment Recorded" for a payment that exists nowhere.
-      // Integration round 2: two different 'failed's, worded apart. HELD — the
-      // invoice has an earlier change under Not saved, so the append was
-      // never sent (offlineQueue's park rule; the call owns its refusal, so no
-      // line was added). Round 1 told him the server "did not accept" money
-      // it never received. REFUSED — sent, and the server said no (never a
-      // dropped signal: that queues); not parked either, so recording it
-      // again is the one way to retry and can never count it twice.
+      // Never "Payment recorded" for a payment that exists nowhere. Two
+      // different 'failed's, worded apart: HELD — an earlier change to this
+      // invoice has not sent, so the append was never sent (the park rule;
+      // the call owns its refusal). REFUSED — sent, and the server said no
+      // (never a dropped signal: that queues); a refused append was never
+      // stored, so recording it again is the way to retry.
       let held = false;
       try { held = await hasUnsavedChainForSession('invoices', existingInvoice.id); } catch { held = false; }
-      if (held) {
-        showAlert(
-          'Payment not sent',
-          `An earlier change to this invoice hasn't reached MAGE yet, and this invoice's changes go to MAGE in order. Review unsent changes, retry or discard that one, then record the ${formatCurrency(amt)} payment. Nothing was recorded.`,
-          [
-            { text: 'OK', style: 'cancel' },
-            { text: 'Review unsent changes', onPress: () => openNotSavedFromPaymentSheet(true) },
-          ],
-        );
-        return;
-      }
-      showAlert('Payment not recorded', `The server did not accept the ${formatCurrency(amt)} payment — nothing was recorded.`);
-      return;
+      return { status: 'refused', reason: held ? payHeld() : payRefused() };
     }
 
     // The server's row, read AFTER the append landed: the re-mint below charges
@@ -2099,26 +2159,12 @@ function InvoiceInner() {
       });
     }
 
-    // Close the milestone lifecycle. markMilestoneInvoiced wrote 'invoiced'
-    // when this invoice was created; until now NOTHING wrote 'paid', so
-    // computeContractPaid always returned 0 and the two PAID branches on the
-    // contract screen (:1087, :1201) could never render — a GC whose homeowner
-    // had paid the foundation draw still saw it as merely billed, on the screen
-    // whose whole job is telling him where the contract stands
-    // (audit 2026-09-07, built-but-unreachable #7).
-    //
-    // Keyed on `sourceContractId` stored on the invoice at :521, NOT the
-    // `contractId` route param — that param only exists when the GC arrived
-    // from the contract screen's one-tap flow, and a payment is almost always
-    // recorded later, from the invoice list, with no params at all.
-    //
-    // Only when the invoice is fully settled: a partial payment has not paid
-    // the draw. Fire-and-forget, like the re-mint above — the payment is
-    // already recorded, and a failed flip must never roll it back.
-    // It is a direct write (see markMilestonePaidByInvoice), so when it does
-    // not land he is TOLD (#136) — console.warn told nobody. The contract
-    // screen shows the draw as paid from this invoice either way and repairs
-    // the stored status the next time it opens.
+    // Close the milestone lifecycle (audit 2026-09-07, built-but-unreachable
+    // #7): keyed on `sourceContractId` stored on the invoice, and only when the
+    // invoice is fully settled (a partial payment has not paid the draw).
+    // Fire-and-forget — the payment is already recorded, and a failed flip
+    // must never roll it back. It is a direct write (see
+    // markMilestonePaidByInvoice), so when it does not land he is TOLD (#136).
     if (newStatus === 'paid' && existingInvoice.sourceContractId) {
       const flipFailed = () => showAlert(
         'Contract milestone not updated yet',
@@ -2129,109 +2175,51 @@ function InvoiceInner() {
         .catch(flipFailed);
     }
 
-    // The result alert always shows; closing the sheet and going back only
-    // while this invoice is still in front — a late back() after he left
-    // closed the screen he had opened since (the payment is recorded either way).
-    const stillInFront = screenInFrontRef.current;
-    if (stillInFront) {
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      setPaymentReference('');
-      setPaymentReceivedDate(todayCalendarDay());
+    if (outcome === 'queued') {
+      return {
+        status: 'queued',
+        title: payQueued(),
+        ...(existingInvoice.payLinkUrl ? { next: payQueuedPayLinkNext() } : {}),
+      };
     }
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert(
-      outcome === 'queued' ? 'Payment saved on this phone' : 'Payment recorded',
-      outcome === 'queued'
-        ? `${formatCurrency(amt)} payment saved on this phone. It reaches your books as soon as it goes through.${existingInvoice.payLinkUrl ? ' Send the invoice again then, so the Pay link matches the new balance.' : ''}`
-        : `${formatCurrency(amt)} payment recorded. Status: ${humanizeEnum(newStatus)}.`,
-    );
-    if (stillInFront) router.back();
-  }, [paymentMethod, paymentReceivedDate, paymentReference, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, recordInvoicePayment, mintPayLinkFor, router, openNotSavedFromPaymentSheet]);
+    // Synced. The balance is the SERVER's (never the local guess); when the
+    // row could not be read back, the title names the invoice instead.
+    const serverBalance = follow.serverBalance;
+    const title = serverBalance == null
+      ? payRecordedOnInvoice(amountCents, existingInvoice.number)
+      : serverBalance <= 0.005
+        ? payPaidInFull()
+        : payRecorded(amountCents, Math.round(serverBalance * 100));
+    return { status: 'confirmed', title };
+  }, [paymentDecision, paymentMethod, paymentReceivedDate, paymentReference, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, recordInvoicePayment, mintPayLinkFor]);
 
-  // Integration round 1: a payment append that is under Not saved (a queued
-  // one the server later refused) is still Retry-able from the sync badge. A
-  // new entry recorded here gets a NEW id, and invoice_append_payment only
-  // de-duplicates by id — so re-entering the same check and then tapping Retry
-  // counted it twice. Ask first, naming the amount waiting.
-  //
-  // Integration round 2: no record-anyway button. While ANY change to
-  // this invoice is under Not saved, a new append is held behind it and never
-  // sent (the queue's park rule — changes of one record reach MAGE in order),
-  // so that button could never record, and then said the server refused it.
-  // The dialog says what to do instead: Retry (same money) or Retry/Discard
-  // the waiting one first (different money), then record this.
-  const commitPaymentPastUnsaved = useCallback(async (amt: number) => {
-    if (!existingInvoice) return;
-    let waiting: number[] = [];
-    try { waiting = await unsavedPaymentAppends(existingInvoice.id); } catch { waiting = []; }
-    let held = waiting.length > 0;
-    if (!held) { try { held = await hasUnsavedChainForSession('invoices', existingInvoice.id); } catch { held = false; } }
-    if (!held) { await commitPayment(amt); return; }
-    // Same money as a waiting append → do not bring the typed payment back
-    // after the sheet (openNotSavedFromPaymentSheet): he is told to retry it
-    // there, and the next open starts from the balance instead.
-    const sameMoney = waiting.some((w) => Math.round(w * 100) === Math.round(amt * 100));
-    const buttons = [
-      { text: 'Cancel', style: 'cancel' as const },
-      { text: 'Review unsent changes', onPress: () => openNotSavedFromPaymentSheet(!sameMoney) },
-    ];
-    if (waiting.length === 0) {
-      showAlert(
-        'An earlier change to this invoice is not saved',
-        `A change to this invoice hasn't reached MAGE yet. This invoice's changes go to MAGE in order, so the ${formatCurrency(amt)} payment can't be sent until that one is retried or discarded. Review unsent changes, then record the payment.`,
-        buttons,
-      );
-      return;
-    }
-    const amounts = waiting.map((a) => formatCurrency(a)).join(', ');
-    showAlert(
-      'A payment on this invoice is not saved yet',
-      `${waiting.length === 1 ? `A ${amounts} payment` : `Payments of ${amounts}`} on this invoice ${waiting.length === 1 ? "hasn't" : "haven't"} reached MAGE yet. If this is the same money, retry it under unsent changes instead: recording it here as well would count it twice. If it is a different payment, retry or discard the waiting one first (this invoice's changes go to MAGE in order), then record this one.`,
-      buttons,
-    );
-  }, [existingInvoice, commitPayment, openNotSavedFromPaymentSheet]);
+  // Non-idempotent (plan rule 3): a timeout says "Check invoice #12", never "nothing was saved".
+  const paymentWriteOptions = useMemo<CommitWriteOptions>(() => ({
+    idempotent: false,
+    copy: { refused: payRefused(), timeout: payTimeout(existingInvoice?.number ?? 0) },
+  }), [existingInvoice?.number]);
 
-  // The whole record chain under the one-at-a-time lock, released on every
-  // exit of it: the held / waiting dialogs, failed, queued and synced.
-  const recordUnderLock = useCallback(async (amt: number) => {
-    try {
-      await commitPaymentPastUnsaved(amt);
-    } finally {
-      recordingPaymentRef.current = false;
-      setRecordingPayment(false);
-    }
-  }, [commitPaymentPastUnsaved]);
-
-  const handleMarkPaid = useCallback(() => {
-    if (!existingInvoice) return;
-    // Taken before any dialog, so a second tap can neither open a second
-    // overpayment confirm nor start a second append.
-    if (recordingPaymentRef.current) return;
-    recordingPaymentRef.current = true;
-    setRecordingPayment(true);
-    const release = () => { recordingPaymentRef.current = false; setRecordingPayment(false); };
-    // #134: parseMoneyInput, not parseFloat — '12,500.00' was recorded as $12
-    // and pushed to QuickBooks. Refused with the reason, never read as 0;
-    // rounded to the cent; more than the balance asks first (overpayments are
-    // real — a combined check, a credit — so it asks rather than blocks).
-    const decision = recordPaymentDecision(paymentAmount, balanceDue, parseMoneyInput, formatCurrency);
-    if (decision.kind === 'refuse') {
-      release();
-      showAlert(decision.title, decision.message);
-      return;
-    }
-    if (decision.kind === 'confirm') {
-      // Android's back button dismisses with no button pressed: onDismiss
-      // frees the lock then (web routes a backdrop tap through Cancel).
-      showAlert(decision.title, decision.message, [
-        { text: 'Cancel', style: 'cancel', onPress: release },
-        { text: 'Record it', onPress: () => { void recordUnderLock(decision.amount); } },
-      ], { onDismiss: release });
-      return;
-    }
-    void recordUnderLock(decision.amount);
-  }, [paymentAmount, balanceDue, existingInvoice, recordUnderLock]);
+  // Stored or waiting to send: after the result hold the sheet closes and the
+  // screen goes back — only while this invoice is still in front (a late
+  // back() after he left closed the screen he had opened since).
+  const onPaymentDone = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed' && r.status !== 'queued') return;
+    if (!screenInFrontRef.current) return;
+    setShowPaymentModal(false);
+    setPaymentAmount('');
+    setPaymentReference('');
+    setPaymentReceivedDate(todayCalendarDay());
+    paymentIdRef.current = null;
+    router.back();
+  }, [router]);
+  // No answer in time: the fields lock, so a retry is the same payment (same id).
+  const onPaymentResolved = useCallback((r: CommitResult) => {
+    if (r.status === 'timeout') setPaymentAwaitingAnswer(true);
+  }, []);
+  // A confirmed answer after the timeout, or after the sheet was closed: say it once.
+  const onPaymentLate = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed') nailIt(payRecordedToast(paymentAttemptCentsRef.current));
+  }, []);
 
   // Stripe payment link: generate once per invoice (or regenerate if the link
   // is lost/stale). We persist `payLinkUrl` + `payLinkId` on the invoice so the
@@ -2624,6 +2612,10 @@ function InvoiceInner() {
       return;
     }
     setPaymentAmount(balanceDue.toFixed(2));
+    // A fresh sheet session: one payment id for every retry in it (a resumed
+    // sheet above is the same session, so it keeps its id).
+    paymentIdRef.current = createId('pay');
+    setPaymentAwaitingAnswer(false);
     setPaymentReceivedDate(todayCalendarDay());
     setPaymentReference('');
     setShowPaymentModal(true);
@@ -2726,7 +2718,8 @@ function InvoiceInner() {
   const fRetainage = useSheetFrame('form', { visible: showRetainageAsk, animationType: 'slide', rise: true });
   const fRetention = useSheetFrame('form', { visible: showRetentionModal, animationType: 'slide', rise: true });
   const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide', rise: true });
-  useSheetPrimaryHotkey(showPaymentModal, recordingPayment ? null : handleMarkPaid, { saveKey: false });
+  // Cmd+Enter plays the slide's 700 ms hold, never an instant record.
+  useSheetPrimaryHotkey(showPaymentModal, () => paymentSlideRef.current?.playHoldToCommit(), { saveKey: false });
   useSheetPrimaryHotkey(showRetainageAsk, retainageAskValid ? () => handleRetainageAnswer(retainageAskValue) : null);
   useSheetPrimaryHotkey(showRetentionModal, handleReleaseRetention, { saveKey: false });
   useSheetPrimaryHotkey(showSendRecipient, sendInFlight ? null : () => void handleConfirmSend(), { saveKey: false });
@@ -3848,14 +3841,17 @@ function InvoiceInner() {
                 style={styles.modalInput}
                 value={paymentAmount}
                 onChangeText={setPaymentAmount}
+                editable={!paymentAwaitingAnswer}
                 keyboardType="numeric"
                 placeholder="0.00"
                 placeholderTextColor={themeColors.textMuted}
+                testID="record-payment-amount"
               />
 
               <Text style={styles.modalFieldLabel}>Date received</Text>
               <TouchableOpacity
                 style={styles.modalInput}
+                disabled={paymentAwaitingAnswer}
                 onPress={() => setShowReceivedDatePicker(true)}
                 accessibilityRole="button"
                 accessibilityLabel={`Date received, ${formatCalendarDay(paymentReceivedDate)}. Change it`}
@@ -3872,6 +3868,7 @@ function InvoiceInner() {
                 style={styles.modalInput}
                 value={paymentReference}
                 onChangeText={setPaymentReference}
+                editable={!paymentAwaitingAnswer}
                 placeholder="e.g. 1042"
                 placeholderTextColor={themeColors.textMuted}
                 maxLength={60}
@@ -3886,6 +3883,7 @@ function InvoiceInner() {
                     key={opt.value}
                     style={[styles.methodChip, paymentMethod === opt.value && styles.methodChipActive]}
                     onPress={() => setPaymentMethod(opt.value)}
+                    disabled={paymentAwaitingAnswer}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.methodChipText, paymentMethod === opt.value && styles.methodChipTextActive]}>
@@ -3895,18 +3893,47 @@ function InvoiceInner() {
                 ))}
               </View>
 
-              <TouchableOpacity
-                style={[styles.modalSaveBtn, recordingPayment && { opacity: 0.55 }]}
-                onPress={handleMarkPaid}
-                activeOpacity={0.85}
-                disabled={recordingPayment}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: recordingPayment }}
-                testID="record-payment-submit"
-              >
-                <Check size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-                <Text style={styles.modalSaveBtnText}>{recordingPayment ? 'Recording…' : 'Record payment'}</Text>
-              </TouchableOpacity>
+              {/* The record is one slide (wave-next W2, moments B3). It turns
+                  green only when the server has the payment; a refusal or a
+                  timeout keeps the sheet up with its reason. */}
+              <View style={styles.paymentSlideWrap} testID="record-payment-submit">
+                <SlideToConfirm
+                  ref={paymentSlideRef}
+                  label={paymentDecision.kind === 'confirm'
+                    ? paySlideLabelOver(paymentAmountCents, paymentOverCents)
+                    : paySlideLabel(paymentAmountCents)}
+                  busyLabel={payBusy()}
+                  srLabel={paySrLabel(paymentAmountCents)}
+                  srConfirm={paySrConfirm(paymentAmountCents)}
+                  onCommit={recordPayment}
+                  writeOptions={paymentWriteOptions}
+                  disabledReason={paymentDisabledReason}
+                  queuedLabel={payQueued()}
+                  size="lg"
+                  tone="brand"
+                  resultIcon="check"
+                  onDone={onPaymentDone}
+                  onResolved={onPaymentResolved}
+                  onLateResult={onPaymentLate}
+                  onResultAfterUnmount={onPaymentLate}
+                  testID="record-payment-slide"
+                />
+                {paymentDecision.kind === 'confirm' && !paymentDisabledReason ? (
+                  <Text style={styles.paymentSlideNote} testID="record-payment-over">{payOverDetail()}</Text>
+                ) : null}
+                {paymentDecision.kind !== 'refuse' && paymentChain.held ? (
+                  <View style={styles.paymentHeldRow} testID="record-payment-held">
+                    <TouchableOpacity
+                      onPress={() => openNotSavedFromPaymentSheet(!paymentChain.sameMoney)}
+                      accessibilityRole="button"
+                      hitSlop={8}
+                      testID="record-payment-review-unsent"
+                    >
+                      <Text style={styles.paymentHeldLink}>{payReviewUnsentLink()}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
             </Animated.View>
           </View>
         </KeyboardAvoidingView>
@@ -4389,6 +4416,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   methodChipActive: { backgroundColor: themeColors.accentFill },
   methodChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   methodChipTextActive: { color: "#FFFFFF" },
+  paymentSlideWrap: { marginTop: 12, gap: 6 },
+  paymentSlideNote: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  paymentHeldRow: { gap: 4 },
+  paymentHeldLink: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   modalSaveBtn: { backgroundColor: themeColors.success, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   modalSaveBtnOff: { backgroundColor: themeColors.line },

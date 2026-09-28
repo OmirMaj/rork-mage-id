@@ -30,7 +30,7 @@
 // the Phone/Email cells unless the switch is on). Ask Your Home enforces them
 // server-side from the live switch (portal-ask-home/sharingFilter.ts).
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Switch,
 } from 'react-native';
@@ -40,7 +40,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileDown, Plus, Trash2, Wrench,
-  CheckCircle2, Send, Lock, RefreshCw, Stamp, FileText, Shield, X,
+  CheckCircle2, Send, RefreshCw, Stamp, FileText, Shield, X,
   ShieldCheck, BookOpen,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -52,11 +52,15 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
-  fetchCloseoutBinder, saveCloseoutBinder, shareCloseoutBinderPDF,
+  fetchCloseoutBinder, saveCloseoutBinder, saveCloseoutBinderDetailed, shareCloseoutBinderPDF,
   DEFAULT_MAINTENANCE,
   type MaintenanceItem, type CloseoutBinder,
 } from '@/utils/closeoutBinderEngine';
 import { statusPillStyle } from '@/utils/statusPill';
+import { nailIt, oops } from '@/components/animations/NailItToast';
+import { SlideToConfirm, fromOnlineOutcome, type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle } from '@/components/moments/core/contract';
+import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
+import { useOffline } from '@/hooks/useOnline';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
 import { generateUUID } from '@/utils/generateId';
@@ -83,6 +87,17 @@ import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
 
 type BinderStatus = CloseoutBinder['status'];
+
+/**
+ * The finalize slide's answer when it lands after this screen unmounted
+ * (moments rule 4: nailIt survives only here). Confirmed is the one success
+ * toast; a refusal or a timeout still says what did not happen.
+ */
+function momentAfterUnmount(r: CommitResult): void {
+  if (r.status === 'confirmed') nailIt(r.title);
+  else if (r.status === 'refused') oops(r.reason);
+  else if (r.status === 'timeout') oops(r.message);
+}
 
 export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
@@ -347,37 +362,51 @@ export default function CloseoutBinderScreen() {
     }
   }, [project, passportBusy, ctxUpdateProject, requestPortalPublish, passportBaked, canAccess, runPassportGeneration, ownerSharing]);
 
-  const handleFinalize = useCallback(() => {
-    showAlert(
-      'Finalize binder?',
-      'You can still edit the note and maintenance items. The binder is marked ready to deliver.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Finalize', onPress: async () => {
-            const now = new Date().toISOString();
-            setSaving(true);
-            try {
-              const saved = await persistBinder({ status: 'finalized', finalizedAt: now });
-              if (saved) {
-                setBinderId(saved.id);
-                setStatus('finalized');
-                setFinalizedAt(now);
-                if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                // Home Passport: index + pre-answer in the background.
-                // Never blocks or fails the finalize itself.
-                void runPassportGeneration();
-              } else {
-                showAlert("Couldn't finalize the binder", 'Check your connection and try again.');
-              }
-            } finally {
-              setSaving(false);
-            }
-          }
-        },
-      ],
-    );
-  }, [persistBinder, runPassportGeneration]);
+  // ── C4 (moments, lane MOMFIELD): finalizing the binder ─────────────────
+  // The footer slide is the confirm (the "Finalize binder?" Alert, the
+  // "Couldn't finalize" Alert and the success haptic are retired). The write
+  // is the same row persistBinder builds, through saveCloseoutBinderDetailed,
+  // which tells a refusal from a dropped connection. The binder is not kept on
+  // the phone, so offline the slide is disabled with the reason. finalizedAt is
+  // taken at RELEASE.
+  const offline = useOffline();
+  const [finalizeBusy, setFinalizeBusy] = useState(false);
+  const finalizeSlideRef = useRef<SlideToConfirmHandle>(null);
+  const commitFinalize = useCallback(async (): Promise<CommitResult> => {
+    if (!projectId) return { status: 'refused', reason: fieldCopy.binderFinalizeRefused() };
+    setFinalizeBusy(true);
+    const now = new Date().toISOString();
+    const res = await saveCloseoutBinderDetailed({
+      id: binderId,
+      projectId,
+      maintenanceSchedule: maintenance,
+      notes,
+      status: 'finalized',
+      finalizedAt: now,
+      sentAt,
+    });
+    if (res.status === 'synced') {
+      setBinderId(res.row.id);
+      setFinalizedAt(now);
+      // #12: every stored save asks the provider for a portal publish.
+      (requestPortalPublish as (id: string) => void)(projectId);
+      // Home Passport: index + pre-answer in the background. Never blocks or
+      // fails the finalize itself.
+      void runPassportGeneration();
+    }
+    const words = { refused: fieldCopy.binderFinalizeRefused(), timeout: fieldCopy.binderFinalizeTimeout() };
+    if (res.status === 'refused' && res.error === 'offline') return { status: 'refused', reason: fieldCopy.binderFinalizeOffline() };
+    return fromOnlineOutcome(res, { title: fieldCopy.binderFinalizedTitle(), next: fieldCopy.binderFinalizedNext() }, words);
+  }, [projectId, binderId, maintenance, notes, sentAt, requestPortalPublish, runPassportGeneration]);
+  const finalizeWriteOptions = useMemo<CommitWriteOptions>(() => ({
+    idempotent: false,
+    copy: { refused: fieldCopy.binderFinalizeRefused(), timeout: fieldCopy.binderFinalizeTimeout() },
+  }), []);
+  // The slide shows its result, then the bar turns to the finalized actions.
+  const onFinalizeDone = useCallback((r: CommitResult) => {
+    setFinalizeBusy(false);
+    if (r.status === 'confirmed') setStatus('finalized');
+  }, []);
 
   const handleDeliver = useCallback(() => {
     if (!project) return;
@@ -998,11 +1027,26 @@ export default function CloseoutBinderScreen() {
       {!loading && (
         <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
           {status === 'draft' && (
-            <>
-              <TouchableOpacity style={styles.secondary} onPress={handleSave} disabled={saving} testID="binder-save-draft">
+            <View style={styles.actionColumn}>
+              <SlideToConfirm
+                ref={finalizeSlideRef}
+                label={fieldCopy.binderFinalizeSlideLabel()}
+                busyLabel={fieldCopy.binderFinalizeBusy()}
+                srLabel={fieldCopy.binderFinalizeSrLabel()}
+                srConfirm={fieldCopy.binderFinalizeSrConfirm()}
+                onCommit={commitFinalize}
+                writeOptions={finalizeWriteOptions}
+                disabledReason={offline ? fieldCopy.binderFinalizeOffline() : saving ? fieldCopy.binderFinalizeSaving() : null}
+                onResolved={(r) => { if (r.status !== 'confirmed') setFinalizeBusy(false); }}
+                onDone={onFinalizeDone}
+                onResultAfterUnmount={momentAfterUnmount}
+                testID="binder-finalize"
+              />
+              <View style={styles.actionRowInner}>
+              <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleSave} disabled={saving || finalizeBusy} testID="binder-save-draft">
                 {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save draft</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf">
+              <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleExport} disabled={exporting} testID="binder-pdf">
                 {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
                     <FileDown size={14} color={themeColors.text} strokeWidth={1.75} />
@@ -1010,11 +1054,8 @@ export default function CloseoutBinderScreen() {
                   </>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primary} onPress={handleFinalize} disabled={saving} testID="binder-finalize">
-                <Lock size={14} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.primaryText}>Finalize</Text>
-              </TouchableOpacity>
-            </>
+              </View>
+            </View>
           )}
           {status === 'finalized' && (
             <>
@@ -1358,6 +1399,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   maintFreq: { flex: 1, fontSize: Type.caption2.fontSize, color: themeColors.textMuted, padding: 0 },
 
   actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: themeColors.line, backgroundColor: themeColors.surface },
+  // C4: a draft binder's bar is the finalize slide over Save draft and PDF.
+  actionColumn: { flex: 1, gap: 10 },
+  actionRowInner: { flexDirection: 'row', gap: 8 },
+  secondaryWide: { flex: 1 },
   secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line },
   secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
   primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: themeColors.accentFill, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },

@@ -22,23 +22,30 @@ import { generateUUID } from '@/utils/generateId';
 import type { SafetyFormTemplate, SafetyFormField, SafetyFormFieldType } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
 
 const FIELD_TYPES: SafetyFormFieldType[] = ['text', 'checkbox', 'select', 'signature', 'photo'];
 
 const CATEGORIES: SafetyFormTemplate['category'][] = ['jha', 'inspection', 'general'];
-const CATEGORY_LABEL: Record<SafetyFormTemplate['category'], string> = {
-  jha: 'JHA',
-  inspection: 'Inspection',
-  general: 'General',
-};
+// Functions, not maps (docs/I18N.md §3.4): t() reads the language at call time.
+function categoryLabel(c: SafetyFormTemplate['category']): string {
+  switch (c) {
+    case 'jha': return 'JHA';
+    case 'inspection': return t('safety.forms.categoryInspection', 'Inspection');
+    case 'general': return t('safety.forms.categoryGeneral', 'General');
+  }
+}
 
-const FIELD_TYPE_LABEL: Record<SafetyFormFieldType, string> = {
-  text: 'Text',
-  checkbox: 'Checkbox',
-  select: 'Select',
-  signature: 'Signature',
-  photo: 'Photo',
-};
+function fieldTypeLabel(ft: SafetyFormFieldType): string {
+  switch (ft) {
+    case 'text': return t('safety.forms.fieldText', 'Text');
+    case 'checkbox': return t('safety.forms.fieldCheckbox', 'Checkbox');
+    case 'select': return t('safety.forms.fieldSelect', 'Select');
+    case 'signature': return t('safety.forms.fieldSignature', 'Signature');
+    case 'photo': return t('safety.forms.fieldPhoto', 'Photo');
+  }
+}
 
 function moveField(fields: SafetyFormField[], index: number, dir: -1 | 1): SafetyFormField[] {
   const j = index + dir;
@@ -65,6 +72,7 @@ export default function SafetyFormsScreen() {
 }
 
 function SafetyFormsInner() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -124,7 +132,7 @@ function SafetyFormsInner() {
       ...f, label: f.label.trim(),
       options: f.type === 'select' ? (f.options ?? []).filter(Boolean) : undefined,
     }));
-    if (!name.trim() || cleaned.length === 0) { showAlert('Incomplete', 'A form needs a name and at least one labeled field.'); return; }
+    if (!name.trim() || cleaned.length === 0) { showAlert(t('safety.forms.incomplete', 'Incomplete'), t('safety.forms.aFormNeedsA', 'A form needs a name and at least one labeled field.')); return; }
     if (editing) {
       updateTemplate(editing.id, { name: name.trim(), category, fields: cleaned });
     } else {
@@ -137,14 +145,14 @@ function SafetyFormsInner() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [name, category, fields, editing, userId, addTemplate, updateTemplate, resetForm]);
+  }, [name, category, fields, editing, userId, addTemplate, updateTemplate, resetForm, t]);
 
   const handleDelete = useCallback((tpl: SafetyFormTemplate) => {
-    showAlert('Delete form', `Delete "${tpl.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(tpl.id) },
+    showAlert(t('safety.forms.deleteForm', 'Delete form'), t('safety.forms.delete', 'Delete "{name}"?', { name: tpl.name }), [
+      { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+      { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteTemplate(tpl.id) },
     ]);
-  }, [deleteTemplate]);
+  }, [deleteTemplate, t]);
 
   // Desktop sheet (wave 6c): the form opens as a capped card centred in the
   // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
@@ -153,17 +161,17 @@ function SafetyFormsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'Forms library' }} />
+      <Stack.Screen options={{ title: t('safety.forms.formsLibrary', 'Forms library') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {templates.map((tpl) => (
           <TouchableOpacity key={tpl.id} style={styles.card} onPress={() => openEdit(tpl)} activeOpacity={0.85}>
             <View style={styles.cardTop}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardName}>{tpl.name}</Text>
-                <Text style={styles.cardMeta}>{tpl.fields.length} field{tpl.fields.length === 1 ? '' : 's'}</Text>
+                <Text style={styles.cardMeta}>{tn('safety.forms.fields', tpl.fields.length, { one: '{count} field', other: '{count} fields' })}</Text>
               </View>
               <View style={[styles.categoryChip, { backgroundColor: themeColors.accent + '18' }]}>
-                <Text style={[styles.categoryChipText, { color: themeColors.accent }]}>{CATEGORY_LABEL[tpl.category]}</Text>
+                <Text style={[styles.categoryChipText, { color: themeColors.accent }]}>{categoryLabel(tpl.category)}</Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -173,9 +181,9 @@ function SafetyFormsInner() {
           <View style={{ minHeight: 340 }}>
             <EmptyState
               icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No forms yet"
-              message="Build reusable checklists and forms, such as JHAs, inspection checklists or sign-off sheets. Add the fields once and reuse them on every project."
-              actionLabel="Create first form"
+              title={t('safety.forms.noFormsYet', 'No forms yet')}
+              message={t('safety.forms.buildReusableChecklistsAnd', 'Build reusable checklists and forms, such as JHAs, inspection checklists or sign-off sheets. Add the fields once and reuse them on every project.')}
+              actionLabel={t('safety.forms.createFirstForm', 'Create first form')}
               onAction={openNew}
             />
           </View>
@@ -183,7 +191,7 @@ function SafetyFormsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-form">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add form</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.forms.addForm', 'Add form')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -193,17 +201,17 @@ function SafetyFormsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit form' : 'New form'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={styles.formTitle}>{editing ? t('safety.forms.editForm', 'Edit form') : t('safety.forms.newForm', 'New form')}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
                 <ScrollView style={{ maxHeight: 560 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.fieldLabel}>Form name *</Text>
-                  <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Daily fall-protection checklist" placeholderTextColor={themeColors.textMuted} testID="form-name-input" />
+                  <Text style={styles.fieldLabel}>{t('safety.forms.formName', 'Form name *')}</Text>
+                  <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={t('safety.forms.eGDailyFall', 'e.g. Daily fall-protection checklist')} placeholderTextColor={themeColors.textMuted} testID="form-name-input" />
 
-                  <Text style={styles.fieldLabel}>Category</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.forms.category', 'Category')}</Text>
                   <View style={styles.segmented}>
                     {CATEGORIES.map((cat) => {
                       const active = category === cat;
@@ -213,15 +221,15 @@ function SafetyFormsInner() {
                           style={[styles.segment, isDesktop && segmentedDesktop.segment, active && styles.segmentActive]}
                           onPress={() => setCategory(cat)}
                         >
-                          <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{CATEGORY_LABEL[cat]}</Text>
+                          <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{categoryLabel(cat)}</Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
 
-                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Fields</Text>
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t('safety.forms.fields2', 'Fields')}</Text>
                   {fields.length === 0 ? (
-                    <Text style={styles.hintText}>No fields yet. Add at least one below.</Text>
+                    <Text style={styles.hintText}>{t('safety.forms.noFieldsYetAdd', 'No fields yet. Add at least one below.')}</Text>
                   ) : null}
                   {fields.map((f, index) => (
                     <View key={f.id} style={styles.fieldRow}>
@@ -229,8 +237,8 @@ function SafetyFormsInner() {
                         <TextInput
                           style={[styles.input, { flex: 1, marginTop: 0 }]}
                           value={f.label}
-                          onChangeText={(t) => updateFieldRow(f.id, { label: t })}
-                          placeholder="Field label"
+                          onChangeText={(v) => updateFieldRow(f.id, { label: v })}
+                          placeholder={t('safety.forms.fieldLabel', 'Field label')}
                           placeholderTextColor={themeColors.textMuted}
                         />
                         <TouchableOpacity
@@ -238,7 +246,7 @@ function SafetyFormsInner() {
                           onPress={() => reorderField(index, -1)}
                           disabled={index === 0}
                           accessibilityRole="button"
-                          accessibilityLabel="Move field up"
+                          accessibilityLabel={t('safety.forms.moveFieldUp', 'Move field up')}
                         >
                           <ChevronUp size={16} color={index === 0 ? themeColors.textMuted : themeColors.textSecondary} strokeWidth={2} />
                         </TouchableOpacity>
@@ -247,7 +255,7 @@ function SafetyFormsInner() {
                           onPress={() => reorderField(index, 1)}
                           disabled={index === fields.length - 1}
                           accessibilityRole="button"
-                          accessibilityLabel="Move field down"
+                          accessibilityLabel={t('safety.forms.moveFieldDown', 'Move field down')}
                         >
                           <ChevronDown size={16} color={index === fields.length - 1 ? themeColors.textMuted : themeColors.textSecondary} strokeWidth={2} />
                         </TouchableOpacity>
@@ -255,7 +263,7 @@ function SafetyFormsInner() {
                           style={styles.reorderBtn}
                           onPress={() => removeFieldRow(f.id)}
                           accessibilityRole="button"
-                          accessibilityLabel="Delete field"
+                          accessibilityLabel={t('safety.forms.deleteField', 'Delete field')}
                         >
                           <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                         </TouchableOpacity>
@@ -270,7 +278,7 @@ function SafetyFormsInner() {
                               style={[styles.typeChip, active && styles.typeChipActive]}
                               onPress={() => updateFieldRow(f.id, { type: ft })}
                             >
-                              <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{FIELD_TYPE_LABEL[ft]}</Text>
+                              <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{fieldTypeLabel(ft)}</Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -280,14 +288,14 @@ function SafetyFormsInner() {
                         <TextInput
                           style={styles.input}
                           value={(f.options ?? []).join(', ')}
-                          onChangeText={(t) => updateFieldRow(f.id, { options: t.split(',').map((o) => o.trim()) })}
-                          placeholder="Options, comma-separated"
+                          onChangeText={(v) => updateFieldRow(f.id, { options: v.split(',').map((o) => o.trim()) })}
+                          placeholder={t('safety.forms.optionsCommaSeparated', 'Options, comma-separated')}
                           placeholderTextColor={themeColors.textMuted}
                         />
                       ) : null}
 
                       <View style={styles.requiredRow}>
-                        <Text style={styles.requiredLabel}>Required</Text>
+                        <Text style={styles.requiredLabel}>{t('safety.forms.required', 'Required')}</Text>
                         <Switch
                           value={f.required}
                           onValueChange={(v) => updateFieldRow(f.id, { required: v })}
@@ -299,7 +307,7 @@ function SafetyFormsInner() {
 
                   <TouchableOpacity style={styles.addFieldBtn} onPress={addFieldRow} activeOpacity={0.7} testID="add-field">
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addFieldBtnText}>Add field</Text>
+                    <Text style={styles.addFieldBtnText}>{t('safety.forms.addField', 'Add field')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
 
@@ -310,10 +318,10 @@ function SafetyFormsInner() {
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-form">
-                    <Text style={styles.saveBtnText}>{editing ? 'Update' : 'Save'}</Text>
+                    <Text style={styles.saveBtnText}>{editing ? t('safety.forms.update', 'Update') : t('common.action.save', 'Save')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

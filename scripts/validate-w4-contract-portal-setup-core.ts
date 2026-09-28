@@ -103,13 +103,20 @@ async function main() {
   ok('the page photo goes to the owner-scoped secure-contracts bucket, never replaced',
     /from\('secure-contracts'\)\s*\.upload\(path, bytes, \{ contentType: 'image\/jpeg', upsert: false \}\)/.test(engine) && /`\$\{userId\}\/\$\{contractId\}-signed-page-/.test(engine));
   const contract = strip(read('app/contract.tsx'));
-  const rec = callbackBody(contract, 'handleRecordSignature');
+  // W2 MOMSIGN: the record is two moments now, one write each — the paper
+  // slide (recordPaper) and the in-person ceremony (recordInPerson). Each pin
+  // below keeps its rule on the write that now carries it.
+  const paper = callbackBody(contract, 'recordPaper');
+  const inPerson = callbackBody(contract, 'recordInPerson');
   ok('contract: "Record client signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record client signature"/.test(contract));
   ok('contract: paper uploads the photo BEFORE the write, and a failed upload records nothing',
-    rec.indexOf('uploadSignedPageEvidence(') > 0 && rec.indexOf('uploadSignedPageEvidence(') < rec.indexOf('recordHomeownerSignature(') && /return;\s*\}\s*\}\s*const sig/.test(rec));
-  ok('contract: after the record, the contract is re-read and the portal republished',
-    /loadActiveContract\(c\.projectId\)[\s\S]*requestPortalPublish\(c\.projectId\)/.test(rec));
-  ok('contract: the confirm is disabled with the reason printed', /disabled=\{recording \|\| !!blockReason\}/.test(contract) && /testID="contract-record-block-reason"/.test(read('app/contract.tsx')));
+    paper.indexOf('uploadSignedPageEvidence(') > 0 && paper.indexOf('uploadSignedPageEvidence(') < paper.indexOf('recordHomeownerSignature(')
+      && /return \{ status: 'refused', reason: signingCopy\.paperUploadRefused\(\) \};\s*\}\s*const sig/.test(paper));
+  ok('contract: after the record, the contract is re-read and the portal republished (paper and in person)',
+    [paper, inPerson].every((h) => /if \(outcome\.kind !== 'signed'\) return recordOutcomeResult\(outcome\);[\s\S]*requestPortalPublish\(c\.projectId\)[\s\S]*loadActiveContract\(c\.projectId\)/.test(h)));
+  ok('contract: the confirm is disabled with the reason printed (the paper slide shows it in its track)',
+    /<SlideToConfirm[\s\S]{0,1400}disabledReason=\{blockReason\}[\s\S]{0,600}testID="contract-record-paper-slide"/.test(contract)
+      && /const blockReason = recordSignatureBlockReason\(draft, todayCalendarDay\(\)\);/.test(contract));
 
   // ── #69 ──────────────────────────────────────────────────────────────────
   console.log('\n#69 — the contract seeds from what the homeowner was shown');
@@ -160,11 +167,17 @@ async function main() {
   // ── #12 ──────────────────────────────────────────────────────────────────
   console.log('\n#12 — every write the portal reads only at publish time asks for a publish');
   const send = callbackBody(contract, 'handleSignAndSend');
-  const flipAt = send.indexOf("setContractStatus(saved.id, 'sent'");
+  // W2 MOMSIGN: the flip is the online-only setContractStatusDetailed; its
+  // refusal returns before the publish. The "Contract sent" Alert retired:
+  // the signing letter's back face carries the words (signingCopy.ts).
+  const flipAt = send.indexOf("setContractStatusDetailed(saved.id, 'sent'");
   const pubAt = send.indexOf('requestPortalPublish(saved.projectId)');
-  ok('contract: the publish is requested AFTER the status flip succeeded', flipAt > 0 && pubAt > flipAt && send.indexOf('if (!ok)') < pubAt);
-  ok('contract: the alert no longer promises signing "in their portal" right now',
-    !/'The homeowner can review and counter-sign in their portal\./.test(send) && /Your client portal is being updated with the contract/.test(send));
+  const refusedAt = send.indexOf("if (status !== 'synced') return { status: 'refused'");
+  ok('contract: the publish is requested AFTER the status flip succeeded', flipAt > 0 && pubAt > flipAt && refusedAt > flipAt && refusedAt < pubAt);
+  const signingWords = read('utils/moments/sites/signingCopy.ts');
+  ok('contract: the letter no longer promises signing "in their portal" right now',
+    !/'The homeowner can review and counter-sign in their portal\./.test(send) && !/in their portal\.|right now/.test(signingWords)
+      && /moment\.fold\.body = signingCopy\.contractSentBody\(\);/.test(send));
   ok('contract email (#64 carry): no "read the full agreement" / "ask questions" promise', !/read the full agreement/.test(send) && !/ask questions inside the portal/.test(send));
   const sel = strip(read('app/selections.tsx'));
   ok('selections: every save handler republishes', (sel.match(/publishPortal\(\);/g) ?? []).length >= 6, String((sel.match(/publishPortal\(\);/g) ?? []).length));

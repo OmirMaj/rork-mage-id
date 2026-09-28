@@ -29,6 +29,19 @@ import { exportOsha300Pdf, shareOsha300Csv } from '@/utils/safety/oshaExport';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
+
+/** "Missing … : tap to fix" as one sentence per combination (docs/I18N.md §3.5).
+ *  `missing` holds oshaRowFromIncident's English field names. */
+function missingLine(missing: string[]): string {
+  const name = missing.includes('employee name');
+  const title = missing.includes('job title');
+  if (missing.length === 2 && name && title) return t('safety.osha.missingNameAndTitle', 'Missing employee name and job title: tap to fix');
+  if (missing.length === 1 && name) return t('safety.osha.missingName', 'Missing employee name: tap to fix');
+  if (missing.length === 1 && title) return t('safety.osha.missingTitle', 'Missing job title: tap to fix');
+  return `Missing ${missing.join(' and ')}: tap to fix`;
+}
 
 export default function SafetyOshaScreen() {
   const router = useRouter();
@@ -47,6 +60,7 @@ export default function SafetyOshaScreen() {
 }
 
 function SafetyOshaInner() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -137,11 +151,12 @@ function SafetyOshaInner() {
   const summaryInput = useMemo<Osha300ASummaryInput | undefined>(() => (confirmed ? {
     hoursWorked: hoursNum,
     averageEmployees: employeesNum,
+    // i18n-keep-english: printed on the OSHA 300A PDF, which stays in English
     hoursSource: hoursEdited ? 'Hours entered by hand.' : prefill.sourceLabel,
     projectScoped,
   } : undefined), [confirmed, hoursNum, employeesNum, hoursEdited, prefill.sourceLabel, projectScoped]);
 
-  const exportBlocked = companyName ? null : 'Add your company name in Settings to print the OSHA 300.';
+  const exportBlocked = companyName ? null : t('safety.osha.exportBlocked', 'Add your company name in Settings to print the OSHA 300.');
 
   const handleExportPdf = useCallback(async () => {
     if (!companyName) return;
@@ -150,9 +165,9 @@ function SafetyOshaInner() {
       await exportOsha300Pdf(scopedIncidents, est, summaryInput);
     } catch (err) {
       // CONTRACT 25 (#147): a blocked web window throws the blocked sentence.
-      showAlert('Export failed', pdfFailureMessage(err, "Couldn't create the OSHA 300 PDF. Try again."));
+      showAlert(t('safety.osha.exportFailed', 'Export failed'), pdfFailureMessage(err, t('safety.osha.pdfFailed', "Couldn't create the OSHA 300 PDF. Try again.")));
     }
-  }, [scopedIncidents, est, summaryInput, companyName]);
+  }, [scopedIncidents, est, summaryInput, companyName, t]);
 
   const handleExportCsv = useCallback(async () => {
     if (!companyName) return;
@@ -160,9 +175,9 @@ function SafetyOshaInner() {
     try {
       await shareOsha300Csv(scopedIncidents, est);
     } catch {
-      showAlert('Export failed', "Couldn't create the OSHA 300 CSV. Try again.");
+      showAlert(t('safety.osha.exportFailed', 'Export failed'), t('safety.osha.couldntCreateTheOsha', "Couldn't create the OSHA 300 CSV. Try again."));
     }
-  }, [scopedIncidents, est, companyName]);
+  }, [scopedIncidents, est, companyName, t]);
 
   // A row opens its incident for the fix — the 300 row missing a name used to
   // be a plain View, so he had to go find the case in the incidents list.
@@ -174,32 +189,30 @@ function SafetyOshaInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'OSHA 300 Log' }} />
+      <Stack.Screen options={{ title: t('safety.osha.osha300Log', 'OSHA 300 Log') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryCard}>
           <View style={styles.summaryTop}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.summaryEyebrow}>OSHA Form 300</Text>
+              <Text style={styles.summaryEyebrow}>{t('safety.osha.oshaForm300', 'OSHA Form 300')}</Text>
               <Text style={[styles.summaryTitle, !companyName && styles.summaryTitleMissing]}>
-                {companyName || 'Company name not set'}
+                {companyName || t('safety.osha.companyNameNotSet', 'Company name not set')}
               </Text>
-              <Text style={styles.summarySub}>Log year {est.year}</Text>
+              <Text style={styles.summarySub}>{t('safety.osha.logYear', 'Log year {year}', { year: est.year })}</Text>
             </View>
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeNum}>{rows.length}</Text>
-              <Text style={styles.countBadgeLabel}>recordable</Text>
+              <Text style={styles.countBadgeLabel}>{t('safety.osha.recordableBadge', 'recordable')}</Text>
             </View>
           </View>
           <Text style={styles.derivedNote}>
-            Case classification and day counts are read from each incident&apos;s recorded OSHA outcome
-            fields (fatality, days away, restriction, illness type). Only recordable cases from {est.year}
-            are shown. Verify against your recordkeeping before posting.
+            {t('safety.osha.caseClassificationAndDay', "Case classification and day counts are read from each incident's recorded OSHA outcome fields (fatality, days away, restriction, illness type). Only recordable cases from {year} are shown. Verify against your recordkeeping before posting.", { year: est.year })}
           </Text>
         </View>
 
         {availableYears.length > 1 ? (
           <View style={styles.yearSection}>
-            <Text style={styles.yearLabel}>Log year</Text>
+            <Text style={styles.yearLabel}>{t('safety.osha.logYearLabel', 'Log year')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearRow}>
               {availableYears.map((y) => {
                 const active = y === year;
@@ -230,8 +243,8 @@ function SafetyOshaInner() {
           <View style={styles.blockedBanner} testID="osha-export-blocked">
             <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.9} />
             <Text style={styles.blockedText}>{exportBlocked}</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as never)} accessibilityRole="button" accessibilityLabel="Open settings" hitSlop={8}>
-              <Text style={styles.blockedLink}>Open settings</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as never)} accessibilityRole="button" accessibilityLabel={t('safety.osha.openSettings', 'Open settings')} hitSlop={8}>
+              <Text style={styles.blockedLink}>{t('safety.osha.openSettings', 'Open settings')}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -239,12 +252,15 @@ function SafetyOshaInner() {
           <View style={styles.blockedBanner} testID="osha-undated-cases">
             <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.9} />
             <Text style={styles.blockedText}>
-              {undatedCases.length} recordable case{undatedCases.length === 1 ? ' has' : 's have'} a date that needs fixing, so {undatedCases.length === 1 ? 'it is' : 'they are'} on no year&apos;s log. Tap to fix:
+              {tn('safety.osha.recordableCasesHaveA', undatedCases.length, { one: "{count} recordable case has a date that needs fixing, so it is on no year's log. Tap to fix:", other: "{count} recordable cases have a date that needs fixing, so they are on no year's log. Tap to fix:" })}
             </Text>
             {undatedCases.map((inc) => (
-              <TouchableOpacity key={inc.id} onPress={() => openCase(inc.id)} accessibilityRole="button" accessibilityLabel="Fix this case's date" hitSlop={6}>
+              <TouchableOpacity key={inc.id} onPress={() => openCase(inc.id)} accessibilityRole="button" accessibilityLabel={t('safety.osha.fixThisCasesDate', "Fix this case's date")} hitSlop={6}>
                 <Text style={styles.blockedLink} numberOfLines={1}>
-                  {`"${inc.occurredAt || 'no date'}" · ${inc.description || 'Untitled case'}`}
+                  {t('safety.osha.undatedCaseLink', '"{date}" · {description}', {
+                    date: inc.occurredAt || t('safety.osha.noDate', 'no date'),
+                    description: inc.description || t('safety.osha.untitledCase', 'Untitled case'),
+                  })}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -260,7 +276,7 @@ function SafetyOshaInner() {
             testID="osha-export-pdf"
           >
             <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />
-            <Text style={styles.exportPrimaryText}>Export PDF</Text>
+            <Text style={styles.exportPrimaryText}>{t('safety.osha.exportPdf', 'Export PDF')}</Text>
           </TouchableOpacity>
           {rows.length > 0 ? (
             <TouchableOpacity
@@ -272,7 +288,7 @@ function SafetyOshaInner() {
               testID="osha-export-csv"
             >
               <Download size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.exportSecondaryText}>Export CSV</Text>
+              <Text style={styles.exportSecondaryText}>{t('safety.osha.exportCsv', 'Export CSV')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -286,7 +302,7 @@ function SafetyOshaInner() {
                 onPress={() => openCase(r.incidentId)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel={`Open case ${r.caseNo}`}
+                accessibilityLabel={t('safety.osha.openCase', 'Open case {caseNo}', { caseNo: r.caseNo })}
                 testID={`osha-row-${r.caseNo}`}
               >
                 <View style={styles.caseChip}>
@@ -305,7 +321,7 @@ function SafetyOshaInner() {
                     <Text style={styles.classPillText}>{OSHA_CLASS_LABEL[r.classification]}</Text>
                   </View>
                   {r.missing.length > 0 ? (
-                    <Text style={styles.rowMissing}>Missing {r.missing.join(' and ')}: tap to fix</Text>
+                    <Text style={styles.rowMissing}>{missingLine(r.missing)}</Text>
                   ) : null}
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -316,7 +332,7 @@ function SafetyOshaInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={`No recordable cases in ${est.year}`}
+              title={t('safety.osha.noRecordableCasesIn', 'No recordable cases in {year}', { year: est.year })}
               // This used to send him to a second screen to type the case a
               // second time from memory — which is what made the 300 come up
               // short: the injury he wrote on the daily report at 4:30pm never
@@ -325,8 +341,8 @@ function SafetyOshaInner() {
               // naming one screen as the only door.
               message={
                 availableYears.length > 1
-                  ? 'Pick another log year above. OSHA-recordable cases land here from the incidents log and the Safety block on a daily report.'
-                  : 'Cases land here from the incidents log and the Safety block on a daily report, once the 1904 criteria make them recordable.'
+                  ? t('safety.osha.emptyPickYear', 'Pick another log year above. OSHA-recordable cases land here from the incidents log and the Safety block on a daily report.')
+                  : t('safety.osha.emptyHowCasesLand', 'Cases land here from the incidents log and the Safety block on a daily report, once the 1904 criteria make them recordable.')
               }
             />
           </View>
@@ -335,17 +351,18 @@ function SafetyOshaInner() {
         {/* 300A summary. Always rendered: an establishment with zero cases still
             completes, certifies and posts a 300A. */}
         <Card style={styles.summary300A} testID="osha-300a">
-          <Text style={styles.summaryEyebrow}>{projectScoped ? 'Project summary' : 'OSHA Form 300A'}</Text>
+          <Text style={styles.summaryEyebrow}>{projectScoped ? t('safety.osha.projectSummary', 'Project summary') : t('safety.osha.oshaForm300a', 'OSHA Form 300A')}</Text>
           <Text style={styles.summary300ATitle}>
-            {projectScoped ? `Project totals ${est.year}` : `Annual summary ${est.year}`}
+            {projectScoped ? t('safety.osha.projectTotals', 'Project totals {year}', { year: est.year }) : t('safety.osha.annualSummary', 'Annual summary {year}', { year: est.year })}
           </Text>
           {projectScoped ? (
             <Text style={styles.derivedNote}>
-              Opened for one project, so this is a project rate, not the establishment 300A. Open the OSHA log from the Safety hub with no project selected for the certifiable summary.
+              {t('safety.osha.openedForOneProject', 'Opened for one project, so this is a project rate, not the establishment 300A. Open the OSHA log from the Safety hub with no project selected for the certifiable summary.')}
             </Text>
           ) : null}
 
           <View style={styles.totalsGrid}>
+            {/* i18n-keep-english: OSHA Form 300A column letters and names, as printed on the federal form */}
             {[
               ['G · Deaths', totals.deaths],
               ['H · Days-away cases', totals.daysAwayCases],
@@ -369,41 +386,43 @@ function SafetyOshaInner() {
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Total hours worked</Text>
+              <Text style={styles.fieldLabel}>{t('safety.osha.totalHoursWorked', 'Total hours worked')}</Text>
               <TextInput
                 style={styles.input}
                 value={hoursText}
                 onChangeText={(v) => { setHoursEdit((m) => ({ ...m, [scopeKey]: v })); setConfirmedKey(null); }}
-                placeholder="From payroll"
+                placeholder={t('safety.osha.fromPayroll', 'From payroll')}
                 placeholderTextColor={themeColors.textMuted}
                 keyboardType="number-pad"
                 testID="osha-300a-hours"
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Average employees</Text>
+              <Text style={styles.fieldLabel}>{t('safety.osha.averageEmployees', 'Average employees')}</Text>
               <TextInput
                 style={styles.input}
                 value={employeesText}
                 onChangeText={(v) => { setEmployeesEdit((m) => ({ ...m, [scopeKey]: v })); setConfirmedKey(null); }}
-                placeholder="Annual average"
+                placeholder={t('safety.osha.annualAverage', 'Annual average')}
                 placeholderTextColor={themeColors.textMuted}
                 keyboardType="number-pad"
                 testID="osha-300a-employees"
               />
             </View>
           </View>
-          <Text style={styles.derivedNote}>{hoursEdited ? 'Hours entered by hand.' : prefill.sourceLabel}</Text>
+          <Text style={styles.derivedNote}>{hoursEdited ? t('safety.osha.hoursEnteredByHand', 'Hours entered by hand.') : prefill.sourceLabel}</Text>
 
           {confirmed && rates ? (
             <View style={styles.ratesRow}>
+              {/* i18n-keep-english: OSHA rate acronyms (TRIR, DART) */}
               <StatusPill label={`TRIR ${rates.trir?.toFixed(2) ?? '—'}`} tone="neutral" />
+              {/* i18n-keep-english: OSHA rate acronyms (TRIR, DART) */}
               <StatusPill label={`DART ${rates.dart?.toFixed(2) ?? '—'}`} tone="neutral" />
             </View>
           ) : (
             <>
               <Button
-                label="Confirm hours to show TRIR and DART"
+                label={t('safety.osha.confirmHoursToShow', 'Confirm hours to show TRIR and DART')}
                 variant="secondary"
                 onPress={() => {
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -414,8 +433,8 @@ function SafetyOshaInner() {
               />
               <Text style={styles.derivedNote}>
                 {hoursNum <= 0
-                  ? 'Enter total hours worked first. The rates are calculated from them.'
-                  : 'Rates stay hidden until you confirm these match payroll: app clock-ins alone usually run low, and low hours make the rate look worse than it is.'}
+                  ? t('safety.osha.enterHoursFirst', 'Enter total hours worked first. The rates are calculated from them.')
+                  : t('safety.osha.ratesHidden', 'Rates stay hidden until you confirm these match payroll: app clock-ins alone usually run low, and low hours make the rate look worse than it is.')}
               </Text>
             </>
           )}

@@ -249,7 +249,19 @@ console.log('\n#106 the sentences use the bare name:');
   const tt = src('app/time-tracking.tsx');
   ok('no sentence puts the label before "logged this shift"',
     !/\$\{loggedBy \?\? 'Someone else'\} logged this shift/.test(tt) && !/\$\{correctingTeam\} logged this shift/.test(tt)
-    && /\$\{sentenceName\(loggedByName \?\? 'a teammate'\)\} logged this shift/.test(tt) && /\$\{sentenceName\(correctingTeam\)\} logged this shift/.test(tt));
+    // moments C2 (wave-next W2, MOMFIELD): the out-sheet sentence is the
+    // caption above the slide, from utils/moments/sites/fieldCopy.ts, fed the
+    // BARE name (outFor.loggedByName), never the "Logged by …" label. The
+    // sheet is fed the RAW name, so teamLoggedByName's lowercase "a teammate"
+    // fallback can never start the caption; an unknown name reads
+    // teamShiftCaptionUnnamed() ("A teammate logged this shift.").
+    && /outFor\.loggedByName \? fieldCopy\.teamShiftCaption\(outFor\.loggedByName\) : fieldCopy\.teamShiftCaptionUnnamed\(\)/.test(tt)
+    && /openOutSheet\(entry, !!teamRow, teamRow \? teamLoggedByLabel\(teamRow\) : undefined, teamRow\?\.loggedByName\?\.trim\(\) \|\| undefined\);/.test(tt)
+    && !/openOutSheet\([^;]*teamLoggedByName\(/.test(tt)
+    && /return 'A teammate logged this shift\./.test(src('utils/moments/sites/fieldCopy.ts'))
+    && !/teamShiftCaption\(outFor\.loggedBy\)/.test(tt)
+    && /return `\$\{loggedByName\} logged this shift\./.test(src('utils/moments/sites/fieldCopy.ts'))
+    && /\$\{sentenceName\(correctingTeam\)\} logged this shift/.test(tt));
   ok('the note hint and the correction hint read as sentences',
     /\{correctingTeam\}&apos;s note stays as they wrote it/.test(tt) && /This shift was logged by \$\{correctingTeam\}; it stays theirs, only its hours change\./.test(tt));
   ok('the tags keep "Logged by …"', /\{loggedBy \? <Text style=\{styles\.loggedByTag\}/.test(tt) && /\{outFor\.loggedBy \? ` \$\{outFor\.loggedBy\}\.` : ''\}/.test(tt));

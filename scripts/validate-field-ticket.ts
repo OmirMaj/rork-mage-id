@@ -749,7 +749,7 @@ console.log('\nfield access sees hours and quantities, not the office\'s rates:'
   ok('the screen decides it fail-closed from the pricing role, not isFinancialsBlinded(projectRole)',
     /const pricingRole = pricingRoleFor\(projectRole, project\?\.ownerUserId, user\?\.id\);\s*const moneyBlinded = !canViewFinancials\(pricingRole\);/.test(screen)
       && !/isFinancialsBlinded\(/.test(screen)
-      && screen.indexOf('const moneyBlinded = !canViewFinancials(pricingRole);') < screen.indexOf('const amountSuffix'));
+      && screen.indexOf('const moneyBlinded = !canViewFinancials(pricingRole);') < screen.indexOf('const signedAmount'));
   ok('...and a hidden amount says why (detail card, unbilled card, list)',
     /<Text style=\{styles\.amountSub\}>\{moneyHiddenReason\}<\/Text>/.test(screen)
       && /testID="ticket-money-hidden-reason"/.test(screen) && /testID="ticket-list-money-hidden-reason"/.test(screen)
@@ -767,6 +767,36 @@ console.log('\nfield access sees hours and quantities, not the office\'s rates:'
     !/signed — \$\{money\(/.test(screen) && /amount=\{moneyBlinded \? null : totals\.billableTotal\}/.test(screen));
   ok('...and every saved-ticket money display left is behind the flag',
     !/<Text style=\{styles\.(unbilledValue|ticketAmount)\}>\{money/.test(screen.replace(/\{!moneyBlinded && <Text/g, '')));
+  // W2 MOMSIGN (A5): the signing moment's amount comes from the same flag,
+  // on both sheets (the composer's too), and the signed title carries no
+  // amount for a blinded role.
+  ok('...the signing moment reads its amount through signedAmount (null when blinded), on both sign sheets',
+    /const signedAmount = useCallback\(\(n: number\) => \(moneyBlinded \? null : money\(n\)\), \[moneyBlinded\]\);/.test(screen)
+      && /amount=\{moneyBlinded \? null : draftTotals\.billableTotal\}/.test(screen)
+      && /amount \? signingCopy\.ticketSignedTitle\(label, amount\) : signingCopy\.ticketSignedTitleNoAmount\(label\)/.test(screen));
+}
+
+// ── W2 MOMSIGN (A5): a signature needs signal and is never queued ───────────
+// The founder decided (D-1): no signal, no signature. The signing sheet is a
+// signing ceremony whose line is disabled offline, and the signature is
+// written ONLINE ONLY through ProjectContext.signFieldTicket. The ticket
+// shows as signed on this phone only once the server stored it.
+{
+  const handleSign = screen.slice(screen.indexOf('const handleSign = useCallback'), screen.indexOf('const onSignDone = useCallback'));
+  ok('A5 the signature is written through signFieldTicket (online only), for a new ticket and an existing one',
+    handleSign.length > 0 && /result = await signFieldTicket\(\{\s*id: existing\.id,/.test(handleSign) && /result = await signFieldTicket\(\{ ticket \}\);/.test(handleSign));
+  ok('A5 signing never goes through the queue-backed addFieldTicket / updateFieldTicket',
+    !/\b(addFieldTicket|updateFieldTicket|supabaseWrite|supabaseWriteDetailed)\(/.test(handleSign));
+  ok('A5 the sheet opens the signed ticket only after the seal held (onDone), never inside the write',
+    !/setSignOpen\(false\)/.test(handleSign) && /const onSignDone = useCallback\(\(r: CommitResult\) => \{\s*if \(r\.status !== 'confirmed'\) return;/.test(screen));
+  ok('A5 the ceremony is disabled offline (offline={offline} from useOffline)',
+    /const offline = useOffline\(\);/.test(screen) && /<SigningCeremony[\s\S]{0,2400}offline=\{offline\}/.test(screen));
+  ok('A5 the pad stays outside the ScrollView (the ceremony follows the closed scroll region)',
+    /<\/ScrollView>\s*<View style=\{styles\.sigCeremonyWrap\}>\s*\{visible \? \(\s*<SigningCeremony/.test(screen));
+  ok('A5 the sheet still wipes the signer on every open (one signer\'s strokes never carry to the next ticket)',
+    /if \(visible\) \{ setName\(''\); setTitle\(''\); setRole\('owner_rep'\); setPaths\(\[\]\); \}/.test(screen));
+  ok('A5 no signed toast inside the write (nailIt only for a late answer)',
+    !/nailIt\(/.test(handleSign));
 }
 
 // ── Report ──────────────────────────────────────────────────────────────────

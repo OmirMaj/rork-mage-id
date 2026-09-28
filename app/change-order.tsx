@@ -42,6 +42,7 @@ import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus, COApprover } 
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
+import { COApproveSheet, coApproveConfirmCopy, contractAfterApprovalCents, useApprovalContract } from '@/components/moments-sites/COApproveSheet';
 import { resolveAiAffectedTaskIds } from '@/utils/coScheduleReflowCore';
 import { formatMoney } from '@/utils/formatters';
 import { changeOrderBillingState } from '@/utils/changeOrderBilling';
@@ -768,16 +769,9 @@ export function coPipelineFor(status: CoW4Status): {
   };
 }
 
-/** #79 — the confirm before a CO is marked approved from this screen. */
-export function coApproveConfirmCopy(number: number | null, amount: number, money: (n: number) => string): { title: string; message: string } {
-  const label = number != null ? `CO #${number}` : 'this change order';
-  return {
-    title: `Approve ${label}?`,
-    message: amount < 0
-      ? `This credits ${money(Math.abs(amount))} back to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`
-      : `This commits ${money(amount)} to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`,
-  };
-}
+// #79 coApproveConfirmCopy (the money line before a CO is marked approved)
+// lives in components/moments-sites/COApproveSheet.tsx since wave-next W2, so
+// the job page reads it without importing this route.
 
 /**
  * #42 — the line under the tax rows, keyed on the CO's STATUS. The rate is
@@ -1288,6 +1282,15 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   );
   // CO being previewed before its schedule impact is applied (pipeline approve).
   const [reflowPreviewCO, setReflowPreviewCO] = useState<ChangeOrder | null>(null);
+  // Wave-next W2 (moments, B1/B2): the pipeline approve slides (the reflow
+  // preview's Apply becomes the slide); the unsigned approve keeps its tap,
+  // because its #131 tax freeze rides on updateChangeOrder with the status.
+  const [reflowApproveSlides, setReflowApproveSlides] = useState(false);
+  // B1: the change order in the approve sheet (a money-only approve).
+  const [approveSheetCO, setApproveSheetCO] = useState<ChangeOrder | null>(null);
+  // The active contract for the approved title ("contract $52,400.00" is the
+  // SIGNED contract plus approved COs), read only while an approve is open.
+  const approvalContract = useApprovalContract(project?.id, approveSheetCO !== null || (reflowPreviewCO !== null && reflowApproveSlides));
   // C5 (UX wave): the #131 tax freeze an unsigned approval carries into the
   // schedule preview. It is written WITH the status flip on confirm, so a
   // cancelled preview leaves the draft exactly as it was.
@@ -2521,20 +2524,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     router.replace({ pathname: '/change-order', params: { projectId: existingCO.projectId, coId: co.id } });
   }, [existingCO, existingCOs, authUser?.email, addChangeOrder, router]);
 
-  // #79 — Mark approved commits money: confirm first, as the project screen does.
+  // #79 — Mark approved commits money: the approve sheet asks first, with the
+  // money line (coApproveConfirmCopy) above one slide (wave-next W2, B1). The
+  // sheet approves through approveChangeOrder and turns green only when the
+  // server has it; this only opens it.
   const confirmApprove = useCallback((co: ChangeOrder) => {
-    const copy = coApproveConfirmCopy(confirmedNumber ?? co.number, co.changeAmount, formatCurrency);
-    showAlert(copy.title, copy.message, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Approve',
-        onPress: () => {
-          updateChangeOrder(co.id, { status: 'approved' });
-          nailIt(`CO #${confirmedNumber ?? co.number} approved`);
-        },
-      },
-    ]);
-  }, [confirmedNumber, updateChangeOrder]);
+    setApproveSheetCO(co);
+  }, []);
 
   // C5: "Client approved without signing" — one action instead of three
   // pipeline taps (Mark submitted → Move to review → Mark approved). Every
@@ -2554,6 +2550,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       (project?.schedule?.tasks?.length ?? 0) > 0
     ) {
       reflowFreezeRef.current = freeze;
+      setReflowApproveSlides(false);
       setReflowPreviewCO(co);
       return;
     }
@@ -2721,6 +2718,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       (project?.schedule?.tasks?.length ?? 0) > 0
                     ) {
                       reflowFreezeRef.current = {};
+                      setReflowApproveSlides(true);
                       setReflowPreviewCO(existingCO);
                       return;
                     }
@@ -3727,7 +3725,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           moneyLine={reflowPreviewCO.changeAmount < 0
             ? `Credits ${formatCurrency(-reflowPreviewCO.changeAmount)} back to the contract.`
             : `Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
-          onClose={() => { reflowFreezeRef.current = {}; setReflowPreviewCO(null); }}
+          approveSlide={reflowApproveSlides ? {
+            coNumber: confirmedNumber ?? reflowPreviewCO.number,
+            contractAfterCents: contractAfterApprovalCents(project, existingCOs, reflowPreviewCO.id, approvalContract),
+          } : undefined}
+          onClose={() => { reflowFreezeRef.current = {}; setReflowApproveSlides(false); setReflowPreviewCO(null); }}
           onConfirm={(anchorTaskId) => {
             const co = reflowPreviewCO;
             const freeze = reflowFreezeRef.current;
@@ -3738,6 +3740,20 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           }}
         />
       )}
+      {approveSheetCO !== null && (() => {
+        const copy = coApproveConfirmCopy(confirmedNumber ?? approveSheetCO.number, approveSheetCO.changeAmount, formatCurrency);
+        return (
+          <COApproveSheet
+            visible
+            changeOrder={approveSheetCO}
+            coNumber={confirmedNumber ?? approveSheetCO.number}
+            title={copy.title}
+            moneyLine={copy.message}
+            contractAfterCents={contractAfterApprovalCents(project, existingCOs, approveSheetCO.id, approvalContract)}
+            onClose={() => setApproveSheetCO(null)}
+          />
+        );
+      })()}
       {placePreviewCO !== null && (
         <COScheduleReflowPreviewModal
           visible

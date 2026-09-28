@@ -8,10 +8,11 @@
 // Every photo URL is validated through validateFetchableUrl BEFORE any fetch
 // (SSRF guard). Fail-closed: on error the user keeps the manual hazard form.
 //
-// Request: { photoUrls: string[] } OR { photos: [{ base64, mimeType? }] }.
+// Request: { photoUrls: string[] } OR { photos: [{ base64, mimeType? }] }, plus an optional locale.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -38,6 +39,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 interface DetectHazardsRequest {
   photoUrls?: string[];
   photos?: { base64: string; mimeType?: string }[];
+  /** 'es' asks for Spanish text; anything else (or absent) is English. */
+  locale?: string;
 }
 
 interface HazardOut {
@@ -138,7 +141,11 @@ serve(async (req) => {
   }
   // The unit is charged AFTER Gemini answers (audit AI-F8) — see below.
 
-  const parts: Record<string, unknown>[] = [{ text: HAZARD_PROMPT }];
+  // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
+  // when the client sent locale "es". '' otherwise, so an English request's
+  // prompt is byte-identical to before. The JSON shape, enum values, numbers
+  // and OSHA citations are unchanged by the rule.
+  const parts: Record<string, unknown>[] = [{ text: HAZARD_PROMPT + replyLanguageRule(body.locale) }];
   for (const p of goodPhotos) parts.push({ inline_data: { mime_type: p.mimeType, data: p.data } });
 
   const ac = new AbortController();

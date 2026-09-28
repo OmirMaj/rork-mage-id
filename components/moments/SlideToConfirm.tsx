@@ -28,10 +28,12 @@ import { momentColors, type CapsuleTone } from '@/utils/moments/colors';
 import { offlineReasonLine, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
 import { CAPSULE_GEOMETRY } from '@/utils/moments/motionSpec';
 import { labelDriftTable, labelOpacityTable } from '@/utils/moments/capsuleMath';
-import { MOMENT_COPY } from '@/utils/moments/copy';
+import { momentCopy } from '@/utils/moments/copy';
+import { installMomentLanguage } from '@/utils/moments/sealText';
 import { useCommitCapsule, type CapsuleResultIcon } from '@/components/moments/core/useCommitCapsule';
 import { CapsuleShape } from '@/components/moments/core/CapsuleShape';
 import { Shimmer } from '@/components/moments/core/Shimmer';
+import { useT } from '@/contexts/LanguageContext';
 
 export interface SlideToConfirmProps {
   label: string; busyLabel: string; srLabel: string; srConfirm: string; srHint?: string;
@@ -67,7 +69,12 @@ export interface SlideToConfirmHandle {
 const LABEL_OPACITY = labelOpacityTable();
 const LABEL_DRIFT = labelDriftTable();
 
+// The moments' own words follow the app language (wave-next W2): binds the
+// providers utils/moments/copy.ts and commitResult.ts read at call time.
+installMomentLanguage();
+
 export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmProps>(function SlideToConfirm(props, ref) {
+  const { t } = useT();
   const { colors: theme, resolved } = useTheme();
   const mc = useMemo(() => momentColors(theme, resolved), [theme, resolved]);
   const size = props.size ?? 'lg';
@@ -86,7 +93,7 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
   queuedRef.current = props.queuedLabel;
   const write = useCallback(async (): Promise<CommitResult> => {
     const r = await onCommitRef.current();
-    if (r && r.status === 'queued' && !r.title) return { ...r, title: queuedRef.current ?? MOMENT_COPY.queued };
+    if (r && r.status === 'queued' && !r.title) return { ...r, title: queuedRef.current ?? momentCopy().queued };
     return r;
   }, []);
 
@@ -202,12 +209,12 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                accessibilityLabel={t('common.moment.cancel', 'Cancel')}
                 onPress={capsule.cancel}
                 style={[styles.srNo, { borderRadius: D / 2, borderColor: mc.rim }]}
                 testID={tid ? `${tid}-cancel` : undefined}
               >
-                <Text numberOfLines={1} style={[styles.srText, { color: mc.ink }]}>Cancel</Text>
+                <Text numberOfLines={1} style={[styles.srText, { color: mc.ink }]}>{t('common.moment.cancel', 'Cancel')}</Text>
               </Pressable>
             </Animated.View>
           ) : null}

@@ -45,10 +45,12 @@ import {
 } from '../i18n/format';
 import { resolveLanguage } from '../i18n/resolve';
 import { recipientLanguage } from '../i18n/recipient';
-import { SURFACES } from '../i18n/surfaces';
+import { SURFACES, ownerOfKey, isSeedSurface, isLegalKey, shardFileOf, surfaceOfFile, UNASSIGNED_SHARD, type Surface } from '../i18n/surfaces';
 import { AI_GLOSSARY_ES } from '../i18n/aiGlossary';
-import { EN_CATALOG } from '../i18n/catalog/en';
-import { ES_CATALOG } from '../i18n/catalog/es';
+import { EN_CATALOG, EN_SHARDS, EN_SEED, EN_UNASSIGNED } from '../i18n/catalog/en';
+import { ES_CATALOG, ES_SHARDS } from '../i18n/catalog/es';
+import { scanCallSites, scanSource, collectKeys, planShards, renderShard, walk as walkSrc, SCAN_DIRS as EXTRACT_DIRS, type CallSite } from './i18n-extract';
+import { analyzeSource, keepEnglishMarkers, RAW_REASONS } from './i18n-codemod';
 import { AI_GLOSSARY_ES as EDGE_GLOSSARY, replyLanguageRule, parseReplyLocale } from '../supabase/functions/_shared/replyLanguage';
 import { formatMoney, formatMoneyShort, formatNumber } from '../utils/formatters';
 import { formatCalendarDay, parseCalendarDay } from '../utils/calendarDate';
@@ -57,6 +59,18 @@ import { isAppStorageKey } from '../utils/localCacheKeys';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STRICT = process.argv.includes('--strict');
+// --assume-migrated <file>[,<file>…] — prove a file passes the raw-literal rule
+// BEFORE the orchestrator flips its surface to 'migrated' (lane proof).
+const ASSUME_MIGRATED: string[] = (() => {
+  const out: string[] = [];
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--assume-migrated') out.push(...(argv[i + 1] ?? '').split(','));
+    else if (a.startsWith('--assume-migrated=')) out.push(...a.slice('--assume-migrated='.length).split(','));
+  }
+  return out.map((f) => f.trim()).filter(Boolean);
+})();
 
 let failures = 0;
 let warnings = 0;
@@ -107,6 +121,11 @@ const randInt = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 
 
 const en = EN_CATALOG as Record<string, CatalogValue>;
 const es = ES_CATALOG as Record<string, NonNullable<EsCatalog[I18nKey]>>;
+
+/** A Spanish entry for a `.legal.` key: only a human legal translator's (docs/I18N.md §9). */
+function legalEntryOk(e: { note?: string; reviewedBy?: string }): boolean {
+  return /LEGAL_PINNED/.test(e.note ?? '') && typeof e.reviewedBy === 'string' && e.reviewedBy.trim().length > 0;
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 section('A. English is byte-identical (formatters wrap today\'s output)');
@@ -258,14 +277,21 @@ for (const k of enKeys) {
 }
 for (const k of esKeys) ok(`no orphan es key (exists in en): ${k}`, k in en);
 
-// Coverage: complete surfaces need every key translated.
+// Coverage: complete surfaces need every key they OWN translated (one owner
+// per key: exact `keys` first, then the longest prefix — i18n/surfaces.ts).
+// A `.legal.` key is exempt: only a human legal translator writes its Spanish.
+function coverageMissing(surface: Surface, keys: string[], esCat: Record<string, unknown>, surfaces: readonly Surface[] = SURFACES): string[] {
+  const owned = keys.filter((k) => { const o = ownerOfKey(k, surfaces); return o.kind === 'owned' && o.surface === surface.id; });
+  return owned.filter((k) => !isLegalKey(k) && !(k in esCat));
+}
 for (const s of SURFACES) {
   for (const f of s.files) ok(`surface ${s.id}: file exists ${f}`, existsSync(join(ROOT, f)));
+  for (const f of s.partialFiles ?? []) if (!existsSync(join(ROOT, f))) warn(`surface ${s.id}: partial file not created yet: ${f}`);
   if (s.state === 'pending') continue;
-  const owned = enKeys.filter((k) => s.keyPrefixes.some((p) => k.startsWith(p)));
+  const owned = enKeys.filter((k) => { const o = ownerOfKey(k); return o.kind === 'owned' && o.surface === s.id; });
   ok(`surface ${s.id}: owns at least one key`, owned.length > 0);
   if (s.state === 'complete') {
-    const missing = owned.filter((k) => !(k in es));
+    const missing = coverageMissing(s, enKeys, es);
     ok(`surface ${s.id} (complete): every key has Spanish`, missing.length === 0, `missing: ${missing.join(', ')}`);
   }
 }
@@ -274,6 +300,7 @@ const FORM_KEYS = new Set(['zero', 'one', 'many', 'other']);
 const stale: string[] = [];
 for (const k of esKeys) {
   const e = es[k];
+  if (isLegalKey(k)) ok(`${k}: a .legal. key's Spanish carries note LEGAL_PINNED and reviewedBy (a human legal translator — never AI, never the codemod)`, legalEntryOk(e));
   const ev = en[k];
   if (ev === undefined) continue;
   const enPlural = isPluralForms(ev);
@@ -612,6 +639,259 @@ ok(`no t()/tn() at module scope (${scanned} importing files scanned) — a const
 
 // Interpolate sanity (the one piece every language shares).
 ok(`interpolate leaves strings without braces identical`, interpolate('Crew — 3 on site') === 'Crew — 3 on site');
+
+// ═════════════════════════════════════════════════════════════════════════
+section('G. Shards, one owner per key, call sites, .legal., keep-English, raw literals');
+
+// G1 — the shard layout (wave-next W2 ESTOOLS): seed + one generated shard per
+// non-seed surface + an unassigned shard that must stay empty.
+const nonSeed = SURFACES.filter((x) => !isSeedSurface(x));
+const sortedJoin = (a: string[]) => [...a].sort().join(',');
+ok(`EN_SHARDS lists exactly the ${nonSeed.length} non-seed surfaces`, sortedJoin(Object.keys(EN_SHARDS)) === sortedJoin(nonSeed.map((x) => x.id)),
+  `shards: ${sortedJoin(Object.keys(EN_SHARDS))}`);
+for (const x of nonSeed) ok(`shard file exists: ${shardFileOf(x.id)}`, existsSync(join(ROOT, shardFileOf(x.id))));
+ok(`${UNASSIGNED_SHARD} is empty (a key no surface owns)`, Object.keys(EN_UNASSIGNED).length === 0, Object.keys(EN_UNASSIGNED).join(', '));
+ok('the single-file catalogs are gone (i18n/catalog/en.ts, i18n/catalog/es/field.ts)', !existsSync(join(ROOT, 'i18n/catalog/en.ts')) && !existsSync(join(ROOT, 'i18n/catalog/es/field.ts')));
+for (const f of readdirSync(join(ROOT, 'i18n/catalog/en'))) {
+  if (!f.endsWith('.generated.ts') || f === 'unassigned.generated.ts') continue;
+  ok(`generated shard ${f} belongs to a surface`, nonSeed.some((x) => `${x.id}.generated.ts` === f));
+}
+ok('i18n/core.ts loads the Spanish catalog lazily (English users never parse it)',
+  /require\('\.\/catalog\/es'\)/.test(readFileSync(join(ROOT, 'i18n/core.ts'), 'utf8')) && !/^import[^\n]*catalog\/es/m.test(readFileSync(join(ROOT, 'i18n/core.ts'), 'utf8')));
+
+// G2 — a key lives in exactly one catalog file (en and es).
+function dupes(files: Record<string, Record<string, unknown>>): string[] {
+  const seen = new Map<string, string>();
+  const out: string[] = [];
+  for (const [file, cat] of Object.entries(files)) for (const k of Object.keys(cat)) {
+    const prev = seen.get(k);
+    if (prev) out.push(`${k} in ${prev} AND ${file}`);
+    else seen.set(k, file);
+  }
+  return out;
+}
+const enDupes = dupes({ 'en/seed': EN_SEED, 'en/unassigned': EN_UNASSIGNED, ...Object.fromEntries(Object.entries(EN_SHARDS).map(([k, v]) => [`en/${k}`, v])) });
+ok('no English key sits in two catalog files', enDupes.length === 0, enDupes.join('; '));
+const esDupes = dupes(Object.fromEntries(Object.entries(ES_SHARDS).map(([k, v]) => [`es/${k}`, v as Record<string, unknown>])));
+ok('no Spanish key sits in two catalog files', esDupes.length === 0, esDupes.join('; '));
+
+// G3 — ONE owner per key (exact `keys`, else the longest prefix).
+{
+  const unowned: string[] = [];
+  const twice: string[] = [];
+  for (const k of enKeys) {
+    const o = ownerOfKey(k);
+    if (o.kind === 'none') unowned.push(k);
+    if (o.kind === 'conflict') twice.push(`${k} (${o.surfaces.join(' + ')} by ${o.by})`);
+  }
+  ok('every English key has an owner surface', unowned.length === 0, unowned.join(', '));
+  ok('no English key has two owners at the same precedence', twice.length === 0, twice.join(', '));
+  const misplaced: string[] = [];
+  for (const [id, cat] of Object.entries(EN_SHARDS)) for (const k of Object.keys(cat)) {
+    const o = ownerOfKey(k);
+    if (!(o.kind === 'owned' && o.surface === id)) misplaced.push(`${k} is in ${id}'s shard but owned by ${o.kind === 'owned' ? o.surface : o.kind}`);
+  }
+  for (const k of Object.keys(EN_SEED)) {
+    const o = ownerOfKey(k);
+    if (!(o.kind === 'owned' && o.surface.startsWith('seed.'))) misplaced.push(`seed key ${k} is owned by ${o.kind === 'owned' ? o.surface : o.kind}, not a seed surface`);
+  }
+  ok('each generated key sits in its OWNER\'s shard; each seed key is seed-owned', misplaced.length === 0, misplaced.join('; '));
+  const fileOwners = new Map<string, string>();
+  const fileTwice: string[] = [];
+  for (const x of SURFACES) for (const f of [...x.files, ...(x.partialFiles ?? [])]) {
+    const prev = fileOwners.get(f);
+    if (prev) fileTwice.push(`${f}: ${prev} AND ${x.id}`);
+    else fileOwners.set(f, x.id);
+  }
+  ok('every file belongs to exactly one surface', fileTwice.length === 0, fileTwice.join('; '));
+  const ids = SURFACES.map((x) => x.id);
+  ok('surface ids are unique', new Set(ids).size === ids.length);
+  const seedSurf = SURFACES.find((x) => x.id === 'seed.vocabulary');
+  ok('the seed vocabulary is owned by EXACT keys only (a new field./safety./common. key is never seed-owned)', !!seedSurf && seedSurf.keyPrefixes.length === 0 && (seedSurf.keys?.length ?? 0) > 0);
+  // Self-tests of the owner rule on synthetic surfaces.
+  const syn: Surface[] = [
+    { id: 'a', phase: 1, state: 'pending', keys: ['field.x.exact'], keyPrefixes: [], files: [] },
+    { id: 'b', phase: 1, state: 'pending', keyPrefixes: ['field.x.'], files: [] },
+    { id: 'c', phase: 1, state: 'pending', keyPrefixes: ['field.x.deep.'], files: [] },
+    { id: 'd', phase: 1, state: 'pending', keyPrefixes: ['field.y.'], files: [] },
+    { id: 'e', phase: 1, state: 'pending', keyPrefixes: ['field.y.'], files: [] },
+  ];
+  const own = (k: string) => { const o = ownerOfKey(k, syn); return o.kind === 'owned' ? o.surface : o.kind; };
+  ok('owner self-test: exact key beats a prefix', own('field.x.exact') === 'a');
+  ok('owner self-test: the longest prefix wins', own('field.x.deep.k') === 'c' && own('field.x.k') === 'b');
+  ok('owner self-test: two surfaces with the same prefix = conflict', own('field.y.k') === 'conflict');
+  ok('owner self-test: no prefix = none (lands in unassigned)', own('money.z.k') === 'none');
+  ok('owner self-test: the same exact key twice = conflict', ownerOfKey('field.q', [...syn, { id: 'f', phase: 1, state: 'pending', keys: ['field.q'], keyPrefixes: [], files: [] }, { id: 'g', phase: 1, state: 'pending', keys: ['field.q'], keyPrefixes: [], files: [] }]).kind === 'conflict');
+}
+
+// G4 — the call sites: parity with the catalog, duplicates, orphans,
+// placeholders, plural shape, fragment-building (scripts/i18n-extract.ts scan).
+const scan = scanCallSites(ROOT);
+console.log(`  ${scan.files} files import the layer · ${scan.sites.length} t()/tn() call sites`);
+for (const p of scan.problems) ok(p, false);
+const { byKey: siteByKey, conflicts: siteConflicts } = collectKeys(scan.sites);
+for (const c of siteConflicts) ok(`one key, one English at every call site: ${c}`, false);
+{
+  const parity: string[] = [];
+  for (const [k, site] of siteByKey) {
+    const cat = en[k];
+    if (cat === undefined) { parity.push(`${k} (${site.file}:${site.line}) is in no catalog — run bun run scripts/i18n-extract.ts --surface <id>`); continue; }
+    if (JSON.stringify(cat) !== JSON.stringify(site.en)) {
+      parity.push(k in EN_SEED
+        ? `${k} (${site.file}:${site.line}) is a SEED key: its English must equal the seed's ${JSON.stringify(cat)}, got ${JSON.stringify(site.en)}`
+        : `${k} (${site.file}:${site.line}) English ${JSON.stringify(site.en)} ≠ shard ${JSON.stringify(cat)} — run i18n-extract`);
+    }
+  }
+  ok('parity: every call site\'s inline English equals its catalog entry (seed or generated shard)', parity.length === 0, parity.join('\n      '));
+  const orphans: string[] = [];
+  for (const cat of Object.values(EN_SHARDS)) for (const k of Object.keys(cat)) if (!siteByKey.has(k)) orphans.push(k);
+  ok('no orphan generated key (a shard key no call site uses — run i18n-extract)', orphans.length === 0, orphans.join(', '));
+  const ph: string[] = [];
+  for (const site of scan.sites) {
+    if (site.vars === null) continue;
+    const want = new Set(typeof site.en === 'string' ? placeholdersOf(site.en) : Object.values(site.en).flatMap((x) => placeholdersOf(x ?? '')));
+    const got = new Set(site.vars);
+    if (site.fn === 'tn') { want.delete('count'); got.delete('count'); }
+    const w = [...want].sort().join(',');
+    const g = [...got].sort().join(',');
+    if (w !== g) ph.push(`${site.file}:${site.line} ${site.key}: the English uses {${w}} but the call passes {${g}}`);
+  }
+  ok('placeholders: every call passes exactly the {names} its English uses', ph.length === 0, ph.join('\n      '));
+  // The generated shards are exactly what i18n-extract would write.
+  const plan = planShards(siteByKey);
+  const staleShards: string[] = [];
+  for (const [id, entries] of plan.shards) {
+    if (id === '(unassigned)') continue;
+    const path = join(ROOT, shardFileOf(id));
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== renderShard(id, entries)) staleShards.push(shardFileOf(id));
+  }
+  ok('every generated shard is current (bun run scripts/i18n-extract.ts --check)', staleShards.length === 0, staleShards.join(', '));
+  ok('no call-site key would land unassigned', plan.shards.get('(unassigned)')!.size === 0, [...plan.shards.get('(unassigned)')!.keys()].join(', '));
+  ok('no call-site key has two owners', plan.conflicts.length === 0, plan.conflicts.join('; '));
+  // Self-tests of the scan.
+  const syn = scanSource('x.tsx', "import { useT } from '@/contexts/LanguageContext';\nfunction A(){ const { t, tn } = useT(); const a = t('field.x.a', 'Hello {name}', { name }); const b = tn('field.x.b', n, { one: '{count} day', other: '{count} days' }); const c = t('field.x.c', 'Saved') + ' for you'; const d = t(k, 'Dynamic'); return null; }\n");
+  ok('scan self-test: reads t() and tn() with their vars', syn.sites.length === 3 && JSON.stringify(syn.sites[0].vars) === '["name"]' && typeof syn.sites[1].en === 'object');
+  ok('scan self-test: a translated fragment + words is flagged', syn.problems.some((p) => /fragment/.test(p)));
+  ok('scan self-test: a dynamic key is flagged', syn.problems.some((p) => /not a string literal/.test(p)));
+  // A `+` chain is left-associative: t(a) + ' ' + t(b) has no single node with
+  // a t() on both sides, so the scan must judge the flattened chain.
+  const frag = (body: string) => scanSource('y.tsx', `import { useT } from '@/contexts/LanguageContext';\nfunction B(){ const { t } = useT(); const x = ${body}; return x; }\n`).problems.filter((p) => /fragment/.test(p)).length;
+  ok('scan self-test: a chained t(a) + \' \' + t(b) is flagged', frag("t('field.x.a', 'Processing') + ' ' + t('field.x.b', 'Tap to dictate')") === 1);
+  ok('scan self-test: words deep in a chain (and in parentheses) are flagged once', frag("name + (t('field.x.a', 'Saved') + ' · ') + ' for you'") === 1);
+  ok('scan self-test: one t() beside data and a bare separator is not a built sentence', frag("t('field.x.a', 'Saved') + ' · ' + when") === 0);
+}
+
+// G8 — every file with a t()/tn() call site maps to ONE surface (files or
+// partialFiles), so the raw-literal rule and the state flip can reach it. The
+// one exception: a file whose every key belongs to a SEED surface (the nav /
+// vocabulary / language-row keys are reused anywhere). A file that only imports
+// the layer's helpers (getLang, formatters) has no call site and is not judged.
+function unmappedCallers(sites: readonly CallSite[], surfaces: readonly Surface[] = SURFACES): string[] {
+  const byFile = new Map<string, string[]>();
+  for (const s of sites) byFile.set(s.file, [...(byFile.get(s.file) ?? []), s.key]);
+  const out: string[] = [];
+  for (const [file, keys] of byFile) {
+    if (surfaceOfFile(file, surfaces)) continue;
+    const allSeed = keys.every((k) => { const o = ownerOfKey(k, surfaces); return o.kind === 'owned' && isSeedSurface({ id: o.surface }); });
+    if (!allSeed) out.push(`${file} (${[...new Set(keys)].slice(0, 3).join(', ')}${keys.length > 3 ? ', …' : ''}) — add it to its surface's files in i18n/surfaces.ts`);
+  }
+  return out.sort();
+}
+{
+  const un = unmappedCallers(scan.sites);
+  ok('every file that calls t()/tn() maps to exactly one surface (seed-key-only callers excepted)', un.length === 0, un.join('\n      '));
+  const synSurf: Surface[] = [
+    { id: 'seed.nav', phase: 0, state: 'complete', keys: ['nav.home'], keyPrefixes: [], files: [] },
+    { id: 'field.z', phase: 1, state: 'pending', keyPrefixes: ['field.z.'], files: ['app/z.tsx'] },
+  ];
+  const site = (file: string, key: string): CallSite => ({ file, line: 1, fn: 't', key, en: 'x', vars: [] });
+  const r = unmappedCallers([site('app/z.tsx', 'field.z.a'), site('utils/helper.ts', 'field.z.b'), site('app/settings.tsx', 'nav.home'), site('app/mixed.tsx', 'nav.home'), site('app/mixed.tsx', 'field.z.c')], synSurf);
+  ok('surface-map self-test: an unmapped helper and a mixed caller fail; a mapped file and a seed-only caller pass', r.length === 2 && r[0].startsWith('app/mixed.tsx') && r[1].startsWith('utils/helper.ts'), r.join('; '));
+}
+
+// G5 — the .legal. rule (A3): exempt from coverage; any Spanish for it is a
+// human legal translator's (note LEGAL_PINNED + reviewedBy), never AI.
+{
+  ok('legal self-test: field.ticket.legal.attestation is legal; field.ticket.legalName is not', isLegalKey('field.ticket.legal.attestation') && !isLegalKey('field.ticket.legalName'));
+  ok('legal self-test: an entry without reviewedBy fails', !legalEntryOk({ note: 'LEGAL_PINNED' }) && !legalEntryOk({ reviewedBy: 'Ana' }) && legalEntryOk({ note: 'LEGAL_PINNED — counsel', reviewedBy: 'Ana (legal translator)' }));
+  const synS: Surface[] = [{ id: 'x', phase: 1, state: 'complete', keyPrefixes: ['field.x.'], files: [] }];
+  const miss = coverageMissing(synS[0], ['field.x.a', 'field.x.legal.b', 'field.x.c'], { 'field.x.c': {} }, synS);
+  ok('coverage self-test: a keyed string with no Spanish on a complete surface fails; a .legal. key is exempt', miss.join(',') === 'field.x.a');
+}
+
+// G6 — keep-English markers need a reason; G7 raw literals on migrated files.
+{
+  const bad: string[] = [];
+  for (const d of EXTRACT_DIRS) {
+    for (const f of walkSrc(join(ROOT, d))) {
+      const src = readFileSync(f, 'utf8');
+      if (!src.includes('i18n-keep-english')) continue;
+      for (const [line, reason] of keepEnglishMarkers(src)) if (!reason) bad.push(`${relative(ROOT, f)}:${line}`);
+    }
+  }
+  ok('every `// i18n-keep-english: <reason>` marker gives a reason', bad.length === 0, bad.join(', '));
+  ok('marker self-test: a marker with no reason is caught', [...keepEnglishMarkers("// i18n-keep-english:\nconst a = 'x';\n// i18n-keep-english: regulator form name\n").values()].join('|') === '|regulator form name');
+
+  const migratedFiles = new Set<string>();
+  for (const x of SURFACES) if (x.state !== 'pending') for (const f of x.files) migratedFiles.add(f);
+  for (const f of ASSUME_MIGRATED) {
+    const inSurface = SURFACES.find((x) => x.files.includes(f) || x.partialFiles?.includes(f));
+    ok(`--assume-migrated ${f}: exists and belongs to a surface (as a full file, not a partial one)`, existsSync(join(ROOT, f)) && !!inSurface && inSurface.files.includes(f), inSurface ? `partial file of ${inSurface.id}: its rows are proven by the owning lane's validator` : 'in no surface (orchestrator item: i18n/surfaces.ts)');
+    migratedFiles.add(f);
+  }
+  const rawOf = (src: string) => {
+    const a = analyzeSource(src);
+    return [
+      ...a.candidates.map((c) => `line ${c.line}: ${JSON.stringify(typeof c.en === 'string' ? c.en : c.en.other).slice(0, 90)}`),
+      ...a.skips.filter((sk) => RAW_REASONS.has(sk.reason) || sk.reason === 'bad-marker').map((sk) => `line ${sk.line} (${sk.reason}): ${JSON.stringify(sk.text).slice(0, 90)}`),
+    ];
+  };
+  for (const f of migratedFiles) {
+    if (!existsSync(join(ROOT, f))) continue;
+    const raw = rawOf(readFileSync(join(ROOT, f), 'utf8'));
+    ok(`raw literals: ${f} has no raw user-facing English (${ASSUME_MIGRATED.includes(f) ? 'assumed migrated' : 'migrated surface'})`, raw.length === 0, raw.slice(0, 12).join('\n      ') + (raw.length > 12 ? `\n      … and ${raw.length - 12} more` : ''));
+  }
+  const synBad = "import React from 'react';\nimport { Text } from 'react-native';\nexport function A() { return <Text>Open the report</Text>; }\n";
+  const synGood = "import React from 'react';\nimport { Text } from 'react-native';\nimport { useT } from '@/contexts/LanguageContext';\nexport function A() { const { t } = useT(); return <><Text>{t('field.x.open', 'Open the report')}</Text>\n{/* i18n-keep-english: regulator form name */}\n<Text>OSHA Form 300A Summary</Text></>; }\n";
+  const synAlert = "function f() { showAlert('Not saved', `Could not save ${name}.`); }\n";
+  ok('raw-literal self-test: raw JSX text is caught', rawOf(synBad).length === 1);
+  ok('raw-literal self-test: t()-wrapped and keep-English-marked text passes', rawOf(synGood).length === 0, rawOf(synGood).join('; '));
+  ok('raw-literal self-test: raw alert title and message are caught', rawOf(synAlert).length === 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('H. The shared field pieces: English byte-identical, Spanish whole sentences, pseudo bracketed');
+{
+  const cr = await import('../utils/moments/commitResult');
+  const cp = await import('../utils/moments/copy');
+  const st = await import('../utils/moments/sealText');
+  const englishNow = () => JSON.stringify([
+    cr.timeoutCopy('CO #4'), cr.timeoutCopy(), cr.transportCopy('recorded', true), cr.transportCopy('recorded', false),
+    cr.legalQueuedCopy('signed'), cr.genericRefusedCopy('approved'), cr.offlineLegalReason(), cr.offlineLegalReason('certifying'),
+    cp.momentCopy(), cp.localOnlyTitle(), cp.localOnlyNext(), cp.earlierChangePendingReason(), cp.earlierChangeUnsavedReason(),
+    st.waitingChipText(null), st.waitingChipText({ to: 'Jane Smith', sent: false }), st.waitingChipText({ to: 'Jane Smith', sent: true }),
+  ]);
+  setLang('en');
+  const unbound = englishNow();
+  st.installMomentLanguage();
+  st.installMomentLanguage(); // idempotent
+  ok('moments: installing the language changes no English output', englishNow() === unbound);
+  ok('moments: the English frames are today\'s sentences', cr.timeoutCopy('CO #4') === 'No answer yet. Check CO #4 before trying again.' && cr.genericRefusedCopy('approved') === 'Not approved. Something went wrong on our side.' && cr.legalQueuedCopy('certified') === 'Not certified. Signing needs a connection, so nothing was certified.' && cr.offlineLegalReason('certifying') === "You're offline. Certifying needs a connection.");
+  ok('moments: momentCopy() in English IS MOMENT_COPY; the constants are unchanged', cp.momentCopy() === cp.MOMENT_COPY && cp.localOnlyTitle() === cp.LOCAL_ONLY_TITLE && cp.MOMENT_COPY.srHint === 'Double-tap, then confirm');
+  setLang('es');
+  ok('moments es: a frame answers ONE verb-free whole sentence (never a translated verb in a frame)',
+    cr.genericRefusedCopy('approved') === 'No se guardó. Algo salió mal de nuestro lado.' && cr.genericRefusedCopy('signed') === cr.genericRefusedCopy('approved')
+    && cr.timeoutCopy('CO #4') === 'Aún no hay respuesta. Revisa antes de volver a intentarlo.'
+    && cr.legalQueuedCopy('signed') === 'No se firmó. Firmar necesita conexión, así que no se firmó nada.', `${cr.genericRefusedCopy('approved')} | ${cr.timeoutCopy('CO #4')}`);
+  ok('moments es: offline reasons per kind, one sentence each', cr.offlineLegalReason('signing') === 'Estás sin conexión. Firmar necesita conexión.' && cr.offlineLegalReason('certifying') === 'Estás sin conexión. Certificar necesita conexión.');
+  ok('moments es: the primitives\' own words', cp.momentCopy().srHint === 'Toca dos veces y luego confirma' && cp.localOnlyTitle() === 'Guardado solo en este teléfono' && st.waitingChipText({ to: 'Jane Smith', sent: true }) === 'Enviado · falta la firma de Jane Smith');
+  ok('moments es: the constants themselves stay English', cp.MOMENT_COPY.srHint === 'Double-tap, then confirm' && cp.LOCAL_ONLY_TITLE === 'Saved on this phone only');
+  setLang('xx');
+  const px = [cr.timeoutCopy('CO #4'), cr.genericRefusedCopy('x'), cr.offlineLegalReason(), cp.momentCopy().queued, cp.localOnlyNext(), st.waitingChipText(null)];
+  ok('moments pseudo: every primitive sentence comes back bracketed', px.every((x) => x.startsWith(PSEUDO_OPEN) && x.endsWith(PSEUDO_CLOSE)), px.join(' | '));
+  setLang('en');
+  ok('moments: back in English every output is byte-identical', englishNow() === unbound);
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log(`\n${failures ? '✗' : '✓'} validate-i18n: ${checks} checks, ${failures} failed, ${warnings} warning(s)${STRICT ? ' [strict]' : ''}`);

@@ -16,6 +16,9 @@
 import type { Certification } from '@/types';
 import { certExpiryStatus } from '@/utils/crew/certExpiry';
 import { formatCalendarDay } from '@/utils/calendarDate';
+// Spanish (wave-next W2): whole sentences as catalog keys read at call time;
+// in English t()/tn() return the inline English, so every output is unchanged.
+import { t, tn } from '@/i18n/core';
 
 export interface CertFlag {
   certId: string;
@@ -52,7 +55,9 @@ export function certFlagsForWorker(
       type: c.type,
       expiresDate: exp,
       status,
-      label: `${status === 'expired' ? 'Expired' : 'Expiring'}: ${c.type} (${when || exp})`,
+      label: status === 'expired'
+        ? t('safety.cert.flagExpired', 'Expired: {type} ({date})', { type: c.type, date: when || exp })
+        : t('safety.cert.flagExpiring', 'Expiring: {type} ({date})', { type: c.type, date: when || exp }),
     });
   }
   return out.sort((a, b) =>
@@ -68,7 +73,30 @@ export function lapsedCertConfirmText(name: string, flags: CertFlag[], action = 
   const expired = flags.filter(f => f.status === 'expired');
   if (expired.length === 0) return null;
   const list = expired
-    .map(f => `${f.type} (expired ${formatCalendarDay(f.expiresDate, { month: 'short', day: 'numeric' }) || f.expiresDate})`)
+    .map(f => t('safety.cert.lapsedItem', '{type} (expired {date})', {
+      type: f.type,
+      date: formatCalendarDay(f.expiresDate, { month: 'short', day: 'numeric' }) || f.expiresDate,
+    }))
     .join(', ');
+  const vars = { name, list };
+  // One whole sentence per button verb the callers pass (never the verb as a
+  // fragment in a translated frame). An unknown verb keeps the English frame.
+  switch (action) {
+    case 'Sign them in':
+      return tn('safety.cert.lapsedConfirmSignIn', expired.length, {
+        one: "{name}'s {list} has lapsed. Sign them in anyway?",
+        other: "{name}'s {list} have lapsed. Sign them in anyway?",
+      }, vars);
+    case 'Sign them off':
+      return tn('safety.cert.lapsedConfirmSignOff', expired.length, {
+        one: "{name}'s {list} has lapsed. Sign them off anyway?",
+        other: "{name}'s {list} have lapsed. Sign them off anyway?",
+      }, vars);
+    case 'Clock them in':
+      return tn('safety.cert.lapsedConfirmClockIn', expired.length, {
+        one: "{name}'s {list} has lapsed. Clock them in anyway?",
+        other: "{name}'s {list} have lapsed. Clock them in anyway?",
+      }, vars);
+  }
   return `${name}'s ${list} ${expired.length === 1 ? 'has' : 'have'} lapsed. ${action} anyway?`;
 }

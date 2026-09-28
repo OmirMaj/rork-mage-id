@@ -138,7 +138,10 @@ console.log('\n#88 the 300 names the injured worker:');
   ok('safety-incidents opens ?incidentId= into the edit form', /incidentId\?: string;/.test(inc) && /items\.find\(i => i\.id === incidentId\)/.test(inc));
   const osha = src('app/safety-osha.tsx');
   ok('300 rows are tappable and open the incident', /onPress=\{\(\) => openCase\(r\.incidentId\)\}/.test(osha) && /pathname: '\/safety-incidents', params: \{ projectId: inc\.projectId, incidentId \}/.test(osha));
-  ok('rows missing a name / title say so', /Missing \{r\.missing\.join\(' and '\)\}: tap to fix/.test(osha));
+  ok('rows missing a name / title say so', /Missing \{r\.missing\.join\(' and '\)\}: tap to fix/.test(osha)
+    // wave-next W2 (Spanish): one whole sentence per combination, through missingLine().
+    || (/\{missingLine\(r\.missing\)\}/.test(osha) && /'Missing employee name and job title: tap to fix'/.test(osha)
+      && /'Missing employee name: tap to fix'/.test(osha) && /'Missing job title: tap to fix'/.test(osha)));
 }
 
 // ── #168 — dates ─────────────────────────────────────────────────────────────
@@ -173,7 +176,9 @@ console.log('\n#169 hub tile = the log it opens:');
   ok('currentOshaYear is the local year', currentOshaYear(new Date(2026, 0, 1, 0, 30)) === '2026');
   const hub = src('app/safety.tsx');
   ok('the tile counts through buildOsha300Log for the current year', /buildOsha300Log\(scoped, oshaYear\)\.length/.test(hub) && /const oshaYear = currentOshaYear\(\);/.test(hub));
-  ok('the tile is labelled with the year', /label: `OSHA 300 Log · \$\{oshaYear\}`/.test(hub));
+  ok('the tile is labelled with the year', /label: `OSHA 300 Log · \$\{oshaYear\}`/.test(hub)
+    // wave-next W2 (Spanish): the same label as a catalog key with {year}.
+    || /label: t\('safety\.hub\.tileOsha', 'OSHA 300 Log · \{year\}', \{ year: oshaYear \}\)/.test(hub));
   ok('the false "can never disagree" comment is gone', !/can never disagree/.test(hub));
   ok('the log defaults to the same helper', /const currentYear = currentOshaYear\(\);/.test(src('app/safety-osha.tsx')));
   const lastYear = incident({ id: 'old', occurredAt: '2025-06-01' });
@@ -197,7 +202,7 @@ console.log('\n#82 collaborator cases reach the GC; the 300 is the owner\'s:');
     /incidentsForOwnEstablishment\(incidents, projects, user\?\.id\)/.test(src('app/safety-osha.tsx')) && /incidentsForOwnEstablishment\(/.test(src('app/safety.tsx')));
   const inc = src('app/safety-incidents.tsx');
   ok('collaborator copy names who sees the case and does NOT promise the OSHA 300',
-    /seat === 'crew'/.test(inc) && /Only you and this project&apos;s owner can see the cases you report here/.test(inc)
+    /seat === 'crew'/.test(inc) && /Only you and this project(&apos;|')s owner can see the cases you report here/.test(inc)
       && !/testID="incident-collab-note"[^<]*OSHA 300/.test(inc));
 }
 
@@ -240,7 +245,7 @@ console.log('\n#89 retention:');
   ok('a deleted case is tombstoned and addIncident refuses it', /if \(tombstonesRef\.current\.has\(input\.id\)\) return false;/.test(ctx) && /isIncidentDeleted/.test(ctx));
   ok('the tombstone key sits under the mageid_ prefix', /'mageid_safety_incident_tombstones'/.test(ctx));
   const inc = src('app/safety-incidents.tsx');
-  ok('the screen blocks it with the 1904.33 reason', /if \(item && isRecordableCase\(item\)\) \{\s*showAlert\(\s*'Kept on the OSHA 300',[\s\S]{0,200}1904\.33/.test(inc));
+  ok('the screen blocks it with the 1904.33 reason', /if \(item && isRecordableCase\(item\)\) \{\s*showAlert\(\s*(t\('safety\.incident\.keptOnTheOsha', )?'Kept on the OSHA 300'\)?,[\s\S]{0,260}1904\.33/.test(inc));
 }
 
 // ── #84 — JHA Hazards / Controls keep spaces and commas ─────────────────────
@@ -277,7 +282,9 @@ console.log('\n#167 hazard scan feedback:');
   const box = hz.indexOf('<View style={styles.suggestionBox}>');
   const firstCard = hz.indexOf('{items.map(item => {');
   ok('the suggestions render after the scan button, not above the list', scanBtn > 0 && box > scanBtn && box > firstCard);
-  ok('a found scan sets a count note', /hazard\$\{found\.length === 1 \? '' : 's'\} found\. Tap one below/.test(hz));
+  ok('a found scan sets a count note', /hazard\$\{found\.length === 1 \? '' : 's'\} found\. Tap one below/.test(hz)
+    // wave-next W2 (Spanish): the same sentence as a real plural (tn).
+    || /tn\('safety\.hazard\.scanFound', found\.length, \{ one: '\{count\} hazard found\. Tap one below[^']*', other: '\{count\} hazards found\. Tap one below/.test(hz));
 }
 
 // ── #81 / #170 — a way in, and the foreman gets in ──────────────────────────

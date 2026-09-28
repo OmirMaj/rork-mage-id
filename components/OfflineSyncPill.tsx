@@ -69,6 +69,7 @@ import { discardConfirmBody, type UnsavedLine } from '@/utils/syncStatusCore';
 import { onSyncSheetRequested } from '@/utils/syncLedger';
 import { voiceFailedLine, voiceWaitingLine } from '@/utils/audioTranscribeCore';
 import VoiceBacklogSheet, { useVoiceBacklog } from '@/components/VoiceBacklogSheet';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   /** Optional: visual variant. 'compact' shows the icon + the short count;
@@ -85,6 +86,7 @@ interface Props {
 }
 
 export default function OfflineSyncPill({ variant = 'compact', floating = false }: Props) {
+  const { t, tn, lang } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const status = useSyncStatus();
@@ -96,8 +98,16 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
   // A6: voice notes still on this phone — the floating pill only.
   const voice = useVoiceBacklog(floating);
   const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
-  const voiceWaiting = floating ? voiceWaitingLine(voice.backlog) : '';
-  const voiceFailed = floating ? voiceFailedLine(voice.backlog) : '';
+  // voiceWaitingLine / voiceFailedLine decide WHETHER a line shows; the words
+  // are one plural key each (English identical: n === 1 → the one form).
+  const voiceWaitingN = Math.max(0, voice.backlog.waiting) + Math.max(0, voice.backlog.ready);
+  const voiceFailedN = Math.max(0, voice.backlog.failed);
+  const voiceWaiting = floating && voiceWaitingLine(voice.backlog)
+    ? tn('field.chrome.voiceWaiting', voiceWaitingN, { one: '{count} voice note waiting', other: '{count} voice notes waiting' })
+    : '';
+  const voiceFailed = floating && voiceFailedLine(voice.backlog)
+    ? tn('field.chrome.voiceFailed', voiceFailedN, { one: "{count} voice note couldn't be transcribed", other: "{count} voice notes couldn't be transcribed" })
+    : '';
   const showVoice = voiceWaiting.length > 0 || voiceFailed.length > 0;
   // Desktop web: the "what failed" sheet is a centred card beside the sidebar;
   // all-null on a phone. Above the `!visible` return, so hook order is fixed.
@@ -133,32 +143,56 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
     try {
       const out = await retryUnsaved(line.id);
       if (out === 'queued') {
-        showAlert('Saved on this device', `${line.label} will be sent the next time you have signal.`);
+        // The record label is English data from the sync ledger
+        // (utils/syncStatusCore), so only English grammar carries it; any
+        // other language gets a label-free sentence (docs/I18N.md §3.5).
+        showAlert(t('field.chrome.savedOnThisDevice', 'Saved on this device'), lang === 'en'
+          // i18n-keep-english: English-only branch; the ledger label is English data, other languages read field.chrome.sendsNextSignal
+          ? `${line.label} will be sent the next time you have signal.`
+          : t('field.chrome.sendsNextSignal', 'It will be sent the next time you have signal.'));
       }
       // 'failed': the line stays exactly as it was (the replay removes a line
       // only once its resend lands or queues) — the row stays on the phone.
     } finally {
       setBusyId(null);
     }
-  }, [retryUnsaved]);
+  }, [retryUnsaved, t, lang]);
 
   const onDiscard = useCallback((line: UnsavedLine) => {
+    // The record label and discardConfirmBody() are English (the sync ledger,
+    // utils/syncStatusCore): English keeps them byte-identical; any other
+    // language gets label-free sentences, worded per operation the same way
+    // (docs/I18N.md §3.5 — no English data inside another language's grammar).
+    const english = lang === 'en';
+    const otherBody = (): string => {
+      switch (line.discards) {
+        case 'create': return t('field.chrome.discardBody.create', 'It was never saved to MAGE. Discarding removes it from this phone and it cannot be recovered.');
+        case 'edit': return t('field.chrome.discardBody.edit', 'Your change was not saved to MAGE. Discarding drops the change — MAGE keeps the last saved version, and this phone goes back to it.');
+        case 'delete': return t('field.chrome.discardBody.delete', 'The delete was not saved to MAGE. Discarding cancels it — the record stays on MAGE and will reappear on this phone.');
+        default: return t('field.chrome.discardBody.unknown', 'This change was not saved to MAGE. Discarding drops it for good — if the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.');
+      }
+    };
     showAlert(
-      line.canRetry ? `Discard this ${line.label.toLowerCase()}?` : 'Dismiss this notice?',
+      line.canRetry
+        ? (english
+          // i18n-keep-english: English-only branch; the ledger label is English data, other languages read field.chrome.discardUnsaved
+          ? `Discard this ${line.label.toLowerCase()}?`
+          : t('field.chrome.discardUnsaved', 'Discard this unsaved change?'))
+        : t('field.chrome.dismissThisNotice', 'Dismiss this notice?'),
       line.canRetry
         // Worded per operation: a failed edit or delete is not a lost record.
-        ? discardConfirmBody(line.discards)
-        : `${line.line}.\n\nDismissing this notice doesn’t recover the data. You need to re-enter it.`,
+        ? (english ? discardConfirmBody(line.discards) : otherBody())
+        : t('field.chrome.dismissNoticeBody', '{line}.\n\nDismissing this notice doesn’t recover the data. You need to re-enter it.', { line: line.line }),
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: t('field.chrome.keepIt', 'Keep it'), style: 'cancel' },
         {
-          text: line.canRetry ? 'Discard' : 'Dismiss',
+          text: line.canRetry ? t('field.chrome.discard', 'Discard') : t('field.chrome.dismiss', 'Dismiss'),
           style: 'destructive',
           onPress: () => { void discardUnsaved(line.id); },
         },
       ],
     );
-  }, [discardUnsaved]);
+  }, [discardUnsaved, t, lang]);
 
   if (!visible && !showVoice && !voiceSheetOpen) return null;
 
@@ -179,7 +213,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={status.badge}
-        accessibilityHint={failedTone ? 'Shows what could not be saved' : 'Shows what is waiting to sync'}
+        accessibilityHint={failedTone ? t('field.chrome.hintFailed', 'Shows what could not be saved') : t('field.chrome.hintWaiting', 'Shows what is waiting to sync')}
         testID="offline-sync-pill"
         style={floating ? styles.floatingGround : undefined}
       >
@@ -203,7 +237,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={voiceWaiting}
-          accessibilityHint="Shows the voice notes on this phone"
+          accessibilityHint={t('field.chrome.hintVoiceNotes', 'Shows the voice notes on this phone')}
           testID="offline-sync-voice-waiting"
           style={styles.floatingGround}
         >
@@ -219,7 +253,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={voiceFailed}
-          accessibilityHint="Shows the voice notes on this phone"
+          accessibilityHint={t('field.chrome.hintVoiceNotes', 'Shows the voice notes on this phone')}
           testID="offline-sync-voice-failed"
           style={styles.floatingGround}
         >
@@ -260,13 +294,13 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
               {unsaved.map((line) => (
                 <View key={line.id} style={styles.row}>
                   <Text style={styles.rowLabel}>
-                    {line.writes > 1 ? `${line.label} (${line.writes} changes)` : line.label}
+                    {line.writes > 1 ? t('field.chrome.lineChanges', '{label} ({writes} changes)', { label: line.label, writes: line.writes }) : line.label}
                   </Text>
                   <Text style={styles.rowReason}>{line.line}</Text>
                   <View style={styles.rowActions}>
                     {line.canRetry ? (
                       <Button
-                        label="Retry"
+                        label={t('field.chrome.retry', 'Retry')}
                         variant="secondary"
                         size="sm"
                         loading={busyId === line.id}
@@ -276,7 +310,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
                       />
                     ) : null}
                     <Button
-                      label={line.canRetry ? 'Discard' : 'Dismiss'}
+                      label={line.canRetry ? t('field.chrome.discard', 'Discard') : t('field.chrome.dismiss', 'Dismiss')}
                       variant="ghost"
                       size="sm"
                       disabled={busyId !== null}
@@ -287,7 +321,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
                 </View>
               ))}
             </ScrollView>
-            <Button label="Close" variant="ghost" onPress={() => setSheetOpen(false)} fullWidth />
+            <Button label={t('field.chrome.close', 'Close')} variant="ghost" onPress={() => setSheetOpen(false)} fullWidth />
           </View>
         </View>
       </Modal>

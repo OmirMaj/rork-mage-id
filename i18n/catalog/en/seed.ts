@@ -1,16 +1,15 @@
-// i18n/catalog/en.ts — the English catalog (SEED).
+// i18n/catalog/en/seed.ts — the hand-kept English SEED (Phase 0), verbatim.
 //
-// The translator's source and the parity reference for es + pseudo. It is
+// The translator's source and the parity reference for the seed keys. It is
 // NEVER the runtime source for English: t() returns the inline English at the
-// call site (docs/I18N.md §3.2). Once screens adopt t(), scripts/i18n-extract
-// regenerates this from the call sites and validate-i18n fails when a call
-// site's English differs from the entry here. Until then this seed is the
-// hand-kept list of the first surfaces: navigation shell, the settings
-// language row, and the field-first vocabulary (glossary §3–4).
+// call site (docs/I18N.md §3.2). Seed keys are owned EXACTLY (i18n/surfaces.ts
+// `keys`) by the three seed surfaces; a call site that uses a seed key must
+// carry this English byte for byte (validate-i18n). Every key a screen adds
+// lands in a GENERATED shard instead (scripts/i18n-extract.ts), never here.
 
-import type { EnCatalog } from '../types';
+import type { EnCatalog } from '../../types';
 
-export const EN_CATALOG: EnCatalog = {
+export const EN_SEED: EnCatalog = {
   "nav.tab.home": "Home",
   "nav.tab.yourProjects": "Your Projects",
   "nav.tab.summary": "Summary",

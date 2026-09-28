@@ -33,19 +33,21 @@ import { showAlert } from '@/utils/alert';
 import { savedCrewLine } from '@/utils/timeClockPayroll';
 import {
   aiLimitAlertTitle, crewCardCheck, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
-  CREW_CARDS_LOADING, CREW_CARDS_UNAVAILABLE,
+  CREW_CARDS_LOADING, CREW_CARDS_UNAVAILABLE, crewCardsText,
 } from '@/utils/safety/safetyRefresh';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
+import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useT } from '@/contexts/LanguageContext';
 
-function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
+function getStatusConfig(tc: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
-    case 'draft': return { label: 'Draft', color: t.textSecondary, bg: t.line };
-    case 'active': return { label: 'Active', color: t.success, bg: t.successSoft };
-    case 'archived': return { label: 'Archived', color: t.textMuted, bg: t.line };
+    case 'draft': return { label: t('safety.jha.statusDraft', 'Draft'), color: tc.textSecondary, bg: tc.line };
+    case 'active': return { label: t('safety.jha.statusActive', 'Active'), color: tc.success, bg: tc.successSoft };
+    case 'archived': return { label: t('safety.jha.statusArchived', 'Archived'), color: tc.textMuted, bg: tc.line };
   }
 }
 
@@ -65,6 +67,7 @@ export default function SafetyJhaScreen() {
 }
 
 function SafetyJhaInner() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -143,10 +146,9 @@ function SafetyJhaInner() {
   // PICK sets it — typing a name clears it — so the certification chip is an
   // exact CrewMember.id join, never a name guess (audit round 2 #2).
   const [sigWorkerId, setSigWorkerId] = useState<string | null>(null);
-  const sigFlags = useMemo(
-    () => certFlagsForWorker(certifications, sigWorkerId, today),
-    [certifications, sigWorkerId, today],
-  );
+  // Not memoised: the chip labels are catalog text and must follow the app
+  // language on every render (a filter over one worker's certificates).
+  const sigFlags = certFlagsForWorker(certifications, sigWorkerId, today);
 
   const resetForm = useCallback(() => {
     setEditingJha(null);
@@ -196,10 +198,10 @@ function SafetyJhaInner() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!taskDescription.trim()) { showAlert('Add a task', 'Describe the task first so MAGE can list its hazards.'); return; }
-    if (generateBlocked) { showAlert('Business feature', generateBlocked); return; }
+    if (!taskDescription.trim()) { showAlert(t('safety.jha.addATask', 'Add a task'), t('safety.jha.describeTheTaskFirst', 'Describe the task first so MAGE can list its hazards.')); return; }
+    if (generateBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), generateBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.jha.dailyAiLimitReached', 'Daily AI limit reached.')); return; }
     setGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -210,12 +212,13 @@ function SafetyJhaInner() {
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
-        body: JSON.stringify({ trade, taskDescription, projectContext: project?.name ?? '' }),
+        // Spanish drafts only when the app is in Spanish; an English body is byte-identical.
+        body: JSON.stringify({ trade, taskDescription, projectContext: project?.name ?? '', ...(getLang() === 'es' ? { locale: 'es' } : {}) }),
       });
       const refusal = safetyAiServerRefusal('jha_generate', res.status);
-      if (refusal) { showAlert('Business feature', refusal); return; }
+      if (refusal) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), refusal); return; }
       const json = await res.json();
-      if (!res.ok || !json.success) { console.warn('[safety-jha] draft failed', json.error); showAlert("Couldn't draft the JHA", 'Fill it in by hand, or try again in a moment.'); return; }
+      if (!res.ok || !json.success) { console.warn('[safety-jha] draft failed', json.error); showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't draft the JHA"), t('safety.jha.fillItInBy', 'Fill it in by hand, or try again in a moment.')); return; }
       const aiSteps: JHAStep[] = (json.data.steps ?? []).map((s: { step: string; hazards: string[]; controls: string[] }) => ({
         id: generateUUID(), step: s.step, hazards: s.hazards ?? [], controls: s.controls ?? [],
       }));
@@ -227,31 +230,31 @@ function SafetyJhaInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      showAlert("Couldn't draft the JHA", "You may be offline. Fill it in by hand, or try again when you're back online.");
+      showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't draft the JHA"), t('safety.jha.youMayBeOffline', "You may be offline. Fill it in by hand, or try again when you're back online."));
     } finally {
       setGenerating(false);
     }
-  }, [taskDescription, trade, tier, project, generateBlocked]);
+  }, [taskDescription, trade, tier, project, generateBlocked, t]);
 
   const handleSave = useCallback(() => {
     // Immutable once signed — a signed JHA can only be archived, never edited.
     if (editingJha && editingJha.signOffs.length > 0) {
-      showAlert('Signed and locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
+      showAlert(t('safety.jha.signedAndLocked', 'Signed and locked'), t('safety.jha.thisJhaHasSign', 'This JHA has sign-offs and can no longer be edited. Archive it instead.'));
       return;
     }
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert('View only', blocked); return; }
-    const t = title.trim();
-    if (!t) { showAlert('Missing title', 'Give this JHA a title.'); return; }
-    const dateProblem = safetyDateProblem(date, 'JHA date');
-    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
+    if (blocked) { showAlert(t('safety.jha.viewOnly', 'View only'), blocked); return; }
+    const ttl = title.trim();
+    if (!ttl) { showAlert(t('safety.jha.missingTitle', 'Missing title'), t('safety.jha.giveThisJhaA', 'Give this JHA a title.')); return; }
+    const dateProblem = safetyDateProblem(date, t('safety.jha.dateLabel', 'JHA date'));
+    if (dateProblem) { showAlert(t('safety.jha.checkTheDate', 'Check the date'), dateProblem); return; }
     const now = new Date().toISOString();
     const ppe = requiredPPE.map(p => p.trim()).filter(Boolean);
     if (editingJha) {
-      updateJha(editingJha.id, { title: t, trade: trade.trim(), taskDescription: taskDescription.trim(), date, steps, requiredPPE: ppe, aiGenerated });
+      updateJha(editingJha.id, { title: ttl, trade: trade.trim(), taskDescription: taskDescription.trim(), date, steps, requiredPPE: ppe, aiGenerated });
     } else {
       const jha: JobHazardAnalysis = {
-        id: generateUUID(), projectId: projectId ?? '', title: t, trade: trade.trim(),
+        id: generateUUID(), projectId: projectId ?? '', title: ttl, trade: trade.trim(),
         taskDescription: taskDescription.trim(), date, steps, requiredPPE: ppe, signOffs: [],
         aiGenerated, status: 'draft', createdBy: author, createdAt: now, updatedAt: now,
       };
@@ -259,7 +262,7 @@ function SafetyJhaInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm, author, seat]);
+  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm, author, seat, t]);
 
   const handleActivate = useCallback((jha: JobHazardAnalysis) => {
     updateJha(jha.id, { status: 'active' });
@@ -277,17 +280,17 @@ function SafetyJhaInner() {
 
   const handleDelete = useCallback((id: string) => {
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert('Can\'t delete', blocked); return; }
+    if (blocked) { showAlert(t('safety.jha.cantDelete', "Can't delete"), blocked); return; }
     const jha = items.find(x => x.id === id);
     if (jha && jha.signOffs.length > 0) {
-      showAlert('Signed and locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
+      showAlert(t('safety.jha.signedAndLocked', 'Signed and locked'), t('safety.jha.aJhaWithRecorded', "A JHA with recorded sign-offs is part of the safety record and can't be deleted. Archive it instead."));
       return;
     }
-    showAlert('Delete JHA', 'Delete this job hazard analysis?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteJha(id) },
+    showAlert(t('safety.jha.deleteJha', 'Delete JHA'), t('safety.jha.deleteThisJobHazard', 'Delete this job hazard analysis?'), [
+      { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+      { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteJha(id) },
     ]);
-  }, [deleteJha, items, seat]);
+  }, [deleteJha, items, seat, t]);
 
   const commitSignOff = useCallback(() => {
     const jha = items.find(x => x.id === signOffFor);
@@ -301,20 +304,20 @@ function SafetyJhaInner() {
 
   const handleAddSignOff = useCallback(() => {
     const name = sigName.trim();
-    if (!name) { showAlert('Missing name', 'Enter who is signing off.'); return; }
+    if (!name) { showAlert(t('safety.jha.missingName', 'Missing name'), t('safety.jha.enterWhoIsSigning', 'Enter who is signing off.')); return; }
     // A lapsed card asks first and names the card + date. Not a block.
     // 'Sign them off': the JHA's verb, matching the button below. The default
     // ('Sign them in') belongs to the toolbox sign-in sheet.
     const warn = lapsedCertConfirmText(name, sigFlags, 'Sign them off');
     if (warn) {
-      showAlert('Certification lapsed', warn, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign off anyway', style: 'destructive', onPress: commitSignOff },
+      showAlert(t('safety.jha.certificationLapsed', 'Certification lapsed'), warn, [
+        { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('safety.jha.signOffAnyway', 'Sign off anyway'), style: 'destructive', onPress: commitSignOff },
       ]);
       return;
     }
     commitSignOff();
-  }, [sigName, sigFlags, commitSignOff]);
+  }, [sigName, sigFlags, commitSignOff, t]);
 
   // Desktop sheet (wave 6c): the form opens as a capped card centred in the
   // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
@@ -327,19 +330,19 @@ function SafetyJhaInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'JHAs' }} />
+        <Stack.Screen options={{ title: t('safety.jha.screenTitle', 'JHAs') }} />
         <EmptyState
           icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title="Open a project first"
-          message="JHAs are tied to a project so each one carries its trade, steps and sign-offs. To start one:"
+          title={t('safety.jha.openAProjectFirst', 'Open a project first')}
+          message={t('safety.jha.jhasAreTiedTo', 'JHAs are tied to a project so each one carries its trade, steps and sign-offs. To start one:')}
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
-            'Open JHAs and tap + to add one, or draft it from a task description.',
+            t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
+            t('safety.jha.emptyStepOpen', 'Open JHAs and tap + to add one, or draft it from a task description.'),
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a project"
+          actionLabel={t('safety.jha.pickAProject', 'Pick a project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -348,7 +351,7 @@ function SafetyJhaInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: `JHAs — ${project.name}` }} />
+      <Stack.Screen options={{ title: t('safety.jha.titleWithProject', 'JHAs — {name}', { name: project.name }) }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the JHAs he filed
             (20260919130000); the GC's are not shown to him. */}
@@ -372,8 +375,9 @@ function SafetyJhaInner() {
               </View>
 
               <Text style={styles.cardSummary}>
-                {item.steps.length} step{item.steps.length === 1 ? '' : 's'} · {item.requiredPPE.length} PPE
-                {item.aiGenerated ? ' · AI' : ''}
+                {item.aiGenerated
+                  ? tn('safety.jha.cardSummaryAi', item.steps.length, { one: '{count} step · {ppe} PPE · AI', other: '{count} steps · {ppe} PPE · AI' }, { ppe: item.requiredPPE.length })
+                  : tn('safety.jha.cardSummary', item.steps.length, { one: '{count} step · {ppe} PPE', other: '{count} steps · {ppe} PPE' }, { ppe: item.requiredPPE.length })}
               </Text>
 
               {item.signOffs.length > 0 ? (
@@ -381,12 +385,12 @@ function SafetyJhaInner() {
                   <View style={styles.signRow}>
                     <PenLine size={12} color={themeColors.success} strokeWidth={1.75} />
                     <Text style={styles.signRowText}>
-                      {item.signOffs.length} sign-off{item.signOffs.length === 1 ? '' : 's'}
+                      {tn('safety.jha.signOffCount', item.signOffs.length, { one: '{count} sign-off', other: '{count} sign-offs' })}
                     </Text>
                   </View>
                   <View style={styles.lockedChip}>
                     <Lock size={11} color={themeColors.accent} strokeWidth={2} />
-                    <Text style={styles.lockedChipText}>Locked</Text>
+                    <Text style={styles.lockedChipText}>{t('safety.jha.locked', 'Locked')}</Text>
                   </View>
                 </View>
               ) : null}
@@ -395,14 +399,14 @@ function SafetyJhaInner() {
                 {item.status === 'draft' && (
                   <TouchableOpacity style={[styles.cardActionBtn, { backgroundColor: themeColors.successSoft }]} onPress={() => handleActivate(item)}>
                     <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
-                    <Text style={[styles.cardActionText, { color: themeColors.success }]}>Activate</Text>
+                    <Text style={[styles.cardActionText, { color: themeColors.success }]}>{t('safety.jha.activate', 'Activate')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.cardActionBtn} onPress={() => { setSignOffFor(item.id); setSigName(''); setSigRole(''); setSigWorkerId(null); }}>
                   <PenLine size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.cardActionText, { color: themeColors.accent }]}>Add sign-off</Text>
+                  <Text style={[styles.cardActionText, { color: themeColors.accent }]}>{t('safety.jha.addSignOff', 'Add sign-off')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel="Delete">
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel={t('common.action.delete', 'Delete')}>
                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -414,9 +418,9 @@ function SafetyJhaInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={isCrewSeat ? crewEmptyTitle('jha') : 'No JHAs yet'}
-              message="Break a task into steps, name the hazards and set the controls before crews start. Draft it from a task description, then edit it and get sign-offs."
-              actionLabel="Add first JHA"
+              title={isCrewSeat ? crewEmptyTitle('jha') : t('safety.jha.noJhasYet', 'No JHAs yet')}
+              message={t('safety.jha.breakATaskInto', 'Break a task into steps, name the hazards and set the controls before crews start. Draft it from a task description, then edit it and get sign-offs.')}
+              actionLabel={t('safety.jha.addFirstJha', 'Add first JHA')}
               onAction={() => { resetForm(); setShowForm(true); }}
             />
           </View>
@@ -429,12 +433,12 @@ function SafetyJhaInner() {
           testID="add-jha-voice"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.addItemBtnText}>Write one by voice</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.jha.writeOneByVoice', 'Write one by voice')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-jha">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add JHA</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.jha.addJha', 'Add JHA')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -445,11 +449,11 @@ function SafetyJhaInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.back', 'Back')} style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? 'Signed JHA' : editingJha ? 'Edit JHA' : 'New JHA'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? t('safety.jha.signedJha', 'Signed JHA') : editingJha ? t('safety.jha.editJha', 'Edit JHA') : t('safety.jha.newJha', 'New JHA')}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
@@ -458,32 +462,32 @@ function SafetyJhaInner() {
                   <View style={styles.lockedBanner}>
                     <Lock size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.lockedBannerText}>
-                      Signed — locked. Sign-offs are append-only; the analysis can’t be edited. You can archive it or add more sign-offs.
+                      {t('safety.jha.signedLockedSignOffs', 'Signed — locked. Sign-offs are append-only; the analysis can’t be edited. You can archive it or add more sign-offs.')}
                     </Text>
                   </View>
                 ) : null}
 
-                <Text style={styles.fieldLabel}>Title *</Text>
-                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={title} onChangeText={setTitle} editable={!isLocked} placeholder="e.g. Roof tie-off — south slope" placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
+                <Text style={styles.fieldLabel}>{t('safety.jha.titleLabel', 'Title *')}</Text>
+                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={title} onChangeText={setTitle} editable={!isLocked} placeholder={t('safety.jha.eGRoofTie', 'e.g. Roof tie-off — south slope')} placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Trade</Text>
-                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={trade} onChangeText={setTrade} editable={!isLocked} placeholder="e.g. Roofing" placeholderTextColor={themeColors.textMuted} />
+                    <Text style={styles.fieldLabel}>{t('safety.jha.trade', 'Trade')}</Text>
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={trade} onChangeText={setTrade} editable={!isLocked} placeholder={t('safety.jha.eGRoofing', 'e.g. Roofing')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Date</Text>
-                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={date} onChangeText={setDate} editable={!isLocked} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                    <Text style={styles.fieldLabel}>{t('safety.jha.date', 'Date')}</Text>
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={date} onChangeText={setDate} editable={!isLocked} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>Task description</Text>
+                <Text style={styles.fieldLabel}>{t('safety.jha.taskDescription', 'Task description')}</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }, isLocked ? styles.inputLocked : null]}
                   value={taskDescription}
                   onChangeText={setTaskDescription}
                   editable={!isLocked}
-                  placeholder="Describe the task to list its hazards"
+                  placeholder={t('safety.jha.describeTheTaskTo', 'Describe the task to list its hazards')}
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
@@ -492,7 +496,7 @@ function SafetyJhaInner() {
                   <>
                     <TouchableOpacity style={[styles.aiBtn, generateBlocked ? styles.aiBtnDisabled : null]} onPress={handleGenerate} disabled={generating || !!generateBlocked} activeOpacity={0.85} testID="jha-generate">
                       <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
-                      <Text style={styles.aiBtnText}>{generating ? 'Drafting the JHA…' : 'Draft JHA'}</Text>
+                      <Text style={styles.aiBtnText}>{generating ? t('safety.jha.draftingTheJha', 'Drafting the JHA…') : t('safety.jha.draftJha', 'Draft JHA')}</Text>
                     </TouchableOpacity>
                     {generateBlocked ? (
                       <Text style={styles.cardCheckText} testID="jha-generate-blocked">{generateBlocked}</Text>
@@ -501,11 +505,11 @@ function SafetyJhaInner() {
                 ) : null}
 
                 <View style={styles.stepsHeader}>
-                  <Text style={styles.fieldLabel}>Steps</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.jha.steps', 'Steps')}</Text>
                   {!isLocked ? (
-                    <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add step">
+                    <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel={t('safety.jha.addStep', 'Add step')}>
                       <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.addStepText}>Add step</Text>
+                      <Text style={styles.addStepText}>{t('safety.jha.addStep', 'Add step')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -513,9 +517,9 @@ function SafetyJhaInner() {
                 {steps.map((s, idx) => (
                   <View key={s.id} style={styles.stepRow}>
                     <View style={styles.stepRowHeader}>
-                      <Text style={styles.stepNum}>Step {idx + 1}</Text>
+                      <Text style={styles.stepNum}>{t('safety.jha.stepNumber', 'Step {n}', { n: idx + 1 })}</Text>
                       {!isLocked ? (
-                        <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove step">
+                        <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.jha.removeStep', 'Remove step')}>
                           <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                         </TouchableOpacity>
                       ) : null}
@@ -525,7 +529,7 @@ function SafetyJhaInner() {
                       value={s.step}
                       onChangeText={v => updateStepField(s.id, 'step', v)}
                       editable={!isLocked}
-                      placeholder="Step description"
+                      placeholder={t('safety.jha.stepDescription', 'Step description')}
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TextInput
@@ -533,7 +537,7 @@ function SafetyJhaInner() {
                       value={stepText[s.id]?.hazards ?? s.hazards.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'hazards', v)}
                       editable={!isLocked}
-                      placeholder="Hazards (comma-separated)"
+                      placeholder={t('safety.jha.hazardsCommaSeparated', 'Hazards (comma-separated)')}
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TextInput
@@ -541,36 +545,36 @@ function SafetyJhaInner() {
                       value={stepText[s.id]?.controls ?? s.controls.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'controls', v)}
                       editable={!isLocked}
-                      placeholder="Controls (comma-separated)"
+                      placeholder={t('safety.jha.controlsCommaSeparated', 'Controls (comma-separated)')}
                       placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                 ))}
 
-                <Text style={styles.fieldLabel}>Required PPE</Text>
+                <Text style={styles.fieldLabel}>{t('safety.jha.requiredPpe', 'Required PPE')}</Text>
                 <TextInput
                   style={[styles.input, isLocked ? styles.inputLocked : null]}
                   value={ppeText}
                   onChangeText={handlePpeChange}
                   editable={!isLocked}
-                  placeholder="Hard hat, harness, gloves (separate with commas)"
+                  placeholder={t('safety.jha.hardHatHarnessGloves', 'Hard hat, harness, gloves (separate with commas)')}
                   placeholderTextColor={themeColors.textMuted}
                 />
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>{isLocked ? 'Close' : 'Cancel'}</Text>
+                    <Text style={styles.cancelBtnText}>{isLocked ? t('common.action.close', 'Close') : t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   {isLocked ? (
                     editingJha?.status !== 'archived' ? (
                       <TouchableOpacity style={[styles.saveBtn, { flexDirection: 'row', gap: 6 }]} onPress={handleArchive} activeOpacity={0.85} testID="archive-jha">
                         <Archive size={15} color="#fff" strokeWidth={1.75} />
-                        <Text style={styles.saveBtnText}>Archive</Text>
+                        <Text style={styles.saveBtnText}>{t('safety.jha.archive', 'Archive')}</Text>
                       </TouchableOpacity>
                     ) : null
                   ) : (
                     <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-jha">
-                      <Text style={styles.saveBtnText}>{editingJha ? 'Update' : 'Add JHA'}</Text>
+                      <Text style={styles.saveBtnText}>{editingJha ? t('safety.jha.update', 'Update') : t('safety.jha.addJha', 'Add JHA')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -585,14 +589,14 @@ function SafetyJhaInner() {
         <View style={[styles.signOverlay, fSign.overlay]}>
           <View style={[styles.signCard, fSign.card]}>
             <View style={styles.formHeader}>
-              <Text style={styles.signTitle}>Add sign-off</Text>
-              <TouchableOpacity onPress={() => setSignOffFor(null)} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.signTitle}>{t('safety.jha.addSignOff', 'Add sign-off')}</Text>
+              <TouchableOpacity onPress={() => setSignOffFor(null)} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {assignedCrew.length > 0 ? (
               <>
-                <Text style={styles.fieldLabel}>Crew on this project</Text>
+                <Text style={styles.fieldLabel}>{t('safety.jha.crewOnThisProject', 'Crew on this project')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                   {assignedCrew.map(m => {
                     const active = sigWorkerId === m.id;
@@ -613,32 +617,32 @@ function SafetyJhaInner() {
             {cardCheck === 'loading' || cardCheck === 'unavailable' ? (
               <View style={styles.cardCheckRow} testID="jha-card-check">
                 <AlertTriangle size={12} color={themeColors.accentLabel} strokeWidth={2} />
-                <Text style={styles.cardCheckText}>{cardCheck === 'loading' ? CREW_CARDS_LOADING : CREW_CARDS_UNAVAILABLE}</Text>
+                <Text style={styles.cardCheckText}>{crewCardsText(cardCheck === 'loading' ? CREW_CARDS_LOADING : CREW_CARDS_UNAVAILABLE)}</Text>
                 {cardCheck === 'unavailable' ? (
                   <TouchableOpacity onPress={projectCrew.refetch} accessibilityRole="button" hitSlop={8} testID="jha-card-check-retry">
-                    <Text style={styles.cardCheckRetry}>Retry</Text>
+                    <Text style={styles.cardCheckRetry}>{t('common.action.retry', 'Retry')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
             ) : isCrewSeat && projectCrew.fromCache && projectCrew.fetchedAt ? (
               <Text style={styles.cardCheckText}>{savedCrewLine(projectCrew.fetchedAt, projectCrew.offline || projectCrew.isPaused)}</Text>
             ) : null}
-            <Text style={styles.fieldLabel}>Name *</Text>
-            <TextInput style={styles.input} value={sigName} onChangeText={(v) => { setSigName(v); setSigWorkerId(null); }} placeholder="Who is signing off" placeholderTextColor={themeColors.textMuted} />
+            <Text style={styles.fieldLabel}>{t('safety.jha.name', 'Name *')}</Text>
+            <TextInput style={styles.input} value={sigName} onChangeText={(v) => { setSigName(v); setSigWorkerId(null); }} placeholder={t('safety.jha.whoIsSigningOff', 'Who is signing off')} placeholderTextColor={themeColors.textMuted} />
             {sigFlags.map(f => (
               <View key={f.certId} style={[styles.certChip, f.status === 'expired' ? styles.certChipExpired : null]} testID="jha-cert-chip">
                 <AlertTriangle size={11} color={f.status === 'expired' ? themeColors.danger : themeColors.accentLabel} strokeWidth={2} />
                 <Text style={[styles.certChipText, { color: f.status === 'expired' ? themeColors.danger : themeColors.accentLabel }]}>{f.label}</Text>
               </View>
             ))}
-            <Text style={styles.fieldLabel}>Role</Text>
-            <TextInput style={styles.input} value={sigRole} onChangeText={setSigRole} placeholder="e.g. Foreman" placeholderTextColor={themeColors.textMuted} />
+            <Text style={styles.fieldLabel}>{t('safety.jha.role', 'Role')}</Text>
+            <TextInput style={styles.input} value={sigRole} onChangeText={setSigRole} placeholder={t('safety.jha.eGForeman', 'e.g. Foreman')} placeholderTextColor={themeColors.textMuted} />
             <View style={styles.formActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setSignOffFor(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddSignOff} activeOpacity={0.85}>
-                <Text style={styles.saveBtnText}>Sign off</Text>
+                <Text style={styles.saveBtnText}>{t('safety.jha.signOff', 'Sign off')}</Text>
               </TouchableOpacity>
             </View>
           </View>

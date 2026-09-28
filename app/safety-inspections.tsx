@@ -29,14 +29,21 @@ import { todayCalendarDay } from '@/utils/calendarDate';
 import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
+import { useT } from '@/contexts/LanguageContext';
+import { t } from '@/i18n/core';
 
 const RESULTS: InspectionItem['result'][] = ['pass', 'fail', 'na'];
-const RESULT_LABEL: Record<InspectionItem['result'], string> = { pass: 'Pass', fail: 'Fail', na: 'N/A' };
+// A function, not a map (docs/I18N.md §3.4): t() reads the language at call time.
+function resultLabel(r: InspectionItem['result']): string {
+  if (r === 'pass') return t('safety.inspection.resultPass', 'Pass');
+  if (r === 'fail') return t('safety.inspection.resultFail', 'Fail');
+  return t('safety.inspection.resultNa', 'N/A');
+}
 
-function resultColor(t: ThemeColors, r: InspectionItem['result']): string {
-  if (r === 'pass') return t.success;
-  if (r === 'fail') return t.danger;
-  return t.textMuted;
+function resultColor(tc: ThemeColors, r: InspectionItem['result']): string {
+  if (r === 'pass') return tc.success;
+  if (r === 'fail') return tc.danger;
+  return tc.textMuted;
 }
 
 function cycleResult(items: InspectionItem[], id: string, result: InspectionItem['result']): InspectionItem[] {
@@ -59,6 +66,7 @@ export default function SafetyInspectionsScreen() {
 }
 
 function SafetyInspectionsInner() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -76,7 +84,7 @@ function SafetyInspectionsInner() {
   const { getInspectionsForProject, addInspection, updateInspection, deleteInspection, templates, addHazard, hazards } = useSafety();
 
   const inspections = useMemo(() => getInspectionsForProject(projectId ?? ''), [projectId, getInspectionsForProject]);
-  const inspectionTemplates = useMemo(() => templates.filter((t) => t.category === 'inspection'), [templates]);
+  const inspectionTemplates = useMemo(() => templates.filter((tpl) => tpl.category === 'inspection'), [templates]);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SafetyInspection | null>(null);
@@ -161,15 +169,15 @@ function SafetyInspectionsInner() {
     );
     addHazard(hz);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the hazard log for follow-up.`);
-  }, [editing, loggedItemIds, addHazard, userId]);
+    showAlert(t('safety.inspection.hazardLogged', 'Hazard logged'), t('safety.inspection.hazardLoggedBody', '"{item}" was added to the hazard log for follow-up.', { item: item.prompt || t('safety.inspection.failedItem', 'Failed item') }));
+  }, [editing, loggedItemIds, addHazard, userId, t]);
 
   const handleSave = useCallback(() => {
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert('View only', blocked); return; }
-    if (!title.trim()) { showAlert('Missing title', 'Give the inspection a title.'); return; }
-    const dateProblem = safetyDateProblem(date, 'Inspection date');
-    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
+    if (blocked) { showAlert(t('safety.inspection.viewOnly', 'View only'), blocked); return; }
+    if (!title.trim()) { showAlert(t('safety.inspection.missingTitle', 'Missing title'), t('safety.inspection.giveTheInspectionA', 'Give the inspection a title.')); return; }
+    const dateProblem = safetyDateProblem(date, t('safety.inspection.dateLabel', 'Inspection date'));
+    if (dateProblem) { showAlert(t('safety.inspection.checkTheDate', 'Check the date'), dateProblem); return; }
     const cleaned = items.map((it) => ({ ...it, prompt: it.prompt.trim() })).filter((it) => it.prompt);
     const score = scoreInspection(cleaned).score;
     if (editing) {
@@ -185,16 +193,16 @@ function SafetyInspectionsInner() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [title, date, inspector, items, templateId, editing, projectId, userId, addInspection, updateInspection, resetForm, seat]);
+  }, [title, date, inspector, items, templateId, editing, projectId, userId, addInspection, updateInspection, resetForm, seat, t]);
 
   const handleDelete = useCallback((inspection: SafetyInspection) => {
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert('Can\'t delete', blocked); return; }
-    showAlert('Delete inspection', `Delete "${inspection.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteInspection(inspection.id) },
+    if (blocked) { showAlert(t('safety.inspection.cantDelete', "Can't delete"), blocked); return; }
+    showAlert(t('safety.inspection.deleteInspection', 'Delete inspection'), t('safety.inspection.delete', 'Delete "{title}"?', { title: inspection.title }), [
+      { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+      { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteInspection(inspection.id) },
     ]);
-  }, [deleteInspection, seat]);
+  }, [deleteInspection, seat, t]);
 
   // Desktop sheet (wave 6c): the form opens as a capped card centred in the
   // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
@@ -206,16 +214,16 @@ function SafetyInspectionsInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Inspections' }} />
+        <Stack.Screen options={{ title: t('safety.inspection.screenTitle', 'Inspections') }} />
         <EmptyState
           icon={<ClipboardCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title="Open a project first"
-          message="Inspections are tied to a project so each failed line can become a tracked hazard on it. To run one:"
+          title={t('safety.inspection.openAProjectFirst', 'Open a project first')}
+          message={t('safety.inspection.inspectionsAreTiedTo', 'Inspections are tied to a project so each failed line can become a tracked hazard on it. To run one:')}
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
-            'Open Inspections and tap + to start one.',
+            t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
+            t('safety.inspection.emptyStepOpen', 'Open Inspections and tap + to start one.'),
           ]}
-          actionLabel="Pick a project"
+          actionLabel={t('safety.inspection.pickAProject', 'Pick a project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -224,7 +232,7 @@ function SafetyInspectionsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'Inspections' }} />
+      <Stack.Screen options={{ title: t('safety.inspection.screenTitle', 'Inspections') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {inspections.map((inspection) => {
           const s = scoreInspection(inspection.items);
@@ -243,9 +251,9 @@ function SafetyInspectionsInner() {
                 </View>
               </View>
               <View style={styles.countsRow}>
-                <Text style={[styles.countText, { color: themeColors.success }]}>{s.pass} pass</Text>
-                <Text style={[styles.countText, { color: themeColors.danger }]}>{s.fail} fail</Text>
-                <Text style={[styles.countText, { color: themeColors.textMuted }]}>{s.na} n/a</Text>
+                <Text style={[styles.countText, { color: themeColors.success }]}>{t('safety.inspection.pass', '{pass} pass', { pass: s.pass })}</Text>
+                <Text style={[styles.countText, { color: themeColors.danger }]}>{t('safety.inspection.fail', '{fail} fail', { fail: s.fail })}</Text>
+                <Text style={[styles.countText, { color: themeColors.textMuted }]}>{t('safety.inspection.nA', '{na} n/a', { na: s.na })}</Text>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} style={{ marginLeft: 'auto' as const }} />
               </View>
             </TouchableOpacity>
@@ -256,9 +264,9 @@ function SafetyInspectionsInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<ClipboardCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No inspections yet"
-              message="Run a safety inspection on this project. Pull a checklist from your forms library, mark each line pass, fail or N/A, and turn failed items into tracked hazards."
-              actionLabel="New inspection"
+              title={t('safety.inspection.noInspectionsYet', 'No inspections yet')}
+              message={t('safety.inspection.runASafetyInspection', 'Run a safety inspection on this project. Pull a checklist from your forms library, mark each line pass, fail or N/A, and turn failed items into tracked hazards.')}
+              actionLabel={t('safety.inspection.newInspection', 'New inspection')}
               onAction={openNew}
             />
           </View>
@@ -266,7 +274,7 @@ function SafetyInspectionsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-inspection">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>New inspection</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.inspection.newInspection', 'New inspection')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -276,39 +284,39 @@ function SafetyInspectionsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit inspection' : 'New inspection'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={styles.formTitle}>{editing ? t('safety.inspection.editInspection', 'Edit inspection') : t('safety.inspection.newInspection', 'New inspection')}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
                 <ScrollView style={{ maxHeight: 520 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.fieldLabel}>Title *</Text>
-                  <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Weekly jobsite safety walk" placeholderTextColor={themeColors.textMuted} testID="inspection-title-input" />
+                  <Text style={styles.fieldLabel}>{t('safety.inspection.title', 'Title *')}</Text>
+                  <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={t('safety.inspection.eGWeeklyJobsite', 'e.g. Weekly jobsite safety walk')} placeholderTextColor={themeColors.textMuted} testID="inspection-title-input" />
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Date</Text>
-                      <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                      <Text style={styles.fieldLabel}>{t('safety.inspection.date', 'Date')}</Text>
+                      <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Inspector</Text>
-                      <TextInput style={styles.input} value={inspector} onChangeText={setInspector} placeholder="Name" placeholderTextColor={themeColors.textMuted} />
+                      <Text style={styles.fieldLabel}>{t('safety.inspection.inspector', 'Inspector')}</Text>
+                      <TextInput style={styles.input} value={inspector} onChangeText={setInspector} placeholder={t('safety.inspection.name', 'Name')} placeholderTextColor={themeColors.textMuted} />
                     </View>
                   </View>
 
                   {inspectionTemplates.length > 0 && (
                     <>
-                      <Text style={styles.fieldLabel}>Checklist template</Text>
+                      <Text style={styles.fieldLabel}>{t('safety.inspection.checklistTemplate', 'Checklist template')}</Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
-                        {inspectionTemplates.map((t) => (
+                        {inspectionTemplates.map((tpl) => (
                           <TouchableOpacity
-                            key={t.id}
-                            style={[styles.templateChip, templateId === t.id && styles.templateChipActive]}
-                            onPress={() => pickTemplate(t)}
+                            key={tpl.id}
+                            style={[styles.templateChip, templateId === tpl.id && styles.templateChipActive]}
+                            onPress={() => pickTemplate(tpl)}
                           >
-                            <Text style={[styles.templateChipText, templateId === t.id && styles.templateChipTextActive]}>
-                              {t.name} ({t.fields.length})
+                            <Text style={[styles.templateChipText, templateId === tpl.id && styles.templateChipTextActive]}>
+                              {tpl.name} ({tpl.fields.length})
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -316,7 +324,7 @@ function SafetyInspectionsInner() {
                     </>
                   )}
 
-                  <Text style={styles.fieldLabel}>Checklist items</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.inspection.checklistItems', 'Checklist items')}</Text>
                   {items.map((item) => (
                     <View key={item.id} style={styles.itemRow}>
                       <View style={styles.itemTop}>
@@ -324,10 +332,10 @@ function SafetyInspectionsInner() {
                           style={[styles.input, { flex: 1, marginTop: 0 }]}
                           value={item.prompt}
                           onChangeText={(v) => setItemPrompt(item.id, v)}
-                          placeholder="What are you checking?"
+                          placeholder={t('safety.inspection.whatAreYouChecking', 'What are you checking?')}
                           placeholderTextColor={themeColors.textMuted}
                         />
-                        <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.itemDeleteBtn} accessibilityRole="button" accessibilityLabel="Remove item">
+                        <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.itemDeleteBtn} accessibilityRole="button" accessibilityLabel={t('safety.inspection.removeItem', 'Remove item')}>
                           <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
@@ -342,7 +350,7 @@ function SafetyInspectionsInner() {
                               onPress={() => setItemResult(item.id, r)}
                             >
                               <Text style={[styles.segmentText, active ? { color: '#fff' } : { color: themeColors.textSecondary }]}>
-                                {RESULT_LABEL[r]}
+                                {resultLabel(r)}
                               </Text>
                             </TouchableOpacity>
                           );
@@ -352,7 +360,7 @@ function SafetyInspectionsInner() {
                         loggedItemIds.has(item.id) ? (
                           <View style={[styles.logHazardBtn, styles.logHazardBtnDone]}>
                             <TriangleAlert size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                            <Text style={[styles.logHazardText, { color: themeColors.textMuted }]}>Logged as hazard</Text>
+                            <Text style={[styles.logHazardText, { color: themeColors.textMuted }]}>{t('safety.inspection.loggedAsHazard', 'Logged as hazard')}</Text>
                           </View>
                         ) : (
                           <TouchableOpacity
@@ -361,19 +369,19 @@ function SafetyInspectionsInner() {
                             activeOpacity={0.8}
                           >
                             <TriangleAlert size={14} color={themeColors.danger} strokeWidth={1.75} />
-                            <Text style={styles.logHazardText}>Log as hazard</Text>
+                            <Text style={styles.logHazardText}>{t('safety.inspection.logAsHazard', 'Log as hazard')}</Text>
                           </TouchableOpacity>
                         )
                       )}
                       {item.result === 'fail' && !editing && (
-                        <Text style={styles.logHazardHint}>Save the inspection to log this as a hazard.</Text>
+                        <Text style={styles.logHazardHint}>{t('safety.inspection.saveTheInspectionTo', 'Save the inspection to log this as a hazard.')}</Text>
                       )}
                     </View>
                   ))}
 
                   <TouchableOpacity style={styles.addFieldBtn} onPress={addBlankItem} activeOpacity={0.7}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addFieldBtnText}>Add item</Text>
+                    <Text style={styles.addFieldBtnText}>{t('safety.inspection.addItem', 'Add item')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
 
@@ -384,10 +392,10 @@ function SafetyInspectionsInner() {
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-inspection">
-                    <Text style={styles.saveBtnText}>{editing ? 'Update' : 'Save'}</Text>
+                    <Text style={styles.saveBtnText}>{editing ? t('safety.inspection.update', 'Update') : t('common.action.save', 'Save')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

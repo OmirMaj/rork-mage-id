@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, TextInput, Platform, Modal, FlatList,
   ActivityIndicator,
@@ -14,7 +14,7 @@ import {
   Globe, CalendarDays, DollarSign, FileText, Image as ImageIcon,
   ClipboardList, CheckCircle2, MessageSquare, ChevronDown, ChevronUp,
   BarChart3, Flag, GitBranch, Lock,
-  FileSignature, X, Check, ThumbsDown, ShieldCheck, Send,
+  FileSignature, X, ThumbsDown, ShieldCheck, Send,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -34,7 +34,12 @@ import { loadActiveContract } from '@/utils/contractEngine';
 import { downloadSealedContractPdf } from '@/utils/contractSealing';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { ProjectDocument } from '@/types';
-import SignaturePad from '@/components/SignaturePad';
+import { SigningCeremony } from '@/components/moments/signing/SigningCeremony';
+import type { CommitResult } from '@/components/moments/core/contract';
+import { useOffline } from '@/hooks/useOnline';
+import * as signingCopy from '@/utils/moments/sites/signingCopy';
+import { isTransportError } from '@/utils/networkErrors';
+import { nailIt } from '@/components/animations/NailItToast';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -603,6 +608,10 @@ export default function ClientViewScreen() {
   // button. Same bar the static portal clears (marketing/portal/index.html).
   const [esignConsent, setEsignConsent] = useState(false);
   const [submittingApproval, setSubmittingApproval] = useState(false);
+  // The approve ceremony is committing: the sheet cannot be closed under it.
+  const [approvingBusy, setApprovingBusy] = useState(false);
+  // Approving is a signature: it needs a connection (moments plan rule 2).
+  const offline = useOffline();
 
   // Lightbox state for Site Photos
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -692,35 +701,13 @@ export default function ClientViewScreen() {
     setRejectionReason('');
     setEsignConsent(false);
     setSubmittingApproval(false);
+    setApprovingBusy(false);
   }, []);
 
-  const submitApproval = useCallback(async () => {
-    // Local-only by construction: the approve/reject buttons are not rendered
-    // in snapshot mode, and the insert below needs an owner-scoped session.
-    const project = localProject;
-    if (!approvalCO || !project) return;
-    if (!approverName.trim()) {
-      showAlert('Name required', 'Enter your name as it appears on the contract.');
-      return;
-    }
-    if (approvalMode === 'approve' && signaturePaths.length === 0) {
-      showAlert('Signature required', 'Sign above to approve this change order.');
-      return;
-    }
-    if (approvalMode === 'approve' && !esignConsent) {
-      showAlert(
-        'Consent required',
-        'Approving a change order is an electronic signature. Read the disclosure and check "I agree" to continue.',
-      );
-      return;
-    }
-    if (approvalMode === 'reject' && !rejectionReason.trim()) {
-      showAlert('Reason required', 'Briefly explain why you are rejecting this change order.');
-      return;
-    }
-
-    setSubmittingApproval(true);
-
+  // The approver slots, the retainable consent record and the audit entry
+  // for one decision. Shared by the approve ceremony and the reject tap, so
+  // both build exactly what the static portal builds.
+  const buildCODecision = useCallback(async (approvalCO: ChangeOrder, mode: 'approve' | 'reject') => {
     const now = new Date().toISOString();
     const existingApprovers: COApprover[] = approvalCO.approvers ?? [];
     const existingAudit: COAuditEntry[] = approvalCO.auditTrail ?? [];
@@ -733,9 +720,9 @@ export default function ClientViewScreen() {
         return {
           ...a,
           name: approverName.trim(),
-          status: approvalMode === 'approve' ? 'approved' : 'rejected',
+          status: mode === 'approve' ? 'approved' : 'rejected',
           responseDate: now,
-          rejectionReason: approvalMode === 'reject' ? rejectionReason.trim() : undefined,
+          rejectionReason: mode === 'reject' ? rejectionReason.trim() : undefined,
         };
       }
       return a;
@@ -748,9 +735,9 @@ export default function ClientViewScreen() {
         role: 'Client',
         required: true,
         order: nextApprovers.length,
-        status: approvalMode === 'approve' ? 'approved' : 'rejected',
+        status: mode === 'approve' ? 'approved' : 'rejected',
         responseDate: now,
-        rejectionReason: approvalMode === 'reject' ? rejectionReason.trim() : undefined,
+        rejectionReason: mode === 'reject' ? rejectionReason.trim() : undefined,
       });
     }
 
@@ -772,11 +759,11 @@ export default function ClientViewScreen() {
       // #131: the frozen tax lines, exactly when the portal page adds them.
       taxAmount: coCarriesTax(approvalCO) ? approvalCO.taxAmount : undefined,
       totalWithTax: coCarriesTax(approvalCO) ? approvalCO.totalWithTax : undefined,
-      decision: approvalMode === 'approve' ? 'approved' : 'declined',
+      decision: mode === 'approve' ? 'approved' : 'declined',
       signerName: approverName.trim(),
-      signatureHash: approvalMode === 'approve' ? signatureHash : undefined,
-      signatureStrokeCount: approvalMode === 'approve' ? signaturePaths.length : undefined,
-      reason: approvalMode === 'reject' ? rejectionReason.trim() : undefined,
+      signatureHash: mode === 'approve' ? signatureHash : undefined,
+      signatureStrokeCount: mode === 'approve' ? signaturePaths.length : undefined,
+      reason: mode === 'reject' ? rejectionReason.trim() : undefined,
       portalId: portal?.portalId ?? '',
       signedAt: now,
       timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
@@ -787,58 +774,134 @@ export default function ClientViewScreen() {
 
     const auditEntry: COAuditEntry = {
       id: generateUUID(),
-      action: approvalMode === 'approve' ? 'client_signed_via_portal' : 'client_declined_via_portal',
+      action: mode === 'approve' ? 'client_signed_via_portal' : 'client_declined_via_portal',
       actor: approverName.trim(),
       timestamp: now,
       detail: buildCOAuditDetail({
-        decision: approvalMode === 'approve' ? 'approved' : 'declined',
-        signatureStrokeCount: approvalMode === 'approve' ? signaturePaths.length : undefined,
+        decision: mode === 'approve' ? 'approved' : 'declined',
+        signatureStrokeCount: mode === 'approve' ? signaturePaths.length : undefined,
         documentHash,
         reason: rejectionReason.trim(),
       }),
     };
 
-    const nextStatus = approvalMode === 'approve' ? 'approved' : 'rejected';
+    const nextStatus: ChangeOrderStatus = mode === 'approve' ? 'approved' : 'rejected';
+    return { now, existingAudit, nextApprovers, signatureData, signatureHash, consentRecord, documentHash, auditEntry, nextStatus };
+  }, [approverName, rejectionReason, signaturePaths, portal]);
 
-    // Persist the approval to change_order_approvals so the GC actually
-    // sees it. RLS allows anon INSERT when portal_id matches a real
-    // project's client_portal->>'portalId'. If the insert fails (offline,
-    // misconfigured, missing tables), we still update the local view —
-    // the visitor at least gets immediate feedback — but flag it so they
-    // know to follow up.
+  // Persist the decision to change_order_approvals so the GC actually sees
+  // it. RLS allows anon INSERT when portal_id matches a real project's
+  // client_portal->>'portalId'. Throws the insert error (the caller decides
+  // what it means).
+  const insertCODecision = useCallback(async (
+    approvalCO: ChangeOrder,
+    projectId: string,
+    mode: 'approve' | 'reject',
+    d: Awaited<ReturnType<typeof buildCODecision>>,
+  ) => {
+    const { error: insertError } = await supabase
+      .from('change_order_approvals')
+      .insert({
+        portal_id: portal?.portalId ?? '',
+        project_id: projectId,
+        invite_id: typeof inviteId === 'string' ? inviteId : null,
+        change_order_id: approvalCO.id,
+        decision: mode === 'approve' ? 'approved' : 'declined',
+        signer_name: approverName.trim(),
+        signer_email: null,
+        note: mode === 'reject' ? rejectionReason.trim() : null,
+        // Signature + sealed consent record. Columns added by
+        // supabase/migrations/20260803120500_portal_co_esignature.sql.
+        signature_data: mode === 'approve' ? d.signatureData : null,
+        signature_hash: mode === 'approve' ? (d.signatureHash ?? null) : null,
+        consent_record: d.consentRecord,
+        document_hash: d.documentHash ?? null,
+        consent_version: ESIGN_DISCLOSURE_VERSION,
+        consent_accepted: mode === 'approve' ? esignConsent : true,
+        sealed_at: d.now,
+        // The send this decision answers — portal_co_send_stamp's exact
+        // text ("<sentVersion>@<sentAt>", 'unsent' with no portal_state).
+        // Stamped, the portal RPCs match it by equality; unstamped, the
+        // server fell back to comparing created_at with the GC device's
+        // sentAt clock (20260920060000). Needs that migration's column.
+        send_stamp: approvalCO.portalState
+          ? `${approvalCO.portalState.sentVersion ?? 0}@${approvalCO.portalState.sentAt ?? ''}`
+          : 'unsent',
+      });
+    if (insertError) throw insertError;
+  }, [portal, inviteId, approverName, rejectionReason, esignConsent]);
+
+  // A6 (moments, lane MOMSIGN): approving is a signature, so it is a
+  // signing ceremony. The write is the change_order_approvals insert,
+  // awaited, never queued; the local change order flips to approved ONLY
+  // once the insert is confirmed (it used to flip even when the insert
+  // failed, "saved your response locally").
+  const approvedRecordRef = useRef<{ signedAt: string; name: string } | null>(null);
+  const approveWrite = useCallback(async (): Promise<CommitResult> => {
+    approvedRecordRef.current = null;
+    const project = localProject;
+    const co = approvalCO;
+    if (!co || !project) return { status: 'refused', reason: signingCopy.clientCoRefused() };
+    if (!isSupabaseConfigured || !portal?.portalId) return { status: 'refused', reason: signingCopy.clientCoPreviewReason() };
+    const d = await buildCODecision(co, 'approve');
+    try {
+      await insertCODecision(co, project.id, 'approve', d);
+    } catch (err) {
+      console.warn('[client-view] CO approval insert failed:', err);
+      // The request may have landed when the connection dropped: never "nothing was saved".
+      if (isTransportError(err)) return { status: 'timeout', message: signingCopy.clientCoTimeout(co.number) };
+      return { status: 'refused', reason: signingCopy.clientCoRefused() };
+    }
+    // Confirmed: the approval is stored. Only now does this view show it.
+    updateChangeOrder(co.id, {
+      status: d.nextStatus,
+      approvers: d.nextApprovers,
+      auditTrail: [...d.existingAudit, d.auditEntry],
+    });
+    approvedRecordRef.current = { signedAt: d.now, name: approverName.trim() };
+    const signed = `${co.changeAmount > 0 ? '+' : ''}${formatMoney(co.changeAmount, 2)}`;
+    return { status: 'confirmed', title: signingCopy.clientCoApprovedTitle(co.number, signed), next: signingCopy.clientCoApprovedNext() };
+  }, [approvalCO, localProject, portal, approverName, buildCODecision, insertCODecision, updateChangeOrder]);
+  const approveRecordFrom = useCallback(() => ({
+    signedAtIso: approvedRecordRef.current?.signedAt ?? new Date().toISOString(),
+    timeSource: 'device' as const,
+    name: approvedRecordRef.current?.name ?? '',
+  }), []);
+  const onApproveDone = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed') closeApprovalFlow();
+  }, [closeApprovalFlow]);
+  // A confirmed answer after "No answer yet" (the write flipped the change order itself).
+  const onApproveLate = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    closeApprovalFlow();
+    nailIt(r.title);
+  }, [closeApprovalFlow]);
+
+  // Reject stays a tap with a reason (a decline never gets a slide).
+  const submitRejection = useCallback(async () => {
+    // Local-only by construction: the approve/reject buttons are not rendered
+    // in snapshot mode, and the insert below needs an owner-scoped session.
+    const project = localProject;
+    if (!approvalCO || !project) return;
+    if (!approverName.trim()) {
+      showAlert('Name required', 'Enter your name as it appears on the contract.');
+      return;
+    }
+    if (!rejectionReason.trim()) {
+      showAlert('Reason required', 'Briefly explain why you are rejecting this change order.');
+      return;
+    }
+
+    setSubmittingApproval(true);
+    const d = await buildCODecision(approvalCO, 'reject');
+
+    // If the insert fails (offline, misconfigured, missing tables), we still
+    // update the local view — the visitor at least gets immediate feedback —
+    // but flag it so they know to follow up.
     let serverPersisted = false;
     if (isSupabaseConfigured && portal?.portalId) {
       try {
-        const { error: insertError } = await supabase
-          .from('change_order_approvals')
-          .insert({
-            portal_id: portal.portalId,
-            project_id: project.id,
-            invite_id: typeof inviteId === 'string' ? inviteId : null,
-            change_order_id: approvalCO.id,
-            decision: approvalMode === 'approve' ? 'approved' : 'declined',
-            signer_name: approverName.trim(),
-            signer_email: null,
-            note: approvalMode === 'reject' ? rejectionReason.trim() : null,
-            // Signature + sealed consent record. Columns added by
-            // supabase/migrations/20260803120500_portal_co_esignature.sql.
-            signature_data: approvalMode === 'approve' ? signatureData : null,
-            signature_hash: approvalMode === 'approve' ? (signatureHash ?? null) : null,
-            consent_record: consentRecord,
-            document_hash: documentHash ?? null,
-            consent_version: ESIGN_DISCLOSURE_VERSION,
-            consent_accepted: approvalMode === 'approve' ? esignConsent : true,
-            sealed_at: now,
-            // The send this decision answers — portal_co_send_stamp's exact
-            // text ("<sentVersion>@<sentAt>", 'unsent' with no portal_state).
-            // Stamped, the portal RPCs match it by equality; unstamped, the
-            // server fell back to comparing created_at with the GC device's
-            // sentAt clock (20260920060000). Needs that migration's column.
-            send_stamp: approvalCO.portalState
-              ? `${approvalCO.portalState.sentVersion ?? 0}@${approvalCO.portalState.sentAt ?? ''}`
-              : 'unsent',
-          });
-        if (insertError) throw insertError;
+        await insertCODecision(approvalCO, project.id, 'reject', d);
         serverPersisted = true;
       } catch (err) {
         console.log('[client-view] CO approval insert failed:', err);
@@ -846,16 +909,15 @@ export default function ClientViewScreen() {
     }
 
     updateChangeOrder(approvalCO.id, {
-      status: nextStatus,
-      approvers: nextApprovers,
-      auditTrail: [...existingAudit, auditEntry],
+      status: d.nextStatus,
+      approvers: d.nextApprovers,
+      auditTrail: [...d.existingAudit, d.auditEntry],
     });
 
     if (Platform.OS !== 'web') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
-    const verb = approvalMode === 'approve' ? 'approved' : 'rejected';
     // Don't assert a notification we don't actively send. The insert lands in
     // the contractor's dashboard (change_order_approvals), but there's no
     // push/email fan-out on this path — so tell the homeowner exactly what
@@ -864,11 +926,11 @@ export default function ClientViewScreen() {
       ? 'Your response is recorded and shows up in your contractor\'s dashboard.'
       : 'Your response is saved on this device. If you don\'t hear back within a day, contact your contractor directly.';
     showAlert(
-      approvalMode === 'approve' ? 'Approved' : 'Rejected',
-      `Change order #${approvalCO.number} has been ${verb}. ${tail}`,
+      'Rejected',
+      `Change order #${approvalCO.number} has been rejected. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
-  }, [approvalCO, localProject, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
+  }, [approvalCO, localProject, portal, approverName, rejectionReason, buildCODecision, insertCODecision, updateChangeOrder, closeApprovalFlow]);
 
   // Q4 (2026-09-24): whether the GC offers financing is the GC's decision, so
   // it is read from the GC's side — never from the VIEWER's settings, which is
@@ -979,7 +1041,9 @@ export default function ClientViewScreen() {
   // is only a dialog to the shortcut registry (nothing on this public page
   // depends on the signed-in shell).
   const fApproval = useSheetFrame('form', { visible: !!approvalCO, animationType: 'slide' });
-  useSheetPrimaryHotkey(!!approvalCO, submittingApproval ? null : submitApproval, { saveKey: false });
+  // Approve is a signing ceremony (A6): the slide is the commit, so it has no
+  // shortcut. Reject stays a tap: Cmd/Ctrl+Enter, never Cmd+S.
+  useSheetPrimaryHotkey(!!approvalCO && approvalMode === 'reject', submittingApproval ? null : submitRejection, { saveKey: false });
   useSheetDialogScope(lightboxIndex !== null);
 
   if (!project || !portal) {
@@ -1904,12 +1968,15 @@ export default function ClientViewScreen() {
         </View>
       </ScrollView>
 
-      {/* CO Digital Approval Modal */}
+      {/* CO Digital Approval Modal. Approve is a signing ceremony (A6): the
+          pad lives OUTSIDE any ScrollView (a pad inside one fights the scroll
+          for the drag), the consent box is stored with its version, and the
+          seal lands only once the approval is stored. Reject stays a tap. */}
       <Modal
         visible={!!approvalCO}
         transparent
         animationType={fApproval.animationType}
-        onRequestClose={closeApprovalFlow}
+        onRequestClose={() => { if (!approvingBusy) closeApprovalFlow(); }}
       >
         <View style={[styles.modalOverlay, fApproval.overlay]}>
           <View style={[styles.modalCard, fApproval.card]}>
@@ -1917,88 +1984,64 @@ export default function ClientViewScreen() {
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign and approve' : 'Reject change order'}
               </Text>
-              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+              <TouchableOpacity onPress={closeApprovalFlow} disabled={approvingBusy} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {approvalCO && (
-                <View style={styles.modalSummary}>
-                  <Text style={styles.modalSummaryLabel}>Change order #{approvalCO.number}</Text>
-                  <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
-                  <View style={styles.modalSummaryRow}>
-                    <Text style={styles.modalSummaryKey}>Change amount</Text>
-                    <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
-                      {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
-                    </Text>
-                  </View>
-                  <View style={styles.modalSummaryRow}>
-                    <Text style={styles.modalSummaryKey}>New contract total</Text>
-                    <Text style={styles.modalSummaryVal}>{formatMoney(approvalCO.newContractTotal)}</Text>
-                  </View>
-                  {!!approvalCO.reason && (
-                    <Text style={styles.modalSummaryReason}>{approvalCO.reason}</Text>
-                  )}
-                </View>
-              )}
-
-              <Text style={styles.modalFieldLabel}>Your name</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={approverName}
-                onChangeText={setApproverName}
-                placeholder="Full legal name, as on the contract"
-                placeholderTextColor={themeColors.textMuted}
-                autoCapitalize="words"
-              />
-
-              {approvalMode === 'approve' ? (
-                <>
-                  <Text style={styles.modalFieldLabel}>Signature</Text>
-                  <Text style={styles.modalFieldHint}>
-                    By signing below, you authorize this change order and agree to the adjusted contract total.
-                  </Text>
-                  <View style={styles.signatureWrap}>
-                    <SignaturePad
-                      width={300}
-                      height={150}
-                      onSave={(paths) => setSignaturePaths(paths)}
-                      onClear={() => setSignaturePaths([])}
-                    />
-                  </View>
-                  {signaturePaths.length > 0 && (
-                    <View style={styles.signatureConfirm}>
-                      <Check size={14} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={styles.signatureConfirmText}>Signature captured</Text>
+            {approvalMode === 'approve' ? (
+              approvalCO && (isSupabaseConfigured && !!portal?.portalId) ? (
+                <ClientCOApproveCeremony
+                  co={approvalCO}
+                  name={approverName}
+                  onNameChange={setApproverName}
+                  consentChecked={esignConsent}
+                  onConsentChange={setEsignConsent}
+                  paths={signaturePaths}
+                  onPathsChange={setSignaturePaths}
+                  offline={offline}
+                  write={approveWrite}
+                  recordFrom={approveRecordFrom}
+                  onBusy={setApprovingBusy}
+                  onDone={onApproveDone}
+                  onLateResult={onApproveLate}
+                />
+              ) : (
+                <Text style={[styles.modalFieldHint, styles.approvePreviewReason]} testID="co-approve-preview-reason">
+                  {signingCopy.clientCoPreviewReason()}
+                </Text>
+              )
+            ) : (
+              <>
+                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                  {approvalCO && (
+                    <View style={styles.modalSummary}>
+                      <Text style={styles.modalSummaryLabel}>Change order #{approvalCO.number}</Text>
+                      <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
+                      <View style={styles.modalSummaryRow}>
+                        <Text style={styles.modalSummaryKey}>Change amount</Text>
+                        <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
+                          {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
+                        </Text>
+                      </View>
+                      <View style={styles.modalSummaryRow}>
+                        <Text style={styles.modalSummaryKey}>New contract total</Text>
+                        <Text style={styles.modalSummaryVal}>{formatMoney(approvalCO.newContractTotal)}</Text>
+                      </View>
+                      {!!approvalCO.reason && (
+                        <Text style={styles.modalSummaryReason}>{approvalCO.reason}</Text>
+                      )}
                     </View>
                   )}
 
-                  {/* Signing consent. A drawn mark on its own says nothing
-                      about what the signer thought they were agreeing to, so
-                      the disclosure is on screen and the consent is an explicit
-                      tap. Same text the static portal shows. */}
-                  <View style={styles.esignBox}>
-                    <ScrollView style={styles.esignScroll} nestedScrollEnabled>
-                      <Text style={styles.esignDisclosure}>{ESIGN_DISCLOSURE_TEXT}</Text>
-                    </ScrollView>
-                    <TouchableOpacity
-                      style={styles.esignCheckRow}
-                      onPress={() => setEsignConsent(v => !v)}
-                      activeOpacity={0.8}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: esignConsent }}
-                    >
-                      <View style={[styles.esignCheckbox, esignConsent && styles.esignCheckboxOn]}>
-                        {esignConsent && <Check size={13} color="#FFF" strokeWidth={3} />}
-                      </View>
-                      <Text style={styles.esignCheckLabel}>
-                        I agree to sign this change order electronically, and I approve the scope and the
-                        change to my contract total shown above.
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <>
+                  <Text style={styles.modalFieldLabel}>Your name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={approverName}
+                    onChangeText={setApproverName}
+                    placeholder="Full legal name, as on the contract"
+                    placeholderTextColor={themeColors.textMuted}
+                    autoCapitalize="words"
+                  />
+
                   <Text style={styles.modalFieldLabel}>Reason for rejection</Text>
                   <TextInput
                     style={[styles.modalInput, { minHeight: 100, textAlignVertical: 'top' }]}
@@ -2008,33 +2051,28 @@ export default function ClientViewScreen() {
                     placeholderTextColor={themeColors.textMuted}
                     multiline
                   />
-                </>
-              )}
-            </ScrollView>
+                </ScrollView>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeApprovalFlow} activeOpacity={0.85}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalSubmitBtn,
-                  approvalMode === 'reject' && { backgroundColor: themeColors.danger },
-                  submittingApproval && { opacity: 0.6 },
-                ]}
-                onPress={submitApproval}
-                activeOpacity={0.85}
-                disabled={submittingApproval}
-              >
-                {approvalMode === 'approve'
-                  ? <FileSignature size={15} color="#FFF" strokeWidth={1.75} />
-                  : <ThumbsDown size={15} color="#FFF" strokeWidth={1.75} />
-                }
-                <Text style={styles.modalSubmitText}>
-                  {approvalMode === 'approve' ? 'Approve and sign' : 'Reject change order'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={styles.modalCancelBtn} onPress={closeApprovalFlow} activeOpacity={0.85}>
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalSubmitBtn,
+                      { backgroundColor: themeColors.danger },
+                      submittingApproval && { opacity: 0.6 },
+                    ]}
+                    onPress={submitRejection}
+                    activeOpacity={0.85}
+                    disabled={submittingApproval}
+                  >
+                    <ThumbsDown size={15} color="#FFF" strokeWidth={1.75} />
+                    <Text style={styles.modalSubmitText}>Reject change order</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -2083,6 +2121,95 @@ export default function ClientViewScreen() {
 }
 
 const PHOTO_SIZE = (SCREEN_WIDTH - 32 - 8) / 3;
+
+/**
+ * A6 (moments, lane MOMSIGN): the client's change order approval, a signing
+ * ceremony. The client types their own name (never prefilled), ticks the
+ * versioned consent box (stored as consent_accepted under
+ * ESIGN_DISCLOSURE_VERSION), signs, and slides. The seal lands only when the
+ * write says the approval is stored. Exported for the moments smoke.
+ */
+export function ClientCOApproveCeremony({
+  co, name, onNameChange, consentChecked: esignConsent, onConsentChange: setEsignConsent, paths, onPathsChange, offline, write, recordFrom, onBusy, onDone, onLateResult,
+}: {
+  co: ChangeOrder;
+  name: string;
+  onNameChange: (v: string) => void;
+  consentChecked: boolean;
+  onConsentChange: (v: boolean) => void;
+  paths: string[];
+  onPathsChange: (p: string[]) => void;
+  offline: boolean;
+  write: () => Promise<CommitResult>;
+  recordFrom: () => { signedAtIso: string; timeSource: 'device' | 'server'; name: string };
+  onBusy: (busy: boolean) => void;
+  onDone: (r: CommitResult) => void;
+  onLateResult: (r: CommitResult) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const signedAmount = `${co.changeAmount > 0 ? '+' : ''}${formatMoney(co.changeAmount, 2)}`;
+  return (
+    <View style={styles.approveCeremonyWrap}>
+      <SigningCeremony
+        signer="homeowner"
+        mode="drawn"
+        method="drawn"
+        parties={1}
+        signedBefore={0}
+        sealVerb="SIGNED"
+        role="Owner"
+        top={{
+          title: signingCopy.clientCoDocTitle(co.number),
+          subtitle: co.description,
+          rows: [
+            { label: signingCopy.clientCoChangeRowLabel(), value: signedAmount, mono: true },
+            { label: signingCopy.clientCoNewTotalRowLabel(), value: formatMoney(co.newContractTotal, 2), mono: true },
+          ],
+        }}
+        above={(
+          <>
+            <Text style={styles.modalFieldHint}>
+              By signing below, you authorize this change order and agree to the adjusted contract total.
+            </Text>
+            {/* The disclosure is on screen before the consent tap. Same text the static portal shows. */}
+            <View style={styles.esignBox}>
+              <ScrollView style={styles.esignScrollCompact} nestedScrollEnabled>
+                <Text style={styles.esignDisclosure}>{ESIGN_DISCLOSURE_TEXT}</Text>
+              </ScrollView>
+            </View>
+          </>
+        )}
+        name={{ value: name, onChange: onNameChange, label: signingCopy.clientCoNameLabel(), placeholder: signingCopy.clientCoNamePlaceholder(), minLength: 2 }}
+        consent={{ version: ESIGN_DISCLOSURE_VERSION, text: signingCopy.clientCoConsentLine(), checked: esignConsent, onChange: setEsignConsent }}
+        paths={paths}
+        onPathsChange={onPathsChange}
+        offline={offline}
+        copy={{
+          label: signingCopy.clientCoSignLabel(signedAmount),
+          srLabel: signingCopy.clientCoSrLabel(),
+          srConfirm: signingCopy.clientCoSrConfirm(),
+          sealedAnnounce: signingCopy.clientCoSealedAnnounce(co.number),
+        }}
+        write={write}
+        writeOptions={{
+          idempotent: false,
+          copy: {
+            refused: signingCopy.clientCoRefused(),
+            timeout: signingCopy.clientCoTimeout(co.number),
+            legalQueued: signingCopy.clientCoLegalQueued(),
+          },
+        }}
+        recordFrom={recordFrom}
+        onCommitStart={() => onBusy(true)}
+        onUncommit={() => onBusy(false)}
+        onDone={(r) => { onBusy(false); onDone(r); }}
+        onLateResult={onLateResult}
+        onResultAfterUnmount={onLateResult}
+        testID="co-approve"
+      />
+    </View>
+  );
+}
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
@@ -2331,6 +2458,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card, padding: 12, marginBottom: 14, gap: 10,
   },
   esignScroll: { maxHeight: 118 },
+  esignScrollCompact: { maxHeight: 64 },
+  approveCeremonyWrap: { paddingHorizontal: 20, paddingTop: 14 },
+  approvePreviewReason: { paddingHorizontal: 20, paddingTop: 14 },
   esignDisclosure: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 17 },
   esignCheckRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   esignCheckbox: {

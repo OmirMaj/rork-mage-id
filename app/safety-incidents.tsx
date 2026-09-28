@@ -49,7 +49,9 @@ import { resolvePhotoUrls } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { aiLimitAlertTitle, safetyAiBlockedReason, safetyAiServerRefusal } from '@/utils/safety/safetyRefresh';
 import { showAlert } from '@/utils/alert';
+import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
+import { useT } from '@/contexts/LanguageContext';
 
 /** Photos one incident report can carry. Eight is a scene, a hazard, the
  *  equipment, the corrective action and a couple of angles — past that it is a
@@ -59,32 +61,45 @@ const MAX_INCIDENT_PHOTOS = 8;
 // 'Injury or illness', matching the daily report's DFR_INCIDENT_TYPE_LABEL. The
 // bare 'Injury' label sent a respiratory or chemical-exposure case to
 // 'Environ.', which the classifier then read as "no injury" (audit round 2, #1).
-const TYPE_OPTIONS: { value: SafetyIncidentType; label: string }[] = [
-  { value: 'injury', label: 'Injury or illness' },
-  { value: 'near_miss', label: 'Near miss' },
-  { value: 'property', label: 'Property' },
-  { value: 'environmental', label: 'Environ.' },
+// Label lists are FUNCTIONS (docs/I18N.md §3.4): t() reads the language at
+// call time, never at import.
+const TYPE_OPTIONS = (): { value: SafetyIncidentType; label: string }[] => [
+  { value: 'injury', label: t('safety.incident.typeInjury', 'Injury or illness') },
+  { value: 'near_miss', label: t('safety.incident.nearMiss', 'Near miss') },
+  { value: 'property', label: t('safety.incident.typeProperty', 'Property') },
+  { value: 'environmental', label: t('safety.incident.typeEnvironmental', 'Environ.') },
 ];
-const SEVERITY_OPTIONS: { value: SafetyIncidentSeverity; label: string }[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
+const SEVERITY_OPTIONS = (): { value: SafetyIncidentSeverity; label: string }[] => [
+  { value: 'low', label: t('safety.incident.severityLow', 'Low') },
+  { value: 'medium', label: t('safety.incident.severityMedium', 'Medium') },
+  { value: 'high', label: t('safety.incident.severityHigh', 'High') },
+  { value: 'critical', label: t('safety.incident.severityCritical', 'Critical') },
 ];
-const TREATMENT_OPTIONS: { value: SafetyTreatment; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'first_aid', label: 'First aid' },
-  { value: 'medical_beyond_first_aid', label: 'Medical' },
+/** The card's lowercase severity word — the stored enum in English, exactly as
+ *  the card always printed it. */
+function severityWord(v: SafetyIncidentSeverity): string {
+  switch (v) {
+    case 'low': return t('safety.incident.severityWordLow', 'low');
+    case 'medium': return t('safety.incident.severityWordMedium', 'medium');
+    case 'high': return t('safety.incident.severityWordHigh', 'high');
+    case 'critical': return t('safety.incident.severityWordCritical', 'critical');
+  }
+  return v;
+}
+const TREATMENT_OPTIONS = (): { value: SafetyTreatment; label: string }[] => [
+  { value: 'none', label: t('safety.incident.treatmentNone', 'None') },
+  { value: 'first_aid', label: t('safety.incident.firstAid', 'First aid') },
+  { value: 'medical_beyond_first_aid', label: t('safety.incident.treatmentMedical', 'Medical') },
 ];
 // OSHA 300 column M — injury vs illness category. Recorded explicitly; the
 // coarse incident `type` cannot distinguish (e.g. skin vs respiratory).
-const ILLNESS_OPTIONS: { value: OshaIllnessType; label: string }[] = [
-  { value: 'injury', label: 'Injury' },
-  { value: 'skin', label: 'Skin' },
-  { value: 'respiratory', label: 'Respiratory' },
-  { value: 'poisoning', label: 'Poisoning' },
-  { value: 'hearing', label: 'Hearing' },
-  { value: 'other_illness', label: 'Other illness' },
+const ILLNESS_OPTIONS = (): { value: OshaIllnessType; label: string }[] => [
+  { value: 'injury', label: t('safety.incident.injury', 'Injury') },
+  { value: 'skin', label: t('safety.incident.illnessSkin', 'Skin') },
+  { value: 'respiratory', label: t('safety.incident.illnessRespiratory', 'Respiratory') },
+  { value: 'poisoning', label: t('safety.incident.illnessPoisoning', 'Poisoning') },
+  { value: 'hearing', label: t('safety.incident.illnessHearing', 'Hearing') },
+  { value: 'other_illness', label: t('safety.incident.illnessOther', 'Other illness') },
 ];
 
 // AI returns free-form JSON — never trust its enum strings blindly. These
@@ -93,15 +108,15 @@ const ILLNESS_OPTIONS: { value: OshaIllnessType; label: string }[] = [
 // from the model is dropped rather than poisoning state with an off-enum
 // string that breaks the segmented pickers and downstream OSHA logic.
 const isValidType = (v: unknown): v is SafetyIncidentType =>
-  TYPE_OPTIONS.some(o => o.value === v);
+  TYPE_OPTIONS().some(o => o.value === v);
 const isValidSeverity = (v: unknown): v is SafetyIncidentSeverity =>
-  SEVERITY_OPTIONS.some(o => o.value === v);
+  SEVERITY_OPTIONS().some(o => o.value === v);
 
-function getStatusConfig(t: ThemeColors, status: SafetyIncidentStatus): { label: string; color: string; bg: string } {
+function getStatusConfig(tc: ThemeColors, status: SafetyIncidentStatus): { label: string; color: string; bg: string } {
   switch (status) {
-    case 'open': return { label: 'Open', color: t.danger, bg: t.danger + '18' };
-    case 'investigating': return { label: 'Investigating', color: t.accent, bg: t.accent + '18' };
-    case 'closed': return { label: 'Closed', color: t.success, bg: t.successSoft };
+    case 'open': return { label: t('safety.incident.statusOpen', 'Open'), color: tc.danger, bg: tc.danger + '18' };
+    case 'investigating': return { label: t('safety.incident.investigating', 'Investigating'), color: tc.accent, bg: tc.accent + '18' };
+    case 'closed': return { label: t('safety.incident.statusClosed', 'Closed'), color: tc.success, bg: tc.successSoft };
   }
 }
 
@@ -128,6 +143,7 @@ export default function SafetyIncidentsScreen() {
 }
 
 function SafetyIncidentsInner() {
+  const { t, tn } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -382,7 +398,7 @@ function SafetyIncidentsInner() {
   const handleIncidentCamera = useCallback(async () => {
     const remaining = MAX_INCIDENT_PHOTOS - photoUrls.length;
     if (remaining <= 0) {
-      showAlert('Photo limit', `An incident report holds ${MAX_INCIDENT_PHOTOS} photos. Remove one to add another.`);
+      showAlert(t('safety.incident.photoLimit', 'Photo limit'), t('safety.incident.anIncidentReportHolds', 'An incident report holds {max} photos. Remove one to add another.', { max: MAX_INCIDENT_PHOTOS }));
       return;
     }
     // Burst: the camera re-opens after each shot. An incident scene is
@@ -390,18 +406,18 @@ function SafetyIncidentsInner() {
     // it gets cleaned up.
     const outcome = await captureBurst({ remaining, onCaptured: ({ uri }) => attachIncidentPhoto(uri) });
     const note = burstSummary(outcome.captured, outcome.stoppedBy, `${MAX_INCIDENT_PHOTOS}-photo`);
-    if (note) showAlert(outcome.captured > 0 ? 'Photos attached' : 'Camera', note);
-  }, [photoUrls.length, attachIncidentPhoto]);
+    if (note) showAlert(outcome.captured > 0 ? t('safety.incident.photosAttached', 'Photos attached') : t('safety.incident.camera', 'Camera'), note);
+  }, [photoUrls.length, attachIncidentPhoto, t]);
 
   const handleIncidentLibrary = useCallback(async () => {
     const remaining = MAX_INCIDENT_PHOTOS - photoUrls.length;
     if (remaining <= 0) {
-      showAlert('Photo limit', `An incident report holds ${MAX_INCIDENT_PHOTOS} photos. Remove one to add another.`);
+      showAlert(t('safety.incident.photoLimit', 'Photo limit'), t('safety.incident.anIncidentReportHolds', 'An incident report holds {max} photos. Remove one to add another.', { max: MAX_INCIDENT_PHOTOS }));
       return;
     }
     const picked = await pickPhotoBatch({ remaining });
     for (const a of picked) attachIncidentPhoto(a.uri);
-  }, [photoUrls.length, attachIncidentPhoto]);
+  }, [photoUrls.length, attachIncidentPhoto, t]);
 
   // Sign the bucket paths on an incident opened for edit. `project-photos` is
   // private, so a stored path is not renderable on its own; a path we cannot
@@ -453,22 +469,23 @@ function SafetyIncidentsInner() {
   }, [incidentId, items, openEdit]);
 
   const handleDraftAI = useCallback(async () => {
-    if (!draftNotes.trim()) { showAlert('Add notes', 'Type or dictate what happened first.'); return; }
-    if (draftBlocked) { showAlert('Business feature', draftBlocked); return; }
+    if (!draftNotes.trim()) { showAlert(t('safety.incident.addNotes', 'Add notes'), t('safety.incident.typeOrDictateWhat', 'Type or dictate what happened first.')); return; }
+    if (draftBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), draftBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily limit reached. Try again tomorrow.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.incident.dailyLimitReachedTry', 'Daily limit reached. Try again tomorrow.')); return; }
     setDrafting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/safety-draft-incident`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session?.access_token ?? ''}` },
-        body: JSON.stringify({ voiceTranscript: draftNotes, notes: draftNotes }),
+        // Spanish drafts only when the app is in Spanish; an English body is byte-identical.
+        body: JSON.stringify({ voiceTranscript: draftNotes, notes: draftNotes, ...(getLang() === 'es' ? { locale: 'es' } : {}) }),
       });
       const refusal = safetyAiServerRefusal('incident_draft', res.status);
-      if (refusal) { showAlert('Business feature', refusal); return; }
+      if (refusal) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), refusal); return; }
       const json = await res.json();
-      if (!res.ok || !json.success) { console.warn('[safety-incidents] draft failed', json.error); showAlert("Couldn't draft the report", 'Fill it in by hand, or try again in a moment.'); return; }
+      if (!res.ok || !json.success) { console.warn('[safety-incidents] draft failed', json.error); showAlert(t('safety.incident.couldntDraftTheReport', "Couldn't draft the report"), t('safety.incident.fillItInBy', 'Fill it in by hand, or try again in a moment.')); return; }
       // Only apply AI enums when they match the union — otherwise keep the
       // current/default so a hallucinated value can't corrupt the pickers.
       if (isValidType(json.data.type)) setType(json.data.type);
@@ -478,11 +495,11 @@ function SafetyIncidentsInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      showAlert("Couldn't draft the report", "You may be offline. Fill it in by hand, or try again when you're back online.");
+      showAlert(t('safety.incident.couldntDraftTheReport', "Couldn't draft the report"), t('safety.incident.youMayBeOffline', "You may be offline. Fill it in by hand, or try again when you're back online."));
     } finally {
       setDrafting(false);
     }
-  }, [draftNotes, tier, draftBlocked]);
+  }, [draftNotes, tier, draftBlocked, t]);
 
   // One fact, two inputs: the day count and the toggle. A counted day of
   // restriction turns the toggle on — shown, classified and stored — so the
@@ -503,33 +520,35 @@ function SafetyIncidentsInner() {
   /** Live 1904 answer for whatever is in the form right now. Shown under the
    *  toggles so the classification is visible while it is being decided, not
    *  only after the case is saved. */
-  const liveVerdict = useMemo(() => describeRecordability(classInput), [classInput]);
+  // Not memoised: the reason sentence is catalog text, so it must follow the
+  // app language on every render (and the classifier is a few comparisons).
+  const liveVerdict = describeRecordability(classInput);
   /** What the 300 still needs from the People section, shown under it while
    *  the verdict is recordable — the same check Save runs. */
-  const workerProblem = useMemo(() => recordableWorkerProblem(peopleInvolved), [peopleInvolved]);
+  const workerProblem = recordableWorkerProblem(peopleInvolved);
 
   const toggleRestrictedDuty = useCallback(() => {
     // Blocked, and says why: unticking while days are counted would store a
     // restricted case whose restriction flag is off.
     if (daysRestrictedNum > 0) {
       showAlert(
-        'Restricted days are counted',
-        `${daysRestrictedNum} day${daysRestrictedNum === 1 ? '' : 's'} of restriction are entered above, which makes this a restricted-work case. Clear the day count to untick it.`,
+        t('safety.incident.restrictedDaysAreCounted', 'Restricted days are counted'),
+        tn('safety.incident.daysOfRestrictionAre', daysRestrictedNum, { one: '{count} day of restriction is entered above, which makes this a restricted-work case. Clear the day count to untick it.', other: '{count} days of restriction are entered above, which makes this a restricted-work case. Clear the day count to untick it.' }),
       );
       return;
     }
     setRestrictedDuty(v => !v);
-  }, [daysRestrictedNum]);
+  }, [daysRestrictedNum, t, tn]);
 
   const handleSave = useCallback(() => {
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert('View only', blocked); return; }
+    if (blocked) { showAlert(t('safety.incident.viewOnly', 'View only'), blocked); return; }
     const desc = description.trim();
-    if (!desc) { showAlert('Missing description', 'Describe what happened.'); return; }
+    if (!desc) { showAlert(t('safety.incident.missingDescription', 'Missing description'), t('safety.incident.describeWhatHappened', 'Describe what happened.')); return; }
     // A free-text '9/18/26' dropped the case off every year's 300 while the
     // hub still counted it (audit #168). Only a real day is filed.
-    const dateProblem = safetyDateProblem(occurredAt, 'Occurred date');
-    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
+    const dateProblem = safetyDateProblem(occurredAt, t('safety.incident.dateLabel', 'Occurred date'));
+    if (dateProblem) { showAlert(t('safety.incident.checkTheDate', 'Check the date'), dateProblem); return; }
     const now = new Date().toISOString();
     const recordable = isOshaRecordable(classInput);
     // A recordable case needs the injured worker's name (or "Privacy case")
@@ -539,7 +558,7 @@ function SafetyIncidentsInner() {
     const people = cleanPeopleInvolved(peopleInvolved);
     if (recordable) {
       const problem = recordableWorkerProblem(people);
-      if (problem) { showAlert('Who was injured?', problem); return; }
+      if (problem) { showAlert(t('safety.incident.whoWasInjured', 'Who was injured?'), problem); return; }
     }
     if (editingIncident) {
       updateIncident(editingIncident.id, {
@@ -562,7 +581,7 @@ function SafetyIncidentsInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestrictedNum, oshaIllnessType, effectiveRestricted, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author, classInput, seat]);
+  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestrictedNum, oshaIllnessType, effectiveRestricted, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author, classInput, seat, t]);
 
   const handleAdvanceStatus = useCallback((inc: SafetyIncident) => {
     updateIncident(inc.id, { status: nextStatus(inc.status) });
@@ -576,22 +595,22 @@ function SafetyIncidentsInner() {
     // SafetyContext.deleteIncident refuses it too; this is where he is told why.
     if (item && isRecordableCase(item)) {
       showAlert(
-        'Kept on the OSHA 300',
-        'OSHA-recordable cases must be kept for five years (29 CFR 1904.33), so this one can\'t be deleted. Close it when the follow-up is done, or open it and fix the classification if it was marked recordable by mistake.',
+        t('safety.incident.keptOnTheOsha', 'Kept on the OSHA 300'),
+        t('safety.incident.oshaRecordableCasesMust', "OSHA-recordable cases must be kept for five years (29 CFR 1904.33), so this one can't be deleted. Close it when the follow-up is done, or open it and fix the classification if it was marked recordable by mistake."),
       );
       return;
     }
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert('Can\'t delete', blocked); return; }
+    if (blocked) { showAlert(t('safety.incident.cantDelete', "Can't delete"), blocked); return; }
     showAlert(
-      'Delete incident',
-      'Delete this incident report? If it came from a daily report, that report will not file it again from this device.',
+      t('safety.incident.deleteIncident', 'Delete incident'),
+      t('safety.incident.deleteThisIncidentReport', 'Delete this incident report? If it came from a daily report, that report will not file it again from this device.'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => { deleteIncident(id); } },
+        { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => { deleteIncident(id); } },
       ],
     );
-  }, [deleteIncident, items, seat]);
+  }, [deleteIncident, items, seat, t]);
 
   // Desktop sheet (wave 6c): the form opens as a capped card centred in the
   // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
@@ -601,19 +620,19 @@ function SafetyIncidentsInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Incidents' }} />
+        <Stack.Screen options={{ title: t('safety.incident.incidents', 'Incidents') }} />
         <EmptyState
           icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title="Open a project first"
-          message="Incidents are tied to a project so each report carries its people, corrective actions and OSHA classification. To log one:"
+          title={t('safety.incident.openAProjectFirst', 'Open a project first')}
+          message={t('safety.incident.incidentsAreTiedTo', 'Incidents are tied to a project so each report carries its people, corrective actions and OSHA classification. To log one:')}
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
-            'Open Incidents and tap + to report one, or draft it from your notes.',
+            t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
+            t('safety.incident.emptyStepOpen', 'Open Incidents and tap + to report one, or draft it from your notes.'),
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a project"
+          actionLabel={t('safety.incident.pickAProject', 'Pick a project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -622,7 +641,7 @@ function SafetyIncidentsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: `Incidents — ${project.name}` }} />
+      <Stack.Screen options={{ title: t('safety.incident.titleWithProject', 'Incidents — {name}', { name: project.name }) }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
@@ -637,7 +656,7 @@ function SafetyIncidentsInner() {
             the GC's OSHA 300, which is the GC's own record to keep. */}
         {seat === 'crew' ? (
           <Text style={styles.collabNote} testID="incident-collab-note">
-            Only you and this project&apos;s owner can see the cases you report here, never the rest of the crew. Your list shows the cases you filed.
+            {t('safety.incident.onlyYouAndThis', "Only you and this project's owner can see the cases you report here, never the rest of the crew. Your list shows the cases you filed.")}
           </Text>
         ) : null}
         {items.map(item => {
@@ -647,13 +666,13 @@ function SafetyIncidentsInner() {
             <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.85} onPress={() => openEdit(item)}>
               <View style={styles.cardTop}>
                 <Text style={styles.cardTitle} numberOfLines={2}>{item.description}</Text>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel="Delete">
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel={t('common.action.delete', 'Delete')}>
                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.cardMeta}>
-                {TYPE_OPTIONS.find(o => o.value === item.type)?.label ?? item.type} · {item.severity}
+                {TYPE_OPTIONS().find(o => o.value === item.type)?.label ?? item.type} · {severityWord(item.severity)}
               </Text>
 
               <View style={styles.badgeRow}>
@@ -662,7 +681,7 @@ function SafetyIncidentsInner() {
                 {isRecordableCase(item) ? (
                   <View style={styles.oshaBadge}>
                     <AlertTriangle size={11} color={themeColors.accent} strokeWidth={2} />
-                    <Text style={styles.oshaBadgeText}>OSHA recordable</Text>
+                    <Text style={styles.oshaBadgeText}>{t('safety.incident.oshaRecordable', 'OSHA recordable')}</Text>
                   </View>
                 ) : null}
                 <TouchableOpacity style={[styles.statusChip, { backgroundColor: sc.bg }]} onPress={() => handleAdvanceStatus(item)}>
@@ -673,7 +692,7 @@ function SafetyIncidentsInner() {
               <View style={styles.cardSummaryRow}>
                 {item.correctiveActions.length > 0 ? (
                   <Text style={styles.cardSummary}>
-                    {doneCount}/{item.correctiveActions.length} action{item.correctiveActions.length === 1 ? '' : 's'}
+                    {tn('safety.incident.actions', item.correctiveActions.length, { one: '{doneCount}/{count} action', other: '{doneCount}/{count} actions' }, { doneCount })}
                   </Text>
                 ) : null}
                 {/* An OSHA record either has the scene attached or it doesn't,
@@ -682,7 +701,7 @@ function SafetyIncidentsInner() {
                   <View style={styles.cardPhotoTag}>
                     <Camera size={11} color={themeColors.textSecondary} strokeWidth={1.75} />
                     <Text style={styles.cardSummary}>
-                      {item.photoUrls.length} photo{item.photoUrls.length === 1 ? '' : 's'}
+                      {tn('safety.incident.photos', item.photoUrls.length, { one: '{count} photo', other: '{count} photos' })}
                     </Text>
                   </View>
                 ) : null}
@@ -695,9 +714,9 @@ function SafetyIncidentsInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No incidents logged"
-              message="Report injuries, near misses and property damage as they happen. MAGE drafts the report from your notes and classifies OSHA-recordable status."
-              actionLabel="Report incident"
+              title={t('safety.incident.noIncidentsLogged', 'No incidents logged')}
+              message={t('safety.incident.reportInjuriesNearMisses', 'Report injuries, near misses and property damage as they happen. MAGE drafts the report from your notes and classifies OSHA-recordable status.')}
+              actionLabel={t('safety.incident.reportIncident', 'Report incident')}
               onAction={() => { resetForm(); setShowForm(true); }}
             />
           </View>
@@ -712,11 +731,11 @@ function SafetyIncidentsInner() {
           testID="add-incident-voice"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.addItemBtnText}>Report by voice</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.incident.reportByVoice', 'Report by voice')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-incident">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Report incident</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.incident.reportIncident', 'Report incident')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -727,11 +746,11 @@ function SafetyIncidentsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.back', 'Back')} style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingIncident ? 'Edit incident' : 'Report incident'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingIncident ? t('safety.incident.editIncident', 'Edit incident') : t('safety.incident.reportIncident', 'Report incident')}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
@@ -739,18 +758,18 @@ function SafetyIncidentsInner() {
                 {/* AI draft-from-notes */}
                 {!editingIncident ? (
                   <>
-                    <Text style={styles.fieldLabel}>Draft with AI</Text>
+                    <Text style={styles.fieldLabel}>{t('safety.incident.draftWithAi', 'Draft with AI')}</Text>
                     <TextInput
                       style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]}
                       value={draftNotes}
                       onChangeText={setDraftNotes}
-                      placeholder="Describe what happened. MAGE fills in the fields."
+                      placeholder={t('safety.incident.describeWhatHappenedMage', 'Describe what happened. MAGE fills in the fields.')}
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
                     <TouchableOpacity style={[styles.aiBtn, draftBlocked ? styles.aiBtnDisabled : null]} onPress={handleDraftAI} disabled={drafting || !!draftBlocked} activeOpacity={0.85} testID="incident-draft">
                       <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
-                      <Text style={styles.aiBtnText}>{drafting ? 'Drafting…' : 'Draft with AI'}</Text>
+                      <Text style={styles.aiBtnText}>{drafting ? t('safety.incident.drafting', 'Drafting…') : t('safety.incident.draftWithAi', 'Draft with AI')}</Text>
                     </TouchableOpacity>
                     {draftBlocked ? (
                       <Text style={styles.aiBlockedText} testID="incident-draft-blocked">{draftBlocked}</Text>
@@ -758,9 +777,9 @@ function SafetyIncidentsInner() {
                   </>
                 ) : null}
 
-                <Text style={styles.fieldLabel}>Type</Text>
+                <Text style={styles.fieldLabel}>{t('safety.incident.type', 'Type')}</Text>
                 <View style={styles.segRow}>
-                  {TYPE_OPTIONS.map(o => (
+                  {TYPE_OPTIONS().map(o => (
                     <TouchableOpacity
                       key={o.value}
                       style={[styles.segBtn, isDesktop && segmentedDesktop.segment, type === o.value ? styles.segBtnActive : null]}
@@ -771,9 +790,9 @@ function SafetyIncidentsInner() {
                   ))}
                 </View>
 
-                <Text style={styles.fieldLabel}>Severity</Text>
+                <Text style={styles.fieldLabel}>{t('safety.incident.severity', 'Severity')}</Text>
                 <View style={styles.segRow}>
-                  {SEVERITY_OPTIONS.map(o => (
+                  {SEVERITY_OPTIONS().map(o => (
                     <TouchableOpacity
                       key={o.value}
                       style={[styles.segBtn, isDesktop && segmentedDesktop.segment, severity === o.value ? styles.segBtnActive : null]}
@@ -784,12 +803,12 @@ function SafetyIncidentsInner() {
                   ))}
                 </View>
 
-                <Text style={styles.fieldLabel}>Description *</Text>
+                <Text style={styles.fieldLabel}>{t('safety.incident.description', 'Description *')}</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="What happened?"
+                  placeholder={t('safety.incident.whatHappened', 'What happened?')}
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                   testID="incident-description-input"
@@ -797,19 +816,19 @@ function SafetyIncidentsInner() {
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Occurred</Text>
-                    <TextInput style={styles.input} value={occurredAt} onChangeText={setOccurredAt} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                    <Text style={styles.fieldLabel}>{t('safety.incident.occurred', 'Occurred')}</Text>
+                    <TextInput style={styles.input} value={occurredAt} onChangeText={setOccurredAt} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Location</Text>
-                    <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. 3rd floor east" placeholderTextColor={themeColors.textMuted} />
+                    <Text style={styles.fieldLabel}>{t('safety.incident.location', 'Location')}</Text>
+                    <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t('safety.incident.eG3rdFloor', 'e.g. 3rd floor east')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 {/* Photos — the scene as it was, before it gets cleaned up. */}
                 <View style={styles.stepsHeader}>
-                  <Text style={styles.fieldLabel}>Photos</Text>
-                  <Text style={styles.photoCount}>{photoUrls.length} of {MAX_INCIDENT_PHOTOS}</Text>
+                  <Text style={styles.fieldLabel}>{t('safety.incident.photosLabel', 'Photos')}</Text>
+                  <Text style={styles.photoCount}>{t('safety.incident.photoCount', '{count} of {max}', { count: photoUrls.length, max: MAX_INCIDENT_PHOTOS })}</Text>
                 </View>
                 <View style={styles.photoBtnRow}>
                   <TouchableOpacity
@@ -817,22 +836,22 @@ function SafetyIncidentsInner() {
                     onPress={handleIncidentCamera}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel="Take incident photos"
+                    accessibilityLabel={t('safety.incident.takeIncidentPhotos', 'Take incident photos')}
                     testID="incident-photo-camera"
                   >
                     <Camera size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
-                    <Text style={styles.photoBtnText}>Take photos</Text>
+                    <Text style={styles.photoBtnText}>{t('safety.incident.takePhotos', 'Take photos')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.photoBtn}
                     onPress={handleIncidentLibrary}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel="Attach photos from library"
+                    accessibilityLabel={t('safety.incident.attachPhotosFromLibrary', 'Attach photos from library')}
                     testID="incident-photo-library"
                   >
                     <Images size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
-                    <Text style={styles.photoBtnText}>From library</Text>
+                    <Text style={styles.photoBtnText}>{t('safety.incident.fromLibrary', 'From library')}</Text>
                   </TouchableOpacity>
                 </View>
                 <PhotoThumbGrid
@@ -842,10 +861,10 @@ function SafetyIncidentsInner() {
                 />
 
                 {/* OSHA inputs */}
-                <Text style={styles.sectionLabel}>OSHA classification</Text>
-                <Text style={styles.fieldLabel}>Treatment</Text>
+                <Text style={styles.sectionLabel}>{t('safety.incident.oshaClassification', 'OSHA classification')}</Text>
+                <Text style={styles.fieldLabel}>{t('safety.incident.treatment', 'Treatment')}</Text>
                 <View style={styles.segRow}>
-                  {TREATMENT_OPTIONS.map(o => (
+                  {TREATMENT_OPTIONS().map(o => (
                     <TouchableOpacity
                       key={o.value}
                       style={[styles.segBtn, isDesktop && segmentedDesktop.segment, treatment === o.value ? styles.segBtnActive : null]}
@@ -858,18 +877,18 @@ function SafetyIncidentsInner() {
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Days away from work</Text>
+                    <Text style={styles.fieldLabel}>{t('safety.incident.daysAwayFromWork', 'Days away from work')}</Text>
                     <TextInput style={styles.input} value={daysAway} onChangeText={setDaysAway} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="number-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Days restricted / transfer</Text>
+                    <Text style={styles.fieldLabel}>{t('safety.incident.daysRestrictedTransfer', 'Days restricted / transfer')}</Text>
                     <TextInput style={styles.input} value={daysRestricted} onChangeText={setDaysRestricted} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="number-pad" />
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>Injury / illness type</Text>
+                <Text style={styles.fieldLabel}>{t('safety.incident.injuryIllnessType', 'Injury / illness type')}</Text>
                 <View style={styles.segRow}>
-                  {ILLNESS_OPTIONS.map(o => (
+                  {ILLNESS_OPTIONS().map(o => (
                     <TouchableOpacity
                       key={o.value}
                       style={[styles.segBtn, isDesktop && segmentedDesktop.segment, oshaIllnessType === o.value ? styles.segBtnActive : null]}
@@ -882,20 +901,22 @@ function SafetyIncidentsInner() {
 
                 <TouchableOpacity style={styles.toggleRow} onPress={toggleRestrictedDuty} activeOpacity={0.7} testID="incident-restricted-toggle">
                   <Text style={styles.toggleLabel}>
-                    Restricted duty / job transfer{daysRestrictedNum > 0 ? ` (${daysRestrictedNum} day${daysRestrictedNum === 1 ? '' : 's'} entered)` : ''}
+                    {daysRestrictedNum > 0
+                      ? tn('safety.incident.restrictedWithDays', daysRestrictedNum, { one: 'Restricted duty / job transfer ({count} day entered)', other: 'Restricted duty / job transfer ({count} days entered)' })
+                      : t('safety.incident.restrictedDuty', 'Restricted duty / job transfer')}
                   </Text>
                   <View style={[styles.toggleBox, effectiveRestricted ? styles.toggleBoxOn : null]}>
                     {effectiveRestricted ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setLostConsciousness(v => !v)} activeOpacity={0.7}>
-                  <Text style={styles.toggleLabel}>Loss of consciousness</Text>
+                  <Text style={styles.toggleLabel}>{t('safety.incident.lossOfConsciousness', 'Loss of consciousness')}</Text>
                   <View style={[styles.toggleBox, lostConsciousness ? styles.toggleBoxOn : null]}>
                     {lostConsciousness ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setFatality(v => !v)} activeOpacity={0.7}>
-                  <Text style={styles.toggleLabel}>Fatality</Text>
+                  <Text style={styles.toggleLabel}>{t('safety.incident.fatality', 'Fatality')}</Text>
                   <View style={[styles.toggleBox, fatality ? styles.toggleBoxOn : null]}>
                     {fatality ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
@@ -922,10 +943,10 @@ function SafetyIncidentsInner() {
                     saved (audit #88). It used to sit at the very bottom,
                     optional, so a recordable case saved with nobody on it. */}
                 <View style={styles.stepsHeader}>
-                  <Text style={styles.fieldLabel}>People involved{liveVerdict.recordable ? ' *' : ''}</Text>
-                  <TouchableOpacity onPress={addPerson} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add person">
+                  <Text style={styles.fieldLabel}>{t('safety.incident.peopleInvolved', 'People involved')}{liveVerdict.recordable ? ' *' : ''}</Text>
+                  <TouchableOpacity onPress={addPerson} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel={t('safety.incident.addPerson', 'Add person')}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addStepText}>Add</Text>
+                    <Text style={styles.addStepText}>{t('common.action.add', 'Add')}</Text>
                   </TouchableOpacity>
                 </View>
                 {liveVerdict.recordable && workerProblem ? (
@@ -934,23 +955,23 @@ function SafetyIncidentsInner() {
                 {peopleInvolved.map((p, idx) => (
                   <View key={idx} style={styles.editRow}>
                     <View style={styles.editRowHeader}>
-                      <Text style={styles.stepNum}>Person {idx + 1}</Text>
-                      <TouchableOpacity onPress={() => removePerson(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove person">
+                      <Text style={styles.stepNum}>{t('safety.incident.personNumber', 'Person {n}', { n: idx + 1 })}</Text>
+                      <TouchableOpacity onPress={() => removePerson(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.incident.removePerson', 'Remove person')}>
                         <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
-                    <TextInput style={styles.input} value={p.name} onChangeText={v => updatePerson(idx, 'name', v)} placeholder="Name" placeholderTextColor={themeColors.textMuted} />
-                    <TextInput style={styles.input} value={p.role} onChangeText={v => updatePerson(idx, 'role', v)} placeholder="Job title (for the OSHA 300)" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={styles.input} value={p.name} onChangeText={v => updatePerson(idx, 'name', v)} placeholder={t('safety.incident.name', 'Name')} placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={styles.input} value={p.role} onChangeText={v => updatePerson(idx, 'role', v)} placeholder={t('safety.incident.jobTitleForThe', 'Job title (for the OSHA 300)')} placeholderTextColor={themeColors.textMuted} />
                     <View style={styles.personFlags}>
                       <TouchableOpacity
                         style={[styles.doneToggle, p.injured ? styles.doneToggleOn : null]}
                         onPress={() => markInjured(idx)}
                         accessibilityRole="button"
-                        accessibilityLabel={p.injured ? 'Marked as the injured person' : 'Mark as the injured person'}
+                        accessibilityLabel={p.injured ? t('safety.incident.markedAsTheInjured', 'Marked as the injured person') : t('safety.incident.markAsTheInjured', 'Mark as the injured person')}
                         testID={`incident-person-injured-${idx}`}
                       >
                         <Text style={[styles.doneToggleText, { color: p.injured ? themeColors.success : themeColors.textSecondary }]}>
-                          {p.injured ? 'Injured person' : 'Injured?'}
+                          {p.injured ? t('safety.incident.injuredPerson', 'Injured person') : t('safety.incident.injured', 'Injured?')}
                         </Text>
                       </TouchableOpacity>
                       {p.injured ? (
@@ -958,11 +979,11 @@ function SafetyIncidentsInner() {
                           style={[styles.doneToggle, p.privacyCase ? styles.doneToggleOn : null]}
                           onPress={() => togglePrivacyCase(idx)}
                           accessibilityRole="button"
-                          accessibilityLabel="Privacy case"
+                          accessibilityLabel={t('safety.incident.privacyCase', 'Privacy case')}
                           testID={`incident-person-privacy-${idx}`}
                         >
                           <Text style={[styles.doneToggleText, { color: p.privacyCase ? themeColors.success : themeColors.textSecondary }]}>
-                            {p.privacyCase ? 'Privacy case (name hidden on the 300)' : 'Privacy case?'}
+                            {p.privacyCase ? t('safety.incident.privacyCaseNameHidden', 'Privacy case (name hidden on the 300)') : t('safety.incident.privacyCaseToggle', 'Privacy case?')}
                           </Text>
                         </TouchableOpacity>
                       ) : null}
@@ -972,33 +993,33 @@ function SafetyIncidentsInner() {
 
                 {/* Corrective actions */}
                 <View style={styles.stepsHeader}>
-                  <Text style={styles.fieldLabel}>Corrective actions</Text>
-                  <TouchableOpacity onPress={addCorrectiveAction} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add corrective action">
+                  <Text style={styles.fieldLabel}>{t('safety.incident.correctiveActions', 'Corrective actions')}</Text>
+                  <TouchableOpacity onPress={addCorrectiveAction} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel={t('safety.incident.addCorrectiveAction', 'Add corrective action')}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addStepText}>Add</Text>
+                    <Text style={styles.addStepText}>{t('common.action.add', 'Add')}</Text>
                   </TouchableOpacity>
                 </View>
                 {correctiveActions.map((a, idx) => (
                   <View key={idx} style={styles.editRow}>
                     <View style={styles.editRowHeader}>
                       <TouchableOpacity style={[styles.doneToggle, a.done ? styles.doneToggleOn : null]} onPress={() => toggleCorrectiveDone(idx)}>
-                        <Text style={[styles.doneToggleText, { color: a.done ? themeColors.success : themeColors.textSecondary }]}>{a.done ? 'Done' : 'Open'}</Text>
+                        <Text style={[styles.doneToggleText, { color: a.done ? themeColors.success : themeColors.textSecondary }]}>{a.done ? t('common.action.done', 'Done') : t('safety.incident.open', 'Open')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => removeCorrectiveAction(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove action">
+                      <TouchableOpacity onPress={() => removeCorrectiveAction(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.incident.removeAction', 'Remove action')}>
                         <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
-                    <TextInput style={styles.input} value={a.action} onChangeText={v => updateCorrectiveAction(idx, 'action', v)} placeholder="Action" placeholderTextColor={themeColors.textMuted} />
-                    <TextInput style={styles.input} value={a.owner} onChangeText={v => updateCorrectiveAction(idx, 'owner', v)} placeholder="Owner" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={styles.input} value={a.action} onChangeText={v => updateCorrectiveAction(idx, 'action', v)} placeholder={t('safety.incident.action', 'Action')} placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={styles.input} value={a.owner} onChangeText={v => updateCorrectiveAction(idx, 'owner', v)} placeholder={t('safety.incident.owner', 'Owner')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                 ))}
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-incident">
-                    <Text style={styles.saveBtnText}>{editingIncident ? 'Update' : 'Report'}</Text>
+                    <Text style={styles.saveBtnText}>{editingIncident ? t('safety.incident.update', 'Update') : t('safety.incident.report', 'Report')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

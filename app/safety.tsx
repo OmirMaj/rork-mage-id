@@ -25,6 +25,7 @@ import { buildOsha300Log, currentOshaYear, incidentsForOwnEstablishment } from '
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { safetySeatFor, type SafetySeat } from '@/utils/safety/osha';
 import type { Project } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 /**
  * What an access wall shows for a project-scoped safety screen, per the
@@ -35,24 +36,25 @@ import type { Project } from '@/types';
  * Shared by the hub and the JHA / toolbox / hazard / inspection screens.
  */
 export function SafetyAccessBlocked({ roleState, onClose }: { roleState: ProjectRoleState; onClose: () => void }) {
-  const { colors: t } = useTheme();
+  const { t } = useT();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   if (roleState.isLoading) {
     return (
-      <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-checking">
-        <ActivityIndicator color={t.accent} />
-        <Text style={styles.gateText}>Checking your access to this project…</Text>
+      <View style={[styles.gateWrap, { backgroundColor: tc.bg }]} testID="safety-gate-checking">
+        <ActivityIndicator color={tc.accent} />
+        <Text style={styles.gateText}>{t('safety.hub.checkingYourAccessTo', 'Checking your access to this project…')}</Text>
       </View>
     );
   }
   if (roleState.isError) {
     return (
-      <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-error">
-        <Text style={styles.gateTitle}>Couldn&apos;t check your access to this project</Text>
+      <View style={[styles.gateWrap, { backgroundColor: tc.bg }]} testID="safety-gate-error">
+        <Text style={styles.gateTitle}>{t('safety.hub.couldntCheckYourAccess', "Couldn't check your access to this project")}</Text>
         <Text style={styles.gateText}>
-          MAGE couldn&apos;t load who is on this project, so it can&apos;t tell whether your GC invited you to its safety records. Check your connection and try again.
+          {t('safety.hub.mageCouldntLoadWho', "MAGE couldn't load who is on this project, so it can't tell whether your GC invited you to its safety records. Check your connection and try again.")}
         </Text>
-        <Button label="Try again" onPress={() => { void roleState.refetch(); }} variant="secondary" />
+        <Button label={t('safety.hub.tryAgain', 'Try again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
     );
   }
@@ -65,13 +67,14 @@ export function SafetyAccessBlocked({ roleState, onClose }: { roleState: Project
   // the paused read by itself and this gate re-renders.
   if (roleState.isPaused && roleState.role === null && roleState.reason) {
     return (
-      <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-offline">
-        <Text style={styles.gateTitle}>Waiting for signal</Text>
+      <View style={[styles.gateWrap, { backgroundColor: tc.bg }]} testID="safety-gate-offline">
+        <Text style={styles.gateTitle}>{t('safety.hub.waitingForSignal', 'Waiting for signal')}</Text>
         <Text style={styles.gateText}>{roleState.reason}</Text>
-        <Button label="Try again" onPress={() => { void roleState.refetch(); }} variant="secondary" />
+        <Button label={t('safety.hub.tryAgain', 'Try again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
     );
   }
+  // i18n-keep-english: Paywall looks its explainer up by this exact feature name
   return <Paywall visible={true} feature="Safety Management" requiredTier="business" onClose={onClose} />;
 }
 
@@ -125,12 +128,13 @@ export default function SafetyScreen() {
 }
 
 function SafetyHubInner() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { colors: t } = useTheme();
+  const { colors: tc } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -168,19 +172,19 @@ function SafetyHubInner() {
   const projectTiles = useMemo<Tile[]>(() => {
     if (!project) return [];
     return [
-      { key: 'jha', label: 'JHAs', icon: HardHat, count: getJhasForProject(pid).length,
+      { key: 'jha', label: t('safety.hub.tileJhas', 'JHAs'), icon: HardHat, count: getJhasForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-jha', params: { projectId: pid } }) },
-      { key: 'toolbox', label: 'Toolbox talks', icon: Megaphone, count: getToolboxTalksForProject(pid).length,
+      { key: 'toolbox', label: t('safety.hub.tileToolbox', 'Toolbox talks'), icon: Megaphone, count: getToolboxTalksForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-toolbox', params: { projectId: pid } }) },
-      { key: 'incidents', label: 'Incidents', icon: ShieldAlert, count: getIncidentsForProject(pid).length,
+      { key: 'incidents', label: t('safety.hub.tileIncidents', 'Incidents'), icon: ShieldAlert, count: getIncidentsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-incidents', params: { projectId: pid } }) },
-      { key: 'hazards', label: 'Hazard log', icon: TriangleAlert, count: getHazardsForProject(pid).length,
+      { key: 'hazards', label: t('safety.hub.tileHazards', 'Hazard log'), icon: TriangleAlert, count: getHazardsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-hazards', params: { projectId: pid } }) },
-      { key: 'inspections', label: 'Inspections', icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
+      { key: 'inspections', label: t('safety.hub.tileInspections', 'Inspections'), icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-inspections' as never, params: { projectId: pid } as never }) },
     ];
   }, [pid, project, router, getJhasForProject, getToolboxTalksForProject, getIncidentsForProject,
-    getHazardsForProject, getInspectionsForProject]);
+    getHazardsForProject, getInspectionsForProject, t]);
 
   // Company-scoped tools — project-independent, so they stay reachable with no
   // project selected. OSHA takes an OPTIONAL projectId; org-wide when none is
@@ -200,48 +204,48 @@ function SafetyHubInner() {
     const scoped = incidentsForOwnEstablishment(pid ? getIncidentsForProject(pid) : incidents, projects, user?.id);
     const oshaCount = buildOsha300Log(scoped, oshaYear).length;
     return [
-      { key: 'certifications', label: 'Certifications', icon: BadgeCheck, count: expiringCertifications(now).length,
+      { key: 'certifications', label: t('safety.hub.tileCertifications', 'Certifications'), icon: BadgeCheck, count: expiringCertifications(now).length,
         onPress: () => router.push('/safety-certifications' as never) },
-      { key: 'forms', label: 'Forms library', icon: FileText, count: templates.length,
+      { key: 'forms', label: t('safety.hub.tileForms', 'Forms library'), icon: FileText, count: templates.length,
         onPress: () => router.push('/safety-forms' as never) },
-      { key: 'osha', label: `OSHA 300 Log · ${oshaYear}`, icon: ShieldAlert, count: oshaCount,
+      { key: 'osha', label: t('safety.hub.tileOsha', 'OSHA 300 Log · {year}', { year: oshaYear }), icon: ShieldAlert, count: oshaCount,
         onPress: () => router.push(
           pid
             ? ({ pathname: '/safety-osha' as never, params: { projectId: pid } as never })
             : ('/safety-osha' as never),
         ) },
     ];
-  }, [ownTier, pid, router, getIncidentsForProject, incidents, projects, user?.id, oshaYear, expiringCertifications, templates]);
+  }, [ownTier, pid, router, getIncidentsForProject, incidents, projects, user?.id, oshaYear, expiringCertifications, templates, t]);
 
   const renderTile = (tile: Tile) => (
     <TouchableOpacity key={tile.key} style={[styles.tile, isDesktop && styles.tileDesktop]} activeOpacity={0.85} onPress={tile.onPress}>
-      <View style={styles.tileIcon}><tile.icon size={22} color={t.accent} strokeWidth={1.75} /></View>
+      <View style={styles.tileIcon}><tile.icon size={22} color={tc.accent} strokeWidth={1.75} /></View>
       <Text style={styles.tileLabel}>{tile.label}</Text>
       <View style={styles.tileFooter}>
         <Text style={styles.tileCount}>{tile.count}</Text>
-        <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
+        <ChevronRight size={16} color={tc.textMuted} strokeWidth={1.75} />
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: t.bg }]}>
-      <Stack.Screen options={{ title: project ? `Safety — ${project.name}` : 'Safety' }} />
+    <View style={[styles.container, { backgroundColor: tc.bg }]}>
+      <Stack.Screen options={{ title: project ? t('safety.hub.titleWithProject', 'Safety — {name}', { name: project.name }) : t('safety.title', 'Safety') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 12 }, isDesktop && styles.contentDesktop]}>
         {project ? (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>Project</Text>
+              <Text style={styles.sectionLabel}>{t('safety.hub.project', 'Project')}</Text>
               {pickable.length > 1 ? (
                 <TouchableOpacity
                   style={styles.switchBtn}
                   onPress={() => router.setParams({ projectId: '' })}
                   accessibilityRole="button"
-                  accessibilityLabel="Switch project"
+                  accessibilityLabel={t('safety.hub.switchProject', 'Switch project')}
                   testID="safety-switch-project"
                 >
-                  <ArrowLeftRight size={14} color={t.accent} strokeWidth={1.75} />
-                  <Text style={styles.switchBtnText}>Switch project</Text>
+                  <ArrowLeftRight size={14} color={tc.accent} strokeWidth={1.75} />
+                  <Text style={styles.switchBtnText}>{t('safety.hub.switchProject', 'Switch project')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -250,29 +254,29 @@ function SafetyHubInner() {
         ) : (
           <View style={styles.pickerWrap}>
             <ToolProjectPicker
-              toolName="Safety"
+              toolName={t('safety.title', 'Safety')}
               message={ownTier
-                ? 'JHAs, toolbox talks, incidents, the hazard log and inspections are tied to a project. Pick the project you are on.'
+                ? t('safety.hub.jhasToolboxTalksIncidents', 'JHAs, toolbox talks, incidents, the hazard log and inspections are tied to a project. Pick the project you are on.')
                 // Audit #121: he cannot see a single JHA, talk or hazard the
                 // GC wrote (20260919130000 — author or project owner only), so
                 // this says what he CAN do rather than "run their" records.
-                : 'Your GC invited you to these projects. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC\'s.'}
+                : t('safety.hub.yourGcInvitedYou', "Your GC invited you to these projects. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC's.")}
               projects={pickable}
               onPick={pickProject}
               staleProjectId={staleProjectId}
-              icon={<HardHat size={36} color={t.accent} strokeWidth={1.6} />}
+              icon={<HardHat size={36} color={tc.accent} strokeWidth={1.6} />}
             />
           </View>
         )}
 
         {ownTier ? (
           <>
-            <Text style={styles.sectionLabel}>Company-wide</Text>
+            <Text style={styles.sectionLabel}>{t('safety.hub.companyWide', 'Company-wide')}</Text>
             <View style={styles.grid}>{companyTiles.map(renderTile)}</View>
           </>
         ) : (
           <Text style={styles.collabNote} testID="safety-company-tools-note">
-            Certifications, the forms library and the OSHA 300 log are your own company&apos;s records, on the Business plan. The projects above are covered by your GC&apos;s.
+            {t('safety.hub.certificationsTheFormsLibrary', "Certifications, the forms library and the OSHA 300 log are your own company's records, on the Business plan. The projects above are covered by your GC's.")}
           </Text>
         )}
       </ScrollView>
@@ -280,33 +284,33 @@ function SafetyHubInner() {
   );
 }
 
-const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: t.bg },
+const makeStyles = (tc: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc.bg },
   // Record lists (certs / incidents / inspections / forms) — desktop gets the
   // viewport rather than a 760px column stranded in the middle.
   contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
-  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 4 },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: tc.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 4 },
   sectionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   switchBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 10, paddingVertical: 6, minHeight: 44 },
-  switchBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
+  switchBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: tc.accent },
   pickerWrap: { marginHorizontal: -20 },
-  collabNote: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
+  collabNote: { fontSize: Type.footnote.fontSize, color: tc.textSecondary, lineHeight: 19 },
   gateWrap: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 12 },
-  gateTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, textAlign: 'center' as const },
-  gateText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, textAlign: 'center' as const },
+  gateTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: tc.text, textAlign: 'center' as const },
+  gateText: { fontSize: Type.footnote.fontSize, color: tc.textSecondary, lineHeight: 19, textAlign: 'center' as const },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   // Desktop overrides the 47% two-up grid so tiles pack 4-5 across the wider
   // content column instead of stretching to ~570px each.
   tileDesktop: { width: 'auto' as const, flexBasis: 240, maxWidth: 340 },
   tile: {
-    width: '47%', flexGrow: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: t.line, padding: 16, gap: 12, minHeight: 120, justifyContent: 'space-between',
+    width: '47%', flexGrow: 1, backgroundColor: tc.surface, borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: tc.line, padding: 16, gap: 12, minHeight: 120, justifyContent: 'space-between',
   },
   tileIcon: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: t.accent + '14',
+    backgroundColor: tc.accent + '14',
   },
-  tileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  tileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: tc.text },
   tileFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tileCount: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.accent },
+  tileCount: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: tc.accent },
 });

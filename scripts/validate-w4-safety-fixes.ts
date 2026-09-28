@@ -32,6 +32,14 @@ import {
   mergeLocalOnly, pendingIdsForTable, pendingDeleteIdsForTable, emptyReadAuthoritative,
 } from '../utils/projectContextPure';
 import type { SafetyIncident } from '../types';
+// wave-next W2 (ESSAFETY): the Spanish safety surface.
+import { CREW_CARDS_LOADING, crewCardsText } from '../utils/safety/safetyRefresh';
+import { describeRecordability, safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason, recordableWorkerProblem } from '../utils/safety/osha';
+import { lapsedCertConfirmText, type CertFlag } from '../utils/safety/crewCerts';
+import { setLang } from '../i18n/core';
+import { sourceHash } from '../i18n/hash';
+import { EN as EN_SAFETY } from '../i18n/catalog/en/field.safety.generated';
+import { ES_SAFETY } from '../i18n/catalog/es/safety';
 
 const ROOT = join(__dirname, '..');
 const read = (p: string) => { try { return readFileSync(join(ROOT, p), 'utf8'); } catch { return ''; } };
@@ -138,7 +146,9 @@ console.log('\n#120 the GC\'s crew cards reach the foreman\'s sign-off');
 console.log('\n#121 a crew seat is told what he sees');
 {
   ok('hub says he files, it goes to the owner, he sees his own',
-    /Your GC invited you to these projects\. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC\\'s\./.test(HUB));
+    // wave-next W2 (Spanish): the sentence now sits inside t(…, "…GC's."), so
+    // the apostrophe may be plain or escaped; the words are the same.
+    /Your GC invited you to these projects\. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC(\\'|')s\./.test(HUB));
   ok('hub no longer says "run their JHAs"', !/run their JHAs/.test(HUB));
   for (const [name, src, kind] of [['JHA', JHA, 'jha'], ['toolbox', TBX, 'toolbox'], ['hazards', HAZ, 'hazard']] as const) {
     ok(`${name}: crew note on the list`, new RegExp(`\\{crewListNote\\('${kind}'\\)\\}`).test(src));
@@ -168,7 +178,9 @@ console.log('\n#123 safety AI is gated on his own Business tier');
     ok(`${name}: gate computed from his own tier`, src.includes(`const ${v} = ${call};`));
     ok(`${name}: button disabled with the reason shown`, new RegExp(`disabled=\\{[^}]*!!${v}`).test(src) && new RegExp(`\\{${v} \\? \\(\\s*<Text[^>]*>\\{${v}\\}</Text>`).test(src));
     ok(`${name}: refused before checkAILimit, alert title follows the reason`,
-      src.indexOf(`if (${v}) { showAlert('Business feature', ${v}); return; }`) > -1
+      // wave-next W2 (Spanish): the title is the catalog key with the same English.
+      (src.indexOf(`if (${v}) { showAlert('Business feature', ${v}); return; }`) > -1
+        || src.indexOf(`if (${v}) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), ${v}); return; }`) > -1)
       && src.indexOf(`if (${v}) {`) < src.indexOf('await checkAILimit(')
       && /showAlert\(aiLimitAlertTitle\(check\.reason\)/.test(src));
     ok(`${name}: no hard-coded "AI limit reached" left`, !/showAlert\('AI limit reached'/.test(src));
@@ -243,6 +255,59 @@ console.log('\n#119 review round 1: re-reads keep queued deletes hidden and igno
     !emptyReadAuthoritative({ loadUserId: 'u', liveUserId: 'u', sessionUserId: 'u', bearerBefore: 't1', bearerAfter: 't2' }));
   ok('the same user token before and after is authoritative',
     emptyReadAuthoritative({ loadUserId: 'u', liveUserId: 'u', sessionUserId: 'u', bearerBefore: 't', bearerAfter: 't' }));
+}
+
+// ── wave-next W2 (ESSAFETY): the safety screens in Spanish ─────────────────
+// docs/I18N.md §11: safety.* keys are ALWAYS strict — every key the nine
+// screens and utils/safety render has Spanish, and that Spanish was written
+// against the CURRENT English (src hash), so a drifted safety instruction
+// cannot ship. English stays byte-identical; Spanish comes back as whole
+// sentences (never an English noun in a Spanish frame).
+console.log('\nwave-next W2 — safety in Spanish');
+{
+  const enMap = EN_SAFETY as Record<string, unknown>;
+  const enKeys = Object.keys(enMap).filter(k => k.startsWith('safety.'));
+  const es = ES_SAFETY as Record<string, { s: unknown; src: string } | undefined>;
+  const noEs = enKeys.filter(k => !es[k]);
+  ok(`every safety.* key has Spanish (${enKeys.length} keys)`, enKeys.length > 400 && noEs.length === 0, noEs.slice(0, 5).join(', '));
+  const stale = enKeys.filter(k => es[k] && es[k]!.src !== sourceHash(enMap[k] as never));
+  ok('no safety Spanish is stale (src = the current English)', stale.length === 0, stale.slice(0, 5).join(', '));
+  const legal = enKeys.filter(k => k.includes('.legal.'));
+  ok('the safety surface holds no .legal. key (nothing statutory was keyed)', legal.length === 0, legal.join(', '));
+
+  // English: byte-identical, by construction and by value.
+  setLang('en');
+  ok('English: crewCardsText passes the constants through', crewCardsText(CREW_CARDS_LOADING) === CREW_CARDS_LOADING && crewCardsText(CREW_CARDS_UNAVAILABLE) === CREW_CARDS_UNAVAILABLE);
+  ok('English: crew note unchanged', crewListNote('toolbox') === "Your list shows only the toolbox talks you filed. They go to the job's owner; the owner's own toolbox talks aren't shown to invited crew.");
+  const flags: CertFlag[] = [{ certId: 'c', type: 'SST', expiresDate: '2026-09-12', status: 'expired', label: 'Expired: SST (Sep 12)' }];
+  ok('English: lapsed confirm unchanged', lapsedCertConfirmText('Ana', flags, 'Sign them off') === "Ana's SST (expired Sep 12) has lapsed. Sign them off anyway?");
+
+  // Spanish: whole sentences from the catalog, placeholders filled, no English left.
+  setLang('es');
+  try {
+    const note = crewListNote('jha');
+    ok('Spanish: the crew note is the catalog sentence, not an English frame', note === (es['safety.crew.listNoteJha']?.s as string) && !/Your list|filed/.test(note), note);
+    ok('Spanish: every crew empty title is Spanish', (['jha', 'toolbox', 'hazard'] as const).every(k => !/You haven't/.test(crewEmptyTitle(k))));
+    ok('Spanish: the AI-plan refusal is Spanish and still names the plan', /plan Business/.test(safetyAiBlockedReason('hazard_scan', false) ?? '') && !/needs your own/.test(safetyAiBlockedReason('hazard_scan', false) ?? ''));
+    ok('Spanish: the AI title for a real cap and for a plan block differ', aiLimitAlertTitle('daily_cap') !== aiLimitAlertTitle(undefined) && !/AI limit|Business feature/.test(aiLimitAlertTitle('daily_cap') + aiLimitAlertTitle(undefined)));
+    ok('Spanish: crew-card lines translate', crewCardsText(CREW_CARDS_UNAVAILABLE) !== CREW_CARDS_UNAVAILABLE && /Reintenta/.test(crewCardsText(CREW_CARDS_UNAVAILABLE)));
+    const confirm = lapsedCertConfirmText('Ana', flags, 'Sign them off') ?? '';
+    ok('Spanish: the lapsed-card confirm is one sentence with the name and the card', /Ana/.test(confirm) && /SST/.test(confirm) && /¿Firmar de todos modos\?/.test(confirm) && !/lapsed|anyway/.test(confirm), confirm);
+    const two = lapsedCertConfirmText('Ana', [...flags, { ...flags[0], certId: 'd', type: 'OSHA 10' }], 'Clock them in') ?? '';
+    ok('Spanish: two lapsed cards take the plural sentence', /Se vencieron las certificaciones/.test(two) && /OSHA 10/.test(two), two);
+    const v = describeRecordability({ type: 'near_miss', fatality: false, daysAway: 0, treatment: 'none', lostConsciousness: false, restrictedDuty: false, daysRestricted: 0 } as never);
+    ok('Spanish: the recordability reason is Spanish; the verdict boolean is unchanged', v.recordable === false && /No registrable/.test(v.reason) && !/near miss/.test(v.reason), v.reason);
+    const d = safetyDateProblem('9/18/26', 'Fecha del JHA') ?? '';
+    ok('Spanish: the date refusal quotes the label and the typed value, and never a numeric d/m date of its own', /Fecha del JHA/.test(d) && /9\/18\/26/.test(d) && /AAAA-MM-DD/.test(d) && /2026-09-18/.test(d), d);
+    ok('Spanish: seat refusals are Spanish', !/Only the project owner/.test(safetyDeleteBlockedReason('crew') ?? '') && !/invited to this project/.test(safetyWriteBlockedReason('viewer') ?? ''));
+    const w = recordableWorkerProblem([{ name: '', role: 'Carpenter', injured: true } as never]) ?? '';
+    ok('Spanish: the OSHA worker problem keeps its 1904.29(b)(7) citation verbatim', /1904\.29\(b\)\(7\)/.test(w) && /OSHA 300/.test(w), w);
+    const inc = String(es['safety.incident.oshaRecordableCasesMust']?.s ?? '');
+    ok('Spanish: the five-year retention sentence keeps 29 CFR 1904.33 verbatim', /29 CFR 1904\.33/.test(inc));
+  } finally {
+    setLang('en');
+  }
+  ok('English is back after the Spanish checks', crewEmptyTitle('jha') === "You haven't filed any JHAs on this job");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -108,6 +108,20 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
+import { useOffline } from '@/hooks/useOnline';
+import { nailIt } from '@/components/animations/NailItToast';
+import {
+  SlideToConfirm,
+  fromOnlineOutcome,
+  type CommitResult,
+  type CommitWriteOptions,
+  type SlideToConfirmHandle,
+} from '@/components/moments/core/contract';
+import {
+  certBusy, certConfirmed, certConfirmedToast, certEarlierPending, certEarlierUnsaved, certLegalQueued,
+  certNextPdf, certNoAccount, certNoPayButton, certOffline, certOfflineRefused, certPayBalanceRefused,
+  certPayLinkFailed, certPayLinkPending, certRefused, certSlideLabel, certSrConfirm, certSrLabel, certTimeout,
+} from '@/utils/moments/sites/moneyCopy';
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
 function fmtG703(n: number): string {
@@ -160,8 +174,11 @@ function AIAPayAppScreenInner() {
   }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings, projects,
-    addAIAPayApp, getAIAPayAppsForProject,
+    addAIAPayApp, getAIAPayAppsForProject, saveAIAPayAppOnline,
   } = useProjects();
+  // Certifying is a legal record: online only, never queued (plan D-2).
+  const offline = useOffline();
+  const certSlideRef = useRef<SlideToConfirmHandle>(null);
 
   const { user } = useAuth();
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
@@ -1245,6 +1262,20 @@ function AIAPayAppScreenInner() {
     || (app.certifiedExplanation ?? null) !== (savedForThisInvoice.certifiedExplanation ?? null)
   );
 
+  // One certificate per draft (wave-next W2, B4): the record id is pinned the
+  // first time "Ready to certify?" opens and every certify attempt reuses it,
+  // so a retry after "No answer yet" upserts the SAME aia_pay_apps row (and
+  // its Pay link), never a second one. A stored record's own id always wins.
+  const certifyRecIdRef = useRef<{ invoiceId: string | undefined; id: string } | null>(null);
+  const pinCertifyRecordId = useCallback((fresh: string): string => {
+    if (savedForThisInvoice) {
+      certifyRecIdRef.current = { invoiceId: invoice?.id, id: savedForThisInvoice.id };
+    } else if (!certifyRecIdRef.current || certifyRecIdRef.current.invoiceId !== invoice?.id) {
+      certifyRecIdRef.current = { invoiceId: invoice?.id, id: fresh };
+    }
+    return certifyRecIdRef.current.id;
+  }, [savedForThisInvoice, invoice?.id]);
+
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
   // generate.
@@ -1259,8 +1290,9 @@ function AIAPayAppScreenInner() {
     const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
     if (gb) { showAlert(gb.title, gb.message); return; }
     if (!app || !settings?.branding) return;
+    pinCertifyRecordId(generateUUID());
     setShowPreExportConfirm(true);
-  }, [app, settings?.branding, isLocked]);
+  }, [app, settings?.branding, isLocked, pinCertifyRecordId]);
 
   /** Reprint a saved certificate exactly as stored. No save, no pay link, no
    *  re-derivation — the whole point of review mode. */
@@ -1282,8 +1314,130 @@ function AIAPayAppScreenInner() {
     }
   }, [app, settings?.branding, printedCoSummary]);
 
-  const handleGenerate = useCallback(async () => {
+  // ── Certify: one slide (wave-next W2, moments B4) ──────────────────────
+  // "Ready to certify?" keeps its attestation; the certify is a slide that
+  // turns green only when the SERVER has the certification. Reordered: the
+  // certified record is written FIRST, online only (saveAIAPayAppOnline — a
+  // legal record is never queued, plan D-2; plain Save keeps its queue), then
+  // the Pay button is made against the stored row, then the PDF opens in
+  // onDone. Offline, the slide is disabled with "You're offline. Certifying
+  // needs a connection."
+  const certifiedLinkRef = useRef<{ record: SavedAIAPayApp; payLinkUrl: string; payLinkId: string; payLinkAmount: number } | null>(null);
+
+  /**
+   * The Pay button for a certification the server has just stored. Only
+   * edge-function calls (the Stripe status read and create-payment-link, which
+   * writes the link onto the stored row itself); never a queued write. The
+   * outcome becomes the result's next line instead of an Alert.
+   */
+  const makeCertifiedPayLink = useCallback(async (rec: SavedAIAPayApp, due: number): Promise<
+    { kind: 'minted'; url: string; id: string } | { kind: 'skipped' | 'not_connected' | 'balance' | 'failed' }
+  > => {
+    // ONE BILLING PERIOD IS ONE OBLIGATION (see handleSave): never mint for
+    // money already collected, or while the client's bank payment settles.
+    const sourceInvoiceSettled = !!invoice && invoiceOutstanding(invoice) <= 0.01;
+    if (pendingBankPayment || !(due > 0) || savedPaidAt || sourceInvoiceSettled || !user?.id) return { kind: 'skipped' };
+    try {
+      const status = await fetchStripeConnectStatus(user.id);
+      if (!(status.success && status.chargesEnabled && status.accountId)) return { kind: 'not_connected' };
+      const res = await createPaymentLink({
+        invoiceId: rec.id,
+        // rec.id is an aia_pay_apps id: the edge function checks ownership
+        // against that table and routes the webhook there.
+        recordType: 'aia_pay_app',
+        invoiceNumber: rec.applicationNumber,
+        projectName: rec.projectName ?? 'Project',
+        amountCents: Math.round(due * 100),
+        customerEmail: '',
+        companyName: rec.contractorName ?? settings?.branding?.companyName ?? 'Contractor',
+        stripeAccountId: status.accountId,
+        userTier: tier,
+      });
+      if (res.success && res.url && res.id) return { kind: 'minted', url: res.url, id: res.id };
+      if (isPayLinkBalanceCode(res.code)) return { kind: 'balance' };
+      console.warn('[AIA] payment link after certify failed:', res.error);
+      return { kind: 'failed' };
+    } catch (err) {
+      console.warn('[AIA] payment link after certify threw:', err);
+      return { kind: 'failed' };
+    }
+  }, [invoice, pendingBankPayment, savedPaidAt, user, settings, tier]);
+
+  const certAppNumber = app?.applicationNumber ?? 0;
+  // What the owner pays for this period: the architect's certified figure once
+  // recorded, line 8 as applied for until then (the same figure the result names).
+  const certDueCents = Math.round(aiaPayableNow(app ? { amountCertified: app.amountCertified, totals } : null) * 100);
+
+  const certify = useCallback(async (): Promise<CommitResult> => {
+    const words = {
+      refused: certRefused(),
+      timeout: certTimeout(certAppNumber),
+      earlierPending: certEarlierPending(),
+      earlierUnsaved: certEarlierUnsaved(),
+      offline: certOfflineRefused(),
+    };
+    const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
+    const built = gb ? null : buildSavedRecord();
+    const rec = built ? { ...built, id: pinCertifyRecordId(built.id) } : null;
+    if (!rec) return { status: 'refused', reason: gb ? gb.message : certRefused() };
+    const due = aiaPayableNow(rec);
+    const stored = await saveAIAPayAppOnline(rec);
+    if (stored.status === 'refused' && stored.code === 'no_account') return { status: 'refused', reason: certNoAccount() };
+    if (stored.status !== 'synced') return fromOnlineOutcome(stored, { title: certConfirmed(certAppNumber, Math.round(due * 100)) }, words);
+    // Stored: the Pay button is made against the row the server now has. It
+    // may not hold the answer past 10 s (the slide's own limit is 20 s).
+    const record = stored.record ?? rec;
+    certifiedLinkRef.current = null;
+    const pay = await Promise.race([
+      makeCertifiedPayLink(record, due),
+      new Promise<{ kind: 'pending' }>((resolve) => setTimeout(() => resolve({ kind: 'pending' }), 10000)),
+    ]);
+    if (pay.kind === 'minted') {
+      certifiedLinkRef.current = { record, payLinkUrl: pay.url, payLinkId: pay.id, payLinkAmount: Math.round(due * 100) / 100 };
+    }
+    const next = pay.kind === 'not_connected' ? certNoPayButton()
+      : pay.kind === 'balance' ? certPayBalanceRefused()
+        : pay.kind === 'failed' ? certPayLinkFailed()
+          : pay.kind === 'pending' ? certPayLinkPending()
+            : certNextPdf();
+    return fromOnlineOutcome(stored, { title: certConfirmed(certAppNumber, Math.round(due * 100)), next }, words);
+  }, [app?.lines, buildSavedRecord, pinCertifyRecordId, saveAIAPayAppOnline, makeCertifiedPayLink, certAppNumber]);
+
+  // Legal (plan rule 2): never queued; offline disables it with the reason.
+  const certWriteOptions = useMemo<CommitWriteOptions>(() => ({
+    idempotent: false,
+    legal: true,
+    copy: {
+      refused: certRefused(),
+      timeout: certTimeout(certAppNumber),
+      legalQueued: certLegalQueued(),
+      offline: certOffline(),
+    },
+  }), [certAppNumber]);
+
+  /** The minted link onto the local record, as the server already has it (housekeeping, after the certify). */
+  const keepCertifiedLink = useCallback(() => {
+    const link = certifiedLinkRef.current;
+    certifiedLinkRef.current = null;
+    if (!link) return;
+    addAIAPayApp({ ...link.record, payLinkUrl: link.payLinkUrl, payLinkId: link.payLinkId, payLinkAmount: link.payLinkAmount });
+  }, [addAIAPayApp]);
+
+  const onCertifyResolved = useCallback((r: CommitResult) => {
+    if (r.status === 'confirmed') keepCertifiedLink();
+  }, [keepCertifiedLink]);
+  const onCertifyLate = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
+    keepCertifiedLink();
+    nailIt(certConfirmedToast(certAppNumber));
+  }, [keepCertifiedLink, certAppNumber]);
+
+  // After the result hold: close the attestation and open the PDF to share.
+  const handleGenerate = useCallback(async (r: CommitResult) => {
+    if (r.status !== 'confirmed') return;
     setShowPreExportConfirm(false);
+    // Saving is not "I am done editing" (see handleSave): the editor stays open.
+    setEditRequested(true);
     if (!app || !settings?.branding) return;
     setGenerating(true);
     try {
@@ -1291,16 +1445,13 @@ function AIAPayAppScreenInner() {
         { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
-      // Persist + attach pay link via the same code path as handleSave so
-      // the portal-side rendering of this AIA app gets a Pay button.
-      await handleSave();
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app PDF couldn’t be generated. Try again.'));
+      // The certification is stored; only the PDF did not open.
+      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app is certified, but its PDF couldn’t be generated. Tap Reprint to try again.'));
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, handleSave, printedCoSummary]);
+  }, [app, settings?.branding, printedCoSummary]);
 
   // ── Wave 6d (M1) desktop hooks — above the first early return. ─────────────
   const isDesktop = useIsDesktop();
@@ -2761,7 +2912,7 @@ function AIAPayAppScreenInner() {
         <View style={[styles.modalBackdrop, fDisclaimer.overlay]}>
           <View style={[styles.modalCard, fDisclaimer.card]}>
             <View style={styles.modalIconWrap}>
-              <ShieldAlert size={26} color="#C26A00" strokeWidth={1.75} />
+              <ShieldAlert size={26} color={themeColors.warningLabel} strokeWidth={1.75} />
             </View>
             <Text style={styles.modalTitle}>Legal note</Text>
             <Text style={styles.modalBody}>
@@ -2793,7 +2944,7 @@ function AIAPayAppScreenInner() {
         <View style={[styles.modalBackdrop, fConfirm.overlay]}>
           <View style={[styles.modalCard, fConfirm.card]}>
             <View style={styles.modalIconWrap}>
-              <ShieldAlert size={24} color="#C26A00" strokeWidth={1.75} />
+              <ShieldAlert size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
             </View>
             <Text style={styles.modalTitle}>Ready to certify?</Text>
             <Text style={styles.modalBody}>
@@ -2803,17 +2954,36 @@ function AIAPayAppScreenInner() {
                 Once submitted, you certify these figures are accurate. The contractor named on this document is solely responsible for what&apos;s on it.
               </Text>
             </Text>
-            <View style={styles.modalCtaRow}>
-              <TouchableOpacity
-                style={styles.modalCtaSecondary}
-                onPress={() => setShowPreExportConfirm(false)}
-              >
-                <Text style={styles.modalCtaSecondaryText}>Let me re-check</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalCta} onPress={handleGenerate}>
-                <Text style={styles.modalCtaText}>I&apos;ve reviewed it · Generate</Text>
-              </TouchableOpacity>
+            {/* The certify is one slide (wave-next W2, moments B4): legal,
+                online only, green only when the server has it. */}
+            <View style={styles.certSlideWrap}>
+              <SlideToConfirm
+                ref={certSlideRef}
+                label={certSlideLabel(certDueCents)}
+                busyLabel={certBusy()}
+                srLabel={certSrLabel(certAppNumber, certDueCents)}
+                srConfirm={certSrConfirm(certAppNumber)}
+                onCommit={certify}
+                writeOptions={certWriteOptions}
+                offline={offline}
+                size="lg"
+                tone="brand"
+                resultIcon="check"
+                onResolved={onCertifyResolved}
+                onDone={handleGenerate}
+                onLateResult={onCertifyLate}
+                onResultAfterUnmount={onCertifyLate}
+                testID="aia-certify-slide"
+              />
             </View>
+            <TouchableOpacity
+              style={styles.modalCtaSecondary}
+              onPress={() => setShowPreExportConfirm(false)}
+              accessibilityRole="button"
+              testID="aia-certify-recheck"
+            >
+              <Text style={styles.modalCtaSecondaryText}>Let me re-check</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3219,14 +3389,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
   },
   modalCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  certSlideWrap: { marginTop: 16 },
   modalCtaSecondary: {
     backgroundColor: themeColors.surface,
     paddingVertical: 13, paddingHorizontal: 18,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center', justifyContent: 'center',
-    flex: 1,
+    marginTop: 4,
   },
   modalCtaSecondaryText: { color: themeColors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 });

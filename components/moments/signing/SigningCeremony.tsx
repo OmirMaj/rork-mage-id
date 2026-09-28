@@ -48,6 +48,7 @@ import {
   buildSealRingText,
   formatRecordDay,
   formatRecordTime,
+  installMomentLanguage,
   waitingChipText,
   type RecordVerb,
 } from '@/utils/moments/sealText';
@@ -64,6 +65,11 @@ import { SealStamp, useSealValues } from '@/components/moments/signing/SealStamp
 import { LetterFold, useLetterFold } from '@/components/moments/signing/LetterFold';
 import { ConsentRow } from '@/components/moments/signing/ConsentRow';
 import { CeremonyDocTop } from '@/components/moments/signing/CeremonyDocTop';
+import { useT } from '@/contexts/LanguageContext';
+
+// The moments' own words follow the app language (wave-next W2): binds the
+// providers utils/moments/copy.ts and commitResult.ts read at call time.
+installMomentLanguage();
 
 type Confirmed = Extract<CommitResult, { status: 'confirmed' }>;
 
@@ -192,6 +198,7 @@ export function SigningCeremony(props: SigningCeremonyProps) {
 }
 
 function CeremonyBody(props: SigningCeremonyProps) {
+  const { t } = useT();
   const { signer, mode, parties, signedBefore, name, role, consent, copy, fold, testID } = props;
   const { colors, resolved } = useTheme();
   const mc = useMemo(() => momentColors(colors, resolved), [colors, resolved]);
@@ -234,7 +241,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
   const [seal, setSeal] = useState<SealState | null>(null);
   // Step 0: a confirmed answer the caller marked neutral (isNeutral): a plain line, never a seal.
   const [neutral, setNeutral] = useState<string | null>(null);
-  const [chip, setChip] = useState('Awaiting your signature');
+  const [chip, setChip] = useState(() => t('common.moment.chipAwaiting', 'Awaiting your signature'));
   const padRef = useRef<SignaturePadHandle>(null);
   const hasInk = props.paths.length > 0;
 
@@ -367,12 +374,13 @@ function CeremonyBody(props: SigningCeremonyProps) {
 
     const sealX = Wc - 20 - 44;
     const sealY = G.panel + G.lineY - 30;
-    const chipAfter = plan.binding ? null : parties === 1 ? 'Locked' : waitingChipText(p.fold);
+    const chipAfter = plan.binding ? null : parties === 1 ? t('common.moment.locked', 'Locked') : waitingChipText(p.fold);
     const bind = () => {
       if (!plan.binding) return;
       p.onBinding?.();
-      swapChip('Binding');
-      announce('Binding');
+      const binding = t('common.moment.binding', 'Binding');
+      swapChip(binding);
+      announce(binding);
     };
     const drawArcs = (dur: number) => {
       const arc = (val: Animated.Value) => {
@@ -479,7 +487,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
     tone: 'brand',
     threshold: 0.85,
     hideWhenDisabled: true,
-    copy: { label: copy.label, busyLabel: 'Signing…', srLabel: copy.srLabel, srConfirm: copy.srConfirm },
+    copy: { label: copy.label, busyLabel: t('common.moment.signing', 'Signing…'), srLabel: copy.srLabel, srConfirm: copy.srConfirm },
     disabledReason: readiness,
     write: props.write,
     writeOptions: { ...props.writeOptions, legal: true },
@@ -536,7 +544,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
       />
       {mode === 'drawn' ? (
         <Animated.Text style={[st.placeholder, { opacity: phO }]}>
-          Sign here
+          {t('common.moment.signHere', 'Sign here')}
         </Animated.Text>
       ) : null}
       {mode === 'drawn' && W > 0 ? (
@@ -601,7 +609,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
       />
       {showClear ? (
         <Pressable onPress={onClear} style={st.clear} accessibilityRole="button" hitSlop={8} testID={testID ? `${testID}-clear` : undefined}>
-          <Text style={st.clearText}>Clear</Text>
+          <Text style={st.clearText}>{t('common.moment.clear', 'Clear')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -611,18 +619,18 @@ function CeremonyBody(props: SigningCeremonyProps) {
   const backFace = fold && seal ? (
     <View style={st.backInner}>
       <Text style={st.sentTitle} numberOfLines={2}>
-        {fold.title ?? (fold.sent === false ? 'Signed. Email not sent.' : `Sent to ${fold.to}`)}
+        {fold.title ?? (fold.sent === false ? t('common.moment.signedEmailNotSent', 'Signed. Email not sent.') : t('common.moment.sentTo', 'Sent to {to}', { to: fold.to }))}
       </Text>
       <Text style={st.sentBody}>
         {fold.body ??
           (fold.sent === false
-            ? 'Share the link instead.'
-            : 'They counter-sign from their portal link. The contract is binding when they sign.')}
+            ? t('common.moment.shareLinkInstead', 'Share the link instead.')
+            : t('common.moment.counterSignNote', 'They counter-sign from their portal link. The contract is binding when they sign.'))}
       </Text>
       {(fold.rows ?? [
-        { label: 'To', value: fold.email },
-        { label: fold.sent === false ? 'Signed' : 'Sent', value: seal.sentAt },
-        { label: 'Terms', value: 'Locked' },
+        { label: t('common.moment.rowTo', 'To'), value: fold.email },
+        { label: fold.sent === false ? t('common.moment.rowSigned', 'Signed') : t('common.moment.rowSent', 'Sent'), value: seal.sentAt },
+        { label: t('common.moment.rowTerms', 'Terms'), value: t('common.moment.locked', 'Locked') },
       ]).map((row) => (
         <View key={row.label} style={st.sentRow}>
           <Text style={st.sentLabel}>{row.label}</Text>

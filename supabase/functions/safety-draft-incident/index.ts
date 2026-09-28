@@ -7,10 +7,11 @@
 // model on the same text meter. Fail-closed: on error the user keeps the manual
 // incident form.
 //
-// Request: { voiceTranscript?, notes?, photoUrls?: string[] }.
+// Request: { voiceTranscript?, notes?, photoUrls?: string[], locale? }.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -38,6 +39,8 @@ interface DraftIncidentRequest {
   voiceTranscript?: string;
   notes?: string;
   photoUrls?: string[];
+  /** 'es' asks for Spanish text; anything else (or absent) is English. */
+  locale?: string;
 }
 
 interface CorrectiveActionOut { action: string; owner: string; }
@@ -123,7 +126,11 @@ serve(async (req) => {
     transcript ? `Spoken report: ${transcript}` : null,
     notes ? `Notes: ${notes}` : null,
   ].filter(Boolean).join('\n');
-  const parts: Record<string, unknown>[] = [{ text: `${ctxLine}\n\n${INCIDENT_PROMPT}` }];
+  // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
+  // when the client sent locale "es". '' otherwise, so an English request's
+  // prompt is byte-identical to before. The JSON shape, enum values, numbers
+  // and OSHA citations are unchanged by the rule.
+  const parts: Record<string, unknown>[] = [{ text: `${ctxLine}\n\n${INCIDENT_PROMPT}` + replyLanguageRule(body.locale) }];
 
   if (hasPhotos) {
     const urls = body.photoUrls!.slice(0, 6);

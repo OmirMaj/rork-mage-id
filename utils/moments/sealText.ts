@@ -16,6 +16,9 @@
 // Pure TypeScript apart from one pure import (bun loads it).
 
 import { homeownerSignatureMethodLabel } from '@/utils/contractSignatureCore';
+import { getDisplayLang, t } from '@/i18n/core';
+import { bindMomentFrames, type MomentFrameWords } from '@/utils/moments/commitResult';
+import { bindMomentWords, type MomentWords } from '@/utils/moments/copy';
 
 export type SealVerb = 'SIGNED' | 'SIGNED ON SITE' | 'ACCEPTED';
 export type SignMethod = 'drawn' | 'typed' | 'in_person' | 'portal' | 'paper';
@@ -30,9 +33,54 @@ export const SEAL_SEPARATOR = ' · ';
  * claims one.
  */
 export function waitingChipText(fold?: { to: string; sent?: boolean } | null): string {
-  if (!fold) return 'Signed · awaiting countersignature';
-  if (fold.sent === false) return 'Signed · Email not sent';
-  return `Sent · awaiting ${fold.to}`;
+  if (!fold) return t('common.moment.chipAwaitingCountersign', 'Signed · awaiting countersignature');
+  if (fold.sent === false) return t('common.moment.chipEmailNotSent', 'Signed · Email not sent');
+  return t('common.moment.chipSentAwaiting', 'Sent · awaiting {to}', { to: fold.to });
+}
+
+// ── The moments' own words in the app's language (wave-next W2, ESTOOLS) ──
+// utils/moments/copy.ts and commitResult.ts stay import-free (the moments
+// checks load copies of them), so they read the language through providers
+// bound here. Each provider answers null in English: English output is the
+// constants and frames, byte for byte. Every sentence is WHOLE (no verb or
+// noun passed into a frame: Spanish participles agree in gender).
+// The seal ring and the record line below are the signer's legal record and
+// stay English.
+
+function momentWordsL(): MomentWords | null {
+  if (getDisplayLang() === 'en') return null;
+  return {
+    srHint: t('common.moment.srHint', 'Double-tap, then confirm'),
+    queued: t('common.moment.queued', 'Saved on this phone · sends when online'),
+    localOnlyTitle: t('common.moment.localOnlyTitle', 'Saved on this phone only'),
+    localOnlyNext: t('common.moment.localOnlyNext', 'Sign in to send it to your account.'),
+    earlierPending: t('common.moment.earlierPending', "An earlier change to this record hasn't sent yet. Try again in a moment."),
+    earlierUnsaved: t('common.moment.earlierUnsaved', 'An earlier change to this record is under Not saved. Retry it first.'),
+  };
+}
+
+function momentFramesL(): MomentFrameWords | null {
+  if (getDisplayLang() === 'en') return null;
+  return {
+    refused: t('common.moment.refusedFallback', 'Not saved. Something went wrong on our side.'),
+    timeout: t('common.moment.timeoutFallback', 'No answer yet. Check the record before trying again.'),
+    legalQueued: t('common.moment.legalQueuedFallback', 'Not signed. Signing needs a connection, so nothing was signed.'),
+    transport: t('common.moment.transportFallback', 'Not saved. The connection dropped, so nothing was saved.'),
+    transportUnknown: t('common.moment.transportUnknown', 'No answer yet. The connection dropped, so it may still go through.'),
+    offlineSigning: t('common.moment.offlineSigning', "You're offline. Signing needs a connection."),
+    offlineCertifying: t('common.moment.offlineCertifying', "You're offline. Certifying needs a connection."),
+    done: t('common.moment.done', 'Done'),
+  };
+}
+
+let momentLanguageInstalled = false;
+
+/** Bind the providers once (SlideToConfirm and SigningCeremony call it at import). */
+export function installMomentLanguage(): void {
+  if (momentLanguageInstalled) return;
+  momentLanguageInstalled = true;
+  bindMomentWords(momentWordsL);
+  bindMomentFrames(momentFramesL);
 }
 
 interface DateParts {

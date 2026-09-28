@@ -751,6 +751,39 @@ console.log('\nUX A6 — the queue says when it moved:');
     voiceBacklog([applyTranscribeOutcome(mk({ id: 't' }), 'retryable', '').task], 'u1').failed === 1);
 }
 
+// ── Wave-next W2 (ESTOOLS): the pill's voice lines in any language ─────────
+// OfflineSyncPill keeps voiceWaitingLine / voiceFailedLine as the rule for
+// WHETHER a line shows, and prints the words through ONE plural key each
+// (field.chrome.voiceWaiting / voiceFailed). In English those keys must print
+// exactly what the two helpers print, for every count; in Spanish they are
+// real plural forms.
+{
+  const { tn, setLang } = await import('../i18n/core');
+  const { scanSource } = await import('./i18n-extract');
+  const { voiceWaitingLine, voiceFailedLine } = await import('../utils/audioTranscribeCore');
+  const pill = read('components/OfflineSyncPill.tsx');
+  // The forms as written at the CALL SITE (what English renders), not the catalog.
+  const sites = scanSource('components/OfflineSyncPill.tsx', pill).sites;
+  const wForms = sites.find((x) => x.key === 'field.chrome.voiceWaiting')?.en;
+  const fForms = sites.find((x) => x.key === 'field.chrome.voiceFailed')?.en;
+  ok('the pill\'s waiting / failed words are the plural keys, gated by the helpers', /tn\('field\.chrome\.voiceWaiting', voiceWaitingN,/.test(pill) && /tn\('field\.chrome\.voiceFailed', voiceFailedN,/.test(pill) && /floating && voiceWaitingLine\(voice\.backlog\)/.test(pill) && /floating && voiceFailedLine\(voice\.backlog\)/.test(pill));
+  let bad = '';
+  setLang('en');
+  for (let n = 1; n <= 60; n++) {
+    const b = { waiting: n, ready: 0, failed: n } as Parameters<typeof voiceWaitingLine>[0];
+    if (typeof wForms !== 'object' || typeof fForms !== 'object') { bad = 'the pill has no tn() call site for these keys'; break; }
+    if (tn('field.chrome.voiceWaiting', n, wForms) !== voiceWaitingLine(b)) bad = `waiting ${n}`;
+    if (tn('field.chrome.voiceFailed', n, fForms) !== voiceFailedLine(b)) bad = `failed ${n}`;
+  }
+  ok('English: the plural keys print exactly the helpers\' lines for 1…60', bad === '', bad);
+  setLang('es');
+  const es1 = typeof wForms === 'object' ? tn('field.chrome.voiceWaiting', 1, wForms) : '';
+  const es3 = typeof wForms === 'object' ? tn('field.chrome.voiceWaiting', 3, wForms) : '';
+  const esF2 = typeof fForms === 'object' ? tn('field.chrome.voiceFailed', 2, fForms) : '';
+  ok('Spanish: real plural forms (1 nota / 3 notas)', es1 === '1 nota de voz en espera' && es3 === '3 notas de voz en espera' && esF2 === '2 notas de voz no se pudieron transcribir', `${es1} | ${es3} | ${esF2}`);
+  setLang('en');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
 

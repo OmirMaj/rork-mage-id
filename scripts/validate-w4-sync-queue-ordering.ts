@@ -541,6 +541,24 @@ console.log('\n#1 — Discard is worded per operation:');
   const pill = readFileSync(join(ROOT, 'components', 'OfflineSyncPill.tsx'), 'utf8');
   ok('the pill’s Discard confirm uses the per-operation body, not one create-only sentence',
     /discardConfirmBody\(line\.discards\)/.test(pill) && !/`It was never saved to MAGE\. Discarding/.test(pill));
+  // W2 ESTOOLS (Spanish): the pill's other-language branch keys the same four
+  // bodies. Their English must stay the very sentence discardConfirmBody()
+  // gives (the fallback a language with no entry reads), and no translation of
+  // a discard or resend sentence may carry the English ledger label.
+  const { EN_CATALOG } = await import('@/i18n/catalog/en');
+  const { ES_CATALOG } = await import('@/i18n/catalog/es');
+  const kinds = ['create', 'edit', 'delete', 'unknown'] as const;
+  const drift = kinds.filter((k) => EN_CATALOG[`field.chrome.discardBody.${k}`] !== discardConfirmBody(k));
+  ok('the pill’s keyed discard bodies say exactly what discardConfirmBody() says, per operation', drift.length === 0, `drifted: ${drift.join(', ')}`);
+  const esKeys: `field.${string}`[] = ['field.chrome.discardUnsaved', 'field.chrome.sendsNextSignal', ...kinds.map((k) => `field.chrome.discardBody.${k}` as const)];
+  const labelled = esKeys.filter((k) => { const e = ES_CATALOG[k]; return !e || typeof e.s !== 'string' || /\{(item|label)\}/.test(e.s); });
+  ok('every discard / resend sentence has Spanish, and none carries the English record label', labelled.length === 0, labelled.join(', '));
+  ok('the pill keeps the English record label to the English branch only',
+    /lang === 'en'[\s\S]{0,200}`\$\{line\.label\} will be sent the next time you have signal\.`/.test(pill)
+    && /english[\s\S]{0,260}`Discard this \$\{line\.label\.toLowerCase\(\)\}\?`/.test(pill)
+    // the label-free sentences take no data at all (a list row such as
+    // '{label} ({writes} changes)' is a heading, not grammar, and stays)
+    && !/t\('field\.chrome\.(discardUnsaved|sendsNextSignal|discardBody\.[a-z]+)', '[^']*', \{/.test(pill));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

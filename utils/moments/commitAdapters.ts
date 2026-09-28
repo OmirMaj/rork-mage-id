@@ -24,7 +24,7 @@
 // refused rule still applies to the 'queued' and 'local' answers.
 
 import type { CommitResult } from '@/utils/moments/commitResult';
-import { LOCAL_ONLY_NEXT, LOCAL_ONLY_TITLE } from '@/utils/moments/copy';
+import { localOnlyNext, localOnlyTitle } from '@/utils/moments/copy';
 
 /** A queue-backed write's answer (supabaseWriteDetailed + ProjectContext's 'local'). */
 export type WriteOutcomeLike = 'synced' | 'queued' | 'failed' | 'local';
@@ -120,8 +120,10 @@ export function fromWriteOutcome(o: WriteOutcomeLike, ok: ConfirmedCopy, words: 
       };
     case 'local':
       // On this device only: never a green tick, never "sends when online"
-      // (it will not, until someone signs in).
-      return { status: 'queued', title: LOCAL_ONLY_TITLE, next: LOCAL_ONLY_NEXT };
+      // (it will not, until someone signs in). The function forms read the
+      // app's language at call time; in English they ARE LOCAL_ONLY_TITLE /
+      // LOCAL_ONLY_NEXT, byte for byte.
+      return { status: 'queued', title: localOnlyTitle(), next: localOnlyNext() };
     case 'failed':
     default:
       return { status: 'refused', reason: words.refused };

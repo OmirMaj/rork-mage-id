@@ -1102,18 +1102,28 @@ console.log('\nthe WIP screen renders the period it would export:');
     // permanently unlocked — the one irreversible act that turns a snapshot into
     // a document a surety can rely on — while `periodsByEnd[0]` is still written
     // there and the count assertion above still passes.
+    // moments C5 (wave-next W2, MOMFIELD): the four exits are the lock slide's
+    // disabled reasons now (lockRefusal, computed when the sheet opens), and
+    // the lock itself is lockPeriodDetailed inside the slide's commit. Same
+    // rule: a fifth refusal (or an inverted guard) makes Lock inert.
     const body = handler('const handleLock = useCallback(() => {', '}, [selectedPeriodId, periods, periodsByEnd,');
+    const refusal = handler('function lockRefusal(', '\n}\n');
     ok('Lock has exactly the four exits it is supposed to have',
-      body !== '' && returnsIn(body) === 4
+      body !== '' && refusal !== '' && returnsIn(refusal) === 5
       && /const target = selectedPeriodId \? periods\.find\(\(p\) => p\.id === selectedPeriodId\) : periodsByEnd\[0\];/.test(body)
-      && /if \(target\.rows\.length === 0\) \{/.test(body)
-      && /if \(target\.lockedAt\) \{/.test(body),
-      body === ''
-        ? 'handleLock not found — re-point this assertion rather than deleting it'
-        : `${returnsIn(body)} return(s) in handleLock; expected 4 — no target with no rows, no `
-          + 'target at all, an empty period, and an already-locked one. A fifth makes Lock inert.');
-    ok('…and the lock itself is inside it, behind the confirm',
-      /text: 'Lock', style: 'destructive', onPress: \(\) => \{ lockPeriod\(target\.id\)/.test(body));
+      && /reason: lockRefusal\(target, liveRows\.length > 0\)/.test(body)
+      && /if \(!target\) \{/.test(refusal)
+      && /if \(target\.rows\.length === 0\) return /.test(refusal)
+      && /if \(target\.lockedAt\) return /.test(refusal)
+      && /return null;$/.test(refusal.trim()),
+      body === '' || refusal === ''
+        ? 'handleLock / lockRefusal not found — re-point this assertion rather than deleting it'
+        : `${returnsIn(refusal)} return(s) in lockRefusal; expected 5 — no target with no rows, no `
+          + 'target at all, an empty period, an already-locked one, and null. A fifth refusal makes Lock inert.');
+    ok('…and the lock itself is inside the slide, behind the confirm',
+      /const outcome = await lockPeriodDetailed\(id\);/.test(WIP_SCREEN)
+      && /onCommit=\{commitLock\}/.test(WIP_SCREEN)
+      && /disabledReason=\{lockSheet\.reason\}/.test(WIP_SCREEN));
   }
   ok('…and the screen states what fade is measured against, or that it is not',
     /testID="wip-fade-basis"/.test(WIP_SCREEN)

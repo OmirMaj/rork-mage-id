@@ -74,3 +74,62 @@ export const EARLIER_CHANGE_PENDING_REASON = "An earlier change to this record h
 
 /** The same, when the earlier change is under Not saved (the server refused it): Retry goes first. */
 export const EARLIER_CHANGE_UNSAVED_REASON = 'An earlier change to this record is under Not saved. Retry it first.';
+
+// ── Wave-next W2 (lane ESTOOLS): the same words in the app's language ─────
+// The constants above stay English, byte for byte (the adapters, the
+// capsule and their checks compare against them). These function forms read
+// the language at CALL time: a provider bound by the i18n layer
+// (utils/moments/sealText.ts installMomentLanguage) answers null in English,
+// so English callers get exactly the constants. This file stays import-free:
+// the moments checks load copies of it on their own.
+
+/** Whole sentences, one per constant above, in the app's language. */
+export interface MomentWords {
+  srHint: string;
+  queued: string;
+  localOnlyTitle: string;
+  localOnlyNext: string;
+  earlierPending: string;
+  earlierUnsaved: string;
+}
+
+let momentWordsProvider: (() => MomentWords | null) | null = null;
+
+/** Bound once by the i18n layer. null (or a provider answering null) = English. */
+export function bindMomentWords(provider: (() => MomentWords | null) | null): void {
+  momentWordsProvider = provider;
+}
+
+function wordsNow(): MomentWords | null {
+  try {
+    return momentWordsProvider ? momentWordsProvider() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** MOMENT_COPY in the app's language. */
+export function momentCopy(): MomentCopyDefaults {
+  const w = wordsNow();
+  return w ? { srHint: w.srHint, queued: w.queued } : MOMENT_COPY;
+}
+
+/** LOCAL_ONLY_TITLE in the app's language. */
+export function localOnlyTitle(): string {
+  return wordsNow()?.localOnlyTitle ?? LOCAL_ONLY_TITLE;
+}
+
+/** LOCAL_ONLY_NEXT in the app's language. */
+export function localOnlyNext(): string {
+  return wordsNow()?.localOnlyNext ?? LOCAL_ONLY_NEXT;
+}
+
+/** EARLIER_CHANGE_PENDING_REASON in the app's language. */
+export function earlierChangePendingReason(): string {
+  return wordsNow()?.earlierPending ?? EARLIER_CHANGE_PENDING_REASON;
+}
+
+/** EARLIER_CHANGE_UNSAVED_REASON in the app's language. */
+export function earlierChangeUnsavedReason(): string {
+  return wordsNow()?.earlierUnsaved ?? EARLIER_CHANGE_UNSAVED_REASON;
+}

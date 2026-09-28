@@ -2,25 +2,55 @@
 // Pure data (no React Native), so the same files can feed the Deno edge
 // functions and the static portal pages later (scripts/i18n-sync-edge).
 //
-// Loaded statically for now: the seed is small. When the Phase 1 catalog
-// lands (~1,700 strings) switch core.ts to a lazy require() so English users
-// never parse Spanish.
+// i18n/core.ts loads this LAZILY (require() on the first Spanish lookup), so
+// an English user never parses Spanish (docs/I18N.md §2).
+//
+// Shards (wave-next W2, lane ESTOOLS): the field area is split per surface
+// (es/field/*.ts) so parallel lanes never edit the same file. Each file is
+// owned by exactly one lane per phase (see the file's header).
 
 import type { EsCatalog } from '../../types';
 import { ES_NAV } from './nav';
 import { ES_SETTINGS } from './settings';
 import { ES_COMMON } from './common';
 import { ES_AI } from './ai';
-import { ES_FIELD } from './field';
 import { ES_SAFETY } from './safety';
 import { ES_OUTBOUND } from './outbound';
+import { ES_FIELD_SHARED } from './field/shared';
+import { ES_FIELD_DFR } from './field/dfr';
+import { ES_FIELD_TIME } from './field/time';
+import { ES_FIELD_PUNCH } from './field/punch';
+import { ES_FIELD_PUNCH_WALK } from './field/punchWalk';
+import { ES_FIELD_TICKET } from './field/ticket';
+import { ES_FIELD_CREW } from './field/crew';
+import { ES_FIELD_LINEUP } from './field/lineup';
+import { ES_FIELD_HOME } from './field/home';
+import { ES_FIELD_CHROME } from './field/chrome';
+import { ES_FIELD_DELIVERY } from './field/delivery';
+import { ES_FIELD_PHOTO } from './field/photo';
+import { ES_FIELD_VOICE } from './field/voice';
 
-export const ES_CATALOG: EsCatalog = {
-  ...ES_NAV,
-  ...ES_SETTINGS,
-  ...ES_COMMON,
-  ...ES_AI,
-  ...ES_FIELD,
-  ...ES_SAFETY,
-  ...ES_OUTBOUND,
+/** Every Spanish file by its path under es/ (validate-i18n checks a key never sits in two). */
+export const ES_SHARDS: Record<string, EsCatalog> = {
+  nav: ES_NAV,
+  settings: ES_SETTINGS,
+  common: ES_COMMON,
+  ai: ES_AI,
+  safety: ES_SAFETY,
+  outbound: ES_OUTBOUND,
+  'field/shared': ES_FIELD_SHARED,
+  'field/dfr': ES_FIELD_DFR,
+  'field/time': ES_FIELD_TIME,
+  'field/punch': ES_FIELD_PUNCH,
+  'field/punchWalk': ES_FIELD_PUNCH_WALK,
+  'field/ticket': ES_FIELD_TICKET,
+  'field/crew': ES_FIELD_CREW,
+  'field/lineup': ES_FIELD_LINEUP,
+  'field/home': ES_FIELD_HOME,
+  'field/chrome': ES_FIELD_CHROME,
+  'field/delivery': ES_FIELD_DELIVERY,
+  'field/photo': ES_FIELD_PHOTO,
+  'field/voice': ES_FIELD_VOICE,
 };
+
+export const ES_CATALOG: EsCatalog = Object.assign({}, ...Object.values(ES_SHARDS)) as EsCatalog;
