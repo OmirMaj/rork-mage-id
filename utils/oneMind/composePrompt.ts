@@ -28,6 +28,21 @@ const DEFAULT_BLOCK_CAP = 1_400;
 
 const MAX_TURNS = 6;
 
+/** Real screens and button names, for "how do I use the app" questions. Every
+ *  label is verified: app/(tabs)/(home)/index.tsx ("New project", "Create
+ *  project"), app/(tabs)/discover/index.tsx ("Schedule"),
+ *  components/schedule/ScheduleOnRamp.tsx (the three choices). Add a screen
+ *  here only after checking the label exists; the model must not invent any. */
+export const APP_GUIDE = [
+  'CREATE A PROJECT: open the Projects tab. Tap New project. Type the job name (for example Kitchen Renovation) and the jobsite address. Tap Create project.',
+  'BUILD A SCHEDULE: open the project and tap Schedule (Discover, then Schedule, also works). On Build a schedule, pick Build from your estimate (shown when the job has an estimate) or Answer a few quick questions, and MAGE drafts the tasks. Start blank makes an empty schedule. You can change everything later.',
+].join('\n');
+
+/** A question about using the app, not about the contractor's data. */
+export function isAppHowTo(q: string): boolean {
+  return /\bhow (do|can|would|should)?\s*(i|we)\b.*\b(create|start|make|build|add|set up|use|find|open)\b|\bhow to\b|\bwalk me through\b|\bshow me how\b/i.test(q);
+}
+
 function capBlockFacts(block: FactBlock, remaining: number): string[] {
   const cap = Math.min(BLOCK_CHAR_CAPS[block.ref] ?? DEFAULT_BLOCK_CAP, remaining);
   const out: string[] = [];
@@ -65,7 +80,7 @@ export function composeOneMindPrompt({ question, turns, blocks, scopeLabel }: Co
 
   parts.push(
     'You are MAGE, the single mind inside a construction contractor\'s app. ' +
-    'Answer the user\'s question using ONLY the fact blocks below — they were computed ' +
+    'Answer questions about their business using ONLY the fact blocks below — they were computed ' +
     'from the contractor\'s own logged data by the app\'s engines. Never invent a number, ' +
     'date, name or dollar amount that is not in a block. ' +
     'Cite the block refs you used in square brackets, e.g. [MARGIN] or [WATCH], at the end ' +
@@ -73,8 +88,14 @@ export function composeOneMindPrompt({ question, turns, blocks, scopeLabel }: Co
     'Lead with the direct answer, then the most important supporting facts. ' +
     'Keep dense figures third-person; use "I" only when giving a judgment call. ' +
     'If the blocks don\'t contain what\'s needed, say plainly that\'s not in your data yet ' +
-    '(and name what to log to get it) rather than guessing.',
+    '(and name what to log to get it) rather than guessing. ' +
+    'HOW-TO: if the user asks how to do something IN THE APP (create a project, build a schedule) ' +
+    'rather than about their data, answer with short numbered steps taken ONLY from the APP GUIDE ' +
+    'below, using its exact button names, and end with "I can walk you through it. Tell me which ' +
+    'step you are on." Do not say you can do it for them. Never invent a screen or button that is ' +
+    'not in the guide; if the guide does not cover it, say you are not sure of the exact steps yet.',
   );
+  parts.push(`APP GUIDE:\n${APP_GUIDE}`);
 
   if (scopeLabel) parts.push(`SCOPE: ${scopeLabel}`);
 
