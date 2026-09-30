@@ -60,7 +60,14 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
   return { __esModule: true, default: Modal };
 });
 
-const NOW = new Date('2026-09-28T20:00:00.000Z').getTime();
+// The clock-out screen decides "today's shift" at mount, before setClock can pin
+// the fake clock, so the shift is dated from the real current day (a fixed date
+// passed only on the day it was written). NOW is the real minute at load.
+const NOW = Math.floor(Date.now() / 60_000) * 60_000;
+const NOW_DAY = (() => {
+  const d = new Date(NOW);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
 
 /**
  * renderRouter installs jest's fake timers on mount; their clock is the one
@@ -152,7 +159,7 @@ describe('moments C1: clocking out', () => {
     await AsyncStorage.setItem('mageid_time_entries', JSON.stringify([{
       id: 'shift-jose', projectId: PROJECT_ID, projectName: 'Smoke project', workerId: 'self', workerName: 'Jose Ramirez',
       trade: 'Carpentry', clockIn: CLOCK_IN, breakMinutes: 0, totalHours: 0, overtimeHours: 0, status: 'clocked_in',
-      date: '2026-09-28',
+      date: NOW_DAY,
     }]));
   }
 
