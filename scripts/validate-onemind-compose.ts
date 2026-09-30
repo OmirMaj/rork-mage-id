@@ -25,6 +25,8 @@ import {
 } from '../utils/oneMind/factBlocks';
 import {
   composeOneMindPrompt,
+  isAppHowTo,
+  APP_GUIDE,
   parseCitations,
   stripCitations,
   ONE_MIND_TOTAL_CAP,
@@ -344,6 +346,21 @@ const sampleBlocks: FactBlock[] = [
   }));
   const prompt = composeOneMindPrompt({ question: 'q', turns, blocks: sampleBlocks });
   ok('turns capped at last 6', !prompt.includes('turn-0') && !prompt.includes('turn-1') && prompt.includes('turn-2') && prompt.includes('turn-7'));
+}
+
+{
+  // App how-to: a "how do I use the app" question must reach a guide with the
+  // real button names (founder report 2026-09-30: Ask MAGE said it could not
+  // help with "how do I create a project / make a schedule").
+  const q = 'How do I create a project and make a schedule?';
+  const prompt = composeOneMindPrompt({ question: q, turns: [], blocks: [] });
+  ok('how-to: prompt carries the app guide with real labels',
+    prompt.includes('APP GUIDE:') && /New project/.test(prompt) && /Create project/.test(prompt) && /Build a schedule/.test(prompt));
+  ok('how-to: prompt allows numbered steps and forbids invented screens',
+    /HOW-TO/.test(prompt) && /Never invent a screen/.test(prompt) && /walk you through it/.test(prompt));
+  ok('how-to: guide does not promise the AI does the work', !/I (will|can) (create|build) it for you/i.test(prompt));
+  ok('how-to: detector catches how-to, ignores data questions',
+    isAppHowTo(q) && isAppHowTo('how to build a schedule') && !isAppHowTo('what is my margin on Henderson') && APP_GUIDE.length > 50);
 }
 
 {

@@ -23,7 +23,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { resolveScope, applyAnchorScope, type OneMindScope } from './resolveScope';
 import { assembleFactBlocks, isColdStart, type FactBlock, type FactBlockDrillIn, type OneMindBundle } from './factBlocks';
-import { composeOneMindPrompt, parseCitations, stripCitations } from './composePrompt';
+import { composeOneMindPrompt, isAppHowTo, parseCitations, stripCitations } from './composePrompt';
 import { oneMindFailureReply } from './failureAnswer';
 
 export interface OneMindTurn {
@@ -83,8 +83,9 @@ export async function askOneMind(
     resolveScope(question, bundle.projects), question, opts.anchorProjectId, bundle.projects,
   );
 
-  // Cold-start honesty: no data → no AI call, just the truth.
-  if (isColdStart(bundle)) {
+  // Cold-start honesty: no data → no AI call, just the truth. A how-to question
+  // is about the app, not the data, so it still gets answered from the guide.
+  if (isColdStart(bundle) && !isAppHowTo(question)) {
     return { answer: COLD_START_ANSWER, citations: [], scope, usedAI: false };
   }
 
