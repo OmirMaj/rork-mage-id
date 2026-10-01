@@ -21,7 +21,18 @@
  *     screen, and the web mark is capped at 240 px.
  *  G. The pre-JS web level in public/index.html (the SPLASHPX P2 hand-off
  *     patch) draws the same parts. Skipped with a NOTE until P2 is applied;
- *     `--html <path>` points it at a patched copy.
+ *     `--html <path>` points it at a patched copy. MEDIA-AWARE since lane
+ *     LOADERDESK: the base rule is the phone cap, and three @media blocks size
+ *     the mark for tablet / laptop / monitor windows; the effective width at
+ *     (W, H) is the last block whose min-width ≤ W, compared against
+ *     launchRect (utils/levelDesk.ts) at 11 screens. Its colours are the WEB
+ *     launch palette (WEB_LAUNCH: concrete, brand green, light ink — the
+ *     orchestrator's 2026-10-01 decision; the web has no native splash to
+ *     match), at the PNG's alphas. The DARK-page rules (one
+ *     @media (prefers-color-scheme: dark) block and the html[data-theme='dark']
+ *     rules) recolour the same parts and are pinned by
+ *     scripts/validate-level-desk.ts rule H; this rule sets them aside and
+ *     checks the light still they recolour.
  *
  * No colour literal lives in this file: expected colours come from the
  * NATIVE_SPLASH_* constants or are written as the PNG's decimal RGBA.
@@ -47,6 +58,7 @@ import {
   splashPartRects,
   splashRect,
 } from '../utils/levelTimeline';
+import { WEB_LAUNCH, launchRect } from '../utils/levelDesk';
 
 const ROOT = join(__dirname, '..');
 
@@ -359,11 +371,26 @@ function validatePreJs(doc: string): void {
     sm.index < headEnd && (docCssAt < 0 || sm.index > docCssEnd));
   check('G. the first </head> is the real one (Expo injects before the first match)',
     doc.indexOf('</head>') === doc.lastIndexOf('</head>'));
-  const css = sm[1].replace(/\/\*[\s\S]*?\*\//g, '');
-  check('G. still frame: no animation, transition or @keyframes', !/animation|transition|@keyframes/i.test(css));
+  const allCss = sm[1].replace(/\/\*[\s\S]*?\*\//g, '');
+  check('G. still frame: no animation, transition or @keyframes', !/animation|transition|@keyframes/i.test(allCss));
+  // The dark-page recolour (validate-level-desk rule H) is set aside: the
+  // @media (prefers-color-scheme: dark) block, and the html[data-theme] rules
+  // the flat parser below keys under their own selectors anyway.
+  const css = allCss.replace(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
 
+  // @media blocks are parsed on their own: the flat rule parser below would
+  // read a block's inner `.mpl-mark` rule as the base rule.
+  const MEDIA = /@media\s*\(min-width:\s*(\d+)px\)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g;
+  const media = [...css.matchAll(MEDIA)].map((m) => {
+    const inner = /^\s*#mage-prejs-level \.mpl-mark\s*\{\s*width:\s*clamp\((\d+)px,\s*([\d.]+)vw,\s*(\d+)px\);?\s*\}\s*$/.exec(m[2]);
+    return { minW: Number(m[1]), body: m[2], clamp: inner ? { lo: Number(inner[1]), vw: Number(inner[2]), hi: Number(inner[3]) } : null };
+  });
+  check('G every @media block is (min-width: Npx) and holds only a .mpl-mark width clamp',
+    media.length === (css.match(/@media/g) ?? []).length && media.every((b) => b.clamp != null), media.map((b) => b.body.trim()).join(' | '));
+  check('G the @media blocks ascend by min-width', media.every((b, i) => i === 0 || b.minW > media[i - 1].minW), media.map((b) => b.minW).join(','));
+  const baseCss = css.replace(MEDIA, '');
   const rules = new Map<string, Map<string, string>>();
-  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const m of baseCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const sel = m[1].trim().replace(/\s+/g, ' ');
     const decls = new Map<string, string>();
     for (const d of m[2].split(';')) {
@@ -396,7 +423,8 @@ function validatePreJs(doc: string): void {
 
   const host = rule('#mage-prejs-level');
   check('G. the level is fixed full-screen', host.get('position') === 'fixed' && host.get('inset') === '0');
-  check('G. the level ground is NATIVE_SPLASH_BG', colourIs(host.get('background-color'), NATIVE_SPLASH_BG), host.get('background-color'));
+  check('G. the level ground is the web launch ground (WEB_LAUNCH.bg, the concrete token)', colourIs(host.get('background-color'), WEB_LAUNCH.bg), host.get('background-color'));
+  check('G. the web launch is not the native splash ink', !colourIs(host.get('background-color'), NATIVE_SPLASH_BG));
   check('G. the level sits at z-index 1', host.get('z-index') === '1');
 
   const mark = rule('#mage-prejs-level .mpl-mark');
@@ -416,10 +444,10 @@ function validatePreJs(doc: string): void {
   };
   const opacity = (v: string | undefined) => Number(v ?? NaN);
   const parts = [
-    { cls: 'mpl-cap-l', p: P.capL, colour: NATIVE_SPLASH_CAP, alpha: NATIVE_SPLASH_CAP_ALPHA, round: true },
-    { cls: 'mpl-cap-r', p: P.capR, colour: NATIVE_SPLASH_CAP, alpha: NATIVE_SPLASH_CAP_ALPHA, round: true },
-    { cls: 'mpl-track', p: P.track, colour: NATIVE_SPLASH_ACCENT, alpha: NATIVE_SPLASH_TRACK_ALPHA, round: false },
-    { cls: 'mpl-bubble', p: P.bubble, colour: NATIVE_SPLASH_ACCENT, alpha: 255, round: true },
+    { cls: 'mpl-cap-l', p: P.capL, colour: WEB_LAUNCH.cap, alpha: NATIVE_SPLASH_CAP_ALPHA, round: true },
+    { cls: 'mpl-cap-r', p: P.capR, colour: WEB_LAUNCH.cap, alpha: NATIVE_SPLASH_CAP_ALPHA, round: true },
+    { cls: 'mpl-track', p: P.track, colour: WEB_LAUNCH.accent, alpha: NATIVE_SPLASH_TRACK_ALPHA, round: false },
+    { cls: 'mpl-bubble', p: P.bubble, colour: WEB_LAUNCH.accent, alpha: 255, round: true },
   ];
   const base = rule('#mage-prejs-level .mpl-part');
   check('G. every part is absolutely positioned', base.get('position') === 'absolute');
@@ -437,7 +465,9 @@ function validatePreJs(doc: string): void {
     for (const k of ['l', 't', 'w', 'h'] as const) {
       check(`G. ${cls} ${k} = ${want[k].toFixed(4)}% (NATIVE_SPLASH_PX within 0.01 %)`, near(have[k], want[k], 0.01), String(have[k]));
     }
-    check(`G. ${cls} colour is the NATIVE_SPLASH_* value`, colourIs(r.get('background-color'), colour), r.get('background-color'));
+    check(`G. ${cls} colour is the WEB_LAUNCH value`, colourIs(r.get('background-color'), colour), r.get('background-color'));
+    check(`G. ${cls} is never the native splash orange / cream`, !colourIs(r.get('background-color'), NATIVE_SPLASH_ACCENT)
+      && !colourIs(r.get('background-color'), NATIVE_SPLASH_CAP));
     if (alpha === 255) check(`G. ${cls} is opaque`, !r.has('opacity') || opacity(r.get('opacity')) === 1, r.get('opacity'));
     else check(`G. ${cls} opacity is 64/255 (0.251)`, near(opacity(r.get('opacity')), alpha / 255, 0.0005), r.get('opacity'));
     const rad = r.get('border-radius') ?? '';
@@ -445,21 +475,28 @@ function validatePreJs(doc: string): void {
     else check(`G. ${cls} has square ends (border-radius 0)`, rad === '0' || rad === '0px', rad);
   }
 
-  // The CSS formulas equal BrandSplash's web frame 0 (splashRect, web cap).
-  for (const [w, h] of [[1280, 800], [390, 844], [1512, 945], [320, 568]] as const) {
-    const r = splashRect(w, h, 'web');
-    const markW = Math.min((vmin / 100) * Math.min(w, h), cap);
+  // The CSS formulas equal BrandSplash's web frame 0 (launchRect: splashRect's
+  // web cap below 768, the desk tiers from 768). The effective width is the
+  // last @media block whose min-width ≤ W, else the base rule.
+  const cssMarkW = (w: number, h: number): number => {
+    let mw = Math.min((vmin / 100) * Math.min(w, h), cap);
+    for (const b of media) if (b.clamp && w >= b.minW) mw = Math.min(b.clamp.hi, Math.max(b.clamp.lo, (b.clamp.vw / 100) * w));
+    return mw;
+  };
+  for (const [w, h] of [[390, 844], [320, 568], [767, 1024], [768, 1024], [1024, 768], [1280, 800], [1440, 900], [1512, 945], [1920, 1080], [2560, 1440], [3440, 1440]] as const) {
+    const r = launchRect(w, h, 'web');
+    const markW = cssMarkW(w, h);
     const markH = (markW * SPLASH_MARK_H) / SPLASH_MARK_W;
-    check(`G. ${w}×${h}: CSS mark ${markW.toFixed(2)} × ${markH.toFixed(2)} = splashRect within 0.05 px`,
+    check(`G. ${w}×${h}: CSS mark ${markW.toFixed(2)} × ${markH.toFixed(2)} = launchRect within 0.05 px`,
       near(markW, r.markW, 0.05) && near(markH, r.markH, 0.05), `${r.markW} × ${r.markH}`);
-    check(`G. ${w}×${h}: CSS mark origin = splashRect within 0.05 px`,
+    check(`G. ${w}×${h}: CSS mark origin = launchRect within 0.05 px`,
       near(w / 2 - markW / 2, r.markLeft, 0.05) && near(h / 2 - markH / 2, r.markTop, 0.05),
       `${w / 2 - markW / 2},${h / 2 - markH / 2} vs ${r.markLeft},${r.markTop}`);
     const want = splashPartRects(r.s);
     for (const [cls, name] of [['mpl-cap-l', 'capL'], ['mpl-cap-r', 'capR'], ['mpl-track', 'track'], ['mpl-bubble', 'bubble']] as const) {
       const g = got[cls];
       const pr = want[name];
-      check(`G. ${w}×${h}: ${cls} = splashPartRects within 0.05 px`,
+      check(`G. ${w}×${h}: ${cls} = splashPartRects(launchRect s) within 0.05 px`,
         near((g.l / 100) * markW, pr.left, 0.05) && near((g.t / 100) * markH, pr.top, 0.05)
         && near((g.w / 100) * markW, pr.width, 0.05) && near((g.h / 100) * markH, pr.height, 0.05));
     }

@@ -34,6 +34,13 @@
 // The phase is held in a ref, never re-read on a plain re-render: a changed
 // animation-delay on a running animation would jump it.
 //
+// DESK (lane LOADERDESK): `desk` draws the wide-canvas table (levelPartsDesk,
+// 120 → 240 px). THE WEB LAUNCH IS GREEN (orchestrator decision 2026-10-01):
+// the splash tone paints webLaunchPalette (the concrete-ground brand green, or
+// its dark twin on a dark page — readWebLaunchScheme, read once per mount like
+// its host's) on the web — the native splash replica keeps NATIVE_SPLASH_* in
+// LevelMark.
+//
 // THEME: read whole and null-safe (BrandSplash renders outside ThemeProvider).
 // Reduce Motion: components/ui/motion's useReducedMotion (matchMedia on web).
 // scripts/validate-level-web.ts holds the rules here.
@@ -43,7 +50,9 @@ import { PixelRatio, StyleSheet, View, type Animated, type ViewStyle } from 'rea
 import { useTheme } from '@/contexts/ThemeContext';
 import { useReducedMotion } from '@/components/ui/motion';
 import { LOADER, evalRange, levelParts, retractRanges, type LevelRect } from '@/utils/levelTimeline';
+import { levelPartsDesk, webLaunchPalette, type LaunchScheme } from '@/utils/levelDesk';
 import { levelPalette, splashFallbackColors } from './themeFallback';
+import { readWebLaunchScheme } from './webLaunch';
 import {
   LEVEL_BACKSTOP_MS, LEVEL_CSS, LEVEL_SETTLE, levelBeatStyle, levelDriftStyle, levelExitMs, levelPhaseMs, levelRevealStyle,
   levelStretchStyle,
@@ -147,13 +156,16 @@ export default function LevelMarkWeb({
   hueColor,
   hueMix,
   testID = 'level-mark',
+  desk = false,
 }: LevelMarkProps) {
   const theme = useTheme() as ReturnType<typeof useTheme> | undefined;
   const reduce = useReducedMotion();
   const splash = tone === 'splash';
   const colors = splash ? null : theme?.colors ?? splashFallbackColors();
-  const pal = levelPalette(tone, color, colors);
-  const parts = levelParts(size, tone);
+  // The splash tone's light / dark launch scheme, read once per mount (the same read as its host's).
+  const [launchScheme] = useState<LaunchScheme>(() => (splash ? readWebLaunchScheme() : 'light'));
+  const pal = splash ? webLaunchPalette(color, launchScheme) : levelPalette(tone, color, colors);
+  const parts = desk ? levelPartsDesk(size, tone) : levelParts(size, tone);
   const exitKind: LevelExit = exit ?? (size < 28 ? 'fade' : 'settle');
   const moving = animate && !reduce;
   const showLvl = parts.hasLvl && moving;
