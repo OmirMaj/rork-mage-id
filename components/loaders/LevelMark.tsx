@@ -25,6 +25,7 @@ import {
   ACCELERATE, DECELERATE, LOADER, beatRange, driftUnit, easeInOutSine, easeOutCubic, enterTimings,
   levelInput, levelParts, linear, plateau, retractRanges, rmBreath, speedUnit, type LevelRect,
 } from '@/utils/levelTimeline';
+import { levelPartsDesk } from '@/utils/levelDesk';
 import { GATE_LOST_CALLBACK_MS } from '@/utils/loadingGate';
 import { useLevelClock } from './levelClock';
 import { levelPalette, splashFallbackColors, type LevelTone } from './themeFallback';
@@ -65,6 +66,12 @@ export interface LevelMarkProps {
   hueColor?: string;
   hueMix?: Animated.Value;
   testID?: string;
+  /**
+   * The wide-canvas table (utils/levelDesk.ts levelPartsDesk): widths past 120
+   * keep growing to 240 instead of centring a 120 mark. Identical to the phone
+   * table at ≤ 120 and for the splash tone. Default false.
+   */
+  desk?: boolean;
 }
 
 const snap = (v: number) => PixelRatio.roundToNearestPixel(v);
@@ -107,6 +114,7 @@ function LevelMarkNative({
   hueColor,
   hueMix,
   testID = 'level-mark',
+  desk = false,
 }: LevelMarkProps) {
   const theme = useTheme() as ReturnType<typeof useTheme> | undefined;
   const reduce = useReducedMotion();
@@ -114,7 +122,7 @@ function LevelMarkNative({
   const splash = tone === 'splash';
   const colors = splash ? null : theme?.colors ?? splashFallbackColors();
   const pal = levelPalette(tone, color, colors);
-  const parts = useMemo(() => levelParts(size, tone), [size, tone]);
+  const parts = useMemo(() => (desk ? levelPartsDesk(size, tone) : levelParts(size, tone)), [size, tone, desk]);
 
   // Per-instance values. vis starts hidden when there is a reveal plateau.
   const vis = useRef(new Animated.Value(revealDelayMs > 0 ? 0 : 1)).current;
