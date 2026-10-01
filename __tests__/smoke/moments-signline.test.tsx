@@ -463,6 +463,17 @@ describe('SigningCeremony', () => {
       r.unmount();
       await flush(200);
 
+      // iOS (New Architecture) delivers only BEGAN and END for the head's
+      // native-driver drag, never a move event: a slow slide to the end of the
+      // line, released with no speed, must still commit and seal.
+      const slow = mountLaidOut(<Harness parties={1} />);
+      act(() => { head(slow).onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+      act(() => { head(slow).onHandlerStateChange({ nativeEvent: { state: 5, translationX: 272, velocityX: 0 } }); });
+      await flush(2500);
+      expect(slow.UNSAFE_getAllByType(SealStamp)).toHaveLength(1);
+      slow.unmount();
+      await flush(200);
+
       // Refused, then the next touch clears the reason: the label is back (not stuck at 0).
       mockReduced = true;
       const reason = 'Not recorded. This contract changed on another device.';
