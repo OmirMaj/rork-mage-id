@@ -38,21 +38,21 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (e) /quick-quote 1`] = `
 exports[`Lane C golden — the phone (390 × 844 iOS) (f) /invoice, an overdue sent invoice 1`] = `
 {
   "lines": 989,
-  "sha256": "7093e57fd29a3ae985245ea009490d7265a83421422420c032db30b3a63c6f0b",
+  "sha256": "27c447d51ee875666728024c7bf3a16bd1c9c251ec6ecc4469e95c890dcc9141",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (g) /invoice, a paid invoice 1`] = `
 {
   "lines": 924,
-  "sha256": "457f9088f376714747635c8a916b2c442f728b8a8f3d6a7961bc510d6aae699c",
+  "sha256": "ab44876313410767dc27b37de560a83b04230dac66f03a2c091cb889a24fa7fc",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (h) /invoice, a new invoice on the fixture job 1`] = `
 {
   "lines": 1021,
-  "sha256": "3d4f5b907ffbb17d8f85f85fa1484ab2d64fd41ed3206d4179ca05e68a62788a",
+  "sha256": "351569a0558f169dc9d9bec6a159a840dfc02deac54aa6d54663eacf452678f5",
 }
 `;
 

@@ -15,6 +15,13 @@
 //     translationX; GestureDetector reaches the UI thread only through
 //     reanimated, which metro stubs out. Colour = cross-fades between stacked
 //     opaque layers. Every spring is inside ζ [0.75, 1.05].
+//   - On iOS (New Architecture) a native-driver Animated.event's JS `listener`
+//     NEVER fires: RNGH sends the drag moves to the native animation engine
+//     only (RNGestureHandlerManager.mm, "ignored on JS side"). So on native
+//     the live feel (notches, lock rim, lock haptic) reads the head from a
+//     v.x value listener, and the release decides from the END payload's own
+//     position (lockStep at release), never from a lock only a JS listener
+//     could have set. Without that a slow slide to the end springs home.
 //   - Success visuals (success tone, check, success haptic, result pill) ONLY
 //     on a real `confirmed` (resolvePlan decides; nothing else maps to it).
 //   - commit() sets phase 'busy' synchronously FIRST, so a double release or a
@@ -787,6 +794,17 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
     });
     momentHaptic('selection');
     if (!reducedMotion()) sp(v.headScale, CAPSULE_RULES.grabScale, MOMENT_SPRING.headScale);
+    // Native: the Animated.event listener never reaches JS (header note), so
+    // follow the head's value instead. The value already carries the offset.
+    if (nativeDriver) {
+      removeHoldListener();
+      holdListenerRef.current = v.x.addListener(({ value }) => {
+        const g = geomRef.current;
+        if (phaseRef.current !== 'drag' || !g) return;
+        lastTxRef.current = value - offsetRef.current;
+        track(clamp(resist(value, g.T) / g.T, 0, 1));
+      });
+    }
   };
 
   const ended = (tx: number, vx: number, allowCommit: boolean) => {
@@ -800,6 +818,7 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
       return;
     }
     if (ph !== 'drag') return;
+    removeHoldListener();
     // JS mirror = native BEFORE any spring: value first (offset kept), then flatten.
     v.x.setValue(tx);
     v.x.flattenOffset();
@@ -809,7 +828,10 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
     const Tn = geom?.T ?? 40;
     const fv = resist(xv, Tn);
     const p = clamp(fv / Tn, 0, 1);
-    if (allowCommit && geom && shouldCommit({ locked: lockedRef.current, progress: p, vx, f: fv, T: Tn })) {
+    // The release position decides too: a head let go at or past the threshold
+    // commits even when no move event ever set the lock (iOS, header note).
+    const lockedAtRelease = lockStep(lockedRef.current, p, threshold);
+    if (allowCommit && geom && shouldCommit({ locked: lockedAtRelease, progress: p, vx, f: fv, T: Tn })) {
       commit(vx);
       return;
     }

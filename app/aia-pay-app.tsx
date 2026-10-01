@@ -109,7 +109,6 @@ import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { useOffline } from '@/hooks/useOnline';
-import { nailIt } from '@/components/animations/NailItToast';
 import {
   SlideToConfirm,
   fromOnlineOutcome,
@@ -118,7 +117,7 @@ import {
   type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
 import {
-  certBusy, certConfirmed, certConfirmedToast, certEarlierPending, certEarlierUnsaved, certLegalQueued,
+  certBusy, certConfirmed, certEarlierPending, certEarlierUnsaved, certLegalQueued,
   certNextPdf, certNoAccount, certNoPayButton, certOffline, certOfflineRefused, certPayBalanceRefused,
   certPayLinkFailed, certPayLinkPending, certRefused, certSlideLabel, certSrConfirm, certSrLabel, certTimeout,
 } from '@/utils/moments/sites/moneyCopy';
@@ -296,6 +295,13 @@ function AIAPayAppScreenInner() {
   const [certRemintNote, setCertRemintNote] = useState<string | null>(null);
   const [showFirstUseDisclaimer, setShowFirstUseDisclaimer] = useState(false);
   const [showPreExportConfirm, setShowPreExportConfirm] = useState(false);
+  // From release until the answer is in (and through a confirmed certify's
+  // hold) "Ready to certify?" cannot be closed: Android back, Esc and "Let me
+  // re-check" do nothing. onDone (handleGenerate) closes it.
+  const [certifyBusy, setCertifyBusy] = useState(false);
+  const closeCertifySheet = useCallback(() => { if (!certifyBusy) setShowPreExportConfirm(false); }, [certifyBusy]);
+  // Closed from outside mid-write (the slide unmounted with it): the next open starts free.
+  useEffect(() => { if (!showPreExportConfirm) setCertifyBusy(false); }, [showPreExportConfirm]);
 
   // First-time user notice — explains AIA trademark + GC responsibility.
   // Once dismissed, never shown again on this device. Stored in AsyncStorage.
@@ -1369,6 +1375,7 @@ function AIAPayAppScreenInner() {
   const certDueCents = Math.round(aiaPayableNow(app ? { amountCertified: app.amountCertified, totals } : null) * 100);
 
   const certify = useCallback(async (): Promise<CommitResult> => {
+    setCertifyBusy(true);
     const words = {
       refused: certRefused(),
       timeout: certTimeout(certAppNumber),
@@ -1423,17 +1430,20 @@ function AIAPayAppScreenInner() {
     addAIAPayApp({ ...link.record, payLinkUrl: link.payLinkUrl, payLinkId: link.payLinkId, payLinkAmount: link.payLinkAmount });
   }, [addAIAPayApp]);
 
+  // A confirmed certify plays its hold with the sheet held open (busy until onDone).
   const onCertifyResolved = useCallback((r: CommitResult) => {
     if (r.status === 'confirmed') keepCertifiedLink();
+    else setCertifyBusy(false);
   }, [keepCertifiedLink]);
+  // A late or after-close answer: the link housekeeping; the slide says the result.
   const onCertifyLate = useCallback((r: CommitResult) => {
     if (r.status !== 'confirmed') return;
     keepCertifiedLink();
-    nailIt(certConfirmedToast(certAppNumber));
-  }, [keepCertifiedLink, certAppNumber]);
+  }, [keepCertifiedLink]);
 
   // After the result hold: close the attestation and open the PDF to share.
   const handleGenerate = useCallback(async (r: CommitResult) => {
+    setCertifyBusy(false);
     if (r.status !== 'confirmed') return;
     setShowPreExportConfirm(false);
     // Saving is not "I am done editing" (see handleSave): the editor stays open.
@@ -2939,7 +2949,7 @@ function AIAPayAppScreenInner() {
         visible={showPreExportConfirm}
         transparent
         animationType={fConfirm.animationType}
-        onRequestClose={() => setShowPreExportConfirm(false)}
+        onRequestClose={closeCertifySheet}
       >
         <View style={[styles.modalBackdrop, fConfirm.overlay]}>
           <View style={[styles.modalCard, fConfirm.card]}>
@@ -2978,7 +2988,8 @@ function AIAPayAppScreenInner() {
             </View>
             <TouchableOpacity
               style={styles.modalCtaSecondary}
-              onPress={() => setShowPreExportConfirm(false)}
+              onPress={closeCertifySheet}
+              disabled={certifyBusy ? true : undefined}
               accessibilityRole="button"
               testID="aia-certify-recheck"
             >

@@ -59,7 +59,7 @@ import {
   toggleCrewPick, toggleAllCrew, livePicks, clockInButton, allCrewChipLabel, splitAlreadyOnClock,
   batchLapsedText, batchClockOutJobs, batchOutMs, defaultBatchOutText, planBatchClockOut,
 } from '@/utils/crewClockBatch';
-import { nailIt, oops } from '@/components/animations/NailItToast';
+import { nailIt } from '@/components/animations/NailItToast';
 import {
   SlideToConfirm, fromWriteOutcome,
   type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
@@ -106,18 +106,6 @@ function weekdayChip(d: Weekday, lang: 'en' | 'es'): string {
  *  email stays as typed. */
 function sentenceName(name: string): string {
   return name === 'a teammate' ? 'A teammate' : name;
-}
-
-/**
- * A slide's answer that lands after this screen unmounted (moments rule 4:
- * nailIt survives only here). Confirmed is the one success toast; a refusal
- * or a timeout still says what did not happen; queued needs no toast (the row
- * itself shows the shift ended on this phone).
- */
-function momentAfterUnmount(r: CommitResult): void {
-  if (r.status === 'confirmed') nailIt(r.title);
-  else if (r.status === 'refused') oops(r.reason);
-  else if (r.status === 'timeout') oops(r.message);
 }
 
 function LiveTimeCard({
@@ -2430,7 +2418,6 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
                   onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setOutBusy(false); }}
                   onDone={() => { setOutBusy(false); setOutFor(null); }}
-                  onResultAfterUnmount={momentAfterUnmount}
                   style={styles.momentSlide}
                   testID="out-time-slide"
                 />
@@ -2448,6 +2435,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         title={fieldCopy.clockOutSheetTitle()}
         size="dialog"
         dismissOnBackdrop={!clockOutBusy}
+        dismissible={!clockOutBusy}
         testID="clock-out-sheet"
         footer={clockOutFor ? (
           <SlideToConfirm
@@ -2463,7 +2451,6 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
             onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setClockOutBusy(false); }}
             onDone={() => { setClockOutBusy(false); setClockOutFor(null); }}
-            onResultAfterUnmount={momentAfterUnmount}
             style={styles.momentSlide}
             testID="clock-out-slide"
           />
