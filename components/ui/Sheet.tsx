@@ -314,6 +314,12 @@ export interface SheetProps {
   footer?: React.ReactNode;
   /** Tap on the scrim closes. Default true. */
   dismissOnBackdrop?: boolean;
+  /**
+   * Default true. false while a write is in flight (a slide's busy, through
+   * its result hold): no drag-to-dismiss, the X is disabled, the scrim, Esc
+   * and Android back do nothing. The sheet closes itself when the answer is in.
+   */
+  dismissible?: boolean;
   children?: React.ReactNode;
   testID?: string;
 }
@@ -329,6 +335,7 @@ export function Sheet({
   destructiveAction,
   footer,
   dismissOnBackdrop = true,
+  dismissible = true,
   children,
   testID,
 }: SheetProps) {
@@ -341,7 +348,9 @@ export function Sheet({
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const cardRef = useRef<View>(null);
-  const drag = useSheetDrag(visible, !f.isDesktop && Platform.OS !== 'web', cardHeight, onClose);
+  // A sheet that cannot be dismissed (a write in flight) has no drag at all:
+  // a pull would slide the card off and then the close would be refused.
+  const drag = useSheetDrag(visible, dismissible && !f.isDesktop && Platform.OS !== 'web', cardHeight, onClose);
   // Until the first drag the card carries exactly the frame's cardMotion (so
   // an untouched sheet — and every golden — is unchanged); from the first grab
   // on, its translateY is the rise PLUS the drag.
@@ -414,14 +423,14 @@ export function Sheet({
       visible={visible}
       transparent
       animationType={f.animationType}
-      onRequestClose={onClose}
+      onRequestClose={dismissible ? onClose : NOOP}
       testID={testID}
     >
       <View style={[styles.overlay, { backgroundColor: Colors.overlay }, f.overlay]}>
         {/* The scrim is its own layer so a click on the card never closes it. */}
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={dismissOnBackdrop ? onClose : undefined}
+          onPress={dismissOnBackdrop && dismissible ? onClose : undefined}
           accessibilityRole="button"
           accessibilityLabel="Close"
           testID={testID ? `${testID}-backdrop` : undefined}
@@ -450,10 +459,12 @@ export function Sheet({
               </View>
               <Pressable
                 onPress={onClose}
+                // Only set while busy, so a dismissible sheet renders as before.
+                disabled={dismissible ? undefined : true}
                 hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
-                style={styles.close}
+                style={dismissible ? styles.close : [styles.close, styles.closeBusy]}
                 testID={testID ? `${testID}-close` : undefined}
               >
                 <X size={18} color={colors.textSecondary} strokeWidth={2} />
@@ -574,6 +585,7 @@ const makeStyles = (t: ThemeColors) =>
       borderRadius: Radius.full,
       backgroundColor: t.surfaceAlt,
     },
+    closeBusy: { opacity: 0.4 },
     body: { flexGrow: 0, flexShrink: 1 },
     bodyContent: { paddingBottom: 12 },
     blocked: { ...Type.caption1, color: t.textSecondary, marginBottom: 8 },

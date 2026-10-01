@@ -57,7 +57,6 @@ import {
   type MaintenanceItem, type CloseoutBinder,
 } from '@/utils/closeoutBinderEngine';
 import { statusPillStyle } from '@/utils/statusPill';
-import { nailIt, oops } from '@/components/animations/NailItToast';
 import { SlideToConfirm, fromOnlineOutcome, type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle } from '@/components/moments/core/contract';
 import * as fieldCopy from '@/utils/moments/sites/fieldCopy';
 import { useOffline } from '@/hooks/useOnline';
@@ -87,17 +86,6 @@ import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
 
 type BinderStatus = CloseoutBinder['status'];
-
-/**
- * The finalize slide's answer when it lands after this screen unmounted
- * (moments rule 4: nailIt survives only here). Confirmed is the one success
- * toast; a refusal or a timeout still says what did not happen.
- */
-function momentAfterUnmount(r: CommitResult): void {
-  if (r.status === 'confirmed') nailIt(r.title);
-  else if (r.status === 'refused') oops(r.reason);
-  else if (r.status === 'timeout') oops(r.message);
-}
 
 export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
@@ -1045,7 +1033,6 @@ export default function CloseoutBinderScreen() {
                 onDone={onFinalizeDone}
                 // A finalize stored after "No answer yet": the bar turns and Home Passport runs, as on time.
                 onLateResult={(r) => { if (r.status === 'confirmed') onFinalizeDone(r); }}
-                onResultAfterUnmount={momentAfterUnmount}
                 testID="binder-finalize"
               />
               <View style={styles.actionRowInner}>

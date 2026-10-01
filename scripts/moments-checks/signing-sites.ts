@@ -333,6 +333,13 @@ export function checkPaperRetry(code: string): Fails {
     if (!/^\(r\) => \{ if \(r\.status !== 'confirmed'\) setBusy\(false\); \}$/.test(slide.attrs.get('onResolved') ?? '')) {
       f.push('app/contract.tsx: S6b the paper slide keeps the sheet busy through a confirmed result (onResolved clears busy only for any other answer)');
     }
+    // The record handlers it shares with the in-person ceremony toast a late
+    // answer, so the slide opts out (say={false}) and says its own result,
+    // quietly, after the hold: one toast either way, never none, never two.
+    if (slide.attrs.get('say') !== 'false' || !/sayCommitResult\(r, \{ quiet: true \}\)/.test(slide.attrs.get('onDone') ?? '')
+      || !slide.attrs.get('onResultAfterUnmount') || !slide.attrs.get('onLateResult')) {
+      f.push('app/contract.tsx: S6b the paper slide says its result once: say={false} (the shared record handlers say a late answer) and onDone calls sayCommitResult(r, { quiet: true })');
+    }
   }
   const wp = bodyOf(code, 'writePaper') ?? '';
   const busyAt = wp.indexOf('setBusy(true);');
@@ -498,7 +505,9 @@ function plants(code: Record<string, string>): Plant[] {
     ['S6b its own landed record refused as signed elsewhere', () => checkPaperRetry(mutate(c, 'const ownLanded = isOwnLandedPaperRecord(outcome, ownPaperEvidenceRef.current);', 'const ownLanded = false;')), /S6b the retry that finds its OWN paper record confirms/],
     ['S6b a second slide after signed-elsewhere', () => checkPaperRetry(mutate(c, 'const paperReason = paperSignedElsewhere ? signingCopy.paperAlreadySigned() : blockReason;', 'const paperReason = blockReason;')), /S6b after a signed-elsewhere refusal/],
     ['S6b the paper write that never holds the sheet', () => checkPaperRetry(mutate(c, /(const writePaper = useCallback\(async \(\): Promise<CommitResult> => \{\s*)setBusy\(true\);/, '$1')), /S6b writePaper sets busy BEFORE/],
-    ['S6b a confirmed paper hold that lets go', () => checkPaperRetry(mutate(c, "onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}", "onResolved={() => setBusy(false)}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}")), /S6b the paper slide keeps the sheet busy/],
+    ['S6b the paper slide that never says its result after the hold', () => checkPaperRetry(mutate(c, " sayCommitResult(r, { quiet: true }); }}", ' }}')), /S6b the paper slide says its result once/],
+    ['S6b the paper slide that says a late answer twice', () => checkPaperRetry(mutate(c, /\n\s*say=\{false\}(?=[\s\S]*contract-record-paper-slide)/, '')), /S6b the paper slide says its result once/],
+    ['S6b a confirmed paper hold that lets go', () => checkPaperRetry(mutate(c, "onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); sayCommitResult(r, { quiet: true }); }}", "onResolved={() => setBusy(false)}\n                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); sayCommitResult(r, { quiet: true }); }}")), /S6b the paper slide keeps the sheet busy/],
     ['S6 the client prefilled as the GC signer', () => checkRecordHonesty(mutate(c, /signer="homeowner"(\s+mode="drawn"\s+method="in_person")/, 'signer="gc"$1')), /S6 the in-person ceremony signs as signer="homeowner"/],
     ['S7 an amount shown to a blinded role', () => checkTicket(mutate(t, 'amount={moneyBlinded ? null : draftTotals.billableTotal}', 'amount={draftTotals.billableTotal}')), /S7 every sign sheet/],
     ['S7 a new ticket id per slide', () => checkTicket(mutate(t, 'id: pin?.id ?? generateUUID(),', 'id: generateUUID(),')), /S7 handleSign signs a new ticket under the draft's pinned id/],

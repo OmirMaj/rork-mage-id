@@ -19,9 +19,17 @@
 // Mount-anywhere usage: render the <NailItToastHost/> once high in the
 // tree (we mount it in app/_layout.tsx), then call `nailIt('Saved!')`
 // from any screen via the exported helper. No props, no provider.
+//
+// Three kinds. success (nailIt): the green check, ONLY for a write the server
+// confirmed. error (oops): danger tint, warning icon. neutral (notice): a
+// plain card with a clock (kept on this phone, sends when online) or an alert
+// (no answer yet), never green: it is not a success and not a failure.
+// `quiet` skips the toast's haptic for a moment that already played its own
+// (a slide's success buzz lands ~1.2 s before its toast, outside the de-dupe
+// window in utils/haptics, so without it the phone would buzz twice).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View, Dimensions } from 'react-native';
-import { CheckCircle2, AlertTriangle } from 'lucide-react-native';
+import { CheckCircle2, AlertTriangle, AlertCircle, Clock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -31,12 +39,22 @@ import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { nativeDriver, reducedMotion } from '@/components/ui/motion';
 
-type ToastKind = 'success' | 'error';
+type ToastKind = 'success' | 'error' | 'neutral';
+
+/** The neutral toast's icon: a clock (kept on this phone) or an alert (no answer yet). */
+export type NoticeIcon = 'clock' | 'alert';
+
+export interface ToastOptions {
+  /** No haptic from the toast: the moment that asked for it already played its own. */
+  quiet?: boolean;
+}
 
 interface ToastEvent {
   message: string;
   id: number;
   kind: ToastKind;
+  icon?: NoticeIcon;
+  quiet?: boolean;
 }
 
 let listeners: ((e: ToastEvent) => void)[] = [];
@@ -47,12 +65,13 @@ let nextId = 1;
  * (we put it in app/_layout.tsx). Calls before mount are silently dropped —
  * intentional, since by definition the user hasn't seen anything yet.
  */
-export function nailIt(message: string): void {
+export function nailIt(message: string, opts?: ToastOptions): void {
   if (!message || message.length === 0) return;
   const event: ToastEvent = {
     message: message.length > 80 ? message.slice(0, 77) + '…' : message,
     id: nextId++,
     kind: 'success',
+    quiet: !!opts?.quiet,
   };
   listeners.forEach(l => l(event));
 }
@@ -63,12 +82,31 @@ export function nailIt(message: string): void {
  * other "tried to save but couldn't" moments where Alert would be too
  * disruptive but a silent log would lose the user.
  */
-export function oops(message: string): void {
+export function oops(message: string, opts?: ToastOptions): void {
   if (!message || message.length === 0) return;
   const event: ToastEvent = {
     message: message.length > 120 ? message.slice(0, 117) + '…' : message,
     id: nextId++,
     kind: 'error',
+    quiet: !!opts?.quiet,
+  };
+  listeners.forEach(l => l(event));
+}
+
+/**
+ * The neutral variant: same toast slot, a plain card, a clock or an alert
+ * icon, never the green check. For an answer that is neither a success nor a
+ * failure: a write kept on this phone that sends when online (clock), or no
+ * answer yet (alert). Held as long as an error: it is read, not glanced at.
+ */
+export function notice(message: string, opts?: ToastOptions & { icon?: NoticeIcon }): void {
+  if (!message || message.length === 0) return;
+  const event: ToastEvent = {
+    message: message.length > 120 ? message.slice(0, 117) + '…' : message,
+    id: nextId++,
+    kind: 'neutral',
+    icon: opts?.icon ?? 'clock',
+    quiet: !!opts?.quiet,
   };
   listeners.forEach(l => l(event));
 }
@@ -150,16 +188,20 @@ export function NailItToastHost() {
 
     // Through utils/haptics: a Button's done morph that just buzzed Success
     // is de-duped against this one (one buzz per Send, not two).
-    if (Platform.OS !== 'web') {
+    // A quiet toast plays none: its moment already did.
+    if (Platform.OS !== 'web' && !event.quiet) {
       if (event.kind === 'error') haptic.error();
-      else haptic.success();
+      else if (event.kind === 'neutral') {
+        if (event.icon === 'alert') haptic.warning();
+        else haptic.tap();
+      } else haptic.success();
     }
 
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = setTimeout(() => {
       holdTimer.current = null;
       exit(event.id);
-    }, event.kind === 'error' ? ERROR_HOLD_MS : HOLD_MS);
+    }, event.kind === 'success' ? HOLD_MS : ERROR_HOLD_MS);
 
     if (reducedMotion()) {
       // No translate, no scale: everything is simply there, for the same hold.
@@ -227,9 +269,11 @@ export function NailItToastHost() {
 
   const screenWidth = Dimensions.get('window').width;
   const isError = active.kind === 'error';
+  const isNeutral = active.kind === 'neutral';
+  const alertIcon = isNeutral && active.icon === 'alert';
 
   return (
-    <View pointerEvents="none" style={[styles.host, { width: screenWidth }]}>
+    <View pointerEvents="none" style={[styles.host, { width: screenWidth }]} testID="nailit-toast">
       <Animated.View style={[
         styles.toast,
         { opacity, transform: [{ translateY }] },
@@ -238,16 +282,25 @@ export function NailItToastHost() {
           borderColor: themeColors.danger + '40',
         },
       ]}>
-        <Animated.View style={[styles.checkBubble, { transform: [{ scale: bubbleScale }] }]}>
-          <Animated.View style={{ opacity: iconOpacity }}>
+        <Animated.View style={[
+          styles.checkBubble,
+          // Never the success tint on a neutral card: it is not a success.
+          isNeutral && { backgroundColor: alertIcon ? themeColors.warningSoft : themeColors.neutralSoft },
+          { transform: [{ scale: bubbleScale }] },
+        ]}>
+          <Animated.View style={{ opacity: iconOpacity }} testID={`nailit-toast-icon-${isNeutral ? (alertIcon ? 'alert' : 'clock') : active.kind}`}>
             {isError ? (
               <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
+            ) : isNeutral ? (
+              alertIcon
+                ? <AlertCircle size={18} color={themeColors.warningLabel} strokeWidth={1.75} />
+                : <Clock size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
             ) : (
               <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} strokeWidth={1.75} />
             )}
           </Animated.View>
         </Animated.View>
-        <Animated.Text style={[styles.message, { opacity: messageOpacity }]} numberOfLines={2}>{active.message}</Animated.Text>
+        <Animated.Text style={[styles.message, { opacity: messageOpacity }]} numberOfLines={2} testID="nailit-toast-message">{active.message}</Animated.Text>
       </Animated.View>
     </View>
   );

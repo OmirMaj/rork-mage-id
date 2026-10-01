@@ -627,7 +627,21 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
   const pcHead = pc >= 0 ? cer.slice(pc, cer.indexOf('\n    // Hand-off: the seal appears', pc)) : '';
   const neutralBranch = pcHead.slice(pcHead.indexOf('if (isNeutral) {'), pcHead.indexOf("return 'neutral';", pcHead.indexOf('if (isNeutral) {')));
   const pins: [string, boolean][] = [
-    ['SlideToConfirm: onLateResult passthrough', /onLateResult\?: \(r: CommitResult\) => void;/.test(slide) && /onLateResult: props\.onLateResult,/.test(slide)],
+    // The host's late handler runs first, then the slide says the answer in the toast (sayCommitResult).
+    ['SlideToConfirm: onLateResult passthrough (the host first, then the toast)', /onLateResult\?: \(r: CommitResult\) => void;/.test(slide) && /onLateResult: \(r: CommitResult\) => \{\s*try \{ props\.onLateResult\?\.\(r\); \} finally \{ if \(say\) sayCommitResult\(r\); \}/.test(slide)],
+    ['SlideToConfirm: onDone and onResultAfterUnmount run the host first, then say the result (onDone quietly: the capsule already buzzed)',
+      /onDone: \(r: CommitResult\) => \{\s*try \{ props\.onDone\?\.\(r\); \} finally \{ if \(say\) sayCommitResult\(r, \{ quiet: true \}\); \}/.test(slide)
+      && /onResultAfterUnmount: \(r: CommitResult\) => \{\s*try \{ props\.onResultAfterUnmount\?\.\(r\); \} finally \{ if \(say\) sayCommitResult\(r\); \}/.test(slide)
+      && /const say = props\.say !== false;/.test(slide)],
+    ['sayCommitResult: the green check (nailIt) only for confirmed; queued and timeout are neutral (notice), refused is oops',
+      (() => {
+        const say = read('utils/moments/sayResult.ts');
+        const arm = (st: string) => { const at = say.indexOf(`case '${st}':`); return at < 0 ? '' : say.slice(at, say.indexOf('return;', at)); };
+        return (say.match(/\bnailIt\(/g) ?? []).length === 1 && /nailIt\(r\.title, toast\)/.test(arm('confirmed'))
+          && /notice\(r\.title \?\? momentCopy\(\)\.queued, \{ \.\.\.toast, icon: 'clock' \}\)/.test(arm('queued'))
+          && /oops\(r\.reason, toast\)/.test(arm('refused'))
+          && /notice\(r\.message, \{ \.\.\.toast, icon: 'alert' \}\)/.test(arm('timeout'));
+      })()],
     ['SlideToConfirm: the offline reason is the site sentence (offlineReasonLine)', /legal && props\.offline \? offlineReasonLine\(props\.writeOptions\)/.test(slide)],
     ['useCommitCapsule: runCommit gets onLateResult (latest listener)', /runCommit\(opts\.write, \{\s*\.\.\.opts\.writeOptions,[\s\S]{0,200}onLateResult: \(late\) => \{ try \{ optsRef\.current\.onLateResult\?\.\(late\);/.test(hook)],
     ['useCommitCapsule: the uncommit legalQueued line is the site sentence', /legalQueuedLine\(optsRef\.current\.writeOptions\)/.test(hook) && !/legalQueuedCopy\(/.test(hook)],

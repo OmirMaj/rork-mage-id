@@ -205,9 +205,17 @@ export function checkCoApprove(files: { sheet: string; reflow: string; co: strin
     if (/\bupdateChangeOrder\(|\bnailIt\(/.test(confirm)) f.push(`M3 ${CO}: the approve preview's tap path (onConfirm) approves or toasts on a tap`);
   }
   if (!/await \(frozen \? approveChangeOrder\(changeOrder\.id, \{ frozen \}\) : approveChangeOrder\(changeOrder\.id\)\)/.test(files.sheet)) f.push(`M3 ${SHEET}: the approve sheet does not pass the freeze an unsigned approve carries`);
+  // The slide says its result in the toast (sayCommitResult) with the confirmed
+  // title, which names an unsigned approval ("CO #4 approved, unsigned · …"),
+  // so a late or after-close answer still says "unsigned". A site toast of its
+  // own would say it twice; opting out (say={false}) would say it never.
   for (const [path, code] of [[SHEET, files.sheet], [REFLOW, files.reflow]] as const) {
-    if (!/nailIt\(unsigned \? coApprovedUnsignedToast\(coNumber\) : coApprovedToast\(coNumber\)\)/.test(code)) f.push(`M3 ${path}: a late unsigned approval must still say "unsigned"`);
+    if (/\bnailIt\(|\boops\(/.test(code) || /\ssay=\{false\}/.test(code)) f.push(`M3 ${path}: a late unsigned approval must still say "unsigned" (the slide says its own confirmed title; no site toast, no say={false})`);
   }
+  // From release until the answer is in (and through a stored answer's hold)
+  // the approve sheet and the reflow modal cannot be closed.
+  if (!/setBusy\(true\);\s*const outcome = await/.test(files.sheet) || !/\sdismissible=\{!busy\}/.test(files.sheet)) f.push(`M3 ${SHEET}: the approve sheet must hold (busy from the write, dismissible={!busy})`);
+  if (!/onBusy\(true\);\s*const outcome = await/.test(files.reflow) || !/onRequestClose=\{close\}/.test(files.reflow) || !/const close = useCallback\(\(\) => \{ if \(!slideBusy\) onClose\(\); \}/.test(files.reflow)) f.push(`M3 ${REFLOW}: the reflow modal must hold while its slide's write is in flight (onBusy from the write, close gated on slideBusy)`);
   if (!/<COApproveSheet\b/.test(files.hub)) f.push(`M3 ${HUB}: no approve sheet rendered`);
   if (!/approveSlide=\{coReflowPreview\.status === 'approved' \? undefined : \{/.test(files.hub)) f.push(`M3 ${HUB}: the reflow preview's approve does not slide`);
   if (/updateChangeOrder\([^)]*status: 'approved'/.test(files.hub)) f.push(`M3 ${HUB}: an approve still goes through updateChangeOrder`);
@@ -307,6 +315,12 @@ export default function run(ctx: MomentsCtx): void {
   // M3
   const m3 = checkCoApprove(files);
   ok('M3 CO approve goes through approveChangeOrder in the sheet and the reflow slide; confirmApprove only opens the sheet; the job page lost its Alerts', m3.length === 0, m3.join('\n'));
+  ok('M3 red on planted: a site toast of its own beside the slide\'s',
+    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'setBusy(false);\n    if (r.status', "setBusy(false); nailIt('CO approved');\n    if (r.status") })));
+  ok('M3 red on planted: the approve sheet dismissible while the write runs',
+    red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'dismissible={!busy}', '') })));
+  ok('M3 red on planted: the reflow modal closes mid-write',
+    red(() => checkCoApprove({ ...files, reflow: mutate(files.reflow, 'onRequestClose={close}', 'onRequestClose={props.onClose}') })));
   ok('M3 red on planted: the sheet approves through updateChangeOrder',
     red(() => checkCoApprove({ ...files, sheet: mutate(files.sheet, 'await (frozen ? approveChangeOrder(changeOrder.id, { frozen }) : approveChangeOrder(changeOrder.id))', "await updateChangeOrder(changeOrder.id, { status: 'approved' })") })));
   ok('M3 red on planted: the reflow slide drops the anchor',

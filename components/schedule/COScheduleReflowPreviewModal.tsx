@@ -15,7 +15,7 @@
 // Every non-"ready" branch renders the plan's own message rather than a
 // generic promise — a CO that cannot move the schedule must say so.
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
@@ -41,13 +41,10 @@ import {
   type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
 import { useProjectCrossActions, type ChangeOrderFrozenFields } from '@/contexts/ProjectContext';
-import { nailIt } from '@/components/animations/NailItToast';
 import { calendarDayToDate } from '@/utils/cpm';
 import { formatCalendarDay, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import { coApprovedTitle, coApprovedUnsignedTitle } from '@/components/moments-sites/COApproveSheet';
 import {
-  coApprovedToast,
-  coApprovedUnsignedToast,
   coBusy,
   coFinishMoves,
   coQueued,
@@ -150,6 +147,14 @@ export function COScheduleReflowPreviewModal(props: {
   const confirmDisabled = intent === 'place' && !isReady;
   const slide = intent === 'approve' && props.approveSlide ? props.approveSlide : null;
   const slideRef = useRef<SlideToConfirmHandle>(null);
+  // The approve slide's write in flight (and a stored answer's hold) holds the
+  // modal open: Android back / Esc, the X and Cancel do nothing until the
+  // answer is in. The slide closes it after the hold (onDone).
+  const [slideBusy, setSlideBusy] = useState(false);
+  const { onClose } = props;
+  const close = useCallback(() => { if (!slideBusy) onClose(); }, [slideBusy, onClose]);
+  // Closed from outside mid-write (the slide unmounted with it): the next open starts free.
+  useEffect(() => { if (!props.visible) setSlideBusy(false); }, [props.visible]);
   const anchorForWrite = pickedAnchorId ?? plan.anchorTaskId ?? undefined;
 
   // Desktop (wave 6c): a centred 720 card. Cmd/Ctrl+Enter confirms when the
@@ -171,7 +176,7 @@ export function COScheduleReflowPreviewModal(props: {
       visible={props.visible}
       transparent
       animationType={frame.animationType}
-      onRequestClose={props.onClose}
+      onRequestClose={close}
     >
       <View style={[styles.modalBackdrop, frame.overlay]}>
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
@@ -183,7 +188,8 @@ export function COScheduleReflowPreviewModal(props: {
                 : `Approve CO #${changeOrder.number}`}
             </Text>
             <TouchableOpacity
-              onPress={props.onClose}
+              onPress={close}
+              disabled={slideBusy ? true : undefined}
               hitSlop={8}
               style={styles.modalCloseBtn}
               accessibilityRole="button"
@@ -316,9 +322,11 @@ export function COScheduleReflowPreviewModal(props: {
                 anchorTaskId={anchorForWrite}
                 finishDate={reflowFinishDate(schedule, plan)}
                 onClose={props.onClose}
+                onBusy={setSlideBusy}
               />
               <TouchableOpacity
-                onPress={props.onClose}
+                onPress={close}
+                disabled={slideBusy ? true : undefined}
                 style={[styles.slideCancel, styles.btnSecondary]}
                 activeOpacity={0.85}
                 accessibilityRole="button"
@@ -369,12 +377,15 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
   anchorTaskId: string | undefined;
   finishDate: string | null;
   onClose: () => void;
-}>(function ReflowApproveSlideControl({ changeOrder, slide, anchorTaskId, finishDate, onClose }, ref) {
+  /** true from release until the answer is in (through a stored answer's hold). */
+  onBusy: (busy: boolean) => void;
+}>(function ReflowApproveSlideControl({ changeOrder, slide, anchorTaskId, finishDate, onClose, onBusy }, ref) {
   const { approveChangeOrder } = useProjectCrossActions();
   const amountCents = Number.isFinite(changeOrder.changeAmount) ? Math.round(changeOrder.changeAmount * 100) : 0;
   const { coNumber, contractAfterCents, unsigned, frozen } = slide;
 
   const approveAndShift = useCallback(async (): Promise<CommitResult> => {
+    onBusy(true);
     const outcome = await approveChangeOrder(changeOrder.id, { anchorTaskId, ...(frozen ? { frozen } : {}) });
     return fromWriteOutcome(
       outcome,
@@ -384,7 +395,7 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
       },
       { refused: coRefused(), queued: coQueued() },
     );
-  }, [approveChangeOrder, changeOrder.id, anchorTaskId, coNumber, amountCents, contractAfterCents, finishDate, unsigned, frozen]);
+  }, [approveChangeOrder, changeOrder.id, anchorTaskId, coNumber, amountCents, contractAfterCents, finishDate, unsigned, frozen, onBusy]);
 
   // Non-idempotent (plan rule 3): a timeout says "Check CO #4", never "nothing was saved".
   const writeOptions = useMemo<CommitWriteOptions>(() => ({
@@ -392,12 +403,15 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
     copy: { refused: coRefused(), timeout: coTimeout(coNumber) },
   }), [coNumber]);
 
+  // A result that plays a hold (confirmed, or kept on this phone) keeps the modal up until onDone.
+  const onResolved = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed' && r.status !== 'queued') onBusy(false);
+  }, [onBusy]);
+  // The slide says the result in the toast once the modal is gone (an unsigned one says "unsigned").
   const onDone = useCallback((r: CommitResult) => {
+    onBusy(false);
     if (r.status === 'confirmed' || r.status === 'queued') onClose();
-  }, [onClose]);
-  const onLate = useCallback((r: CommitResult) => {
-    if (r.status === 'confirmed') nailIt(unsigned ? coApprovedUnsignedToast(coNumber) : coApprovedToast(coNumber));
-  }, [coNumber, unsigned]);
+  }, [onClose, onBusy]);
 
   return (
     <SlideToConfirm
@@ -411,9 +425,8 @@ const ReflowApproveSlideControl = React.forwardRef<SlideToConfirmHandle, {
       size="lg"
       tone="brand"
       resultIcon="check"
+      onResolved={onResolved}
       onDone={onDone}
-      onLateResult={onLate}
-      onResultAfterUnmount={onLate}
       testID="co-reflow-slide"
     />
   );
