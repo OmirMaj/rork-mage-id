@@ -135,11 +135,15 @@ export function KpiStrip({ cells, canViewFinancials = true, style, testID }: Kpi
           // browser would follow the <a href> with a full page reload. So:
           // no onPress key unless the cell has one, and then the plain click
           // is ours to finish (see linkPressWithSideEffect).
+          // The cell's style is FLATTENED: on web, Link asChild merges the child's
+          // style with an object spread, so an array becomes {0: …, 1: …} and the
+          // browser throws "Failed to set an indexed property [0] on
+          // CSSStyleDeclaration" (Sentry REACT-NATIVE-R on /summary).
           const href = c.href;
           const extra = c.onPress ? { onPress: linkPressWithSideEffect(c.onPress, () => router.navigate(href)) } : {};
           return (
             <Link key={c.key} href={href} asChild {...extra}>
-              <Pressable style={[styles.cell, cellStyle]} accessibilityRole="link" accessibilityLabel={a11y} testID={cellTestID}>
+              <Pressable style={StyleSheet.flatten([styles.cell, cellStyle])} accessibilityRole="link" accessibilityLabel={a11y} testID={cellTestID}>
                 {body}
               </Pressable>
             </Link>
