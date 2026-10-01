@@ -10,7 +10,7 @@
 // The words always state the action and the amount ("Slide to approve ·
 // +$4,200.00"); the motion only backs them up. Variants (morph.md 4.11):
 //   money / sign / certify  lg, brand, check
-//   clock out               md (64% wide, min 220), threshold 0.70, hold 600, no settle
+//   clock out               md (64% wide, min 220), threshold 0.70, hold 1000, no settle
 //   lock                    lg, tone 'ink', resultIcon 'lock' ("Period locked · Sep 2026")
 //   risk override           lg, tone 'warning', resultIcon 'flag' ("Awarded · override recorded")
 // There is NO destructive variant: a void or a delete never gets a slide.
@@ -19,6 +19,14 @@
 // [ Confirm … ] [ Cancel ]. Web/desktop: the head is focusable, press and hold
 // Space/Enter fills it over 700 ms, Esc cancels; the ref's playHoldToCommit()
 // is the same fill for a sheet's Cmd+Enter (never an instant commit).
+//
+// It SAYS its result (sayCommitResult, utils/moments/sayResult.ts): the pill
+// lives inside the sheet, and the sheet closes after the hold, so every
+// result it hands over also goes to the app-wide toast and outlives the sheet
+// (the founder, 2026-10-01: "no pop up screen comes up to confirm it").
+// onDone says it quietly (the capsule already buzzed); a result after unmount
+// or after the timeout says it with its haptic. The green check is only ever
+// a confirmed write. A host that says the result itself passes say={false}.
 
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -26,6 +34,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { momentColors, type CapsuleTone } from '@/utils/moments/colors';
 import { offlineReasonLine, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
+import { sayCommitResult } from '@/utils/moments/sayResult';
 import { CAPSULE_GEOMETRY } from '@/utils/moments/motionSpec';
 import { labelDriftTable, labelOpacityTable } from '@/utils/moments/capsuleMath';
 import { momentCopy } from '@/utils/moments/copy';
@@ -45,7 +54,7 @@ export interface SlideToConfirmProps {
    * transport / offline). subject and verb are the English fallback only.
    */
   writeOptions: CommitWriteOptions;
-  /** md = compact clock-out: 64% width (min 220), threshold .70 default, holdMs 600, settle false */
+  /** md = compact clock-out: 64% width (min 220), threshold .70 default, holdMs 1000, settle false */
   size?: 'lg' | 'md';
   tone?: CapsuleTone; resultIcon?: CapsuleResultIcon; threshold?: number;
   disabledReason?: string | null;
@@ -53,10 +62,14 @@ export interface SlideToConfirmProps {
   offline?: boolean;
   /** default "Saved on this phone · sends when online" */
   queuedLabel?: string;
+  /** After the result hold (confirmed or queued). The slide then says the result in the toast, quietly. */
   onDone?: (r: CommitResult) => void; onResolved?: (r: CommitResult) => void;
+  /** A result that landed after unmount: the host's state patch first, then the slide says it in the toast. */
   onResultAfterUnmount?: (r: CommitResult) => void;
-  /** Step 0: a late answer after the timeout already resolved the slide (a late confirmed write refreshes the record). */
+  /** Step 0: a late answer after the timeout already resolved the slide (a late confirmed write refreshes the record). Then the slide says it. */
   onLateResult?: (r: CommitResult) => void;
+  /** Default true: every delivered result is also said in the app-wide toast. false = the host says it itself. */
+  say?: boolean;
   style?: StyleProp<ViewStyle>; testID?: string;
 }
 
@@ -98,6 +111,7 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
   const H = geo.H;
   const D = geo.D;
   const legal = !!props.writeOptions.legal;
+  const say = props.say !== false;
   // A legal record can never be queued, so offline disables it with the reason.
   const disabledReason = legal && props.offline ? offlineReasonLine(props.writeOptions) : (props.disabledReason ?? null);
 
@@ -121,10 +135,18 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
     write,
     writeOptions: props.writeOptions,
     resultIcon,
-    onDone: props.onDone,
+    // The host's handler first (its state patch), then the toast. onDone is
+    // quiet: the capsule already played this result's haptic.
+    onDone: (r: CommitResult) => {
+      try { props.onDone?.(r); } finally { if (say) sayCommitResult(r, { quiet: true }); }
+    },
     onResolved: props.onResolved,
-    onResultAfterUnmount: props.onResultAfterUnmount,
-    onLateResult: props.onLateResult,
+    onResultAfterUnmount: (r: CommitResult) => {
+      try { props.onResultAfterUnmount?.(r); } finally { if (say) sayCommitResult(r); }
+    },
+    onLateResult: (r: CommitResult) => {
+      try { props.onLateResult?.(r); } finally { if (say) sayCommitResult(r); }
+    },
     testID: props.testID,
   });
 

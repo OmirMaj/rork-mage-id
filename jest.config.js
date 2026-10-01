@@ -27,6 +27,11 @@ const tslibCjsPath = require.resolve('tslib');
 
 module.exports = {
   preset: 'jest-expo',
+  // Local machines cap jest's worker pool through the env (scratchpad heavy.sh
+  // sets JEST_MAX_WORKERS=2: one worker per core was 11 workers / ~4.8 GB on the
+  // 18 GB dev Mac). Unset in CI, so jest keeps its own default there; a CLI
+  // -w still wins over this.
+  ...(process.env.JEST_MAX_WORKERS ? { maxWorkers: process.env.JEST_MAX_WORKERS } : {}),
 
   // Only files that end in `.test.tsx?` under __tests__/. Fixtures, helpers and
   // the route walker live in the same tree and must NOT be run as suites.

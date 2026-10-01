@@ -91,6 +91,7 @@ import { nailIt } from '@/components/animations/NailItToast';
 import { SigningCeremony, type SigningCeremonyProps } from '@/components/moments/signing/SigningCeremony';
 import { HandoffTurn, useHandoffTurn } from '@/components/moments/signing/HandoffTurn';
 import { SlideToConfirm, type CommitResult, type SlideToConfirmHandle } from '@/components/moments/core/contract';
+import { sayCommitResult } from '@/utils/moments/sayResult';
 import { useOffline } from '@/hooks/useOnline';
 import { nextBillableMilestone } from '@/utils/nextBillableMilestone';
 import * as signingCopy from '@/utils/moments/sites/signingCopy';
@@ -1611,11 +1612,11 @@ function ContractScreenInner() {
     sealedPatchRef.current = null;
     if (patched) setContract(prev => (prev && prev.id === patched.id ? { ...prev, signedPdfUrl: patched.signedPdfUrl, documentHash: patched.documentHash } : prev));
   }, []);
+  // A late seal: adopt the row and reload what the server holds; the slide says it.
   const onSealLateResult = useCallback((r: CommitResult) => {
     if (r.status !== 'confirmed') return;
     onSealDone(r);
     void recheckLockedContract();
-    nailIt(r.title);
   }, [onSealDone, recheckLockedContract]);
 
   // The ceremonies read the STORED record (never the live fields) for the seal.
@@ -3340,9 +3341,13 @@ export function RecordHomeownerSignatureModal({
                 resultIcon="lock"
                 disabledReason={paperReason}
                 offline={offline}
-                // A confirmed record holds the sheet through its result; onDone closes it.
+                // A confirmed record holds the sheet through its result; onDone
+                // closes it and says it in the toast. say={false}: a late or
+                // after-close answer is said by the screen's record handlers,
+                // which the in-person ceremony shares (one toast, never two).
+                say={false}
                 onResolved={(r) => { if (r.status !== 'confirmed') setBusy(false); }}
-                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); }}
+                onDone={(r) => { setBusy(false); if (r.status === 'confirmed') onClose(); sayCommitResult(r, { quiet: true }); }}
                 onResultAfterUnmount={onResultAfterUnmount}
                 onLateResult={onLateResult}
                 testID="contract-record-paper-slide"

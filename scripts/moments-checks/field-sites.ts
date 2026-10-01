@@ -95,8 +95,13 @@ export function bodyOf(code: string, name: string): string {
 
 /** Every `<SlideToConfirm …>` opening tag's text. */
 export function slideTags(code: string): string[] {
+  return jsxTags(code, 'SlideToConfirm');
+}
+
+/** Every `<Name …>` opening tag's text (attributes with balanced braces, so a footer={…} holds its JSX). */
+export function jsxTags(code: string, name: string): string[] {
   const out: string[] = [];
-  const re = /<SlideToConfirm\b/g;
+  const re = new RegExp(`<${name}\\b`, 'g');
   let m: RegExpExecArray | null;
   while ((m = re.exec(code))) {
     let i = m.index + m[0].length;
@@ -180,7 +185,26 @@ export function checkFieldSite(path: string, code: string): Fails {
     const woText = /^[A-Za-z_$][\w$]*$/.test(wo) ? bodyOf(code, wo) : wo;
     if (!/\bidempotent\s*:\s*false\b/.test(woText)) f.push(`${path}: a slide's writeOptions is not idempotent: false (a queued or unknown write never says "nothing was saved")`);
     if (!attr(t, 'onDone')) f.push(`${path}: a slide has no onDone (the sheet must close after the result, not in the write)`);
-    if (!attr(t, 'onResultAfterUnmount')) f.push(`${path}: a slide has no onResultAfterUnmount (a late answer must still be told)`);
+    // The slide says every result it hands over in the app-wide toast
+    // (sayCommitResult), so the answer outlives the sheet. A site that opts
+    // out (say={false}) must tell a late answer itself.
+    if (attr(t, 'say') === 'false' && !attr(t, 'onResultAfterUnmount')) f.push(`${path}: a slide opts out of saying its result (say={false}) and has no onResultAfterUnmount (a late answer must still be told)`);
+    // ...and a site handler that toasts the same result says it twice.
+    if (attr(t, 'say') !== 'false') {
+      for (const h of ['onDone', 'onResolved', 'onResultAfterUnmount', 'onLateResult']) {
+        const v = attr(t, h) ?? '';
+        const body = /^[A-Za-z_$][\w$]*$/.test(v) ? bodyOf(code, v) : v;
+        if (/\b(nailIt|oops)\s*\(/.test(body)) f.push(`${path}: a slide's ${h} toasts the result the slide already says (two toasts)`);
+      }
+    }
+  }
+  if (/function momentAfterUnmount\b/.test(code)) f.push(`${path}: the per-site after-unmount toast is back (the slide says its result itself)`);
+  // While the write is in flight (and through a stored answer's hold) the
+  // slide's sheet cannot be dismissed: no drag, no X, no scrim, no back.
+  const SHEET_BUSY: Record<string, string[]> = { [TT]: ['clockOutBusy'], [PL]: ['closeBusy'], [WR]: ['lockBusy'] };
+  for (const busy of SHEET_BUSY[path] ?? []) {
+    const sheet = jsxTags(code, 'Sheet').find((tag) => /<SlideToConfirm\b/.test(tag) && new RegExp(`dismissOnBackdrop=\\{!${busy}\\}`).test(tag));
+    if (!sheet || attr(sheet, 'dismissible') !== `!${busy}`) f.push(`${path}: the slide's sheet must pass dismissible={!${busy}} (it could be dragged or closed while the write is in flight)`);
   }
 
   if (path === TT) {
@@ -388,6 +412,19 @@ function planted(ctx: MomentsCtx, real: Record<string, string>, copySrc: string)
     red(PL, sub(pl, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setCloseBusy(false); }}", 'onResolved={() => setCloseBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
   out.push(['C5 red on planted: the lock sheet lets go in the result hold',
     red(WR, sub(wr, "onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setLockBusy(false); }}", 'onResolved={() => setLockBusy(false)}'), /onResolved clears busy on a confirmed or queued result/)]);
+  // The slide says its result (sayCommitResult): no second toast, no opt-out without a late handler, and the sheet held while busy.
+  out.push(['C1 red on planted: the per-site after-unmount toast back',
+    red(TT, `${tt}\nfunction momentAfterUnmount(r: CommitResult): void { if (r.status === 'confirmed') nailIt(r.title); }`, /per-site after-unmount toast is back/)]);
+  out.push(['C1 red on planted: a slide handler that toasts what the slide says',
+    red(TT, sub(tt, 'onDone={() => { setClockOutBusy(false); setClockOutFor(null); }}', 'onDone={() => { setClockOutBusy(false); setClockOutFor(null); }}\n            onResultAfterUnmount={(r) => { if (r.status === \'confirmed\') nailIt(r.title); }}'), /toasts the result the slide already says/)]);
+  out.push(['C1 red on planted: say={false} with no late handler',
+    red(TT, sub(tt, 'testID="clock-out-slide"', 'say={false}\n            testID="clock-out-slide"'), /opts out of saying its result/)]);
+  out.push(['C1 red on planted: the clock-out sheet dismissible while busy',
+    red(TT, sub(tt, 'dismissible={!clockOutBusy}', ''), /dismissible=\{!clockOutBusy\}/)]);
+  out.push(['C3 red on planted: the close sheet dismissible while busy',
+    red(PL, sub(pl, 'dismissible={!closeBusy}', 'dismissible'), /dismissible=\{!closeBusy\}/)]);
+  out.push(['C5 red on planted: the lock sheet dismissible while busy',
+    red(WR, sub(wr, 'dismissible={!lockBusy}', ''), /dismissible=\{!lockBusy\}/)]);
   const subRe = (src: string, a: RegExp, b: string) => (a.test(src) ? src.replace(a, b) : `${src}\n/* planted-anchor-missing */`);
   out.push(['C4 red on planted: Home Passport runs inside the write, during the capsule',
     red(CB, subRe(cb, /setFinalizedAt\(now\);/, 'setFinalizedAt(now); void runPassportGeneration();'), /runs Home Passport inside the write/)]);
