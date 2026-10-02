@@ -17,7 +17,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createPresenceRegistry, type PresenceChannelLike, type PresenceClientLike } from '../utils/realtimePresenceRegistry';
+import { createPresenceRegistry, type PresenceClientLike } from '../utils/realtimePresenceRegistry';
 import { mountTopic } from '../utils/realtimeTopic';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -72,10 +72,10 @@ check('A self-test passes mountTopic inline', unsafeChannelCalls("supabase.chann
 check('A self-test passes a mountTopic variable', unsafeChannelCalls("const channelName = mountTopic(`x`);\nsupabase.channel(channelName)") === 0);
 check('A self-test flags a plain variable', unsafeChannelCalls("const channelName = `x`;\nsupabase.channel(channelName)") === 1);
 const hook = readFileSync(join(ROOT, 'hooks/useSchedulePresence.ts'), 'utf8');
-check('A presence hook goes through the registry', /presenceRegistry\.acquire\(/.test(hook) && !/channel\.on\(\s*'presence'/.test(stripComments(hook)));
+check('A presence hook goes through the registry', /presenceRegistry\.acquire\(/.test(hook) && /onSync: \(ch, cb\) => \{ ch\.on\('presence'/.test(hook) && !/const channel = supabase\.channel\(/.test(stripComments(hook)));
 
 // ── B. behaviour against a realtime-js-like fake ─────────────────────────────
-class FakeChannel implements PresenceChannelLike {
+class FakeChannel {
   subscribed = false; removed = false; onCalls = 0; tracks: Record<string, unknown>[] = [];
   private syncs: (() => void)[] = [];
   constructor(public topic: string) {}
@@ -97,6 +97,9 @@ function fakeClient() {
       if (existing) return existing;
       const c = new FakeChannel(topic); live.set(topic, c); made.push(c); return c;
     },
+    onSync: (c, cb) => { c.on('presence', { event: 'sync' }, cb); },
+    subscribe: (c, cb) => { c.subscribe(cb); },
+    track: (c, p) => c.track(p),
     removeChannel(c) {                            // asynchronous, like the real one
       return new Promise((res) => setTimeout(() => { c.removed = true; if (live.get(c.topic) === c) live.delete(c.topic); res('ok'); }, 5));
     },

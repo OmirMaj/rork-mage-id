@@ -13,6 +13,9 @@ import { createPresenceRegistry, type PresenceLease } from '@/utils/realtimePres
 /** One registry for the app: every mount of the schedule shares one channel per job. */
 const presenceRegistry = createPresenceRegistry<RealtimeChannel>({
   channel: (topic, opts) => supabase.channel(topic, opts),
+  onSync: (ch, cb) => { ch.on('presence', { event: 'sync' }, cb); },
+  subscribe: (ch, cb) => { ch.subscribe((status) => cb(status)); },
+  track: (ch, payload) => ch.track(payload),
   removeChannel: (ch) => supabase.removeChannel(ch),
   setAuth: () => supabase.realtime.setAuth(),
 });
