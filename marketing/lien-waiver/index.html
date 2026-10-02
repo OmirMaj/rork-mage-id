@@ -12,6 +12,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<!-- The signing line and seal: the portal's own files (marketing/portal/moments.*),
+     loaded at the portal's own ?v=, never a copy. netlify.toml caches *.css and *.js
+     for a year, so the version moves with the portal's. -->
+<link href="/portal/moments.css?v=2026-09-28-w3" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   /* Equipment green on concrete (2026-09 rebrand), same system as /sub-portal.
@@ -31,6 +35,10 @@
     --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    /* The portal tokens moments.css reads (the signing line), at the portal's values. */
+    --bone: #D7DAD4; --bone-2: #E2E4DF; --brand-tint: #E6EFE7;
+    --shadow-brand: 0 8px 24px -6px rgba(47,107,58,0.35);
+    --font-display: var(--ff-display);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { -webkit-font-smoothing: antialiased; }
@@ -181,6 +189,9 @@
   <p class="footnote" style="text-align:center"><a href="https://mageid.app/?ref=lien_waiver&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></p>
 </div>
 
+<!-- MomentLine (the signing line). Loaded before the page script, which falls back
+     to the "Sign this waiver" button when it did not load. -->
+<script src="/portal/moments.js?v=2026-09-28-w3"></script>
 <script>
 (function () {
   'use strict';
@@ -328,6 +339,7 @@
 
   var lastCss = null;
   function startStroke(evt) {
+    if (formLocked) return;
     evt.preventDefault();
     drawing = true;
     var pt = padPoint(evt); var v = toViewBox(pt);
@@ -372,12 +384,47 @@
     });
   }
 
+  // ───────── The signing line ─────────
+  // The sub signs by sliding along the line (MageMoments.MomentLine from
+  // marketing/portal/moments.js): the same control and the same result rules as
+  // the portal's contract counter-sign (D-7). The portal's rule is that each
+  // control sits with the one sentence that describes it, so a translated page
+  // keeps the tap where its fine print names the tap. This page is English only
+  // and its consent text names no gesture, so the one test left is whether
+  // moments.js loaded. If it did not, the "Sign this waiver" button works
+  // exactly as it always has.
+  var NOT_READY = 'Type your name, draw your signature and tick the consent box to enable signing.';
+  var signLine = null;     // the mounted MomentLine, or null on the button path
+  var formLocked = false;  // true while the line's signature is with the server
+  function usesLine() {
+    return !!(window.MageMoments && window.MageMoments.MomentLine);
+  }
+  function isReady() {
+    return $('signer-name').value.trim().length >= 2 && paths.length > 0 && $('consent').checked;
+  }
+  // Read-only while a signature is in flight, so what the server records is
+  // what was on screen when the sub slid.
+  function lockForm(locked) {
+    formLocked = locked;
+    $('signer-name').readOnly = locked;
+    $('signer-title').readOnly = locked;
+    $('consent').disabled = locked;
+    $('pad-clear').disabled = locked;
+  }
+
   function refreshSubmit() {
-    var ready = $('signer-name').value.trim().length >= 2 && paths.length > 0 && $('consent').checked;
+    var ready = isReady();
     $('submit').disabled = !ready;
+    if (signLine) {
+      // The line says why it is locked in its own reason line; #submit-note
+      // stays empty while the line is mounted.
+      $('submit-note').textContent = '';
+      signLine.setDisabledReason(ready ? null : NOT_READY);
+      return;
+    }
     $('submit-note').textContent = ready
       ? ''
-      : 'Type your name, draw your signature and tick the consent box to enable signing.';
+      : NOT_READY;
   }
 
   // ───────── Load ─────────
@@ -501,12 +548,14 @@
     pad.addEventListener('touchmove', moveStroke, { passive: false });
     pad.addEventListener('touchend', endStroke);
     $('pad-clear').addEventListener('click', function () {
+      if (formLocked) return;
       paths = []; current = ''; redraw();
       $('pad-hint').style.display = '';
       refreshSubmit();
     });
     $('signer-name').addEventListener('input', refreshSubmit);
     $('consent').addEventListener('change', refreshSubmit);
+    if (usesLine()) mountSignLine();
     refreshSubmit();
 
     $('download').addEventListener('click', function () {
@@ -528,9 +577,14 @@
       win.print();
     });
 
-    $('submit').addEventListener('click', function () {
-      $('submit').disabled = true;
-      $('submit').textContent = 'Signing…';
+    // ONE request builder and ONE result reader, used by the button and the
+    // line alike. It resolves an answer the line can show:
+    //   { status: 'confirmed', seal }   only for the server's {ok: true}
+    //   { status: 'refused', reason, final? }   the four refusals the RPC names
+    // and it REJECTS for anything else, an answer it cannot read or no answer
+    // at all: the signature may or may not be on file, so the line locks and
+    // says to refresh. Legal signing is never queued.
+    function signWaiver() {
       var signedAt = new Date().toISOString();
       var consentRecord = [
         'MAGE ID lien waiver e-signature consent',
@@ -543,7 +597,7 @@
         'text: ' + CONSENT_TEXT,
       ].join('\n');
 
-      rpc(SIGN_RPC, {
+      return rpc(SIGN_RPC, {
         p_waiver_id: waiverId,
         p_access_token: token,
         p_signer_name: $('signer-name').value.trim(),
@@ -561,49 +615,136 @@
         p_consent_accepted: true,
         p_user_agent: (navigator.userAgent || '').slice(0, 200),
       }).then(function (res) {
-        if (!res.ok || !res.body || res.body.ok !== true) {
-          var why = (res.body && (res.body.message || res.body.error)) || '';
-          $('submit').disabled = false;
-          $('submit').textContent = 'Sign this waiver';
-          // Three refusals the RPC can raise, and each one asks the signer for
-          // something different. A single "try again" on a revoked link sends a
-          // sub round that loop forever.
-          if (why.indexOf('lien_waiver_consent_required') !== -1) {
-            $('submit-note').textContent = 'Tick the box above to agree to sign electronically. '
-              + 'Nothing has been signed.';
-          } else if (why.indexOf('lien_waiver_signer_required') !== -1) {
-            $('submit-note').textContent = 'Type your full legal name above. Nothing has been signed.';
-          } else if (why.indexOf('lien_waiver_voided') !== -1) {
-            // Voided while the sub had the page open: the server refuses the
-            // signature (20260923130000) and says why.
-            $('submit').disabled = true;
-            $('submit-note').textContent = 'This waiver was voided by the contractor while you had it open. '
-              + 'There is nothing to sign — nothing has been signed.';
-          } else if (why.indexOf('lien_waiver_denied') !== -1) {
-            $('submit-note').textContent = 'This signing link has been replaced — the contractor sent a newer '
-              + 'one. Open the most recent email and sign there. Nothing has been signed here.';
-          } else {
-            $('submit-note').textContent = 'That did not go through. Check your connection and try again — '
-              + 'nothing has been signed.';
-          }
+        return readSignResult(res, signedAt);
+      }, function () {
+        throw signFailure('network');
+      });
+    }
+
+    function signFailure(kind) {
+      var err = new Error('lien_waiver_sign_' + kind);
+      err.kind = kind;
+      return err;
+    }
+    function refused(reason, code, final) {
+      var answer = { status: 'refused', reason: reason, code: code };
+      if (final) answer.final = true;
+      return answer;
+    }
+
+    function readSignResult(res, signedAt) {
+      // Only the server's {ok: true} is a signature.
+      if (res.ok && res.body && res.body.ok === true) {
+        return {
+          status: 'confirmed',
+          seal: {
+            label: 'Signed. This waiver is recorded.',
+            chip: 'Signed',
+            // The server's signed_at and nothing else: never this device's
+            // clock. Without it the seal shows no Recorded line.
+            recordedAt: res.body.signed_at || null,
+            recordedTemplate: 'Recorded {date}, {time} (server time).',
+          },
+          serverSignedAt: res.body.signed_at || null,
+          clientSignedAt: signedAt,
+        };
+      }
+      var why = (res.body && (res.body.message || res.body.error)) || '';
+      // Four refusals the RPC can raise, and each one asks the signer for
+      // something different. A single "try again" on a revoked link sends a
+      // sub round that loop forever.
+      if (why.indexOf('lien_waiver_consent_required') !== -1) {
+        return refused('Tick the box above to agree to sign electronically. '
+          + 'Nothing has been signed.', 'consent');
+      } else if (why.indexOf('lien_waiver_signer_required') !== -1) {
+        return refused('Type your full legal name above. Nothing has been signed.', 'signer');
+      } else if (why.indexOf('lien_waiver_voided') !== -1) {
+        // Voided while the sub had the page open: the server refuses the
+        // signature (20260923130000) and says why.
+        return refused('This waiver was voided by the contractor while you had it open. '
+          + 'There is nothing to sign — nothing has been signed.', 'voided', true);
+      } else if (why.indexOf('lien_waiver_denied') !== -1) {
+        return refused('This signing link has been replaced — the contractor sent a newer '
+          + 'one. Open the most recent email and sign there. Nothing has been signed here.', 'denied', true);
+      }
+      throw signFailure('unknown');
+    }
+
+    // The signed state, for the button and the line alike. The line calls it
+    // from onDone, so the done card never shows before the seal has.
+    function showSigned(answer) {
+      var at = answer.serverSignedAt || answer.clientSignedAt;
+      signedRecord = {
+        name: $('signer-name').value.trim(),
+        title: $('signer-title').value.trim(),
+        at: at,
+        consentVersion: CONSENT_VERSION,
+      };
+      $('signing').hidden = true;
+      $('done').hidden = false;
+      $('done-body').textContent = 'Signed ' + new Date(at).toLocaleString()
+        + '. ' + (w.company_name || 'The contractor') + ' can see it on this job in MAGE ID.';
+    }
+
+    // The button: moments.js did not load. Same request, same sentences.
+    $('submit').addEventListener('click', function () {
+      $('submit').disabled = true;
+      $('submit').textContent = 'Signing…';
+      signWaiver().then(function (answer) {
+        if (answer.status === 'confirmed') {
+          showSigned(answer);
           return;
         }
-        signedRecord = {
-          name: $('signer-name').value.trim(),
-          title: $('signer-title').value.trim(),
-          at: res.body.signed_at || signedAt,
-          consentVersion: CONSENT_VERSION,
-        };
-        $('signing').hidden = true;
-        $('done').hidden = false;
-        $('done-body').textContent = 'Signed ' + new Date(res.body.signed_at || signedAt).toLocaleString()
-          + '. ' + (w.company_name || 'The contractor') + ' can see it on this job in MAGE ID.';
-      }).catch(function () {
         $('submit').disabled = false;
         $('submit').textContent = 'Sign this waiver';
-        $('submit-note').textContent = 'We could not reach the server. Nothing has been signed — try again.';
+        $('submit-note').textContent = answer.reason;
+        // Voided: there is nothing left to sign, so the button stays off.
+        if (answer.code === 'voided') $('submit').disabled = true;
+      }, function (err) {
+        $('submit').disabled = false;
+        $('submit').textContent = 'Sign this waiver';
+        $('submit-note').textContent = err && err.kind === 'network'
+          ? 'We could not reach the server. Nothing has been signed — try again.'
+          : 'That did not go through. Check your connection and try again — '
+            + 'nothing has been signed.';
       });
     });
+
+    // The line: it takes the button's place, and the button stays in the DOM
+    // (hidden) as the fallback.
+    function mountSignLine() {
+      var btn = $('submit');
+      var host = document.createElement('div');
+      host.id = 'sign-line';
+      btn.parentNode.insertBefore(host, btn);
+      btn.hidden = true;
+      $('submit-note').textContent = '';
+      signLine = new window.MageMoments.MomentLine(host, {
+        label: 'Slide along the line to sign this waiver',
+        strings: {
+          hint: 'Slide the handle to the end of the line, or press and hold Space.',
+          armed: 'Tap again to confirm.',
+          busy: 'Waiting for the server to record your signature.',
+          cancelled: 'Cancelled. Nothing was sent.',
+          noAnswer: 'No answer yet. Refresh the page to check before trying again.',
+        },
+        disabledReason: NOT_READY,
+        onCommit: commitLine,
+        onDone: function (r) { if (r && r.status === 'confirmed') showSigned(r); },
+      });
+    }
+    /** The line's commit: resolves exactly one answer, or rejects (no answer). */
+    function commitLine() {
+      if (!isReady()) return Promise.resolve({ status: 'refused', reason: NOT_READY });
+      lockForm(true);
+      return signWaiver().then(function (answer) {
+        // A refusal the sub can fix hands the form back. A final refusal, a
+        // confirmed signature or no answer at all (the rejection passes
+        // through) keeps it read-only.
+        if (answer.status === 'refused' && answer.final !== true) lockForm(false);
+        return answer;
+      });
+    }
   }
 })();
 </script>
