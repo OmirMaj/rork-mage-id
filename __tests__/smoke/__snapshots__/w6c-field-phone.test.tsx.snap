@@ -72,8 +72,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) equipment 1`
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/full (dialogs and forms) 1`] = `
 {
-  "lines": 3898,
-  "sha256": "57f3d3d9bf72e5775cd4662ec19734d248fc78b7f1c075e0ac17d3b4cdd3e018",
+  "lines": 3895,
+  "sha256": "08c109ea288907312484096043e08747ea97ad6bdeeba83ada659231891482fc",
 }
 `;
 
@@ -247,8 +247,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) scan 1`] = `
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1`] = `
 {
-  "lines": 850,
-  "sha256": "bfd559a32201a1260db7e406acc2df013becdf498c3b7f50b68664dbcd4b7fb2",
+  "lines": 847,
+  "sha256": "b43c2a90ad69a1e3dd87ff93c45c7160b627b2bbcc82008cd33ca7c2b1c08927",
 }
 `;
 

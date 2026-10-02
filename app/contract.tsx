@@ -112,6 +112,8 @@ import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor
 import { tutorialSignal, useTutorialPractice, useTutorialSandboxId, useTutorialStepActive } from '@/utils/tutorial/store';
 import { contractTermsSource, contractTimelinePayload } from '@/utils/tutorial/learn/fixturesD';
 import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { NyContractChecklist, askNyMissingItems } from '@/components/contract/NyContractChecklist';
+import { nyMissingBeforeSign } from '@/utils/nyHomeImprovement';
 
 // Pipeline shown at the top of every saved contract. Void is omitted
 // from the visual (user can still set status=void via the existing UI);
@@ -349,6 +351,10 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
   // these prices" / "Keep these prices".
   const [driftAsk, setDriftAsk] = useState(false);
   const [driftNote, setDriftNote] = useState<string | null>(null);
+  // NYCHECK: the New York checklist warns once per contract id (never blocks).
+  const nyAckRef = useRef<string | null>(null);
+  const signPressRef = useRef<() => void>(() => {});
+  const [nyReveal, setNyReveal] = useState(0);
 
   // ── Tutorial (contract-from-estimate) + the sample fence ────────────────
   // runOnThis: a tutorial run is live on THIS project — the only time the
@@ -936,6 +942,15 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
       return;
     }
+    // NYCHECK: after the lock and the terms ask, before the drift card and the mode.
+    const nyMissing = nyMissingBeforeSign({ project: projectRef.current, contract: c, branding: settingsRef.current?.branding });
+    if (nyMissing > 0 && nyAckRef.current !== c.id) {
+      askNyMissingItems(nyMissing, {
+        onReview: () => { pendingSignModeRef.current = 'send'; setNyReveal((n) => n + 1); },
+        onContinue: () => { nyAckRef.current = c.id; signPressRef.current(); },
+      });
+      return;
+    }
     // T2: a newer receipt of his contradicts a price on this job's estimate.
     // Decided here, after the lock and the missing-terms asks, before the
     // mode is consumed; the pad opens with the check above the signing card.
@@ -973,6 +988,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     setReviewBeforeSigning(false);
     setSignatureModal(true);
   }, [askContractTerms]);
+  signPressRef.current = handleSignPress;
 
   // C1: "Sign together now" — the same press, with the in-person mode queued.
   const handleSignTogetherPress = useCallback(() => {
@@ -2457,6 +2473,11 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             </Text>
           </View>
           </TutorialWrap>
+        )}
+
+        {contract.status === 'draft' && (
+          <NyContractChecklist project={project} contract={contract} branding={settings?.branding} revealSignal={nyReveal}
+            scrollRef={contractScrollRef} onOpenProfile={() => router.push('/company-profile')} testID="contract-ny-checklist" />
         )}
 
         {/* Action bar */}

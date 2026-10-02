@@ -1398,6 +1398,7 @@ function RootLayoutNav() {
           hub and the real screen on top of it. */}
       <Stack.Screen name="tutorials" options={{ title: 'Tutorials' }} />
       <Stack.Screen name="skills-check" options={{ title: 'Skills check' }} />
+      <Stack.Screen name="skills-certificates" options={{ title: 'Certificates' }} />
       <Stack.Screen
         name="drawing-analyzer"
         options={{ headerShown: false }}

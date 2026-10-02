@@ -48,6 +48,9 @@ import { RailHoverPill, RAIL, RAIL_PILL_HEIGHT, RAIL_PILL_LEFT } from '@/compone
 import { SidebarActionRequiredRow } from '@/components/sidebar/SidebarActionRequiredRow';
 import { useAskDock } from '@/hooks/useAskDock';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
+import type { LayoutChangeEvent } from 'react-native';
+import { FocusMarker } from '@/components/motion/kit';
+import type { KitRect } from '@/utils/motion/kit';
 
 interface NavItem {
   key: string;
@@ -453,6 +456,47 @@ function RailTip({ label, children, onHover, containerRef }: {
   );
 }
 
+// ─── The gliding highlight (lane MOTIONADOPT-B, B4) ─────────────────────────
+// On a page change ONE marker (the kit's FocusMarker) slides from the row he
+// left to the row he picked, then unmounts; at rest every row paints its own
+// fill exactly as before. Rows report their layout relative to their section
+// (or "More" sub-group) View, sections relative to the nav content, so a row's
+// rect in NAV-CONTENT coordinates is its own offset plus its parents'.
+//
+// FB4 performance gate: on the web the glide is JS-driven and overlaps the new
+// page's first render. It ships switched OFF until a Chrome trace of five
+// sidebar navigations at 2560×1440 @2x shows no frame over 16.7 ms that is the
+// marker's. OFF means the marker is not mounted and no row is measured: the
+// rows are exactly today's. Flip `enabled` once the trace is clean.
+export const SIDEBAR_GLIDE = { enabled: false };
+
+type NavBox = { parent: string | null; x: number; y: number; w: number; h: number };
+
+/** The View a nav row sits in: a "More" sub-group, else its section. */
+function navParentOf(section: string): string {
+  return MORE_JOB_SECTIONS.includes(section) ? `g:${section}` : `s:${section}`;
+}
+
+/** Every measured row's rect in nav-content coordinates, written into `out` (one stable object). */
+function resolveNavRects(boxes: { rows: Record<string, NavBox>; parents: Record<string, NavBox> }, out: Record<string, KitRect>): void {
+  for (const k of Object.keys(out)) delete out[k];
+  for (const key of Object.keys(boxes.rows)) {
+    const b = boxes.rows[key];
+    let x = b.x;
+    let y = b.y;
+    let parent = b.parent;
+    let placed = true;
+    for (let depth = 0; parent && depth < 4; depth++) {
+      const pb = boxes.parents[parent];
+      if (!pb) { placed = false; break; }
+      x += pb.x;
+      y += pb.y;
+      parent = pb.parent;
+    }
+    if (placed && !parent) out[key] = { x, y, w: b.w, h: b.h };
+  }
+}
+
 const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -487,6 +531,27 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   // sits behind useIsDesktopWeb(); native desktop keeps today's rows.
   const isDesktopWeb = useIsDesktopWeb();
   const { toggleAsk, isAskOpen } = useAskDock();
+
+  // B4: rect bookkeeping for the gliding highlight (no motion code here — the
+  // kit's FocusMarker reads these rects only when the active row changes).
+  const [navFlying, setNavFlying] = useState(false);
+  const navBoxes = useRef<{ rows: Record<string, NavBox>; parents: Record<string, NavBox> }>({ rows: {}, parents: {} }).current;
+  const navRects = useRef<Record<string, KitRect>>({}).current;
+  const navLayoutHandlers = useRef<Record<string, (e: LayoutChangeEvent) => void>>({}).current;
+  const rowLayout = useCallback((key: string, parentId: string) =>
+    (navLayoutHandlers[`r|${key}|${parentId}`] ??= (e: LayoutChangeEvent) => {
+      const { x, y, width: w, height: h } = e.nativeEvent.layout;
+      navBoxes.rows[key] = { parent: parentId, x, y, w, h };
+      resolveNavRects(navBoxes, navRects);
+    }), [navBoxes, navRects, navLayoutHandlers]);
+  const parentLayout = useCallback((id: string, parentId: string | null) =>
+    (navLayoutHandlers[`p|${id}|${parentId ?? ''}`] ??= (e: LayoutChangeEvent) => {
+      const { x, y, width: w, height: h } = e.nativeEvent.layout;
+      navBoxes.parents[id] = { parent: parentId, x, y, w, h };
+      resolveNavRects(navBoxes, navRects);
+    }), [navBoxes, navRects, navLayoutHandlers]);
+  /** A section / sub-group View's onLayout — undefined while the glide is off. */
+  const sectionLayout = (id: string, parentId: string | null) => (SIDEBAR_GLIDE.enabled ? parentLayout(id, parentId) : undefined);
 
   // Mirror the tab bar's isMinimalPersona (app/(tabs)/_layout.tsx): both
   // client AND property_manager get the minimal nav. Previously the sidebar
@@ -599,6 +664,10 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     // The live count (wave 6d) — only from useJobRowCounts via <JobRowCounts>,
     // and never beside a lock badge.
     const pill = !locked ? count : undefined;
+    // B4: rows inside the nav ScrollView are measured and hand their fill to
+    // the gliding marker while it flies; the account footer keeps today's.
+    const inNav = item.section !== ACCOUNT_SECTION;
+    const onRowLayout = inNav && SIDEBAR_GLIDE.enabled ? rowLayout(item.key, navParentOf(item.section)) : undefined;
 
     // Ask MAGE on desktop web (wave 6d): a ⌘J toggle for the dock beside the
     // page, not a link away from it. Lit while the dock is really drawn (or on
@@ -608,7 +677,8 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       return (
         <Pressable
           key={item.key}
-          style={(s) => rowStyle(lit)(s as RowLinkState)}
+          style={(s) => rowStyle(isAskOpen || (active && (!navFlying || !inNav)))(s as RowLinkState)}
+          onLayout={onRowLayout}
           onPress={toggleAsk}
           testID="sidebar-ask-mage"
           accessibilityRole="button"
@@ -642,7 +712,8 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       <RowLink
         key={item.key}
         href={hrefFor(item)}
-        style={rowStyle(active)}
+        style={rowStyle(active && (!navFlying || !inNav))}
+        onLayout={onRowLayout}
         selected={active}
         testID={`sidebar-${item.key}`}
         accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${pill ? `, ${pill.label}` : ''}${active ? ', current page' : ''}`}
@@ -680,7 +751,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         )}
       </RowLink>
     );
-  }, [pathname, canAccess, claimedCrewWorker, hrefFor, rowStyle, colors.danger, isDesktopWeb, isAskOpen, toggleAsk]);
+  }, [pathname, canAccess, claimedCrewWorker, hrefFor, rowStyle, colors.danger, isDesktopWeb, isAskOpen, toggleAsk, navFlying, rowLayout]);
 
   /** The collapsed rail's square: the icon alone, the label (with its live
    *  count) in the a11y label and the instant hover pill. Same href, gate and
@@ -781,6 +852,18 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const accountItems = itemsIn(ACCOUNT_SECTION);
   const moreOpen = isOpen(MORE_TOGGLE, MORE_JOB_SECTIONS);
   const overviewActive = !!activeProjectId && normalizeRoutePath(pathname) === '/project-detail';
+  // B4: the row the marker glides to. A group shown open only because the new
+  // page sits in it opens in this same commit — its rows have no measured
+  // place yet — so that change is today's instant swap (null), as is a
+  // footer row (no rect).
+  const openedByPage = (toggle: string, members: readonly string[]) =>
+    forced[toggle] === undefined && !savedOpen[toggle] && activeSection !== null && members.includes(activeSection);
+  const activeNavItem = overviewActive ? null : navItems.find(it => isActiveRoute(pathname, it)) ?? null;
+  const navActiveKey: string | null = overviewActive ? 'overview'
+    : !activeNavItem || activeNavItem.section === ACCOUNT_SECTION ? null
+    : MORE_JOB_SECTIONS.includes(activeNavItem.section) && openedByPage(MORE_TOGGLE, MORE_JOB_SECTIONS) ? null
+    : COLLAPSIBLE_SECTIONS.includes(activeNavItem.section) && openedByPage(activeNavItem.section, [activeNavItem.section]) ? null
+    : activeNavItem.key;
 
   const createMenu = !isMinimalPersona && (
     <CreateMenu
@@ -1007,9 +1090,19 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       )}
 
       <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
+        {SIDEBAR_GLIDE.enabled ? (
+          <FocusMarker
+            axis="y"
+            activeKey={navActiveKey}
+            rects={navRects}
+            onFlight={setNavFlying}
+            style={{ backgroundColor: colors.accentFill, borderRadius: Tokens.radius.md }}
+            testID="sidebar-focus-marker"
+          />
+        ) : null}
         {isMinimalPersona ? (
           minimalSections.map(section => (
-            <View key={section} style={styles.navSection}>
+            <View key={section} style={styles.navSection} onLayout={sectionLayout(`s:${section}`, null)}>
               <Text style={[styles.sectionLabel, styles.staticLabel]}>{section}</Text>
               {itemsIn(section).map(item => renderNavItem(item))}
             </View>
@@ -1018,14 +1111,15 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           <>
             {/* THIS JOB — always expanded. With no job yet the rows still work:
                 they open bare and the screen's own picker asks, as before. */}
-            <View style={styles.navSection}>
+            <View style={styles.navSection} onLayout={sectionLayout(`s:${JOB_SECTION}`, null)}>
               {/* The job's name is on the switcher directly above; the header
                   stays a label so the eye finds the section, not a second name. */}
               <Text style={[styles.sectionLabel, styles.staticLabel]}>{JOB_SECTION_LABEL}</Text>
               {activeProjectId ? (
                 <RowLink
                   href={routeHref('/project-detail', { id: activeProjectId })}
-                  style={rowStyle(overviewActive)}
+                  style={rowStyle(overviewActive && !navFlying)}
+                  onLayout={SIDEBAR_GLIDE.enabled ? rowLayout('overview', `s:${JOB_SECTION}`) : undefined}
                   selected={overviewActive}
                   testID="sidebar-job-overview"
                   accessibilityLabel={`Overview of ${activeProject?.name ?? 'this project'}${overviewActive ? ', current page' : ''}`}
@@ -1049,7 +1143,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                     {renderToggle(MORE_TOGGLE, 'More for this project', moreOpen, MORE_JOB_SECTIONS,
                       moreOpen ? undefined : combineRowCounts(itemsIn(COUNTED_MORE_SECTION).map(item => countOf(counts, item.key)), itemsIn(COUNTED_MORE_SECTION).map(item => item.label)))}
                     {moreOpen && MORE_JOB_SECTIONS.map(sub => (
-                      <View key={sub} style={styles.subGroup}>
+                      <View key={sub} style={styles.subGroup} onLayout={sectionLayout(`g:${sub}`, `s:${JOB_SECTION}`)}>
                         <Text style={styles.subLabel}>{sub}</Text>
                         {itemsIn(sub).map(item => renderNavItem(item, false, sub === COUNTED_MORE_SECTION ? countOf(counts, item.key) : undefined))}
                       </View>
@@ -1059,7 +1153,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               </JobRowCounts>
             </View>
 
-            <View style={styles.navSection}>
+            <View style={styles.navSection} onLayout={sectionLayout(`s:${WORKSPACE_SECTION}`, null)}>
               <Text style={[styles.sectionLabel, styles.staticLabel]}>{WORKSPACE_SECTION}</Text>
               {itemsIn(WORKSPACE_SECTION).map(item => renderNavItem(item))}
             </View>
@@ -1100,7 +1194,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               if (items.length === 0) return null;
               const open = isOpen(section, [section]);
               return (
-                <View key={section} style={styles.navSection}>
+                <View key={section} style={styles.navSection} onLayout={sectionLayout(`s:${section}`, null)}>
                   {renderToggle(section, section, open, [section])}
                   {open && items.map(item => renderNavItem(item))}
                 </View>

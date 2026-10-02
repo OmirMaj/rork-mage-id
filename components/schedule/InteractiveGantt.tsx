@@ -42,7 +42,6 @@ import {
   Easing,
   Platform,
   Pressable,
-  AccessibilityInfo,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   type ViewStyle,
@@ -70,6 +69,8 @@ import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction, type RowMenuAn
 import { orthogonalArrowPath, CLEARANCE } from '@/utils/ganttArrowPath';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { cardSurface, nativeDriver } from '@/components/ui';
+import { useReducedMotion } from '@/components/ui/motion';
+import { useFocusPush } from '@/components/motion/kit';
 import { FIT_TAIL_DAYS, GANTT_FOOTER_STRIP_H, GANTT_SYNC_TAIL, fitPxPerDay } from '@/utils/scheduleProLayout';
 import { finishDeltaLabel, type SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 
@@ -570,23 +571,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [focusedTaskId, tasksRaw]);
 
   // --- Reduce-motion guard (Task 4) ----------------------------------------
-  // Read the system accessibility preference and subscribe to changes so the
-  // marching-ants animation is skipped when the user has opted out of motion.
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
-      if (active) setReduceMotion(enabled);
-    });
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (enabled: boolean) => setReduceMotion(enabled),
-    );
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
+  // The app's one Reduce Motion reader (components/ui/motion: subscribed to
+  // the system setting) — the marching-ants animation is skipped when the
+  // user has opted out of motion.
+  const reduceMotion = useReducedMotion();
 
   // --- Marching ants animation (Task 4) ------------------------------------
   // Calm 1.4s linear loop animating strokeDashoffset 0 → -7 (matches the
@@ -1079,13 +1067,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     const x = Math.max(0, (todayDayNumber - 3) * pxPerDay);
     hScrollRef.current?.scrollTo({ x, animated: true });
   }, [todayDayNumber, pxPerDay]);
+  // Jump to a task (schedule health, search, the Copilot): the motion kit's
+  // focus push scrolls there (two rows of context above it; the header is
+  // sticky on desktop web) and, once the scroll settles, draws an accent line
+  // under that bar. The line stays until he drags the chart. Reduce Motion:
+  // the scroll jumps and the line is simply there.
+  const push = useFocusPush(vScrollRef, { axis: 'y', inset: 2 * rowH });
+  const [pushedId, setPushedId] = useState<string | null>(null);
   const scrollToRow = useCallback((index: number) => {
     if (!Number.isFinite(index) || index < 0) return;
-    // Two rows of context above it; the header is sticky on desktop web.
-    vScrollRef.current?.scrollTo({ y: Math.max(0, (index - 2) * rowH), animated: true });
     const b = bars[index];
-    if (b) hScrollRef.current?.scrollTo({ x: Math.max(0, b.x - 80), animated: true });
-  }, [rowH, bars]);
+    if (b) {
+      push(b.task.id, { x: b.x, y: index * rowH, w: b.w, h: rowH });
+      setPushedId(b.task.id);
+      hScrollRef.current?.scrollTo({ x: Math.max(0, b.x - 80), animated: true });
+    } else {
+      vScrollRef.current?.scrollTo({ y: Math.max(0, (index - 2) * rowH), animated: true });
+    }
+  }, [rowH, bars, push]);
+  const pushedBar = pushedId ? barById.get(pushedId) : undefined;
   useImperativeHandle(controllerRef, () => ({
     zoomIn: () => setPxPerDay(v => Math.min(40, v + 2)),
     zoomOut: () => setPxPerDay(v => Math.max(1, v - 2)),
@@ -1391,6 +1391,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             style={{ flex: 1 }}
             contentContainerStyle={{ height: gridHeight, width: timelineWidth }}
             showsVerticalScrollIndicator
+            onMomentumScrollEnd={push.onScrollSettled}
+            onScrollBeginDrag={() => setPushedId(null)}
             {...(onVerticalScroll ? {
               onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => onVerticalScroll(e.nativeEvent.contentOffset.y),
               scrollEventThrottle: 16,
@@ -1779,6 +1781,19 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   />
                 );
               })}
+
+              {/* --- Jump-to-task line: draws under the bar once the scroll settles --- */}
+              {pushedBar ? (
+                <Animated.View
+                  pointerEvents="none"
+                  testID={`gantt-push-rule-${pushedBar.task.id}`}
+                  style={[
+                    styles.pushRule,
+                    { left: pushedBar.x, top: pushedBar.y + barH + 2, width: pushedBar.w, backgroundColor: themeColors.accent },
+                    push.styleFor(pushedBar.task.id),
+                  ]}
+                />
+              ) : null}
 
               {/* --- Proposed change (wave 6c): dashed outlines, never applied ---
                   moved   → an accent outline where the bar WOULD go (the solid
@@ -2839,6 +2854,8 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // ---------------------------------------------------------------------------
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  // The jump-to-task line (useFocusPush draws it with scaleX from the left).
+  pushRule: { position: 'absolute', height: 2, borderRadius: 1, transformOrigin: 'left' },
   container: {
     flex: 1,
     backgroundColor: t.surface,

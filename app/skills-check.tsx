@@ -39,7 +39,7 @@ import { Button } from '@/components/ui/Button';
 import { ActionBar, ActionBarReadout } from '@/components/ui/ActionBar';
 import { Card } from '@/components/ui/Card';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
-import { useReducedMotion } from '@/components/ui/motion';
+import { StackPush } from '@/components/motion/kit';
 import { BRAIN_FAB_CLEARANCE, useBrainFabLift } from '@/components/brain/brainFabState';
 import { QuizQuestionCard } from '@/components/learn/QuizQuestionCard';
 import { QuizResultCard } from '@/components/learn/QuizResultCard';
@@ -122,6 +122,9 @@ function useLeave() {
   }, [router]);
 }
 
+/** The decorative cards' onPick: they are pictures, nothing to press. */
+const noop = () => {};
+
 function SkillsCheckUnavailable() {
   const { colors } = useTheme();
   const { t } = useT();
@@ -143,9 +146,9 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
   const { t } = useT();
   const insets = useSafeAreaInsets();
   const leave = useLeave();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const isDesktopWeb = useIsDesktopWeb();
-  const reduceMotion = useReducedMotion();
   const { user } = useAuth();
   const { progress, loaded } = useTutorialProgress();
   const certsQ = useMyCertificates();
@@ -355,10 +358,13 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
       />
     );
   } else if (phase.kind === 'issued') {
-    // 'See your certificates' joins this bar when /skills-certificates ships
-    // (LEARNPROFILE, wave 4): the route does not exist in this build, and a
-    // button to a missing screen is a dead end.
-    bar = <Button label={t('settings.learn.done', 'Done')} variant="primary" fullWidth onPress={leave} testID="skills-check-done" />;
+    bar = (
+      <>
+        <Button label={t('settings.learn.seeCertificates', 'See your certificates')} variant="primary" fullWidth
+          onPress={() => router.replace('/skills-certificates')} testID="skills-check-see-certificates" />
+        <Button label={t('settings.learn.done', 'Done')} variant="secondary" fullWidth onPress={leave} testID="skills-check-done" />
+      </>
+    );
   }
 
   // No def or no bank in this build: the check does not exist yet.
@@ -371,47 +377,75 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
         contentContainerStyle={[styles.content, { paddingBottom: fabLift + BRAIN_FAB_CLEARANCE }]}
         keyboardShouldPersistTaps="handled"
       >
-        {phase.kind === 'intro' ? (
-          <View testID="skills-check-intro">
-            <Text style={[Type.title2, { color: colors.text }]} accessibilityRole="header">
-              {t('settings.learn.introTitle', 'Skills check: {label}', { label: topic.label })}
-            </Text>
-            <Text style={[Type.body, styles.introLine, { color: colors.text }]}>
-              {t('settings.learn.introLine', '5 questions about using MAGE ID. Get 4 right to pass.')}
-            </Text>
-            <Text style={[Type.footnote, styles.scope, { color: colors.textSecondary }]} testID="skills-check-scope">
-              {CERT_SCOPE_NOTE}
-            </Text>
-            {loaded && availability.kind === 'locked' ? (
-              <Text style={[Type.bodyCompactEmphasized, styles.status, { color: colors.warningLabel }]} testID="skills-check-locked">
-                {t('settings.learn.locked', 'Finish the tutorial first.')}
-              </Text>
-            ) : null}
-            {availability.kind === 'passed' ? (
-              <Card style={styles.status} testID="skills-check-already">
-                <Text style={[Type.bodyCompactEmphasized, { color: colors.successLabel }]}>
-                  {t('settings.learn.hubPassed', 'Skills check: passed')}
-                </Text>
-                <Text style={[Type.footnote, styles.alreadySub, { color: colors.textSecondary }]}>
-                  {t('settings.learn.alreadyIssued', 'Issued {date} to {name}.', {
-                    date: formatDateL(availability.certificate.issuedAt),
-                    name: availability.certificate.holderName,
-                  })}
-                </Text>
-              </Card>
-            ) : null}
-          </View>
-        ) : null}
-
-        {question ? (
-          <QuizQuestionCard
-            question={question}
+        {/* The topic card opens into the stacked question cards (motion kit
+            StackPush): the finished card slides away left, the next steps
+            forward, and the cards behind show how many are left. Behind
+            cards are empty shells, never the next question; the leaving card
+            is a decorative copy. Exactly one live question card at a time.
+            Reduce Motion: one flat card, a 100 ms swap-fade (StackPush). */}
+        {phase.kind === 'intro' || question ? (
+          <StackPush
             index={qIndex}
-            total={state.questions.length}
-            pickedId={phase.kind === 'answered' ? phase.choiceId : null}
-            reduceMotion={reduceMotion}
-            showKeys={isDesktopWeb}
-            onPick={pick}
+            count={state.questions.length}
+            style={styles.stack}
+            testID="skills-check-stack"
+            chapter={(
+              <Card testID="skills-check-intro">
+                <Text style={[Type.title2, { color: colors.text }]} accessibilityRole="header">
+                  {t('settings.learn.introTitle', 'Skills check: {label}', { label: topic.label })}
+                </Text>
+                <Text style={[Type.body, styles.introLine, { color: colors.text }]}>
+                  {t('settings.learn.introLine', '5 questions about using MAGE ID. Get 4 right to pass.')}
+                </Text>
+                <Text style={[Type.footnote, styles.scope, { color: colors.textSecondary }]} testID="skills-check-scope">
+                  {CERT_SCOPE_NOTE}
+                </Text>
+                {loaded && availability.kind === 'locked' ? (
+                  <Text style={[Type.bodyCompactEmphasized, styles.status, { color: colors.warningLabel }]} testID="skills-check-locked">
+                    {t('settings.learn.locked', 'Finish the tutorial first.')}
+                  </Text>
+                ) : null}
+                {availability.kind === 'passed' ? (
+                  <View style={styles.status} testID="skills-check-already">
+                    <Text style={[Type.bodyCompactEmphasized, { color: colors.successLabel }]}>
+                      {t('settings.learn.hubPassed', 'Skills check: passed')}
+                    </Text>
+                    <Text style={[Type.footnote, styles.alreadySub, { color: colors.textSecondary }]}>
+                      {t('settings.learn.alreadyIssued', 'Issued {date} to {name}.', {
+                        date: formatDateL(availability.certificate.issuedAt),
+                        name: availability.certificate.holderName,
+                      })}
+                    </Text>
+                  </View>
+                ) : null}
+              </Card>
+            )}
+            renderCard={(i) => (
+              <Card style={i === qIndex ? undefined : styles.stackFill}>
+                {i === qIndex ? (
+                  <QuizQuestionCard
+                    question={state.questions[i]}
+                    index={i}
+                    total={state.questions.length}
+                    pickedId={phase.kind === 'answered' ? phase.choiceId : null}
+                    showKeys={isDesktopWeb}
+                    onPick={pick}
+                  />
+                ) : i < qIndex ? (
+                  <QuizQuestionCard
+                    decorative
+                    question={state.questions[i]}
+                    index={i}
+                    total={state.questions.length}
+                    pickedId={state.answers[state.questions[i].id] ?? null}
+                    showKeys={false}
+                    onPick={noop}
+                  />
+                ) : (
+                  <View style={styles.shell} />
+                )}
+              </Card>
+            )}
           />
         ) : null}
 
@@ -447,6 +481,11 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   unavailable: { padding: 16, gap: 16, justifyContent: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 20 },
+  // Room above the stack for the cards behind (8 / 16 pt peeks).
+  stack: { marginTop: 16 },
+  // A card behind or leaving fills its layer's absoluteFill box.
+  stackFill: { flex: 1 },
+  shell: { minHeight: 1 },
   introLine: { marginTop: 10 },
   scope: { marginTop: 10 },
   status: { marginTop: 20 },

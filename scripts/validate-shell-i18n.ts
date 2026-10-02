@@ -111,6 +111,7 @@ const TITLES_BEFORE: Record<string, string> = {
   'client-messages': 'Messages', 'estimate-wizard': 'Quick estimate', 'client-view': 'Client portal',
   // LEARN wave (LEARNQUIZ): the skills check.
   'skills-check': 'Skills check',
+  'skills-certificates': 'Certificates',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */

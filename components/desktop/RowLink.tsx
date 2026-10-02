@@ -30,7 +30,7 @@
 import React from 'react';
 import {
   Platform, Pressable, View,
-  type PressableStateCallbackType, type StyleProp, type ViewStyle,
+  type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type ViewStyle,
 } from 'react-native';
 import { Link, useRouter, type Href, type Route } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -49,6 +49,9 @@ export interface RowLinkProps {
   testID?: string;
   /** For a row that is the current page (screen readers + aria-current). */
   selected?: boolean;
+  /** The row's layout, for a host that measures its rows (the desktop
+   *  sidebar's gliding highlight). Passed straight to the Pressable. */
+  onLayout?: (e: LayoutChangeEvent) => void;
 }
 
 /**
@@ -66,7 +69,7 @@ export function routeHref(pathname: Route, params?: Record<string, string>): Hre
 }
 
 export function RowLink({
-  href, onPress, children, style, accessibilityLabel, testID, selected,
+  href, onPress, children, style, accessibilityLabel, testID, selected, onLayout,
 }: RowLinkProps) {
   const { colors: t } = useTheme();
   const router = useRouter();
@@ -85,6 +88,7 @@ export function RowLink({
         accessibilityLabel={accessibilityLabel}
         accessibilityState={selected ? { selected: true } : undefined}
         testID={testID}
+        onLayout={onLayout}
       >
         {children}
       </Pressable>
@@ -108,6 +112,7 @@ export function RowLink({
         accessibilityLabel={accessibilityLabel}
         testID={testID}
         selected={selected}
+        onLayout={onLayout}
       >
         {children}
       </LinkSurface>

@@ -9,7 +9,7 @@
 //   grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput, type StyleProp, type TextStyle } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Animated, type StyleProp, type TextStyle } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt, Undo2 } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -34,6 +34,10 @@ import { SAMPLE_NO_CREDITS_LABEL, SCHEDULE_SAMPLE } from '@/utils/tutorial/fixtu
 import { scheduleSampleTurn } from '@/utils/tutorial/defs/scheduleSayIt';
 import { normalizeEditOps } from '@/utils/copilot/scheduleEdit/editOps';
 import { isSampleProject } from '@/utils/sampleGuard';
+// Motion kit (MOTIONADOPT-A): the calm thinking row and the receipt's ticks.
+import { ThinkingRow, useCheckBeat } from '@/components/motion/kit';
+import { beatSchedule } from '@/utils/motion/kit';
+import { useReducedMotion } from '@/components/ui/motion';
 
 interface Props {
   capabilityId: CopilotCapabilityId;
@@ -191,6 +195,8 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
   const thinking = state.phase === 'thinking';
+  const reduce = useReducedMotion();
+  const landedBeats = beatSchedule(landed?.landed.length ?? 0, reduce);
   const buildAndLeave = useCallback(async () => {
     const a = await confirm();
     if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); }
@@ -301,12 +307,18 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
           </View>
         )}
 
-        {thinking && (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={styles.thinkingText}>Reading your numbers…</Text>
-          </View>
-        )}
+        {/* Always mounted: the row itself waits 140 ms (a fast answer never
+            flashes it) and says "Still working on it" after 10 s. */}
+        <ThinkingRow
+          visible={thinking}
+          mark="level"
+          label="Reading your numbers…"
+          stillLabel="Still working on it"
+          a11yLabel="Reading your numbers"
+          style={styles.thinkingRow}
+          textStyle={styles.thinkingText}
+          testID="copilot-thinking"
+        />
 
         {/* the question */}
         {state.phase === 'asking' && state.currentGap && (
@@ -449,11 +461,10 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             ) : (
               <>
                 {landed.landed.length === 0 && <Text style={styles.question}>Nothing changed.</Text>}
+                {/* Each tick is one change Apply reported as landed; a burst
+                    ticks ≥ 120 ms apart, four beats at most, and only the first 8 move. */}
                 {landed.landed.map((l, i) => (
-                  <View key={`l${i}`} style={styles.resRow}>
-                    <View style={styles.tick}><Check size={11} color={colors.success} strokeWidth={3} /></View>
-                    <Text style={[styles.resLabel, styles.resText]}>{l}</Text>
-                  </View>
+                  <LandedRow key={`l${i}`} text={l} delayMs={landedBeats[i] ?? 0} armed={i < 8} styles={styles} tickColor={colors.success} />
                 ))}
                 {(landed.notLanded ?? []).map((l, i) => <Text key={`n${i}`} style={styles.basis}>{l}</Text>)}
                 {undoResult && !undoResult.ok && <Text style={styles.grounding}>{undoResult.message}</Text>}
@@ -472,9 +483,16 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
           </View>
         )}
 
-        {state.phase === 'applying' && (
-          <View style={styles.center}><ActivityIndicator color={colors.accent} /><Text style={styles.thinkingText}>{cap.copy.buildingLabel}</Text></View>
-        )}
+        <ThinkingRow
+          visible={state.phase === 'applying'}
+          mark="level"
+          label={cap.copy.buildingLabel}
+          stillLabel="Still working on it"
+          a11yLabel={cap.copy.buildingLabel}
+          style={styles.thinkingRow}
+          textStyle={styles.thinkingText}
+          testID="copilot-applying"
+        />
 
         {state.phase === 'error' && (
           <View style={styles.ask}>
@@ -549,6 +567,23 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   );
 }
 
+/** One line of the "Done · what changed" receipt. Only the tick moves: it
+ *  lands (opacity + scale on the kit's snap spring) at this row's beat, once
+ *  per mount — the row mounts only after Apply reported the change landed.
+ *  At rest the tick's style is null (the same tree as a plain View). */
+function LandedRow({ text, delayMs, armed, styles, tickColor }: {
+  text: string; delayMs: number; armed: boolean; styles: ReturnType<typeof makeStyles>; tickColor: string;
+}) {
+  // Only the first 8 ticks move (MOTIONKIT E); a longer receipt's rest sit still.
+  const beat = useCheckBeat('done', delayMs, armed);
+  return (
+    <View style={styles.resRow}>
+      <Animated.View style={[styles.tick, beat]}><Check size={11} color={tickColor} strokeWidth={3} /></Animated.View>
+      <Text style={[styles.resLabel, styles.resText]}>{text}</Text>
+    </View>
+  );
+}
+
 /** Why the editor did nothing with his words on the sample (tutorial run). */
 function SampleRefusal({ why, style }: { why: 'words' | 'noTask'; style: StyleProp<TextStyle> }) {
   return (
@@ -583,7 +618,7 @@ function makeStyles(colors: ThemeColors) {
     resLabel: { ...Type.subheadEmphasized, color: colors.text },
     basis: { ...Type.monoLabel, color: colors.textMuted },
 
-    center: { alignItems: 'center', gap: Tokens.spacing.sm, paddingVertical: Tokens.spacing['2xl'] },
+    thinkingRow: { alignSelf: 'center', marginVertical: Tokens.spacing.xl },
     thinkingText: { ...Type.footnote, color: colors.textMuted },
 
     ask: { gap: Tokens.spacing.sm },

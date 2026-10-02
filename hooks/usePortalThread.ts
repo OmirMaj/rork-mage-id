@@ -510,6 +510,8 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
     isSending: sendMessageMutation.isPending,
     isSendingClient: sendClientMessageMutation.isPending,
     refetchMessages: messagesQ.refetch,
+    /** The thread has been fetched once (or failed): what is on screen now is history. */
+    loaded: messagesQ.isFetched || messagesQ.isError,
     refetchApprovals: approvalsQ.refetch,
     outbox,
     queuedIds,
