@@ -27,17 +27,25 @@
 // question that names no project is answered for it — see applyAnchorScope
 // (audit #36). A blocked answer (monthly / hourly cap, signed out) carries
 // the one action that fixes it (audit #119).
+//
+// The look (lane AILOOK, 2026-10-01): a modern assistant chat. Your words
+// leave the composer and glide up into the conversation as a neutral bubble
+// (components/brain/ask/AskMessage); a quiet thinking row appears under it
+// (ask/AskThinking: the mark, three dots, "Reading your records"); the answer
+// fades in as plain full-width text with its Sources underneath. Flat theme
+// surfaces, no gradients, no glow. Only turns ask() created this session move
+// (liveKeys); Recent recalls and dock remounts render still. Every number is in
+// ask/askMotion.ts. Reduce Motion keeps the states and drops the movement.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Platform, KeyboardAvoidingView, Animated, Easing, Keyboard,
-  type NativeSyntheticEvent, type TextInputKeyPressEventData,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Pressable,
+  Platform, KeyboardAvoidingView, Animated, Keyboard,
+  type NativeSyntheticEvent, type TextInputKeyPressEventData, type NativeScrollEvent, type TextStyle,
 } from 'react-native';
 import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock,
   Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, Mail, Briefcase, LogIn, type LucideIcon,
@@ -77,6 +85,11 @@ import type { AskActionProposal } from '@/utils/oneMind/askAction';
 import { useAskAction } from '@/hooks/useAskAction';
 import { useAskCopy } from '@/hooks/useAskCopy';
 import { AskActionCard } from '@/components/brain/AskActionCard';
+import { cardSurface, nativeDriver, useReducedMotion } from '@/components/ui';
+import { AskMessage, AskFade } from '@/components/brain/ask/AskMessage';
+import { AskThinking } from '@/components/brain/ask/AskThinking';
+import { AskJumpLatest } from '@/components/brain/ask/AskJumpLatest';
+import { ASK_MOTION, chipDelay } from '@/components/brain/ask/askMotion';
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -140,6 +153,17 @@ export interface AskConversationProps {
  *  page keeps its horizontal strip). */
 const PANEL_RECENT_MAX = 4;
 
+/** The desktop composer's input draws no focus ring of its own: the composer's
+ *  rounded container is the field. (A CSS-only key, so it is cast once here.) */
+const WEB_INPUT_NO_OUTLINE = { outlineStyle: 'none' } as unknown as TextStyle;
+
+/** [a, b, c] -> [[a, b], [c]]: the desktop starters' rows. */
+function pairsOf<T>(list: readonly T[]): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < list.length; i += 2) rows.push(list.slice(i, i + 2));
+  return rows;
+}
+
 export function AskConversation(props: AskConversationProps) {
   const { seed } = props;
   const panel = props.variant === 'panel';
@@ -159,17 +183,9 @@ export function AskConversation(props: AskConversationProps) {
   const cleanedSegments = segments.map(s => s.replace(/[()]/g, '')).filter(Boolean);
   const screen = panel ? (props.screen ?? cleanedSegments[cleanedSegments.length - 1]) : props.screen;
 
-  // Gentle breathing on the empty-state mark — the same "alive assistant"
-  // language as the Brain FAB. Native driver, subtle.
-  const breathe = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1.05, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [breathe]);
+  const reduced = useReducedMotion();
+  // The desktop /ask page centres the conversation in a reading column.
+  const isDesktopPage = isDesktopWeb && !panel;
 
   // Search is a pageSheet modal and so is this screen. Dismiss ask first, then
   // present search — the same close-then-open timing the Brain FAB used for its
@@ -278,6 +294,49 @@ export function AskConversation(props: AskConversationProps) {
   const doIt = useAskAction({ variant: panel ? 'panel' : 'page' });
   const askCopy = useAskCopy();
 
+  // Turns ask() created in THIS session that have not finished their entrance.
+  // Only these move; a Recent recall, the seeded history and a dock remount
+  // render still. AskMessage drops its key when the entrance ends.
+  const [liveKeys, setLiveKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const keySeq = useRef(0);
+  const newKey = useCallback(() => `${sessionId}-${++keySeq.current}`, [sessionId]);
+  const markLive = useCallback((...keys: string[]) => {
+    setLiveKeys(prev => {
+      const next = new Set(prev);
+      for (const k of keys) next.add(k);
+      return next;
+    });
+  }, []);
+  const dropLive = useCallback((key: string) => {
+    setLiveKeys(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  // "Jump to latest": is he reading near the end (within 160 pt)? An answer
+  // that lands while he has scrolled up shows the pill instead of yanking him.
+  const nearEndRef = useRef(true);
+  const [jumpVisible, setJumpVisible] = useState(false);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const fromEnd = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    nearEndRef.current = fromEnd <= ASK_MOTION.jump.showAfterPx;
+    if (nearEndRef.current) setJumpVisible(false);
+  }, []);
+  const jumpToLatest = useCallback(() => {
+    setJumpVisible(false);
+    nearEndRef.current = true;
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+  /** After a new turn lands: follow it if he is near the end, else offer the pill. */
+  const followNewTurn = useCallback(() => {
+    if (nearEndRef.current) requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    else setJumpVisible(true);
+  }, []);
+
   const ask = useCallback(async (question: string, opts?: { skipAction?: boolean }) => {
     const q = question.trim();
     if (!q || busy) return;
@@ -286,12 +345,17 @@ export function AskConversation(props: AskConversationProps) {
     // entirely client-side — no model call, no metering, no network.
     const demo = isColdStart(bundle) ? DEMO_ANSWERS[q] : undefined;
     if (demo) {
+      const ku = newKey();
+      const ka = newKey();
       setDraft('');
+      markLive(ku, ka);
       setTurns(prev => [
         ...prev,
-        { role: 'user', text: q },
-        { role: 'assistant', text: demo.answer, citations: demo.citations },
+        { role: 'user', text: q, key: ku },
+        { role: 'assistant', text: demo.answer, citations: demo.citations, key: ka },
       ]);
+      nearEndRef.current = true;
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
       return;
     }
     // Lane AIDO: a do-request ("build the schedule", "write an RFI about the
@@ -300,21 +364,30 @@ export function AskConversation(props: AskConversationProps) {
     // Copilot's own review.
     const acts = opts?.skipAction ? [] : doIt.detect(q, anchorProjectId);
     if (acts.length) {
-      const k = String(Date.now());
+      const ku = newKey();
+      const ka = newKey();
       setDraft('');
+      markLive(ku, ka);
       setTurns(prev => [
         ...prev,
-        { role: 'user', text: q, key: `${k}-u` },
-        { role: 'assistant', text: askCopy.actionLead(acts.length), actions: acts, askedText: q, key: `${k}-a` },
+        { role: 'user', text: q, key: ku },
+        { role: 'assistant', text: askCopy.actionLead(acts.length), actions: acts, askedText: q, key: ka },
       ]);
+      nearEndRef.current = true;
+      setJumpVisible(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
       return;
     }
     const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
+    const ku = newKey();
     setDraft('');
-    setTurns(prev => [...prev, { role: 'user', text: q }]);
+    markLive(ku);
+    setTurns(prev => [...prev, { role: 'user', text: q, key: ku }]);
     setBusy(true);
-    // Let the user message paint before we scroll.
+    // He just sent: follow his words up. Let the user message paint before we
+    // scroll, so the glide and the scroll read as one upward motion.
+    nearEndRef.current = true;
+    setJumpVisible(false);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     try {
       // Smart-tier call — meter it like every other call site (client-side
@@ -322,7 +395,10 @@ export function AskConversation(props: AskConversationProps) {
       const limit = await checkAILimit(tier, 'smart', 'askMage');
       if (!limit.allowed) {
         const canUpgrade = tier === 'free' || tier === 'pro';
+        const kc = newKey();
+        markLive(kc);
         setTurns(prev => [...prev, {
+          key: kc,
           role: 'assistant',
           text: limit.message ?? (canUpgrade
             ? 'Today’s advanced AI calls are used up. More are on a higher plan. Opening plans.'
@@ -344,20 +420,23 @@ export function AskConversation(props: AskConversationProps) {
       // An app how-to ("how do I create a project") is answered from the
       // guide as today, with the offer to do it under the answer.
       const offer = !res.errorKind && isAppHowTo(q) ? doIt.howTo(q, anchorProjectId) : null;
+      const ka = newKey();
+      markLive(ka);
       setTurns(prev => [...prev, {
+        key: ka,
         role: 'assistant',
         text: res.answer,
         error: !!res.errorKind,
         citations: res.citations,
         errorKind: res.errorKind,
         errorCode: res.errorCode,
-        ...(offer ? { actions: [offer], key: `${Date.now()}-a` } : {}),
+        ...(offer ? { actions: [offer] } : {}),
       }]);
     } finally {
       setBusy(false);
-      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+      followNewTurn();
     }
-  }, [busy, bundle, tier, router, anchorProjectId, doIt, askCopy]);
+  }, [busy, bundle, tier, router, anchorProjectId, doIt, askCopy, newKey, markLive, followNewTurn]);
 
   // Desktop web: Enter sends, Shift+Enter keeps the newline. Preventing the
   // default also stops react-native-web's own submit-and-blur, so the cursor
@@ -468,6 +547,7 @@ export function AskConversation(props: AskConversationProps) {
                 style={styles.recentCard}
                 onPress={() => setTurns(thread.turns as Turn[])}
                 activeOpacity={0.85}
+                accessibilityRole="button"
                 testID="ask-recent"
               >
                 <Clock size={13} color={themeColors.textMuted} strokeWidth={2} />
@@ -480,41 +560,54 @@ export function AskConversation(props: AskConversationProps) {
     )
   );
 
+  const starterTile = ({ q, icon }: Starter) => {
+    const Icon = STARTER_ICON[icon];
+    return (
+      <TouchableOpacity
+        key={q}
+        style={[styles.suggestion, isDesktopPage && styles.suggestionDesktop]}
+        onPress={() => ask(q)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        testID="ask-suggestion"
+      >
+        <Icon size={17} color={themeColors.accent} strokeWidth={2} />
+        <Text style={styles.suggestionText}>{q}</Text>
+        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+      </TouchableOpacity>
+    );
+  };
+
   const messages = empty ? (
     <View style={styles.emptyWrap}>
-      <Animated.View style={[styles.halo, { transform: [{ scale: breathe }] }]}>
-        <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
-        <MageAIMark size={28} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
-      </Animated.View>
-      <Text style={styles.emptyTitle}>Ask about your business</Text>
+      <View style={styles.emptyMark}>
+        <MageAIMark size={22} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
+      </View>
+      <Text style={styles.emptyTitle}>{askCopy.lookEmptyTitle}</Text>
       <Text style={styles.emptyBody}>
         {anchorProject
           ? `Ask about ${anchorProject.name}: its money, schedule and RFIs. Tap "All projects" to ask across the business. Every answer cites where it came from.`
           : 'Ask about your money, schedules and leads across your projects. Every answer cites where it came from.'}
       </Text>
+      <Text style={styles.emptyHint}>{askCopy.lookEmptyHint}</Text>
       <View style={styles.suggestions}>
-        {starters.map(({ q, icon }) => {
-          const Icon = STARTER_ICON[icon];
-          return (
-            <TouchableOpacity
-              key={q}
-              style={styles.suggestion}
-              onPress={() => ask(q)}
-              activeOpacity={0.85}
-              testID="ask-suggestion"
-            >
-              <Icon size={17} color={themeColors.accent} strokeWidth={2} />
-              <Text style={styles.suggestionText}>{q}</Text>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
-            </TouchableOpacity>
-          );
-        })}
+        {isDesktopPage
+          // Desktop /ask: the starters two to a row (an odd last one keeps its
+          // half width beside a spacer, never stretching across the column).
+          ? pairsOf(starters).map((row) => (
+            <View key={row[0].q} style={styles.suggestionPair}>
+              {row.map(starterTile)}
+              {row.length === 1 && <View style={styles.suggestionSpacer} />}
+            </View>
+          ))
+          : starters.map(starterTile)}
       </View>
       {!cold && projects.length > 0 && (
         <TouchableOpacity
           style={styles.toolRow}
           onPress={() => setRfiOpen(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
           testID="ask-rfi-triage"
         >
           <Mail size={16} color={themeColors.accent} strokeWidth={2} />
@@ -525,34 +618,42 @@ export function AskConversation(props: AskConversationProps) {
       {recentStrip}
     </View>
   ) : (
-    turns.map((t, i) => (
-      <View key={t.key ?? i}>
-        <View
-          style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
+    turns.map((t, i) => {
+      const turnKey = t.key;
+      const live = !!turnKey && liveKeys.has(turnKey);
+      const onEntered = turnKey ? () => dropLive(turnKey) : undefined;
+      if (t.role === 'user') {
+        return (
+          <AskMessage key={turnKey ?? i} role="user" live={live} variant={props.variant} text={t.text} onEntered={onEntered} />
+        );
+      }
+      const action = blockedAction(t, tier);
+      const citations = t.citations ?? [];
+      const followups = i === turns.length - 1 && !busy ? followupsForRefs(citations.map(c => c.ref)) : [];
+      return (
+        <AskMessage
+          key={turnKey ?? i}
+          role="assistant"
+          live={live}
+          variant={props.variant}
+          error={t.error}
+          text={t.text}
+          onEntered={onEntered}
         >
-          {t.role === 'assistant' && t.error && (
-            <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
+          {!!t.actions?.length && (
+            <AskActionCard
+              turnKey={t.key ?? `${sessionId}-${i}`}
+              proposals={t.actions}
+              action={doIt}
+              onAnswerInstead={t.askedText ? () => { void ask(t.askedText ?? '', { skipAction: true }); } : undefined}
+            />
           )}
-          <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
-            <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
-          </View>
-        </View>
-        {t.role === 'assistant' && !!t.actions?.length && (
-          <AskActionCard
-            turnKey={t.key ?? `${sessionId}-${i}`}
-            proposals={t.actions}
-            action={doIt}
-            onAnswerInstead={t.askedText ? () => { void ask(t.askedText ?? '', { skipAction: true }); } : undefined}
-          />
-        )}
-        {t.role === 'assistant' && (() => {
-          const action = blockedAction(t, tier);
-          if (!action) return null;
-          return (
+          {action && (
             <TouchableOpacity
               style={styles.blockedAction}
               onPress={() => router.push(action === 'plans' ? '/paywall' : '/login')}
               activeOpacity={0.85}
+              accessibilityRole="button"
               testID={action === 'plans' ? 'ask-see-plans' : 'ask-sign-in'}
             >
               {action === 'plans'
@@ -561,90 +662,132 @@ export function AskConversation(props: AskConversationProps) {
               <Text style={styles.blockedActionText}>{action === 'plans' ? 'See plans' : 'Sign in'}</Text>
               <ChevronRight size={13} color={themeColors.accent} strokeWidth={2} />
             </TouchableOpacity>
-          );
-        })()}
-        {t.role === 'assistant' && !!t.citations?.length && (
-          <View style={styles.citationRow}>
-            {t.citations.map(c => (
-              <TouchableOpacity
-                key={c.ref}
-                style={styles.citationChip}
-                onPress={() => openCitation(c)}
-                disabled={!c.drillIn}
-                activeOpacity={0.8}
-                testID={`ask-citation-${c.ref}`}
-              >
-                <Text style={styles.citationText}>{c.domain}</Text>
-                {c.drillIn && <ChevronRight size={12} color={themeColors.accent} strokeWidth={2.2} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        {t.role === 'assistant' && i === turns.length - 1 && !busy &&
-          followupsForRefs((t.citations ?? []).map(c => c.ref)).length > 0 && (
-          <View style={styles.followupRow}>
-            {followupsForRefs((t.citations ?? []).map(c => c.ref)).map(f => (
-              <TouchableOpacity
-                key={f}
-                style={styles.followupChip}
-                onPress={() => ask(f)}
-                activeOpacity={0.85}
-                testID="ask-followup"
-              >
-                <Text style={styles.followupText}>{f}</Text>
-                <ChevronRight size={13} color={themeColors.textSecondary} strokeWidth={2} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    ))
+          )}
+          {/* The grounding row: where this answer came from. No citations, no
+              label (never an empty "Sources"). */}
+          {citations.length > 0 && (
+            <View style={styles.sources}>
+              <Text style={styles.sourcesLabel}>{askCopy.lookSources}</Text>
+              <View style={styles.citationRow}>
+                {citations.map((c, ci) => (
+                  <AskFade key={c.ref} live={live} delayMs={chipDelay(ci, reduced)}>
+                    <TouchableOpacity
+                      style={styles.citationChip}
+                      onPress={() => openCitation(c)}
+                      disabled={!c.drillIn}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      testID={`ask-citation-${c.ref}`}
+                    >
+                      <Text style={styles.citationText}>{c.domain}</Text>
+                      {c.drillIn && <ChevronRight size={12} color={themeColors.accent} strokeWidth={2.2} />}
+                    </TouchableOpacity>
+                  </AskFade>
+                ))}
+              </View>
+            </View>
+          )}
+          {followups.length > 0 && (
+            <View style={styles.followupRow}>
+              {followups.map((f, fi) => (
+                <AskFade key={f} live={live} delayMs={chipDelay(citations.length + fi, reduced)}>
+                  <TouchableOpacity
+                    style={styles.followupChip}
+                    onPress={() => ask(f)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    testID="ask-followup"
+                  >
+                    <Text style={styles.followupText}>{f}</Text>
+                    <ChevronRight size={13} color={themeColors.textSecondary} strokeWidth={2} />
+                  </TouchableOpacity>
+                </AskFade>
+              ))}
+            </View>
+          )}
+        </AskMessage>
+      );
+    })
   );
 
-  const thinking = busy && (
-    <View style={[styles.bubbleRow, styles.bubbleRowAi]}>
-      <View style={[styles.bubble, styles.bubbleAi, styles.thinking]}>
-        <ActivityIndicator size="small" color={themeColors.accent} />
-        <Text style={styles.thinkingText}>Reading your data…</Text>
-      </View>
-    </View>
+  // The thinking row: a direct child of the View that holds the turns, so the
+  // answer that replaces it takes its slot with no jump.
+  const thinking = (
+    <AskThinking
+      visible={busy}
+      label={askCopy.lookThinking}
+      stillLabel={askCopy.lookStillThinking}
+      a11yLabel={askCopy.lookThinkingA11y}
+    />
   );
 
-  // The composer row. Only its bottom padding differs: the page clears the
-  // home indicator, the dock sits on the panel's own padding.
+  // The send button's press: scale 0.92 on the snap spring, back to 1 on
+  // release (no scale under Reduce Motion). No motion style until the first
+  // press, so a first render carries none.
+  const pressScale = useRef(new Animated.Value(1)).current;
+  const [pressArmed, setPressArmed] = useState(false);
+  const pressTo = useCallback((to: number) => {
+    if (reduced) return;
+    setPressArmed(true);
+    Animated.spring(pressScale, { toValue: to, ...ASK_MOTION.sendPress.spring, useNativeDriver: nativeDriver }).start();
+  }, [reduced, pressScale]);
+  const sendBlocked = busy || !draft.trim();
+  // A disabled send always says why (never a silent grey button).
+  const sendHint = busy ? askCopy.lookSendHintBusy : !draft.trim() ? askCopy.lookSendHintEmpty : undefined;
+
+  // The composer: one rounded container (mic · field · send) on the page's
+  // ground. Only the outer padding differs: the page clears the home
+  // indicator, the dock sits on the panel's own padding.
   const inputBar = (
     <View style={[styles.inputBar, panel ? styles.inputBarPanel : { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <TouchableOpacity
-        style={styles.micBtn}
-        onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
-        accessibilityLabel="Ask by voice"
-        testID="ask-mic"
-      >
-        <Mic size={20} color={themeColors.textMuted} strokeWidth={2} />
-      </TouchableOpacity>
-      <TextInput
-        style={styles.input}
-        value={draft}
-        onChangeText={setDraft}
-        placeholder="Ask anything"
-        placeholderTextColor={themeColors.textMuted}
-        multiline
-        onSubmitEditing={() => ask(draft)}
-        blurOnSubmit
-        testID="ask-input"
-        {...(isDesktopWeb ? { onKeyPress: onComposerKey } : null)}
-      />
-      <TouchableOpacity
-        style={[styles.send, (busy || !draft.trim()) && styles.sendDim]}
-        onPress={() => ask(draft)}
-        disabled={busy || !draft.trim()}
-        accessibilityLabel="Send"
-        testID="ask-send"
-      >
-        <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
-        {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ArrowUp size={18} color={Colors.textOnAccent} strokeWidth={2.6} />}
-      </TouchableOpacity>
+      <View style={[styles.composer, isDesktopPage && styles.columnDesktop]}>
+        <TouchableOpacity
+          style={styles.micBtn}
+          onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Ask by voice"
+          testID="ask-mic"
+        >
+          <Mic size={20} color={themeColors.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, isDesktopWeb && WEB_INPUT_NO_OUTLINE]}
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={askCopy.lookPlaceholder}
+          placeholderTextColor={themeColors.textMuted}
+          multiline
+          onSubmitEditing={() => ask(draft)}
+          blurOnSubmit
+          testID="ask-input"
+          {...(isDesktopWeb ? { onKeyPress: onComposerKey } : null)}
+        />
+        <Animated.View style={pressArmed ? { transform: [{ scale: pressScale }] } : null}>
+          <TouchableOpacity
+            style={[styles.send, sendBlocked && styles.sendIdle]}
+            onPress={() => ask(draft)}
+            onPressIn={() => pressTo(ASK_MOTION.sendPress.scale)}
+            onPressOut={() => pressTo(1)}
+            disabled={sendBlocked}
+            activeOpacity={0.9}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            accessibilityState={{ disabled: sendBlocked }}
+            accessibilityHint={sendHint}
+            testID="ask-send"
+          >
+            <ArrowUp size={18} color={sendBlocked ? themeColors.textMuted : Colors.textOnAccent} strokeWidth={2.6} />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
     </View>
+  );
+
+  // "Jump to latest" — nothing at rest; see AskJumpLatest.
+  const jumpPill = (
+    <AskJumpLatest visible={jumpVisible} label={askCopy.lookJumpLatest} onPress={jumpToLatest} />
   );
 
   const sheets = (
@@ -710,37 +853,53 @@ export function AskConversation(props: AskConversationProps) {
           contentContainerStyle={styles.panelScrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={32}
         >
           {messages}
           {thinking}
         </ScrollView>
+        {jumpPill}
         {inputBar}
         {sheets}
       </View>
     );
   }
 
-  // ── Page: the /ask screen — exactly the tree it always drew ─────────────
+  // ── Page: the /ask screen ────────────────────────────────────────────────
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {props.variant === 'page' && <Stack.Screen options={{ headerShown: false }} />}
 
-      {/* Header — brand left, search + close right */}
+      {/* Header — the flat mark + 'Ask MAGE' left, search + close right */}
       <View style={styles.header}>
         <View style={styles.brand}>
           <View style={styles.brandMark}>
-            <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
-            <MageAIMark size={15} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
+            <MageAIMark size={14} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
           </View>
-          <Text style={styles.brandName}>MAGE</Text>
+          <Text style={styles.brandName}>{askCopy.lookTitle}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={openSearchFromAsk} hitSlop={6} accessibilityLabel="Search" testID="ask-search">
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+            onPress={openSearchFromAsk}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+            testID="ask-search"
+          >
             <Search size={18} color={themeColors.textMuted} strokeWidth={2} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={closeAsk} hitSlop={6} accessibilityLabel="Close" testID="ask-close">
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+            onPress={closeAsk}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            testID="ask-close"
+          >
             <X size={18} color={themeColors.textMuted} strokeWidth={2.2} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -771,14 +930,17 @@ export function AskConversation(props: AskConversationProps) {
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={[styles.pageScrollContent, isDesktopPage && styles.columnDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={32}
         >
           {messages}
           {thinking}
         </ScrollView>
 
+        {jumpPill}
         {/* Input bar */}
         {inputBar}
       </KeyboardAvoidingView>
@@ -792,22 +954,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, minHeight: 52,
     borderBottomWidth: 1, borderBottomColor: t.line,
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  // Flat: the accent fill is the mark itself, never a glow behind it.
   brandMark: {
-    width: 28, height: 28, borderRadius: Tokens.radius.md, overflow: 'hidden',
+    width: 24, height: 24, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: t.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
   },
-  brandName: { fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text, letterSpacing: 0.3 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandName: { ...Type.headline, color: t.text },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: {
-    width: 34, height: 34, borderRadius: Tokens.radius.md,
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    width: 36, height: 36, borderRadius: Tokens.radius.full,
     alignItems: 'center', justifyContent: 'center',
   },
+  iconBtnPressed: { backgroundColor: t.surfaceAlt },
 
   anchorRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -817,28 +980,33 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   anchorText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   anchorClear: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
+  // The fix for a blocked answer: a neutral pill, the label in the accent.
   blockedAction: {
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    marginTop: -4, marginBottom: 14,
-    borderWidth: 1, borderColor: t.accent + '2E', backgroundColor: t.accent + '10',
-    borderRadius: Tokens.radius.full, paddingHorizontal: 12, paddingVertical: 7,
+    marginTop: 10, paddingHorizontal: 12, paddingVertical: 7,
   },
   blockedActionText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   emptyWrap: { alignItems: 'flex-start', paddingTop: 28, paddingHorizontal: 8 },
-  halo: {
-    width: 58, height: 58, borderRadius: Tokens.radius.lg, overflow: 'hidden',
+  emptyMark: {
+    width: 40, height: 40, borderRadius: Tokens.radius.lg,
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-    shadowColor: t.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 16, elevation: 8,
   },
-  emptyTitle: { ...Type.serifTitle, color: t.text },
+  emptyTitle: { ...Type.serifHeadline, color: t.text },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginTop: 8, maxWidth: 320 },
+  emptyHint: { ...Type.footnote, color: t.textSecondary, marginTop: 6, maxWidth: 360 },
   suggestions: { gap: 9, marginTop: 22, alignSelf: 'stretch' },
   suggestion: {
+    ...cardSurface(t, { radius: 'card', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', gap: 11,
-    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 14,
-    borderWidth: 1, borderColor: t.line,
+    paddingHorizontal: 14, paddingVertical: 14,
   },
+  // Desktop /ask: two starters to a row.
+  suggestionPair: { flexDirection: 'row', gap: 9 },
+  suggestionDesktop: { flex: 1 },
+  suggestionSpacer: { flex: 1 },
   suggestionText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
   // Secondary "tool" affordance under the starters — reads as an action, not a
   // suggestion (dashed border, muted).
@@ -849,69 +1017,63 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   toolText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.textSecondary },
 
-  bubbleRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '100%' },
-  bubbleRowUser: { justifyContent: 'flex-end' },
-  bubbleRowAi: { justifyContent: 'flex-start' },
-  bubble: { borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 11, maxWidth: '88%' },
-  bubbleUser: { backgroundColor: t.accentFill, borderBottomRightRadius: Tokens.radius.xs },
-  bubbleAi: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderBottomLeftRadius: Tokens.radius.xs },
-  bubbleUserText: { color: Colors.textOnAccent, fontSize: Type.subhead.fontSize, lineHeight: 21 },
-  bubbleAiText: { color: t.text, fontSize: Type.subhead.fontSize, lineHeight: 21 },
-
-  citationRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    marginTop: -6, marginBottom: 12, maxWidth: '88%',
-  },
+  // Sources: the grounding row under every answer that cites something.
+  sources: { marginTop: 10 },
+  sourcesLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textMuted, marginBottom: 6 },
+  citationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   citationChip: {
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: t.accent + '10', borderWidth: 1, borderColor: t.accent + '2E',
-    borderRadius: Tokens.radius.full, paddingHorizontal: 10, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
   },
-  citationText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+  citationText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
 
-  thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  thinkingText: { color: t.textMuted, fontSize: Type.footnote.fontSize, fontStyle: 'italic' },
-
+  // The composer's ground: the page colour, no hairline above it.
   inputBar: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    paddingHorizontal: 12, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.bg,
+    paddingHorizontal: 12, paddingTop: 8,
+    backgroundColor: t.bg,
+  },
+  composer: {
+    ...cardSurface(t, { radius: '2xl', pad: 6 }),
+    flexDirection: 'row', alignItems: 'flex-end', gap: 4,
   },
   input: {
-    flex: 1, maxHeight: 120, minHeight: 44,
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.xl,
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12,
-    fontSize: Type.bodyCompact.fontSize, color: t.text,
+    flex: 1, minHeight: 36, maxHeight: 160,
+    paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8,
+    fontSize: Type.callout.fontSize, color: t.text,
   },
   send: {
-    width: 44, height: 44, borderRadius: Tokens.radius.full, overflow: 'hidden',
+    width: 36, height: 36, borderRadius: Tokens.radius.full,
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: t.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
   },
-  sendDim: { opacity: 0.45 },
+  sendIdle: { backgroundColor: t.surfaceAlt },
   micBtn: {
-    width: 44, height: 44, borderRadius: Tokens.radius.full,
+    width: 36, height: 36, borderRadius: Tokens.radius.full,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // The /ask page's scroll content; on desktop it is also the reading column.
+  pageScrollContent: { padding: 16, paddingBottom: 24 },
+  columnDesktop: { width: '100%', maxWidth: Layout.page.reading, alignSelf: 'center' },
 
   // Recent-threads strip in the empty state — recall a past answer for free.
   recentWrap: { marginTop: 22, alignSelf: 'stretch' },
   recentLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' },
   recentRow: { gap: 9, paddingRight: 8 },
   recentCard: {
+    ...cardSurface(t, { radius: 'lg', pad: 'none' }),
     width: 152, flexDirection: 'row', alignItems: 'flex-start', gap: 7,
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
-    borderRadius: Tokens.radius.lg, paddingHorizontal: 12, paddingVertical: 11,
+    paddingHorizontal: 12, paddingVertical: 11,
   },
   recentText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
 
-  // Follow-up chips under the latest answer — surface-colored to stay distinct
-  // from the accent-tinted citation chips.
-  followupRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: -2, marginBottom: 14 },
+  // Follow-up chips under the latest answer: neutral pills.
+  followupRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 },
   followupChip: {
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
-    borderRadius: Tokens.radius.full, paddingHorizontal: 11, paddingVertical: 7,
+    paddingHorizontal: 11, paddingVertical: 7,
   },
   followupText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
 
