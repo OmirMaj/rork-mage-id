@@ -1,0 +1,82 @@
+/* MAGE ID motion kit; guard: scripts/validate-motion-kit.ts */
+[data-mk]{--mk-o:cubic-bezier(.2,0,0,1);--mk-ei:cubic-bezier(.4,0,1,1);--mk-io:cubic-bezier(.4,0,.2,1)}
+[data-mk-slot],[data-mk-headings],[data-mk="priority"] [data-mk-priority],[data-mk-focus],[data-mk-more]{position:relative}
+[data-mk-think]{position:absolute;left:0;top:0;opacity:0;pointer-events:none}
+[data-mk-heading-to]{position:absolute;left:0;top:0;opacity:0}
+[data-mk-tag^="t"]{--mk-ty:-12px}
+[data-mk-tag^="b"]{--mk-ty:12px}
+[data-mk-tag$="l"]{--mk-tx:-12px}
+[data-mk-tag$="r"]{--mk-tx:12px}
+[data-mk-marker]{transform:translateY(var(--mk-y,0)) scaleY(var(--mk-sy,1));transform-origin:0 0}
+[data-mk-more]::after{content:attr(data-mk-more);position:absolute;top:-8px;right:-8px;opacity:0}
+.mk-stacked{display:grid}
+.mk-stacked>[data-mk-card],.mk-stacked>[data-mk-chapter]{grid-area:1/1}
+.mk-stacked>[data-mk-chapter]{z-index:4}
+.mk-stacked.mk-done>[data-mk-chapter]{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+@keyframes mk-rise{from{opacity:0;transform:translateY(8px)}}
+@keyframes mk-fade{from{opacity:0}}
+@keyframes mk-out{from{opacity:1}to{opacity:0}}
+@keyframes mk-send{0%{opacity:0;transform:translateY(12px) scale(.98)}43%{opacity:1}}
+@keyframes mk-dot{0%,60%,to{opacity:.3;transform:scale(.8)}30%{opacity:1;transform:none}}
+@keyframes mk-pair{from{opacity:0;transform:translateX(6px)}}
+@keyframes mk-check{from{opacity:0;transform:scale(.6)}}
+@keyframes mk-roll-a{from{opacity:0;transform:translateY(6px)}}
+@keyframes mk-roll-b{from{opacity:.001;transform:translateY(6px)}}
+@keyframes mk-dx{from{transform:translateX(var(--mk-dx,0))}}
+@keyframes mk-draw{from{transform:scaleX(0)}}
+@keyframes mk-fly{0%{opacity:1;transform:none}55%{opacity:1}to{opacity:0;transform:translate(var(--mk-dx,0),var(--mk-dy,0)) scale(var(--mk-s,1))}}
+@keyframes mk-receive{50%{transform:scale(1.04)}}
+@keyframes mk-lift{45%{transform:translateY(-2px)}}
+@keyframes mk-tag{from{opacity:0;transform:translate(var(--mk-tx,0),var(--mk-ty,0))}}
+@keyframes mk-pan{0%{transform:none}50%,66.67%{transform:translateX(var(--mk-pan,0))}to{transform:none}}
+.mk-armed:is([data-mk="rise"],[data-mk="range"]),.mk-armed :is([data-mk-item],[data-mk-q],[data-mk-chip],[data-mk-check],[data-mk-card],[data-mk-count],[data-mk-cell],[data-mk-tag],[data-mk-label],[data-mk-evidence],[data-mk-badge]),.mk-filed [data-mk-doc]{opacity:0}
+.mk-run>*{will-change:transform,opacity}
+.mk-in[data-mk="rise"],.mk-in [data-mk-item],.mk-in [data-mk-card],.mk-in [data-mk-cell]{animation:mk-rise 220ms var(--mk-o) backwards}
+.mk-in [data-mk-label]{animation:mk-fade 160ms var(--mk-o) backwards}
+.mk-in [data-mk-item],.mk-in [data-mk-cell],.mk-in [data-mk-label]{animation-delay:calc(var(--mk-i,7)*35ms)}
+.mk-in [data-mk-card]{animation-delay:calc(var(--mk-i,5)*70ms)}
+.mk-stacked.mk-in>[data-mk-card]{animation:mk-fade 160ms var(--mk-o)}
+.mk-in [data-mk-q]{animation:mk-send 280ms var(--mk-o)}
+.mk-thinking [data-mk-think]{opacity:1;animation:mk-rise 160ms var(--mk-o)}
+.mk-thinking [data-mk-dot]{animation:mk-dot 1200ms var(--mk-io) infinite backwards}
+.mk-thinking [data-mk-dot]:nth-child(2){animation-delay:160ms}
+.mk-thinking [data-mk-dot]:nth-child(3){animation-delay:320ms}
+.mk-in:not(.mk-answered) :is([data-mk-a],[data-mk-chip]){opacity:0}
+.mk-answered [data-mk-think]{opacity:0;animation:mk-out 120ms var(--mk-ei)}
+.mk-answered [data-mk-a]{animation:mk-rise 220ms var(--mk-o) 60ms backwards}
+.mk-answered [data-mk-chip]{animation:mk-fade 160ms var(--mk-o) backwards;animation-delay:calc(180ms + var(--mk-i,7)*35ms)}
+.mk-in [data-mk-row]:not(.mk-tick) [data-mk-check],.mk-sync [data-mk-row]:not(.mk-tick) [data-mk-check]{opacity:0}
+.mk-tick [data-mk-check]{animation:mk-check 180ms var(--mk-o)}
+.mk-in:not(.mk-c) [data-mk-count]{opacity:0}
+.mk-roll-a{animation:mk-roll-a 140ms var(--mk-o)}
+.mk-roll-b{animation:mk-roll-b 140ms var(--mk-o)}
+.mk-in [data-mk-badge]{animation:mk-rise 280ms var(--mk-o) backwards;animation-delay:var(--mk-d,0ms)}
+.mk-in[data-mk="range"] [data-mk-track]{animation:mk-draw 240ms var(--mk-o)}
+.mk-in [data-mk-low]{animation:mk-dx 200ms var(--mk-o)}
+.mk-in [data-mk-high]{animation:mk-dx 300ms var(--mk-o)}
+.mk-in [data-mk-mark]{animation:mk-dx 280ms var(--mk-o) 120ms backwards}
+.mk-in [data-mk-doc]{opacity:0;animation:mk-fly 270ms var(--mk-o) backwards;animation-delay:calc(var(--mk-i,2)*60ms)}
+.mk-in [data-mk-doc].mk-rest{animation:none;opacity:1}
+.mk-hand [data-mk-doc].mk-rest{opacity:0}
+.mk-hand [data-mk-more]::after{opacity:1}
+.mk-in [data-mk-folder]{animation:mk-receive 360ms var(--mk-io) 270ms}
+.mk-prio::after,.mk-accent::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--mk-accent,currentColor);transform-origin:left;animation:mk-draw 240ms var(--mk-o)}
+.mk-accent::after{top:auto;bottom:-4px}
+.mk-prio{animation:mk-lift 520ms var(--mk-io)}
+.mk-in [data-mk-tag]{animation:mk-tag 220ms var(--mk-o) backwards;animation-delay:calc(var(--mk-i,3)*60ms)}
+.mk-in [data-mk-evidence]{animation:mk-pair 160ms var(--mk-o) backwards;animation-delay:calc(var(--mk-i,7)*35ms + 60ms)}
+.mk-pan>:first-child{animation:mk-pan 4800ms var(--mk-io)}
+.mk-in [data-mk-chapter]{opacity:0;animation:mk-out 160ms var(--mk-ei)}
+.mk-stacked>[data-mk-card]{transition:transform 280ms var(--mk-o),opacity 280ms var(--mk-o)}
+.mk-d0{z-index:3}
+.mk-d1{z-index:2;opacity:.8;transform:translateY(-8px) scale(.96)}
+.mk-d2{z-index:1;opacity:.6;transform:translateY(-16px) scale(.92)}
+.mk-dn{opacity:0;pointer-events:none}
+.mk-gone{opacity:0;pointer-events:none;transform:translateX(-24px)}
+.mk-pushed [data-mk-frame]{transform:translate(var(--mk-dx,0),var(--mk-dy,0)) scale(1.06);transition:transform 600ms var(--mk-o)}
+.mk-dim{opacity:.55;transition:opacity 600ms var(--mk-o)}
+.mk-pushed [data-mk-heading]{opacity:0;transition:opacity 160ms var(--mk-o)}
+.mk-pushed [data-mk-heading-to]{opacity:1;transition:opacity 160ms var(--mk-o)}
+[data-mk-marker]{transition:transform 300ms var(--mk-o)}
+}

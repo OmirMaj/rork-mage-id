@@ -167,9 +167,12 @@ ok('no `scaleXY` outside comments in app/, components/, hooks/', scale.length ==
   `A create/delete scaleXY LayoutAnimation SIGABRTs on Fabric under a transform. Use layoutNext() (opacity only):\n${scale.join('\n')}`);
 
 // ── 4. keyframes only in motion.ts ───────────────────────────────────────────
-const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts' && !p.startsWith('components/loaders/css/'));
-ok('`animationKeyframes` appears only in components/ui/motion.ts or under components/loaders/css/', keyframes.length === 0,
-  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion(), or a StyleSheet.create file under components/loaders/css/:\n${keyframes.join('\n')}`);
+// components/motion/kit/css/ is the motion kit's one keyframes file
+// (kitCss.ts); its rules are in components/motion/kit/css/README.txt and
+// scripts/validate-motion-kit.ts K4.9 holds them.
+const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts' && !p.startsWith('components/loaders/css/') && !p.startsWith('components/motion/kit/css/'));
+ok('`animationKeyframes` appears only in components/ui/motion.ts or under components/loaders/css/ or components/motion/kit/css/', keyframes.length === 0,
+  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion(), or a StyleSheet.create file under components/loaders/css/ or components/motion/kit/css/:\n${keyframes.join('\n')}`);
 
 // ── 5. CSS durations are strings ─────────────────────────────────────────────
 const bare = hits(/\b(?:transitionDuration|animationDuration|transitionDelay|animationDelay)\s*:\s*-?[\d.]/);
