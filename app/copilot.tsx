@@ -45,7 +45,7 @@ import type { CopilotCapabilityId } from '@/utils/copilot/types';
 import type { Project } from '@/types';
 
 export default function CopilotScreen() {
-  const { capabilityId: rawCapability, projectId: rawProjectId, seed } = useLocalSearchParams<{ capabilityId: CopilotCapabilityId; projectId: string; seed?: string }>();
+  const { capabilityId: rawCapability, projectId: rawProjectId, seed, autostart } = useLocalSearchParams<{ capabilityId: CopilotCapabilityId; projectId: string; seed?: string; autostart?: string }>();
   const capabilityId = (rawCapability ?? 'schedule') as CopilotCapabilityId;
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -206,6 +206,7 @@ export default function CopilotScreen() {
         ctx={ctx}
         onDone={() => router.back()}
         seed={typeof seed === 'string' ? seed : undefined}
+        autoSubmitSeed={autostart === '1' && typeof seed === 'string' ? seed : undefined}
         onPickProject={projectFree ? undefined : () => setOverlayPicker(true)}
         onBuildEstimate={project ? buildEstimateFirst : undefined}
       />
