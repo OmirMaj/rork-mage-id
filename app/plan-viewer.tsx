@@ -35,6 +35,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTutorialPractice } from '@/utils/tutorial/store';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import Paywall from '@/components/Paywall';
@@ -106,9 +107,14 @@ export default function PlanViewerScreen() {
   const roleState = useProjectRoleState(projectId);
   const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
   const planAccess = canAccess('plan_markup');
+  // The tutorial's practice pass (ask-your-plans: a citation opens the sheet
+  // it cites), keyed to the SHEET's own project — so it opens only the run's
+  // sample sheets (practicePass.ts scopes it to the sandbox id) while that
+  // run is live. A real job's sheet resolves to a real project: no pass.
+  const practice = useTutorialPractice(projectId);
   // A sheet this device has not loaded has no project to check; the inner
   // screen says "Sheet not found" rather than guessing a paywall.
-  if (!planAccess) {
+  if (!planAccess && !practice.has('plan_markup')) {
     return (
       <PlanViewerGate
         gate={projectId ? planScreenGate({ canAccess: planAccess, roleLoading: roleState.isLoading, roleError: roleState.isError, role, offline }) : 'open'}

@@ -57,8 +57,12 @@ const all = (_f: FeatureKey) => true;
 const ctx = (over: Partial<HubCtx> = {}): HubCtx => ({
   persona: 'contractor', fieldOnly: false, progress: EMPTY_PROGRESS, canAccess: free, practicePass: true, ...over,
 });
-const ids = (c: HubCtx) => hubSections(c).flatMap(s => s.cards.map(x => x.id));
-const groups = (c: HubCtx) => hubSections(c).map(s => s.group);
+// The hub rules below are pinned on the wave-A trio: the LEARN wave adds
+// tutorials through the lane fragments (utils/tutorial/learn/lane*.ts), and a
+// new one must not turn these red. The full build is checked after them.
+const WAVE_A = { 'daily-report-voice': TUTORIAL_DEFS['daily-report-voice'], 'punch-walk': TUTORIAL_DEFS['punch-walk'], 'invoice-to-self': TUTORIAL_DEFS['invoice-to-self'] };
+const ids = (c: HubCtx) => hubSections(c, WAVE_A).flatMap(s => s.cards.map(x => x.id));
+const groups = (c: HubCtx) => hubSections(c, WAVE_A).map(s => s.group);
 
 // ── 1. The one auto-start ───────────────────────────────────────────────────
 console.log('\nonboarding auto-start:');
@@ -80,7 +84,14 @@ console.log('\nhub cards:');
 ok('contractor sees all three wave-A tutorials in hub order',
   JSON.stringify(ids(ctx())) === JSON.stringify(['daily-report-voice', 'punch-walk', 'invoice-to-self']), JSON.stringify(ids(ctx())));
 ok('grouped On site then Money', JSON.stringify(groups(ctx())) === JSON.stringify(['site', 'money']), JSON.stringify(groups(ctx())));
-ok('section labels are the spec words', hubSections(ctx()).map(s => s.label).join('|') === 'On site|Money');
+ok('section labels are the spec words', hubSections(ctx(), WAVE_A).map(s => s.label).join('|') === 'On site|Money');
+ok('…the whole build: every contractor tutorial is on the hub exactly once, every section has a label',
+  (() => {
+    const all = hubSections(ctx());
+    const shown = all.flatMap(s => s.cards.map(x => x.id));
+    const want = Object.values(TUTORIAL_DEFS).filter(d => !!d && d.personas.includes('contractor')).map(d => d!.id);
+    return all.every(s => s.label.length > 0) && shown.length === new Set(shown).size && want.every(id => shown.includes(id)) && shown.length === want.length;
+  })(), JSON.stringify(hubSections(ctx()).map(s => [s.label, s.cards.map(c => c.id)])));
 ok('field seat: daily report + punch, no money card',
   JSON.stringify(ids(ctx({ fieldOnly: true }))) === JSON.stringify(['daily-report-voice', 'punch-walk'])
   && !groups(ctx({ fieldOnly: true })).includes('money'));

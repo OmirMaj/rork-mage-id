@@ -121,4 +121,5 @@ export const takeoffToEstimate: TutorialDef = {
     paywallLabel: 'Takeoff to estimate comes with Pro — see plans',
     roles: ['owner', 'editor'],
   },
+  chainNext: { tutorialId: 'estimate-first', label: 'Next: price a job from a scope · 45 s' },
 };

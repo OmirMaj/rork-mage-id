@@ -4,4 +4,24 @@
 
 import type { EnCatalog } from '../../types';
 
-export const EN: EnCatalog = {};
+export const EN: EnCatalog = {
+  "common.tutorial.askPlansSampleA11y": "Ask the sample question. {note}.",
+  "common.tutorial.askPlansSampleQuestion": "Ask the sample question: {question}",
+  "common.tutorial.caiModeBlockedTitle": "Not on the sample",
+  "common.tutorial.caiSampleA11y": "Use the sample question. {note}.",
+  "common.tutorial.caiSampleQuestion": "Use the sample question: {question}",
+  "common.tutorial.caiStillLoading": "This job's invoices are still loading. Try again in a moment.",
+  "common.tutorial.estimateSampleScopeOnly": "On the sample, use the sample scope. Your own scopes build on a real job.",
+  "common.tutorial.estimateSaveToSample": "Save to the sample job",
+  "common.tutorial.estimateSavedOpenJob": "Saved as a revision — open the job",
+  "common.tutorial.sampleQuestionBlocked": "On the sample, use the sample question. Your own questions run on a real job.",
+  "common.tutorial.takeoffNoPriceYet": "No price yet",
+  "common.tutorial.takeoffSampleLineMeta": "{qty} {unit} · from sheet {sheet}",
+  "common.tutorial.takeoffSampleOnlyTitle": "Use the sample plan",
+  "common.tutorial.takeoffSamplePriced": "Prices are your own rates from your cost book, at cost.",
+  "common.tutorial.takeoffSampleTitle": "What it counted on sheet {sheet}",
+  "common.tutorial.takeoffSampleUnpriced": "Your cost book has no rates for these yet, so each line says No price yet.",
+  "common.tutorial.takeoffUploadBlocked": "On the sample, use the sample plan. Upload your own plans on a real job.",
+  "common.tutorial.takeoffUseSample": "Use the sample plan, sheet {sheet}",
+  "common.tutorial.takeoffUseSampleA11y": "Use the sample plan, sheet {sheet}. {note}.",
+};
