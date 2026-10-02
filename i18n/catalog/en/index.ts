@@ -39,6 +39,10 @@ import { EN as EN_OFFICE_PROJECT_HEALTH } from './office.project-health.generate
 import { EN as EN_MONEY_CO_PROOF } from './money.co-proof.generated';
 import { EN as EN_OFFICE_CLIENT_MESSAGES } from './office.client-messages.generated';
 import { EN as EN_OFFICE_NY_CONTRACT } from './office.ny-contract.generated';
+import { EN as EN_MONEY_COST_XRAY } from './money.cost-xray.generated';
+import { EN as EN_OFFICE_JOB_FACTS } from './office.job-facts.generated';
+import { EN as EN_SCHEDULE_LATENESS } from './schedule.lateness.generated';
+import { EN as EN_FIELD_PUNCH_SEAL } from './field.punch-seal.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -67,6 +71,10 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'money.co-proof': EN_MONEY_CO_PROOF,
   'office.client-messages': EN_OFFICE_CLIENT_MESSAGES,
   'office.ny-contract': EN_OFFICE_NY_CONTRACT,
+  'money.cost-xray': EN_MONEY_COST_XRAY,
+  'office.job-facts': EN_OFFICE_JOB_FACTS,
+  'schedule.lateness': EN_SCHEDULE_LATENESS,
+  'field.punch-seal': EN_FIELD_PUNCH_SEAL,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

@@ -167,6 +167,14 @@ const USER_SCOPED_TABLES = [
   // already removes them with the login; listed so the erasure does not depend
   // on the FK, like every other user table.
   'app_skill_certificates',
+  // Sealed final punch records (20261002150000). user_id … ON DELETE CASCADE
+  // already removes them with the login; listed so the erasure does not depend
+  // on the FK. The table's trigger lets the service role delete (lane SEAL).
+  'punch_seals',
+  // Job facts links (20261002161000). user_id … ON DELETE CASCADE already
+  // removes them with the login; listed so the erasure does not depend on the
+  // FK. Its trigger guards insert/update only, so the delete goes (lane FACTS).
+  'job_fact_links',
 ];
 
 // 'portal_messages' USED TO BE IN THE LIST ABOVE. The table has no user_id
@@ -258,6 +266,8 @@ const USER_KEYED_BUCKETS = [
   'portfolio',         // <uid>/<projectId>/<photoId>.jpg, <uid>/branding/logo-<hash>.<ext>
                        //   (utils/portfolioPublish, PUBLIC bucket; wave 5). The
                        //   public_profiles rows go by FK cascade (owner_id).
+  'punch-seals',       // <uid>/<sealId>/<itemId>.jpg, <uid>/<sealId>/record.pdf (lane SEAL;
+                       //   no client delete policy, the service role removes them here)
 ];
 
 // Keyed by project id, so we have to walk the user's projects first.

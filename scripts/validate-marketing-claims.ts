@@ -946,6 +946,10 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       // token surface like lien-waiver: noindex, the check code in its path,
       // no analytics, and nothing to navigate to from it.
       'marketing/skills/index.html',
+      // FACTS: the read-only job facts link (/facts/<code>) is a token surface
+      // like skills: noindex, the link code in its path, no analytics, and
+      // nothing to navigate to from it.
+      'marketing/facts/index.html',
       'marketing/portal/index.html', 'marketing/sub-portal/index.html',
     ];
     const NAVLESS_KNOWN_GAP = ['marketing/builders/index.html', 'marketing/costs/index.html'];

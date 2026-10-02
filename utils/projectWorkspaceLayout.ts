@@ -137,6 +137,7 @@ export const LEGACY_TILE_ROUTES = {
   lienWaivers: { pathname: '/lien-waivers', param: 'projectId' },
   closeoutBinder: { pathname: '/closeout-binder', param: 'projectId' },
   handover: { pathname: '/handover', param: 'projectId' },
+  jobFacts: { pathname: '/job-facts', param: 'projectId' },
   oacMeetings: { pathname: '/oac-meeting', param: 'projectId' },
   safety: { pathname: '/safety', param: 'projectId' },
   timeTracking: { pathname: '/time-tracking', param: 'projectId' },

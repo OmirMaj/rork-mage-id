@@ -120,11 +120,21 @@ verify_jwt = false
 [functions.seal-document]
 verify_jwt = false
 
+# seal-punch: the GC's own JWT seals the final punch (lane SEAL).
+[functions.seal-punch]
+verify_jwt = true
+
 # Wave 5 (#62, CONTRACT 11): the /shared-photos page (a homeowner with no
 # Supabase session) turns a v2 photo-timeline link's ids into 1 h signed URLs.
 # The (projectId, photoId) pair is the capability, checked with the service
 # role; the public path is rate-limited per IP (rateLimitCount).
 [functions.shared-photos-sign]
+verify_jwt = false
+
+# job-facts-view: the public read behind mageid.app/facts/<code> (anyone holding the link,
+# no account); reads one job facts link by its unguessable code, rate-limited per IP, and
+# answers only while the GC's link is live (revoked = unknown = 404).
+[functions.job-facts-view]
 verify_jwt = false
 
 [functions.public-lead-intake]
