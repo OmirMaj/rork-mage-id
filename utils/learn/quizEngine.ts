@@ -181,12 +181,15 @@ export function cleanHolderName(raw: string): string {
 
 // ── Pending awards ──────────────────────────────────────────────────────────
 
-/** AwardResult plus the two answers no retry of the SAME request can change:
- *  400 (the name or the request was refused) and 410 (that certificate was
- *  revoked). Kept here, beside the mapping, so the shared type stays as is. */
+/** AwardResult plus the answers no retry of the SAME request can change:
+ *  400 bad_name ('rejected': the name was refused, and he can fix it), any
+ *  other 400 ('bad_request': the request itself was refused — a body the
+ *  function could not parse, an unknown topic, answers that do not cover the
+ *  key; nothing about the name) and 410 (that certificate was revoked). Kept
+ *  here, beside the mapping, so the shared type stays as is. */
 export type AwardOutcome =
   | AwardResult
-  | { ok: false; reason: 'rejected' | 'revoked'; message: string };
+  | { ok: false; reason: 'rejected' | 'bad_request' | 'revoked'; message: string };
 
 /** What a retried pending award does to its entry. Kept only while retrying
  *  can still change the answer (offline, a server blip, the hourly limit). */
@@ -197,11 +200,13 @@ export function afterRetry(result: AwardOutcome): 'drop' | 'keep' {
 
 // ── The screen's state machine ──────────────────────────────────────────────
 
-export type RefusedReason = 'quiz_changed' | 'rate_limited' | 'server' | 'rejected' | 'revoked';
+export type RefusedReason = 'quiz_changed' | 'rate_limited' | 'server' | 'rejected' | 'bad_request' | 'revoked';
 
 /** Whether Try again re-sends the award from a refusal. A changed quiz is
  *  retaken instead; a revoked certificate is not issued again. A 'rejected'
- *  one re-sends because he can fix the name first. */
+ *  one re-sends because he can fix the name first. A 'bad_request' one never
+ *  re-sends: the identical body would get the identical 400, so the check is
+ *  taken again instead (like a changed quiz). */
 export function canRetryRefused(reason: RefusedReason): boolean {
   return reason === 'rate_limited' || reason === 'server' || reason === 'rejected';
 }
@@ -334,6 +339,7 @@ export const AWARD_MESSAGES = {
   rate_limited: 'Too many tries for now. Try again in an hour.',
   server: "Couldn't issue the certificate just now. Your pass is saved.",
   rejected: "MAGE ID couldn't issue a certificate with this name. Use 2 to 80 characters and no email address.",
+  bad_request: "MAGE ID couldn't accept this attempt, so no certificate was issued. Take the check again.",
   revoked: "Your certificate for this check was removed, so it can't be issued again.",
 } as const;
 
@@ -379,19 +385,28 @@ export function certificateFromRow(row: unknown): SkillCertificate | null {
   };
 }
 
+/** The award function's 400 error codes that are about the NAME (its
+ *  cleanHolderName refused it). Only these get the name copy; every other 400
+ *  (bad_request: a body it could not parse, an unknown topic, answers that do
+ *  not cover the key, or a body nobody could read) is 'bad_request'. */
+export const NAME_REFUSAL_CODES: readonly string[] = ['bad_name'];
+
 /** POST /skill-certificate-award resolved with { data, error } → AwardResult.
+ *  `errorCode` is the function's own `error` field from a non-2xx body (the
+ *  client reads it through utils/edgeError), or null when none was read.
  *    error, no status (fetch failed, timed out)  → offline
- *    400 → rejected · 409 → quiz_changed · 410 → revoked · 429 → rate_limited
+ *    400 bad_name → rejected · any other 400 → bad_request
+ *    409 → quiz_changed · 410 → revoked · 429 → rate_limited
  *    any other status → server
  *    200 { passed: false, correct, total }        → ok, not passed (server numbers)
  *    200 { passed: true, certificate } for THIS topic → ok, passed
  *    anything else                                 → server
  *  A certificate is only ever built from the server's own row. */
-export function awardResultFrom(data: unknown, error: unknown, topic: SkillTopicId): AwardOutcome {
+export function awardResultFrom(data: unknown, error: unknown, topic: SkillTopicId, errorCode: string | null = null): AwardOutcome {
   if (error) {
     const status = statusOf(error);
     if (status === null) return refusal('offline');
-    if (status === 400) return refusal('rejected');
+    if (status === 400) return refusal(errorCode !== null && NAME_REFUSAL_CODES.includes(errorCode) ? 'rejected' : 'bad_request');
     if (status === 409) return refusal('quiz_changed');
     if (status === 410) return refusal('revoked');
     if (status === 429) return refusal('rate_limited');

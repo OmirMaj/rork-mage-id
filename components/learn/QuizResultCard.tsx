@@ -112,13 +112,15 @@ export function QuizResultCard({ phase, label, holderName, onChangeName }: QuizR
                 ? t('settings.learn.rateLimited', 'Too many tries for now. Try again in an hour.')
                 : phase.reason === 'rejected'
                   ? t('settings.learn.awardRejected', "MAGE ID couldn't issue a certificate with this name. Use 2 to 80 characters and no email address, then try again.")
-                  : phase.reason === 'revoked'
-                    ? t('settings.learn.awardRevoked', "Your certificate for this check was removed, so it can't be issued again.")
-                    : t('settings.learn.awardServer', "Couldn't issue the certificate just now. Your pass is saved on this phone.")}
+                  : phase.reason === 'bad_request'
+                    ? t('settings.learn.awardBadRequest', "MAGE ID couldn't accept this attempt, so no certificate was issued. Take the check again.")
+                    : phase.reason === 'revoked'
+                      ? t('settings.learn.awardRevoked', "Your certificate for this check was removed, so it can't be issued again.")
+                      : t('settings.learn.awardServer', "Couldn't issue the certificate just now. Your pass is saved on this phone.")}
           </Text>
         ) : null}
 
-        {phase.kind !== 'pending' && !(phase.kind === 'refused' && (phase.reason === 'quiz_changed' || phase.reason === 'revoked')) ? (
+        {phase.kind !== 'pending' && !(phase.kind === 'refused' && (phase.reason === 'quiz_changed' || phase.reason === 'bad_request' || phase.reason === 'revoked')) ? (
           <View style={styles.field}>
             <Text style={[Type.footnoteEmphasized, { color: colors.text }]} nativeID="skills-check-name-label">
               {t('settings.learn.nameLabel', 'Name on the certificate')}

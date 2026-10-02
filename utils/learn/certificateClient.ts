@@ -20,12 +20,16 @@
 //   200 { passed: true, certificate: { id, topic, quiz_version, correct, total,
 //         holder_name, verify_code, issued_at, revoked_at } }
 //   400 bad_request | bad_name · 409 quiz_changed · 410 revoked · 429 rate_limited.
+// A 400's own `error` code is read (utils/edgeError, the one body reader) so
+// only bad_name gets the name copy; any other 400 says the attempt itself was
+// refused and is not re-sent unchanged.
 // A name the server would refuse (cleanHolderName → '') is not sent at all:
 // it answers 'rejected' here without spending one of the hourly tries.
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { edgeErrorStatus, readEdgeError } from '@/utils/edgeError';
 import { useAuth } from '@/contexts/AuthContext';
 import type { SkillCertificate, SkillTopicId } from './types';
 import { AWARD_MESSAGES, awardResultFrom, certificateFromRow, cleanHolderName, type AwardOutcome } from './quizEngine';
@@ -52,7 +56,15 @@ export async function awardSkillCertificate(input: AwardInput): Promise<AwardOut
   };
   try {
     const { data, error } = await invokeWithTimeout<unknown>('skill-certificate-award', { body, timeoutMs: AWARD_TIMEOUT_MS });
-    const result = awardResultFrom(data, error, input.topic);
+    // The function answers { error: '<code>' }: readEdgeError hands that back
+    // as `message` (its `code` is '' then), or `http_400` for a body that is
+    // not JSON — which is not a name code, so it reads as bad_request.
+    let errorCode: string | null = null;
+    if (error && edgeErrorStatus(error) === 400) {
+      const info = await readEdgeError(error, 'skill-certificate-award');
+      errorCode = info.code || info.message;
+    }
+    const result = awardResultFrom(data, error, input.topic, errorCode);
     if (result.ok && result.passed) rememberCertificate(result.certificate);
     return result;
   } catch {

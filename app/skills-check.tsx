@@ -339,7 +339,10 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     // Not issued again: the card says why, and there is nothing to retry.
     bar = <Button label={t('settings.learn.done', 'Done')} variant="secondary" fullWidth onPress={leave} testID="skills-check-done" />;
   } else if (phase.kind === 'pending' || phase.kind === 'refused') {
-    const fresh = phase.kind === 'refused' && phase.reason === 'quiz_changed';
+    // A changed quiz, or a request the function refused for a reason that is
+    // not the name (the identical body would get the identical 400): take the
+    // check again rather than re-send.
+    const fresh = phase.kind === 'refused' && (phase.reason === 'quiz_changed' || phase.reason === 'bad_request');
     if (!fresh && nameBlocked) blockedReason = nameReason;
     bar = (
       <Button

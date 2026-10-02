@@ -16,16 +16,19 @@
 //      an empty name never issues; a revoked or changed-quiz refusal never
 //      re-issues.
 //   6. awardResultFrom maps every status of the award contract (400 rejected
-//      and 410 revoked are dropped from the pending list, never retried).
+//      and 410 revoked are dropped from the pending list, never retried). Only
+//      the function's NAME code (bad_name) gets the name copy; any other 400
+//      (bad_request, an unreadable body, no code) is 'bad_request': its own
+//      copy that never mentions the name, never re-sent unchanged.
 //   6b. The client's name rule equals the award function's cleanHolderName
 //      (its body is lifted from the server file and run on the same names).
 //   7. Source scans: the screen draws the certificate only from the reducer's
 //      issued phase, the haptic and the issued event sit inside the ok-award
 //      branch, the intro states the scope, the finale door ends the run before
 //      it opens /skills-check, and analytics carry { topic } only.
-//   8. PLANTED MUTATIONS: each of ten one-line breaks of the engine (loaded
-//      from a temp copy) must turn at least one engine check red, and each
-//      of four breaks of the screen/card source must turn a scan red.
+//   8. PLANTED MUTATIONS: each of thirteen one-line breaks of the engine
+//      (loaded from a temp copy) must turn at least one engine check red, and
+//      each of five breaks of the screen/card/client source must turn a scan red.
 //
 // Pure: imports only the bun-safe engine, bank, topics and the generated key.
 // Run: bun run scripts/validate-skill-quiz-engine.ts
@@ -155,6 +158,7 @@ function engineChecks(E: Engine): string[] {
   check('retry: quiz changed drops', E.afterRetry({ ok: false, reason: 'quiz_changed', message: '' }) === 'drop');
   check('retry: a refused name / request (400) drops', E.afterRetry({ ok: false, reason: 'rejected', message: '' }) === 'drop');
   check('retry: a revoked certificate (410) drops', E.afterRetry({ ok: false, reason: 'revoked', message: '' }) === 'drop');
+  check('retry: a refused request (400 bad_request) drops', E.afterRetry({ ok: false, reason: 'bad_request', message: '' }) === 'drop');
   check('retry: an answer drops', E.afterRetry({ ok: true, passed: false, correct: 2, total: 5 }) === 'drop'
     && E.afterRetry({ ok: true, passed: true, certificate: cert() }) === 'drop');
 
@@ -203,23 +207,34 @@ function engineChecks(E: Engine): string[] {
   check('reducer: rejected → refused, re-issued after a name fix', rejected.phase.kind === 'refused'
     && E.quizReducer(rejected, { type: 'ISSUE', holderName: 'Dana Ruiz' }).phase.kind === 'issuing');
   check('canRetryRefused: only rate_limited / server / rejected', E.canRetryRefused('rate_limited') && E.canRetryRefused('server') && E.canRetryRefused('rejected')
-    && !E.canRetryRefused('quiz_changed') && !E.canRetryRefused('revoked'));
+    && !E.canRetryRefused('quiz_changed') && !E.canRetryRefused('revoked') && !E.canRetryRefused('bad_request'));
+  const badRequest = E.quizReducer(issuing, { type: 'AWARD_RESULT', result: { ok: false, reason: 'bad_request', message: '' } });
+  check('reducer: bad_request → refused, never re-sent unchanged', badRequest.phase.kind === 'refused'
+    && E.quizReducer(badRequest, { type: 'ISSUE', holderName: 'Dana Ruiz' }) === badRequest);
   check('reducer: pending + ok award → issued', E.quizReducer(pending, { type: 'AWARD_RESULT', result: { ok: true, passed: true, certificate: cert() } }).phase.kind === 'issued');
   const restarted = E.quizReducer(failedState, { type: 'RESTART', questions: E.orderFor(bank, 99), seed: 99 });
   check('reducer: restart clears answers', restarted.phase.kind === 'question' && Object.keys(restarted.answers).length === 0 && restarted.seed === 99);
   // No phase but 'issued' carries a certificate.
-  const everyPhase = [start, s, passedState, failedState, issuing, serverFail, pending, changed, server, revoked, rejected, restarted];
+  const everyPhase = [start, s, passedState, failedState, issuing, serverFail, pending, changed, server, revoked, rejected, badRequest, restarted];
   check('reducer: only issued carries a certificate', everyPhase.every(st => !('certificate' in st.phase)) && 'certificate' in issued.phase);
 
   // 7. The award contract.
   const status = (n: number) => ({ message: 'x', context: { status: n } });
-  const award = (d: unknown, e: unknown) => E.awardResultFrom(d, e, 'punch-walk');
+  const award = (d: unknown, e: unknown, code: string | null = null) => E.awardResultFrom(d, e, 'punch-walk', code);
   const reason = (r: AwardResult) => (r.ok ? (r.passed ? 'passed' : 'not_passed') : r.reason);
   const row = { id: 'c1', topic: 'punch-walk', quiz_version: 1, correct: 5, total: 5, holder_name: 'Dana Ruiz', verify_code: 'ABC123', issued_at: '2026-10-01T12:00:00Z', revoked_at: null };
   check('award: no status → offline', reason(award(null, { message: 'Failed to send' })) === 'offline');
   check('award: 409 → quiz_changed', reason(award(null, status(409))) === 'quiz_changed');
   check('award: 429 → rate_limited', reason(award(null, status(429))) === 'rate_limited');
-  check('award: 400 → rejected', reason(award(null, status(400))) === 'rejected');
+  check('award: 400 bad_name → rejected (the name copy)', reason(award(null, status(400), 'bad_name')) === 'rejected');
+  check('award: 400 bad_request → bad_request, not the name copy', reason(award(null, status(400), 'bad_request')) === 'bad_request');
+  check('award: 400 with no readable code (null / http_400 / unknown) → bad_request',
+    [null, 'http_400', 'unknown_code', ''].every(c => reason(award(null, status(400), c)) === 'bad_request'));
+  check('award: the name codes are exactly the server\'s bad_name', E.NAME_REFUSAL_CODES.length === 1 && E.NAME_REFUSAL_CODES[0] === 'bad_name');
+  check('award: a code on a non-400 changes nothing', reason(award(null, status(409), 'bad_name')) === 'quiz_changed'
+    && reason(award(null, status(500), 'bad_name')) === 'server');
+  const badCopy = award(null, status(400), 'bad_request');
+  check('award: the bad_request copy never talks about the name', !badCopy.ok && !/\bname\b/i.test(badCopy.message) && badCopy.message === E.AWARD_MESSAGES.bad_request);
   check('award: 410 → revoked', reason(award(null, status(410))) === 'revoked');
   check('award: 500 / 401 / 403 → server', [500, 401, 403].every(n => reason(award(null, status(n))) === 'server'));
   const np = award({ passed: false, correct: 2, total: 5 }, null);
@@ -333,6 +348,18 @@ const scanEngineIssued: Scan = {
   },
 };
 
+/** A 400's own code reaches the mapping: the client reads the body through
+ *  readEdgeError (the one reader) and hands the code to awardResultFrom. */
+const scanClient400Code: Scan = {
+  name: "certificateClient reads a 400's error code (readEdgeError) and passes it to awardResultFrom",
+  test: src => {
+    const c = code(src);
+    return /if \(error && edgeErrorStatus\(error\) === 400\) \{\s*const info = await readEdgeError\(error, [^)]*\);\s*errorCode = info\.code \|\| info\.message;\s*\}/.test(c)
+      && /const result = awardResultFrom\(data, error, input\.topic, errorCode\);/.test(c)
+      && c.split('awardResultFrom(data, error, input.topic').length === 2;
+  },
+};
+
 // ── 6b. The name rule: client == award function ───────────────────────────
 // The server's cleanHolderName body is lifted from its file (it carries no
 // type annotations inside the body) and run on the same names as the client.
@@ -366,6 +393,25 @@ ok('a name the server would refuse blocks Issue and says which rule', /const nam
   && sc.includes("'Use a name, not an email address.'") && sc.includes("'Use at least 2 characters for the name.'") && sc.includes("'Use 80 characters or fewer for the name.'"));
 ok('a revoked refusal offers Done, not Try again', /phase\.kind === 'refused' && phase\.reason === 'revoked'\) \{\s*(?:\/\/[^\n]*\n\s*)?bar = <Button label=\{t\('settings\.learn\.done'/.test(sc));
 ok('the card has its own copy for rejected and revoked', code(cardSrc).includes("'settings.learn.awardRejected'") && code(cardSrc).includes("'settings.learn.awardRevoked'"));
+{
+  const m = code(cardSrc).match(/t\('settings\.learn\.awardBadRequest', "([^"]+)"\)/);
+  ok('the card has its own bad_request copy, and it never talks about the name', !!m && !/\bname\b/i.test(m[1]) && m[1] === RealEngine.AWARD_MESSAGES.bad_request);
+}
+ok('a bad_request refusal hides the name field and retakes the check (never re-sends the same body)',
+  /phase\.reason === 'quiz_changed' \|\| phase\.reason === 'bad_request' \|\| phase\.reason === 'revoked'\)\) \? \(/.test(code(cardSrc))
+  && /const fresh = phase\.kind === 'refused' && \(phase\.reason === 'quiz_changed' \|\| phase\.reason === 'bad_request'\);/.test(sc));
+ok(scanClient400Code.name, scanClient400Code.test(clientSrc));
+{
+  // The award function's 400 codes: bad_name only from the name check, every
+  // other 400 is bad_request — so NAME_REFUSAL_CODES is exactly its name code.
+  const awardSrc = read('supabase/functions/skill-certificate-award/index.ts');
+  const codes400 = [...awardSrc.matchAll(/json\(\{ error: "([a-z_]+)" \}, 400\)/g)].map(m => m[1]);
+  ok(`the award function's 400 codes are bad_request / bad_name (${codes400.join(', ')})`,
+    codes400.length >= 2 && codes400.every(c => c === 'bad_request' || c === 'bad_name') && codes400.filter(c => c === 'bad_name').length === 1);
+  ok('bad_name is answered only when cleanHolderName refuses the name, and it is the only name code',
+    /const holderName = cleanHolderName\(body\.holderName\);\s*if \(!holderName\) return json\(\{ error: "bad_name" \}, 400\);/.test(awardSrc)
+    && RealEngine.NAME_REFUSAL_CODES.join() === 'bad_name');
+}
 ok('the client never sends a name the server would refuse', /const holderName = cleanHolderName\(input\.holderName\);\s*if \(!holderName\) return \{ ok: false, reason: 'rejected'/.test(code(clientSrc)));
 ok('a failed check offers Try again and Practice the tutorial again (startTutorial … entry: \'hub\')',
   sc.includes("'Practice the tutorial again'") && /startTutorial\(topicId, \{ entry: 'hub' \}\)/.test(sc));
@@ -408,6 +454,10 @@ const ENGINE_MUTATIONS: Mutation[] = [
   { name: "an '@' name passes", from: "if (name.includes('@')) return 'email';", to: '' },
   { name: '410 read as a server blip', from: "if (status === 410) return refusal('revoked');", to: '' },
   { name: 'a refused name retried forever', from: "result.reason === 'offline' || result.reason === 'server' || result.reason === 'rate_limited' ? 'keep' : 'drop'", to: "result.reason === 'quiz_changed' ? 'drop' : 'keep'" },
+  // The critic's honesty minor: every 400 shown as a name problem.
+  { name: 'every 400 read as a name refusal', from: "refusal(errorCode !== null && NAME_REFUSAL_CODES.includes(errorCode) ? 'rejected' : 'bad_request')", to: "refusal('rejected')" },
+  { name: 'a refused request re-sent unchanged', from: "return reason === 'rate_limited' || reason === 'server' || reason === 'rejected';", to: "return reason === 'rate_limited' || reason === 'server' || reason === 'rejected' || reason === 'bad_request';" },
+  { name: 'the bad_request copy blames the name', from: "bad_request: \"MAGE ID couldn't accept this attempt, so no certificate was issued. Take the check again.\",", to: "bad_request: \"MAGE ID couldn't issue a certificate with this name.\"," },
 ];
 
 const tmp = mkdtempSync(join(tmpdir(), 'lq-mut-'));
@@ -442,6 +492,7 @@ const SOURCE_MUTATIONS: { name: string; scan: Scan; src: string; from: RegExp | 
   { name: 'haptic before the award', scan: scanHaptic, src: screenSrc, from: 'dispatch({ type: \'ISSUE\', holderName: name });', to: "dispatch({ type: 'ISSUE', holderName: name }); haptic.success();" },
   { name: 'result card fed a local flag', scan: scanScreenPhase, src: screenSrc, from: '<QuizResultCard phase={phase}', to: '<QuizResultCard phase={localPhase}' },
   { name: 'engine issues on a local pass', scan: scanEngineIssued, src: engineSrc, from: "? { kind: 'naming', correct: g.correct, total: g.total }", to: "? { kind: 'issued', certificate: null as never }" },
+  { name: "the client drops a 400's error code", scan: scanClient400Code, src: clientSrc, from: 'awardResultFrom(data, error, input.topic, errorCode)', to: 'awardResultFrom(data, error, input.topic)' },
 ];
 for (const m of SOURCE_MUTATIONS) {
   const anchored = typeof m.from === 'string' ? m.src.includes(m.from) : m.from.test(m.src);
