@@ -32,6 +32,10 @@ import { EN as EN_FIELD_PHOTOS } from './field.photos.generated';
 import { EN as EN_FIELD_VOICE } from './field.voice.generated';
 import { EN as EN_DESK_SIDEBAR } from './desk.sidebar.generated';
 import { EN as EN_DESK_CREW_REGISTER } from './desk.crew-register.generated';
+import { EN as EN_AI_ASK } from './ai.ask.generated';
+import { EN as EN_COMMON_TUTORIAL } from './common.tutorial.generated';
+import { EN as EN_SETTINGS_LEARN } from './settings.learn.generated';
+import { EN as EN_OFFICE_PROJECT_HEALTH } from './office.project-health.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -53,6 +57,10 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'field.voice': EN_FIELD_VOICE,
   'desk.sidebar': EN_DESK_SIDEBAR,
   'desk.crew-register': EN_DESK_CREW_REGISTER,
+  'ai.ask': EN_AI_ASK,
+  'common.tutorial': EN_COMMON_TUTORIAL,
+  'settings.learn': EN_SETTINGS_LEARN,
+  'office.project-health': EN_OFFICE_PROJECT_HEALTH,
 };
 
 export { EN_SEED, EN_UNASSIGNED };
