@@ -23,7 +23,7 @@
 //     unrevoked certificate on the current version, 'Skills check: take it'
 //     (opens /skills-check) once the tutorial is practised, and nothing while
 //     it is locked or has no check in this build. A 'Your certificates' row
-//     sits above the sections once its screen is wired (onOpenCertificates).
+//     sits above the sections and opens /skills-certificates.
 //
 // Doors in: the Brain Help sheet (components/HelpFab), Settings → Help &
 // support, the desktop sidebar, universal search, and mageid://tutorials.
@@ -285,8 +285,6 @@ export default function TutorialsScreen() {
     router.push({ pathname: '/skills-check', params: { topic: id } });
   }, [router]);
 
-  // onOpenCertificates is wired when /skills-certificates ships (LEARNPROFILE,
-  // wave 4); until then the row stays out rather than open a missing screen.
   return (
     <TutorialsHubView
       sections={sections}
@@ -295,6 +293,7 @@ export default function TutorialsScreen() {
       onStart={onStart}
       checks={checks}
       onTakeCheck={onTakeCheck}
+      onOpenCertificates={() => router.push('/skills-certificates')}
     />
   );
 }

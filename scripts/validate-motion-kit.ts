@@ -37,9 +37,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const MUT = process.env.MOTIONKIT_MUT_DIR;
 
-/** Measured 2026-10-01 on base 00d2b515, comment-stripped. NEVER RAISE; adopters lower them. */
-const BASELINE_NATIVE_DRIVER_LITERALS = 85;
-const BASELINE_LOOPED_SEQUENCES = 11;
+/** Measured 2026-10-01 on base 00d2b515 (85 / 11), comment-stripped; lowered 2026-10-02 to the counts measured
+ *  after Thursday wave 4 (MOTIONADOPT-A + B). NEVER RAISE; adopters lower them. */
+const BASELINE_NATIVE_DRIVER_LITERALS = 74;
+const BASELINE_LOOPED_SEQUENCES = 8;
 
 let failures = 0;
 const failed: string[] = [];

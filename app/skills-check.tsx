@@ -146,6 +146,7 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
   const { t } = useT();
   const insets = useSafeAreaInsets();
   const leave = useLeave();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const isDesktopWeb = useIsDesktopWeb();
   const { user } = useAuth();
@@ -357,10 +358,13 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
       />
     );
   } else if (phase.kind === 'issued') {
-    // 'See your certificates' joins this bar when /skills-certificates ships
-    // (LEARNPROFILE, wave 4): the route does not exist in this build, and a
-    // button to a missing screen is a dead end.
-    bar = <Button label={t('settings.learn.done', 'Done')} variant="primary" fullWidth onPress={leave} testID="skills-check-done" />;
+    bar = (
+      <>
+        <Button label={t('settings.learn.seeCertificates', 'See your certificates')} variant="primary" fullWidth
+          onPress={() => router.replace('/skills-certificates')} testID="skills-check-see-certificates" />
+        <Button label={t('settings.learn.done', 'Done')} variant="secondary" fullWidth onPress={leave} testID="skills-check-done" />
+      </>
+    );
   }
 
   // No def or no bank in this build: the check does not exist yet.
