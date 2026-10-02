@@ -12,7 +12,12 @@
  *       the budget);
  *   T12 the gallery renders every part, light and dark;
  *   T13 a later priority change: the old rule fades out (120 ms) and unmounts;
- *       useCheckBeat(status) is the spec's ViewStyle | null.
+ *       useCheckBeat(status) is the spec's ViewStyle | null;
+ *   G0  (lane KITFIX) the default-behaviour golden of the three parts KITFIX
+ *       touched, recorded on the untouched kit (KITFIX_GOLDEN=<file>);
+ *   T14 (KG1) FileInto under a header (top 88) and inside a <Sheet>: the flyer
+ *       starts at source − layer origin and lands on target − layer origin;
+ *   T15 (KG3) useFocusPush ruleAxis 'y' draws on scaleY from the top.
  *
  * Under this harness a native-driven Animated value never advances (see
  * level-content.test.tsx), so `nativeDriver` is mocked to false here: the
@@ -30,10 +35,24 @@ jest.mock('@/components/ui/motion', () => {
   return { ...actual, nativeDriver: false, reducedMotion: () => mockReduced, useReducedMotion: () => mockReduced };
 });
 
+// <Sheet> (T14) reads the theme; the kit itself never does.
+jest.mock('@/contexts/ThemeContext', () => {
+  const actual = jest.requireActual('@/constants/colors');
+  const colors = { ...actual.Theme.light, ...actual.deriveAccentPalette(actual.getCustomPrimary(), 'light') };
+  const value = { colors, resolved: 'light', pref: 'light', setPref: () => {} };
+  return { ThemeProvider: ({ children }: { children: React.ReactNode }) => children, useTheme: () => value };
+});
+
+// eslint-disable-next-line import/first
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+// eslint-disable-next-line import/first
+import { Sheet } from '@/components/ui/Sheet';
+// eslint-disable-next-line import/first
+import { flyerGeometry, flyerLanding } from '@/utils/motion/kit/plans';
 // eslint-disable-next-line import/first
 import {
   AccumulateCards, ChatTurn, CheckSync, CornerTags, CountRoll, MatrixFill, PriorityGrid, RangeSettle, StaggerList, ThinkingRow,
-  dotClockStats, resetBudget, useCheckBeat, useFileInto, type CheckRow, type CheckStatus,
+  dotClockStats, resetBudget, useCheckBeat, useFileInto, useFocusPush, type CheckRow, type CheckStatus,
 } from '@/components/motion/kit';
 // eslint-disable-next-line import/first
 import { KitGallery } from '@/components/motion/kit/__demo__/KitGallery';
@@ -115,6 +134,49 @@ const steps: [string, () => void | Promise<void>][] = [];
 const step = (name: string, fn: () => void | Promise<void>) => { steps.push([name, fn]); };
 
 describe('motion kit', () => {
+  // G0 — the default-behaviour golden (lane KITFIX). Renders the three parts
+  // KITFIX touches with their DEFAULT options through a run and dumps every
+  // frame; recorded on the untouched kit, then compared byte-for-byte after.
+  // Set KITFIX_GOLDEN=<file> to write the dump; otherwise it only renders.
+  step('G0 default-behaviour golden: AccumulateCards, useFocusPush, useFileInto with default options', async () => {
+    const frames: Record<string, unknown> = {};
+    const items = [140000, 82000, 61000].map((c, i) => ({ key: `k${i}`, cents: c, render: (s: ViewStyle | null) => <Animated.View testID={`card-${i}`} style={s}><Text>{`card ${i}`}</Text></Animated.View> }));
+    for (const armed of [false, true]) {
+      resetBudget();
+      const r = render(<AccumulateCards items={items} armed={armed} format={money} renderTotal={(n) => <View testID="tot">{n}</View>} badge={<Text>badge</Text>} style={{ padding: 4 }} testID="acc" />);
+      for (const t of [0, 100, 300, 1200]) { frames[`acc-${armed}-${t}`] = norm(r.toJSON()); advance(t === 0 ? 100 : t === 100 ? 200 : t === 300 ? 900 : 0); }
+      r.unmount();
+    }
+    const scrolls: unknown[] = [];
+    let push: ReturnType<typeof useFocusPush> | null = null;
+    function PushHost() {
+      const ref = React.useRef({ scrollTo: (o: unknown) => { scrolls.push(o); } });
+      push = useFocusPush(ref);
+      return <View><Animated.View testID="rule-a" style={push.styleFor('a')} /><Animated.View testID="rule-b" style={push.styleFor('b')} /></View>;
+    }
+    const p = render(<PushHost />);
+    act(() => { push!('a', { x: 10, y: 300, w: 200, h: 40 }); });
+    for (const t of [0, 200, 400, 1000]) { frames[`push-${t}`] = norm(p.toJSON()); advance(t === 0 ? 200 : t === 200 ? 200 : t === 400 ? 600 : 0); }
+    frames.pushScrolls = scrolls;
+    frames.pushTimings = timings.map((c) => ({ ...c, easing: undefined }));
+    p.unmount();
+    let api: ReturnType<typeof useFileInto> | null = null;
+    function FileHost() { api = useFileInto(); return <View>{api.layer}</View>; }
+    const f = render(<FileHost />);
+    const at = (x: number, y: number) => ({ current: { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(x, y, 60, 80) } });
+    await act(async () => { await api!.fileInto({ sources: [at(20, 500), at(90, 500)], target: at(300, 120), thumbs: [<Text key="a">a</Text>, <Text key="b">b</Text>] }); });
+    frames['file-0'] = norm(f.toJSON());
+    advance(1200);
+    frames['file-end'] = norm(f.toJSON());
+    f.unmount();
+    const out = process.env.KITFIX_GOLDEN;
+    if (out) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('fs').writeFileSync(out, JSON.stringify(frames, null, 1));
+    }
+    expect(Object.keys(frames).length).toBeGreaterThan(10);
+  });
+
   step('T1 at rest every wrapper part equals the same children in a plain View', () => {
     const chat = render(<ChatTurn role="user" live={false} variant="page" testID="t"><Text>Which RFIs are late?</Text></ChatTurn>);
     const plain = render(<View testID="t"><Text>Which RFIs are late?</Text></View>);
@@ -354,7 +416,91 @@ describe('motion kit', () => {
     b.unmount();
   });
 
-  it("T1–T13: at rest, native driver, Reduce Motion, and each part's own rule", async () => {
+  step('T14 FileInto (KG1): under a header (top 88) and inside a <Sheet>, the flyer starts at source − layer origin and lands on target − layer origin', async () => {
+    const METRICS = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
+    const at = (x: number, y: number, w: number, h: number) => ({ current: { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(x, y, w, h) } });
+    type Inst = { props: Record<string, unknown>; type: unknown; instance: { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null };
+    const SRC = { x: 40, y: 600, w: 60, h: 80 };
+    const TGT = { x: 220, y: 180, w: 120, h: 90 };
+    const placements: [string, { x: number; y: number }, (n: React.ReactNode) => React.ReactElement][] = [
+      ['under a header (top 88)', { x: 0, y: 88 }, (n) => <View><View style={{ height: 88 }} /><View style={{ flex: 1 }}>{n}</View></View>],
+      ['inside a <Sheet>', { x: 16, y: 312 }, (n) => (
+        <SafeAreaProvider initialMetrics={METRICS}><Sheet visible onClose={() => {}} title="Scan">{n}</Sheet></SafeAreaProvider>
+      )],
+    ];
+    for (const [name, origin, wrap] of placements) {
+      resetBudget();
+      let api: ReturnType<typeof useFileInto> | null = null;
+      function Host() { api = useFileInto(); return <View style={{ flex: 1 }}>{api.layer}</View>; }
+      const r = render(wrap(<Host />));
+      // The test renderer's View never answers measureInWindow: this layer answers
+      // with its window origin, the way the native view under the header / in the sheet does.
+      const layer = (r.UNSAFE_root.findAll((n: Inst) => n.props.testID === 'file-into-layer' && typeof n.type !== 'string') as unknown as Inst[])
+        .find((n) => n.instance && typeof n.instance.measureInWindow === 'function');
+      expect(layer).toBeTruthy();
+      layer!.instance!.measureInWindow = (cb) => cb(origin.x, origin.y, 390, 600);
+      let flew: boolean | null = null;
+      await act(async () => { flew = await api!.fileInto({ sources: [at(SRC.x, SRC.y, SRC.w, SRC.h)], target: at(TGT.x, TGT.y, TGT.w, TGT.h), thumbs: [<Text key="p">p</Text>] }); });
+      expect([name, flew]).toEqual([name, true]);
+      const box = flat(r.getByTestId('file-into-flyer-0').props.style);
+      expect([name, box.left, box.top]).toEqual([name, SRC.x - origin.x, SRC.y - origin.y]);
+      // The pure maths: the landing (box centre + full travel) is target − origin.
+      const g = flyerGeometry(SRC, TGT, origin);
+      expect(flyerLanding(g)).toEqual({ x: TGT.x + TGT.w / 2 - origin.x, y: TGT.y + TGT.h / 2 - origin.y });
+      // The rendered landing: the last frame of the flight puts the flyer's centre on target − origin.
+      let last: Record<string, number> | null = null;
+      for (let t = 0; t < 1200 && r.queryByTestId('file-into-flyer-0'); t += 16) {
+        const st = flat(r.getByTestId('file-into-flyer-0').props.style);
+        const tr = Object.assign({}, ...((st.transform ?? []) as Record<string, number>[])) as Record<string, number>;
+        last = { left: st.left as number, top: st.top as number, w: st.width as number, h: st.height as number, tx: tr.translateX, ty: tr.translateY };
+        advance(16);
+      }
+      expect(last).not.toBeNull();
+      expect(last!.left + last!.w / 2 + last!.tx).toBeCloseTo(TGT.x + TGT.w / 2 - origin.x, 0);
+      expect(last!.top + last!.h / 2 + last!.ty).toBeCloseTo(TGT.y + TGT.h / 2 - origin.y, 0);
+      r.unmount();
+    }
+  });
+
+  step("T15 useFocusPush ruleAxis (KG3): 'y' draws the rule on scaleY from the top; the default stays scaleX from the left", () => {
+    const scrolls: unknown[] = [];
+    const ref = { current: { scrollTo: (o: unknown) => { scrolls.push(o); } } };
+    let push: ReturnType<typeof useFocusPush> | null = null;
+    function Host({ ruleAxis }: { ruleAxis?: 'x' | 'y' }) {
+      push = useFocusPush(ref, ruleAxis ? { axis: 'x', ruleAxis } : { axis: 'x' });
+      return <Animated.View testID="rule" style={push.styleFor('today')} />;
+    }
+    for (const ruleAxis of ['y', undefined] as const) {
+      const r = render(<Host ruleAxis={ruleAxis} />);
+      act(() => { push!('today', { x: 500, y: 0, w: 2, h: 400 }); });
+      const st = flat(r.getByTestId('rule').props.style);
+      const keys = ((st.transform ?? []) as Record<string, number>[]).flatMap((x) => Object.keys(x));
+      if (ruleAxis === 'y') {
+        expect(keys).toEqual(['scaleY']);
+        expect(st.transformOrigin).toBe('top');
+      } else {
+        expect(keys).toEqual(['scaleX']);
+        expect(st.transformOrigin).toBe('left');
+      }
+      advance(400);
+      const mid = Object.assign({}, ...((flat(r.getByTestId('rule').props.style).transform ?? []) as Record<string, number>[])) as Record<string, number>;
+      const v = ruleAxis === 'y' ? mid.scaleY : mid.scaleX;
+      expect(v).toBeGreaterThan(0);
+      expect(v).toBeLessThan(1);
+      r.unmount();
+    }
+    // The scroll axis is still `axis` ('x' here): the rule axis never moves the scroll.
+    expect(scrolls).toEqual([{ x: 484, animated: true }, { x: 484, animated: true }]);
+    // Reduce Motion: the vertical rule is simply there (no style), the scroll jumps.
+    mockReduced = true;
+    const red = render(<Host ruleAxis="y" />);
+    act(() => { push!('today', { x: 500, y: 0, w: 2, h: 400 }); });
+    expect(red.getByTestId('rule').props.style ?? null).toBeNull();
+    expect(scrolls[scrolls.length - 1]).toEqual({ x: 484, animated: false });
+    red.unmount();
+  });
+
+  it("G0, T1–T15: the default golden, at rest, native driver, Reduce Motion, and each part's own rule", async () => {
     const errors: string[] = [];
     for (const [name, fn] of steps) {
       timings = []; springs = []; delays = [];

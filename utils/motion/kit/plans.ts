@@ -211,6 +211,47 @@ export function planFileInto(reduced: boolean, n: number): KitPlan {
 /** A flyer's fade: opacity 1 → 0 over its last 120 ms. */
 export const FLYER_FADE_MS = 120;
 
+/** A measured box (window coordinates from measureInWindow, or a layer's own). */
+export type KitBox = { x: number; y: number; w: number; h: number };
+/** A point in window coordinates (the flyer layer's own window origin). */
+export type KitPoint = { x: number; y: number };
+
+/**
+ * One flyer's geometry in the LAYER's coordinates (lane KITFIX, KG1).
+ *
+ * Sources and target are measured in window coordinates (measureInWindow), but
+ * the flyers are drawn inside <FileIntoLayer>, an absoluteFill view whose own
+ * window origin is NOT (0, 0) under a stack header, inside a modal sheet, or
+ * beside the desktop sidebar. The box therefore starts at source − origin; the
+ * travel (dx, dy) is a difference of two window points, so the origin cancels.
+ * A null origin (the layer could not be measured) is (0, 0): the shipped
+ * behaviour, unchanged.
+ */
+export function flyerGeometry(source: KitBox, target: KitBox, origin: KitPoint | null): {
+  left: number; top: number; w: number; h: number; dx: number; dy: number; scale: number;
+} {
+  const ox = origin && Number.isFinite(origin.x) ? origin.x : 0;
+  const oy = origin && Number.isFinite(origin.y) ? origin.y : 0;
+  return {
+    left: source.x - ox,
+    top: source.y - oy,
+    w: source.w,
+    h: source.h,
+    dx: target.x + target.w / 2 - (source.x + source.w / 2),
+    dy: target.y + target.h / 2 - (source.y + source.h / 2),
+    scale: Math.max(target.w / source.w, KIT_SCALE.flyMin),
+  };
+}
+
+/**
+ * Where a flyer's centre lands, in the layer's coordinates: its box centre plus
+ * its full travel (scale is about the centre, so it never moves the centre).
+ * For every placement this equals the target's centre − the layer's origin.
+ */
+export function flyerLanding(g: { left: number; top: number; w: number; h: number; dx: number; dy: number }): KitPoint {
+  return { x: g.left + g.w / 2 + g.dx, y: g.top + g.h / 2 + g.dy };
+}
+
 // ── A7 Priority grid ─────────────────────────────────────────────────────────
 
 /** When the priority emphasis starts: the last animated cell's start + its entrance + 120. */
@@ -275,10 +316,25 @@ export function planStackPush(reduced: boolean, direction: 1 | -1 = 1): KitPlan 
 /** The longest wait for the scroll to settle before the rule draws. */
 export const FOCUS_SETTLE_MAX_MS = KIT_MS.glide;
 
-export function planFocusPush(reduced: boolean): KitPlan {
+/** Which way the focused item's rule draws (lane KITFIX, KG3): 'x' (the shipped default) or 'y'. */
+export type RuleAxis = 'x' | 'y';
+
+/**
+ * How a rule draws itself on an axis: the scale key it grows on, the edge it
+ * grows from, and the web keyframe that does the same. 'x' is the shipped rule
+ * (scaleX from the left, drawL); 'y' is a vertical line (the Gantt's Today
+ * marker) growing down from its top (scaleY, drawT). Anything else is 'x'.
+ */
+export function ruleDraw(axis: RuleAxis = 'x'): { scaleKey: 'scaleX' | 'scaleY'; origin: 'left' | 'top'; web: 'drawL' | 'drawT' } {
+  return axis === 'y'
+    ? { scaleKey: 'scaleY', origin: 'top', web: 'drawT' }
+    : { scaleKey: 'scaleX', origin: 'left', web: 'drawL' };
+}
+
+export function planFocusPush(reduced: boolean, ruleAxis: RuleAxis = 'x'): KitPlan {
   const steps = reduced
     ? [land('rule'), fadeIn('heading')]
-    : [step('rule', FOCUS_SETTLE_MAX_MS, KIT_MS.layout, pose({ scaleX: 0 }), REST, null, 'gate'), step('heading', 0, KIT_MS.swap, HIDDEN)];
+    : [step('rule', FOCUS_SETTLE_MAX_MS, KIT_MS.layout, pose({ [ruleDraw(ruleAxis).scaleKey]: 0 }), REST, null, 'gate'), step('heading', 0, KIT_MS.swap, HIDDEN)];
   return { part: 'FocusPush', reduced, steps };
 }
 

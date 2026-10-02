@@ -19,7 +19,13 @@
 //   K5 the marketing kit: CSS and JS rules, the JS executed next to the app's
 //      numbers, and its size;
 //   K6 two ratchets the adopters lower (useNativeDriver literals, looped
-//      sequences).
+//      sequences);
+//   K7 lane KITFIX — the three kit gaps the wave-4 adopters dropped rows for:
+//      K7.1 FileInto lands on the target wherever its layer sits (flyerGeometry
+//      executed over five placements + the layer measured first in the batch),
+//      K7.2 AccumulateCards joins a caller's grid with no wrapper (asChild,
+//      useAccumulate, the forwarded column style), K7.3 useFocusPush draws its
+//      rule on either axis (ruleAxis, default 'x'; drawT on the web).
 //
 // Imports ONLY utils/motion/kit/** (pure) and, when it exists,
 // components/brain/ask/askMotion.ts; every other file is read as TEXT.
@@ -656,6 +662,95 @@ async function main() {
   ok(`K6.2 Animated.loop calls that are not one Animated.timing: ${looped} ≤ BASELINE ${BASELINE_LOOPED_SEQUENCES}`, looped <= BASELINE_LOOPED_SEQUENCES, loopHits.join('\n'));
   if (literals < BASELINE_NATIVE_DRIVER_LITERALS) console.log(`  NOTE  the literal count fell to ${literals} — lower BASELINE_NATIVE_DRIVER_LITERALS to lock it in.`);
   if (looped < BASELINE_LOOPED_SEQUENCES) console.log(`  NOTE  the looped-sequence count fell to ${looped} — lower BASELINE_LOOPED_SEQUENCES to lock it in.`);
+
+  // ── K7 lane KITFIX: the three kit gaps the wave-4 adopters dropped rows for ──
+  // K7.1 (KG1) FileInto lands on the target wherever its layer sits.
+  const PLACEMENTS: [string, { x: number; y: number } | null][] = [
+    ['window origin (shipped)', null], ['under a stack header (top 88)', { x: 0, y: 88 }], ['inside a modal sheet', { x: 0, y: 312 }],
+    ['beside the desktop sidebar', { x: 240, y: 64 }], ['inside a scrolled container', { x: 0, y: -420 }],
+  ];
+  const geoBad: string[] = [];
+  for (const [name, origin] of PLACEMENTS) {
+    for (let f = 0; f < 50; f++) {
+      const box = () => ({ x: Math.round(rand() * 1400) - 100, y: Math.round(rand() * 900) - 100, w: 20 + Math.round(rand() * 300), h: 20 + Math.round(rand() * 300) });
+      const s = box(); const t = box();
+      const g = K.flyerGeometry(s, t, origin);
+      const land = K.flyerLanding(g);
+      const ox = origin?.x ?? 0; const oy = origin?.y ?? 0;
+      const want = { x: t.x + t.w / 2 - ox, y: t.y + t.h / 2 - oy };
+      if (Math.abs(land.x - want.x) > 1e-9 || Math.abs(land.y - want.y) > 1e-9) geoBad.push(`${name}: lands at (${land.x}, ${land.y}), target − origin is (${want.x}, ${want.y})`);
+      if (g.left !== s.x - ox || g.top !== s.y - oy || g.w !== s.w || g.h !== s.h) geoBad.push(`${name}: box (${g.left}, ${g.top}) is not source − origin (${s.x - ox}, ${s.y - oy})`);
+      const at0 = K.flyerGeometry(s, t, null);
+      if (g.dx !== at0.dx || g.dy !== at0.dy || g.scale !== at0.scale) geoBad.push(`${name}: the travel / scale depends on the origin`);
+      if (g.scale !== Math.max(t.w / s.w, K.KIT_SCALE.flyMin)) geoBad.push(`${name}: scale ${g.scale} is not max(targetW / sourceW, flyMin)`);
+    }
+  }
+  const nanO = K.flyerGeometry({ x: 5, y: 6, w: 10, h: 10 }, { x: 50, y: 60, w: 10, h: 10 }, { x: Number.NaN, y: Number.POSITIVE_INFINITY });
+  if (nanO.left !== 5 || nanO.top !== 6) geoBad.push('a non-finite origin is not treated as (0, 0)');
+  ok('K7.1 flyerGeometry: in every placement (window, header 88, sheet, sidebar, scrolled) the flyer lands on target − layer origin; the box starts at source − origin; travel and scale are origin-free; null / non-finite origin = the shipped (0, 0)',
+    geoBad.length === 0, geoBad.slice(0, 6).join('\n'));
+  const fi = src('components/motion/kit/FileInto.tsx');
+  const fiBad: string[] = [];
+  const layerAsk = fi.search(/layerRef\.current\??\.measureInWindow\??\.?\(/);
+  const batch = fi.indexOf('Promise.all(');
+  if (layerAsk < 0) fiBad.push('the layer never measures itself (layerRef.current.measureInWindow)');
+  else if (batch >= 0 && layerAsk > batch) fiBad.push('the layer is measured AFTER the source / target batch (it must ask first)');
+  if (!/<View\s+ref=\{layerRef\}[^>]*testID="file-into-layer"/.test(fi)) fiBad.push('the file-into-layer View does not carry ref={layerRef}');
+  const geoCall = fi.match(/flyerGeometry\(\s*\w+\s*,\s*target\s*,\s*(\w+)\s*\)/);
+  if (!geoCall) fiBad.push('the flyers are not placed through flyerGeometry(source, target, origin)');
+  else if (geoCall[1] === 'null' || geoCall[1] === 'undefined') fiBad.push(`flyerGeometry is passed ${geoCall[1]} for the origin`);
+  else if (!new RegExp(`\\b${geoCall[1]}\\b[^=\\n]*=\\s*origin\\b`).test(fi) && geoCall[1] !== 'origin') fiBad.push(`flyerGeometry's origin (${geoCall[1]}) is not the layer's measured origin`);
+  if (/\bconst\s+o[xy]\s*=\s*0\b/.test(fi)) fiBad.push('a hard-coded layer origin (const ox / oy = 0) is back');
+  if (!/from:\s*\{\s*x:\s*g\.left,\s*y:\s*g\.top/.test(fi)) fiBad.push("the flyer's box is not flyerGeometry's left / top");
+  ok('K7.1 FileInto.tsx: the layer measures its own window origin first in the batch, and every flyer is placed by flyerGeometry(source, target, that origin)', fiBad.length === 0, fiBad.join('\n'));
+
+  // K7.2 (KG2) AccumulateCards joins a caller's grid with no wrapper.
+  const ac = src('components/motion/kit/AccumulateCards.tsx');
+  const acBad: string[] = [];
+  const asChildAt = ac.search(/if\s*\(\s*asChild\s*\)\s*\{/);
+  const asChildBlock = asChildAt >= 0 ? group(ac, ac.indexOf('{', asChildAt)) : '';
+  if (!asChildBlock) acBad.push('no `if (asChild) { … }` branch in AccumulateCards');
+  else if (/<(View|Animated\.View)\b/.test(asChildBlock)) acBad.push('the asChild branch renders a wrapper View');
+  else if (!/return\s*\(\s*<>/.test(asChildBlock)) acBad.push('the asChild branch does not return a fragment');
+  if (!/<View testID=\{testID\} style=\{style\}>/.test(ac)) acBad.push('the default branch lost its shipped wrapper <View testID={testID} style={style}>');
+  if (!/cardStyle:\s*asChild\s*\?\s*style\s*:\s*undefined/.test(ac)) acBad.push('asChild does not forward `style` to every card (and only then)');
+  const cardFn = ac.slice(Math.max(0, ac.search(/function Card\(/)));
+  const cardBody = cardFn ? group(cardFn, cardFn.indexOf('{', cardFn.indexOf(')'))) : '';
+  if (!/withLayout\(\s*item\.render\(\s*style\s*\)\s*,\s*layout\s*\)/.test(cardBody)) acBad.push("Card does not lay the forwarded style (a grid's column width) onto its node");
+  if (!/export function useAccumulate\(/.test(ac)) acBad.push('no wrapper-free useAccumulate hook');
+  if (!/\bwithLayout\b/.test(cBarrel) || !/\buseAccumulate\b/.test(cBarrel)) acBad.push('the barrel does not export useAccumulate / withLayout');
+  const wl = ac.slice(Math.max(0, ac.search(/export function withLayout\(/)));
+  const wlBody = wl ? group(wl, wl.indexOf('{', wl.indexOf(')'))) : '';
+  if (!/style\s*==\s*null[^;]*return node/.test(wlBody)) acBad.push('withLayout does not return the node untouched when no style is forwarded');
+  if (!/\[own,\s*style\]/.test(wlBody)) acBad.push("withLayout does not put the forwarded style AFTER the node's own style");
+  ok('K7.2 AccumulateCards: asChild renders no wrapper and forwards style to every card; Card lays a grid\'s clone style on its node; useAccumulate / withLayout exported; default tree unchanged',
+    acBad.length === 0, acBad.join('\n'));
+
+  // K7.3 (KG3) FocusPush draws its rule on either axis; 'x' stays the default.
+  const rdBad: string[] = [];
+  const rx = K.ruleDraw(); const rX = K.ruleDraw('x'); const rY = K.ruleDraw('y');
+  if (rx.scaleKey !== 'scaleX' || rx.origin !== 'left' || rx.web !== 'drawL') rdBad.push(`ruleDraw() is ${JSON.stringify(rx)} (want scaleX / left / drawL)`);
+  if (JSON.stringify(rX) !== JSON.stringify(rx)) rdBad.push("ruleDraw('x') differs from the default");
+  if (rY.scaleKey !== 'scaleY' || rY.origin !== 'top' || rY.web !== 'drawT') rdBad.push(`ruleDraw('y') is ${JSON.stringify(rY)} (want scaleY / top / drawT)`);
+  const ruleOf = (p: ReturnType<typeof K.planFocusPush>) => p.steps.find((s) => s.target === 'rule');
+  const px = ruleOf(K.planFocusPush(false)); const py = ruleOf(K.planFocusPush(false, 'y'));
+  if (!px || px.from.scaleX !== 0 || px.from.scaleY !== 1) rdBad.push('planFocusPush(false) rule does not grow on scaleX only (the shipped plan)');
+  if (!py || py.from.scaleY !== 0 || py.from.scaleX !== 1) rdBad.push("planFocusPush(false, 'y') rule does not grow on scaleY only");
+  if (px && py && (px.delayMs !== py.delayMs || px.durationMs !== py.durationMs || px.kind !== py.kind)) rdBad.push('the vertical rule has different timing from the horizontal one');
+  const ry = K.planFocusPush(true, 'y');
+  const yProblems = K.reducedProblems(ry).concat(K.sameEnd(K.planFocusPush(false, 'y'), ry));
+  if (yProblems.length) rdBad.push(`the vertical rule's Reduce Motion plan: ${yProblems.join('; ')}`);
+  const fp = src('components/motion/kit/FocusPush.ts');
+  if (!/const axis = opts\.axis \?\? 'y'/.test(fp)) rdBad.push("FocusPush's scroll axis default is no longer 'y' (shipped callers pass { axis } as the SCROLL axis)");
+  if (!/opts\.ruleAxis === 'y' \? 'y' : 'x'/.test(fp)) rdBad.push("FocusPush's ruleAxis does not default to 'x'");
+  if (!/planFocusPush\(\s*reduce\s*,\s*ruleAxis\s*\)/.test(fp)) rdBad.push('FocusPush does not read its plan for the rule axis');
+  if (!/draw\.scaleKey === 'scaleY' \? \{ scaleY: v \} : \{ scaleX: v \}/.test(fp) || !/transformOrigin:\s*draw\.origin/.test(fp)) rdBad.push("FocusPush's native rule does not take its scale key / transformOrigin from ruleDraw");
+  if (!/kitWebStyle\(\s*draw\.web\s*,/.test(fp)) rdBad.push("FocusPush's web rule does not take its keyframe from ruleDraw");
+  const kc = src('components/motion/kit/css/kitCss.ts');
+  if (!/drawT:\s*entry\(\{\s*transform:\s*'scaleY\(0\)'\s*\},\s*'240ms',\s*KIT_WEB\.easeOut,\s*\{\s*transformOrigin:\s*'top'\s*\}\)/.test(kc)) rdBad.push("kitCss has no drawT: scaleY(0) → none over 240 ms from transformOrigin 'top'");
+  if (!/drawL:\s*entry\(\{\s*transform:\s*'scaleX\(0\)'\s*\},\s*'240ms',\s*KIT_WEB\.easeOut,\s*\{\s*transformOrigin:\s*'left'\s*\}\)/.test(kc)) rdBad.push('kitCss drawL changed');
+  ok("K7.3 useFocusPush ruleAxis: 'x' (default) scaleX from the left / drawL, 'y' scaleY from the top / drawT; the same timing; a clean Reduce Motion plan; the scroll axis keeps its 'y' default",
+    rdBad.length === 0, rdBad.join('\n'));
 
   finish();
 }
