@@ -31,8 +31,14 @@ import {
   FIRST_SCREEN_CAP_MS, isFirstScreenShown, subscribeFirstScreen, releaseFirstScreen,
   setAfterInteractionsScheduler, __resetFirstScreenSignalForTests,
 } from '@/hooks/useAfterFirstScreen';
+import {
+  recordBootPhase, bootPhaseProps, summarizeBootPhases,
+  type BootPhase, type BootPhaseMarks,
+} from '@/utils/bootGate';
 
 export { FIRST_SCREEN_CAP_MS, isFirstScreenShown, subscribeFirstScreen };
+export { BOOT_PHASES, summarizeBootPhases, bootPhasesSnapshot, bootPhaseProps } from '@/utils/bootGate';
+export type { BootPhase, BootPhaseMarks } from '@/utils/bootGate';
 
 /**
  * The owned contexts whose FIRST load waits for the first-screen signal.
@@ -113,6 +119,34 @@ export function restoredFromDeviceThisLaunch(): boolean {
   return restoredQueryCount > 0;
 }
 
+// ── Boot phase marks (lane INSTANTOPEN M1) ───────────────────────────────────
+// Where the launch spends its time, per phase, on the same clock and basis as
+// the first-screen number. app/_layout.tsx marks auth / routing / settings /
+// projects / fonts / native splash / boot_ready / splash_done; markFirstUseful
+// marks first_useful. First call per phase per launch wins. A phase that did
+// not happen this launch is absent from the event, never 0.
+const bootMarks: BootPhaseMarks = {};
+
+function webPerformanceMark(phase: BootPhase): void {
+  if (Platform.OS !== 'web') return;
+  try {
+    const perf = (globalThis as unknown as { performance?: { mark?: (name: string) => unknown } }).performance;
+    if (perf && typeof perf.mark === 'function') perf.mark(`mage:boot:${phase}`);
+  } catch { /* a missing or throwing User Timing API never breaks the launch */ }
+}
+
+/** Records how long after the clock's zero this phase was reached. Once per phase per launch. */
+export function markBootPhase(phase: BootPhase): void {
+  if (bootMarks[phase] !== undefined) return;
+  try {
+    const clock = currentClock();
+    if (!recordBootPhase(bootMarks, phase, Math.max(0, Math.round(clock.now - clock.start)))) return;
+  } catch {
+    return; // no clock, no number — absent, never made up
+  }
+  webPerformanceMark(phase);
+}
+
 // ── The measurement ──────────────────────────────────────────────────────────
 export const FIRST_SCREEN_EVENT = 'app_first_screen';
 let firstUsefulRecorded = false;
@@ -131,6 +165,7 @@ export function markFirstUseful(screen: string, opts?: { restoredFromDevice?: bo
   const clock = currentClock();
   const ms = Math.max(0, Math.round(clock.now - clock.start));
   const restored = opts?.restoredFromDevice ?? restoredFromDeviceThisLaunch();
+  if (recordBootPhase(bootMarks, 'first_useful', ms)) webPerformanceMark('first_useful');
   const props = {
     ms,
     basis: clock.basis,
@@ -138,8 +173,14 @@ export function markFirstUseful(screen: string, opts?: { restoredFromDevice?: bo
     screen,
     restored_from_device: restored,
     deferred_count: DEFERRED_CONTEXTS.length,
+    // phase_<phase>: ms for each boot phase reached so far (flat: the event's
+    // properties are scalars). An absent phase is absent, never 0.
+    ...bootPhaseProps(bootMarks),
   };
   track(FIRST_SCREEN_EVENT, props);
+  // One line a --no-dev Metro run (or the browser console) shows: phase names
+  // and numbers only, no PII.
+  console.info(`[boot] ${summarizeBootPhases(bootMarks, clock.basis)}`);
   try {
     if (typeof Sentry.addBreadcrumb === 'function') {
       Sentry.addBreadcrumb({ category: 'startup', message: FIRST_SCREEN_EVENT, level: 'info', data: props });
@@ -152,4 +193,5 @@ export function __resetStartupTimingForTests(): void {
   __resetFirstScreenSignalForTests();
   restoredQueryCount = 0;
   firstUsefulRecorded = false;
+  for (const k of Object.keys(bootMarks)) delete bootMarks[k as BootPhase];
 }
