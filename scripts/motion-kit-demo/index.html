@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion kit demo</title>
+<!-- LOCAL ONLY (lane MOTIONKIT): every data-mk pattern of marketing/assets/motion-kit.{js,css}.
+     Never deployed, linked from nothing. Run `bunx serve .` from the repo root and open
+     /scripts/motion-kit-demo/. It is also the fixture of __tests__/web/motion-kit-marketing.webtest.ts. -->
+<link rel="stylesheet" href="/marketing/assets/motion-kit.css">
+<style>
+  :root { --ground: #ECEDE9; --ink: #12171C; --muted: #5C6673; --line: #D7DAD4; --card: #FFFFFF; --brand: #2F6B3A; --ok: #12806E; }
+  @media (prefers-color-scheme: dark) { :root { --ground: #151816; --ink: #F4EFE6; --muted: #A7AFA8; --line: #2C312D; --card: #1D211E; --brand: #5DB36E; --ok: #3FB39E; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 16px/1.5 "Barlow", system-ui, -apple-system, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 0 16px 40vh; }
+  header { min-height: 92vh; display: flex; flex-direction: column; justify-content: center; }
+  h1 { font-size: 40px; line-height: 1.1; margin: 0 0 12px; }
+  h2 { font-size: 13px; letter-spacing: .02em; color: var(--muted); font-weight: 600; margin: 72px 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .bubble { margin-left: auto; max-width: 70%; background: var(--line); border-radius: 18px; padding: 10px 14px; width: fit-content; }
+  .think { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; }
+  .dots { display: flex; gap: 5px; } .dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--muted); display: block; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+  .check { width: 14px; height: 14px; border-radius: 7px; background: var(--ok); flex: none; margin-top: 5px; }
+  .tick { display: flex; gap: 10px; padding: 8px 0; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .range { position: relative; padding-top: 18px; }
+  .track { height: 2px; background: var(--line); }
+  .mark { position: absolute; top: 13px; width: 12px; height: 12px; border-radius: 6px; background: var(--brand); }
+  .labels { display: flex; justify-content: space-between; margin-top: 8px; }
+  .files { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: center; }
+  .doc { height: 56px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); display: grid; place-items: center; font-size: 12px; }
+  .doc[data-mk-more]::after { padding: 0 6px; border-radius: 9px; font-size: 11px; line-height: 18px; background: var(--brand); color: var(--card); }
+  .folder { grid-column: 4; grid-row: 1 / span 2; height: 90px; border: 2px solid var(--brand); border-radius: 10px; display: grid; place-items: center; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; --mk-accent: var(--brand); }
+  .side { display: grid; grid-template-columns: 180px 1fr; gap: 24px; }
+  .side nav { position: sticky; top: 24px; align-self: start; display: grid; gap: 4px; position: relative; }
+  .side nav a { color: var(--ink); text-decoration: none; padding: 6px 10px; display: block; }
+  .marker { position: absolute; left: 0; top: 0; width: 2px; height: 36px; background: var(--brand); }
+  .side section { min-height: 40vh; }
+  .stack .card { min-height: 120px; }
+  .frame { max-width: 600px; display: grid; gap: 8px; }
+  .tags { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+  .matrix { overflow-x: auto; }
+  .matrix table { border-collapse: collapse; min-width: 900px; }
+  .matrix td { padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  footer { margin-top: 72px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Motion kit</h1>
+    <p class="muted">Every pattern of the MAGE ID marketing motion kit, on sample content. Scroll down: each group plays once when it comes into view, and anything already on screen never moves. With Reduce Motion on, every group simply shows its final state.</p>
+    <div data-mk="rise" id="above-fold" class="card">Above the fold: this card never animates.</div>
+  </header>
+
+  <h2>Sequential list</h2>
+  <div data-mk="list" id="list" class="card">
+    <div data-mk-item class="row"><span>Daily report 1</span><span class="muted">Concrete pour</span></div>
+    <div data-mk-item class="row"><span>Daily report 2</span><span class="muted">Framing, 2nd floor</span></div>
+    <div data-mk-item class="row"><span>Daily report 3</span><span class="muted">Inspection passed</span></div>
+    <div data-mk-item class="row"><span>Daily report 4</span><span class="muted">Rain, no work</span></div>
+    <div data-mk-item class="row"><span>Daily report 5</span><span class="muted">Drywall delivered</span></div>
+    <div data-mk-item class="row"><span>Daily report 6</span><span class="muted">Crew of 6</span></div>
+    <div data-mk-item class="row"><span>Daily report 7</span><span class="muted">Electrical rough-in</span></div>
+    <div data-mk-item class="row"><span>Daily report 8</span><span class="muted">Plumbing rough-in</span></div>
+    <div data-mk-item class="row"><span>Daily report 9</span><span class="muted">Insulation</span></div>
+    <div data-mk-item class="row"><span>Daily report 10</span><span class="muted">Board hung</span></div>
+    <div data-mk-item class="row"><span>Daily report 11</span><span class="muted">Taping</span></div>
+    <div data-mk-item class="row"><span>Daily report 12</span><span class="muted">Primer</span></div>
+    <div data-mk-item class="row"><span>Daily report 13</span><span class="muted">Trim</span></div>
+    <div data-mk-item class="row"><span>Daily report 14</span><span class="muted">Paint</span></div>
+    <div data-mk-item class="row"><span>Daily report 15</span><span class="muted">Flooring</span></div>
+    <div data-mk-item class="row"><span>Daily report 16</span><span class="muted">Fixtures</span></div>
+    <div data-mk-item class="row"><span>Daily report 17</span><span class="muted">Punch walk</span></div>
+    <div data-mk-item class="row"><span>Daily report 18</span><span class="muted">Punch closed</span></div>
+    <div data-mk-item class="row"><span>Daily report 19</span><span class="muted">Final inspection</span></div>
+    <div data-mk-item class="row"><span>Daily report 20</span><span class="muted">Handover</span></div>
+  </div>
+
+  <h2>Chat (Example)</h2>
+  <div data-mk="chat" id="chat" class="card">
+    <div data-mk-q class="bubble">Which RFIs are late?</div>
+    <div data-mk-slot>
+      <div data-mk-think class="think"><span class="dots"><i data-mk-dot></i><i data-mk-dot></i><i data-mk-dot></i></span>Reading your records</div>
+      <div data-mk-a>Two RFIs are past due: RFI-014 (stair rail detail) and RFI-019 (roof drain size).</div>
+    </div>
+    <div class="chips"><span data-mk-chip class="chip">RFI-014</span><span data-mk-chip class="chip">RFI-019</span></div>
+  </div>
+
+  <h2>Checklist</h2>
+  <div data-mk="checklist" id="checklist" class="card">
+    <div data-mk-row class="tick"><span data-mk-check class="check"></span><span>Footing inspection passed</span></div>
+    <div data-mk-row class="tick"><span data-mk-check class="check"></span><span>Rebar photos uploaded</span></div>
+    <div data-mk-row class="tick"><span data-mk-check class="check"></span><span>Pour scheduled for Thursday</span></div>
+  </div>
+
+  <h2>Accumulating cards</h2>
+  <div data-mk="accumulate" id="accumulate" class="card">
+    <div data-mk-card data-mk-cents="140000" class="row"><span>Rotted sill plate</span><span class="num">$1,400</span></div>
+    <div data-mk-card data-mk-cents="82000" class="row"><span>Knob-and-tube wiring</span><span class="num">$820</span></div>
+    <div data-mk-card data-mk-cents="61000" class="row"><span>Cast-iron drain</span><span class="num">$610</span></div>
+    <div class="row"><span>Contingency</span><span data-mk-count class="num">$2,830 protected</span></div>
+    <div data-mk-badge class="muted">3 conditions priced from your past projects</div>
+  </div>
+
+  <h2>Range</h2>
+  <div data-mk="range" id="range" class="card range">
+    <div data-mk-track class="track"></div>
+    <div data-mk-mark class="mark" style="left: calc(46% - 6px)"></div>
+    <div class="labels"><span data-mk-low class="num">$18,400</span><span data-mk-high class="num">$23,100</span></div>
+  </div>
+
+  <h2>Filing</h2>
+  <div data-mk="file" id="file" class="card files">
+    <div data-mk-doc class="doc">Permit</div>
+    <div data-mk-doc class="doc">Inspection</div>
+    <div data-mk-doc class="doc">Photo log</div>
+    <div data-mk-doc class="doc">Lien waiver</div>
+    <div data-mk-folder class="folder">Inspections</div>
+  </div>
+
+  <h2>Priority grid</h2>
+  <div data-mk="priority" id="priority" class="grid">
+    <div data-mk-cell class="card">Open RFIs <b>3</b></div>
+    <div data-mk-cell class="card">Punch items <b>12</b></div>
+    <div data-mk-cell data-mk-priority class="card">Overdue invoices <b>1</b></div>
+    <div data-mk-cell class="card">Inspections this week <b>2</b></div>
+  </div>
+
+  <h2>Focus sidebar (desktop ≥ 1024 px)</h2>
+  <div data-mk="focus-sidebar" id="sidebar" class="side">
+    <nav><span data-mk-marker class="marker"></span><a data-mk-nav href="#s-estimate">Estimate</a><a data-mk-nav href="#s-schedule">Schedule</a><a data-mk-nav href="#s-punch">Punch</a></nav>
+    <div>
+      <section data-mk-section id="s-estimate"><b>Estimate</b><p class="muted">Priced from your own past projects.</p></section>
+      <section data-mk-section id="s-schedule"><b>Schedule</b><p class="muted">The critical path, highlighted.</p></section>
+      <section data-mk-section id="s-punch"><b>Punch</b><p class="muted">Photo-first punch tracking.</p></section>
+    </div>
+  </div>
+
+  <h2>Stack</h2>
+  <div data-mk="stack" id="stack" class="stack">
+    <div data-mk-chapter class="card"><b>02</b> Schedule</div>
+    <div data-mk-card class="card">Baseline set</div>
+    <div data-mk-card class="card">Critical path</div>
+    <div data-mk-card class="card">Weather days</div>
+    <button data-mk-next type="button">Next card</button>
+  </div>
+
+  <h2>Focus push</h2>
+  <div data-mk="focus-push" id="focus-push">
+    <div data-mk-headings><b data-mk-heading>The whole roadmap</b><b data-mk-heading-to>Start here: permits</b></div>
+    <div data-mk-frame class="frame">
+      <div class="card">Design</div>
+      <div data-mk-focus class="card">Permits</div>
+      <div class="card">Build</div>
+    </div>
+  </div>
+
+  <h2>Corner tags</h2>
+  <div data-mk="corner-tags" id="tags" class="tags">
+    <span data-mk-tag="tl" class="muted">Permit filed</span><span></span><span data-mk-tag="tr" class="muted">Sample project</span>
+    <span></span><b data-mk-center>Kitchen remodel, 4th floor</b><span></span>
+    <span data-mk-tag="bl" class="muted">2 open RFIs</span><span></span><span data-mk-tag="br" class="muted">14 days left</span>
+  </div>
+
+  <h2>Matrix</h2>
+  <div data-mk="matrix" id="matrix" class="card">
+    <div data-mk-track class="matrix"><table>
+      <tr data-mk-row><td data-mk-label>Concrete</td><td data-mk-evidence>$48,200 · includes pump</td><td data-mk-evidence>$51,900 · pump extra</td></tr>
+      <tr data-mk-row><td data-mk-label>Framing</td><td data-mk-evidence>$91,500 · lumber at today's price</td><td data-mk-evidence>$88,000 · price held 10 days</td></tr>
+      <tr data-mk-row><td data-mk-label>Drywall</td><td data-mk-evidence>$22,750 · level 4</td><td data-mk-evidence>$24,100 · level 5</td></tr>
+    </table></div>
+  </div>
+
+  <footer>Sample project · local demo of marketing/assets/motion-kit.js — not part of the site.</footer>
+</main>
+<script src="/marketing/assets/motion-kit.js" defer></script>
+</body>
+</html>
