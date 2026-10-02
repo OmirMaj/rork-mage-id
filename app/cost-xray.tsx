@@ -19,9 +19,10 @@
 // Pure pricing lives in utils/costXray; detection is server-side. Business
 // tier; OTA-safe (no new native modules).
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform, Animated,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -67,7 +68,9 @@ import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { ActionBar, ActionBarReadout, ChipRail, TileGrid, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { describeError } from '@/utils/errorCopy';
-import { useStagger } from '@/components/motion/kit';
+import { useAccumulate } from '@/components/motion/kit';
+import { xrayAccumulateCents, xrayAccumulateTotalCents } from '@/utils/costXrayAccumulate';
+import { t } from '@/i18n/core';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -121,6 +124,13 @@ const RATE_BASIS_LABEL: Record<PricedTell['rateBasis'], string> = {
 };
 
 const MAX_PHOTOS = 8;
+/** Where C1's amount sits in the translated sentence (the amount is a CountRoll node). */
+const WALK_SLOT = '\u0001';
+/** C1, split around its {amount}: the words before and after the rolling figure. */
+function walkPricedParts(): [string, string] {
+  const [before, after = ''] = t('money.costXray.walkPricedTotal', 'Priced on your costs: {amount} expected', { amount: WALK_SLOT }).split(WALK_SLOT);
+  return [before, after];
+}
 // Must match the server-side MAX_INLINE_BYTES_TOTAL in analyze-photos edge fn.
 const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
@@ -203,12 +213,13 @@ export default function CostXrayScreen() {
   const [pending, setPending] = useState(false); // detection failed on connectivity
   const [reviews, setReviews] = useState<ReviewTell[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  // B7 (lane MOTIONADOPT-B): after the photos are analysed, "what the walk
-  // found" lays down card by card in reading order (first 8). Wrapper-free
-  // (TileGrid clones its direct children on desktop). First analysis per
-  // visit only — useStagger arms once per mount.
+  // B7 (lane MOTIONADOPT-B) → AD15 (lane ADOPT2): after the photos are
+  // analysed, "what the walk found" lands card by card (useAccumulate, below)
+  // while the walk's priced total steps through the cards' own cents. Armed
+  // only by a live analysis, never by a re-render. xrayRun counts analyses so
+  // each one's total rolls through its own steps.
   const [reviewsLive, setReviewsLive] = useState(false);
-  const tellStagger = useStagger({ armed: reviewsLive, count: reviews.length });
+  const [xrayRun, setXrayRun] = useState(0);
 
   const resetScan = useCallback(() => {
     setReviews([]);
@@ -340,6 +351,7 @@ export default function CostXrayScreen() {
         });
       }
       if (built.length > 0) setReviewsLive(true);
+      if (built.length > 0) setXrayRun((n) => n + 1);
       setReviews(built);
       if (built.length === 0) {
         setError('No hidden conditions detected in these shots. For better results, try a closer shot of the panel edges, look for water staining on the basement wall, or shoot in brighter light — then scan again.');
@@ -502,6 +514,149 @@ export default function CostXrayScreen() {
   // Desktop (wave 6c): the pre-result blocks sit in the 760 form column, the
   // tells tile three across, and the apply bar lines up with the page.
   const isDesktop = useIsDesktop();
+
+  // AD15 (lane ADOPT2): one card per tell, rendered by the kit's useAccumulate
+  // so it lands straight in the TileGrid (no wrapper) with its entrance style.
+  const renderTell = (r: ReviewTell, enter: ViewStyle | null) => {
+    const Icon = CAT_ICON[r.category];
+    const band = effectiveBand(r);
+    const isEditing = editingId === r.id;
+    const rejected = r.status === 'rejected';
+    return (
+      <Animated.View style={[styles.tellCard, rejected && styles.tellCardRejected, r.status === 'accepted' && styles.tellCardAccepted, enter]}>
+        {/* Source photo with bbox */}
+        <View style={styles.tellPhotoWrap}>
+          <Image source={{ uri: r.sourcePhotoUri }} style={styles.tellPhoto} resizeMode="cover" />
+          <View
+            pointerEvents="none"
+            style={[styles.bbox, {
+              left: `${Math.max(0, Math.min(1, r.tell.bbox.x)) * 100}%`,
+              top: `${Math.max(0, Math.min(1, r.tell.bbox.y)) * 100}%`,
+              width: `${Math.max(0, Math.min(1, r.tell.bbox.w)) * 100}%`,
+              height: `${Math.max(0, Math.min(1, r.tell.bbox.h)) * 100}%`,
+            }]}
+          />
+        </View>
+
+        <View style={styles.tellBody}>
+          <View style={styles.tellHeadRow}>
+            <Icon size={16} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.tellName} numberOfLines={2}>{r.tell.tell}</Text>
+          </View>
+
+          <View style={styles.chipsRow}>
+            <View style={styles.metaChip}><Text style={styles.metaChipText}>{CAT_LABEL[r.category]}</Text></View>
+            <View style={[styles.metaChip, r.tell.severity === 'high' && styles.sevHigh]}>
+              <Text style={[styles.metaChipText, r.tell.severity === 'high' && styles.sevHighText]}>{r.tell.severity === 'med' ? 'medium' : r.tell.severity} severity</Text>
+            </View>
+            <View style={styles.metaChip}><Text style={styles.metaChipText}>{Math.round(r.tell.confidence)}% sure</Text></View>
+          </View>
+
+          {r.route === 'price' ? (
+            <>
+              <Text style={styles.rationale}>
+                {r.tell.likelihood}% likely to need work · priced off {RATE_BASIS_LABEL[r.rateBasis]}.
+              </Text>
+              <View style={styles.bandRow}>
+                <Text style={styles.bandExpected}>{formatMoney(band.expected)}</Text>
+                <Text style={styles.bandRange}>range {formatMoney(band.low)}–{formatMoney(band.high)}</Text>
+              </View>
+              {isEditing && (
+                <View style={styles.editRow}>
+                  <View style={styles.editCol}>
+                    <Text style={styles.editLabel}>Qty</Text>
+                    <TextInput
+                      value={String(r.qty)}
+                      onChangeText={v => patchReview(r.id, { qty: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
+                      keyboardType="decimal-pad"
+                      style={[styles.editField, isDesktop && styles.editFieldDesktop]}
+                    />
+                  </View>
+                  <View style={styles.editCol}>
+                    <Text style={styles.editLabel}>$/unit</Text>
+                    <TextInput
+                      value={String(r.unitPrice)}
+                      onChangeText={v => patchReview(r.id, { unitPrice: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
+                      keyboardType="decimal-pad"
+                      style={[styles.editField, isDesktop && styles.editFieldDesktop]}
+                    />
+                  </View>
+                  <View style={[styles.editCol, { alignItems: 'flex-end' }]}>
+                    <Text style={styles.editLabel}>Allowance</Text>
+                    <Text style={styles.editResult}>{formatMoney(band.expected)}</Text>
+                  </View>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.verifyRow}>
+              <ShieldAlert size={14} color={t.accentHot} strokeWidth={1.75} />
+              <Text style={styles.verifyText}>
+                {verifyOnlyReason(r.tell) === 'no-likelihood'
+                  ? 'Field-verify only — no likelihood came back for this tell, so there is nothing to weight an allowance against. It becomes a task, not a line.'
+                  : 'Field-verify only — confidence too low to price. It becomes a task, not a line.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Actions */}
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, r.status === 'accepted' && styles.actionAccepted]}
+              onPress={() => patchReview(r.id, { status: r.status === 'accepted' ? 'pending' : 'accepted' })}
+              activeOpacity={0.85}
+            >
+              <Check size={14} color={r.status === 'accepted' ? Colors.textOnAccent : t.success} strokeWidth={2} />
+              <Text style={[styles.actionText, r.status === 'accepted' && styles.actionTextOn]}>{r.status === 'accepted' ? 'Accepted' : 'Accept'}</Text>
+            </TouchableOpacity>
+
+            {r.route === 'price' && (
+              <TouchableOpacity
+                style={[styles.actionBtn, isEditing && styles.actionEditing]}
+                onPress={() => setEditingId(isEditing ? null : r.id)}
+                activeOpacity={0.85}
+              >
+                <Pencil size={14} color={isEditing ? t.accent : t.textSecondary} strokeWidth={1.75} />
+                <Text style={[styles.actionText, isEditing && { color: t.accent }]}>{isEditing ? 'Done' : 'Edit'}</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.actionBtn, rejected && styles.actionRejected]}
+              onPress={() => patchReview(r.id, { status: rejected ? 'pending' : 'rejected' })}
+              activeOpacity={0.85}
+            >
+              <X size={14} color={rejected ? Colors.textOnAccent : t.textSecondary} strokeWidth={2} />
+              <Text style={[styles.actionText, rejected && styles.actionTextOn]}>{rejected ? 'Rejected' : 'Reject'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  // The walk's priced total (C1): the sum of the cards' expected amounts in
+  // integer cents (price-routed tells only; a verify-only tell was not
+  // priced). It is what the walk PRICED, never what was added — the
+  // accepted-contingency readout in the apply bar stays the record of that.
+  const xrayCents = xrayAccumulateCents(reviews.map((r) => ({ id: r.id, route: r.route, band: effectiveBand(r) })));
+  const walkPricedCents = xrayAccumulateTotalCents(xrayCents);
+  const formatCents = useCallback((c: number) => formatMoney(c / 100), []);
+  const xrayAcc = useAccumulate({
+    items: reviews.map((r, i) => ({ key: r.id, cents: xrayCents[i].cents, render: (enter: ViewStyle | null) => renderTell(r, enter) })),
+    armed: reviewsLive,
+    format: formatCents,
+    totalStyle: styles.walkTotalAmount,
+  });
+  // The roll steps through the sums it was armed with. Once he edits a qty or
+  // a rate the live sum moves on, so the figure shown is the live one (no
+  // replay): the number on screen is always the cards' current sum.
+  const rolledFor = useRef<{ run: number; cents: number } | null>(null);
+  if (reviewsLive && rolledFor.current?.run !== xrayRun) rolledFor.current = { run: xrayRun, cents: walkPricedCents };
+  const walkTotalNode = rolledFor.current && rolledFor.current.cents !== walkPricedCents
+    ? <Text style={styles.walkTotalAmount}>{formatCents(walkPricedCents)}</Text>
+    : xrayAcc.total;
+  const [walkBefore, walkAfter] = walkPricedParts();
 
   if (locked) {
     return (
@@ -694,124 +849,16 @@ export default function CostXrayScreen() {
                 : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines — build one first.'}
             </Text>
 
+            {walkPricedCents > 0 && (
+              <View key={`walk-total-${xrayRun}`} style={styles.walkTotalRow} testID="xray-walk-priced-total">
+                {walkBefore ? <Text style={styles.walkTotalLabel}>{walkBefore}</Text> : null}
+                {walkTotalNode}
+                {walkAfter ? <Text style={styles.walkTotalLabel}>{walkAfter}</Text> : null}
+              </View>
+            )}
+
             <TileGrid preset="content" phoneStyle={undefined}>
-            {reviews.map((r, i) => {
-              const Icon = CAT_ICON[r.category];
-              const band = effectiveBand(r);
-              const isEditing = editingId === r.id;
-              const rejected = r.status === 'rejected';
-              return (
-                <Animated.View key={r.id} style={[styles.tellCard, rejected && styles.tellCardRejected, r.status === 'accepted' && styles.tellCardAccepted, tellStagger(i)]}>
-                  {/* Source photo with bbox */}
-                  <View style={styles.tellPhotoWrap}>
-                    <Image source={{ uri: r.sourcePhotoUri }} style={styles.tellPhoto} resizeMode="cover" />
-                    <View
-                      pointerEvents="none"
-                      style={[styles.bbox, {
-                        left: `${Math.max(0, Math.min(1, r.tell.bbox.x)) * 100}%`,
-                        top: `${Math.max(0, Math.min(1, r.tell.bbox.y)) * 100}%`,
-                        width: `${Math.max(0, Math.min(1, r.tell.bbox.w)) * 100}%`,
-                        height: `${Math.max(0, Math.min(1, r.tell.bbox.h)) * 100}%`,
-                      }]}
-                    />
-                  </View>
-
-                  <View style={styles.tellBody}>
-                    <View style={styles.tellHeadRow}>
-                      <Icon size={16} color={t.accent} strokeWidth={1.75} />
-                      <Text style={styles.tellName} numberOfLines={2}>{r.tell.tell}</Text>
-                    </View>
-
-                    <View style={styles.chipsRow}>
-                      <View style={styles.metaChip}><Text style={styles.metaChipText}>{CAT_LABEL[r.category]}</Text></View>
-                      <View style={[styles.metaChip, r.tell.severity === 'high' && styles.sevHigh]}>
-                        <Text style={[styles.metaChipText, r.tell.severity === 'high' && styles.sevHighText]}>{r.tell.severity === 'med' ? 'medium' : r.tell.severity} severity</Text>
-                      </View>
-                      <View style={styles.metaChip}><Text style={styles.metaChipText}>{Math.round(r.tell.confidence)}% sure</Text></View>
-                    </View>
-
-                    {r.route === 'price' ? (
-                      <>
-                        <Text style={styles.rationale}>
-                          {r.tell.likelihood}% likely to need work · priced off {RATE_BASIS_LABEL[r.rateBasis]}.
-                        </Text>
-                        <View style={styles.bandRow}>
-                          <Text style={styles.bandExpected}>{formatMoney(band.expected)}</Text>
-                          <Text style={styles.bandRange}>range {formatMoney(band.low)}–{formatMoney(band.high)}</Text>
-                        </View>
-                        {isEditing && (
-                          <View style={styles.editRow}>
-                            <View style={styles.editCol}>
-                              <Text style={styles.editLabel}>Qty</Text>
-                              <TextInput
-                                value={String(r.qty)}
-                                onChangeText={v => patchReview(r.id, { qty: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
-                                keyboardType="decimal-pad"
-                                style={[styles.editField, isDesktop && styles.editFieldDesktop]}
-                              />
-                            </View>
-                            <View style={styles.editCol}>
-                              <Text style={styles.editLabel}>$/unit</Text>
-                              <TextInput
-                                value={String(r.unitPrice)}
-                                onChangeText={v => patchReview(r.id, { unitPrice: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
-                                keyboardType="decimal-pad"
-                                style={[styles.editField, isDesktop && styles.editFieldDesktop]}
-                              />
-                            </View>
-                            <View style={[styles.editCol, { alignItems: 'flex-end' }]}>
-                              <Text style={styles.editLabel}>Allowance</Text>
-                              <Text style={styles.editResult}>{formatMoney(band.expected)}</Text>
-                            </View>
-                          </View>
-                        )}
-                      </>
-                    ) : (
-                      <View style={styles.verifyRow}>
-                        <ShieldAlert size={14} color={t.accentHot} strokeWidth={1.75} />
-                        <Text style={styles.verifyText}>
-                          {verifyOnlyReason(r.tell) === 'no-likelihood'
-                            ? 'Field-verify only — no likelihood came back for this tell, so there is nothing to weight an allowance against. It becomes a task, not a line.'
-                            : 'Field-verify only — confidence too low to price. It becomes a task, not a line.'}
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Actions */}
-                    <View style={styles.actionsRow}>
-                      <TouchableOpacity
-                        style={[styles.actionBtn, r.status === 'accepted' && styles.actionAccepted]}
-                        onPress={() => patchReview(r.id, { status: r.status === 'accepted' ? 'pending' : 'accepted' })}
-                        activeOpacity={0.85}
-                      >
-                        <Check size={14} color={r.status === 'accepted' ? Colors.textOnAccent : t.success} strokeWidth={2} />
-                        <Text style={[styles.actionText, r.status === 'accepted' && styles.actionTextOn]}>{r.status === 'accepted' ? 'Accepted' : 'Accept'}</Text>
-                      </TouchableOpacity>
-
-                      {r.route === 'price' && (
-                        <TouchableOpacity
-                          style={[styles.actionBtn, isEditing && styles.actionEditing]}
-                          onPress={() => setEditingId(isEditing ? null : r.id)}
-                          activeOpacity={0.85}
-                        >
-                          <Pencil size={14} color={isEditing ? t.accent : t.textSecondary} strokeWidth={1.75} />
-                          <Text style={[styles.actionText, isEditing && { color: t.accent }]}>{isEditing ? 'Done' : 'Edit'}</Text>
-                        </TouchableOpacity>
-                      )}
-
-                      <TouchableOpacity
-                        style={[styles.actionBtn, rejected && styles.actionRejected]}
-                        onPress={() => patchReview(r.id, { status: rejected ? 'pending' : 'rejected' })}
-                        activeOpacity={0.85}
-                      >
-                        <X size={14} color={rejected ? Colors.textOnAccent : t.textSecondary} strokeWidth={2} />
-                        <Text style={[styles.actionText, rejected && styles.actionTextOn]}>{rejected ? 'Rejected' : 'Reject'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </Animated.View>
-              );
-            })}
+            {xrayAcc.cards}
             </TileGrid>
           </View>
         )}
@@ -917,6 +964,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 4, marginTop: 4 },
   sectionSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18, marginBottom: 14 },
+  walkTotalRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'baseline' as const, columnGap: 4, marginBottom: 12 },
+  walkTotalLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
+  walkTotalAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text, lineHeight: 18 },
 
   tellCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, marginBottom: 12, overflow: 'hidden' as const },
   tellCardAccepted: { borderColor: t.success },

@@ -170,7 +170,7 @@ async function main() {
     ['B4', 'sidebar', ['FocusMarker']],
     ['B5', 'briefing', ['useStagger']],
     ['B6', 'verdict', ['RangeSettle', 'useStagger']],
-    ['B7', 'xray', ['useStagger']],
+    ['B7', 'xray', ['useAccumulate']],
   ];
   for (const [row, f, names] of sites) {
     if (!shipped(row)) continue;
@@ -319,7 +319,7 @@ async function main() {
   }
 
   // ── VB7 caps and scroll ──────────────────────────────────────────────────
-  const KIT_NAMES = /\b(useStagger|useCheckBeat|AccumulateCards|PriorityGrid|FocusMarker|RangeSettle|StaggerList|CheckSync|CountRoll)\b|\bstagger\(|tellStagger\(/;
+  const KIT_NAMES = /\b(useStagger|useCheckBeat|AccumulateCards|PriorityGrid|FocusMarker|RangeSettle|StaggerList|CheckSync|CountRoll|useAccumulate|useFileInto|useFocusPush)\b|\bstagger\(|tellStagger\(/;
   for (const rel of OWNED) {
     const src = code(rel);
     const caps = [...src.matchAll(/\bcap\s*[:=]\s*\{?\s*(\d+)/g)].map((m) => Number(m[1]));

@@ -1063,10 +1063,20 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     }
     hScrollRef.current?.scrollTo({ x: 0, animated: true });
   }, [fitViewportW, cpm.projectFinish, preview?.finishAfter]);
+  // AD21 (lane ADOPT2): Today scrolls through the motion kit's focus push on
+  // the horizontal axis, and once the scroll settles the today line draws
+  // itself top to bottom (ruleAxis 'y'). The inset keeps the same lead-in as
+  // before: the scroll stops two days before today's column, i.e. at day
+  // (today − 3)·pxPerDay. Nothing at rest: the line's style is null until
+  // Today is tapped. Reduce Motion: the scroll jumps and the line is there.
+  const todayPush = useFocusPush(hScrollRef, { axis: 'x', ruleAxis: 'y', inset: 2 * pxPerDay });
   const scrollToToday = useCallback(() => {
-    const x = Math.max(0, (todayDayNumber - 3) * pxPerDay);
-    hScrollRef.current?.scrollTo({ x, animated: true });
-  }, [todayDayNumber, pxPerDay]);
+    todayPush('today', { x: todayX, y: 0, w: 1.5, h: gridHeight });
+  }, [todayPush, todayX, gridHeight]);
+  // The rule's style while it draws (null at rest). At rest the line stays the
+  // plain View it always was, so nothing at rest changes; while the rule draws
+  // it is an Animated.View carrying the kit's scaleY.
+  const todayRule = todayPush.styleFor('today');
   // Jump to a task (schedule health, search, the Copilot): the motion kit's
   // focus push scrolls there (two rows of context above it; the header is
   // sticky on desktop web) and, once the scroll settles, draws an accent line
@@ -1385,6 +1395,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           contentContainerStyle={{ minWidth: timelineWidth }}
           style={styles.timelineScroll}
           onLayout={onTimelineLayout}
+          onMomentumScrollEnd={todayPush.onScrollSettled}
         >
           <ScrollView
             ref={setVScroll}
@@ -1730,7 +1741,9 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               {/* --- Today line + label pill --- */}
               {todayVisible && (
                 <>
-                  <View style={[styles.todayLine, { left: todayX }, isDesktopWeb && TODAY_LINE_WEB]} />
+                  {todayRule
+                    ? <Animated.View style={[styles.todayLine, { left: todayX }, isDesktopWeb && TODAY_LINE_WEB, todayRule]} />
+                    : <View style={[styles.todayLine, { left: todayX }, isDesktopWeb && TODAY_LINE_WEB]} />}
                   <View style={[styles.todayLabel, { left: todayX }, isDesktopWeb && TODAY_LABEL_WEB]}>
                     {/* Task 6: spec §7.1 pill — white bg, 1px #fecaca border, #ef4444 text.
                         Text is "TODAY" only (no date suffix) to keep the pill compact;
