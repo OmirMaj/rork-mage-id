@@ -47,6 +47,10 @@ import { useCoreData } from '@/contexts/ProjectContext';
 export interface AutonomyPreferences {
   pace_preapply?: boolean;
   leak_draft_co?: boolean;
+  /** Subcontractor ids whose lateness pad suggestions are switched off
+   *  (utils/pace/partyLateness.ts). Absent = suggest for every sub — safe,
+   *  because the pad is only ever offered, never applied on its own. */
+  lateness_pad_off?: string[];
 }
 
 /** Persisted gate pass-state for transition detection (demotion/promotion receipts). */

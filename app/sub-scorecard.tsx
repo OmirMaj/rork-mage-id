@@ -21,6 +21,9 @@ import EmptyState from '@/components/EmptyState';
 import { computeSubScorecards, type SubGrade, type SubScorecard } from '@/utils/subScorecard';
 import { computeSupplierScorecards } from '@/utils/supplierScorecard';
 import { useBackcharges } from '@/hooks/useBackcharges';
+import { useAutonomy } from '@/hooks/useAutonomy';
+import { buildPartyLateness } from '@/utils/pace/partyLateness';
+import { SubLatenessRow } from '@/components/schedule/LatenessPadChip';
 import { backchargesForScorecard } from '@/utils/backchargeRows';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -69,7 +72,7 @@ function SubScorecardInner() {
   // punchItems + projects feed the D7 factors: punch rework (items bounced
   // at review, attributed via assignedSubId) and schedule reliability
   // (as-built vs planned days on tasks assigned to the sub).
-  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis, deliveries, deliveryReceipts } = useProjects();
+  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis, deliveries, deliveryReceipts, contacts, delayEvents } = useProjects();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // "Who is good" covers both who you hire and who you buy from. Suppliers get
   // the same visual language rather than a separate screen, because the GC is
@@ -88,6 +91,23 @@ function SubScorecardInner() {
     () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges }),
     [subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges],
   );
+
+  // "Runs long?" — which subs run over plan, from finished tasks with as-built
+  // dates (utils/pace/partyLateness.ts), and the per-sub switch for the extra-
+  // days suggestion. The switch writes through setPref (offline queue), so it
+  // shows its state and no "saved" toast: the write is queued, not confirmed.
+  const lateness = useMemo(
+    () => buildPartyLateness({ projects, subcontractors, contacts, delayEvents }),
+    [projects, subcontractors, contacts, delayEvents],
+  );
+  const { prefs: autonomyPrefs, setPref } = useAutonomy();
+  const latenessOff = useMemo(() => new Set(autonomyPrefs.lateness_pad_off ?? []), [autonomyPrefs.lateness_pad_off]);
+  const setLatenessSuggest = (subId: string, on: boolean) => {
+    const next = new Set(autonomyPrefs.lateness_pad_off ?? []);
+    if (on) next.delete(subId);
+    else next.add(subId);
+    setPref({ lateness_pad_off: [...next] });
+  };
 
   // Derived entirely from deliveries and receiving inspections already
   // captured — no new input asked of the user, and it backfills across every
@@ -315,6 +335,11 @@ function SubScorecardInner() {
                       </View>
                     );
                   })}
+                  <SubLatenessRow
+                    entry={lateness.get(card.subId)}
+                    suggestOn={!latenessOff.has(card.subId)}
+                    onToggle={(on) => setLatenessSuggest(card.subId, on)}
+                  />
                   <View style={styles.statsRow}>
                     <Text style={styles.statText}>{card.commitmentCount} commitment{card.commitmentCount === 1 ? '' : 's'}</Text>
                     <Text style={styles.statDot}>·</Text>

@@ -135,6 +135,9 @@ import { AnimatedFill } from '@/components/animations/AnimatedFill';
 // Tutorials (schedule-say-it): see the header of utils/tutorial/learn/laneC.ts.
 import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { useTutorialSandboxId } from '@/utils/tutorial/store';
+import { t } from '@/i18n/core';
+import { TaskEditorLatenessPad, LatenessPadNote } from '@/components/schedule/LatenessPadChip';
+import { latenessPadPatch, readLatenessPad, releasePendingPad, type PendingLatenessPad } from '@/utils/pace/partyLateness';
 
 interface TaskDraft {
   title: string;
@@ -159,6 +162,9 @@ interface TaskDraft {
   progress: string;
   assignedSubId: string;
   assignedSubName: string;
+  /** A sub-lateness pad applied in this editor session, not yet saved
+   *  (utils/pace/partyLateness.ts). Absent on EMPTY_DRAFT and on open. */
+  latenessPad?: PendingLatenessPad;
 }
 
 type ScheduleViewMode = 'today' | 'lookahead' | 'board' | 'gantt' | 'resources' | 'summary';
@@ -1318,6 +1324,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           status: nextStatus, progress: progressChanged ? progress : item.progress,
           assignedSubId: draft.assignedSubId || undefined,
           assignedSubName: draft.assignedSubName || undefined,
+          ...latenessPadPatch({
+            stored: readLatenessPad(item), storedDuration: item.durationDays, pending: draft.latenessPad,
+            savedDuration: durationDays, savedSubId: draft.assignedSubId || undefined,
+          }),
         };
         // Calendar-picked start date wins over day-number override.
         if (startDayFromDate !== null) {
@@ -1409,6 +1419,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         isCriticalPath: draft.isCriticalPath, isWeatherSensitive: draft.isWeatherSensitive,
         assignedSubId: draft.assignedSubId || undefined,
         assignedSubName: draft.assignedSubName || undefined,
+        ...latenessPadPatch({ pending: draft.latenessPad, savedDuration: durationDays, savedSubId: draft.assignedSubId || undefined }),
       };
       const currentTasks = sortedTasks.length > 0 ? sortedTasks : [];
       const scheduleName = activeSchedule?.name ?? (selectedProject ? `${selectedProject.name} Schedule` : 'Project Schedule');
@@ -2001,6 +2012,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             </View>
           ) : null}
         </View>
+        {readLatenessPad(task) ? (
+          <LatenessPadNote days={readLatenessPad(task)!.days} subName={task.assignedSubName ?? ''} />
+        ) : null}
 
         <View style={styles.progressRow}>
           <View style={styles.progressTrack}>
@@ -2681,34 +2695,59 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
                 <View style={{ marginTop: 12 }}>
                   <Text style={styles.fieldLabel}>Assign sub</Text>
+                  {/* The Subs list (Subcontractor ids), the key every consumer
+                      scores on: the scorecard, auto-schedule matching, the sub
+                      network, and the lateness pad below. A task picked from
+                      Contacts before this keeps its id, shown as one extra chip,
+                      never rewritten silently. Changing the sub releases a pad
+                      applied in this session. */}
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
                     <TouchableOpacity
                       style={[styles.phaseChip, !taskDraft.assignedSubId && styles.phaseChipActive]}
-                      onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: '', assignedSubName: '' }))}
+                      onPress={() => setTaskDraft(p => ({ ...releasePendingPad(p), assignedSubId: '', assignedSubName: '' }))}
                     >
                       <Text style={[styles.phaseChipText, !taskDraft.assignedSubId && styles.phaseChipTextActive]}>None</Text>
                     </TouchableOpacity>
-                    {contacts.filter(c => c.role === 'Sub').map(sub => {
-                      const displayName = `${sub.firstName} ${sub.lastName}`.trim() || sub.companyName || 'Sub';
+                    {taskDraft.assignedSubId && !subcontractors.some(sub => sub.id === taskDraft.assignedSubId) ? (
+                      <View style={[styles.phaseChip, styles.phaseChipActive]} accessibilityState={{ selected: true }} testID="sub-picker-legacy-contact">
+                        <Text style={[styles.phaseChipText, styles.phaseChipTextActive]} numberOfLines={1}>
+                          {`${taskDraft.assignedSubName || t('schedule.lateness.subFallback', 'Sub')} ${t('schedule.lateness.fromContacts', '(from contacts)')}`}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {subcontractors.map(sub => {
+                      const company = sub.companyName?.trim() || sub.contactName?.trim() || t('schedule.lateness.subFallback', 'Sub');
+                      const label = sub.companyName?.trim() && sub.contactName?.trim() ? `${company} · ${sub.contactName.trim()}` : company;
                       const active = taskDraft.assignedSubId === sub.id;
                       return (
                         <TouchableOpacity
                           key={sub.id}
                           style={[styles.phaseChip, active && styles.phaseChipActive]}
-                          onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: sub.id, assignedSubName: displayName }))}
+                          onPress={() => setTaskDraft(p => (p.assignedSubId === sub.id ? p : { ...releasePendingPad(p), assignedSubId: sub.id, assignedSubName: company }))}
                         >
                           <Text style={[styles.phaseChipText, active && styles.phaseChipTextActive]} numberOfLines={1}>
-                            {displayName}{sub.companyName ? ` · ${sub.companyName}` : ''}
+                            {label}
                           </Text>
                         </TouchableOpacity>
                       );
                     })}
-                    {contacts.filter(c => c.role === 'Sub').length === 0 ? (
+                    {subcontractors.length === 0 ? (
                       <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
-                        No subs in contacts. Add one from the Contacts tab.
+                        {t('schedule.lateness.noSubs', 'No subs yet. Add one from the Subs tab.')}
                       </Text>
                     ) : null}
                   </ScrollView>
+                  <TaskEditorLatenessPad
+                    projects={projects}
+                    subcontractors={subcontractors}
+                    contacts={contacts}
+                    editingTask={editingTask}
+                    draft={taskDraft}
+                    sqft={selectedProject?.squareFootage}
+                    onApply={(durationDays, pending) => setTaskDraft(p => ({ ...p, durationDays, latenessPad: pending }))}
+                    onUndoPending={() => setTaskDraft(p => releasePendingPad(p))}
+                    onRemoveStored={(durationDays) => setTaskDraft(p => ({ ...p, durationDays }))}
+                  />
                 </View>
 
                 <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>

@@ -44,6 +44,11 @@ import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBoo
 import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
+import LatenessPadChip, { latenessEntryFor } from '@/components/schedule/LatenessPadChip';
+import {
+  buildPartyLateness, latenessPadFor, padRecordFor, applyLatenessPad, revertLatenessPad, readLatenessPad,
+  type LatenessPadSuggestion,
+} from '@/utils/pace/partyLateness';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useAutonomy } from '@/hooks/useAutonomy';
@@ -86,7 +91,7 @@ export default function ScheduleReviewScreen() {
   useBrainFabLift(fabLift);
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { getProject, updateProject, projects, subcontractors } = useProjects();
+  const { getProject, updateProject, projects, subcontractors, contacts, delayEvents } = useProjects();
   const projectRole = useProjectRole(projectId);
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
@@ -261,6 +266,31 @@ export default function ScheduleReviewScreen() {
       } catch { /* G4 */ }
     }
   }, [project?.id]);
+
+  // Sub lateness (utils/pace/partyLateness.ts): extra days OFFERED on a task
+  // whose assigned sub ran over plan on 3+ of the GC's finished jobs, minus the
+  // trade's usual overrun the draft is already paced on. Apply is the same
+  // edit path as applyPace, so accept() reflows successors; nothing applies on
+  // its own, and a padded task shows the provenance with an Undo.
+  const lateness = useMemo(
+    () => buildPartyLateness({ projects, subcontractors, contacts, delayEvents }),
+    [projects, subcontractors, contacts, delayEvents],
+  );
+  const latenessOff = useMemo(() => new Set(prefs.lateness_pad_off ?? []), [prefs.lateness_pad_off]);
+  const latenessFor = useCallback((task: ScheduleTask): LatenessPadSuggestion | null => {
+    const entry = latenessEntryFor(lateness, task.assignedSubId);
+    if (!entry) return null;
+    const paceEntry = lookupPace(paceBook, tradeKeyForTask(task), project?.squareFootage);
+    return latenessPadFor(entry, task, { paceEntry, offSubIds: latenessOff });
+  }, [lateness, latenessOff, paceBook, project?.squareFootage]);
+  const applyLateness = useCallback((taskId: string, subId: string, suggestion: LatenessPadSuggestion) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setTasks(prev => prev.map(x => (x.id === taskId ? applyLatenessPad(x, padRecordFor(subId, suggestion)) : x)));
+  }, []);
+  const revertLateness = useCallback((taskId: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setTasks(prev => prev.map(x => (x.id === taskId ? revertLatenessPad(x) : x)));
+  }, []);
 
   // Accepting a draft WRITES THE WHOLE SCHEDULE — a new task list, new dates,
   // rebuilt derived scalars. The field RPC merges progress only, so there is no
@@ -500,6 +530,12 @@ export default function ScheduleReviewScreen() {
                   // F4: a surviving pre-apply renders the badge (tap = revert);
                   // paceFor is null for paced ids, so the branches are exclusive.
                   const pre = pacedIds.has(task.id) ? preApplied.get(task.id) : undefined;
+                  // A padded task hides the pace chip: a pace apply or revert
+                  // would overwrite the padded duration under the pad's record.
+                  // Undo the pad first and the pace chip comes back.
+                  const pad = readLatenessPad(task);
+                  const padEntry = latenessEntryFor(lateness, task.assignedSubId);
+                  const padOffer = pad ? null : latenessFor(task);
                   return (
                     <View key={task.id} style={styles.taskRow}>
                       <View style={styles.taskTitleRow}>
@@ -514,7 +550,7 @@ export default function ScheduleReviewScreen() {
                       <Text style={styles.taskMeta}>
                         {task.durationDays}d · Crew {task.crewSize ?? '—'}
                       </Text>
-                      {pre && (
+                      {pre && !pad && (
                         <PaceChip
                           suggestedDays={pre.paceDays}
                           jobCount={pre.jobCount}
@@ -524,7 +560,7 @@ export default function ScheduleReviewScreen() {
                           onApply={() => revertPreApply(task.id)}
                         />
                       )}
-                      {!pre && pace && (
+                      {!pre && pace && !pad && (
                         <PaceChip
                           suggestedDays={pace.days}
                           jobCount={pace.jobCount}
@@ -535,6 +571,29 @@ export default function ScheduleReviewScreen() {
                             jobCount: pace.jobCount,
                             confidence: pace.confidence,
                           })}
+                        />
+                      )}
+                      {pad && (
+                        <LatenessPadChip
+                          applied
+                          padDays={pad.days}
+                          subName={padEntry?.subName ?? task.assignedSubName ?? ''}
+                          medianOverrunDays={pad.medianOverrunDays}
+                          jobs={pad.jobs}
+                          residualOfPace={pad.residualOfPace}
+                          onApply={() => {}}
+                          onRevert={() => revertLateness(task.id)}
+                        />
+                      )}
+                      {padOffer && padEntry && (
+                        <LatenessPadChip
+                          padDays={padOffer.padDays}
+                          subName={padEntry.subName}
+                          medianOverrunDays={padOffer.medianOverrunDays}
+                          jobs={padOffer.jobs}
+                          residualOfPace={padOffer.residualOfPace}
+                          paceTrade={padOffer.paceTrade}
+                          onApply={() => applyLateness(task.id, padEntry.subId, padOffer)}
                         />
                       )}
                       {task.rationale ? (

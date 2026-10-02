@@ -63,6 +63,9 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { desktopField, segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { DeliveriesRegister } from '@/components/registers/DeliveriesRegister';
+import { computeSupplierScorecards, MIN_DELIVERIES_TO_SCORE } from '@/utils/supplierScorecard';
+import { supplierAdvisoryFor } from '@/utils/pace/partyLateness';
+import { SupplierAdvisoryLine } from '@/components/schedule/LatenessPadChip';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() would roll the date over
  *  in the evening for anyone west of UTC. */
@@ -665,6 +668,15 @@ function AddDeliverySheet({
   const f = useSheetFrame('form', { visible, animationType: 'slide' });
   const save = () => { if (valid) { onSave(draft); setDraft({ description: '', supplier: '', expectedDate: todayLocal(), window: '' }); } };
   useSheetPrimaryHotkey(visible && valid, save);
+  // A supplier who has run late before gets one warning line (no schedule
+  // change: a delivery has no task to pad). Built from the same supplier
+  // scorecard as /sub-scorecard, across every job's deliveries.
+  const { deliveries: allDeliveries, deliveryReceipts: allReceipts } = useProjects();
+  const supplierCards = useMemo(
+    () => (visible ? computeSupplierScorecards({ deliveries: allDeliveries, receipts: allReceipts }) : []),
+    [visible, allDeliveries, allReceipts],
+  );
+  const supplierAdvisory = supplierAdvisoryFor(draft.supplier, supplierCards, MIN_DELIVERIES_TO_SCORE);
 
   return (
     <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onClose}>
@@ -701,6 +713,7 @@ function AddDeliverySheet({
             placeholderTextColor={t.textMuted}
             testID="delivery-supplier"
           />
+          <SupplierAdvisoryLine advisory={supplierAdvisory} />
 
           <Text style={styles.fieldLabel}>Promised date</Text>
           {/* UX wave B6: a picker, never a typed YYYY-MM-DD. */}
