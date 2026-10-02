@@ -538,6 +538,10 @@ export interface FinalePresentation {
   primary: FinaleAction | null;
   secondary: FinaleAction | null;
   chain: FinaleAction | null;
+  /** 'Take the skills check' (key 'quiz'): only when the tutorial has a
+   *  skills check and he holds no unrevoked certificate on its current
+   *  version. Opens /skills-check. */
+  quiz: FinaleAction | null;
 }
 
 export interface TutorialPresentation {
