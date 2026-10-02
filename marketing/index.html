@@ -131,6 +131,7 @@
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
   body,.site{margin:0;background:var(--ink);color:var(--bone);font-family:var(--sans);line-height:1.55;font-size:16.5px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
   section{width:100%;position:relative}
   .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,5vw,48px)}
@@ -140,12 +141,9 @@
   a{color:inherit;text-decoration:none}
   .amb{color:var(--brand-lift)}
 
-  .rv{opacity:0;transform:translateY(20px)}
-  .rv.in{opacity:1;transform:none;transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
-  @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
-
   /* nav */
-  .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(21,24,22,.72);border-bottom:1px solid var(--line-d)}
+  /* Solid bar (was a frosted blur that re-rendered on every scroll frame). */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(21,24,22,.94);border-bottom:1px solid var(--line-d)}
   .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;letter-spacing:.22em;font-size:15px}
   .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--brand);box-shadow:0 0 14px var(--brand)}
@@ -397,6 +395,9 @@
   .faculty:hover::before,.faculty.on::before{background:var(--ink);box-shadow:none}
   .faculty:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
   .brain-caption{max-width:620px;margin:26px auto 0;text-align:center;min-height:96px}
+  .bc-stack{display:grid}
+  .bc-stack > .bc{grid-area:1/1;visibility:hidden}
+  .bc-stack > .bc.on{visibility:visible}
   .brain-caption .cf{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-lift);font-weight:700}
   .brain-caption h3{font-size:clamp(19px,2.6vw,25px);margin-top:8px;color:var(--bone);letter-spacing:-.015em}
   .brain-caption p{margin-top:9px;font-size:15px;color:var(--muted);line-height:1.5}
@@ -424,10 +425,10 @@
   .bd-close:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   @media(max-width:720px){ .brain-detail{grid-template-columns:1fr;gap:16px;padding:18px} .bd-shot img{max-height:220px} }
 
-  /* ---------- signature motion ----------
-     JS adds the *-anim scope classes pre-paint, and only when motion is
-     allowed. No-JS and prefers-reduced-motion therefore render the plain
-     static final states below — identical to the page before animation. */
+  /* ---------- motion ----------
+     The illustrations below move through /assets/motion-kit.js (data-mk).
+     Every rule outside the no-preference block is the finished state, so a
+     visitor with no JavaScript or with Reduce Motion on sees the same page. */
 
   /* spirit-level motif (under the #score kicker) — default IS the settled final state */
   .level{position:relative;width:160px;height:12px;margin-top:14px}
@@ -436,72 +437,29 @@
   .level::before{left:calc(50% - 9px)}
   .level::after{left:calc(50% + 8px)}
   .level .lv-bubble{position:absolute;left:50%;top:50%;width:14px;height:7px;margin:-3.5px 0 0 -7px;border-radius:99px;background:var(--brand);box-shadow:0 0 12px var(--brand-glow),0 0 4px rgba(93,179,110,.45)}
-  .mfix{position:relative}
-  .mfix::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:2px;border-radius:1px;background:var(--brand-lift);opacity:0;transform:scaleX(0);transform-origin:left center}
-  .aska{position:relative}
-  .aska::before{content:"\258d";position:absolute;top:11px;left:15px;font-family:var(--mono);font-size:14px;line-height:1;color:var(--brand-lift);opacity:0;pointer-events:none}
+
+  /* Ask card: the short "Reading your records" row the kit shows before the answer. */
+  .aska .askthink{padding:15px 16px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .askthink .dots{display:inline-flex;gap:5px}
+  .askthink i{display:block;width:6px;height:6px;border-radius:50%;background:var(--brand-lift)}
+  .payoff .total .v [data-mk-count]{display:inline-block}
+  #watch [data-mk-priority]{--mk-accent:var(--no)}
 
   @media (prefers-reduced-motion: no-preference){
-    /* 5 · spirit level: the track draws in, the bubble slides and settles dead center */
-    .lv-anim .lv-track{transform:scaleX(0);transform-origin:left center}
-    .lv-anim .lv-bubble{opacity:0}
-    .lv-anim.lv-go .lv-track{transform:scaleX(1);transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-    .lv-anim.lv-go .lv-bubble{animation:lvSettle 1.05s cubic-bezier(.3,.6,.25,1) .3s forwards}
-    @keyframes lvSettle{0%{opacity:0;transform:translateX(-52px)}18%{opacity:1}70%{transform:translateX(6px)}86%{transform:translateX(-2px)}100%{opacity:1;transform:translateX(0)}}
-
-    /* 1 · scorecard: ledger rows stamp in; the miss corrects itself */
-    .sc-anim .lrow{opacity:0;transform:translateY(7px) scale(1.035)}
-    .sc-anim .lrow.stamp{opacity:1;transform:none;transition:opacity .28s ease,transform .3s cubic-bezier(.34,1.55,.64,1)}
-    .sc-anim .mfix{display:inline-block;opacity:0;transform:translateX(-9px)}
-    .sc-anim .mfix.go{opacity:1;transform:none;transition:opacity .35s ease,transform .35s cubic-bezier(.2,.7,.2,1)}
-    .sc-anim .mfix.go::after{animation:mfixPulse .9s ease .12s forwards}
-    @keyframes mfixPulse{0%{opacity:.9;transform:scaleX(0)}45%{opacity:.9;transform:scaleX(1)}100%{opacity:0;transform:scaleX(1)}}
-
-    /* 2 · morning brief: the timestamp blinks on, then the brief writes itself */
-    .brief-anim .bh span:first-child{opacity:0}
-    .brief-anim.brief-go .bh span:first-child{animation:briefBlink .7s ease forwards}
-    @keyframes briefBlink{0%{opacity:0}30%{opacity:1}55%{opacity:.35}100%{opacity:1}}
-    .brief-anim .bline{opacity:0;transform:translateY(8px)}
-    .brief-anim .bline.bl-in{opacity:1;transform:none;transition:opacity .4s ease,transform .4s cubic-bezier(.2,.7,.2,1)}
-
-    /* 3 · ask card: question bubble → thinking cursor → answer → citation chips pop */
-    .ask-anim .askq{opacity:0;transform:translateY(6px) scale(.96)}
-    .ask-anim .askq.a-in{opacity:1;transform:none;transition:opacity .3s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
-    .ask-anim .aska{opacity:0}
-    .ask-anim .aska.a-in{opacity:1;transition:opacity .3s ease}
-    .ask-anim .aska.think::before{animation:askBlink .5s steps(1,end) forwards}
-    @keyframes askBlink{0%{opacity:1}25%{opacity:0}50%{opacity:1}75%{opacity:0}100%{opacity:0}}
-    .ask-anim .aska > p{opacity:0;transform:translateY(6px)}
-    .ask-anim .aska > p.a-in{opacity:1;transform:none;transition:opacity .4s ease,transform .4s cubic-bezier(.2,.7,.2,1)}
-    .ask-anim .cites span{opacity:0}
-    .ask-anim .cites span.chip-in{animation:chipPop .32s cubic-bezier(.2,.7,.3,1.2) forwards}
-    @keyframes chipPop{0%{opacity:0;transform:scale(.75)}60%{opacity:1;transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
-
-    /* 4 · the handoff: the record's pieces fly in and stack into place */
-    .pass-anim li{opacity:0}
-    .pass-anim li:nth-child(1){transform:translate(-16px,10px)}
-    .pass-anim li:nth-child(2){transform:translate(14px,12px)}
-    .pass-anim li:nth-child(3){transform:translate(-12px,14px)}
-    .pass-anim li:nth-child(4){transform:translate(16px,10px)}
-    .pass-anim li.pin-in{opacity:1;transform:none;transition:opacity .45s ease,transform .5s cubic-bezier(.2,.75,.25,1)}
+    /* the Level: the kit draws the track, then the bubble slides in and stops dead centre */
+    .level.mk-in .lv-bubble{opacity:0}
+    .level.mk-done .lv-bubble{animation:lv-settle 300ms cubic-bezier(.2,0,0,1) backwards}
+    @keyframes lv-settle{from{opacity:0;transform:translateX(-52px)}}
   }
 
   /* ============================================================
      THE WATCH — what's about to stop the job.
 
-     MOTION NOTE. There is exactly one beat here that carries meaning:
-     the CASCADE. A delivery slips, and a second problem unfolds from
-     underneath it — the elevator slot booked for the old date is now
-     worthless. That is how a real job fails: one thing moves and drags
-     another with it. Everything else on this board is a plain staggered
-     reveal.
-
-     A board that reshuffled itself decoratively would be prettier and
-     would be lying about what the product does. The connector line
-     drawing downward IS the dependency; it is not garnish.
-
-     Driven entirely by the existing `.rv -> .in` observer. No new JS,
-     no library, no scroll-scrubbing.
+     The board is complete at rest: the cascade row, its link and the note
+     are always drawn. The kit (data-mk="priority") lands the rows in
+     order and then marks the worst one with a thin red rule — worst first
+     is the meaning of the board. Nothing changes height, so nothing below
+     it moves.
      ============================================================ */
   .watch .board{margin-top:clamp(26px,4vw,40px);background:var(--panel);border:1px solid var(--line-d);border-radius:14px;overflow:hidden}
   .wl-top{display:flex;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line-d);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
@@ -526,30 +484,10 @@
   .wl-row[data-sev="soon"] .wl-state{color:var(--warn)}
 
   /* the cascade child — the second problem, pulled out by the first */
-  .wl-cascade{display:flex;align-items:flex-start;gap:13px;padding:0 16px 0 32px;max-height:0;opacity:0;overflow:hidden;position:relative}
+  .wl-cascade{display:flex;align-items:flex-start;gap:13px;padding:0 16px 0 32px;position:relative}
   .wl-cascade .wl-bar{background:var(--no)}
-  .wl-link{position:absolute;left:22px;top:-6px;width:1px;height:26px;background:var(--no);opacity:.5;transform:scaleY(0);transform-origin:top}
-  .wl-note{font-family:var(--mono);font-size:12px;color:var(--faint);padding:2px 16px 14px 32px;max-height:0;opacity:0;overflow:hidden}
-
-  /* arrival: staggered, keyed off the section reveal */
-  .watch .board .wl-row{opacity:0;transform:translateY(9px)}
-  .watch .board.in .wl-row{animation:wlIn .55s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--i,0) * .09s)}
-  @keyframes wlIn{to{opacity:1;transform:none}}
-
-  /* the beat: at 1.5s the delivery goes late and drags the elevator with it */
-  .watch .board.in .wl-row[data-sev="stop"] .wl-bar{animation:wlEsc .5s ease 1.5s both}
-  @keyframes wlEsc{from{background:var(--warn)}to{background:var(--no)}}
-  .watch .board.in .wl-link{animation:wlDraw .34s ease 1.62s forwards}
-  @keyframes wlDraw{to{transform:scaleY(1)}}
-  /* Two tuned targets rather than one shared keyframe: max-height must CLEAR
-     the content or it clips, but overshooting by too much means the element
-     stops growing early and the easing reads as stalled. The cascade row gets
-     headroom for .wl-who wrapping to two lines on a narrow phone; the one-line
-     note does not need it. */
-  .watch .board.in .wl-cascade{animation:wlOpenRow .46s cubic-bezier(.2,.7,.2,1) 1.72s forwards}
-  @keyframes wlOpenRow{to{max-height:120px;opacity:1}}
-  .watch .board.in .wl-note{animation:wlOpenNote .4s ease 2.05s forwards}
-  @keyframes wlOpenNote{to{max-height:44px;opacity:1}}
+  .wl-link{position:absolute;left:22px;top:-6px;width:1px;height:26px;background:var(--no);opacity:.5}
+  .wl-note{font-family:var(--mono);font-size:12px;color:var(--faint);padding:2px 16px 14px 32px}
 
   .watch-kick{margin-top:18px;font-size:13.5px;color:var(--faint);max-width:62ch}
   @media(min-width:760px){
@@ -558,16 +496,19 @@
     .wl-link{left:30px}
     .wl-note{padding-left:40px}
   }
-  /* Reduced motion: show the FINISHED board — late row, drawn link, cascade
-     open. The information is the point; the motion was only ever the delivery
-     mechanism, so removing it must not remove the meaning. */
-  @media (prefers-reduced-motion:reduce){
-    .watch .board .wl-row{opacity:1;transform:none;animation:none}
-    .watch .board .wl-cascade,.watch .board .wl-note{max-height:74px;opacity:1;animation:none}
-    .watch .board .wl-link{transform:scaleY(1);animation:none}
-    .watch .board.in .wl-row[data-sev="stop"] .wl-bar{animation:none}
+
+  /* Short-window net (kit gap G7). The kit starts a group once 20% of it is
+     on screen. On a very short window (300-500% zoom, a phone on its side
+     with the keyboard up) a tall group never reaches 20%, so it would stay
+     invisible. Below 360px of height a group that has not started is shown
+     as it is; when the kit starts it, mk-armed goes and this stops applying.
+     The selectors are the kit's own armed list. Pinned: validate-marketing-motion V1. */
+  @media (max-height: 360px) {
+    .mk-armed:is([data-mk="rise"],[data-mk="range"]),
+    .mk-armed :is([data-mk-item],[data-mk-q],[data-mk-chip],[data-mk-check],[data-mk-card],[data-mk-count],[data-mk-cell],[data-mk-tag],[data-mk-label],[data-mk-evidence],[data-mk-badge]) { opacity: 1 !important; }
   }
   </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -594,7 +535,7 @@
 
   <!-- HERO — brain-forward -->
   <section class="hero"><div class="wrap" id="main">
-    <div class="rv in">
+    <div>
       <span class="eyebrow">AIA-style G702/G703 &middot; WIP schedule &middot; real CPM float &middot; $29/mo</span>
       <h1>A <span class="amb">brain</span> for your business. It gets smarter every job.</h1>
       <p class="sub">It does the three documents that decide whether you get paid &mdash; an <b>AIA-style G702/G703</b> pay application, a <b>WIP schedule</b> your banker will read, and a critical path with real <b>total and free float</b> &mdash; and then it remembers what every job actually cost you and prices the next one off that. <span class="em">The cheapest published plan we could find with AIA-style progress billing is $105 a month for three users. This is $29.</span> <a href="/proof.html" style="color:inherit;text-decoration:underline">Don&rsquo;t take our word for it &mdash; we have no reviews; check the document instead.</a></p>
@@ -616,7 +557,7 @@
          subtree is both an a11y violation and, here, a way to hide the honest
          part of the claim from the readers most likely to need it. The canvas
          is the only decorative element, so it is the only thing hidden. -->
-    <div class="chartcard rv in">
+    <div class="chartcard">
       <div class="ch-top"><span class="ch-t">Your price book · built from your own closed jobs</span><span class="ch-v" id="accV">0 closed jobs</span></div>
       <canvas id="accChart" width="520" height="200" aria-hidden="true"></canvas>
       <div class="ch-x"><span>JOB 1</span><span>JOB 15</span><span>JOB 30</span><span>JOB 50</span></div>
@@ -627,10 +568,10 @@
 
   <!-- THE BRAIN — anatomy -->
   <section class="dark sec brain" id="brain"><div class="wrap">
-    <div class="rv center"><p class="kick">The anatomy of the brain</p>
+    <div class="center"><p class="kick">The anatomy of the brain</p>
     <h2 class="h">Watch it think.</h2>
     <p class="seclede">A filing cabinet stores your jobs. A brain <em>works</em> them &mdash; it sees, remembers, reasons, foresees, reacts, reads your plans, and judges the next bid. Hover a faculty to see what fires.</p></div>
-    <div class="brainstage rv">
+    <div class="brainstage">
       <canvas id="brainCanvas" width="760" height="500" aria-hidden="true"></canvas>
       <button class="faculty" data-f="sees" style="left:29%;top:31%">SEES</button>
       <button class="faculty" data-f="remembers" style="left:20%;top:64%">REMEMBERS</button>
@@ -640,38 +581,38 @@
       <button class="faculty" data-f="reads" style="left:45%;top:48%">READS</button>
       <button class="faculty" data-f="judges" style="left:50%;top:85%">JUDGES</button>
     </div>
-    <div class="brain-caption rv" id="brainCap"></div>
+    <div class="brain-caption" id="brainCap"></div>
   </div></section>
 
   <!-- SCORE — it grades its own predictions -->
   <section class="dark sec score" id="score"><div class="wrap">
-    <div class="rv"><p class="kick">The receipts</p>
-    <div class="level" aria-hidden="true"><span class="lv-track"></span><span class="lv-bubble"></span></div>
+    <div><p class="kick">The receipts</p>
+    <div class="level" aria-hidden="true" data-mk="range"><span class="lv-track" data-mk-track></span><span class="lv-bubble"></span></div>
     <h2 class="h">It keeps score on itself.</h2>
     <p class="seclede">MAGE records every call it makes on your jobs — durations, hidden-condition prices, bid verdicts, leak flags — then grades itself against what actually happened. The misses stay on the board. That's what makes the hits worth trusting.</p></div>
-    <div class="scorecard rv" aria-hidden="true">
+    <div class="scorecard" aria-hidden="true">
       <div class="sc-top"><span>Prediction ledger · example board</span><span>Graded against actuals</span></div>
-      <div class="grades">
-        <div class="g"><span class="gv">87%</span><span class="gl">Duration calls</span></div>
-        <div class="g"><span class="gv">91%</span><span class="gl">Cost calls</span></div>
-        <div class="g"><span class="gv">3/4</span><span class="gl">Bid verdicts won</span></div>
+      <div class="grades" data-mk="list">
+        <div class="g" data-mk-item><span class="gv">87%</span><span class="gl">Duration calls</span></div>
+        <div class="g" data-mk-item><span class="gv">91%</span><span class="gl">Cost calls</span></div>
+        <div class="g" data-mk-item><span class="gv">3/4</span><span class="gl">Bid verdicts won</span></div>
       </div>
-      <div class="ledger">
-        <div class="lrow"><span>Subfloor rot, Maple St — called $1,400 · actual $1,510</span><span class="ok">✓ graded</span></div>
-        <div class="lrow"><span>Drywall, Henderson — called 6 days · ran 8</span><span class="miss">✕ miss <span class="mfix">→ pace updated</span></span></div>
+      <div class="ledger" data-mk="checklist">
+        <div class="lrow" data-mk-row><span>Subfloor rot, Maple St — called $1,400 · actual $1,510</span><span class="ok" data-mk-check>✓ graded</span></div>
+        <div class="lrow" data-mk-row><span>Drywall, Henderson — called 6 days · ran 8</span><span class="miss" data-mk-check>✕ miss → pace updated</span></div>
       </div>
       <p class="selfline">“My tile calls ran 9% hot last month — recalibrated.”<span>— your brain, in this morning's brief</span></p>
     </div>
-    <p class="score-kick rv">No other construction software grades its own work. <span class="amb">Most wouldn't survive it.</span></p>
-    <p class="score-more rv">Example figures — your board is built only from your own graded jobs, and stays blank until there's enough of it. <a href="/brain/">See exactly how it grades itself, and what it refuses to do until it's earned &rarr;</a></p>
+    <p class="score-kick">No other construction software grades its own work. <span class="amb">Most wouldn't survive it.</span></p>
+    <p class="score-more">Example figures — your board is built only from your own graded jobs, and stays blank until there's enough of it. <a href="/brain/">See exactly how it grades itself, and what it refuses to do until it's earned &rarr;</a></p>
   </div></section>
 
   <section class="light sec" id="faculties"><div class="wrap">
-    <div class="rv brainhdr"><p class="kick">The anatomy of the brain</p>
+    <div class="brainhdr"><p class="kick">The anatomy of the brain</p>
     <h2 class="h">A brain does three things a filing cabinet never will.</h2>
     <p class="seclede">Sight. Memory. Judgment. The others give you screens to type into. MAGE gives you the three faculties your best project manager runs on — working every job, and getting sharper each time.</p></div>
-    <div class="pillars">
-      <div class="pill rv">
+    <div class="pillars" data-mk="list">
+      <div class="pill" data-mk-item>
         <span class="no">01 · IT SEES</span>
         <h3>Prices what you can't see.</h3>
         <div class="mock" aria-hidden="true">
@@ -679,7 +620,7 @@
         </div>
         <p><b>Cost X-Ray.</b> Point the camera; MAGE prices the hidden conditions on <b>your</b> learned costs — before they eat the job.</p>
       </div>
-      <div class="pill rv">
+      <div class="pill" data-mk-item>
         <span class="no">02 · IT REMEMBERS</span>
         <h3>Gets smarter every job.</h3>
         <div class="mock" aria-hidden="true">
@@ -687,7 +628,7 @@
         </div>
         <p><b>The cost-learning engine.</b> Every estimate sharpens the next. A rival can copy a button; they can't copy <b>500 of your jobs.</b> The memory compounds — and it's yours alone.</p>
       </div>
-      <div class="pill rv">
+      <div class="pill" data-mk-item>
         <span class="no">03 · IT PLANS</span>
         <h3>Thinks the job through.</h3>
         <div class="mock" aria-hidden="true">
@@ -700,45 +641,46 @@
 
   <!-- PAYOFF — the moment it pays for itself -->
   <section class="dark sec payoff"><div class="wrap">
-    <div class="rv"><p class="kick">Sight, in dollars</p>
+    <div><p class="kick">Sight, in dollars</p>
     <h2 class="h">The moment it pays for itself.</h2>
     <p class="seclede">A walk-through misses what's behind the wall. The brain doesn't — and it prices it <em>before</em> you sign away the margin.</p></div>
-    <div class="card rv" aria-hidden="true">
-      <div class="prow"><span>Master bath remodel — base estimate</span><span class="amt">$21,450</span></div>
+    <div class="card" aria-hidden="true" data-mk="accumulate">
+      <div class="prow"><span>Example: master bath remodel, base estimate</span><span class="amt">$21,450</span></div>
       <div class="flag">
         <p class="ft">◎ Cost X-Ray caught what the walk-through didn't</p>
-        <div class="frow"><span>Subfloor rot under the tub</span><span class="amt">+ $1,400</span></div>
-        <div class="frow"><span>Pre-1990 wiring at the vanity</span><span class="amt">+ $820</span></div>
-        <div class="frow"><span>Failing main shutoff</span><span class="amt">+ $610</span></div>
+        <div class="frow" data-mk-card data-mk-cents="140000"><span>Subfloor rot under the tub</span><span class="amt">+ $1,400</span></div>
+        <div class="frow" data-mk-card data-mk-cents="82000"><span>Pre-1990 wiring at the vanity</span><span class="amt">+ $820</span></div>
+        <div class="frow" data-mk-card data-mk-cents="61000"><span>Failing main shutoff</span><span class="amt">+ $610</span></div>
       </div>
-      <div class="total"><span class="l">Margin you'd have eaten — now priced into the bid</span><span class="v">$2,830<small>protected</small></span></div>
+      <div class="total"><span class="l">Margin you'd have eaten — now priced into the bid</span><span class="v"><span data-mk-count>$2,830</span><small>protected</small></span></div>
     </div>
   </div></section>
 
   <!-- MORNING BRIEF + ASK IT ANYTHING -->
   <section class="dark sec brief"><div class="wrap">
-    <div class="rv"><p class="kick">6:30, every morning</p>
+    <div><p class="kick">6:30, every morning</p>
     <h2 class="h">It starts your day.</h2>
     <p class="seclede">Before your boots are on, the brain has already walked every job. Three lists, thirty seconds — what needs you, what it's watching, what it already handled.</p></div>
     <div class="briefgrid">
-      <div class="briefcard rv" aria-hidden="true">
+      <div class="briefcard" aria-hidden="true" data-mk="list">
         <div class="bh"><span>Tue · 6:30 AM</span><span>Morning brief</span></div>
         <div class="bgroup needs"><p class="bt">Needs you</p>
-          <p>Change order #14 unsigned six days — tile starts Monday at Henderson.</p>
-          <p>Electrical bid came in $1,400 light — confirm what's included before you accept.</p></div>
+          <p data-mk-item>Change order #14 unsigned six days — tile starts Monday at Henderson.</p>
+          <p data-mk-item>Electrical bid came in $1,400 light — confirm what's included before you accept.</p></div>
         <div class="bgroup watch"><p class="bt">Watching</p>
-          <p>Thursday's pour: 60% rain. Friday is clear — say the word and I'll reflow.</p>
-          <p>Maple St margin drifted 21% → 19% this week. Lumber invoices are the cause.</p></div>
+          <p data-mk-item>Thursday's pour: 60% rain. Friday is clear — say the word and I'll reflow.</p>
+          <p data-mk-item>Maple St margin drifted 21% → 19% this week. Lumber invoices are the cause.</p></div>
         <div class="bgroup done"><p class="bt">Done for you</p>
-          <p>Drafted the change order for yesterday's out-of-scope vent work — one tap to send.</p>
-          <p>Reflowed the Henderson schedule around the pushed inspection — nothing else slipped.</p></div>
+          <p data-mk-item>Drafted the change order for yesterday's out-of-scope vent work — one tap to send.</p>
+          <p data-mk-item>Reflowed the Henderson schedule around the pushed inspection — nothing else slipped.</p></div>
       </div>
-      <div class="briefcard rv" aria-hidden="true">
-        <div class="bh"><span>Ask it anything</span><span>Any job · any time</span></div>
-        <p class="askq">how's the henderson job really doing?</p>
-        <div class="aska">
-          <p>Better than it looks from the truck: <b>3 days ahead, margin holding at 22%</b>. Two things I'd watch — the tile order hasn't shipped and you need it in 9 days, and the plumbing inspection isn't booked yet. Call the supplier today and you stay ahead.</p>
-          <div class="cites"><span>Schedule</span><span>Budget</span><span>Daily reports</span><span>Change orders</span></div>
+      <div class="briefcard" aria-hidden="true" data-mk="chat">
+        <div class="bh"><span>Ask it anything</span><span>Example</span></div>
+        <p class="askq" data-mk-q>how's the henderson job really doing?</p>
+        <div class="aska" data-mk-slot>
+          <p class="askthink" data-mk-think><span class="dots"><i data-mk-dot></i><i data-mk-dot></i><i data-mk-dot></i></span>Reading your records</p>
+          <p data-mk-a>Better than it looks from the truck: <b>3 days ahead, margin holding at 22%</b>. Two things I'd watch — the tile order hasn't shipped and you need it in 9 days, and the plumbing inspection isn't booked yet. Call the supplier today and you stay ahead.</p>
+          <div class="cites"><span data-mk-chip>Schedule</span><span data-mk-chip>Budget</span><span data-mk-chip>Daily reports</span><span data-mk-chip>Change orders</span></div>
         </div>
       </div>
     </div>
@@ -746,30 +688,30 @@
 
   <!-- INTERACTIVE COMPARE -->
   <section class="dark sec" id="compare"><div class="wrap">
-    <div class="rv"><p class="kick">Side by side</p>
+    <div><p class="kick">Side by side</p>
     <h2 class="h">How's it different from what you use today?</h2>
     <p class="seclede">Pick your current app. We'll be fair about what it does well — then show you the six things it structurally can't do, no matter how many features it ships.</p></div>
 
-    <div class="compare rv">
+    <div class="compare">
       <div class="cmp-ctl">
         <label for="cmpSel">Compare MAGE to</label>
         <span class="selwrap"><select id="cmpSel" aria-label="Choose an app to compare"></select></span>
       </div>
-      <div class="cmp-panel" id="cmpPanel"></div>
+      <div class="cmp-panel" id="cmpPanel" data-mk="matrix"></div>
     </div>
   </div></section>
 
   <!-- THE WATCH -->
   <section class="dark sec watch" id="watch"><div class="wrap">
-    <div class="rv"><p class="kick">The watch</p>
+    <div><p class="kick">The watch</p>
     <h2 class="h">It knows what&rsquo;s about to stop the job.</h2>
     <p class="seclede">A load that won&rsquo;t land. A freight elevator nobody booked. An architect sitting on an RFI for nine days. A client link that quietly died. None of these are on a schedule, and every one of them stops work &mdash; so MAGE watches them and keeps a single list, worst first, while there&rsquo;s still time to move.</p></div>
 
-    <div class="board rv" aria-hidden="true">
+    <div class="board" aria-hidden="true" data-mk="priority">
       <div class="wl-top"><span>Chase list &middot; example board</span><b>Worst first</b></div>
       <div class="wl-list">
 
-        <div class="wl-row" data-sev="stop" style="--i:0">
+        <div class="wl-row" data-sev="stop" data-mk-cell data-mk-priority>
           <span class="wl-bar"></span>
           <span class="wl-body">
             <span class="wl-what">14 windows &mdash; Acme Glass</span>
@@ -778,7 +720,7 @@
           <span class="wl-state">3 days late</span>
         </div>
         <!-- the cascade: the slip drags the building with it -->
-        <div class="wl-cascade">
+        <div class="wl-cascade" data-mk-cell>
           <span class="wl-link"></span>
           <span class="wl-bar"></span>
           <span class="wl-body">
@@ -787,9 +729,9 @@
           </span>
           <span class="wl-state">blocks it</span>
         </div>
-        <p class="wl-note">&mdash; the truck will be turned away</p>
+        <p class="wl-note" data-mk-cell>&mdash; the truck will be turned away</p>
 
-        <div class="wl-row" data-sev="soon" style="--i:1">
+        <div class="wl-row" data-sev="soon" data-mk-cell>
           <span class="wl-bar"></span>
           <span class="wl-body">
             <span class="wl-what">RFI 08 &mdash; ceiling height at grid C</span>
@@ -798,7 +740,7 @@
           <span class="wl-state">9 days</span>
         </div>
 
-        <div class="wl-row" data-sev="soon" style="--i:2">
+        <div class="wl-row" data-sev="soon" data-mk-cell>
           <span class="wl-bar"></span>
           <span class="wl-body">
             <span class="wl-what">Client portal link expired</span>
@@ -807,7 +749,7 @@
           <span class="wl-state">send a new one</span>
         </div>
 
-        <div class="wl-row" data-sev="ok" style="--i:3">
+        <div class="wl-row" data-sev="ok" data-mk-cell>
           <span class="wl-bar"></span>
           <span class="wl-body">
             <span class="wl-what">Millwork submittal</span>
@@ -819,14 +761,14 @@
       </div>
     </div>
 
-    <p class="watch-kick rv">Example board. Yours is built only from your own jobs &mdash; and it stays empty when there&rsquo;s genuinely nothing to chase. A list that always has something on it is just noise you&rsquo;d learn to scroll past.</p>
+    <p class="watch-kick">Example board. Yours is built only from your own jobs &mdash; and it stays empty when there&rsquo;s genuinely nothing to chase. A list that always has something on it is just noise you&rsquo;d learn to scroll past.</p>
   </div></section>
 
   <!-- WHO -->
   <section class="light sec who"><div class="wrap">
-    <div class="rv"><p class="kick">Built for</p>
+    <div><p class="kick">Built for</p>
     <h2 class="h">The contractor who bids constantly and hates surprises.</h2></div>
-    <div class="card rv">
+    <div class="card">
       <p class="l">Your people</p>
       <h3>Small-to-mid GCs · $500K–$5M a year · remodels, fit-outs, ground-up.</h3>
       <p>You live and die on the bid, and you've been burned by what you couldn't see — behind the drywall on a remodel, above the ceiling on a fit-out. You're too small for Procore's enterprise machine and overcharged by Buildertrend for storage you don't need. MAGE is the first tool built to price your unknowns and get sharper with every job you finish.</p>
@@ -835,17 +777,17 @@
 
   <!-- HOME PASSPORT -->
   <section class="light sec passport"><div class="wrap">
-    <div class="rv"><p class="kick">The handoff</p>
+    <div><p class="kick">The handoff</p>
     <h2 class="h">Every job you finish hands your client the house's memory.</h2>
     <p class="seclede">Close out a job and your client keeps a living record of their own home — not a binder that goes in a drawer, a brain they can ask.</p></div>
-    <div class="pcard rv">
+    <div class="pcard">
       <div>
         <p class="pl">What they keep</p>
-        <ul>
-          <li><b>The pre-drywall photos.</b> What's behind every wall, on record before it was closed up.</li>
-          <li><b>Every warranty,</b> filed and dated — no shoebox of paperwork.</li>
-          <li><b>Who built what.</b> Every sub and supplier, attached to the work they did.</li>
-          <li><b>Ask their home anything.</b> The same brain that ran the job answers their questions — with your name on every answer.</li>
+        <ul data-mk="list">
+          <li data-mk-item><b>The pre-drywall photos.</b> What's behind every wall, on record before it was closed up.</li>
+          <li data-mk-item><b>Every warranty,</b> filed and dated — no shoebox of paperwork.</li>
+          <li data-mk-item><b>Who built what.</b> Every sub and supplier, attached to the work they did.</li>
+          <li data-mk-item><b>Ask their home anything.</b> The same brain that ran the job answers their questions — with your name on every answer.</li>
         </ul>
       </div>
       <div class="homeask" aria-hidden="true">
@@ -854,14 +796,14 @@
         <p class="hb">Built by <b>your company</b> · answered by MAGE</p>
       </div>
     </div>
-    <p class="pass-note rv">Show one in your next pitch — you're the only bidder whose houses come with a memory. And it's <b>free for your client</b>, which makes every finished job a referral that shows itself off.</p>
+    <p class="pass-note">Show one in your next pitch — you're the only bidder whose houses come with a memory. And it's <b>free for your client</b>, which makes every finished job a referral that shows itself off.</p>
   </div></section>
 
   <!-- FAQ -->
   <section class="light sec faq"><div class="wrap">
-    <div class="rv"><p class="kick">Straight answers</p>
+    <div><p class="kick">Straight answers</p>
     <h2 class="h">The questions every contractor asks.</h2></div>
-    <div class="list rv">
+    <div class="list">
       <details open><summary>Do I have to throw out the tools I use now?</summary><p>No. Start with estimating and the learning engine — the part nobody else has. Keep what works, and let MAGE quietly take over pricing, job costing, and scheduling as it earns its place.</p></details>
       <details><summary>How does it actually "learn my costs"?</summary><p>Every job you finish feeds your <b>real</b> numbers back into your catalog — automatically. No spreadsheets to maintain. Job #50 prices off 49 jobs of truth, not a generic price book.</p></details>
       <details><summary>Is my cost data private?</summary><p>Yes. Your numbers are yours. The brain learns <b>your</b> business — it never hands your hard-won costs to the contractor down the street.</p></details>
@@ -881,19 +823,19 @@
 
   <!-- PRICING -->
   <section class="dark sec" id="pricing"><div class="wrap">
-    <div class="rv"><p class="kick">Pricing</p>
+    <div><p class="kick">Pricing</p>
     <h2 class="h">One flat price. Your subs join free.</h2>
     <p class="seclede">Start on the house. Upgrade when MAGE is already saving you the difference.</p></div>
     <div class="prices">
-      <div class="tier rv"><span class="tn">Free</span><div class="tp">$0</div><p class="td">Your first estimates, one project, and a real feel for the engine.</p></div>
-      <div class="tier feat rv"><span class="tag">Most contractors</span><span class="tn">Pro</span><div class="tp">$29<span>/mo</span></div><p class="td">Unlimited projects and estimates, job costing, scheduling, invoicing, 30 AI requests a day — and the learning engine.</p></div>
-      <div class="tier rv"><span class="tn">Business</span><div class="tp">$79<span>/mo</span></div><p class="td">Cost X-Ray vision, crew &amp; resource tools, and higher AI limits for busy shops.</p></div>
-      <div class="tier rv"><span class="tn">Enterprise</span><div class="tp">$150<span>/mo</span></div><p class="td">Multi-crew scale, priority everything, and the deepest limits.</p></div>
+      <div class="tier"><span class="tn">Free</span><div class="tp">$0</div><p class="td">Your first estimates, one project, and a real feel for the engine.</p></div>
+      <div class="tier feat"><span class="tag">Most contractors</span><span class="tn">Pro</span><div class="tp">$29<span>/mo</span></div><p class="td">Unlimited projects and estimates, job costing, scheduling, invoicing, 30 AI requests a day — and the learning engine.</p></div>
+      <div class="tier"><span class="tn">Business</span><div class="tp">$79<span>/mo</span></div><p class="td">Cost X-Ray vision, crew &amp; resource tools, and higher AI limits for busy shops.</p></div>
+      <div class="tier"><span class="tn">Enterprise</span><div class="tp">$150<span>/mo</span></div><p class="td">Multi-crew scale, priority everything, and the deepest limits.</p></div>
     </div>
   </div></section>
 
   <!-- FINALE -->
-  <section class="dark finale"><div class="wrap rv in">
+  <section class="dark finale"><div class="wrap">
     <h2>Stop feeding software.<br>Start using a tool that <span class="amb">feeds you.</span></h2>
     <p>Win the bid. Keep the margin. Let every job make the next one sharper.</p>
     <div class="cta-row"><a class="btn primary" href="https://app.mageid.app">Start free</a><a class="btn ghost" href="#brain">Meet the brain</a></div>
@@ -940,11 +882,6 @@
 <script>
 (function(){
   var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  var io = new IntersectionObserver(function(es){
-    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
-  }, {threshold:.15});
-  document.querySelectorAll('.rv:not(.in)').forEach(function(el){ io.observe(el); });
 
   /* ---- animated neural brain ---- */
   (function(){
@@ -1026,9 +963,18 @@
       x.classList.toggle('on', k===active);
       x.setAttribute('aria-expanded', k===pinned ? 'true' : 'false');
     }); }
-    function setActive(k){ active=k; var f=FACS[k];
-      if(!pinned){ cap.innerHTML='<span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p>'; }
-      var hi=hubIdx(k); for(var i=0;i<6;i++) spawn(hi); markBtns(); }
+    /* All seven captions sit stacked in one grid cell and only the active one
+       is visible, so the caption box is always as tall as the tallest one and
+       the auto-cycle never moves the content below it (no layout shift). */
+    function capStack(){ return '<div class="bc-stack">'+keys.map(function(k){ var f=FACS[k];
+        return '<div class="bc"><span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p></div>'; }).join('')+'</div>'; }
+    function setActive(k){ active=k;
+      if(!pinned){
+        if(!cap.querySelector('.bc-stack')) cap.innerHTML=capStack();
+        cap.querySelectorAll('.bc').forEach(function(el, i){ var on=keys[i]===k;
+          el.classList.toggle('on', on); if(on) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden','true'); });
+      }
+      var hi=hubIdx(k); for(var i=0;i<6;i++) spawn(hi); markBtns(); if(!looping) paint(0, false); }
     function renderDetail(k){ var f=FACS[k], d=DETAIL[k]; if(!d){ setActive(k); return; }
       cap.innerHTML='<div class="brain-detail'+(d.shot ? '' : ' no-shot')+'" role="region" aria-label="'+f.cf+' \u2014 details">'
         +'<button class="bd-close" type="button" aria-label="Close details">\u2715</button>'
@@ -1039,7 +985,7 @@
       var x=cap.querySelector('.bd-close'); if(x) x.addEventListener('click', unpin);
     }
     function pin(k){ pinned=k; active=k; renderDetail(k);
-      var hi=hubIdx(k); for(var i=0;i<8;i++) spawn(hi); markBtns(); }
+      var hi=hubIdx(k); for(var i=0;i<8;i++) spawn(hi); markBtns(); if(!looping) paint(0, false); }
     function unpin(){ pinned=null; setActive(active); markBtns();
       var b=document.querySelector('.faculty[data-f="'+active+'"]'); if(b) b.focus(); }
     document.querySelectorAll('.faculty').forEach(function(btn){ var k=btn.getAttribute('data-f');
@@ -1050,8 +996,12 @@
       btn.addEventListener('mouseleave',function(){ hovered=null; });
     });
     document.addEventListener('keydown',function(e){ if(e.key==='Escape' && pinned) unpin(); });
-    setActive(active);
-    function frame(ts){
+    /* When it runs: one still frame at load; the loop runs only while the
+       canvas is on screen, and if the canvas is already on the first screen
+       it waits for the visitor's first scroll, key or hover, so nothing but
+       the hero moves on load. Reduce Motion keeps the still frame. */
+    var looping=false, inView=false, woken=false;
+    function paint(ts, live){
       g2.clearRect(0,0,W,H);
       var au=g2.createRadialGradient(cx,cy,10,cx,cy,rx*1.15); au.addColorStop(0,'rgba(93,179,110,.10)'); au.addColorStop(1,'rgba(93,179,110,0)');
       g2.fillStyle=au; g2.beginPath(); g2.ellipse(cx,cy,rx*1.12,ry*1.12,0,0,7); g2.fill();
@@ -1062,18 +1012,37 @@
       keys.forEach(function(k){ var f=FACS[k],isA=(k===active),rr=isA?18:9;
         var gg=g2.createRadialGradient(f.px,f.py,1,f.px,f.py,rr); gg.addColorStop(0,isA?'rgba(124,196,138,.55)':'rgba(93,179,110,.22)'); gg.addColorStop(1,'rgba(93,179,110,0)');
         g2.fillStyle=gg; g2.beginPath(); g2.arc(f.px,f.py,rr,0,7); g2.fill(); });
-      for(var i=pulses.length-1;i>=0;i--){ var p=pulses[i]; p.t += rm?1:0.03; if(p.t>=1){ pulses.splice(i,1); continue; }
+      if(!live){ if(rm) pulses.length=0; return; }
+      for(var i=pulses.length-1;i>=0;i--){ var p=pulses[i]; p.t += 0.03; if(p.t>=1){ pulses.splice(i,1); continue; }
         var A=nodes[p.from],B=nodes[p.to],x=A.x+(B.x-A.x)*p.t,y=A.y+(B.y-A.y)*p.t;
         g2.beginPath(); g2.arc(x,y,2.4,0,7); g2.fillStyle='rgba(124,196,138,'+(1-p.t)+')'; g2.fill();
         if(p.t>0.95 && Math.random()<0.55) spawn(p.to);
       }
-      if(!rm){
-        if(Math.random()<0.045) spawn((Math.random()*nodes.length)|0);
-        if(ts-lastCyc>2800 && !hovered && !pinned){ lastCyc=ts; cyc=(cyc+1)%keys.length; setActive(keys[cyc]); }
-        requestAnimationFrame(frame);
-      }
     }
-    if(rm) frame(0); else requestAnimationFrame(frame);
+    function frame(ts){
+      if(rm || !inView || !woken){ looping=false; return; }
+      paint(ts, true);
+      if(Math.random()<0.045) spawn((Math.random()*nodes.length)|0);
+      if(ts-lastCyc>2800 && !hovered && !pinned){ lastCyc=ts; cyc=(cyc+1)%keys.length; setActive(keys[cyc]); }
+      requestAnimationFrame(frame);
+    }
+    function wake(){ if(rm || looping || !inView || !woken) return; looping=true; requestAnimationFrame(frame); }
+    setActive(active);
+    if(!rm){
+      var br=bc.getBoundingClientRect(), vh=window.innerHeight||0;
+      if(br.top < vh && br.bottom > 0){
+        var onFirst=function(){ woken=true; wake(); };
+        ['scroll','wheel','keydown'].forEach(function(t){ window.addEventListener(t, onFirst, {passive:true, once:true}); });
+        var stage=bc.parentNode;
+        ['pointermove','focusin'].forEach(function(t){ stage.addEventListener(t, onFirst, {passive:true, once:true}); });
+      } else { woken=true; }
+      if(typeof IntersectionObserver==='function'){
+        new IntersectionObserver(function(es){
+          es.forEach(function(e){ inView=e.isIntersecting; });
+          wake();
+        }, {threshold:0}).observe(bc);
+      } else { inView=true; wake(); }
+    }
   })();
 
   /* ---- hero accuracy chart ---- */
@@ -1178,120 +1147,27 @@
             +'<span class="m us price"><span class="lab">'+MAGE.price+'</span></span></div>';
         } else {
           var tv=a.caps[i];
-          h+='<div class="cmp-row'+(r.moat?' moat':'')+'"><span class="cap">'+r.label+'</span>'
-            +'<span class="m them">'+icon(tv,false)+'<span class="lab">'+lab(tv,false)+'</span></span>'
-            +'<span class="m us">'+icon('yes',true)+'<span class="lab">Yes</span></span></div>';
+          // The kit animates at most 8 rows: mark only the first 8 (i < 8).
+          var mk = i < 8;
+          h+='<div class="cmp-row'+(r.moat?' moat':'')+'"'+(mk?' data-mk-row':'')+'><span class="cap"'+(mk?' data-mk-label':'')+'>'+r.label+'</span>'
+            +'<span class="m them"'+(mk?' data-mk-evidence':'')+'>'+icon(tv,false)+'<span class="lab">'+lab(tv,false)+'</span></span>'
+            +'<span class="m us"'+(mk?' data-mk-evidence':'')+'>'+icon('yes',true)+'<span class="lab">Yes</span></span></div>';
         }
       });
       h+='<div class="cmp-verdict">'+a.verdict.replace(/<em>/g,'<b>').replace(/<\/em>/g,'</b>')+'</div>';
       panel.innerHTML=h;
     }
-    sel.addEventListener('change', function(){ render(sel.value); });
+    sel.addEventListener('change', function(){
+      render(sel.value);
+      // Re-run the row fill for the new app. Without the kit (or with Reduce
+      // Motion on) the new rows simply appear.
+      if (window.MageMotion) window.MageMotion.play(panel);
+    });
     render(ORDER[0]);
-  }
-
-  /* ---- signature motion: score / brief / ask / handoff / spirit level ----
-     Same pattern as .rv: IntersectionObserver, fire once, unobserve.
-     Everything below is skipped under prefers-reduced-motion — the *-anim
-     scope classes are never added, so the page stays in its final state. */
-  function onEnter(el, fn, thr){
-    if(!el) return;
-    if(!('IntersectionObserver' in window)){ fn(); return; }
-    var o = new IntersectionObserver(function(es){
-      es.forEach(function(e){ if(e.isIntersecting){ o.unobserve(e.target); o.disconnect(); fn(); } });
-    }, {threshold: thr == null ? .3 : thr});
-    o.observe(el);
-  }
-
-  if(!rm){
-
-    /* 5 · spirit level — the track draws, the bubble settles dead center: leveled. */
-    var lvl = document.querySelector('#score .level');
-    if(lvl){
-      lvl.classList.add('lv-anim');
-      onEnter(lvl, function(){ lvl.classList.add('lv-go'); }, .6);
-    }
-
-    /* 1 · #score — tallies count up, ledger rows stamp in, the miss corrects itself. */
-    var sc = document.querySelector('#score .scorecard');
-    if(sc){
-      sc.classList.add('sc-anim');
-      var gvs = [].slice.call(sc.querySelectorAll('.gv')).map(function(el){
-        var m = el.textContent.match(/^(\d+)(.*)$/);
-        var t = m ? parseInt(m[1],10) : 0, sfx = m ? m[2] : '';
-        el.textContent = '0' + sfx;
-        return {el:el, t:t, sfx:sfx};
-      });
-      var rows = sc.querySelectorAll('.lrow');
-      var mfix = sc.querySelector('.mfix');
-      onEnter(sc, function(){
-        var t0 = null;
-        function tick(ts){
-          if(t0 === null) t0 = ts;
-          var p = Math.min(1,(ts-t0)/900), e = 1-Math.pow(1-p,3);
-          gvs.forEach(function(g){ g.el.textContent = Math.round(g.t*e) + g.sfx; });
-          if(p < 1) requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-        var land = 250;
-        rows.forEach(function(r,i){
-          var at = 250 + i*140; land = at + 300;
-          setTimeout(function(){ r.classList.add('stamp'); }, at);
-        });
-        if(mfix) setTimeout(function(){ mfix.classList.add('go'); }, land + 400);
-      }, .25);
-    }
-
-    /* 2 + 3 · morning brief + ask card */
-    var cards = document.querySelectorAll('.briefgrid .briefcard');
-    var brief = cards[0], ask = cards[1];
-
-    /* 2 · the brief composes itself — timestamp blinks on, lines write in, in group order. */
-    if(brief){
-      brief.classList.add('brief-anim');
-      var blines = brief.querySelectorAll('.bgroup p');
-      blines.forEach(function(el){ el.classList.add('bline'); });
-      onEnter(brief, function(){
-        brief.classList.add('brief-go');
-        blines.forEach(function(el,i){
-          setTimeout(function(){ el.classList.add('bl-in'); }, 350 + i*120);
-        });
-      }, .25);
-    }
-
-    /* 3 · the fused answer — question, a moment of thought, answer, then the receipts pop in. */
-    if(ask){
-      ask.classList.add('ask-anim');
-      var askq = ask.querySelector('.askq'), aska = ask.querySelector('.aska');
-      var ansP = ask.querySelector('.aska > p');
-      var chips = ask.querySelectorAll('.cites span');
-      onEnter(ask, function(){
-        if(askq) askq.classList.add('a-in');
-        setTimeout(function(){ if(aska){ aska.classList.add('a-in'); aska.classList.add('think'); } }, 380);
-        setTimeout(function(){
-          if(aska) aska.classList.remove('think');
-          if(ansP) ansP.classList.add('a-in');
-        }, 920);
-        chips.forEach(function(ch,i){
-          setTimeout(function(){ ch.classList.add('chip-in'); }, 1300 + i*80);
-        });
-      }, .25);
-    }
-
-    /* 4 · the handoff — the record's pieces fly in from offsets and stack into place. */
-    var passUl = document.querySelector('.passport .pcard ul');
-    if(passUl){
-      passUl.classList.add('pass-anim');
-      var lis = passUl.querySelectorAll('li');
-      onEnter(passUl, function(){
-        lis.forEach(function(li,i){
-          setTimeout(function(){ li.classList.add('pin-in'); }, i*100);
-        });
-      }, .3);
-    }
   }
 })();
 </script>
+<script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
 <script src="/growth.js?v=2026-09-28" defer></script>
 </body>
 </html>
