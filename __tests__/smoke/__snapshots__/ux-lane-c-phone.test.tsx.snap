@@ -16,8 +16,8 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (b) /change-order, a new C
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (c) /estimate-wizard for a job that already has an estimate 1`] = `
 {
-  "lines": 433,
-  "sha256": "fb4a0d97f0d3b54bf9c133612b2a50daec4cc08fb0ec27ad8c1949ddcb6c1891",
+  "lines": 430,
+  "sha256": "fa9e4e0ee3c647c5bafaaa59dcc023dd7cb9087c24ebb56814f56ae961df8e6e",
 }
 `;
 

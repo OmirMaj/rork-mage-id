@@ -9,18 +9,23 @@
 //
 // Rows are ≥ 56 pt (Tokens.touchTarget.large). The small number at the left
 // of each row is the desktop keyboard hint (1–4 picks; the screen binds the
-// keys). Motion: each new question fades and slides in 16 pt on the native
-// driver; with Reduce Motion it simply appears.
+// keys). Motion: none of its own. The screen stacks the cards with the motion
+// kit's StackPush (app/skills-check.tsx), which moves the card and reads
+// Reduce Motion itself.
+//
+// `decorative`: the same card drawn as a picture of a finished question (the
+// card leaving the stack, a card behind). No testIDs, no announcement, choices
+// as plain Views (nothing to press), hidden from accessibility: exactly one
+// live question card exists at any time.
 
-import React, { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useT } from '@/contexts/LanguageContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui/Card';
-import { nativeDriver } from '@/components/ui/motion';
 import type { QuizQuestion } from '@/utils/learn/types';
 
 export interface QuizQuestionCardProps {
@@ -29,50 +34,43 @@ export interface QuizQuestionCardProps {
   total: number;
   /** The choice he picked, once he has picked (the reveal). */
   pickedId: string | null;
-  reduceMotion: boolean;
   /** Show the 1–4 key hints (desktop web). */
   showKeys: boolean;
   onPick: (choiceId: string) => void;
+  /** A picture of the card (leaving / behind): no testIDs, not pressable, hidden from accessibility. */
+  decorative?: boolean;
 }
 
-export function QuizQuestionCard({ question, index, total, pickedId, reduceMotion, showKeys, onPick }: QuizQuestionCardProps) {
+export function QuizQuestionCard({ question, index, total, pickedId, showKeys, onPick, decorative = false }: QuizQuestionCardProps) {
   const { colors } = useTheme();
   const { t } = useT();
-  const appear = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
   const answered = pickedId !== null;
   const right = answered && pickedId === question.correctId;
+  // testIDs only on the live card (a decorative copy would duplicate them).
+  const tid = (id: string) => (decorative ? undefined : id);
 
   useEffect(() => {
-    if (reduceMotion) { appear.setValue(1); return; }
-    appear.setValue(0);
-    const a = Animated.timing(appear, { toValue: 1, duration: Tokens.motion.duration.base, useNativeDriver: nativeDriver });
-    a.start();
-    return () => a.stop();
-  }, [index, reduceMotion]); // eslint-disable-line react-hooks/exhaustive-deps -- once per question
-
-  useEffect(() => {
-    if (!answered) return;
+    if (!answered || decorative) return;
     AccessibilityInfo.announceForAccessibility(
       `${right ? t('settings.learn.right', 'Right.') : t('settings.learn.wrong', 'Not quite.')} ${question.why}`,
     );
   }, [answered]); // eslint-disable-line react-hooks/exhaustive-deps -- once per reveal
 
   return (
-    <Animated.View
-      testID="skills-check-question"
-      style={{
-        opacity: appear,
-        transform: [{ translateX: appear.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-      }}
+    <View
+      testID={tid('skills-check-question')}
+      accessibilityElementsHidden={decorative}
+      importantForAccessibility={decorative ? 'no-hide-descendants' : 'auto'}
+      pointerEvents={decorative ? 'none' : 'auto'}
     >
-      <Text style={[Type.footnoteEmphasized, { color: colors.textSecondary }]} testID="skills-check-progress">
+      <Text style={[Type.footnoteEmphasized, { color: colors.textSecondary }]} testID={tid('skills-check-progress')}>
         {t('settings.learn.questionOf', 'Question {n} of {total}', { n: String(index + 1), total: String(total) })}
       </Text>
       <Text style={[Type.title3, styles.question, { color: colors.text }]} accessibilityRole="header">
         {question.en}
       </Text>
 
-      <View style={styles.choices} accessibilityRole="radiogroup">
+      <View style={styles.choices} accessibilityRole={decorative ? undefined : 'radiogroup'}>
         {question.choices.map((c, i) => {
           const picked = pickedId === c.id;
           const isRight = c.id === question.correctId;
@@ -81,21 +79,8 @@ export function QuizQuestionCard({ question, index, total, pickedId, reduceMotio
           const tone = !answered ? null : isRight ? 'right' : picked ? 'wrong' : null;
           const bg = tone === 'right' ? colors.successSoft : tone === 'wrong' ? colors.warningSoft : colors.surface;
           const border = tone === 'right' ? colors.successLabel : tone === 'wrong' ? colors.warningLabel : colors.line;
-          return (
-            <Pressable
-              key={c.id}
-              onPress={() => onPick(c.id)}
-              disabled={answered}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: picked, disabled: answered }}
-              accessibilityLabel={`${i + 1}. ${c.en}`}
-              testID={`skills-check-choice-${c.id}`}
-              style={({ pressed }) => [
-                cardSurface(colors, { radius: 'card', pad: 'none' }),
-                styles.choice,
-                { backgroundColor: bg, borderColor: border, opacity: pressed && !answered ? 0.85 : 1 },
-              ]}
-            >
+          const inner = (
+            <>
               {showKeys ? (
                 <View style={[styles.key, { borderColor: colors.line }]}>
                   <Text style={[Type.caption1, { color: colors.textSecondary }]}>{String(i + 1)}</Text>
@@ -104,23 +89,46 @@ export function QuizQuestionCard({ question, index, total, pickedId, reduceMotio
               <Text style={[Type.callout, styles.choiceText, { color: colors.text }]}>{c.en}</Text>
               {tone === 'right' ? <Check size={20} strokeWidth={2} color={colors.successLabel} /> : null}
               {tone === 'wrong' ? <X size={20} strokeWidth={2} color={colors.warningLabel} /> : null}
+            </>
+          );
+          const surface = [
+            cardSurface(colors, { radius: 'card', pad: 'none' }),
+            styles.choice,
+            { backgroundColor: bg, borderColor: border },
+          ];
+          if (decorative) return <View key={c.id} style={surface}>{inner}</View>;
+          return (
+            <Pressable
+              key={c.id}
+              onPress={() => onPick(c.id)}
+              disabled={answered}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: picked, disabled: answered }}
+              accessibilityLabel={`${i + 1}. ${c.en}`}
+              testID={tid(`skills-check-choice-${c.id}`)}
+              style={({ pressed }) => [
+                ...surface,
+                { opacity: pressed && !answered ? 0.85 : 1 },
+              ]}
+            >
+              {inner}
             </Pressable>
           );
         })}
       </View>
 
       {answered ? (
-        <View style={styles.feedback} testID="skills-check-feedback">
+        <View style={styles.feedback} testID={tid('skills-check-feedback')}>
           <Text
             style={[Type.bodyCompactEmphasized, { color: right ? colors.successLabel : colors.warningLabel }]}
-            testID={right ? 'skills-check-right' : 'skills-check-wrong'}
+            testID={tid(right ? 'skills-check-right' : 'skills-check-wrong')}
           >
             {right ? t('settings.learn.right', 'Right.') : t('settings.learn.wrong', 'Not quite.')}
           </Text>
           <Text style={[Type.bodyCompact, styles.why, { color: colors.text }]}>{question.why}</Text>
         </View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 

@@ -2,7 +2,9 @@
 //
 // Full-screen modal that shows while the AI estimate is being generated.
 // Replaces the no-feedback dead-screen state with something engaging:
-// progress dots + a rotating construction fun fact every 4s.
+// calm thinking dots + a rotating construction fun fact every 4s. The dots
+// are the motion kit's ThinkingDots: one shared native clock (they keep moving
+// while JS parses a 30 s answer) that stops when the overlay closes.
 //
 // Why a modal: the estimate flow takes 8-30 seconds depending on tier and
 // project complexity. Without a real loading screen the user thinks the
@@ -11,7 +13,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
+  Modal, View, Text, StyleSheet, Animated, Platform, TouchableOpacity,
 } from 'react-native';
 import { CraneSvg } from '@/components/CraneLoader';
 import ThinkingStates from '@/components/ThinkingStates';
@@ -20,9 +22,10 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useSheetFrame } from '@/components/ui/Sheet';
-import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
+import { ThinkingDots } from '@/components/motion/kit';
 
 interface Props {
   visible: boolean;
@@ -48,9 +51,6 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
   // Desktop web: a centred card beside the sidebar; all-null on a phone.
   const fLoad = useSheetFrame('dialog', { visible, animationType: 'fade' });
   const [factIdx, setFactIdx] = useState(0);
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
   const factOpacity = useRef(new Animated.Value(1)).current;
 
   // Rotate fact every 4 seconds with a quick fade.
@@ -59,29 +59,13 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
     setFactIdx(Math.floor(Math.random() * FUN_FACTS.length));
     const id = setInterval(() => {
       Animated.sequence([
-        Animated.timing(factOpacity, { toValue: 0, duration: 240, useNativeDriver: true }),
-        Animated.timing(factOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+        Animated.timing(factOpacity, { toValue: 0, duration: 240, useNativeDriver: nativeDriver }),
+        Animated.timing(factOpacity, { toValue: 1, duration: 240, useNativeDriver: nativeDriver }),
       ]).start();
       setTimeout(() => setFactIdx(i => (i + 1 + Math.floor(Math.random() * (FUN_FACTS.length - 1))) % FUN_FACTS.length), 240);
     }, 4000);
     return () => clearInterval(id);
   }, [visible, factOpacity]);
-
-  // Bouncing progress dots.
-  useEffect(() => {
-    if (!visible) return;
-    const animate = (val: Animated.Value, delay: number) => Animated.loop(
-      Animated.sequence([
-        Animated.timing(val, { toValue: 1, duration: 380, delay, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(val, { toValue: 0, duration: 380, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    const a = animate(dot1, 0);
-    const b = animate(dot2, 130);
-    const c = animate(dot3, 260);
-    a.start(); b.start(); c.start();
-    return () => { a.stop(); b.stop(); c.stop(); };
-  }, [visible, dot1, dot2, dot3]);
 
   return (
     <Modal
@@ -99,17 +83,17 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
 
           <Text style={styles.title}>{title ?? 'Generating estimate…'}</Text>
           {thinkingSteps && thinkingSteps.length > 0 ? (
-            <ThinkingStates steps={thinkingSteps} active={visible} />
+            <ThinkingStates steps={thinkingSteps} active={visible} showDots={false} />
           ) : (
             <Text style={styles.subtitle}>
               {subtitle ?? 'Estimating from your scope and the rates listed above. This takes 8 to 30 seconds.'}
             </Text>
           )}
 
+          {/* Mounted only while open: the shared dot clock stops on close
+              even where a closed Modal still renders its children. */}
           <View style={styles.dotsRow}>
-            <Dot a={dot1} />
-            <Dot a={dot2} />
-            <Dot a={dot3} />
+            {visible ? <ThinkingDots dotStyle={styles.dotTone} testID="estimate-loading-dots" /> : null}
           </View>
 
           <View style={styles.factCard}>
@@ -132,18 +116,6 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
         </View>
       </View>
     </Modal>
-  );
-}
-
-function Dot({ a }: { a: Animated.Value }) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  const translateY = a.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
-  const opacity    = a.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
-  return (
-    <Animated.View
-      style={[styles.dot, { transform: [{ translateY }], opacity }]}
-    />
   );
 }
 
@@ -187,10 +159,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', gap: 8,
     marginTop: 4, marginBottom: 4,
   },
-  dot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: t.accent,
-  },
+  dotTone: { backgroundColor: t.accent },
   factCard: {
     width: '100%',
     paddingHorizontal: 16, paddingVertical: 14,

@@ -67,6 +67,7 @@ import { SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtures';
 import { SAMPLE_JOB_QUESTION, isSampleQuestion, sampleJobAnswer, tutorialAiLock } from '@/utils/tutorial/learn/fixturesB';
 import { useProjects } from '@/contexts/ProjectContext';
 import { t } from '@/i18n/core';
+import { ChatTurn } from '@/components/motion/kit';
 
 /** The selected job's verified adoption record, or null (unknown place / no job). */
 function jurisdictionForAsk(
@@ -490,8 +491,10 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
       ) : null}
 
       {/* ── Result ── */}
+      {/* The card mounts only for a new answer (a run clears the old one
+          first), so it arrives once: a fade after a 60 ms beat (ChatTurn). */}
       {result ? (
-        <View style={styles.resultCard} testID="construction-ask-result">
+        <ChatTurn role="assistant" live variant="page" style={styles.resultCard} testID="construction-ask-result">
           <Text style={styles.answerText} selectable>{result.answer}</Text>
 
           {result.calc ? (
@@ -511,7 +514,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
           {honestyBanner ? (
             tutorialOn ? <TutorialTarget id="cai.honesty">{honestyBanner}</TutorialTarget> : honestyBanner
           ) : null}
-        </View>
+        </ChatTurn>
       ) : null}
       </MaybeScrollAnchor>
 

@@ -59,6 +59,7 @@ import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSand
 import { SAMPLE_NO_CREDITS_LABEL, SAMPLE_PLAN } from '@/utils/tutorial/fixtures';
 import { SAMPLE_PLAN_QUESTION, isSampleQuestion, samplePlanAnswer, tutorialAiLock } from '@/utils/tutorial/learn/fixturesB';
 import { t } from '@/i18n/core';
+import { ChatTurn, ThinkingRow } from '@/components/motion/kit';
 
 /** The refusal on the sample during a run. A module-level function (not a
  *  constant: t() never runs at import time) because inside the components
@@ -412,8 +413,10 @@ function AskPlansPanelInner({
   );
   const chip = tutorialOn && sampleSheet ? sampleChipCopy() : null;
 
+  // The card mounts only for a new answer (asking unmounts it), so it arrives
+  // once: a fade after a 60 ms beat (motion kit ChatTurn), nothing types out.
   const answerCard = (
-    <View style={styles.answerCard}>
+    <ChatTurn role="assistant" live variant="panel" style={styles.answerCard}>
       {sampleAnswered ? <Text style={styles.sampleLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text> : null}
       <Text style={styles.answerText}>{answer}</Text>
 
@@ -463,7 +466,7 @@ function AskPlansPanelInner({
           I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
         </Text>
       )}
-    </View>
+    </ChatTurn>
   );
 
   return (
@@ -502,10 +505,17 @@ function AskPlansPanelInner({
         </View>
       ) : null}
 
-      {/* Loading state */}
-      {askState === 'asking' && (
-        <Text style={styles.statusText}>Reading your plans…</Text>
-      )}
+      {/* Loading state: the calm thinking row (never flashes for an answer
+          under 140 ms; says "Still working on it" after 10 s). */}
+      <ThinkingRow
+        visible={askState === 'asking'}
+        mark="level"
+        label="Reading your plans…"
+        stillLabel="Still working on it"
+        a11yLabel="Reading your plans"
+        textStyle={styles.statusText}
+        testID="ask-plans-thinking"
+      />
 
       {/* Answer */}
       {(askState === 'answered' || askState === 'error') && answer ? (
