@@ -72,42 +72,42 @@ exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), iOS 390 1`] = `
 {
-  "lines": 1781,
-  "sha256": "c5101bca9506f933601c556153fe3cf0c30f45f3f4b5e4782b298f247b0bb6dc",
+  "lines": 1796,
+  "sha256": "5f14990ba1ac9e4b872664f33f31751d829b719291b5d5502b2137931e5c73e6",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), web 390 1`] = `
 {
-  "lines": 1781,
-  "sha256": "c5101bca9506f933601c556153fe3cf0c30f45f3f4b5e4782b298f247b0bb6dc",
+  "lines": 1796,
+  "sha256": "5f14990ba1ac9e4b872664f33f31751d829b719291b5d5502b2137931e5c73e6",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, iOS 390 1`] = `
 {
-  "lines": 1749,
-  "sha256": "142ba93065380a582130d5cbefdc3c1071a8ed79c55419fddb0a54a03dd398f1",
+  "lines": 1764,
+  "sha256": "4319395d323c4df3fe8bebd58cc26ea94a26d531e02175bba5e2396e8fe240c6",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, web 390 1`] = `
 {
-  "lines": 1749,
-  "sha256": "142ba93065380a582130d5cbefdc3c1071a8ed79c55419fddb0a54a03dd398f1",
+  "lines": 1764,
+  "sha256": "4319395d323c4df3fe8bebd58cc26ea94a26d531e02175bba5e2396e8fe240c6",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, iOS 390 1`] = `
 {
-  "lines": 1541,
-  "sha256": "2a2563789827bade43afa247de26bcd4e3dafa1c290d4dbe466b282e77d840b9",
+  "lines": 1556,
+  "sha256": "7b306127f3dd2c0bd18c532e29739db0cd06a494681d9e49c55ceca43b877174",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, web 390 1`] = `
 {
-  "lines": 1541,
-  "sha256": "2a2563789827bade43afa247de26bcd4e3dafa1c290d4dbe466b282e77d840b9",
+  "lines": 1556,
+  "sha256": "7b306127f3dd2c0bd18c532e29739db0cd06a494681d9e49c55ceca43b877174",
 }
 `;
