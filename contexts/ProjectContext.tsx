@@ -291,6 +291,10 @@ const PUNCH_SCOPED_UPDATE_COLUMNS: Partial<Record<keyof PunchItem, readonly stri
   photoLatitude: ['photo_latitude'], photoLongitude: ['photo_longitude'],
   photoLocationAccuracyMeters: ['photo_accuracy_meters'], photoLocationLabel: ['photo_location_label'],
   sourcePhotoId: ['source_photo_id'], closedAt: ['closed_at'],
+  // Lane SEAL: the after photo and its time travel together.
+  afterPhotoUri: ['after_photo_uri', 'after_photo_taken_at'],
+  afterPhotoStoragePath: ['after_photo_uri', 'after_photo_taken_at'],
+  afterPhotoTakenAt: ['after_photo_uri', 'after_photo_taken_at'],
 };
 
 function punchItemToUpdateRow(pi: PunchItem, now: string, clears: readonly PinColumn[] = [], scope?: readonly (keyof PunchItem)[]): Record<string, unknown> {
@@ -318,6 +322,12 @@ function punchItemToUpdateRow(pi: PunchItem, now: string, clears: readonly PinCo
     // stalls the write in the queue, so records with no source photo — nearly
     // all of them — never name it. The id is set once at creation.
     ...(pi.sourcePhotoId ? { source_photo_id: pi.sourcePhotoId } : {}),
+    // Lane SEAL: only when set, like source_photo_id (the columns are new, in
+    // 20261002150000). Never a file:// (durable path only). seal_id is never
+    // sent: only the seal-punch edge function writes it.
+    ...(durablePhotoValue(pi.afterPhotoStoragePath, pi.afterPhotoUri)
+      ? { after_photo_uri: durablePhotoValue(pi.afterPhotoStoragePath, pi.afterPhotoUri), after_photo_taken_at: pi.afterPhotoTakenAt ?? null }
+      : {}),
     rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
   };
   if (!scope) return whole;
@@ -3488,25 +3498,37 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // Replace/Remove elsewhere, or a blob: from a previous tab, must
             // give way to the server (utils/deviceLocalCopy).
             const priorLocal = new Map<string, PriorDeviceCopy>();
+            const priorAfterLocal = new Map<string, PriorDeviceCopy>();
             const priorPunch = await loadLocal<PunchItem[]>(PUNCH_ITEMS_KEY, []);
             for (const p of priorPunch) {
               const local = p.photoLocalUri ?? (isDeviceLocalUri(p.photoUri) ? p.photoUri : undefined);
               if (local) priorLocal.set(p.id, { local, path: p.photoStoragePath });
+              // Lane SEAL: the after photo keeps its device copy by the same rule.
+              const afterLocal = p.afterPhotoLocalUri ?? (isDeviceLocalUri(p.afterPhotoUri) ? p.afterPhotoUri : undefined);
+              if (afterLocal) priorAfterLocal.set(p.id, { local: afterLocal, path: p.afterPhotoStoragePath });
             }
             const cachedLocal = new Map<string, string>();
+            const cachedAfterLocal = new Map<string, string>();
             for (const r of data) {
               const keep = deviceCopyForServerRow(priorLocal.get(r.id as string), r.photo_uri as string | null | undefined);
               if (keep) cachedLocal.set(r.id as string, keep);
+              const keepAfter = deviceCopyForServerRow(priorAfterLocal.get(r.id as string), r.after_photo_uri as string | null | undefined);
+              if (keepAfter) cachedAfterLocal.set(r.id as string, keepAfter);
             }
             // Only sign what we'll actually render — on the device that shot
             // them, every photo already has a local file and signing would be
             // pure waste.
-            const resolve = await buildPhotoUrlResolver(
-              data.filter(r => !cachedLocal.has(r.id as string)).map(r => r.photo_uri as string | undefined),
-            );
+            const resolve = await buildPhotoUrlResolver([
+              ...data.filter(r => !cachedLocal.has(r.id as string)).map(r => r.photo_uri as string | undefined),
+              ...data.filter(r => r.after_photo_uri && !cachedAfterLocal.has(r.id as string)).map(r => r.after_photo_uri as string | undefined),
+            ]);
             const mapped = data.map((r: Record<string, unknown>) => {
               const photoLocalUri = cachedLocal.get(r.id as string);
               const photo = resolve(r.photo_uri as string | undefined, photoLocalUri);
+              // Lane SEAL: the after photo, read back only when the row has one
+              // (an absent key keeps the item's shape exactly as before).
+              const afterLocalUri = cachedAfterLocal.get(r.id as string);
+              const after = r.after_photo_uri ? resolve(r.after_photo_uri as string, afterLocalUri) : null;
               return {
               id: r.id as string, projectId: r.project_id as string, description: r.description as string,
               location: (r.location as string) ?? '', assignedSub: (r.assigned_sub as string) ?? '',
@@ -3551,6 +3573,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // through sub_portal_mark_punch_ready; user_id is set on insert.
               ...punchServerOwnedFromRow(r),
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              ...(after ? {
+                afterPhotoUri: after.uri || undefined, afterPhotoStoragePath: after.storagePath, afterPhotoLocalUri: afterLocalUri,
+                afterPhotoTakenAt: (r.after_photo_taken_at as string | null) ?? undefined,
+              } : {}),
+              // seal_id: READ only (the seal-punch edge function is its only writer).
+              ...(r.seal_id ? { sealId: r.seal_id as string } : {}),
               };
             }) as PunchItem[];
             // SYNC-F3: keep offline-created rows whose write is still queued — the
@@ -8007,7 +8035,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // that shot it. Same treatment as the gallery: bytes onto the upload queue,
   // durable path onto the row, local URI kept for rendering. Keyed
   // `punch-<id>` so it can't collide with the gallery photo of the same id.
-  const stagePunchPhoto = useCallback((item: PunchItem): PunchItem => {
+  // Lane SEAL: the AFTER photo is staged the same way, keyed `punch-<id>-after`
+  // so it never overwrites the before photo's object.
+  const stagePunchAfterPhoto = useCallback((item: PunchItem): PunchItem => {
+    if (!item.afterPhotoUri || !isDeviceLocalUri(item.afterPhotoUri)) return item;
+    if (item.afterPhotoStoragePath && item.afterPhotoLocalUri === item.afterPhotoUri) return item;
+    const storagePath = stagePhotoUpload({
+      userId, projectId: item.projectId, recordId: `punch-${item.id}-after`, localUri: item.afterPhotoUri,
+    });
+    if (!storagePath) return item;
+    return { ...item, afterPhotoStoragePath: storagePath, afterPhotoLocalUri: item.afterPhotoUri };
+  }, [userId]);
+
+  const stagePunchBeforePhoto = useCallback((item: PunchItem): PunchItem => {
     if (!item.photoUri) return item;
     if (!isDeviceLocalUri(item.photoUri)) {
       // #12, punch side. An item raised from a gallery photo that is NOT on
@@ -8035,6 +8075,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (!storagePath) return item;
     return { ...item, photoStoragePath: storagePath, photoLocalUri: item.photoUri };
   }, [userId]);
+
+  const stagePunchPhoto = useCallback(
+    (item: PunchItem): PunchItem => stagePunchBeforePhoto(stagePunchAfterPhoto(item)),
+    [stagePunchBeforePhoto, stagePunchAfterPhoto],
+  );
 
   // Snake/camel mapping for the punch_items insert payload — shared by the
   // single-add and batch-add paths so they stay byte-identical.
@@ -8064,6 +8109,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // The photo the item was raised from — how another device finds its markup.
     // Only when set, like punchItemToUpdateRow.
     ...(item.sourcePhotoId ? { source_photo_id: item.sourcePhotoId } : {}),
+    // Lane SEAL: only when set (new columns, 20261002150000); never seal_id.
+    ...(durablePhotoValue(item.afterPhotoStoragePath, item.afterPhotoUri)
+      ? { after_photo_uri: durablePhotoValue(item.afterPhotoStoragePath, item.afterPhotoUri), after_photo_taken_at: item.afterPhotoTakenAt ?? null }
+      : {}),
     rejection_note: item.rejectionNote, closed_at: item.closedAt,
     created_at: item.createdAt, updated_at: item.updatedAt,
   }), [userId]);

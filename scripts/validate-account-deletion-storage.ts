@@ -72,6 +72,9 @@ const PRODUCTION_BUCKETS = [
   'portfolio',
   // MSGDATA (portal message photos/PDFs): `<projectId>/<messageId>/<file>`, project-keyed.
   'message-attachments',
+  // SEAL (20261002150000): the sealed final punch, `<uid>/<sealId>/<itemId>.jpg` and
+  // `<uid>/<sealId>/record.pdf`, user-keyed; no client delete policy (write-once).
+  'punch-seals',
 ];
 
 for (const bucket of PRODUCTION_BUCKETS) {

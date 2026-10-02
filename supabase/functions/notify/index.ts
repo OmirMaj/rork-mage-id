@@ -98,6 +98,9 @@ import { notificationRoute, routeHref } from "./routes.ts";
 // MSGDATA: "2 photos attached" in place of an empty quote. Files are never
 // linked or attached to an email; they open only in the app or the portal.
 import { attachmentSummaryLine } from "../_shared/messageFiles.ts";
+// SAMPLEGUARD: nothing on a sample job reaches anyone but the user; the rule
+// and the refused events live in the shared fence (not restated here).
+import { isSampleProjectName, SAMPLE_REFUSED_NOTIFY_EVENTS } from "../_shared/sampleFence.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -1348,6 +1351,13 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     if (await exceedsRateLimit(`notify:user:${caller.id}`, USER_HOURLY_CAP)) {
       return { ok: false, reason: 'rate_limited', event, httpStatus: 429 };
     }
+  }
+  // SAMPLEGUARD: a closeout binder on a sample project is refused by the
+  // server too (the app refuses first; a stale build, a replayed link or a
+  // hand-made request lands here). After EDGE-F4, so a non-member learns
+  // nothing; before any email, push or outbox row, so nothing is sent.
+  if ((SAMPLE_REFUSED_NOTIFY_EVENTS as readonly string[]).includes(event) && isSampleProjectName(projectCtx.name)) {
+    return { ok: false, reason: 'sample_project', event, httpStatus: 409 };
   }
   // EDGE-F5: the anon path is also bucketed by the RESOLVED GC (the client-IP
   // and per-portal buckets were consumed above, after the token check).

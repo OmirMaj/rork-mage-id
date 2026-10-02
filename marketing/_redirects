@@ -37,6 +37,12 @@
 # skill-certificate-verify edge function. Mirrored in netlify.toml.
 /skills/*  /skills/index.html  200
 
+# Job facts link: mageid.app/facts/<code>. The link code is in the path; the
+# page (noindex, no analytics) reads it and asks the job-facts-view edge
+# function, which answers only while the GC's link is live. Mirrored in
+# netlify.toml (a rule in only one of the two files is a 404).
+/facts/*  /facts/index.html  200
+
 # Catch-all 404 (marketing-audit M3). Was previously `/* /index.html 200` —
 # unknown URLs got served the homepage with status 200, which hurt SEO
 # (search engines couldn't drop dead URLs from the index) and UX (typos

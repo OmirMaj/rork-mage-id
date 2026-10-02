@@ -83,7 +83,7 @@ function setup(opts: { reduce?: boolean; vh?: number; inView?: string[] } = {}) 
 }
 const runMain = () => { new Function(MAIN)(); };
 const runKit = () => { new Function('window', 'document', KIT)(window, document); };
-const kitIO = () => observers.find((o) => o.opts.rootMargin === '0px 0px -10% 0px')!;
+const kitIO = () => observers.find((o) => o.opts.rootMargin === '0px 0px -20% 0px')!;
 const brainIO = () => observers.find((o) => o.opts.threshold === 0)!;
 const enter = (...els: Element[]) => kitIO().cb(els.map((target) => ({ target, isIntersecting: true })));
 const $ = (sel: string) => document.querySelector(sel) as HTMLElement;

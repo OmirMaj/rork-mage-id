@@ -730,6 +730,19 @@ export interface RetainageReadinessInput {
   /** Issue date of the most recent invoice on the project that holds retainage. */
   lastRetainageInvoiceIso?: string;
   now: Date;
+  /** The sealed final punch (punch_seals, lane SEAL), when the client accepted
+   *  it in person. A stronger punch fact than the count: it adds one reason and
+   *  counts as the punch fact. It never says retainage is released or owed. */
+  punchSeal?: { sealedAt: string; signerName: string };
+}
+
+const SEAL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Oct 2, 2026" in the device's local day (no Intl: the same in Hermes, Node and bun). */
+function sealDay(iso: string): string | null {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  return `${SEAL_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 export interface RetainageReadinessSignal {
@@ -789,13 +802,25 @@ export function retainageReadiness(input: RetainageReadinessInput): RetainageRea
     reasons.push(`You marked this project ${input.projectStatus === 'closed' ? 'closed' : 'completed'}.`);
   }
 
+  // The sealed record: the client's own acceptance, hashed on the server.
+  const sealName = input.punchSeal?.signerName?.trim() ?? '';
+  const sealOn = input.punchSeal ? sealDay(input.punchSeal.sealedAt) : null;
+
   if (input.punchTotal <= 0) {
     reasons.push('No punch list on file — nothing here says the punch is clear.');
   } else if (input.punchOpen === 0) {
     punchFact = true;
     reasons.push(`All ${input.punchTotal} punch item${input.punchTotal === 1 ? '' : 's'} closed.`);
+  } else if (sealName && sealOn) {
+    // Sealed items can never reopen, so anything open now sits outside the record.
+    reasons.push(`${input.punchOpen} punch item${input.punchOpen === 1 ? '' : 's'} added after the sealed record still open.`);
   } else {
     reasons.push(`${input.punchOpen} of ${input.punchTotal} punch items still open.`);
+  }
+
+  if (sealName && sealOn) {
+    punchFact = true;
+    reasons.push(`Final punch accepted by ${sealName} on ${sealOn} (sealed record).`);
   }
 
   if (input.lastRetainageInvoiceIso) {

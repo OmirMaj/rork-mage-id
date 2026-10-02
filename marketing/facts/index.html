@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#ECEDE9" />
+<meta name="robots" content="noindex" />
+<!-- The link code is in this page's address. No Referer leaves it, and the page
+     loads no analytics and no third-party script or font, so the code goes only
+     to the MAGE ID read (job-facts-view). -->
+<meta name="referrer" content="no-referrer" />
+<title>Job facts · MAGE ID</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/styles.css?v=2026-10-02-motion" />
+<style>
+  /* A plain read-only document on the light concrete ground, with the site's
+     tokens from /styles.css. One column on a phone, two at 900 px and up. */
+  body.jf { background: var(--ground); color: var(--text-dark); line-height: 1.55; font-size: 16px; min-height: 100vh; overflow-wrap: anywhere; }
+  .jf a { color: var(--brand-deep); }
+  .jf :where(a):focus-visible { outline: 2px solid var(--brand-deep); outline-offset: 2px; border-radius: 4px; }
+  .jf-wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 56px; }
+  .jf-brandbar { display: flex; align-items: center; gap: 10px; padding: 8px 0 20px; color: var(--text-muted); font-size: 14px; font-weight: 600; }
+  .jf-brandmark { width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--brand); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; }
+  .jf-doc { background: var(--off); border: 1px solid var(--hairline); border-radius: 12px; padding: 24px 20px; }
+  .jf-job { font-family: var(--ff-display); font-size: clamp(26px, 6vw, 36px); font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; margin: 0; color: var(--text-dark); }
+  .jf-by { margin: 6px 0 0; font-size: 17px; color: var(--text-dark); }
+  .jf-asof { margin: 4px 0 0; font-size: 14px; color: var(--text-muted); }
+  .jf-sections { display: grid; gap: 16px; margin-top: 20px; }
+  @media (min-width: 900px) {
+    .jf-sections { grid-template-columns: 1fr 1fr; align-items: start; }
+    .jf-sections > .jf-wide { grid-column: 1 / -1; }
+  }
+  .jf-sec { background: var(--off); border: 1px solid var(--hairline); border-radius: 12px; padding: 18px 18px 8px; }
+  .jf-sec-head { font-family: var(--ff-display); font-size: 20px; font-weight: 700; margin: 0 0 6px; color: var(--text-dark); }
+  .jf-fact { padding: 10px 0; border-top: 1px solid var(--bone); }
+  .jf-fact:first-of-type { border-top: 0; }
+  .jf-value { margin: 0; font-weight: 700; }
+  .jf-label, .jf-amount { margin: 2px 0 0; }
+  .jf-source { margin: 2px 0 0; font-size: 14px; color: var(--text-muted); }
+  .jf-none { margin: 4px 0 10px; font-size: 15px; color: var(--text-muted); }
+  .jf-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 6px 0 10px; }
+  .jf-photo { margin: 0; }
+  .jf-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; display: block; background: var(--bone); }
+  .jf-photo figcaption { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .jf-foot { margin-top: 20px; font-size: 14px; color: var(--text-muted); }
+  .jf-state { font-size: 17px; margin: 0; }
+  .jf-doc.jf-warn { background: #FFF4E0; border-color: rgba(138, 75, 0, 0.35); }
+  .jf-doc.jf-warn .jf-state { color: #8A4B00; font-weight: 600; }
+  .jf [hidden] { display: none !important; }
+  .jf-home { margin-top: 24px; font-size: 14px; color: var(--text-muted); }
+  .jf-home a { display: inline-block; min-height: 24px; line-height: 24px; }
+  @media print {
+    body.jf { background: #FFFFFF; }
+    .jf-home, .scroll-progress { display: none; }
+    .jf-doc, .jf-sec { border: 0; padding: 0; }
+  }
+</style>
+<link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-g7" />
+</head>
+<body class="jf">
+<div class="jf-wrap">
+  <div class="jf-brandbar"><span class="jf-brandmark" aria-hidden="true">M</span><span>MAGE ID</span></div>
+
+  <div id="main" role="main">
+    <noscript>
+      <style>#loading { display: none; }</style>
+      <div class="jf-doc jf-warn"><p class="jf-state">These job facts need JavaScript to load. Turn it on and reload the page.</p></div>
+    </noscript>
+
+    <div id="loading" class="jf-doc" aria-live="polite">
+      <p class="jf-state">Loading the job facts…</p>
+    </div>
+
+    <div id="live" hidden>
+      <div class="jf-doc">
+        <h1 class="jf-job" id="jf-job"></h1>
+        <p class="jf-by" id="jf-by"></p>
+        <p class="jf-asof" id="jf-asof"></p>
+      </div>
+      <div class="jf-sections" id="jf-sections" data-mk="list"></div>
+      <p class="jf-foot" id="jf-foot"></p>
+    </div>
+
+    <div id="notlive" class="jf-doc jf-warn" hidden>
+      <p class="jf-state">This link is no longer active.</p>
+    </div>
+
+    <div id="error" class="jf-doc jf-warn" hidden>
+      <p class="jf-state">Couldn't load these facts right now. Try again in a minute.</p>
+    </div>
+  </div>
+
+  <p class="jf-home"><a href="/">mageid.app</a></p>
+</div>
+
+<script>
+  // Reads the code from /facts/<code>, asks job-facts-view, and shows only what
+  // the answer holds. Every value goes in with textContent, never as markup:
+  // the job name, descriptions and tags are whatever the contractor typed.
+  var API = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/job-facts-view';
+  var CODE_RE = /^[A-HJ-NP-Z2-9]{12}$/;
+  var SECTION_ORDER = ['permits', 'inspections', 'changeOrders', 'milestones', 'photos', 'closeout'];
+  var SECTION_NAME = {
+    permits: 'Permits', inspections: 'Inspections', changeOrders: 'Change orders',
+    milestones: 'Finished milestones', photos: 'Photos', closeout: 'Closeout and warranties'
+  };
+
+  // '/facts/abcd-efgh-2345' → 'ABCDEFGH2345'; '' when the path holds no code.
+  function codeFromPath(pathname) {
+    var m = /^\/facts\/([^\/?#]+)/.exec(pathname || '');
+    if (!m) return '';
+    var raw;
+    try { raw = decodeURIComponent(m[1]); } catch (e) { return ''; }
+    return raw.replace(/[\s-]/g, '').toUpperCase();
+  }
+
+  // What the response means. "Not live" needs the function's own answer
+  // ({live:false} / bad_code): a gateway 404 (function missing, mid-deploy) is
+  // an outage, not a turned-off link.
+  function classifyFactsResponse(status, d) {
+    if (!d || typeof d !== 'object') return 'error';
+    if (status === 404 && d.live === false) return 'notlive';
+    if (status === 400 && d.error === 'bad_code') return 'notlive';
+    if (status !== 200) return 'error';
+    if (d.live === true && d.job && typeof d.job.name === 'string' && typeof d.publishedAt === 'string' &&
+        Array.isArray(d.sections) && Array.isArray(d.facts)) return 'live';
+    return 'error';
+  }
+
+  // 'YYYY-MM-DD' → 'Sep 4, 2026', read as a calendar day (never shifted by a time zone).
+  function dayLabel(day) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+    if (!m) return '';
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  // An instant → 'October 2, 2026' in New York (the publish moment).
+  function instantLabel(iso) {
+    var t = new Date(iso);
+    if (isNaN(t.getTime())) return '';
+    return t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+  }
+
+  function sourceLine(f) {
+    var s = f && f.source ? f.source : {};
+    switch (s.record) {
+      case 'permit': return 'From the permit log';
+      case 'inspection': return 'From the inspection log';
+      case 'change_order': return 'From change order #' + String(s.ref || '');
+      case 'schedule': return 'From the schedule';
+      case 'photo': return 'From the photo log';
+      case 'warranty': return 'From the warranty log';
+      case 'closeout_binder': return 'From the closeout binder';
+      default: return 'From the job record';
+    }
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function show(id) {
+    ['loading', 'live', 'notlive', 'error'].forEach(function (s) { document.getElementById(s).hidden = s !== id; });
+  }
+
+  function renderLive(d) {
+    var business = typeof d.job.business === 'string' && d.job.business ? d.job.business : 'the contractor';
+    var asOf = instantLabel(d.publishedAt);
+    document.getElementById('jf-job').textContent = d.job.name || 'Job';
+    document.getElementById('jf-by').textContent = 'Recorded by ' + business + ' in MAGE ID';
+    document.getElementById('jf-asof').textContent = asOf ? 'Facts as of ' + asOf : '';
+    document.getElementById('jf-foot').textContent = 'Read-only. Shared by ' + business + '. Nothing here is a prediction.';
+
+    var urls = {};
+    (Array.isArray(d.photos) ? d.photos : []).forEach(function (p) {
+      if (p && typeof p.id === 'string' && typeof p.url === 'string' && /^https:\/\//.test(p.url)) urls[p.id] = p.url;
+    });
+
+    var box = document.getElementById('jf-sections');
+    box.textContent = '';
+    SECTION_ORDER.filter(function (s) { return d.sections.indexOf(s) >= 0; }).forEach(function (s) {
+      var facts = d.facts.filter(function (f) { return f && f.section === s && typeof f.date === 'string'; });
+      var sec = el('div', 'jf-sec' + (s === 'photos' ? ' jf-wide' : ''));
+      sec.setAttribute('data-mk-item', '');
+      sec.appendChild(el('h2', 'jf-sec-head', SECTION_NAME[s]));
+      if (s === 'photos') {
+        var grid = el('div', 'jf-photos'), missing = 0;
+        facts.forEach(function (f) {
+          var id = f.photo && f.photo.id;
+          if (!id || !urls[id]) { missing++; return; }
+          var fig = el('figure', 'jf-photo');
+          var img = document.createElement('img');
+          img.src = urls[id];
+          img.alt = f.value || 'Site photo';
+          img.loading = 'lazy';
+          img.referrerPolicy = 'no-referrer';
+          fig.appendChild(img);
+          fig.appendChild(el('figcaption', null, (f.value || 'Site photo') + ' · Recorded ' + dayLabel(f.date)));
+          grid.appendChild(fig);
+        });
+        if (grid.childNodes.length) sec.appendChild(grid);
+        if (!facts.length) sec.appendChild(el('p', 'jf-none', 'Nothing recorded yet.'));
+        if (missing) sec.appendChild(el('p', 'jf-none', missing === 1 ? '1 photo can\'t be shown right now.' : missing + ' photos can\'t be shown right now.'));
+      } else {
+        if (!facts.length) sec.appendChild(el('p', 'jf-none', 'Nothing recorded yet.'));
+        facts.forEach(function (f) {
+          var row = el('div', 'jf-fact');
+          row.appendChild(el('p', 'jf-value', String(f.value || '')));
+          row.appendChild(el('p', 'jf-label', String(f.label || '') + (f.detail ? ' · ' + String(f.detail) : '')));
+          if (d.includeCoAmounts === true && typeof f.amountCents === 'number' && Math.floor(f.amountCents) === f.amountCents) {
+            row.appendChild(el('p', 'jf-amount', (f.amountCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })));
+          }
+          row.appendChild(el('p', 'jf-source', sourceLine(f) + ' · ' + (f.term === true ? dayLabel(f.date) : 'Recorded ' + dayLabel(f.date))));
+          sec.appendChild(row);
+        });
+      }
+      box.appendChild(sec);
+    });
+    show('live');
+    // The kit arms the (then hidden) group at load and starts it when it comes
+    // into view; play() only when it was never armed (the answer beat the kit).
+    if (window.MageMotion && typeof window.MageMotion.play === 'function' && !box.classList.contains('mk-armed')) window.MageMotion.play(box);
+  }
+
+  function render(kind, d) {
+    if (kind === 'live') { renderLive(d); return; }
+    show(kind);
+  }
+
+  (function run() {
+    var code = codeFromPath(window.location.pathname);
+    if (!CODE_RE.test(code)) { render('notlive'); return; }
+    fetch(API + '?code=' + encodeURIComponent(code), { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' })
+      .then(function (r) {
+        return r.json().catch(function () { return null; })
+          .then(function (d) { return { status: r.status, d: d }; });
+      })
+      .then(function (res) { render(classifyFactsResponse(res.status, res.d), res.d); })
+      .catch(function () { render('error'); });
+  })();
+</script>
+<script src="/motion.js?v=2026-10-02-motion" defer></script>
+<script src="/assets/motion-kit.js?v=2026-10-02-g7" defer></script>
+</body>
+</html>

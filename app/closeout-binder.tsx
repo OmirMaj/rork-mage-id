@@ -91,6 +91,7 @@ import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor
 import { tutorialSignal, useTutorialSandboxId } from '@/utils/tutorial/store';
 import { binderSectionsFilled } from '@/utils/tutorial/learn/fixturesD';
 import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { usePunchSeal } from '@/hooks/usePunchSeal';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -126,6 +127,8 @@ export default function CloseoutBinderScreen() {
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  // Lane SEAL (SHOULD 9): the sealed final punch, read from the server only.
+  const { seal: punchSeal } = usePunchSeal(project?.id);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
@@ -573,6 +576,8 @@ export default function CloseoutBinderScreen() {
         submittals: projectSubmittals,
         warranties: warranties ?? [],
         lienWaivers,
+        // Lane SEAL: the "Final punch record" section prints only with a seal.
+        ...(punchSeal ? { punchSeal } : {}),
         // Founder decision 5: the binder is the owner's handover document, so
         // supplier names and sub phone/email print only when the GC switched
         // them on for this job — the same two switches as the portal.
@@ -586,7 +591,7 @@ export default function CloseoutBinderScreen() {
     } finally {
       setExporting(false);
     }
-  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers, subcontractors, waiverReadError]);
+  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers, subcontractors, waiverReadError, punchSeal]);
 
   const addMaintenance = useCallback(() => {
     setMaintenance(prev => [...prev, { id: generateUUID(), task: '', frequency: 'Annual', notes: '' }]);
@@ -910,6 +915,44 @@ export default function CloseoutBinderScreen() {
               </Text>
             )}
           </View>
+
+          {/* Lane FACTS (S1): the read-only job facts link, where the GC already is at handover. */}
+          <View style={styles.card} testID="share-facts-row">
+            <View style={styles.shareRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shareRowTitle}>Share facts</Text>
+                <Text style={styles.shareRowDesc}>A read-only link with the permits, inspections, change orders, milestones, photos and warranties you pick. You can turn it off any time.</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={() => router.push({ pathname: '/job-facts', params: { projectId: project.id } })}
+                accessibilityRole="button"
+                accessibilityLabel="Share job facts"
+              >
+                <Text style={styles.smallBtnText}>Open</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Lane SEAL (SHOULD 9): the sealed final punch, when there is one. */}
+          {punchSeal ? (
+            <View style={styles.card} testID="punch-seal-row">
+              <View style={styles.shareRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareRowTitle}>Final punch record</Text>
+                  <Text style={styles.shareRowDesc}>{`Accepted by ${punchSeal.signerName}, ${punchSeal.itemCount} punch item${punchSeal.itemCount === 1 ? '' : 's'}. The binder prints the record id and hash.`}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.smallBtn}
+                  onPress={() => router.push({ pathname: '/punch-seal' as any, params: { projectId: project.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the final punch record"
+                >
+                  <Text style={styles.smallBtnText}>Open</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
 
           {/* Home Passport — generation status + manual (re-)generate.
               Shown once the binder is finalized; auto-runs at finalize. */}

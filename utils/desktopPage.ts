@@ -120,13 +120,16 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'skills-check': 'form',
   'skills-certificates': 'form',
 
-  // ── reading 760 — long single-column text. No route takes it today:
+  // ── reading 760 — long single-column text. Only punch-seal takes it:
   // construction-news was seeded here, but on desktop that screen lays its
   // cards out two-up and caps its own list at 1100 (app/construction-news.tsx),
   // so a 760 column squeezed each card from ~530 px to ~356 px. It is framed
   // as 'dashboard' below instead, which leaves the screen's own 1100 cap in
   // charge — exactly what it rendered before wave 6b. If wave 6c turns the
   // feed into a one-column read, move it back here.
+  // Lane SEAL: the sealed final punch reads as one column (the record, then
+  // Save PDF); the screen's own content cap is Layout.page.reading too.
+  'punch-seal': 'reading',
 
   // ── table 1600 — registers with 7+ numeric columns.
   'wip-report': 'table', 'bid-leveling': 'table', 'buyout-package': 'table', 'aia-pay-app': 'table',
@@ -175,6 +178,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'estimate-accuracy': 'dashboard', 'estimate-calibration': 'dashboard',
   'estimate-confidence': 'dashboard', 'estimate-scorecard': 'dashboard',
   'extract-submittals': 'dashboard', 'handover': 'dashboard', 'integrations': 'dashboard',
+  // Lane FACTS: the job facts link (picker | preview, two panes on desktop).
+  'job-facts': 'dashboard',
   'job-detail': 'dashboard', 'lien-waivers': 'dashboard', 'living-estimate': 'dashboard',
   'margin-alerts': 'dashboard', 'margin-risk': 'dashboard', 'my-rfps': 'dashboard',
   'nearby-rfps': 'dashboard', 'notifications-inbox': 'dashboard',

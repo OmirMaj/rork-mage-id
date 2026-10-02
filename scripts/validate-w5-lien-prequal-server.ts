@@ -173,7 +173,10 @@ ok('submit_prequal_packet stays granted to anon',
 console.log('\nthe signing page says "voided" for a voided waiver:');
 const page = read('marketing/lien-waiver/index.html');
 const voidedBranch = page.indexOf("indexOf('lien_waiver_voided')");
-const deniedBranch = page.indexOf("indexOf('lien_waiver_denied') !== -1) {\n            $('submit-note')");
+// The submit result is read by one function (readSignResult) shared by the
+// button and the signing line (LIENSLIDE), so the branch is pinned by its
+// `why.` test: the load handler's denied branch tests `reason.` instead.
+const deniedBranch = page.indexOf("why.indexOf('lien_waiver_denied') !== -1)");
 ok('the submit handler has its own lien_waiver_voided branch', voidedBranch > 0);
 ok('…checked before the generic denied branch', voidedBranch > 0 && deniedBranch > voidedBranch, `${voidedBranch} / ${deniedBranch}`);
 ok('…and it tells the sub the contractor voided it',

@@ -55,15 +55,21 @@
 //       eventKey?: string,
 //       enabled?: boolean,
 //     },
+//     projectId?: string,                // SAMPLEGUARD: owner-checked; a sample
+//                                        // project sends only to the caller
 //   }
 //
 // Response:
 //   { success: true, id: "<resend-message-id>" }
 //   { success: false, error: "<reason>" }
+//   409 { success: false, error: "sample_project" }   (projectId names a sample
+//       project and a recipient is not the caller's own verified address)
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { resendSend, htmlToPlaintext, buildFromAddress, buildListUnsubscribeHeaders, isTransactionalDocumentKey, type UnsubscribeOpts } from "../_shared/email.ts";
 import { requireTier, rateLimitCount } from "../_shared/auth.ts";
+// SAMPLEGUARD: a send that names a sample project may reach only the caller.
+import { sampleSendRefusal } from "../_shared/sampleFence.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -110,7 +116,14 @@ interface SendEmailBody {
   fromCompanyName?: string;
   attachments?: Attachment[];
   unsubscribe?: UnsubscribeOpts;
+  // SAMPLEGUARD: the project this document belongs to (contracts send it).
+  // Optional: an old client never sends it and behaves as before. When it is
+  // present the caller must own the project, and a sample project may send
+  // only to the caller's own verified address (409 sample_project).
+  projectId?: string;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // resendSend in _shared/email.ts handles single-recipient sends with full
 // header + plaintext support but doesn't accept attachments. For the
@@ -202,6 +215,9 @@ serve(async (req) => {
   if (!body.html || typeof body.html !== "string") {
     return jsonResponse({ success: false, error: "Missing html body" }, 400);
   }
+  if (body.projectId !== undefined && body.projectId !== null && (typeof body.projectId !== "string" || !UUID_RE.test(body.projectId))) {
+    return jsonResponse({ success: false, error: "projectId must be a UUID" }, 400);
+  }
 
   // Audit-2026-05-21: anti-impersonation + size caps. Pre-fix this
   // function had verify_jwt:true at the platform level but blindly
@@ -272,6 +288,40 @@ serve(async (req) => {
     }
     if (totalAttachBytes > MAX_ATTACHMENT_BYTES) {
       return jsonResponse({ success: false, error: `Attachments too large (max ${MAX_ATTACHMENT_BYTES} bytes total decoded)` }, 400);
+    }
+  }
+
+  // SAMPLEGUARD: a send that names its project is checked against it BEFORE
+  // the rate buckets spend and before anything reaches Resend. Owner first, so
+  // a non-owner learns nothing about the project (create-payment-link's order).
+  // Service-role read of two columns; the caller was verified by requireTier.
+  if (typeof body.projectId === "string") {
+    let projectRow: { user_id: string | null; name: string | null } | null = null;
+    try {
+      const prRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(body.projectId)}&select=user_id,name&limit=1`,
+        { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+      );
+      if (!prRes.ok) {
+        console.error("[send-email] project read failed:", prRes.status);
+        return jsonResponse({ success: false, error: "Could not check the project" }, 500);
+      }
+      const rows = await prRes.json() as { user_id: string | null; name: string | null }[];
+      projectRow = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    } catch (e) {
+      console.error("[send-email] project read threw:", e);
+      return jsonResponse({ success: false, error: "Could not check the project" }, 500);
+    }
+    if (!projectRow) {
+      return jsonResponse({ success: false, error: "project_not_found" }, 404);
+    }
+    if (projectRow.user_id !== callerSub) {
+      return jsonResponse({ success: false, error: "not_your_project" }, 403);
+    }
+    // The GoTrue-verified address only, never the profile fallback above.
+    const refusal = sampleSendRefusal({ projectName: projectRow.name, recipients, callerEmail: auth.email ?? null });
+    if (refusal) {
+      return jsonResponse({ success: false, error: refusal }, 409);
     }
   }
 

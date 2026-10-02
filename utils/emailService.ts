@@ -17,12 +17,18 @@ import {
 } from '@/utils/emailLayout';
 import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceSampleCore';
 import { PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
+import { readEdgeError, edgeErrorStatus } from '@/utils/edgeError';
+import { SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
 
 export interface SendEmailParams {
   to: string;
   subject: string;
   html: string;
   replyTo?: string;
+  /** SAMPLEGUARD: the project the document belongs to. send-email checks the
+   *  caller owns it and refuses (409 sample_project) a sample project's send
+   *  to anyone but the caller. Optional: sends with no project skip the check. */
+  projectId?: string;
 }
 
 export interface SendEmailWithAttachmentsParams extends SendEmailParams {
@@ -53,7 +59,12 @@ export type SendEmailOutcome =
   /** The user dismissed the composer without sending. Not an error. */
   | 'cancelled'
   /** No send path worked at all. */
-  | 'failed';
+  | 'failed'
+  /** The server refused the send on purpose (SAMPLEGUARD: a sample project's
+   *  document addressed to someone other than the user). NOTHING was sent and
+   *  NO composer was opened — opening one would deliver what the server just
+   *  refused. Not retryable; `error` carries the sentence to show. */
+  | 'refused';
 
 export interface SendEmailResponse {
   /** TRUE ONLY for outcome 'sent'. Never true for a composer we merely opened. */
@@ -183,10 +194,19 @@ async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<Se
         fromCompanyName: params.fromCompanyName,
         unsubscribe: params.unsubscribe,
         attachments,
+        projectId: params.projectId,
       },
     });
 
     if (error) {
+      // SAMPLEGUARD: the server's deliberate refusal is not a failure to fall
+      // back from. Read the body (once) only on a 409.
+      if (edgeErrorStatus(error) === 409) {
+        const info = await readEdgeError(error, '');
+        if (info.message === 'sample_project' || info.code === 'sample_project') {
+          return { success: false, outcome: 'refused', error: SAMPLE_DOC_NOT_SENT };
+        }
+      }
       console.error('[EmailService] Edge function error:', error);
       return { success: false, outcome: 'failed', error: "The email didn't send. Check your connection and try again." };
     }
@@ -402,6 +422,9 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
   // Path 1: Resend via Supabase edge function (the path that actually works).
   const resendResult = await sendViaResend(params);
   if (resendResult.success) return resendResult;
+  // SAMPLEGUARD: a server refusal returns at once. Never the composer: a draft
+  // addressed to the client would deliver exactly what the server refused.
+  if (resendResult.outcome === 'refused') return resendResult;
 
   console.log('[EmailService] Resend failed, falling back to a composer draft:', resendResult.error);
 

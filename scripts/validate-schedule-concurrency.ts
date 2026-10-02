@@ -351,7 +351,13 @@ console.log('\nlegacy day-0 tasks on the field path:');
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\na punch item raised from someone else\'s gallery photo:');
 {
-  const body = slice(CTX, 'const stagePunchPhoto = useCallback(', '// Snake/camel mapping for the punch_items insert payload');
+  // Lane SEAL split the staging in two (before photo / after photo) and
+  // composed them, so the #12 gallery-path logic is pinned in the before-photo
+  // callback, and stagePunchPhoto is pinned to route every item through it.
+  const body = slice(CTX, 'const stagePunchBeforePhoto = useCallback(', 'const stagePunchPhoto = useCallback(');
+  const composed = slice(CTX, 'const stagePunchPhoto = useCallback(', '// Snake/camel mapping for the punch_items insert payload');
+  ok('stagePunchPhoto sends every item through the before-photo staging (and the after-photo staging)',
+    /\(item: PunchItem\): PunchItem => stagePunchBeforePhoto\(stagePunchAfterPhoto\(item\)\),\s*\[stagePunchBeforePhoto, stagePunchAfterPhoto\],/.test(composed), composed.slice(0, 200));
   ok('takes the source photo\'s durable storage path instead of keeping its 24 h signed URL',
     /if \(!item\.photoStoragePath && item\.sourcePhotoId\) \{\s*const source = projectPhotosRef\.current\.find\(p => p\.id === item\.sourcePhotoId\);\s*if \(source\?\.storagePath\) return \{ \.\.\.item, photoStoragePath: source\.storagePath \};/.test(body));
   // Executed, not just read: the callback's own arrow function, with the
@@ -368,7 +374,7 @@ console.log('\na punch item raised from someone else\'s gallery photo:');
       () => 'u1/p1/punch-local.jpg',
       'u1',
     ) as Stage;
-  } catch (e) { ok('stagePunchPhoto transpiles', false, String(e)); }
+  } catch (e) { ok('stagePunchBeforePhoto transpiles', false, String(e)); }
   if (stage) {
     const fromGallery = stage({ id: 'k1', projectId: 'p1', photoUri: 'https://x/sign/ph1?token=24h', sourcePhotoId: 'ph1' });
     ok('...executed: an office punch from a field photo gets the durable path', fromGallery.photoStoragePath === 'u1/p1/ph1.jpg', JSON.stringify(fromGallery));

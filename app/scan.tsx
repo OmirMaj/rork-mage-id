@@ -23,7 +23,7 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -72,6 +72,7 @@ import { cardSurface, ChipRail, desktopCta, desktopProse, useIsDesktop } from '@
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
 import { humanizeEnum } from '@/utils/statusLabels';
+import { useFileInto, type MeasureRef } from '@/components/motion/kit';
 
 // ── Types ────────────────────────────────────────────────────────
 interface Capture { uri: string; base64: string; mimeType: string }
@@ -125,6 +126,12 @@ function ScanInner() {
   } = useProjects();
   const { addReceipt } = useMaterialReceipts();
   const { addScan } = useScans();
+  // AD18 (lane ADOPT2): once EVERY page has landed and the scan is logged, the
+  // capture thumbs fly into the destination folder named on the confirm card.
+  // The kit draws it; a partial filing, a failure or Reduce Motion never flies.
+  const { fileInto, layer: fileLayer, receiveStyle: folderReceiveStyle } = useFileInto();
+  const thumbEls = useRef<(View | null)[]>([]);
+  const folderRef = useRef<View>(null);
   const { tier } = useSubscription();
 
   const initialProjectId = params.projectId ?? projects[0]?.id ?? '';
@@ -528,7 +535,6 @@ function ScanInner() {
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSaving(false);
     // UX wave B6: a filed delivery ticket's next step is "It's here now",
     // pre-filled from what the scan read (each field "from scan, check it")
     // with the filed page as the ticket. He saves it there — the scan itself
@@ -536,6 +542,22 @@ function ScanInner() {
     const arrival = scanOpensArrival(result.docType)
       ? scanArrivalParams(deliveryArrivalFromScan(editedFields), pages[0].path)
       : undefined;
+    // AD18: every page landed (done === total) and the scan is logged, so the
+    // pages fly into their folder. Measured BEFORE the state below clears the
+    // thumbs; fileInto resolves as soon as the flight is planned (false at
+    // once when motion is off), so nothing here waits on the motion. A
+    // delivery ticket opens the arrival screen instead: no flight, and the
+    // push is not delayed.
+    if (!arrival) {
+      const n = captures.length;
+      const sources: MeasureRef[] = captures.map((_, i) => ({ current: thumbEls.current[i] ?? null }));
+      await fileInto({
+        sources: sources.slice(0, n),
+        target: folderRef,
+        thumbs: captures.map((c, i) => <Image key={c.uri + i} source={{ uri: c.uri }} style={styles.thumb} resizeMode="cover" />),
+      });
+    }
+    setSaving(false);
     setSaved({ kind: madeKind, folder: destination.folder, pages: pages.length, arrival });
     if (arrival) {
       const href = deliveryArrivedHref(effectiveProjectId);
@@ -546,7 +568,7 @@ function ScanInner() {
     setLanded({});
     fileStemRef.current = null;
     pageAttemptRef.current = {};
-  }, [result, destination, effectiveRecordKind, ownerGate.state, effectiveProjectId, saving, editedFields, captures, landed, createDomainRecord, addScan, router]);
+  }, [result, destination, effectiveRecordKind, ownerGate.state, effectiveProjectId, saving, editedFields, captures, landed, createDomainRecord, addScan, router, fileInto, styles.thumb]);
 
   const scanAnother = useCallback(() => {
     setSaved(null);
@@ -636,7 +658,7 @@ function ScanInner() {
         {captures.length > 0 && (
           <View style={styles.thumbRow}>
             {captures.map((c, i) => (
-              <View key={c.uri + i} style={styles.thumbWrap}>
+              <View key={c.uri + i} style={styles.thumbWrap} ref={(el) => { thumbEls.current[i] = el; }}>
                 <Image source={{ uri: c.uri }} style={styles.thumb} resizeMode="cover" />
                 {landed[i] ? (
                   <View style={[styles.thumbDel, { backgroundColor: t.success }]} accessibilityLabel={`Page ${i + 1} filed`}>
@@ -764,7 +786,7 @@ function ScanInner() {
             <View style={styles.destCard}>
               <Folder size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.destText} testID="scan-destination">
-                Files {captures.length > 1 ? `all ${captures.length} pages ` : ''}to <Text style={styles.destStrong}>{scanFolderLabel(destination.folder)}</Text>
+                Files {captures.length > 1 ? `all ${captures.length} pages ` : ''}to <Animated.View ref={folderRef} style={folderReceiveStyle}><Text style={styles.destStrong}>{scanFolderLabel(destination.folder)}</Text></Animated.View>
                 {' · '}{scanOpensArrival(result.docType) ? SCAN_TICKET_NEXT_STEP : recordKindPhrase(effectiveRecordKind ?? destination.recordKind)}
               </Text>
             </View>
@@ -904,6 +926,10 @@ function ScanInner() {
           </View>
         )}
       </ScrollView>
+      {/* AD18: the flight layer, once, over the whole screen. Mounted only
+          while a confirm card or a filed result is up, so the screen at rest
+          is unchanged. */}
+      {result || saved ? fileLayer : null}
     </View>
   );
 }

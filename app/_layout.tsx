@@ -1161,6 +1161,8 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="punch-pin" options={{ headerShown: false }} />
+      {/* Lane SEAL: the sealed final punch; the screen sets its own title. */}
+      <Stack.Screen name="punch-seal" options={headerTitled} />
       <Stack.Screen
         name="warranties"
         options={{
@@ -1463,6 +1465,7 @@ function RootLayoutNav() {
         name="handover"
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="job-facts" options={{ headerShown: false }} />
       <Stack.Screen
         name="photo-annotator"
         options={{ headerShown: false, presentation: 'modal' }}

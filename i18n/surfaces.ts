@@ -139,6 +139,7 @@ export const SURFACES: Surface[] = [
     partialFiles: ['utils/moments/sites/fieldCopy.ts', 'utils/crewClockBatch.ts', 'utils/timeClockPayroll.ts'],
   },
   { id: 'field.punch', phase: 1, state: 'migrated', keyPrefixes: ['field.punch.'], lane: 'W3 ESCLOCK', files: ['app/punch-list.tsx', 'app/ai-punch.tsx'] },
+  { id: 'field.punch-seal', phase: 2, state: 'pending', keyPrefixes: ['field.punchSeal.'], lane: 'W7 SEAL', files: ['app/punch-seal.tsx'] },
   {
     id: 'field.punch-walk', phase: 1, state: 'migrated', keyPrefixes: ['field.punchWalk.'], lane: 'W3 ESTICKET',
     files: [
@@ -218,6 +219,7 @@ export const SURFACES: Surface[] = [
 
   // thu PROOF — the change order "Proof packet" button (the packet PDF itself stays English).
   { id: 'money.co-proof', phase: 2, state: 'pending', keyPrefixes: ['money.coProof.'], lane: 'thu PROOF', files: ['components/changeOrders/COProofPacketButton.tsx'] },
+  { id: 'money.cost-xray', phase: 2, state: 'pending', keyPrefixes: ['money.costXray.'], lane: 'w7 ADOPT2', files: ['app/cost-xray.tsx'] },
 
   // thu MSGAPP — the contractor's client thread with photos and PDFs. Every
   // string lives in one copy hook (the components and the screen call it).
@@ -227,6 +229,8 @@ export const SURFACES: Surface[] = [
   // statuses, maybe lines, the sign-gate warning). The item labels and details
   // are legal paraphrase and stay English data in utils/nyHomeImprovement.ts.
   { id: 'office.ny-contract', phase: 2, state: 'pending', keyPrefixes: ['office.nyContract.'], lane: 'NYCHECK', files: ['components/contract/NyContractChecklist.tsx'] },
+  { id: 'office.job-facts', phase: 2, state: 'pending', keyPrefixes: ['office.jobFacts.'], files: ['app/job-facts.tsx'], lane: 'FACTS' },
+  { id: 'schedule.lateness', phase: 2, state: 'pending', keyPrefixes: ['schedule.lateness.'], lane: 'W7 LATE', files: ['components/schedule/LatenessPadChip.tsx'], partialFiles: ['app/(tabs)/schedule/index.tsx'] },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

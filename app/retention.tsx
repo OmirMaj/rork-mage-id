@@ -17,7 +17,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { Invoice, Project } from '@/types';
+import { punchListTypeOf, type Invoice, type Project } from '@/types';
+import { usePunchSealsByProject } from '@/hooks/usePunchSeal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
@@ -90,6 +91,8 @@ export default function RetentionScreen() {
   const router = useRouter();
   const { projectId: scopeProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, invoices, updateInvoice, getPunchItemsForProject } = useProjects();
+  // Lane SEAL: the sealed final punch per project (server rows, select only).
+  const punchSeals = usePunchSealsByProject();
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(scopeProjectId ?? null);
   const [explainerOpen, setExplainerOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -137,7 +140,10 @@ export default function RetentionScreen() {
       // RETAINAGE-1: and it is now the SAME summarizer the release path plans
       // against, so the figure on the card is the figure being released.
       const summary = summarizeProjectRetainage(pid, invoices);
-      const punch = getPunchItemsForProject(pid);
+      // The formal punch list only: a crew touch-up is not what the client walks
+      // (lane SEAL, SHOULD 10; same split as the punch list's own progress).
+      const punch = getPunchItemsForProject(pid).filter(pi => punchListTypeOf(pi) === 'punch');
+      const seal = punchSeals.get(pid);
       const lastRetainageInvoiceIso = summary.invoices.length > 0
         ? summary.invoices[summary.invoices.length - 1].invoice.issueDate
         : undefined;
@@ -157,11 +163,12 @@ export default function RetentionScreen() {
           punchOpen: punch.filter(pi => pi.status !== 'closed').length,
           lastRetainageInvoiceIso,
           now,
+          ...(seal ? { punchSeal: { sealedAt: seal.sealedAt, signerName: seal.signerName } } : {}),
         }),
       });
     });
     return list.sort((a, b) => b.retentionPending - a.retentionPending);
-  }, [projects, invoices, scopeProjectId, getPunchItemsForProject]);
+  }, [projects, invoices, scopeProjectId, getPunchItemsForProject, punchSeals]);
 
   const totals = useMemo(() => {
     const totalHeld = projectRetention.reduce((s, p) => s + p.retentionHeld, 0);

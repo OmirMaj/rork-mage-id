@@ -15,7 +15,7 @@ import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, ListChecks, ChevronRight, Filter, MapPin,
   Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
-  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images, ScanSearch, Receipt,
+  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images, ScanSearch, Receipt, Lock,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -111,6 +111,8 @@ import {
 } from '@/utils/punchLocations';
 import { useT } from '@/contexts/LanguageContext';
 import { t, tn } from '@/i18n/core';
+import { usePunchSeal } from '@/hooks/usePunchSeal';
+import { sealedItemIdsOf, sealedPunchEditBlock } from '@/supabase/functions/_shared/punchSealManifest';
 // Tutorials (punch-list-close): see the header of utils/tutorial/learn/laneC.ts.
 import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialRun, useTutorialSandboxId } from '@/utils/tutorial/store';
@@ -1333,6 +1335,46 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // C3: set when the last open item closes here; the banner offers the close.
   const [allClosedBanner, setAllClosedBanner] = useState(false);
 
+  // ── Lane SEAL: the sealed final punch ──────────────────────────────────────
+  // Read from the server (select only). A sealed item is closed for good: every
+  // edit path below refuses it through sealedPunchEditBlock, by its seal_id or
+  // by the stored record's own item list (the moment between the seal and
+  // seal_id reaching this phone). The database pins the same columns.
+  const punchSeal = usePunchSeal(projectId || undefined);
+  const sealedIdSet = useMemo(() => {
+    const ids = new Set<string>(punchSeal.seal ? sealedItemIdsOf({ manifest: punchSeal.seal.manifest }) : []);
+    for (const i of allItems) if (i.sealId) ids.add(i.id);
+    return ids;
+  }, [punchSeal.seal, allItems]);
+  const sealedEditReason = t('field.punchSeal.editBlocked', 'This item is in the sealed final punch, so it can’t be changed. Add a new item for rework.');
+  const sealGuard = useCallback((item: PunchItem | null | undefined): boolean => {
+    if (!sealedPunchEditBlock(item, sealedIdSet)) return false;
+    showAlert(t('field.punchSeal.sealedItemTitle', 'Sealed item'), t('field.punchSeal.editBlocked', 'This item is in the sealed final punch, so it can’t be changed. Add a new item for rework.'));
+    return true;
+  }, [sealedIdSet, t]);
+  const sealedSelectionGuard = useCallback((list: readonly PunchItem[]): boolean => {
+    const n = list.filter(i => sealedPunchEditBlock(i, sealedIdSet)).length;
+    if (n === 0) return false;
+    showAlert(
+      t('field.punchSeal.sealedItemTitle', 'Sealed item'),
+      tn('field.punchSeal.selectionBlocked', n, {
+        one: '{count} selected item is in the sealed final punch and can’t be changed. Deselect it, or add a new item for rework.',
+        other: '{count} selected items are in the sealed final punch and can’t be changed. Deselect them, or add new items for rework.',
+      }),
+    );
+    return true;
+  }, [sealedIdSet, t, tn]);
+  // The seal's entry: every formal item closed (crew chores are not what the client walks).
+  const formalAllClosed = useMemo(() => {
+    const formal = allItems.filter(i => punchListTypeOf(i) === 'punch');
+    return formal.length > 0 && formal.every(i => i.status === 'closed');
+  }, [allItems]);
+  const sealedDayLabel = punchSeal.seal ? formatCalendarDay(calendarDayOf(punchSeal.seal.sealedAt) ?? punchSeal.seal.sealedAt) : '';
+  const openPunchSeal = useCallback(() => {
+    if (!projectId) return;
+    router.push({ pathname: '/punch-seal' as never, params: { projectId } as never });
+  }, [projectId, router]);
+
   const filteredItems = useMemo(() => {
     let out = items;
     if (filterStatus !== 'all') out = out.filter(i => i.status === filterStatus);
@@ -1746,6 +1788,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       showAlert(t('field.punch.cantSave', "Can't save"), recordWriteBlock);
       return;
     }
+    if (editingItem && sealGuard(editingItem)) return;
     const desc = description.trim();
     if (!desc) {
       showAlert(t('field.punch.addADescription', 'Add a description'), t('field.punch.describeThePunchItem', 'Describe the punch item.'));
@@ -1845,7 +1888,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       return;
     }
     commit();
-  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id, recordWriteBlock, t, photoEdit]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id, recordWriteBlock, sealGuard, t, photoEdit]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1982,9 +2025,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
       return;
     }
-    // punchStatusPatch: the status named explicitly, closedAt on a close, and
-    // rejectedAt + the note on any move back out of Review (CONTRACT 12 — the
-    // server neutralises an un-review that carries no later rejected_at).
+    if (sealGuard(item)) return;
+    // punchStatusPatch: the status named, closedAt on a close, and
+    // rejectedAt + the note on a move back out of Review (CONTRACT 12: the
+    // server undoes an un-review with no later rejected_at).
     glideRows(rowCountRef.current);
     updatePunchItem(item.id, punchStatusPatch(item, newStatus, new Date().toISOString()));
     // Tutorial success point: the close is written locally.
@@ -2007,7 +2051,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         setAllClosedBanner(true);
       }
     }
-  }, [updatePunchItem, projectId, project, allItems, recordWriteBlock, t]);
+  }, [updatePunchItem, projectId, project, allItems, recordWriteBlock, sealGuard, t]);
 
   // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
   // open → in_progress → ready_for_review → closed. Closed is terminal.
@@ -2034,12 +2078,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     // tells this send-back from a stale queued write even when the note text
     // is the same as last round's — which the old note-only write could not.
     const item = allItems.find(i => i.id === itemId);
+    if (sealGuard(item)) { setShowRejectModal(null); return; }
     glideRows(rowCountRef.current);
     updatePunchItem(itemId, punchStatusPatch({ status: item?.status ?? 'ready_for_review', rejectedAt: item?.rejectedAt }, 'open', new Date().toISOString(), rejectionNote));
     setShowRejectModal(null);
     setRejectionNote('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [rejectionNote, updatePunchItem, allItems, recordWriteBlock, t]);
+  }, [rejectionNote, updatePunchItem, allItems, recordWriteBlock, sealGuard, t]);
 
   // ── C3 (moments, lane MOMFIELD): closing the project ────────────────────
   // A sheet whose footer slide is the confirm. "Close every punch item first."
@@ -2120,9 +2165,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       return;
     }
     if (ids.length === 0) return;
+    if (sealedSelectionGuard(allItems.filter(i => ids.includes(i.id)))) return;
     updatePunchItems(ids, updates);
     finishBulk(message(ids.length));
-  }, [updatePunchItems, finishBulk, recordWriteBlock, t]);
+  }, [updatePunchItems, finishBulk, recordWriteBlock, sealedSelectionGuard, allItems, t]);
 
   const [showBulkSubPicker, setShowBulkSubPicker] = useState(false);
   const [showBulkStatusPicker, setShowBulkStatusPicker] = useState(false);
@@ -2148,6 +2194,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     }
     if (selectedIdList.length === 0) return;
     setShowBulkStatusPicker(false);
+    if (sealedSelectionGuard(selectedItems)) return;
     const cfg = getStatusConfig(themeColors, next);
     // Stamped once for the whole batch: these were closed in one gesture, and
     // thirty closedAt values a millisecond apart is noise in the closeout.
@@ -2178,7 +2225,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         { text: t('field.punch.sendBack', 'Send back'), style: 'destructive', onPress: run },
       ],
     );
-  }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk, recordWriteBlock, t, tn]);
+  }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk, recordWriteBlock, sealedSelectionGuard, t, tn]);
 
   /** Move every selected item to the OTHER list in one batch write, like every
    *  other bulk verb — never a loop of updatePunchItem. Confirmed first, with
@@ -2212,6 +2259,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       showAlert(t('field.punch.cantMove', "Can't move"), recordWriteBlock);
       return;
     }
+    if (sealGuard(item)) return;
     const target = otherList(punchListTypeOf(item));
     const copy = moveConfirmCopy(target, 1, clientSeesPunch);
     showAlert(copy.title, copy.message, [
@@ -2227,10 +2275,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         },
       },
     ]);
-  }, [clientSeesPunch, updatePunchItem, recordWriteBlock, t]);
+  }, [clientSeesPunch, updatePunchItem, recordWriteBlock, sealGuard, t]);
 
   const bulkDelete = useCallback(() => {
     if (selectedIdList.length === 0) return;
+    if (sealedSelectionGuard(selectedItems)) return;
     // Only the rows he may delete (#111). The rest would "delete" on screen,
     // match 0 rows on the server and come back on the next load — so they are
     // left out, and the dialog says how many and why.
@@ -2260,7 +2309,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         },
       ],
     );
-  }, [selectedIdList, selectedItems, canDeleteItem, deletePunchItems, finishBulk, t, tn]);
+  }, [selectedIdList, selectedItems, canDeleteItem, deletePunchItems, finishBulk, sealedSelectionGuard, t, tn]);
 
   // ── Handing a sub their list ─────────────────────────────────────────────
   // The sub portal already exists and already scopes punch items to one sub
@@ -2317,12 +2366,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const latestActions = useRef({
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock,
+    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock, sealGuard,
   });
   latestActions.current = {
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock,
+    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock, sealGuard,
   };
 
   const rowActions = useMemo<PunchRowActions>(() => ({
@@ -2332,11 +2381,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     onReject: item => {
       const block = latestActions.current.recordWriteBlock;
       if (block) { showAlert(t('field.punch.cantChangeStatus', "Can't change status"), block); return; }
+      if (latestActions.current.sealGuard(item)) return;
       latestActions.current.setShowRejectModal(item.id);
       latestActions.current.setRejectionNote('');
     },
     onDeleteBlocked: () => showAlert(t('field.punch.cantDeleteThisItem', 'Can’t delete this item'), punchDeleteBlockedReason()),
     onDelete: item => {
+      if (latestActions.current.sealGuard(item)) return;
       showAlert(t('common.action.delete', 'Delete'), t('field.punch.deleteThisPunchItem', 'Delete this punch item?'), [
         { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
         { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => { glideRows(rowCountRef.current); latestActions.current.deletePunchItem(item.id); } },
@@ -2553,6 +2604,39 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     };
   }, [editingItem, sheetsById, formPin, itemNumbers, t]);
 
+  // Lane SEAL: "Add after photo". The camera on a phone, the file chooser on
+  // the web. Staged like the before photo (ProjectContext stagePunchPhoto,
+  // object `punch-<id>-after`), written as after_photo_uri only once it has a
+  // durable path. The seal screen ticks the item only when the SERVER has it.
+  const takeAfterPhoto = useCallback(async (item: PunchItem) => {
+    if (recordWriteBlock) {
+      showAlert(t('field.punch.cantSave', "Can't save"), recordWriteBlock);
+      return;
+    }
+    if (sealGuard(item)) return;
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      if (Platform.OS === 'web') {
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          showAlert(t('field.punchSeal.cameraNeeded', 'Camera access needed'), t('field.punchSeal.cameraNeededBody', 'Allow camera access in Settings to take the after photo.'));
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      }
+    } catch {
+      showAlert(t('field.punchSeal.cameraFailed', 'Couldn’t open the camera'), t('field.punchSeal.cameraFailedBody', 'Try again.'));
+      return;
+    }
+    const uri = !result.canceled ? result.assets?.[0]?.uri : undefined;
+    if (!uri) return;
+    const patch: Partial<PunchItem> = { afterPhotoUri: uri, afterPhotoTakenAt: new Date().toISOString() };
+    updatePunchItem(item.id, patch);
+    setEditingItem(prev => (prev && prev.id === item.id ? { ...prev, ...patch } : prev));
+  }, [recordWriteBlock, sealGuard, updatePunchItem, t]);
+
   const [showExport, setShowExport] = useState(false);
   const openExport = useCallback(() => setShowExport(true), []);
   const closeExport = useCallback(() => setShowExport(false), []);
@@ -2736,6 +2820,18 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             ? t('field.punch.closedOfPunch', '{closed} of {total} punch items closed', { closed: closedCount, total: totalCount })
             : t('field.punch.closedOfCrew', '{closed} of {total} crew list items closed', { closed: closedCount, total: totalCount })}
         </Text>
+        {punchSeal.seal ? (
+          <TouchableOpacity
+            style={styles.sealedChip}
+            onPress={openPunchSeal}
+            accessibilityRole="link"
+            accessibilityLabel={t('field.punchSeal.sealedOnA11y', 'Final punch sealed {day}. Open the sealed record.', { day: sealedDayLabel })}
+            testID="punch-sealed-chip"
+          >
+            <Lock size={12} color={themeColors.successLabel} strokeWidth={1.75} />
+            <Text style={styles.sealedChipText}>{t('field.punchSeal.sealedOn', 'Sealed {day}', { day: sealedDayLabel })}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* ── On the plan ──────────────────────────────────────────────────
@@ -3095,8 +3191,31 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           >
             <Text style={styles.allClosedBannerAction}>{fieldCopy.closeProjectAction()}</Text>
           </TouchableOpacity>
+          {!punchSeal.seal && formalAllClosed ? (
+            <TouchableOpacity
+              onPress={openPunchSeal}
+              accessibilityRole="button"
+              accessibilityLabel={t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+              testID="punch-all-closed-seal"
+            >
+              <Text style={styles.allClosedBannerAction}>{t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       )}
+      {activeList === 'punch' && !punchSeal.seal && formalAllClosed && !(allClosed && allClosedBanner) ? (
+        <View style={styles.sealEntry}>
+          <Button
+            label={t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}
+            variant="secondary"
+            fullWidth
+            onPress={openPunchSeal}
+            iconLeft={<Lock size={18} color={themeColors.text} strokeWidth={1.75} />}
+            testID="punch-seal-entry"
+          />
+        </View>
+      ) : null}
       {allClosed && !allClosedBanner && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
         <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t('field.punch.closeProject', 'Close project')}>
           <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
@@ -3154,6 +3273,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
                 return;
               }
+              if (sealGuard(editingItem)) return;
               const nowIso = new Date().toISOString();
               // Stamp closedAt exactly as handleStatusChange does. This
               // path used to close an item with no close date, so the
@@ -3169,6 +3289,36 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           />
         </View>
       )}
+      {/* Lane SEAL: a sealed item says so, and nothing in the sheet saves. */}
+      {editingItem && sealedPunchEditBlock(editingItem, sealedIdSet) ? (
+        <View style={styles.sealedItemNote} testID="punch-sealed-item-note">
+          <Lock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+          <Text style={styles.sealedItemNoteText}>{sealedEditReason}</Text>
+        </View>
+      ) : null}
+      {/* Lane SEAL: the after photo, on a formal item in Review or Closed.
+          Closing never requires it; the sealed final punch does. */}
+      {editingItem && punchListTypeOf(editingItem) === 'punch'
+        && (editingItem.status === 'ready_for_review' || editingItem.status === 'closed') ? (
+        <View style={styles.afterPhotoBlock} testID="punch-after-photo">
+          <Text style={styles.fieldLabel}>{t('field.punchSeal.afterPhoto', 'After photo')}</Text>
+          {editingItem.afterPhotoUri ? (
+            <Image source={{ uri: editingItem.afterPhotoUri }} style={styles.afterPhotoImg} resizeMode="cover" accessibilityLabel={t('field.punchSeal.afterPhoto', 'After photo')} />
+          ) : (
+            <Text style={styles.formListNote}>{t('field.punchSeal.noAfterPhotoYet', 'No after photo yet. The sealed final punch needs one on every item.')}</Text>
+          )}
+          {!sealedPunchEditBlock(editingItem, sealedIdSet) ? (
+            <Button
+              label={editingItem.afterPhotoUri ? t('field.punchSeal.retakeAfterPhoto', 'Retake after photo') : t('field.punchSeal.addAfterPhoto', 'Add after photo')}
+              variant="secondary"
+              fullWidth
+              onPress={() => { void takeAfterPhoto(editingItem); }}
+              iconLeft={<Camera size={18} color={themeColors.text} strokeWidth={1.75} />}
+              testID="punch-add-after-photo"
+            />
+          ) : null}
+        </View>
+      ) : null}
       {/* Backcharge the sub: closes the sheet, then records one (never sent). */}
       {editingItem && backchargePrefill ? (
         <View testID="backcharge-from-punch" style={styles.backchargeEntry}>
@@ -4761,6 +4911,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   allClosedBanner: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },
   allClosedBannerText: { flex: 1, minWidth: 160, fontSize: Type.subhead.fontSize, color: themeColors.successLabel },
   allClosedBannerAction: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.successLabel },
+  // Lane SEAL
+  sealEntry: { marginHorizontal: 20, marginTop: 12 },
+  sealedChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, marginTop: 10, paddingVertical: 4, paddingHorizontal: 10, borderRadius: Tokens.radius.full, backgroundColor: themeColors.successSoft },
+  sealedChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.successLabel },
+  sealedItemNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 14, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.neutralSoft },
+  sealedItemNoteText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
+  afterPhotoBlock: { marginBottom: 14, gap: 8 },
+  afterPhotoImg: { width: '100%', height: 180, borderRadius: Tokens.radius.md, backgroundColor: themeColors.neutralSoft },
   closeSheetBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   projectClosedNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },

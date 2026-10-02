@@ -17,9 +17,12 @@
 //       kit JS with defer, exactly once each; a page without data-mk links neither.
 //       Short-window net: every page with a group carries (inline, or through
 //       /styles.css) a @media (max-height: 360px) rule that sets opacity:1
-//       !important on every selector of the kit's armed rule. The kit starts a
-//       group at 20% visible; a group taller than ~4.5 visible screens (300-500%
-//       zoom) never gets there and would stay at opacity 0 (kit gap G7).
+//       !important on every selector of the kit's armed rule. Kit gap G7 is
+//       closed in the kit itself (lane MKITG7): a group now starts once its top
+//       edge is 20% of the viewport above the bottom, whatever its height
+//       (threshold 0, pinned by K5.9 in validate-motion-kit.ts). The net stays
+//       as defense for a reader on a failed load or an old cached kit, which
+//       can still leave an armed group at opacity 0.
 //   V2  retired motion stays retired (motion.js, styles.css, landing.css, pages)
 //   V3  no blur/filter animation anywhere
 //   V4  reduced motion: animations sit in a no-preference block (or have a
@@ -72,9 +75,11 @@ export const REQUIRED_ADOPTED = [
   'marketing/features/scheduling.html',
   'marketing/brain/index.html',
   'marketing/demo.html',
+  'marketing/features/index.html',
 ];
 // switch.html is deliberately NOT adopted: its "What comes across" list is the page's
-// prose, and at 320px wide it is ~1,400px tall, so a group there stalls on short windows.
+// prose, and motion does not decorate prose. (The old stall reason, a ~1,400px group
+// never starting on short windows, is gone: the kit starts groups of any height.)
 const MAX_GROUPS = 12;
 const ROW_CAP = 8;
 const CARD_CAP = 6;

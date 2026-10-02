@@ -25,9 +25,9 @@
 //     the server refused says "Not removed" instead of silently reappearing;
 //   • Open re-signs the link on tap and says so when it still can't.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Animated,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -58,6 +58,7 @@ import {
 } from '@/utils/projectFiles';
 import { readFileBytes } from '@/utils/fileBytes';
 import { openSavedDocument, OPEN_DOCUMENT_NO_LINK } from '@/utils/projectDocuments';
+import { useFileInto } from '@/components/motion/kit';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { showAlert } from '@/utils/alert';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
@@ -100,6 +101,13 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // AD19 (lane ADOPT2): an upload that really landed (stored AND listed back)
+  // flies one file tile from the Upload button into THIS folder's header. The
+  // kit draws it; a failed upload never flies, Reduce Motion draws nothing.
+  // The flight layer renders once, at the foot of the open folder's view.
+  const { fileInto, layer: fileLayer, receiveStyle: folderReceiveStyle } = useFileInto();
+  const uploadBtnRef = useRef<View>(null);
+  const folderHeaderRef = useRef<View>(null);
   // True when the last grid / folder read did not answer. Drives the banner,
   // the "—" tiles and the folder view's failure state (#159).
   const [countsFailed, setCountsFailed] = useState(false);
@@ -178,6 +186,15 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         contentType: asset.mimeType ?? 'application/octet-stream',
       });
       await refreshFiles();
+      void fileInto({
+        sources: [uploadBtnRef],
+        target: folderHeaderRef,
+        thumbs: [
+          <View key="file" style={[styles.fileIconWrap, styles.flyTile]}>
+            <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
+          </View>,
+        ],
+      });
       await refreshCounts();
     } catch (err) {
       console.warn('[ProjectFilesBrowser] upload failed', rawErrorMessage(err));
@@ -189,7 +206,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
     } finally {
       setUploading(false);
     }
-  }, [projectId, activeFolder, refreshFiles, refreshCounts]);
+  }, [projectId, activeFolder, refreshFiles, refreshCounts, fileInto, styles.fileIconWrap, styles.flyTile, themeColors.accent]);
 
   // Open re-signs on tap: the listing's signed URL is '' when signing failed
   // (offline), and it expires. openSavedDocument throws with the reason when
@@ -245,11 +262,12 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
           <TouchableOpacity onPress={() => setActiveFolder(null)} style={styles.backBtn}>
             <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <Animated.View ref={folderHeaderRef} style={[{ flex: 1 }, folderReceiveStyle]}>
             <Text style={styles.folderEyebrow}>Folder</Text>
             <Text style={styles.folderTitle}>{folder?.label ?? activeFolder}</Text>
-          </View>
+          </Animated.View>
           <TouchableOpacity
+            ref={uploadBtnRef}
             style={styles.uploadBtn}
             onPress={handleUpload}
             disabled={uploading}
@@ -341,6 +359,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             )}
           </ScrollView>
         )}
+        {fileLayer}
       </View>
     );
   }
@@ -463,6 +482,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     backgroundColor: t.accent + '14',
   },
+  // AD19's flying tile: the list's own file icon, centred in the Upload button's box.
+  flyTile: { alignSelf: 'center' as const },
   fileName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
   fileMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   fileAction: { padding: 6 },
