@@ -28,6 +28,7 @@ import { Dimensions, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, configure, fireEvent, screen } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
+import { localDayIso } from '@/__tests__/helpers/testClock';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID, SMOKE_USER } from '@/__tests__/fixtures/world';
 import * as offlineQueue from '@/utils/offlineQueue';
@@ -60,21 +61,18 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
   return { __esModule: true, default: Modal };
 });
 
-// The clock-out screen decides "today's shift" at mount, before setClock can pin
-// the fake clock, so the shift is dated from the real current day (a fixed date
-// passed only on the day it was written). NOW is 3 pm LOCAL on that day, not the
-// real minute: with the real minute, a run between 00:00 and 08:12 put the
-// 8h 12m clock-in on the previous day and the summary rendered empty.
-const NOW = (() => { const d = new Date(); d.setHours(15, 0, 0, 0); return d.getTime(); })();
-const NOW_DAY = (() => {
-  const d = new Date(NOW);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-})();
+// The clock-out screen decides "today's shift" at mount, so the mount itself is
+// pinned (mountRouteChecked(url, { now: NOW })): the first render reads NOW, and
+// the fixture shift is dated NOW_DAY. NOW is 3 pm LOCAL, not a real minute: a
+// clock-in 8h 12m before an early-morning "now" would land on the previous day
+// and the summary would render empty.
+const NOW = new Date('2026-09-28T15:00:00').getTime();
+const NOW_DAY = localDayIso(NOW);
 
 /**
- * renderRouter installs jest's fake timers on mount; their clock is the one
- * every Date.now() / new Date() on the mounted route reads. Pin it (and move
- * it) through setSystemTime, after the mount.
+ * The mount installs jest's fake timers (starting at NOW); their clock is the
+ * one every Date.now() / new Date() on the mounted route reads. Move it through
+ * setSystemTime, after the mount.
  */
 function setClock(ms: number) {
   jest.setSystemTime(ms);
@@ -168,7 +166,8 @@ describe('moments C1: clocking out', () => {
   async function openClockOut() {
     await primeWorld('populated');
     await seedShift();
-    await mountRouteChecked(`/time-tracking?${P}`);
+    await mountRouteChecked(`/time-tracking?${P}`, { now: NOW });
+    // Back to NOW exactly: the mount's settle() moved the fake clock 6 s on.
     setClock(NOW);
     await pump();
     const buttons = screen.getAllByText('Clock out');

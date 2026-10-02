@@ -16,6 +16,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { AudioTranscribeTask } from '@/utils/audioTranscribeCore';
+import { pinDateOnly } from '@/__tests__/helpers/testClock';
 
 jest.mock('@/contexts/ThemeContext', () => {
   const actual = jest.requireActual('@/contexts/ThemeContext');
@@ -58,13 +59,8 @@ jest.mock('expo-router', () => ({
 
 const TODAY = '2026-09-28';
 // The fixtures are dated TODAY; pin the clock to it so "Recorded 9:14 AM" does not
-// become "Recorded Sep 28 9:14 AM" on any other day. Only Date is faked.
-jest.useFakeTimers({
-  now: new Date(`${TODAY}T15:00:00`),
-  doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate',
-    'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback',
-    'cancelIdleCallback', 'hrtime', 'performance'],
-});
+// become "Recorded Sep 28 9:14 AM" on any other day. Only Date is faked (3 pm local).
+pinDateOnly(TODAY);
 const completion = (o: Record<string, unknown>) => ({
   windowStart: '2026-08-30', today: TODAY, hasRecord: true, expectedDays: 21, closedExpectedDays: 20,
   filedDays: 17, emptyDayFilings: 0, missedDays: 3, missedDates: ['2026-09-24', '2026-09-17', '2026-09-10'],

@@ -20,7 +20,12 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { renderRouter, act } from 'expo-router/testing-library';
+import { renderRouter, act, getMockContext } from 'expo-router/testing-library';
+// The same module instance renderRouter renders with (it require()s it).
+import { render } from '@testing-library/react-native';
+import type { MockContextConfig } from 'expo-router/testing-library';
+import { ExpoRoot } from 'expo-router/build/ExpoRoot';
+import { store as routerStore } from 'expo-router/build/global-state/router-store';
 import * as Sentry from '@sentry/react-native';
 import * as reactQuery from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
@@ -145,10 +150,62 @@ export async function primeSignedOut(): Promise<void> {
 export type MountResult = ReturnType<typeof renderRouter>;
 
 /**
+ * Mount options. `now` (epoch ms) pins the clock the FIRST render reads.
+ *
+ * Why it has to be an option: renderRouter calls a bare `jest.useFakeTimers()`
+ * before it renders (expo-router/build/testing-library/index.js), and jest seeds
+ * that clock from the real time. So a `jest.useFakeTimers({ now })` or
+ * `pinDateOnly()` at module scope is thrown away by every mount, and a screen
+ * that decides "today" at mount reads the real day. With `now` set, the mount
+ * runs renderRouter's own steps with `jest.useFakeTimers({ now, doNotFake: [] })`
+ * in place of the bare call. Use `jest.setSystemTime` after mount only to MOVE
+ * time within a test. See __tests__/helpers/testClock.ts.
+ */
+export interface MountOpts {
+  now?: number;
+}
+
+/**
+ * renderRouter, step for step (expo-router 6.0.24
+ * build/testing-library/index.js renderRouter), except the fake clock starts at
+ * `now`. Used only when a caller pins the clock; the default path still calls
+ * renderRouter itself.
+ */
+function renderRouterAt(
+  context: MockContextConfig,
+  initialUrl: string,
+  now: number
+): MountResult {
+  jest.useFakeTimers({ now, doNotFake: [] });
+  const mockContext = getMockContext(context);
+  // Force the render to be synchronous (as renderRouter does).
+  process.env.EXPO_ROUTER_IMPORT_MODE = 'sync';
+  const result = render(<ExpoRoot context={mockContext} location={initialUrl} />);
+  return Object.assign(result, {
+    getPathname() {
+      return routerStore.getRouteInfo().pathname;
+    },
+    getSegments() {
+      return routerStore.getRouteInfo().segments;
+    },
+    getSearchParams() {
+      return routerStore.getRouteInfo().params;
+    },
+    getPathnameWithParams() {
+      return routerStore.getRouteInfo().pathnameWithParams;
+    },
+    getRouterState() {
+      return routerStore.state;
+    },
+  }) as MountResult;
+}
+
+/**
  * Mount `url` in the real app tree. Raw — does not check for a swallowed
  * crash. Use `mountRouteChecked` unless you specifically want the raw tree.
  */
-export function mountRoute(url: string): MountResult {
+export function mountRoute(url: string, opts?: MountOpts): MountResult {
+  if (opts?.now != null) return renderRouterAt('app', url, opts.now);
   return renderRouter('app', { initialUrl: url });
 }
 
@@ -162,17 +219,17 @@ export function mountRoute(url: string): MountResult {
  */
 export function mountInjectedRoute(
   routeName: string,
-  Component: () => React.ReactElement | null
+  Component: () => React.ReactElement | null,
+  opts?: MountOpts
 ): MountResult {
   // Under SMOKE_STRICT the React "The above error occurred in <...>" log that
   // an intentional crash produces would fail the very test proving the crash
   // was detected. Declared here rather than pattern-matched, because the
   // pattern would also swallow the real ones.
   allowConsoleErrors();
-  return renderRouter(
-    { appDir: 'app', overrides: { [`./${routeName}.tsx`]: Component } },
-    { initialUrl: `/${routeName}` }
-  );
+  const context = { appDir: 'app', overrides: { [`./${routeName}.tsx`]: Component } };
+  if (opts?.now != null) return renderRouterAt(context, `/${routeName}`, opts.now);
+  return renderRouter(context, { initialUrl: `/${routeName}` });
 }
 
 /**
@@ -244,18 +301,22 @@ function collectText(node: unknown, out: string[] = []): string[] {
  */
 export async function mountRouteChecked(
   url: string,
-  /** Optional synthetic screen to inject at `url` — used only to prove the
-   *  detector itself, never by the route suite. */
-  injected?: () => React.ReactElement | null
+  /** Optional synthetic screen to inject at `url` (used to prove the detector
+   *  and by probe suites), or the mount options when nothing is injected. */
+  injectedOrOpts?: (() => React.ReactElement | null) | MountOpts,
+  /** Mount options when a screen is injected. */
+  opts?: MountOpts
 ): Promise<MountResult> {
+  const injected = typeof injectedOrOpts === 'function' ? injectedOrOpts : undefined;
+  const mountOpts = typeof injectedOrOpts === 'function' ? opts : (injectedOrOpts ?? opts);
   // Detector 1 reads accumulated calls; make sure they are this mount's.
   (Sentry.captureException as jest.Mock).mockClear();
 
   let tree: MountResult;
   try {
     tree = injected
-      ? mountInjectedRoute(url.replace(/^\//, ''), injected)
-      : mountRoute(url);
+      ? mountInjectedRoute(url.replace(/^\//, ''), injected, mountOpts)
+      : mountRoute(url, mountOpts);
   } catch (err) {
     // An escaped throw — i.e. one from above the ErrorBoundary, or from route
     // resolution itself. Re-thrown with the route attached rather than
