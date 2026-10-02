@@ -5,6 +5,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import type { JobListing, WorkerProfile, Conversation, ChatMessage, TradeCategory, JobType, ExperienceLevel } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { sendLocalNotification } from '@/utils/notifications';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -245,7 +246,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
     }
 
     const channel = supabase
-      .channel(`realtime-messages-${userId}`)
+      .channel(mountTopic(`realtime-messages-${userId}`))
       .on(
         'postgres_changes',
         {

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectActions } from '@/contexts/ProjectContext';
 import { refreshForNotification } from '@/utils/notificationTapRefresh';
@@ -153,14 +154,12 @@ export function useNotificationFeed() {
 
   // Realtime: bell badge updates the moment a new outbox row lands.
   // Pattern: register the .on() listener BEFORE .subscribe() so Supabase
-  // doesn't warn about "callback added after subscribe". We also guard
-  // against the React strict-mode double-mount by checking for the
-  // existing channel before creating a new one.
+  // doesn't warn about "callback added after subscribe". Each mount owns its
+  // own topic (utils/realtimeTopic.ts), so a second mount (strict mode, the
+  // desktop stack) gets its own channel instead of none.
   useEffect(() => {
     if (!enabled || !user?.id) return;
-    const channelName = `notif-feed-${user.id}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) return; // already subscribed in another mount
+    const channelName = mountTopic(`notif-feed-${user.id}`);
 
     const channel = supabase.channel(channelName);
     channel.on(

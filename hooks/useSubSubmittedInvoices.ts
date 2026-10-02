@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import type { SubSubmittedInvoice, SubSubmittedInvoiceLine } from '@/types';
 
@@ -228,9 +229,7 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
         ? `project_id=eq.${projectId}`
         : null;
     if (!filter) return;
-    const channelName = `sub-invoices-${subPortalId ?? projectId}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) return;
+    const channelName = mountTopic(`sub-invoices-${subPortalId ?? projectId}`);
 
     const channel = supabase.channel(channelName);
     channel.on(

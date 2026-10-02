@@ -8,6 +8,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { createPresenceRegistry, type PresenceLease } from '@/utils/realtimePresenceRegistry';
+
+/** One registry for the app: every mount of the schedule shares one channel per job. */
+const presenceRegistry = createPresenceRegistry<RealtimeChannel>({
+  channel: (topic, opts) => supabase.channel(topic, opts),
+  removeChannel: (ch) => supabase.removeChannel(ch),
+  setAuth: () => supabase.realtime.setAuth(),
+});
 
 export interface SchedulePeer {
   userId: string;
@@ -28,7 +36,7 @@ export function useSchedulePresence(
   self: { userId: string; name: string } | null,
 ) {
   const [peers, setPeers] = useState<SchedulePeer[]>([]);
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  const leaseRef = useRef<PresenceLease<RealtimeChannel> | null>(null);
   const selectedRef = useRef<string | null>(null);
   const selfColor = useMemo(() => (self ? colorForUser(self.userId) : '#888'), [self?.userId]);
 
@@ -36,22 +44,24 @@ export function useSchedulePresence(
     if (!projectId || !self) return;
     // PRIVATE channel (#169). A public channel named `schedule:<projectId>`
     // was readable with the anon key alone, and the project id is not a
-    // secret (the homeowner portal carries it; a removed collaborator keeps
-    // it), so anyone holding it could list who was editing and track() a fake
-    // peer into PresenceBar. Private channels are authorised by RLS on
+    // secret, so anyone holding it could list who was editing and track() a
+    // fake peer into PresenceBar. Private channels are authorised by RLS on
     // realtime.messages — migration 20260923160000 allows SELECT / INSERT on
-    // 'schedule:<id>' topics only to authenticated users who pass
-    // can_access_project(<id>, 'viewer'). ORDER: that migration ships BEFORE
-    // this code; a private join with no policy is refused and presence dies
-    // silently.
-    const channel = supabase.channel(`schedule:${projectId}`, {
-      config: { private: true, presence: { key: self.userId } },
-    });
-    channelRef.current = channel;
+    // 'schedule:<id>' topics only to users who pass can_access_project(<id>,
+    // 'viewer').
+    //
+    // SHARED, ref-counted channel (utils/realtimePresenceRegistry.ts): this
+    // effect re-runs when the name loads, and the desktop stack can keep two
+    // mounts alive, so a fresh supabase.channel() here got back the previous,
+    // already-subscribed channel and realtime-js threw "cannot add `presence`
+    // callbacks … after `subscribe()`" — the web app's "This screen hit an
+    // error" on any page.
     let cancelled = false;
-
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState<SchedulePeer>();
+    let lease: PresenceLease<RealtimeChannel> | null = null;
+    const onSync = () => {
+      const ch = lease?.channel;
+      if (!ch) return;
+      const state = ch.presenceState<SchedulePeer>();
       const list: SchedulePeer[] = [];
       for (const key of Object.keys(state)) {
         const metas = state[key];
@@ -65,39 +75,35 @@ export function useSchedulePresence(
         }
       }
       setPeers(list.filter((p) => p.userId !== self.userId));
-    });
-
-    // The join is authorised by the user's JWT, which the realtime socket
-    // only carries once setAuth() has handed it the current session token —
-    // subscribe after it resolves, never before (a join with the anon key is
-    // refused by the private-channel policy).
+    };
     void (async () => {
       try {
-        await supabase.realtime.setAuth();
+        const l = await presenceRegistry.acquire(`schedule:${projectId}`, self.userId, onSync);
+        if (cancelled) { l.release(); return; }
+        lease = l;
+        leaseRef.current = l;
+        l.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: selectedRef.current });
+        onSync();
       } catch (err) {
-        console.log('[SchedulePresence] realtime setAuth failed:', err);
+        // Presence is a nicety: it must never take the screen down.
+        console.log('[SchedulePresence] presence unavailable:', err);
       }
-      if (cancelled) return;
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          void channel.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: selectedRef.current });
-        }
-      });
     })();
 
     return () => {
       cancelled = true;
-      channelRef.current = null;
-      void supabase.removeChannel(channel);
+      if (leaseRef.current === lease) leaseRef.current = null;
+      lease?.release();
+      lease = null;
     };
   }, [projectId, self?.userId, self?.name, selfColor]);
 
   const setSelectedTask = useCallback((taskId: string | null) => {
     if (selectedRef.current === taskId) return;
     selectedRef.current = taskId;
-    const ch = channelRef.current;
-    if (ch && self) {
-      void ch.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: taskId });
+    const l = leaseRef.current;
+    if (l && self) {
+      l.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: taskId });
     }
   }, [self?.userId, self?.name, selfColor]);
 
