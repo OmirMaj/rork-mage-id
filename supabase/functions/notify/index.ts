@@ -95,6 +95,9 @@ import {
 // and in-app inbox import this same file, so an email button, a push tap and an
 // inbox row for one event cannot open different screens (or the wrong param).
 import { notificationRoute, routeHref } from "./routes.ts";
+// MSGDATA: "2 photos attached" in place of an empty quote. Files are never
+// linked or attached to an email; they open only in the app or the portal.
+import { attachmentSummaryLine } from "../_shared/messageFiles.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -312,6 +315,17 @@ function isWidgetScope(scope: unknown): boolean {
  *  the in-app "Tap to review." — meaningless in an email with a button. */
 function portalBodyForEmail(body: string): string {
   return body.replace(/\s*Tap to review\.?\s*$/i, '').trim();
+}
+
+/**
+ * The line under a portal message quote naming its files ("2 photos and 1 PDF
+ * attached. …"), or '' when it has none. Says where to open them; never links
+ * a file, so a forwarded email cannot hand one out.
+ */
+function attachmentLineHtml(files: string, where: string): string {
+  if (!files) return '';
+  const sentence = `${files.charAt(0).toUpperCase()}${files.slice(1)} attached. ${where}`;
+  return `<p style="margin:0;">${escapeHtml(sentence)}</p>`;
 }
 
 interface PortalInviteLike { id?: unknown; email?: unknown; name?: unknown }
@@ -1512,21 +1526,23 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     case 'portal_message': {
       const body = (payload.body as string) ?? '';
       const author = (payload.author_name as string) || 'your client';
-      const trimmed = body.length > 220 ? body.slice(0, 220) + '…' : body;
+      const files = attachmentSummaryLine(payload.attachment_kinds);
+      const shown = body.trim() || !files ? body : `Sent ${files}.`;
+      const trimmed = shown.length > 220 ? shown.slice(0, 220) + '…' : shown;
       await dispatchOne('gc', {
         prefKey: 'portal_message',
         pushTitle: `New message · ${projectName}`,
-        pushBody: `${author}: ${body.slice(0, 140)}`,
+        pushBody: `${author}: ${shown.slice(0, 140)}`,
         pushData: { projectId, portalId, kind: 'portal_message' },
         pushToken: gc.push_token,
         email: gc.email,
         emailSubject: `${author} sent a message · ${projectName}`,
         emailWrap: {
-          preheader: `${author}: ${body.slice(0, 100)}`,
+          preheader: `${author}: ${shown.slice(0, 100)}`,
           eyebrow: 'New portal message',
           title: `${author} sent you a message`,
           subtitle: `Reply through MAGE ID. Your client gets an email with your answer and a link back to their portal.`,
-          bodyHtml: emailQuote(trimmed),
+          bodyHtml: emailQuote(trimmed) + attachmentLineHtml(files, 'Open the thread in MAGE ID to see them.'),
           cta: { label: 'Reply in MAGE ID', href: appLink('portal_message', projectData) },
           secondaryCta: portalUrl ? { label: 'View their portal', href: portalUrl } : undefined,
         },
@@ -2248,7 +2264,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       }
       // Neutral wording ("sent you a message"), kept from when system notices
       // also came through here.
-      const body = portalBodyForEmail(typeof payload.body === 'string' ? payload.body : '');
+      const text = portalBodyForEmail(typeof payload.body === 'string' ? payload.body : '');
+      const files = attachmentSummaryLine(payload.attachment_kinds);
+      const body = text.trim() || !files ? text : `Sent ${files}.`;
       const trimmed = body.length > 600 ? body.slice(0, 600) + '…' : body;
       const company = gc.company_name || gc.contact_name || 'Your contractor';
       let lastClientInvite: string | null = null;
@@ -2296,7 +2314,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           eyebrow: 'New message in your portal',
           title: `${rc.name ? `Hi ${rc.name.split(' ')[0]} — ` : ''}new message from ${company}`,
           subtitle: `About ${projectName}. Reply in your portal so the answer stays with the project.`,
-          bodyHtml: emailQuote(trimmed),
+          bodyHtml: emailQuote(trimmed) + attachmentLineHtml(files, 'Open your portal to see them.'),
           cta: { label: 'Read and reply in your portal', href: portalUrl },
           companyName: gc.company_name ?? undefined,
           sender: { name: gc.contact_name ?? gc.company_name ?? undefined, email: gc.email ?? undefined, phone: gc.phone ?? undefined },

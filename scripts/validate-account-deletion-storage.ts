@@ -70,6 +70,8 @@ const PRODUCTION_BUCKETS = [
   // wave 5 (portfolio, CONTRACT 12): the PUBLIC project-page bucket, written
   // only under <auth.uid()>/… — delete-account lists it in USER_KEYED_BUCKETS.
   'portfolio',
+  // MSGDATA (portal message photos/PDFs): `<projectId>/<messageId>/<file>`, project-keyed.
+  'message-attachments',
 ];
 
 for (const bucket of PRODUCTION_BUCKETS) {

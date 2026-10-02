@@ -112,6 +112,11 @@ verify_jwt = false
 [functions.signed-media-urls]
 verify_jwt = false
 
+# portal-message-files: the homeowner holds no Supabase session; authenticates with the
+# portal access token (portal_project_for_token) and is rate-limited per IP and per portal.
+[functions.portal-message-files]
+verify_jwt = false
+
 [functions.seal-document]
 verify_jwt = false
 
