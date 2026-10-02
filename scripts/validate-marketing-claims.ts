@@ -1499,7 +1499,11 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // sub-Business users on Profit. A chip is a price on a page; it gets
     // checked like one.
     {
-      const finSrc = prose('marketing/features/financials.html');
+      // Body only: since 2026-10-01 the <title> starts "Estimates, pay apps…",
+      // so a whole-file indexOf('>Estimates') stopped at the title and found
+      // no chip. The chips live in the body; that is where the label is read.
+      const finRaw = prose('marketing/features/financials.html');
+      const finSrc = finRaw.slice(Math.max(0, finRaw.search(/<body\b/)));
       const CHIP = /<span class="tier-chip tier-chip-(pro|biz|free)">([^<]*)<\/span>/;
       const chipAfter = (label: string): string | null => {
         const i = finSrc.indexOf(label);

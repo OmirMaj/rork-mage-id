@@ -12,12 +12,24 @@
 //   B. THE HEALTH COLUMN BUDGET: with the optional column shown at its
 //      hideBelow, Job keeps its 160 px at EVERY table width (the same sweep
 //      validate-portfolio-row runs over the spec columns).
+//   A+. SITE COUNTS: open punch and RFIs past due are LISTED (singular /
+//      plural) after both halves and never move the key, offset, tint, kind or
+//      label; zero / negative / NaN add nothing; no data stays no data.
+//   A++. THE HUB READING (jobLevelFromPulse): role loading → 'loading'; no
+//      money → 'no_access'; streams not read → 'loading'; else the pulse's
+//      own risk through marginForLevel; never a 'reading' without a slip.
+//   A+++. THE LEGEND: four one-sentence lines; the colour line names no colour
+//      word (the accent follows the company's theme preset).
 //   C. SOURCE RULES: JobLevel draws with The Level's own geometry + palette and
 //      imports nothing else from components/loaders; it eases once on the
 //      native driver, jumps under Reduce Motion, never loops; no hex; the tap
 //      opens the reason; PortfolioTable's showLevel defaults off and mounts
 //      the Level's hooks only when on; the hook reads the same seven cost
-//      streams and the same readiness as the Margin risk screen.
+//      streams and the same readiness as the Margin risk screen. The sheet
+//      renders the legend through t(); the hub card (ProjectLevelCard) draws
+//      JobLevel from buildPortfolioRows + jobLevelFromPulse and renders for no
+//      data; ProjectHero keeps no second bubble; the hub mounts the card twice
+//      with its one pulse.
 //
 // Mutation testing: JOB_LEVEL_ROOT points every read (and the engine import)
 // at a scratch mirror, so a planted defect can be proved red without touching
@@ -161,6 +173,110 @@ console.log('A. the reading table:');
     matrix.every((r) => !/On plan/.test(all(r)) || (r.hasSchedule && r.offset === 0)));
 }
 
+// ── A+. Site counts: listed, never drawn ────────────────────────────────────
+console.log('\nA+. site counts (listed, never drawn):');
+{
+  const withSite = (s: PortfolioSchedule | 'undated' | null, m: Margin | null, site: { openPunch: number; overdueRfis: number }, withheld?: 'loading' | 'no_access') =>
+    E.computeJobLevel({ schedule: s, margin: m, site, ...(withheld ? { marginWithheld: withheld } : {}) });
+  const r = withSite(sched(3), margin('moderate'), { openPunch: 4, overdueRfis: 2 });
+  ok('plural: "4 punch items are open." and "2 RFIs are past their due date."',
+    r.reasons.includes('4 punch items are open.') && r.reasons.includes('2 RFIs are past their due date.'), JSON.stringify(r.reasons));
+  const one = withSite(sched(3), margin('moderate'), { openPunch: 1, overdueRfis: 1 });
+  ok('singular: "1 punch item is open." and "1 RFI is past its due date."',
+    one.reasons.includes('1 punch item is open.') && one.reasons.includes('1 RFI is past its due date.'), JSON.stringify(one.reasons));
+  const base = lvl(sched(3), margin('moderate'));
+  ok('the site reasons come AFTER the schedule and margin reasons, in order',
+    JSON.stringify(r.reasons) === JSON.stringify([...base.reasons, '4 punch items are open.', '2 RFIs are past their due date.']), JSON.stringify(r.reasons));
+  // Identity of the DRAWN reading, over a table of every branch.
+  const same = (a: Reading, b: Reading) => a.key === b.key && a.offset === b.offset && a.tint === b.tint && a.kind === b.kind
+    && a.hasSchedule === b.hasSchedule && a.hasMargin === b.hasMargin && a.label === b.label && a.accessibilityLabel === b.accessibilityLabel;
+  const bad: string[] = [];
+  for (const s of [null, 'undated' as const, sched(null, 2, 'late'), sched(-3), sched(0), sched(1), sched(6), sched(40)]) {
+    for (const m of [null, margin('low'), margin('high'), margin('moderate', { hasBasis: false })]) {
+      for (const w of [undefined, 'loading' as const, 'no_access' as const]) {
+        for (const site of [{ openPunch: 0, overdueRfis: 0 }, { openPunch: 1, overdueRfis: 0 }, { openPunch: 9, overdueRfis: 7 }, { openPunch: 250, overdueRfis: 40 }]) {
+          const a = E.computeJobLevel({ schedule: s, margin: m, ...(w ? { marginWithheld: w } : {}) });
+          const b = withSite(s, m, site, w);
+          if (!same(a, b)) bad.push(`${JSON.stringify(s)}|${m?.band ?? 'null'}|${w ?? '-'}|${JSON.stringify(site)}: ${a.key} vs ${b.key}`);
+        }
+      }
+    }
+  }
+  ok('key, offset, tint, kind, halves, label and spoken label are identical with and without site counts (384 rows)', bad.length === 0, bad.slice(0, 4).join(' ; '));
+  const zero = withSite(sched(3), margin('low'), { openPunch: 0, overdueRfis: 0 });
+  ok('zero counts add nothing', JSON.stringify(zero.reasons) === JSON.stringify(lvl(sched(3), margin('low')).reasons));
+  const junk = withSite(sched(3), margin('low'), { openPunch: -2, overdueRfis: Number.NaN });
+  ok('negative and NaN counts add nothing', JSON.stringify(junk.reasons) === JSON.stringify(lvl(sched(3), margin('low')).reasons), JSON.stringify(junk.reasons));
+  const inf = withSite(sched(3), margin('low'), { openPunch: Number.POSITIVE_INFINITY, overdueRfis: 0 });
+  ok('an infinite count adds nothing', JSON.stringify(inf.reasons) === JSON.stringify(lvl(sched(3), margin('low')).reasons));
+  const none = withSite(null, null, { openPunch: 5, overdueRfis: 3 });
+  ok('no data with counts stays no_data, "Not enough data yet", and still lists the counts',
+    none.kind === 'no_data' && none.label === E.NOT_ENOUGH_DATA && none.reasons.includes('5 punch items are open.') && none.reasons.includes('3 RFIs are past their due date.'), JSON.stringify(none));
+  const strings = [r, one, none].flatMap((x) => x.reasons);
+  ok('site reasons keep the voice (sentence, period, no "!", "project" not "job")',
+    strings.every((x) => /^[A-Z0-9]/.test(x) && x.endsWith('.') && !x.includes('!') && !/\bjobs?\b/i.test(x)));
+}
+
+// ── A++. The hub reading from the pulse ─────────────────────────────────────
+console.log('\nA++. jobLevelFromPulse (the hub):');
+{
+  type Facts = import('../utils/jobLevel').JobLevelPulseFacts;
+  const risk = (band: Margin['band'], over: Partial<Margin> = {}) => ({ ...margin(band), ...over });
+  const facts = (over: Partial<Facts> = {}): Facts => ({
+    canSeeMoney: true, roleLoading: false, costSourcesReady: true, risk: risk('moderate'), openPunch: 0, overdueRfis: 0, ...over,
+  });
+  const P = E.jobLevelFromPulse;
+  const loadingRole = P(sched(2), facts({ canSeeMoney: false, roleLoading: true }));
+  ok('role still resolving → margin withheld as loading (no band, the loading reason)',
+    loadingRole.tint === 'none' && !loadingRole.hasMargin && loadingRole.reasons.includes(E.MARGIN_LOADING_REASON) && !/Margin risk:/.test(all(loadingRole)), JSON.stringify(loadingRole.reasons));
+  const field = P(sched(2), facts({ canSeeMoney: false, roleLoading: false }));
+  ok('a role that resolved to field (no money) → withheld as no_access ("Margin is not shown for this project.")',
+    field.tint === 'none' && field.reasons.includes(E.MARGIN_HIDDEN_REASON) && !/Margin risk:/.test(all(field)), JSON.stringify(field.reasons));
+  const streams = P(sched(2), facts({ costSourcesReady: false }));
+  ok('cost streams not read yet → withheld as loading (no score from empty streams)',
+    streams.tint === 'none' && streams.reasons.includes(E.MARGIN_LOADING_REASON) && !/Margin risk:/.test(all(streams)));
+  const noRisk = P(null, facts({ costSourcesReady: false, risk: null }));
+  ok('no schedule + streams loading → no_data labelled "Loading margin…" (not "Not enough data yet")', noRisk.kind === 'no_data' && noRisk.label === 'Loading margin…', noRisk.label);
+  for (const [band, tint] of [['low', 'steady'], ['moderate', 'watch'], ['elevated', 'risk'], ['high', 'risk']] as const) {
+    const r = P(sched(0), facts({ risk: risk(band) }));
+    ok(`money visible: band ${band} → tint ${tint} (through marginForLevel)`, r.tint === tint && r.hasMargin && r.kind === 'reading', `${r.tint} ${r.kind}`);
+  }
+  ok('the margin half equals computeJobLevel on marginForLevel(risk) — the same object the hero prints',
+    P(sched(4), facts({ risk: risk('elevated', { costBasis: 'subs_only' }) })).reasons.join('|')
+      === E.computeJobLevel({ schedule: sched(4), margin: E.marginForLevel(risk('elevated', { costBasis: 'subs_only' })) }).reasons.join('|'));
+  ok('no margin basis → partial with the no-margin reason', (() => { const r = P(sched(1), facts({ risk: risk('high', { hasBasis: false }) })); return r.kind === 'partial' && r.tint === 'none' && r.reasons.includes(E.NO_MARGIN_REASON); })());
+  ok('risk null → the no-margin reason', P(sched(1), facts({ risk: null })).reasons.includes(E.NO_MARGIN_REASON));
+  const cnt = P(sched(2), facts({ openPunch: 3, overdueRfis: 1 }));
+  ok('the pulse counts are listed', cnt.reasons.includes('3 punch items are open.') && cnt.reasons.includes('1 RFI is past its due date.'));
+  ok('…and change nothing drawn', cnt.key === P(sched(2), facts()).key && cnt.offset === P(sched(2), facts()).offset);
+  // Never a reading without a slip: every branch × every schedule with no slip.
+  const noSlip: (PortfolioSchedule | 'undated' | null)[] = [null, 'undated', sched(null), sched(null, 4, 'late'), sched(Number.NaN)];
+  const branches: Partial<Facts>[] = [
+    {}, { canSeeMoney: false, roleLoading: true }, { canSeeMoney: false }, { costSourcesReady: false },
+    { risk: risk('high') }, { risk: null }, { openPunch: 8, overdueRfis: 8 },
+  ];
+  const leaks = noSlip.flatMap((s) => branches.map((b) => P(s, facts(b))).filter((r) => r.kind === 'reading' || r.hasSchedule || r.offset !== 0 || /On plan/.test(all(r))));
+  ok('never \'reading\', never a slip, never "On plan" without a known slip (35 rows)', leaks.length === 0, JSON.stringify(leaks[0]));
+  const hollow = P(null, facts({ canSeeMoney: false, roleLoading: false }));
+  ok('a field role on a project with no schedule → no_data, "Not enough data yet"', hollow.kind === 'no_data' && hollow.label === E.NOT_ENOUGH_DATA);
+}
+
+// ── A+++. The legend ────────────────────────────────────────────────────────
+console.log('\nA+++. the legend:');
+const LEGEND_KEY = (id: string) => `office.projectHealth.legend.${id}`;
+{
+  const L = E.JOB_LEVEL_LEGEND;
+  ok('four lines, ids bubble / colour / listed / empty in that order', L.map((x) => x.id).join(',') === 'bubble,colour,listed,empty', L.map((x) => x.id).join(','));
+  ok('each is ONE sentence (one terminal period, none inside)', L.every((x) => x.text.endsWith('.') && (x.text.match(/\.(\s|$)/g) ?? []).length === 1), L.map((x) => x.text).join(' | '));
+  ok('sentence case (a capital first, no Title Case words after)', L.every((x) => /^[A-Z]/.test(x.text) && !/\s(The|A|Is|Of|And|When)\b/.test(x.text.slice(1))));
+  ok('no he / his / she / her, no "!", no emoji', L.every((x) => !/\b(he|his|him|she|her)\b/i.test(x.text) && !x.text.includes('!') && !/\p{Extended_Pictographic}/u.test(x.text)));
+  ok('the bubble line says right = the finish slipping past the baseline', /moves right/.test(L[0].text) && /baseline/.test(L[0].text));
+  ok('the colour line names margin risk and NO colour word (the accent follows the theme preset)',
+    /margin risk/.test(L[1].text) && !/\b(green|amber|orange|red|yellow|blue)\b/i.test(L[1].text), L[1].text);
+  ok('the listed line names punch, RFIs and tasks as listed, not drawn', /punch/.test(L[2].text) && /RFIs/.test(L[2].text) && /tasks/.test(L[2].text) && /not drawn/.test(L[2].text));
+  ok('the empty line names the grey, hollow level and not enough data', /grey, hollow/.test(L[3].text) && /not enough data/.test(L[3].text));
+}
+
 // ── B. The Health column budget ─────────────────────────────────────────────
 console.log('\nB. the Health column budget:');
 {
@@ -242,6 +358,55 @@ console.log('\nC. source rules:');
   ok('the reason uses the Sheet primitive', /import \{ Sheet \} from '@\/components\/ui\/Sheet'/.test(reason));
   ok('the sheet mounts only when open', /\{open \? \(/.test(code));
   ok('no data says "Not enough data yet" beside the vial by default', /const withLabel = showLabel \?\? \(size === 'detail' \|\| reading\.kind === 'no_data'\);/.test(code));
+
+  // The sheet renders the whole legend, each line through t() with its fixed
+  // key and the engine's English as the literal fallback (i18n-extract needs
+  // both literal).
+  const reasonCode = stripComments(reason);
+  const tLine = (id: string, text: string) => `t('${LEGEND_KEY(id)}', '${text.replace(/'/g, "\\'")}')`;
+  ok('JobLevelReason: renders all four legend lines through t() with the engine\'s English',
+    E.JOB_LEVEL_LEGEND.every((x) => reasonCode.includes(tLine(x.id, x.text))), E.JOB_LEVEL_LEGEND.filter((x) => !reasonCode.includes(tLine(x.id, x.text))).map((x) => x.id).join(','));
+  ok('JobLevelReason: the legend sits UNDER the reasons, in textSecondary',
+    /reading\.reasons\.map[\s\S]*testID="joblevel-legend"/.test(reasonCode) && /legendLine: \{[^}]*color: t\.textSecondary/.test(reasonCode));
+  ok('JobLevelReason: the title is "Project health" through t()', /t\('office\.projectHealth\.title', 'Project health'\)/.test(reasonCode));
+
+  // ── C+. The hub card ──
+  const card = read('components/level/ProjectLevelCard.tsx');
+  const cardCode = stripComments(card);
+  ok('ProjectLevelCard: draws JobLevel (never the loader: no LevelMark / levelClock)',
+    /import \{ JobLevel \} from '\.\/JobLevel'/.test(cardCode) && /<JobLevel [^>]*size="detail"[^>]*showLabel[^>]*testID="project-level"/.test(cardCode) && !/LevelMark|levelClock|useLevelClock|components\/loaders/.test(cardCode));
+  ok('ProjectLevelCard: the schedule half from buildPortfolioRows (one project, empty lists — useJobLevel\'s way)',
+    /buildPortfolioRows\(\{\s*projects: \[project\], invoices: \[\], changeOrders: \[\], rfis: \[\], punchItems: \[\],/.test(cardCode) && /\}\)\[0\]\?\.schedule \?\? null/.test(cardCode));
+  ok('ProjectLevelCard: the reading is jobLevelFromPulse over the pulse (open punch = open + in progress + ready for review)',
+    /jobLevelFromPulse\(schedule, \{ canSeeMoney, roleLoading, costSourcesReady, risk, openPunch, overdueRfis \}\)/.test(cardCode)
+      && /const openPunch = punch\.open \+ punch\.inProgress \+ punch\.readyForReview;/.test(cardCode));
+  ok('ProjectLevelCard: never computes its own margin or reads the pulse again', !/computeMarginRisk|useProjectPulse|useJobLevels?\b|computeJobLevel\(/.test(cardCode));
+  ok('ProjectLevelCard: no hex / rgba colour literal', !/#[0-9a-fA-F]{3,8}\b/.test(cardCode) && !/\brgba?\(/.test(cardCode));
+  ok('ProjectLevelCard: no storage, no writes', !/supabase|AsyncStorage|\.insert\(|\.upsert\(|supabaseWrite|fetch\(/.test(cardCode));
+  const returnsNull = [...cardCode.matchAll(/return null;?/g)].length;
+  ok('ProjectLevelCard: renders for no data — the ONLY early return is a null project (no return on kind)',
+    returnsNull === 1 && /if \(!pulse\.hasProject\) return null;/.test(cardCode) && !/reading\.kind/.test(cardCode));
+  ok('ProjectLevelCard: testIDs project-level-card (default), project-level, project-level-legend',
+    /testID = 'project-level-card'/.test(cardCode) && /testID="project-level-legend"/.test(cardCode));
+  ok('ProjectLevelCard: the title is a header ("Project health" through t())', /accessibilityRole="header">\{t\('office\.projectHealth\.title', 'Project health'\)\}/.test(cardCode));
+  ok('ProjectLevelCard: the compact legend is the bubble + colour lines, through t() with the engine\'s English',
+    ['bubble', 'colour'].every((id) => cardCode.includes(tLine(id, E.JOB_LEVEL_LEGEND.find((x) => x.id === id)!.text))));
+  ok('ProjectLevelCard: the surface is the Card primitive (no hand-rolled surface recipe)', /<Card /.test(cardCode) && !/backgroundColor: t\.surface/.test(cardCode));
+
+  // ── C++. ProjectHero keeps one meaning for a bubble ──
+  const hero = stripComments(read('components/ProjectHero.tsx'));
+  ok('ProjectHero: no spring and no bubble remain (the Level lives in ProjectLevelCard)', !/Animated\.spring/.test(hero) && !/\bbubble\w*\b/i.test(hero), (hero.match(/Animated\.spring|\bbubble\w*\b/i) ?? [''])[0]);
+  ok('ProjectHero: the "Margin risk" words + band row stays', />Margin risk<\/Text>/.test(hero) && /\{riskBandLabel\(risk\.band\)\}/.test(hero));
+  ok('ProjectHero: no private vial / centre marks', !/styles\.(vial|centerMark)/.test(hero));
+
+  // ── The hub mounts it twice, with the page's one pulse ──
+  const hub = stripComments(read('app/project-detail.tsx'));
+  const mounts = [...hub.matchAll(/<ProjectLevelCard project=\{project\} pulse=\{pulse\} \/>/g)].length;
+  ok('project-detail: ProjectLevelCard mounted twice (desktop + phone) with the page\'s pulse', mounts === 2 && /import \{ ProjectLevelCard \} from '@\/components\/level\/ProjectLevelCard';/.test(hub), String(mounts));
+  ok('project-detail: desktop — directly after the KPI strip', /<ProjectKpiStrip[^>]*\/>\s*<ProjectLevelCard project=\{project\} pulse=\{pulse\} \/>/.test(hub));
+  ok('project-detail: phone — after the live-job ProjectHero, before the blueprint hero card',
+    /\? <ProjectHero project=\{project\} pulse=\{pulse\} \/> : null\}\s*<ProjectLevelCard project=\{project\} pulse=\{pulse\} \/>\s*(?:\{\s*\}\s*)?<BlueprintReveal>/.test(hub));
+  ok('project-detail: the pulse is still read ONCE', (hub.match(/useProjectPulse\(/g) ?? []).length === 1);
 
   const eng = stripComments(read('utils/jobLevel.ts'));
   ok('utils/jobLevel.ts is pure (no react / react-native import)', !/from 'react(-native)?'/.test(eng));

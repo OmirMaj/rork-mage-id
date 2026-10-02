@@ -1246,120 +1246,45 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
           <View
             style={
               {
+                "alignItems": "baseline",
+                "flexDirection": "row",
+                "justifyContent": "space-between",
                 "marginTop": 18,
               }
             }
           >
-            <View
+            <Text
               style={
                 {
-                  "alignItems": "baseline",
-                  "flexDirection": "row",
-                  "justifyContent": "space-between",
-                  "marginBottom": 8,
+                  "color": "rgba(43,48,56,0.72)",
+                  "fontFamily": "JetBrainsMono_400Regular",
+                  "fontSize": 12,
+                  "letterSpacing": 1.2,
+                  "lineHeight": 16,
+                  "textTransform": "uppercase",
                 }
               }
             >
-              <Text
-                style={
+              Margin risk
+            </Text>
+            <Text
+              style={
+                [
                   {
-                    "color": "rgba(43,48,56,0.72)",
                     "fontFamily": "JetBrainsMono_400Regular",
                     "fontSize": 12,
-                    "letterSpacing": 1.2,
+                    "fontWeight": "700",
+                    "letterSpacing": 0.6,
                     "lineHeight": 16,
-                    "textTransform": "uppercase",
-                  }
-                }
-              >
-                Margin risk
-              </Text>
-              <Text
-                style={
-                  [
-                    {
-                      "fontFamily": "JetBrainsMono_400Regular",
-                      "fontSize": 12,
-                      "fontWeight": "700",
-                      "letterSpacing": 0.6,
-                      "lineHeight": 16,
-                    },
-                    {
-                      "color": "#0F7A69",
-                    },
-                  ]
-                }
-              >
-                Low risk
-              </Text>
-            </View>
-            <View
-              style={
-                {
-                  "backgroundColor": "#ECEDE9",
-                  "borderColor": "#D7DAD4",
-                  "borderRadius": 11,
-                  "borderWidth": 1,
-                  "height": 22,
-                  "justifyContent": "center",
-                  "overflow": "hidden",
-                }
+                  },
+                  {
+                    "color": "#0F7A69",
+                  },
+                ]
               }
             >
-              <View
-                style={
-                  [
-                    {
-                      "backgroundColor": "#D7DAD4",
-                      "bottom": 0,
-                      "position": "absolute",
-                      "top": 0,
-                      "width": 1,
-                    },
-                    {
-                      "left": "50%",
-                      "marginLeft": -13,
-                    },
-                  ]
-                }
-              />
-              <View
-                style={
-                  [
-                    {
-                      "backgroundColor": "#D7DAD4",
-                      "bottom": 0,
-                      "position": "absolute",
-                      "top": 0,
-                      "width": 1,
-                    },
-                    {
-                      "left": "50%",
-                      "marginLeft": 12,
-                    },
-                  ]
-                }
-              />
-              <View
-                collapsable={false}
-                style={
-                  {
-                    "backgroundColor": "#0F7A69",
-                    "borderRadius": 8,
-                    "height": 14,
-                    "left": "50%",
-                    "marginLeft": -13,
-                    "position": "absolute",
-                    "transform": [
-                      {
-                        "translateX": 0,
-                      },
-                    ],
-                    "width": 26,
-                  }
-                }
-              />
-            </View>
+              Low risk
+            </Text>
           </View>
           <View
             style={
@@ -1566,6 +1491,260 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 2
               </Text>
             </View>
+          </View>
+        </View>
+        <View
+          style={
+            [
+              {
+                "backgroundColor": "#FFFFFF",
+                "borderColor": "#D7DAD4",
+                "borderCurve": "continuous",
+              },
+              {
+                "borderRadius": 16,
+                "borderWidth": 1,
+                "padding": 16,
+              },
+              {
+                "gap": 12,
+                "marginHorizontal": 20,
+                "marginTop": 16,
+              },
+            ]
+          }
+          testID="project-level-card"
+        >
+          <Text
+            accessibilityRole="header"
+            style={
+              {
+                "color": "rgba(43,48,56,0.72)",
+                "fontFamily": "JetBrainsMono_400Regular",
+                "fontSize": 12,
+                "letterSpacing": 1.4,
+                "lineHeight": 16,
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            Project health
+          </Text>
+          <View
+            style={
+              {
+                "alignItems": "center",
+                "paddingVertical": 12,
+              }
+            }
+          >
+            <View
+              accessibilityHint="Shows the reasons"
+              accessibilityLabel="Schedule: no slip reading. Margin risk: low."
+              accessibilityRole="button"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              hitSlop={8}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+              style={
+                [
+                  {
+                    "alignItems": "center",
+                    "flexDirection": "row",
+                    "gap": 6,
+                    "minHeight": 20,
+                  },
+                  {
+                    "flexDirection": "column",
+                    "gap": 8,
+                  },
+                ]
+              }
+              testID="project-level"
+            >
+              <View
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no-hide-descendants"
+                pointerEvents="none"
+                style={
+                  {
+                    "height": 10,
+                    "width": 120,
+                  }
+                }
+                testID="project-level-vial"
+              >
+                <View
+                  style={
+                    {
+                      "backgroundColor": "rgba(43,48,56,0.72)",
+                      "borderRadius": 1,
+                      "height": 10,
+                      "left": 0,
+                      "position": "absolute",
+                      "top": 0,
+                      "width": 2,
+                    }
+                  }
+                />
+                <View
+                  style={
+                    {
+                      "backgroundColor": "rgba(43,48,56,0.72)",
+                      "borderRadius": 1,
+                      "height": 10,
+                      "left": 118,
+                      "position": "absolute",
+                      "top": 0,
+                      "width": 2,
+                    }
+                  }
+                />
+                <View
+                  style={
+                    {
+                      "backgroundColor": "#2F6B3A",
+                      "borderRadius": 1,
+                      "height": 2,
+                      "left": 2,
+                      "opacity": 0.25,
+                      "position": "absolute",
+                      "top": 4,
+                      "width": 116,
+                    }
+                  }
+                />
+                <View
+                  style={
+                    {
+                      "backgroundColor": "rgba(43,48,56,0.72)",
+                      "borderRadius": 0.6666666666666666,
+                      "height": 6,
+                      "left": 49.333333333333336,
+                      "opacity": 0.55,
+                      "position": "absolute",
+                      "top": 2,
+                      "width": 1,
+                    }
+                  }
+                />
+                <View
+                  style={
+                    {
+                      "backgroundColor": "rgba(43,48,56,0.72)",
+                      "borderRadius": 0.6666666666666666,
+                      "height": 6,
+                      "left": 69.66666666666667,
+                      "opacity": 0.55,
+                      "position": "absolute",
+                      "top": 2,
+                      "width": 1,
+                    }
+                  }
+                />
+                <View
+                  collapsable={false}
+                  style={
+                    {
+                      "backgroundColor": "transparent",
+                      "borderColor": "#2F6B3A",
+                      "borderRadius": 3.6666666666666665,
+                      "borderWidth": 1.6666666666666667,
+                      "height": 7,
+                      "left": 51,
+                      "position": "absolute",
+                      "top": 1.6666666666666667,
+                      "transform": [
+                        {
+                          "translateX": 0,
+                        },
+                      ],
+                      "width": 18,
+                    }
+                  }
+                  testID="project-level-vial-bubble"
+                />
+              </View>
+              <Text
+                numberOfLines={1}
+                style={
+                  [
+                    {
+                      "fontSize": 13,
+                      "fontWeight": "400",
+                      "lineHeight": 18,
+                    },
+                    {
+                      "color": "rgba(43,48,56,0.78)",
+                    },
+                  ]
+                }
+                testID="project-level-label"
+              >
+                No slip reading · Margin risk: low
+              </Text>
+            </View>
+          </View>
+          <View
+            style={
+              {
+                "flexShrink": 1,
+                "gap": 4,
+                "minWidth": 0,
+              }
+            }
+            testID="project-level-legend"
+          >
+            <Text
+              style={
+                {
+                  "color": "rgba(43,48,56,0.78)",
+                  "fontSize": 13,
+                  "fontWeight": "400",
+                  "lineHeight": 18,
+                }
+              }
+            >
+              The bubble moves right when the finish slips past the baseline.
+            </Text>
+            <Text
+              style={
+                {
+                  "color": "rgba(43,48,56,0.78)",
+                  "fontSize": 13,
+                  "fontWeight": "400",
+                  "lineHeight": 18,
+                }
+              }
+            >
+              The colour is margin risk.
+            </Text>
           </View>
         </View>
         <View

@@ -10,23 +10,69 @@
 // pulling the machine into every screen bundle chunk.
 //
 // Only `import type` below — this file emits no runtime code.
+//
+// THE FRAGMENT SEAM (LEARN wave, 2026-10-01). Twelve more tutorials land from
+// four content lanes at once, so no lane edits this file, registry.ts,
+// defs/index.ts or the defs validator to add one. Each lane owns ONE fragment
+// under utils/tutorial/learn/ and fills only that:
+//   laneA.ts  LEARNDEFS-A  estimate-first, change-order-draft, field-ticket-log
+//   laneB.ts  LEARNDEFS-B  takeoff-to-estimate, ask-your-plans, construction-ai-ask
+//   laneC.ts  LEARNDEFS-C  schedule-say-it, time-clock-in, punch-list-close
+//   laneD.ts  LEARNDEFS-D  contract-from-estimate, pay-app-period, closeout-binder
+// A fragment exports LaneXTargetId, LaneXAssistId, LaneXSignalPayloadMap,
+// LANE_X_TARGETS, LANE_X_SIGNALS, LANE_X_ASSISTS, LANE_X_FULL_PAYLOADS and
+// LANE_X_DEFS (exact names). StaticTargetId / AssistId below union the lane
+// ids in, SignalPayloadMap extends the lane maps, registry.ts spreads the lane
+// records after the core ones, and defs/index.ts appends the lane defs. The
+// TutorialId union, the pathnames, the layers and the hub order are already
+// widened for all twelve here, so a content lane never needs a type change.
+//
+// COPY AND I18N (rule for every content lane). scripts/i18n-extract.ts FAILS
+// any t() whose key is not a string literal, so:
+//   • tutorial def copy (titles, steps, detail, success, handoff labels) stays
+//     plain English DATA, like the shipped three (defs/punchWalk.ts) — never t();
+//   • quiz questions / choices / why (utils/learn) render from data; their
+//     `key` / `whyKey` fields are catalog ids kept for a later i18n phase and
+//     are NEVER passed to t();
+//   • screen chrome uses LITERAL keys only: t('common.tutorial.<slug>', english)
+//     on tutorial screens, t('settings.learn.<slug>', english) on the skills
+//     check, certificates and profile row. Both prefixes get their own surface
+//     in i18n/surfaces.ts (integrator patch from LEARNCORE).
 
 import type { DailyFieldReport, LinkedEstimateItem } from '@/types';
 import type { FeatureKey } from '@/utils/featureTiers';
+import type { LaneAAssistId, LaneASignalPayloadMap, LaneATargetId } from './learn/laneA';
+import type { LaneBAssistId, LaneBSignalPayloadMap, LaneBTargetId } from './learn/laneB';
+import type { LaneCAssistId, LaneCSignalPayloadMap, LaneCTargetId } from './learn/laneC';
+import type { LaneDAssistId, LaneDSignalPayloadMap, LaneDTargetId } from './learn/laneD';
 
 export type { FeatureKey };
 
 // ── Identities ───────────────────────────────────────────────────────────────
 
 /** Every tutorial the spec names. Wave A ships the first three; the rest are
- *  listed so later waves add a def file, not a type change. */
+ *  listed so later waves add a def file, not a type change. The LEARN wave
+ *  (2026-10-01) adds eleven more; with schedule-say-it they are the twelve the
+ *  four fragment lanes build. */
 export type TutorialId =
   | 'daily-report-voice'
   | 'punch-walk'
   | 'invoice-to-self'
   | 'schedule-say-it'
   | 'client-portal-preview'
-  | 'first-bid-coach';
+  | 'first-bid-coach'
+  // LEARN wave
+  | 'estimate-first'
+  | 'change-order-draft'
+  | 'field-ticket-log'
+  | 'takeoff-to-estimate'
+  | 'ask-your-plans'
+  | 'construction-ai-ask'
+  | 'time-clock-in'
+  | 'punch-list-close'
+  | 'contract-from-estimate'
+  | 'pay-app-period'
+  | 'closeout-binder';
 
 export type StepKind = 'do' | 'look' | 'wait';
 
@@ -36,7 +82,7 @@ export type Gesture = 'tap' | 'tap-point' | 'none';
 /** Where a spotlight draws. 'root' is the app-wide host; the others are
  *  <TutorialLayer host=…/> mounted INSIDE a modal, because on iOS a
  *  native-stack modal or an RN <Modal> draws above the root layer. */
-export type LayerId = 'root' | 'planPin' | 'scheduleEdit' | 'estimateWizard';
+export type LayerId = 'root' | 'planPin' | 'scheduleEdit' | 'estimateWizard' | 'askPlans';
 
 /** Static target ids. A step names one (or a fallback chain) and the screen
  *  wraps the real control in <TutorialTarget id="…">. The source scan in
@@ -72,7 +118,12 @@ export type StaticTargetId =
   | 'voice.modalUp'
   | 'punch.modalUp'
   | 'invoice.modalUp'
-  | 'hub.modalUp';
+  | 'hub.modalUp'
+  // The four fragment lanes (utils/tutorial/learn/lane*.ts).
+  | LaneATargetId
+  | LaneBTargetId
+  | LaneCTargetId
+  | LaneDTargetId;
 
 /** Dynamic families: app/project-detail.tsx wraps every hub tile as
  *  id={`hub.tile.${tile.key}`} and every group header as `hub.group.${key}`. */
@@ -88,7 +139,11 @@ export type AssistId =
   | 'punch.useSamplePhoto'
   | 'punch.dropPinKitchen'
   | 'punch.useSampleLine'
-  | 'invoice.fillPercent';
+  | 'invoice.fillPercent'
+  | LaneAAssistId
+  | LaneBAssistId
+  | LaneCAssistId
+  | LaneDAssistId;
 
 // ── Completion signals ──────────────────────────────────────────────────────
 // Emitted by the SCREEN right after its existing success point, never from a
@@ -98,7 +153,7 @@ export type AssistId =
 /** Payload per signal, WITHOUT projectId (added by SignalPayload). Optional
  *  fields are ones a screen may not know at the emit point; the copy and the
  *  stat line degrade instead of inventing a value. */
-export interface SignalPayloadMap {
+export interface SignalPayloadMap extends LaneASignalPayloadMap, LaneBSignalPayloadMap, LaneCSignalPayloadMap, LaneDSignalPayloadMap {
   /** The voice fill (sample chip or mic) was applied to the report. */
   'dfr.voice.applied': { fields: string[]; source: 'sample' | 'mic' };
   /** daily-report handleSave, after addDailyReport, on the non-silent path. */
@@ -131,7 +186,11 @@ export type PayloadRecord = { [N in SignalName]?: SignalPayload<N> };
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 /** Real expo-router pathnames the engine pushes. Literal so the host can pass
- *  them to router.push without a cast (typed routes). */
+ *  them to router.push without a cast (typed routes) — so EVERY member must be
+ *  a screen file under app/ today. '/skills-check' is NOT listed: the LEARNQUIZ
+ *  lane creates app/skills-check.tsx, and a pathname with no route file fails
+ *  typed-routes tsc at TutorialHost's nav.push. It joins this union in the same
+ *  change that adds the screen (and no def ever starts there). */
 export type TutorialPathname =
   | '/daily-report'
   | '/punch-walk'
@@ -139,7 +198,21 @@ export type TutorialPathname =
   | '/project-detail'
   | '/payments-setup'
   | '/tutorials'
-  | '/';
+  | '/'
+  // LEARN wave — '/construction-ai' is app/(tabs)/construction-ai/index.tsx,
+  // '/schedule' is app/(tabs)/schedule/index.tsx.
+  | '/estimate-wizard'
+  | '/change-order'
+  | '/field-ticket'
+  | '/takeoff'
+  | '/plans'
+  | '/construction-ai'
+  | '/schedule'
+  | '/time-tracking'
+  | '/punch-list'
+  | '/contract'
+  | '/aia-pay-app'
+  | '/closeout-binder';
 
 /** Which search param carries the project id on that screen. */
 export type ProjectParam = 'projectId' | 'id';

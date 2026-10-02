@@ -729,6 +729,15 @@ type CoreDataValue = {
    *  picked one (route them to /persona-select). */
   userRole: UserRole | null;
   isLoading: boolean;
+  /** The ROUTING facts are still loading (lane INSTANTOPEN): the first
+   *  settings read, the onboarding flag, the persona — or their state copies
+   *  (hasSeenOnboarding / userRole, set from the query data one commit later)
+   *  have not caught up with the query yet. app/_layout.tsx routes only once
+   *  this is false, so a tenant switch never routes the new account with the
+   *  old persona. Unlike isLoading it does NOT wait for the project list. */
+  bootGateLoading: boolean;
+  /** projectsQuery.isLoading alone: the project list has no data yet. */
+  projectsLoading: boolean;
   /** True once projects have hydrated from storage/network. Distinguishes
    *  "still loading" from "not found" for deep-linked detail screens. */
   projectsLoaded: boolean;
@@ -10908,9 +10917,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [queryClient, userId]);
 
   // ── Bucket memos ─────────────────────────────────────────────────────────────
+  // hasSeenOnboarding / userRole are state copies set from the query data in an
+  // effect, i.e. one commit AFTER the query settles — and the root layout's
+  // routing effect (a descendant) runs before that effect in the same commit.
+  // On an account switch the copies still hold the previous account's values
+  // for that commit. Hold the routing gate until they have caught up.
+  const routingFactsLag =
+    (onboardingQuery.data !== undefined && onboardingQuery.data !== hasSeenOnboarding)
+    || (userRoleQuery.data !== undefined && userRoleQuery.data !== userRole);
   const coreData = useMemo<CoreDataValue>(() => ({
     projects: sortedProjects, settings, hasSeenOnboarding, userRole,
     isLoading: projectsQuery.isLoading || settingsBootLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
+    bootGateLoading: settingsBootLoading || onboardingQuery.isLoading || userRoleQuery.isLoading || routingFactsLag,
+    projectsLoading: projectsQuery.isLoading,
     projectsLoaded,
     settingsLoaded,
     settingsLoadFailed: !settingsLoaded && settingsLoadFailed,
@@ -10926,7 +10945,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, projectsQuery.isFetching, settingsBootLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, portalListsServerRead, portalAiaFresh, settingsLoaded, settingsLoadFailed, addProject, updateProject, deleteProject, forgetSharedProject, getProject, updateSettings, savePaymentTerms, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, refreshAll, reloadLocalMirrors]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, projectsQuery.isFetching, settingsBootLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, routingFactsLag, projectsLoaded, reachability.failed, retryRemoteReads, portalListsServerRead, portalAiaFresh, settingsLoaded, settingsLoadFailed, addProject, updateProject, deleteProject, forgetSharedProject, getProject, updateSettings, savePaymentTerms, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, refreshAll, reloadLocalMirrors]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, changeOrdersLoaded, invoicesLoaded, addChangeOrder, addChangeOrders, getChangeOrdersForProject,

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Instant Estimate Widget — Put a price calculator on your own website | MAGE ID</title>
+<title>Instant estimate widget for your website — MAGE ID</title>
 <link rel="canonical" href="https://mageid.app/widget/" />
-<meta name="description" content="A free embeddable instant estimate widget for contractors. One script tag on your own site gives homeowners a ballpark price range on the spot, and drops the lead straight into your MAGE ID pipeline." />
+<meta name="description" content="One script tag puts a ballpark price range on your own website. The visitor gets a range on the spot and the lead lands in your MAGE ID pipeline." />
 <meta name="theme-color" content="#0B0D10" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Instant Estimate Widget for Contractors" />
-<meta property="og:description" content="One script tag. Homeowners get a ballpark price on your website in ten seconds — you get a qualified lead. Free with MAGE ID." />
+<meta property="og:title" content="Instant estimate widget for your website" />
+<meta property="og:description" content="One script tag puts a ballpark price range on your own website. The visitor gets a range on the spot and the lead lands in your MAGE ID pipeline." />
 <meta property="og:url" content="https://mageid.app/widget/" />
 <meta property="og:site_name" content="MAGE ID" />
 <meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
@@ -126,9 +126,17 @@
   .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
   .footnav a:hover{color:var(--navy)}
   @media(max-width:420px){h1{font-size:24px}}
+  /* Accessibility (audit 2026-10-01): skip link, a focus ring on every
+     control (:where = zero specificity, so the rules above still win), and
+     24px footer/trust-strip tap targets. Pinned by validate-marketing-seo. */
+  .skip-link{position:absolute;left:-9999px;top:8px;z-index:1000;padding:10px 14px;background:var(--brand);color:#fff;border-radius:8px}
+  .skip-link:focus{left:16px}
+  :where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  footer a,.foot a,.footnav a,.trust-strip a{display:inline-block;min-height:24px;padding:3px 0}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <nav class="sitenav" aria-label="Primary">
   <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
   <!-- ONE NAV, EVERYWHERE — see the note on brain/index.html. This page was
@@ -146,7 +154,7 @@
   </div>
 </nav>
 
-<div class="wrap">
+<div class="wrap" id="main">
   <h1>Answer “what will this cost?” on your own website.</h1>
   <p class="sub">One script tag. A homeowner picks a project, a size and a ZIP and sees a real ballpark range in ten seconds — and the lead lands in your MAGE ID pipeline, already qualified.</p>
 
@@ -173,7 +181,7 @@
           <p>Every competitor answers this question with “fill this out and we'll call you.” You answer it before they leave the page.</p>
         </li>
         <li>
-          <h3>An honest range</h3>
+          <h3>A range, with its assumptions</h3>
           <p>The widget shows a band, names every assumption it made, and refuses outright when the scope is too odd to price. It never pretends to be a quote.</p>
         </li>
         <li>

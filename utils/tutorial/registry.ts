@@ -10,8 +10,33 @@
 // the assist hook or the modal layer is missing. Documents lie; code doesn't.
 //
 // Pure data. No react / react-native imports.
+//
+// FRAGMENTS. TARGETS / SIGNALS / ASSISTS are the core entries (CORE_*) plus the
+// four content lanes' records from utils/tutorial/learn/lane{A,B,C,D}.ts,
+// spread AFTER the core. A spread silently lets a later key win, so the core
+// records are exported on their own too: scripts/validate-tutorial-defs.ts
+// counts every id across core + fragments and fails one declared twice.
 
 import type { AssistId, LayerId, SignalName, SignalPayloadMap, StaticTargetId } from './types';
+import { LANE_A_ASSISTS, LANE_A_SIGNALS, LANE_A_TARGETS } from './learn/laneA';
+import type { LaneAAssistId, LaneASignalPayloadMap, LaneATargetId } from './learn/laneA';
+import { LANE_B_ASSISTS, LANE_B_SIGNALS, LANE_B_TARGETS } from './learn/laneB';
+import type { LaneBAssistId, LaneBSignalPayloadMap, LaneBTargetId } from './learn/laneB';
+import { LANE_C_ASSISTS, LANE_C_SIGNALS, LANE_C_TARGETS } from './learn/laneC';
+import type { LaneCAssistId, LaneCSignalPayloadMap, LaneCTargetId } from './learn/laneC';
+import { LANE_D_ASSISTS, LANE_D_SIGNALS, LANE_D_TARGETS } from './learn/laneD';
+import type { LaneDAssistId, LaneDSignalPayloadMap, LaneDTargetId } from './learn/laneD';
+
+/** Ids the core records own: everything the fragments don't. A lane that
+ *  re-declares a core id removes it from these, so the core literal below
+ *  turns into an excess-property tsc error (the validator catches the same
+ *  thing at run time, across fragments too). */
+type CoreTargetId = Exclude<StaticTargetId, LaneATargetId | LaneBTargetId | LaneCTargetId | LaneDTargetId>;
+type CoreAssistId = Exclude<AssistId, LaneAAssistId | LaneBAssistId | LaneCAssistId | LaneDAssistId>;
+type CoreSignalName = Exclude<
+  SignalName,
+  keyof LaneASignalPayloadMap | keyof LaneBSignalPayloadMap | keyof LaneCSignalPayloadMap | keyof LaneDSignalPayloadMap
+>;
 
 export interface TargetSpec {
   /** Repo-relative file that must contain <TutorialTarget id="…">. */
@@ -23,9 +48,8 @@ export interface TargetSpec {
   blocker?: true;
 }
 
-/** Every static target a wave-A def uses. Typed as a full Record so adding a
- *  StaticTargetId without registering its file is a tsc error. */
-export const TARGETS: Record<StaticTargetId, TargetSpec> = {
+/** The core (wave-A) static targets. The lane fragments add their own. */
+export const CORE_TARGETS: Record<CoreTargetId, TargetSpec> = {
   'dfr.voice': { file: 'app/daily-report.tsx', layer: 'root', note: 'VoiceRecorder row plus the sample-note chip, one hole over both' },
   'dfr.voicePreview': { file: 'app/daily-report.tsx', layer: 'root', note: "the 'Here's what I heard' preview card" },
   'dfr.workPerformed': { file: 'app/daily-report.tsx', layer: 'root', note: 'work-performed-input — fallback when the preview card is gone' },
@@ -59,6 +83,17 @@ export const TARGETS: Record<StaticTargetId, TargetSpec> = {
   'hub.modalUp': { file: 'app/project-detail.tsx', layer: 'root', blocker: true, note: 'any section / action modal on the project hub' },
 };
 
+/** Every static target a def may use: the core plus the four lane fragments.
+ *  Typed as a full Record so adding a StaticTargetId without registering its
+ *  file is a tsc error. */
+export const TARGETS: Record<StaticTargetId, TargetSpec> = {
+  ...CORE_TARGETS,
+  ...LANE_A_TARGETS,
+  ...LANE_B_TARGETS,
+  ...LANE_C_TARGETS,
+  ...LANE_D_TARGETS,
+};
+
 /** The blocker sentinel ids (see TargetSpec.blocker). */
 export const BLOCKER_TARGETS: readonly StaticTargetId[] = (Object.keys(TARGETS) as StaticTargetId[]).filter(id => TARGETS[id].blocker === true);
 
@@ -87,7 +122,8 @@ export interface SignalSpec<N extends SignalName = SignalName> {
   failure?: boolean;
 }
 
-export const SIGNALS: { [N in SignalName]: SignalSpec<N> } = {
+/** The core (wave-A) signals. The lane fragments add their own. */
+export const CORE_SIGNALS: { [N in CoreSignalName]: SignalSpec<N> } = {
   'dfr.voice.applied': { file: 'app/daily-report.tsx', payloadKeys: ['fields', 'source'], outbound: false },
   'dfr.saved': { file: 'app/daily-report.tsx', payloadKeys: ['reportId', 'status', 'date', 'crew', 'offline'], outbound: false },
   'punch.photo.added': { file: 'app/punch-walk.tsx', payloadKeys: ['source'], outbound: false },
@@ -99,18 +135,37 @@ export const SIGNALS: { [N in SignalName]: SignalSpec<N> } = {
   'invoice.send.failed': { file: 'app/invoice.tsx', payloadKeys: ['reason'], outbound: false, failure: true },
 };
 
+/** Every signal: the core plus the four lane fragments. */
+export const SIGNALS: { [N in SignalName]: SignalSpec<N> } = {
+  ...CORE_SIGNALS,
+  ...LANE_A_SIGNALS,
+  ...LANE_B_SIGNALS,
+  ...LANE_C_SIGNALS,
+  ...LANE_D_SIGNALS,
+};
+
 export interface AssistSpec {
   /** Repo-relative file that must contain useTutorialAssist('id', …). */
   file: string;
   what: string;
 }
 
-export const ASSISTS: Record<AssistId, AssistSpec> = {
+/** The core (wave-A) assists. The lane fragments add their own. */
+export const CORE_ASSISTS: Record<CoreAssistId, AssistSpec> = {
   'dfr.useSampleNote': { file: 'app/daily-report.tsx', what: 'applyParsedDfr(DFR_SAMPLE_NOTE.parsed, {metered:false}) — no AI call, no meter change' },
   'punch.useSamplePhoto': { file: 'app/punch-walk.tsx', what: 'the bundled sample-outlet.jpg through the same continuation as a camera shot' },
   'punch.dropPinKitchen': { file: 'components/punch/PlanPinStep.tsx', what: 'sets the pin at SAMPLE_PLAN.rooms.Kitchen; the user still taps Next' },
   'punch.useSampleLine': { file: 'app/punch-walk.tsx', what: "fills PUNCH_SAMPLE.line, and 'Kitchen' when the room is empty" },
   'invoice.fillPercent': { file: 'app/invoice.tsx', what: 'fills 15 into progress-percent-input' },
+};
+
+/** Every assist: the core plus the four lane fragments. */
+export const ASSISTS: Record<AssistId, AssistSpec> = {
+  ...CORE_ASSISTS,
+  ...LANE_A_ASSISTS,
+  ...LANE_B_ASSISTS,
+  ...LANE_C_ASSISTS,
+  ...LANE_D_ASSISTS,
 };
 
 export interface LayerSpec {
@@ -125,12 +180,14 @@ export const LAYERS: Record<LayerId, LayerSpec> = {
   planPin: { file: 'components/punch/PlanPinStep.tsx', modal: true },
   scheduleEdit: { file: 'components/copilot/ScheduleEditPanel.tsx', modal: true },
   estimateWizard: { file: 'app/estimate-wizard.tsx', modal: true },
+  /** The Ask modal on the plan room (testID plans-ask-modal), LEARNDEFS-B. */
+  askPlans: { file: 'app/plans.tsx', modal: true },
 };
 
 /** Draw order when several layers are mounted: a modal layer sits above root.
  *  Only one modal layer is ever up at a time in practice; the order is a
  *  deterministic tie-break, not a claim about iOS stacking. */
-export const LAYER_ORDER: readonly LayerId[] = ['root', 'planPin', 'scheduleEdit', 'estimateWizard'];
+export const LAYER_ORDER: readonly LayerId[] = ['root', 'planPin', 'scheduleEdit', 'estimateWizard', 'askPlans'];
 
 /** The one AsyncStorage key for tutorial progress. mageid_ prefix → the
  *  tenant-switch sweep (wipeLocalUserCache) clears it with no list edit. */

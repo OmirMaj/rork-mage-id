@@ -144,6 +144,7 @@ import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
 import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
+import { ProjectLevelCard } from '@/components/level/ProjectLevelCard';
 import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
 import { PROJECT_STAGES, STAGE_LABELS, STAGE_TO_STATUS, stageForStatus, type ProjectStage } from '@/utils/projectStage';
 import {
@@ -4792,6 +4793,7 @@ export default function ProjectDetailScreen() {
               listLinks={deskWeb}
               onOpenSection={openSection}
             />
+            <ProjectLevelCard project={project} pulse={pulse} />
             <InspectionReadyCard project={project} openKey={prepParam ?? null} />
             <BuildingRecordCard project={project} testID="project-building-record" />
             <ProjectCodeChecksCard project={project} />
@@ -5006,6 +5008,7 @@ export default function ProjectDetailScreen() {
         {/* D2: on a live job the projected margin leads, for a role that may
             see money; everyone else keeps it in its usual place below. */}
         {fieldRow && canViewFinancials(hubRole) ? <ProjectHero project={project} pulse={pulse} /> : null}
+        <ProjectLevelCard project={project} pulse={pulse} />
         {/* The hero card unrolls like a blueprint when the project opens. */}
         <BlueprintReveal>
         <View style={styles.heroCard}>

@@ -196,6 +196,19 @@ export const SURFACES: Surface[] = [
   { id: 'field.voice', phase: 1, state: 'pending', keyPrefixes: ['field.voice.'], lane: 'next wave', files: ['components/UniversalMicButton.tsx'] },
   { id: 'desk.sidebar', phase: 1, state: 'pending', keyPrefixes: ['nav.item.', 'nav.section.'], lane: 'next wave', files: ['components/DesktopSidebar.tsx'] },
   { id: 'desk.crew-register', phase: 1, state: 'pending', keyPrefixes: ['field.crewRegister.'], lane: 'next wave', files: ['components/registers/CrewRegister.tsx'] },
+  { id: 'ai.ask', phase: 2, state: 'pending', keyPrefixes: ['ai.ask.'], files: ['hooks/useAskCopy.ts'], lane: 'AIDO' },
+
+  // LEARN (tutorials, skills checks, certificates) — literal-key screen chrome
+  // only; tutorial def copy and quiz text stay English data (utils/tutorial/types.ts header).
+  { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], lane: 'LEARN' },
+  { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: [], lane: 'LEARN' },
+
+  // Phase 2 — the office surfaces. The Level's project-health card + its reason
+  // sheet legend (English now via t(); Spanish when the office surface is translated).
+  {
+    id: 'office.project-health', phase: 2, state: 'pending', keyPrefixes: ['office.projectHealth.'], lane: 'LEVELGAUGE',
+    files: ['components/level/ProjectLevelCard.tsx', 'components/level/JobLevelReason.tsx'],
+  },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */
