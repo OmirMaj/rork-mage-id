@@ -209,6 +209,9 @@ export const SURFACES: Surface[] = [
     id: 'office.project-health', phase: 2, state: 'pending', keyPrefixes: ['office.projectHealth.'], lane: 'LEVELGAUGE',
     files: ['components/level/ProjectLevelCard.tsx', 'components/level/JobLevelReason.tsx'],
   },
+
+  // thu PROOF — the change order "Proof packet" button (the packet PDF itself stays English).
+  { id: 'money.co-proof', phase: 2, state: 'pending', keyPrefixes: ['money.coProof.'], lane: 'thu PROOF', files: ['components/changeOrders/COProofPacketButton.tsx'] },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

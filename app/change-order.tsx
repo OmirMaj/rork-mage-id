@@ -52,6 +52,7 @@ import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { nextChangeOrderNumber } from '@/utils/coNumbering';
 import { coApprovalLine } from '@/utils/coApproval';
 import { generateChangeOrderPDF } from '@/utils/pdfGenerator';
+import COProofPacketButton from '@/components/changeOrders/COProofPacketButton';
 import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServerChangeOrderNumber';
 import { resolveClientContact, NO_CLIENT_ON_FILE } from '@/utils/clientContact';
 
@@ -2564,23 +2565,28 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     description, reason, scheduleImpactDays: parsedImpactDays, lineItems,
   }), [existingCO, description, reason, parsedImpactDays, lineItems]);
   const pdfAction = coPdfAction({ saved: !!existingCO, dirty: formDirty, numberHold: numberHold('pdf') });
+  // The saved CO with the server's number, if the provider has not adopted it
+  // yet. Share PDF and the proof packet both print THIS record.
+  const coForPdf = useMemo(
+    () => (existingCO && confirmedNumber != null && confirmedNumber !== existingCO.number ? { ...existingCO, number: confirmedNumber } : existingCO),
+    [existingCO, confirmedNumber],
+  );
   const pdfBusyRef = useRef(false);
   const handleSharePdf = useCallback(async () => {
-    if (!existingCO || !project || pdfBusyRef.current) return;
+    if (!coForPdf || !project || pdfBusyRef.current) return;
     const hold = numberHold('pdf');
     if (hold) { showAlert('Not yet', hold); return; }
     pdfBusyRef.current = true;
     try {
       const branding = settings.branding ?? { companyName: 'MAGE ID', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      // The server's number, if the provider has not adopted it yet.
-      const co = confirmedNumber != null && confirmedNumber !== existingCO.number ? { ...existingCO, number: confirmedNumber } : existingCO;
+      const co = coForPdf;
       await generateChangeOrderPDF(co, project, branding);
     } catch (err) {
       showAlert('Could not make the PDF', pdfFailureMessage(err, "Couldn't build the change order PDF. Try again."));
     } finally {
       pdfBusyRef.current = false;
     }
-  }, [existingCO, project, settings, confirmedNumber, numberHold]);
+  }, [coForPdf, project, settings, numberHold]);
 
   // #73 — "Revise & re-issue" on a declined CO: a NEW draft with the next
   // number, prefilled, linked back. The declined CO keeps its number, trail
@@ -2771,6 +2777,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               iconLeft={<Share2 size={14} color={themeColors.text} strokeWidth={1.75} />}
               testID="co-share-pdf"
             />
+            {coForPdf && project ? (
+              <COProofPacketButton co={coForPdf} project={project} dirty={formDirty} numberHold={numberHold('pdf')} declineLine={declineLine} />
+            ) : null}
             {!!pdfAction.reason && <Text style={styles.pdfReason}>{pdfAction.reason}</Text>}
           </View>
 
