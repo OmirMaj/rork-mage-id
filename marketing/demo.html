@@ -22,7 +22,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=2026-09-16-green" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png?v=2026-09-16-green" />
-  <link rel="stylesheet" href="/styles.css?v=2026-10-01-webfix" />
+  <link rel="stylesheet" href="/styles.css?v=2026-10-02-motion" />
 
   <!-- PostHog — same project key as the homepage so demo pageviews + CTA
        clicks join the unified marketing funnel. Async; never blocks render. -->
@@ -381,6 +381,7 @@
       line-height: 1.6;
     }
   </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -470,7 +471,7 @@
         schedule, AIA-style pay app, client portal. The tour below breaks each piece into its own screen.
       </p>
 
-      <div class="hero-video-wrap" style="max-width: 960px; margin: 0 auto;">
+      <div class="hero-video-wrap" style="max-width: 960px; margin: 0 auto;" data-mk="rise">
         <div class="shot-frame">
           <img src="/screenshots/screens/02-henderson.png" alt="MAGE ID project detail — a live job with budget, schedule, and every tool in one place" loading="lazy" width="1290" height="2796" decoding="async" />
           <span class="shot-caption"><span class="dot"></span>A live job in MAGE ID</span>
@@ -897,6 +898,7 @@
     })();
   </script>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js?v=2026-09-16-green" defer></script>
+  <script src="/motion.js?v=2026-10-02-motion" defer></script>
+  <script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
 </body>
 </html>

@@ -22,7 +22,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=2026-09-16-green" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png?v=2026-09-16-green" />
-  <link rel="stylesheet" href="/styles.css?v=2026-10-01-webfix" />
+  <link rel="stylesheet" href="/styles.css?v=2026-10-02-motion" />
   <style>
     /* Page-scoped — pricing tables + tier cards. */
     .pricing-hero { padding: 80px 24px 32px; max-width: 880px; margin: 0 auto; text-align: center; }
@@ -272,6 +272,8 @@
       border-color: rgba(93, 179, 110, 0.4);
     }
     .stack-cell.is-mage .sc-value { color: var(--brand-hot); }
+    /* The kit's thin rule on the MAGE cell after the five cells land (light green: this card is dark). */
+    .stack-cell.is-mage { --mk-accent: var(--brand-hot); overflow: hidden; }
 
     .faq {
       max-width: 880px;
@@ -304,6 +306,7 @@
       margin: 0;
     }
   </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -503,24 +506,24 @@
 
       <div class="stack-card">
         <h3>Pro replaces <em>4 separate</em> subscriptions.</h3>
-        <div class="stack-grid">
-          <div class="stack-cell">
+        <div class="stack-grid" data-mk="priority">
+          <div class="stack-cell" data-mk-cell>
             <div class="sc-label">Basic PM tracker</div>
             <div class="sc-value">$10–20/mo</div>
           </div>
-          <div class="stack-cell">
+          <div class="stack-cell" data-mk-cell>
             <div class="sc-label">Standalone takeoff</div>
             <div class="sc-value">$200–500/mo</div>
           </div>
-          <div class="stack-cell">
+          <div class="stack-cell" data-mk-cell>
             <div class="sc-label">Cost-book sub</div>
             <div class="sc-value">$50–100/mo</div>
           </div>
-          <div class="stack-cell">
+          <div class="stack-cell" data-mk-cell>
             <div class="sc-label">Bid lead service</div>
             <div class="sc-value">$100–300/mo</div>
           </div>
-          <div class="stack-cell is-mage">
+          <div class="stack-cell is-mage" data-mk-cell data-mk-priority>
             <div class="sc-label">MAGE&nbsp;ID Pro · all of the above</div>
             <div class="sc-value">$29/mo</div>
           </div>
@@ -730,7 +733,8 @@
       </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js?v=2026-09-16-green" defer></script>
+  <script src="/motion.js?v=2026-10-02-motion" defer></script>
+  <script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
   <script src="/growth.js?v=2026-09-28" defer></script>
 </body>
 </html>

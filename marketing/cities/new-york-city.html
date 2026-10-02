@@ -22,7 +22,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=2026-09-16-green" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png?v=2026-09-16-green" />
-  <link rel="stylesheet" href="/styles.css?v=2026-10-01-webfix" />
+  <link rel="stylesheet" href="/styles.css?v=2026-10-02-motion" />
 
   <script type="application/ld+json">
   {
@@ -76,6 +76,7 @@
       .footer-grid.five { grid-template-columns: 1.2fr repeat(4, 1fr); }
     }
   </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -108,14 +109,14 @@
       <section class="city-block" id="building-record">
         <h2>The building record, before you bid</h2>
         <p data-pin="nyc-count">Enter the jobsite address and pick the building. MAGE ID reads seven Department of Buildings datasets and the PLUTO parcel record, and shows each open item with its date.</p>
-        <ul class="city-list two" data-pin="nyc-datasets">
-          <li>DOB Violations</li>
-          <li>DOB ECB Violations</li>
-          <li>DOB Safety Violations</li>
-          <li>DOB Complaints Received</li>
-          <li>DOB NOW: Build &ndash; Job Application Filings</li>
-          <li>DOB NOW: Build &ndash; Approved Permits</li>
-          <li>DOB Permit Issuance (BIS)</li>
+        <ul class="city-list two" data-pin="nyc-datasets" data-mk="list">
+          <li data-mk-item>DOB Violations</li>
+          <li data-mk-item>DOB ECB Violations</li>
+          <li data-mk-item>DOB Safety Violations</li>
+          <li data-mk-item>DOB Complaints Received</li>
+          <li data-mk-item>DOB NOW: Build &ndash; Job Application Filings</li>
+          <li data-mk-item>DOB NOW: Build &ndash; Approved Permits</li>
+          <li data-mk-item>DOB Permit Issuance (BIS)</li>
         </ul>
         <p>A dataset that can&rsquo;t be read shows as not checked, never as zero.</p>
         <p class="city-gap" data-pin="nyc-not-checked"><strong>Not checked:</strong> HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.</p>
@@ -206,6 +207,7 @@
   </footer>
 
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js?v=2026-09-16-green" defer></script>
+  <script src="/motion.js?v=2026-10-02-motion" defer></script>
+  <script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
 </body>
 </html>

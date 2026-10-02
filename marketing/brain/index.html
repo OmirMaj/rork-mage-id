@@ -83,7 +83,7 @@
   h1,h2,h3{text-wrap:balance}
 
   /* nav — real cross-links. /costs and /widget previously had none anywhere. */
-  .nav{border-bottom:1px solid var(--line);background:rgba(236,237,233,.92);position:sticky;top:0;z-index:20;backdrop-filter:saturate(140%) blur(8px)}
+  .nav{border-bottom:1px solid var(--line);background:rgba(236,237,233,.94);position:sticky;top:0;z-index:20}
   .nav .wrap{display:flex;align-items:center;gap:18px;height:58px}
   .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.12em;font-size:12px;text-transform:uppercase;text-decoration:none;color:var(--navy)}
   .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--brand)}
@@ -177,7 +177,18 @@
   .skip-link:focus{left:16px}
   :where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   footer a,.foot a,.footnav a,.trust-strip a{display:inline-block;min-height:24px;padding:3px 0}
+  /* Short-window net (kit gap G7). The kit starts a group once 20% of it is
+     on screen. On a very short window (300-500% zoom, a phone on its side
+     with the keyboard up) a tall group never reaches 20%, so it would stay
+     invisible. Below 360px of height a group that has not started is shown
+     as it is; when the kit starts it, mk-armed goes and this stops applying.
+     The selectors are the kit's own armed list. Pinned: validate-marketing-motion V1. */
+  @media (max-height: 360px) {
+    .mk-armed:is([data-mk="rise"],[data-mk="range"]),
+    .mk-armed :is([data-mk-item],[data-mk-q],[data-mk-chip],[data-mk-check],[data-mk-card],[data-mk-count],[data-mk-cell],[data-mk-tag],[data-mk-label],[data-mk-evidence],[data-mk-badge]) { opacity: 1 !important; }
+  }
 </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -254,19 +265,19 @@
     what was predicted, what actually happened, and what that made it.
   </p>
 
-  <div class="board">
+  <div class="board" data-mk="checklist">
     <div class="board-top">
       <span class="t">Track record</span>
       <span class="s">predicted &rarr; actual</span>
     </div>
     <div class="scroller">
-      <div class="row"><span class="what">Framing</span><span class="pa">6d <i>&rarr;</i> 6d</span><span class="note">beat the AI's 8d</span><span class="tag hit">Hit</span></div>
-      <div class="row"><span class="what">Tile</span><span class="pa">4d <i>&rarr;</i> 7d</span><span class="note">3d over</span><span class="tag miss">Miss</span></div>
-      <div class="row"><span class="what">Drywall</span><span class="pa">5d <i>&rarr;</i> 5d</span><span class="note">matched the AI</span><span class="tag tie">Tie</span></div>
-      <div class="row"><span class="what">Estimate</span><span class="pa">$42,000 <i>&rarr;</i> $42,840</span><span class="note">+2% vs actual</span><span class="tag hit">Hit</span></div>
-      <div class="row"><span class="what">Profit-leak scan</span><span class="pa">4 flagged <i>&rarr;</i> 3 recovered</span><span class="note">$6,180 billed back</span><span class="tag hit">Hit</span></div>
-      <div class="row"><span class="what">Margin verdict</span><span class="pa">20% target <i>&rarr;</i> 17%</span><span class="note">&minus;3% vs target</span><span class="tag miss">Miss</span></div>
-      <div class="row"><span class="what">Tracked bid</span><span class="pa">62% win odds <i>&rarr;</i> lost</span><span class="note">call didn't land</span><span class="tag miss">Miss</span></div>
+      <div class="row" data-mk-row><span class="what">Framing</span><span class="pa">6d <i>&rarr;</i> 6d</span><span class="note">beat the AI's 8d</span><span class="tag hit" data-mk-check>Hit</span></div>
+      <div class="row" data-mk-row><span class="what">Tile</span><span class="pa">4d <i>&rarr;</i> 7d</span><span class="note">3d over</span><span class="tag miss" data-mk-check>Miss</span></div>
+      <div class="row" data-mk-row><span class="what">Drywall</span><span class="pa">5d <i>&rarr;</i> 5d</span><span class="note">matched the AI</span><span class="tag tie" data-mk-check>Tie</span></div>
+      <div class="row" data-mk-row><span class="what">Estimate</span><span class="pa">$42,000 <i>&rarr;</i> $42,840</span><span class="note">+2% vs actual</span><span class="tag hit" data-mk-check>Hit</span></div>
+      <div class="row" data-mk-row><span class="what">Profit-leak scan</span><span class="pa">4 flagged <i>&rarr;</i> 3 recovered</span><span class="note">$6,180 billed back</span><span class="tag hit" data-mk-check>Hit</span></div>
+      <div class="row" data-mk-row><span class="what">Margin verdict</span><span class="pa">20% target <i>&rarr;</i> 17%</span><span class="note">&minus;3% vs target</span><span class="tag miss" data-mk-check>Miss</span></div>
+      <div class="row" data-mk-row><span class="what">Tracked bid</span><span class="pa">62% win odds <i>&rarr;</i> lost</span><span class="note">call didn't land</span><span class="tag miss" data-mk-check>Miss</span></div>
     </div>
     <div class="board-note">
       Illustrative rows in the real format. Your board is built only from your own graded
@@ -314,10 +325,10 @@
   </p>
   <div class="board" style="margin-top:26px">
     <div class="board-top"><span class="t">Takeoff estimate</span><span class="s">priced from your history</span></div>
-    <div class="scroller">
-      <div class="row"><span class="what">Framing</span><span class="pa">1,240 SF</span><span class="note">your rate · 7 jobs · &plusmn;9%</span><span class="tag hit">Yours</span></div>
-      <div class="row"><span class="what">Drywall</span><span class="pa">3,100 SF</span><span class="note">your rate · 4 jobs · &plusmn;12%</span><span class="tag hit">Yours</span></div>
-      <div class="row"><span class="what">Skylight flashing</span><span class="pa">3 EA</span><span class="note">no history yet</span><span class="tag tie">Catalog</span></div>
+    <div class="scroller" data-mk="list">
+      <div class="row" data-mk-item><span class="what">Framing</span><span class="pa">1,240 SF</span><span class="note">your rate · 7 jobs · &plusmn;9%</span><span class="tag hit">Yours</span></div>
+      <div class="row" data-mk-item><span class="what">Drywall</span><span class="pa">3,100 SF</span><span class="note">your rate · 4 jobs · &plusmn;12%</span><span class="tag hit">Yours</span></div>
+      <div class="row" data-mk-item><span class="what">Skylight flashing</span><span class="pa">3 EA</span><span class="note">no history yet</span><span class="tag tie">Catalog</span></div>
     </div>
     <div class="board-note">
       A generic AI estimator scores zero in that first column, permanently — it has never seen
@@ -395,5 +406,6 @@
       </nav>
   </footer>
 
+  <script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
 </body>
 </html>

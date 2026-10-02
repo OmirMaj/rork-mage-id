@@ -22,7 +22,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=2026-09-16-green" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png?v=2026-09-16-green" />
-  <link rel="stylesheet" href="/styles.css?v=2026-10-01-webfix" />
+  <link rel="stylesheet" href="/styles.css?v=2026-10-02-motion" />
   <style>
     /* PLACEHOLDER FRAMES REMOVED.
        This page carried "Preview coming" boxes where a screenshot should be —
@@ -36,6 +36,7 @@
     .feature-row.solo { grid-template-columns: 1fr; }
     .feature-row.solo p, .feature-row.solo ul { max-width: 72ch; }
   </style>
+  <link rel="stylesheet" href="/assets/motion-kit.css?v=2026-10-02-motion" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -95,11 +96,11 @@
               separate tool. Tasks on the critical path glow red so you always know what's driving
               your finish date.
             </p>
-            <ul>
-              <li>CPM computed automatically from dependencies</li>
-              <li>Total float shown per task</li>
-              <li>Red highlighting for zero-float tasks</li>
-              <li>Change order schedule impact applies instantly</li>
+            <ul data-mk="list">
+              <li data-mk-item>CPM computed automatically from dependencies</li>
+              <li data-mk-item>Total float shown per task</li>
+              <li data-mk-item>Red highlighting for zero-float tasks</li>
+              <li data-mk-item>Change order schedule impact applies instantly</li>
             </ul>
           </div>
           <div class="screenshot phone" data-label="Critical path · Red highlight"><img src="/screenshots/screens/05-schedule-gantt.png" alt="Critical path highlighted" width="1290" height="2796" decoding="async" loading="lazy" /></div>
@@ -307,6 +308,7 @@
       </nav>
   </footer>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js?v=2026-09-16-green" defer></script>
+  <script src="/motion.js?v=2026-10-02-motion" defer></script>
+  <script src="/assets/motion-kit.js?v=2026-10-02-motion" defer></script>
 </body>
 </html>
