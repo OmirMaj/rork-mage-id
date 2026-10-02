@@ -94,6 +94,23 @@ import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { formatMoney } from '@/utils/formatters';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+// Tutorials (estimate-first): the sample-job seam. See the header of
+// utils/tutorial/learn/laneA.ts — targets wrap only while a run is live on
+// THIS project, and on a sample the AI is never called during a run.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialLayer } from '@/components/tutorial/TutorialLayer';
+import { tutorialSignal, useTutorialAssist, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtures';
+import {
+  SAMPLE_ESTIMATE_REVISION_NOTE, SAMPLE_SCOPE, SAMPLE_SCOPE_STEP_ID, SAMPLE_WIZARD_ANSWERS,
+  isSampleScope, sampleWizardResult, toCents,
+} from '@/utils/tutorial/learn/fixturesA';
+import { isSampleProject } from '@/utils/sampleGuard';
+import { t } from '@/i18n/core';
+import { isOfflineNow } from '@/hooks/useOnline';
+
+/** The scope question's step index — the sample run lands here. */
+const SCOPE_STEP_INDEX = Math.max(0, SCOPE_STEPS.findIndex(s => s.key === SAMPLE_SCOPE_STEP_ID));
 
 // The loader's "Pricing from …" line is a claim about this run's prompt, so it
 // comes from the same firewall as the chip: utils/groundingChip
@@ -256,6 +273,25 @@ function EstimateWizardScreenInner() {
   // the door says why BEFORE it snapshots a revision (the plan's door rule).
   const proposalOpen = canAccess('client_portal');
   const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
+
+  // ── Tutorial (estimate-first) ──────────────────────────────────────────
+  // runOnThis: a tutorial run is live on THIS project — the only time the
+  // TutorialTargets, the layer and the blocker sentinel render, so a real job
+  // (and every phone golden) renders exactly as before.
+  // sampleRun: …and the project is a sample job. Then generate() NEVER calls
+  // the AI: the sample scope prices from the bundled result (fixturesA,
+  // labelled SAMPLE_NO_CREDITS_LABEL) and any other scope is refused with a
+  // reason. The ref lets generate() read it without a new dependency.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const sampleRun = runOnThis && !!scopedProject && isSampleProject(scopedProject);
+  const sampleRunRef = useRef(sampleRun);
+  sampleRunRef.current = sampleRun;
+  /** The result on screen is the bundled sample answer (never attachable to
+   *  another project, never "unsaved work" to guard). */
+  const [fixtureRun, setFixtureRun] = useState(false);
+  /** The fixture result has been written to the sample (as a revision). */
+  const [sampleSaved, setSampleSaved] = useState(false);
 
   const [step, setStep] = useState<number>(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL_SCOPE);
@@ -484,6 +520,37 @@ function EstimateWizardScreenInner() {
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Tutorial: on the sample, the run opens on the scope question with the
+  // other required answers filled from the bundled sample (a market, never the
+  // sample's street address) and the scope EMPTY — describing the job is step
+  // 1. Declared after the landing effect above so it wins the same commit.
+  // Once per mount; nothing is written to the project.
+  const sampleSeededRef = useRef(false);
+  useEffect(() => {
+    if (!sampleRun || sampleSeededRef.current) return;
+    sampleSeededRef.current = true;
+    setAnswers({ ...SAMPLE_WIZARD_ANSWERS, scope: '' });
+    setSummaryMode(false);
+    setStep(SCOPE_STEP_INDEX);
+  }, [sampleRun]);
+  // Step 1's success point: a scope of 4+ chars (the wizard's own bar),
+  // debounced like the punch description. `sample` says whether it is the one
+  // sentence the sample can price.
+  useEffect(() => {
+    if (!sampleRun || !projectId) return;
+    const s = answers.scope.trim();
+    if (s.length < 4) return;
+    const timer = setTimeout(() => tutorialSignal('estimate.scope.filled', { projectId, chars: s.length, sample: isSampleScope(s) }), 600);
+    return () => clearTimeout(timer);
+  }, [sampleRun, projectId, answers.scope]);
+  // 'Do it for me' fills the sample scope — never presses Generate.
+  useTutorialAssist('estimate.useSampleScope', () => {
+    if (!sampleRunRef.current) return;
+    setSummaryMode(false);
+    setStep(SCOPE_STEP_INDEX);
+    setAnswers((prev) => ({ ...prev, scope: SAMPLE_SCOPE }));
+  });
+
   // A standalone estimate (no ?projectId) used to open step 3 blank, so he
   // retyped his own city on every run while the app held it one screen away in
   // settings.location — the same market that already prices his catalog and
@@ -613,8 +680,43 @@ function EstimateWizardScreenInner() {
     } catch { /* G4 */ }
   }, [getProject, updateProject, projects, commitments, receipts, laborSamples, seeds]);
 
+  /**
+   * Tutorial: Generate on the sample during a run. NO AI CALL, no meter, no
+   * cache: the sample scope gets the bundled result (the sample job's own 8
+   * lines at cost — fixturesA), priced at HIS markup like any result; any
+   * other scope is refused with the reason. Nothing is written here (the
+   * ?projectId link-back would replace the seeded estimate — FQ-A1); the save
+   * is the user's own tap (saveSampleEstimate).
+   */
+  const runSampleFixture = useCallback((a: WizardAnswers) => {
+    if (!isSampleScope(a.scope)) {
+      setStepHint(t('common.tutorial.estimateSampleScopeOnly', 'On the sample, use the sample scope. Your own scopes build on a real job.'));
+      return;
+    }
+    const data = sampleWizardResult();
+    runRef.current += 1; // orphan any run still in flight
+    setGroundingUsed(EMPTY_GROUNDING);
+    setContingencyRateUsed(null);
+    setCostResult(data);
+    setFixtureRun(true);
+    setSampleSaved(false);
+    if (projectId) {
+      const priced = priceCostBreakdown(data, markupPct);
+      tutorialSignal('estimate.generated', {
+        projectId,
+        lines: data.lineItems.length,
+        totalCents: toCents(priced.total),
+        source: 'sample',
+        markupPct: isMarkupSet(markupPct) ? markupPct : null,
+      });
+    }
+  }, [projectId, markupPct]);
+
   const generate = useCallback(async (answersOverride?: WizardAnswers) => {
     if (loading) return;
+    // Tutorial: the sample during a run never reaches the AI call below
+    // (scripts/validate-tutorial-learn-a.ts pins this return's position).
+    if (sampleRunRef.current) { runSampleFixture(answersOverride ?? answers); return; }
 
     // Pre-flight rate-limit check. Pre-fix the wizard had no checkAILimit
     // gate at all — Pro+ users could spam smart-tier and free users (when
@@ -722,6 +824,7 @@ function EstimateWizardScreenInner() {
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setContingencyRateUsed(rateUsable ? rate : null);
         setCostResult(data);
+        setFixtureRun(false);
 
         // Activation funnel: enriched aha event — attaches whether THIS
         // estimate was priced from the contractor's own learned cost data.
@@ -792,7 +895,7 @@ function EstimateWizardScreenInner() {
       // Only the run that owns the screen may take the loader down.
       if (runRef.current === runId) setLoading(false);
     }
-  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink, settings?.contingencyRate]);
+  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink, settings?.contingencyRate, runSampleFixture]);
 
   // C4: a job that already has an estimate is asked before it is replaced.
   // commitAutoLink keeps the outgoing one as a `pre_overwrite` revision, so
@@ -800,9 +903,12 @@ function EstimateWizardScreenInner() {
   const existingEstimateTotal = projectId && (scopedProject?.linkedEstimate?.items?.length ?? 0) > 0
     ? scopedProject!.linkedEstimate!.grandTotal ?? 0
     : null;
-  const replaceLabel = existingEstimateTotal != null ? `Replace the ${moneyLabel(existingEstimateTotal)} estimate` : null;
+  // Tutorial: a sample run replaces nothing (its result is saved as a new
+  // revision, by his tap), so it is neither labelled nor confirmed as one, and
+  // it spends no free run, so no run count either.
+  const replaceLabel = existingEstimateTotal != null && !sampleRun ? `Replace the ${moneyLabel(existingEstimateTotal)} estimate` : null;
   const generateOrConfirm = useCallback((answersOverride?: WizardAnswers) => {
-    if (existingEstimateTotal == null || costResult) { void generate(answersOverride); return; }
+    if (existingEstimateTotal == null || costResult || sampleRunRef.current) { void generate(answersOverride); return; }
     showAlert(
       'Replace this project\'s estimate?',
       `${scopedProject?.name ?? 'This project'} already has a ${moneyLabel(existingEstimateTotal)} estimate. The new one replaces it on the project; the current one is kept in Revisions.`,
@@ -1137,6 +1243,8 @@ function EstimateWizardScreenInner() {
     setAnswers(!projectId && homeMarketSeed ? { ...INITIAL_SCOPE, location: homeMarketSeed } : INITIAL_SCOPE);
     setCostResult(null);
     setGroundingUsed(null);
+    setFixtureRun(false);
+    setSampleSaved(false);
     setStep(0);
     setSavedProjectId(null);
     setCommittedProjectId(null);
@@ -1156,7 +1264,9 @@ function EstimateWizardScreenInner() {
   // (gestureEnabled:false in app/_layout.tsx).
   attachedIdRef.current = committedProjectId ?? savedProjectId ?? attachedIdRef.current;
   const unsavedRef = useRef(false);
-  unsavedRef.current = !!costResult && !attachedIdRef.current;
+  // A fixture result (the tutorial's sample answer) is never "unsaved work":
+  // it may only ever be written to the sample, by its own button.
+  unsavedRef.current = !!costResult && !attachedIdRef.current && !fixtureRun;
   const sharedUnsavedRef = useRef<string | null>(null);
   sharedUnsavedRef.current = sharedUnsavedAt;
   const confirmDiscard = useCallback((onDiscard: () => void) => {
@@ -1280,6 +1390,41 @@ function EstimateWizardScreenInner() {
     if (!requireMarkup(createAt)) { setShowSaveModal(false); return; }
     createAt(markupPct as number);
   }, [costResult, newProjectName, requireMarkup, markupPct, createAt, capGate]);
+
+  /**
+   * Tutorial: 'Save to the sample job' — the fixture result's only save, and
+   * only onto a sample. NEVER over the seeded estimate the invoice tutorial
+   * bills from (founder FQ-A1): with an estimate on the job, the practice one
+   * goes in as a new REVISION — commitEstimatePatch with the two swapped
+   * snapshots the practice estimate and hands the current one back unchanged,
+   * and only estimateVersions is written. A job with no estimate gets it as
+   * its estimate. One updateProject (the offline queue), then the signal.
+   */
+  const saveSampleEstimate = useCallback(() => {
+    if (!costResult || !fixtureRun || !projectId) return;
+    const target = getProject(projectId);
+    if (!target || !isSampleProject(target)) return;
+    const practice = buildQuickLinkedEstimate(costResult, markupPct, generateUUID);
+    const opts = { reason: 'manual' as const, note: SAMPLE_ESTIMATE_REVISION_NOTE };
+    const patch: Partial<Project> = target.linkedEstimate
+      ? { estimateVersions: commitEstimatePatch({ ...target, linkedEstimate: practice }, target.linkedEstimate, opts).estimateVersions }
+      : commitEstimatePatch(target, practice, opts);
+    updateProject(projectId, patch);
+    setSampleSaved(true);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    tutorialSignal('estimate.saved', {
+      projectId,
+      lineCount: practice.items.length,
+      totalCents: toCents(priceCostBreakdown(costResult, markupPct).total),
+      markupPct: isMarkupSet(markupPct) ? markupPct : null,
+      offline: isOfflineNow(),
+    });
+  }, [costResult, fixtureRun, projectId, getProject, markupPct, updateProject]);
+  /** After the sample save: back to the sample's hub, under this modal. */
+  const openSampleJob = useCallback(() => {
+    if (!projectId) return;
+    router.dismissTo({ pathname: '/project-detail', params: { id: projectId } });
+  }, [projectId, router]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -1407,21 +1552,28 @@ function EstimateWizardScreenInner() {
             <Text style={styles.previewBannerText}>This is the estimate your client will see</Text>
           </View>
 
-          <View style={styles.heroCard}>
-            <BrandBackdrop />
-            <Text style={styles.heroEyebrow}>Construction estimate</Text>
-            <TapeRollNumber
-              value={result.total}
-              prefix="$"
-              decimals={2}
-              duration={1100}
-              style={styles.heroTotal}
-            />
-            <Text style={styles.heroSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
-            {costPerSqft > 0 ? (
-              <View style={styles.heroChip}><Text style={styles.heroChipText}>${costPerSqft.toFixed(0)} per sqft</Text></View>
-            ) : null}
-          </View>
+          {(() => {
+            const hero = (
+              <View style={styles.heroCard}>
+                <BrandBackdrop />
+                <Text style={styles.heroEyebrow}>Construction estimate</Text>
+                <TapeRollNumber
+                  value={result.total}
+                  prefix="$"
+                  decimals={2}
+                  duration={1100}
+                  style={styles.heroTotal}
+                />
+                <Text style={styles.heroSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
+                {costPerSqft > 0 ? (
+                  <View style={styles.heroChip}><Text style={styles.heroChipText}>${costPerSqft.toFixed(0)} per sqft</Text></View>
+                ) : null}
+              </View>
+            );
+            // Tutorial: the total the summary step reads out (only while a
+            // run is live on this job — otherwise the card renders bare).
+            return runOnThis ? <TutorialTarget id="estimate.summary">{hero}</TutorialTarget> : hero;
+          })()}
 
           {/* Estimate metadata — prepared / valid / location. Same row
               that prints at the top of the PDF. */}
@@ -1488,7 +1640,11 @@ function EstimateWizardScreenInner() {
               <BrainCard
                 style={styles.brainCardSpacing}
                 confidence={result.confidence}
-                ground={[
+                ground={fixtureRun
+                  // Tutorial: the bundled sample answer — no prompt, no model,
+                  // no grounding to describe. The honest chip says exactly that.
+                  ? SAMPLE_NO_CREDITS_LABEL
+                  : [
                   // AI-F4: "learned" counts MEASURED entries only; a stated
                   // rate is named as one you set; a calibration-only prompt
                   // says history-only (utils/groundingChip). Read from the
@@ -1503,7 +1659,7 @@ function EstimateWizardScreenInner() {
               {/* Empty cost book: don't just confess to generic pricing, hand
                   them the fix. Closing jobs is the long road; seeding the
                   rates they already know works today. */}
-              {(groundingUsed?.selectedCount ?? 0) === 0 ? (
+              {(groundingUsed?.selectedCount ?? 0) === 0 && !fixtureRun ? (
                 <TouchableOpacity
                   style={styles.seedPrompt}
                   onPress={() => router.push('/cost-seed' as never)}
@@ -1813,7 +1969,40 @@ function EstimateWizardScreenInner() {
             const parkedProject = (!hasProject && autoLinkParked) ? scopedProject : null;
             return (
           <View style={styles.resultActions}>
-            {hasProject && !isOnboarding ? (
+            {fixtureRun ? (() => {
+              // Tutorial: the bundled sample answer saves to the SAMPLE only —
+              // never offered to another project — then hands him back to it.
+              const btn = sampleSaved ? (
+                <TouchableOpacity
+                  style={styles.resultPrimaryBtn}
+                  onPress={openSampleJob}
+                  activeOpacity={0.85}
+                  testID="wizard-open-sample-job"
+                >
+                  <CheckCircle2 size={18} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.resultPrimaryText} numberOfLines={1}>
+                    {t('common.tutorial.estimateSavedOpenJob', 'Saved as a revision — open the job')}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.resultPrimaryBtn}
+                  onPress={saveSampleEstimate}
+                  activeOpacity={0.85}
+                  disabled={sharingPdf}
+                  testID="wizard-save-sample"
+                >
+                  <FolderPlus size={18} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.resultPrimaryText} numberOfLines={1}>
+                    {t('common.tutorial.estimateSaveToSample', 'Save to the sample job')}
+                  </Text>
+                </TouchableOpacity>
+              );
+              if (!runOnThis) return btn;
+              return sampleSaved
+                ? <TutorialTarget id="estimate.openJob">{btn}</TutorialTarget>
+                : <TutorialTarget id="estimate.save">{btn}</TutorialTarget>;
+            })() : hasProject && !isOnboarding ? (
               // C4: the estimate is on the job, so the next document is the
               // proposal. The job itself stays one tap away underneath.
               <>
@@ -2170,6 +2359,11 @@ function EstimateWizardScreenInner() {
           featureLabel="AI estimate"
           onClose={() => setUpgradeLimit(null)}
         />
+        {/* Tutorial: while a layer-less sheet is up the coach draws nothing
+            (blocker sentinel); the wizard is a modal route, so its spotlight
+            layer lives in here. Both only while a run is live on this job. */}
+        {runOnThis && (showSaveModal || showMarkupSheet || gate.sheet.visible || !!upgradeLimit || loading) ? <TutorialTarget id="estimate.modalUp" /> : null}
+        {runOnThis ? <TutorialLayer host="estimateWizard" /> : null}
       </View>
     );
   }
@@ -2215,13 +2409,16 @@ function EstimateWizardScreenInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ title: 'Quick estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
-      {isDesktopWeb ? (
+      {/* Tutorial: a sample run on desktop web asks through the stepper (one
+          question at a time, in the form column) — its scope box and Generate
+          are the controls the coach lights. */}
+      {isDesktopWeb && !sampleRun ? (
         <EstimateWizardDesktop
           answers={answers}
           set={set}
           onGenerate={() => generateOrConfirm()}
           loading={loading}
-          generateLabel={`${replaceLabel ?? 'Generate estimate'}${freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
+          generateLabel={`${replaceLabel ?? 'Generate estimate'}${!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
           onCancel={() => (isOnboarding ? router.replace('/(tabs)/(home)') : safeBack())}
           cancelLabel="Cancel"
           stepHint={stepHint}
@@ -2230,7 +2427,7 @@ function EstimateWizardScreenInner() {
           groundingLine={deskGroundingLine}
         />
       ) : (
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={isDesktopWeb && sampleRun ? [{ flex: 1 }, styles.contentDesktop] : { flex: 1 }}>
         {summaryMode ? (
           // C4: "Here's what I know" — the job already answered every
           // required question. Each row reopens its step; one button prices it.
@@ -2286,7 +2483,13 @@ function EstimateWizardScreenInner() {
         >
           {step === 0 && !!projectId && voiceBanner}
           {isOnboarding && onboardingBanner}
-          <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
+          {runOnThis && step === SCOPE_STEP_INDEX ? (
+            <TutorialTarget id="estimate.scope">
+              <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
+            </TutorialTarget>
+          ) : (
+            <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
+          )}
         </ScrollView>
         </>
         )}
@@ -2314,7 +2517,7 @@ function EstimateWizardScreenInner() {
             >
               <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.optionalBtnText}>
-                Generate now{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                Generate now{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
               </Text>
             </TouchableOpacity>
           </View>
@@ -2335,7 +2538,10 @@ function EstimateWizardScreenInner() {
             <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.secondaryText}>{step === 0 || summaryMode ? 'Cancel' : 'Back'}</Text>
           </TouchableOpacity>
-          {!summaryMode && step < TOTAL_STEPS - 1 ? (
+          {/* Tutorial: on the sample run the steps after the scope are the
+              optional ones (Generate now exists for them anyway), so the
+              scope step's primary is Generate itself. */}
+          {!summaryMode && step < TOTAL_STEPS - 1 && !(sampleRun && step === SCOPE_STEP_INDEX) ? (
             <TouchableOpacity
               onPress={() => {
                 if (canAdvance) { next(); return; }
@@ -2351,26 +2557,33 @@ function EstimateWizardScreenInner() {
               <Text style={styles.primaryText}>Next</Text>
               <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={() => generateOrConfirm()}
-              disabled={loading}
-              style={[styles.primaryBtn, styles.footerBtn, loading && styles.primaryBtnDisabled]}
-              activeOpacity={0.85}
-              testID="wizard-generate"
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <>
-                  <MageAIMark size={18} color="#FFF" />
-                  <Text style={styles.primaryText} numberOfLines={1}>
-                    {replaceLabel ?? 'Generate estimate'}{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+          ) : (() => {
+            // Wrapped (tutorial run on this job only), the flex moves onto the
+            // TutorialTarget so the footer row lays out the same.
+            const generateBtn = (wrapped: boolean) => (
+              <TouchableOpacity
+                onPress={() => generateOrConfirm()}
+                disabled={loading}
+                style={[styles.primaryBtn, !wrapped && styles.footerBtn, loading && styles.primaryBtnDisabled]}
+                activeOpacity={0.85}
+                testID="wizard-generate"
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <MageAIMark size={18} color="#FFF" />
+                    <Text style={styles.primaryText} numberOfLines={1}>
+                      {replaceLabel ?? 'Generate estimate'}{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+            return runOnThis
+              ? <TutorialTarget id="estimate.generate" style={styles.footerBtn}>{generateBtn(true)}</TutorialTarget>
+              : generateBtn(false);
+          })()}
         </View>
       </KeyboardAvoidingView>
       )}
@@ -2394,6 +2607,10 @@ function EstimateWizardScreenInner() {
         featureLabel="AI estimate"
         onClose={() => setUpgradeLimit(null)}
       />
+      {/* Tutorial: blocker sentinel + the wizard's own spotlight layer (see the
+          result view above). Only while a run is live on this job. */}
+      {runOnThis && (!!upgradeLimit || loading) ? <TutorialTarget id="estimate.modalUp" /> : null}
+      {runOnThis ? <TutorialLayer host="estimateWizard" /> : null}
     </View>
   );
 }

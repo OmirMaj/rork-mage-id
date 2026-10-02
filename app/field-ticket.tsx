@@ -54,7 +54,13 @@ import { generateFieldTicketPDF } from '@/utils/pdfGenerator';
 import { nailIt } from '@/components/animations/NailItToast';
 import { SigningCeremony } from '@/components/moments/signing/SigningCeremony';
 import { fromOnlineOutcome, offlineLegalReason, earlierChangePendingReason, earlierChangeUnsavedReason, type CommitResult } from '@/components/moments/core/contract';
-import { useOffline } from '@/hooks/useOnline';
+import { isOfflineNow, useOffline } from '@/hooks/useOnline';
+// Tutorials (field-ticket-log): see the header of utils/tutorial/learn/laneA.ts.
+// Targets wrap only while a run is live on THIS project; signing is never lit.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { TICKET_SAMPLE } from '@/utils/tutorial/learn/fixturesA';
+import { isSampleProject } from '@/utils/sampleGuard';
 import * as signingCopy from '@/utils/moments/sites/signingCopy';
 import {
   buildChangeOrderFromTicket, buildPricingAuditEntries, checkFieldTicketConversion,
@@ -521,6 +527,51 @@ export default function FieldTicketScreen() {
   // Owner-only conversion (#41 interim): see fieldTicketConvertBlockReason.
   const convertBlockReason = fieldTicketConvertBlockReason(projectRole, project?.ownerUserId, user?.id, projectRoleError);
   const moneyHiddenReason = fieldTicketMoneyHiddenReason(pricingRole, projectRoleError);
+
+  // ── Tutorial (field-ticket-log) ─────────────────────────────────────────
+  // The founder's practice pass (utils/tutorial/practicePass): while a
+  // tutorial that practises T&M tickets runs, a Free user may open THIS screen
+  // on its SAMPLE job — keyed to the URL's projectId only (the pass is empty on
+  // any other project), never after a pick, and a ticketId link only when that
+  // ticket's own project IS the sample: the detail loads a ticket by id from
+  // ANY project (practice-pass-record-links). RLS is untouched.
+  const practice = useTutorialPractice(paramProjectId || undefined);
+  const practiceOpen = practice.has('change_orders_invoicing') && pickedProjectId == null
+    && (!ticketId || fieldTickets.find(x => x.id === ticketId)?.projectId === paramProjectId);
+  // runOnThis: a run is live on THIS project — the only time the targets and
+  // the blocker sentinel render (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!activeProjectId && tutorialSandboxId === activeProjectId;
+  const ticketTutorialRef = useRef({ runOnThis, sample: false });
+  ticketTutorialRef.current = { runOnThis, sample: runOnThis && !!project && isSampleProject(project) };
+  // Steps 1 and 2: the work line and the reason, 3+ chars, debounced 600 ms.
+  useEffect(() => {
+    if (!runOnThis || view !== 'compose') return;
+    const n = workDescription.trim().length;
+    if (n < 3) return;
+    const timer = setTimeout(() => tutorialSignal('ticket.work.filled', { projectId: activeProjectId, chars: n }), 600);
+    return () => clearTimeout(timer);
+  }, [runOnThis, view, workDescription, activeProjectId]);
+  useEffect(() => {
+    if (!runOnThis || view !== 'compose') return;
+    const n = reasonExtra.trim().length;
+    if (n < 3) return;
+    const timer = setTimeout(() => tutorialSignal('ticket.reason.filled', { projectId: activeProjectId, chars: n }), 600);
+    return () => clearTimeout(timer);
+  }, [runOnThis, view, reasonExtra, activeProjectId]);
+  // 'Do it for me': the sample work line plus one labor row (hours only —
+  // rates are the office's), and the reason chip. Never Save, never a signature.
+  useTutorialAssist('ticket.useSampleWork', () => {
+    if (!ticketTutorialRef.current.sample) return;
+    setWorkDescription(TICKET_SAMPLE.work);
+    setLabor(prev => (prev.some(r => (Number(r.hours) || 0) > 0) ? prev : [...prev, {
+      id: generateUUID(), workerName: '', trade: TICKET_SAMPLE.labor.trade, hours: TICKET_SAMPLE.labor.hours,
+    }]));
+  });
+  useTutorialAssist('ticket.useSampleReason', () => {
+    if (!ticketTutorialRef.current.sample) return;
+    setReasonExtra(TICKET_SAMPLE.reason);
+  });
   /** A ticket's amount for the signing moment (cents) — nothing for a blinded role. */
   const signedAmount = useCallback((n: number) => (moneyBlinded ? null : money(n)), [moneyBlinded]);
 
@@ -696,6 +747,12 @@ export default function FieldTicketScreen() {
     addFieldTicket(ticket);
     resetComposer();
     setView('list');
+    // Tutorial success point: the ticket is written on this phone
+    // (addFieldTicket). Always unsigned — a signature is never practised.
+    // During a run on this job the saved ticket opens, so the next step can
+    // show where a signed ticket becomes a change order.
+    tutorialSignal('ticket.saved', { projectId: activeProjectId, ticketId: ticket.id, number: ticket.number, signed: false, offline: isOfflineNow() });
+    if (ticketTutorialRef.current.runOnThis) setOpenTicketId(ticket.id);
     showAlert(
       t('field.ticket.savedUnsigned', 'Saved unsigned'),
       t('field.ticket.thisTicketIsA', 'This ticket is a note, not evidence. Get the signature before the crew leaves — an unsigned ticket cannot become a change order.'),
@@ -889,6 +946,11 @@ export default function FieldTicketScreen() {
   // canAccess is useProjectAccess's: his own tier OR the grant on THIS job.
   // It is false exactly when accessGate is not 'open' (fieldTicketGate).
 
+  // The practice pass (above) lets the sample's own tickets through while its
+  // tutorial runs; for everyone else the wall below is unchanged. (Kept as an
+  // else-chain so the wall still reads as `if (!canAccess(…)) { return` — the
+  // shape scripts/validate-nav-coverage and validate-project-hub-rules parse.)
+  if (practiceOpen) { /* open: the sample, during its run */ } else
   if (!canAccess('change_orders_invoicing')) {
     return (
       <FieldTicketAccessView
@@ -920,15 +982,21 @@ export default function FieldTicketScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader
-          eyebrow={`${fieldTicketLabel(openTicket.number)} · ${statusLabel(openTicket.status)}`}
-          title={project.name}
-          right={
-            <TouchableOpacity onPress={() => setOpenTicketId(null)} hitSlop={12} style={styles.headerAction}>
-              <X size={20} color={tc.text} strokeWidth={1.75} />
-            </TouchableOpacity>
-          }
-        />
+        {(() => {
+          const header = (
+            <ToolHeader
+              eyebrow={`${fieldTicketLabel(openTicket.number)} · ${statusLabel(openTicket.status)}`}
+              title={project.name}
+              right={
+                <TouchableOpacity onPress={() => setOpenTicketId(null)} hitSlop={12} style={styles.headerAction}>
+                  <X size={20} color={tc.text} strokeWidth={1.75} />
+                </TouchableOpacity>
+              }
+            />
+          );
+          // Tutorial: its chevron is the way back to the job (run only).
+          return runOnThis ? <TutorialTarget id="ticket.back">{header}</TutorialTarget> : header;
+        })()}
         <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
           {/* Seal banner — why nothing here is editable. */}
           {openTicket.status !== 'draft' && (
@@ -1146,16 +1214,19 @@ export default function FieldTicketScreen() {
                   : t('field.ticket.thisTicketWasAlready', 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project — revise or re-raise that change order rather than re-pricing the signed ticket.')}
               </Text>
             )}
-            {!billedCO && openTicket.status !== 'void' && (
-              <Button
-                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? t('field.ticket.yourGcBillsThis', 'Your GC bills this ticket') : convertBlockReason ? t('field.ticket.cantBillYet', "Can't bill yet") : gate.canConvert ? t('field.ticket.billItAsA', 'Bill it as a change order') : t('field.ticket.cantBillYet', "Can't bill yet")}
-                onPress={() => handleConvert(openTicket)}
-                disabled={!gate.canConvert || !!convertBlockReason}
-                fullWidth
-                iconLeft={<Repeat size={16} color="#FFF" strokeWidth={2} />}
-                testID="ticket-convert"
-              />
-            )}
+            {!billedCO && openTicket.status !== 'void' && (() => {
+              const convertBtn = (
+                <Button
+                  label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? t('field.ticket.yourGcBillsThis', 'Your GC bills this ticket') : convertBlockReason ? t('field.ticket.cantBillYet', "Can't bill yet") : gate.canConvert ? t('field.ticket.billItAsA', 'Bill it as a change order') : t('field.ticket.cantBillYet', "Can't bill yet")}
+                  onPress={() => handleConvert(openTicket)}
+                  disabled={!gate.canConvert || !!convertBlockReason}
+                  fullWidth
+                  iconLeft={<Repeat size={16} color="#FFF" strokeWidth={2} />}
+                  testID="ticket-convert"
+                />
+              );
+              return runOnThis ? <TutorialTarget id="ticket.convert">{convertBtn}</TutorialTarget> : convertBtn;
+            })()}
             {!billedCO && openTicket.status !== 'void' && !!convertBlockReason && (
               <Text style={styles.gateReason} testID="ticket-convert-owner-only">{convertBlockReason}</Text>
             )}
@@ -1213,6 +1284,9 @@ export default function FieldTicketScreen() {
             onApply={next => handleApplyPricing(openTicket, next)}
           />
         )}
+        {/* Tutorial blocker sentinel: the signature pad / pricing sheet draw
+            above the coach on iOS, so it draws nothing while one is up. */}
+        {runOnThis && (signOpen || (pricingOpen && canPrice)) ? <TutorialTarget id="ticket.modalUp" /> : null}
       </View>
     );
   }
@@ -1249,41 +1323,53 @@ export default function FieldTicketScreen() {
           >
             {/* 1. What work */}
             <Text style={styles.fieldLabel}>{t('field.ticket.whatDidTheCrew', 'What did the crew do?')}</Text>
-            <TextInput
-              style={[styles.input, styles.inputTall]}
-              value={workDescription}
-              onChangeText={setWorkDescription}
-              placeholder={t('field.ticket.eGBrokeOut', 'e.g. Broke out and hauled off an undocumented footing under the east slab')}
-              placeholderTextColor={tc.textMuted}
-              multiline
-              testID="ticket-work"
-            />
+            {(() => {
+              const workInput = (
+                <TextInput
+                  style={[styles.input, styles.inputTall]}
+                  value={workDescription}
+                  onChangeText={setWorkDescription}
+                  placeholder={t('field.ticket.eGBrokeOut', 'e.g. Broke out and hauled off an undocumented footing under the east slab')}
+                  placeholderTextColor={tc.textMuted}
+                  multiline
+                  testID="ticket-work"
+                />
+              );
+              return runOnThis ? <TutorialTarget id="ticket.work">{workInput}</TutorialTarget> : workInput;
+            })()}
 
             {/* 2. Why it's extra — chips first, typing optional */}
             <Text style={styles.fieldLabel}>{t('field.ticket.whyIsItExtra', 'Why is it extra?')}</Text>
-            <View style={styles.chipWrap}>
-              {REASON_CHIPS.map(r => {
-                const on = reasonExtra.startsWith(r);
-                return (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.chip, on && styles.chipOn]}
-                    onPress={() => { tap(); setReasonExtra(on ? '' : r); }}
-                    testID={`ticket-reason-${r}`}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{reasonChipLabel(r)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <TextInput
-              style={styles.input}
-              value={reasonExtra}
-              onChangeText={setReasonExtra}
-              placeholder={t('field.ticket.tapAReasonAbove', 'Tap a reason above, or type it')}
-              placeholderTextColor={tc.textMuted}
-              testID="ticket-reason"
-            />
+            {(() => {
+              const reasonBlock = (
+                <>
+                  <View style={styles.chipWrap}>
+                    {REASON_CHIPS.map(r => {
+                      const on = reasonExtra.startsWith(r);
+                      return (
+                        <TouchableOpacity
+                          key={r}
+                          style={[styles.chip, on && styles.chipOn]}
+                          onPress={() => { tap(); setReasonExtra(on ? '' : r); }}
+                          testID={`ticket-reason-${r}`}
+                        >
+                          <Text style={[styles.chipText, on && styles.chipTextOn]}>{reasonChipLabel(r)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={reasonExtra}
+                    onChangeText={setReasonExtra}
+                    placeholder={t('field.ticket.tapAReasonAbove', 'Tap a reason above, or type it')}
+                    placeholderTextColor={tc.textMuted}
+                    testID="ticket-reason"
+                  />
+                </>
+              );
+              return runOnThis ? <TutorialTarget id="ticket.reason">{reasonBlock}</TutorialTarget> : reasonBlock;
+            })()}
 
             {/* 3. Date */}
             <Text style={styles.fieldLabel}>{t('field.ticket.dateOfWork', 'Date of work')}</Text>
@@ -1486,22 +1572,30 @@ export default function FieldTicketScreen() {
             )}
 
             {/* 8. Markup */}
-            <Text style={styles.fieldLabel}>{t('field.ticket.overheadProfit', 'Overhead & profit')}</Text>
-            <View style={styles.markupRow}>
-              <TextInput
-                style={[styles.input, styles.markupInput]}
-                value={markup}
-                onChangeText={setMarkup}
-                placeholder="0"
-                placeholderTextColor={tc.textMuted}
-                keyboardType="decimal-pad"
-                testID="ticket-markup"
-              />
-              <Text style={styles.markupPct}>%</Text>
-              <Text style={styles.markupHint}>
-                {draftTotals.markupAmount > 0 ? t('field.ticket.composer.markupAmount', '+{amount}', { amount: money(draftTotals.markupAmount) }) : t('field.ticket.appliedOnTopOf', 'Applied on top of cost')}
-              </Text>
-            </View>
+            {(() => {
+              const priceBlock = (
+                <>
+                  <Text style={styles.fieldLabel}>{t('field.ticket.overheadProfit', 'Overhead & profit')}</Text>
+                  <View style={styles.markupRow}>
+                    <TextInput
+                      style={[styles.input, styles.markupInput]}
+                      value={markup}
+                      onChangeText={setMarkup}
+                      placeholder="0"
+                      placeholderTextColor={tc.textMuted}
+                      keyboardType="decimal-pad"
+                      testID="ticket-markup"
+                    />
+                    <Text style={styles.markupPct}>%</Text>
+                    <Text style={styles.markupHint}>
+                      {draftTotals.markupAmount > 0 ? t('field.ticket.composer.markupAmount', '+{amount}', { amount: money(draftTotals.markupAmount) }) : t('field.ticket.appliedOnTopOf', 'Applied on top of cost')}
+                    </Text>
+                  </View>
+                </>
+              );
+              // Tutorial: the money on a ticket (rates come after the signature).
+              return runOnThis ? <TutorialTarget id="ticket.price">{priceBlock}</TutorialTarget> : priceBlock;
+            })()}
           </ScrollView>
 
           {/* Sticky bottom bar — total + the one action that matters */}
@@ -1520,14 +1614,20 @@ export default function FieldTicketScreen() {
               </Text>
             </View>
             <View style={styles.stickyActions}>
-              <TouchableOpacity
-                style={styles.saveLater}
-                onPress={handleSaveUnsigned}
-                disabled={!readiness.ready || !!writeBlock}
-                testID="ticket-save-unsigned"
-              >
-                <Text style={[styles.saveLaterText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>{t('field.ticket.save', 'Save')}</Text>
-              </TouchableOpacity>
+              {(() => {
+                const saveBtn = (
+                  <TouchableOpacity
+                    style={styles.saveLater}
+                    onPress={handleSaveUnsigned}
+                    disabled={!readiness.ready || !!writeBlock}
+                    testID="ticket-save-unsigned"
+                  >
+                    <Text style={[styles.saveLaterText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>{t('field.ticket.save', 'Save')}</Text>
+                  </TouchableOpacity>
+                );
+                // Tutorial: Save only. Get signature beside it is never lit.
+                return runOnThis ? <TutorialTarget id="ticket.saveUnsigned">{saveBtn}</TutorialTarget> : saveBtn;
+              })()}
               <TouchableOpacity
                 style={[styles.signBtn, (!readiness.ready || !!writeBlock) && styles.signBtnDisabled]}
                 onPress={() => { tap(); setSignTargetId(null); setSignOpen(true); }}
@@ -1558,6 +1658,7 @@ export default function FieldTicketScreen() {
             recordFrom={signRecordFrom}
           />
         )}
+        {runOnThis && signOpen ? <TutorialTarget id="ticket.modalUp" /> : null}
       </View>
     );
   }
@@ -1572,7 +1673,13 @@ export default function FieldTicketScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
+      {runOnThis ? (
+        <TutorialTarget id="ticket.back">
+          <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
+        </TutorialTarget>
+      ) : (
+        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
+      )}
       <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>

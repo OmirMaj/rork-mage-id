@@ -26,7 +26,7 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState, type ProjectRole } from '@/hooks/useProjectRole';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@/contexts/AuthContext';
-import { sampleSendAllowed } from '@/utils/sampleGuard';
+import { isSampleProject, sampleSendAllowed } from '@/utils/sampleGuard';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
@@ -89,6 +89,13 @@ import { describeError, ownSentence } from '@/utils/errorCopy';
 import { coStatusLabel } from '@/utils/logs/changeOrderLogRows';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { cardSurface } from '@/components/ui';
+// Tutorials (change-order-draft): see the header of utils/tutorial/learn/laneA.ts.
+// Targets wrap only while a run is live on THIS project, so a real job renders
+// exactly as before.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { CO_SAMPLE, toCents } from '@/utils/tutorial/learn/fixturesA';
+import { isOfflineNow } from '@/hooks/useOnline';
 
 /**
  * The CO fields frozen at save/send (#129, #131). Declared here and SPREAD
@@ -121,6 +128,16 @@ export default function ChangeOrderScreen() {
   // useProjectAccess, not the bare tier: on a job he OWNS this is his own tier,
   // exactly as before; the collaborator branch never reaches it (below).
   const { canAccess } = useProjectAccess(gateProjectId);
+  // The founder's practice pass (utils/tutorial/practicePass): while a
+  // tutorial that practises change orders runs, a Free user may open THIS
+  // screen on its SAMPLE job — keyed to the URL's projectId only (the pass is
+  // empty on any other project). The record link is the escape to close: the
+  // editor loads a coId from ANY project, so the pass opens only a NEW change
+  // order, or one whose own project IS the sample (practice-pass-record-links).
+  // Client-side monetisation, not security — RLS is untouched.
+  const practice = useTutorialPractice(paramProjectId || undefined);
+  const practiceOpen = practice.has('change_orders_invoicing')
+    && (!coId || changeOrders.find(c => c.id === coId)?.projectId === paramProjectId);
   // #41 — the role decision runs BEFORE the tier paywall. A foreman on a free
   // account used to meet a "Change Orders — Pro" paywall here, which upgrading
   // would not have fixed: a CO written from his account is invisible to the GC.
@@ -145,7 +162,7 @@ export default function ChangeOrderScreen() {
     );
   }
   if (!canAccess('change_orders_invoicing')) {
-    return (
+    return practiceOpen ? <ChangeOrderGate /> : (
       <Paywall
         visible={true}
         feature="Change Orders"
@@ -1347,6 +1364,51 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
 
+  // ── Tutorial (change-order-draft) ──────────────────────────────────────
+  // runOnThis: a tutorial run is live on THIS project — the only time the
+  // TutorialTargets and the blocker sentinel render, and the only time the
+  // voice fill and the AI impact analysis step aside (no AI call on a sample
+  // during a run). sampleRun adds "it is a sample" for the assists, which only
+  // ever fill a sample. Signals read refs so the existing callbacks keep their
+  // dependency lists.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const sampleRunRef = useRef(false);
+  sampleRunRef.current = runOnThis && !!project && isSampleProject(project);
+  const tutorialRef = useRef({ projectId, lineItems, days: parsedImpactDays });
+  tutorialRef.current = { projectId, lineItems, days: parsedImpactDays };
+  // Step 1's success point: a description of 3+ chars, debounced 600 ms.
+  useEffect(() => {
+    if (!runOnThis || !projectId) return;
+    const n = description.trim().length;
+    if (n < 3) return;
+    const timer = setTimeout(() => tutorialSignal('co.description.filled', { projectId, chars: n }), 600);
+    return () => clearTimeout(timer);
+  }, [runOnThis, projectId, description]);
+  // 'Do it for me' fills the sample change — never presses Save or Send.
+  useTutorialAssist('co.useSampleChange', () => {
+    if (!sampleRunRef.current) return;
+    setDescription(CO_SAMPLE.description);
+    setReason(prev => (prev.trim() ? prev : CO_SAMPLE.reason));
+  });
+  // …and opens the add-line sheet with the sample line in it: the Add tap
+  // (and the markup the sheet applies) stay his.
+  useTutorialAssist('co.fillSampleLine', () => {
+    if (!sampleRunRef.current) return;
+    setNewItemName(CO_SAMPLE.line.name);
+    setNewItemQty(String(CO_SAMPLE.line.quantity));
+    setNewItemUnit(CO_SAMPLE.line.unit);
+    setNewItemPrice((CO_SAMPLE.line.unitCostCents / 100).toFixed(2));
+    setShowAddItem(true);
+  });
+  /** A priced line went on (his Add tap): the line total after it, in cents. */
+  const signalLineAdded = useCallback((added: { total: number }) => {
+    const { projectId: pid, lineItems: before } = tutorialRef.current;
+    if (!pid || !(added.total > 0)) return;
+    const totalCents = toCents(coRoundCents(before.reduce((sum, l) => sum + (l.total ?? 0), 0) + added.total));
+    tutorialSignal('co.line.added', { projectId: pid, totalCents, lines: before.length + 1 });
+  }, []);
+
   // C5 (UX wave): the approver is the job's client — entered once, on the
   // job — else the last client this job's change orders went to. Filled when
   // the send sheet OPENS with both fields blank (a pending approver already
@@ -1594,6 +1656,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       isNew: true,
     };
     setLineItems(prev => [...prev, item]);
+    signalLineAdded(item);
     setNewItemName('');
     setNewItemQty('');
     setNewItemUnit('');
@@ -1607,7 +1670,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     setOverrideReason('');
     setShowAddItem(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [newItemName, newItemQty, newItemUnit, newItemPrice, newItemDesc, itemMarkup, overridePrice, overrideReason, seedMarkupStr]);
+  }, [newItemName, newItemQty, newItemUnit, newItemPrice, newItemDesc, itemMarkup, overridePrice, overrideReason, seedMarkupStr, signalLineAdded]);
 
   const handleAddFromMaterials = useCallback((material: MaterialItem) => {
     const price = selectedPriceType === 'bulk' ? material.baseBulkPrice : material.baseRetailPrice;
@@ -1671,9 +1734,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       isNew: false,
     };
     setLineItems(prev => [...prev, newItem]);
+    signalLineAdded(newItem);
     setShowEstimateItems(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [seedMarkupPct]);
+  }, [seedMarkupPct, signalLineAdded]);
 
   const handleRemoveItem = useCallback((id: string) => {
     setLineItems(prev => prev.filter(item => item.id !== id));
@@ -2046,6 +2110,21 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (sendingRef.current) return;
     const saved = persistCO(status, recipientName, recipientEmail);
     if (!saved) return;
+    // Tutorial success point: persistCO has written the change order on this
+    // phone (addChangeOrder / updateChangeOrder). Emitted before goBack() so
+    // the coach's next card is the hub. The total is persistCO's own
+    // committed amount; the number stays out of the copy (provisional, #141).
+    {
+      const { projectId: pid, lineItems: lines, days } = tutorialRef.current;
+      if (pid) {
+        tutorialSignal('co.saved', {
+          projectId: pid, coId: saved.id, number: saved.number, status: saved.status,
+          totalCents: toCents(coRoundCents(coCommitLineItems(lines).reduce((sum, i) => sum + i.total, 0))),
+          ...(typeof days === 'number' ? { days } : {}),
+          offline: isOfflineNow(),
+        });
+      }
+    }
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (saved.isUpdate) {
@@ -2884,6 +2963,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {!isLocked && (
             <>
               <View style={styles.fieldSection}>
+                {/* Tutorial: no AI on the job a run is live on (the voice
+                    fill parses with AI) — it steps aside until the run ends. */}
+                {runOnThis ? null : (
                 <InlineVoiceFill
                   title="Dictate this change order"
                   contextLine={project?.name ? `for ${project.name}` : undefined}
@@ -2931,17 +3013,23 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     }
                   }}
                 />
+                )}
                 <Text style={styles.fieldLabel}>Description</Text>
-                <TextInput
-                  style={styles.textArea}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Describe the change"
-                  placeholderTextColor={themeColors.textMuted}
-                  multiline
-                  textAlignVertical="top"
-                  testID="co-description-input"
-                />
+                {(() => {
+                  const input = (
+                    <TextInput
+                      style={styles.textArea}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder="Describe the change"
+                      placeholderTextColor={themeColors.textMuted}
+                      multiline
+                      textAlignVertical="top"
+                      testID="co-description-input"
+                    />
+                  );
+                  return runOnThis ? <TutorialTarget id="co.description">{input}</TutorialTarget> : input;
+                })()}
               </View>
 
               <View style={styles.fieldSection}>
@@ -2956,35 +3044,43 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 />
               </View>
 
-              <View style={styles.fieldSection}>
-                <Text style={styles.fieldLabel}>Schedule Impact (days)</Text>
-                <TextInput
-                  style={[styles.input, isDesktop && styles.inputXsDesktop]}
-                  value={scheduleImpactDays}
-                  onChangeText={onImpactDaysTyped}
-                  placeholder="Additional days added to project (0 if none)"
-                  placeholderTextColor={themeColors.textMuted}
-                  keyboardType="numeric"
-                  testID="co-schedule-impact-input"
-                />
-                {/* This line used to read "When approved, these days extend
-                    the project schedule automatically." Nothing extended: the
-                    approval bumped three scalars and left every task date
-                    untouched. Approval now really does reflow the schedule —
-                    behind a preview — so the copy says exactly that, and says
-                    something different when there is no schedule to reflow. */}
-                {!!coImpactDaysHelper(impactDaysSource, scheduleImpactDays) && (
-                  <Text style={styles.impactGuessText} testID="co-impact-days-source">
-                    {coImpactDaysHelper(impactDaysSource, scheduleImpactDays)}
-                  </Text>
-                )}
-                <Text style={styles.helperText}>
-                  {project?.schedule?.tasks?.length
-                    ? 'On approval you\'ll see which task absorbs these days and what shifts downstream — nothing moves until you apply it.'
-                    : 'This project has no schedule yet, so these days are recorded on the change order only.'}
-                </Text>
-              </View>
+              {(() => {
+                const daysSection = (
+                  <View style={styles.fieldSection}>
+                    <Text style={styles.fieldLabel}>Schedule Impact (days)</Text>
+                    <TextInput
+                      style={[styles.input, isDesktop && styles.inputXsDesktop]}
+                      value={scheduleImpactDays}
+                      onChangeText={onImpactDaysTyped}
+                      placeholder="Additional days added to project (0 if none)"
+                      placeholderTextColor={themeColors.textMuted}
+                      keyboardType="numeric"
+                      testID="co-schedule-impact-input"
+                    />
+                    {/* This line used to read "When approved, these days extend
+                        the project schedule automatically." Nothing extended: the
+                        approval bumped three scalars and left every task date
+                        untouched. Approval now really does reflow the schedule —
+                        behind a preview — so the copy says exactly that, and says
+                        something different when there is no schedule to reflow. */}
+                    {!!coImpactDaysHelper(impactDaysSource, scheduleImpactDays) && (
+                      <Text style={styles.impactGuessText} testID="co-impact-days-source">
+                        {coImpactDaysHelper(impactDaysSource, scheduleImpactDays)}
+                      </Text>
+                    )}
+                    <Text style={styles.helperText}>
+                      {project?.schedule?.tasks?.length
+                        ? 'On approval you\'ll see which task absorbs these days and what shifts downstream — nothing moves until you apply it.'
+                        : 'This project has no schedule yet, so these days are recorded on the change order only.'}
+                    </Text>
+                  </View>
+                );
+                return runOnThis ? <TutorialTarget id="co.scheduleImpact">{daysSection}</TutorialTarget> : daysSection;
+              })()}
 
+              {/* Tutorial: the AI impact analysis steps aside during a run
+                  on this job (no AI call on a sample during a run). */}
+              {runOnThis ? null : (
               <View style={{ paddingHorizontal: 16 }}>
                 <AIChangeOrderImpact
                   changeDescription={description}
@@ -3003,6 +3099,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   }}
                 />
               </View>
+              )}
             </>
           )}
 
@@ -3121,15 +3218,20 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       <Text style={styles.addFromBtnText}>Estimate</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={styles.addNewBtn}
-                    onPress={() => setShowAddItem(true)}
-                    activeOpacity={0.7}
-                    testID="add-co-item-btn"
-                  >
-                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addNewBtnText}>Custom</Text>
-                  </TouchableOpacity>
+                  {(() => {
+                    const addBtn = (
+                      <TouchableOpacity
+                        style={styles.addNewBtn}
+                        onPress={() => setShowAddItem(true)}
+                        activeOpacity={0.7}
+                        testID="add-co-item-btn"
+                      >
+                        <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.addNewBtnText}>Custom</Text>
+                      </TouchableOpacity>
+                    );
+                    return runOnThis ? <TutorialTarget id="co.addItem">{addBtn}</TutorialTarget> : addBtn;
+                  })()}
                 </View>
               )}
             </View>
@@ -3318,14 +3420,28 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
             {!isLocked && !sendFinished && (
               <ActionBar style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} width="form">
-                <Button
-                  label="Save to Project"
-                  disabled={sendInFlight}
-                  onPress={() => withConfirmedImpactDays(() => handleSave('draft'))}
-                  variant="secondary"
-                  style={{ flex: 1 }}
-                  testID="save-co-draft"
-                />
+                {runOnThis ? (
+                  // Tutorial: the flex moves onto the wrapper so the bar lays
+                  // out the same. Send & Save beside it is never lit.
+                  <TutorialTarget id="co.saveDraft" style={{ flex: 1 }}>
+                    <Button
+                      label="Save to Project"
+                      disabled={sendInFlight}
+                      onPress={() => withConfirmedImpactDays(() => handleSave('draft'))}
+                      variant="secondary"
+                      testID="save-co-draft"
+                    />
+                  </TutorialTarget>
+                ) : (
+                  <Button
+                    label="Save to Project"
+                    disabled={sendInFlight}
+                    onPress={() => withConfirmedImpactDays(() => handleSave('draft'))}
+                    variant="secondary"
+                    style={{ flex: 1 }}
+                    testID="save-co-draft"
+                  />
+                )}
                 <Button
                   label={sendInFlight ? 'Sending…' : 'Send & Save'}
                   onPress={handleSendPress}
@@ -3766,6 +3882,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           }}
         />
       )}
+      {/* Tutorial blocker sentinel: while any of this screen's layer-less
+          sheets is up (they draw above the root coach layer on iOS), the coach
+          draws nothing. Only while a run is live on this job. */}
+      {runOnThis && (
+        showAddItem || showEstimateItems || showMaterialSearch || showSendRecipient || showContactPicker
+        || reflowPreviewCO !== null || approveSheetCO !== null || placePreviewCO !== null
+      ) ? <TutorialTarget id="co.modalUp" /> : null}
     </View>
   );
 }
