@@ -1066,6 +1066,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         html,
         replyTo: senderEmail,
         fromCompanyName: companyName,
+        projectId: project.id,
       })
     ));
     return sendResults.filter(r => r.success).length;

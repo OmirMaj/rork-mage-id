@@ -125,3 +125,33 @@ export {
   sampleProjectIdsFor,
 };
 export type { FenceClient };
+
+// ── SAMPLEGUARD: delivery off a sample job (contract email, closeout binder) ──
+// Below the fenced block on purpose: validate-sample-guard pins those bytes.
+// "Nothing on a sample job reaches anyone but the user" (utils/sampleGuard)
+// held only in the client; these two exports carry it to send-email and
+// notify, so a stale build, a replayed deep link or a hand-made request is
+// refused by the server too.
+
+/**
+ * send-email's verdict for a send that names a project. A sample project may
+ * send only to the caller's OWN GoTrue-verified address (the invoice-to-self
+ * tutorial's "Send to me" stays allowed). Compared trimmed and lowercased. No
+ * verified caller address means refuse: we cannot prove the send is to self.
+ * Not a sample means null (the send goes on as before).
+ */
+export function sampleSendRefusal(a: {
+  projectName: string | null | undefined;
+  recipients: string[];
+  callerEmail: string | null;
+}): "sample_project" | null {
+  if (!isSampleProjectName(a.projectName)) return null;
+  const self = typeof a.callerEmail === "string" ? a.callerEmail.trim().toLowerCase() : "";
+  if (!self) return "sample_project";
+  if (a.recipients.length === 0) return "sample_project";
+  const allSelf = a.recipients.every((r) => typeof r === "string" && r.trim().toLowerCase() === self);
+  return allSelf ? null : "sample_project";
+}
+
+/** notify events refused outright on a sample project (409 sample_project). */
+export const SAMPLE_REFUSED_NOTIFY_EVENTS = ["closeout_binder_sent"] as const;
