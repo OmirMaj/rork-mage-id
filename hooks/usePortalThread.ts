@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { onQueueFlushed, onQueueChanged, onQueueDropped, getOwnOfflineQueue, currentSessionUserId, type WriteOutcome } from '@/utils/offlineQueue';
 import { oops } from '@/components/animations/NailItToast';
 import { generateUUID } from '@/utils/generateId';
@@ -479,9 +480,7 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
   // pick up rows from the web portal (which doesn't set project_id).
   useEffect(() => {
     if (!enabled || !portalId) return;
-    const channelName = `portal-thread-${portalId}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) return;
+    const channelName = mountTopic(`portal-thread-${portalId}`);
 
     const channel = supabase.channel(channelName);
     channel.on(

@@ -15,6 +15,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectDeletion } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
 import { unsavedWriteIds, onUnsavedDiscarded } from '@/utils/syncLedger';
 import {
@@ -552,7 +553,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
       timer = setTimeout(() => { timer = null; void rereadTables(new Set([INCIDENTS_TABLE])); }, 400);
     };
     const channel = supabase
-      .channel(`safety-incidents-${userId}`)
+      .channel(mountTopic(`safety-incidents-${userId}`))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: INCIDENTS_TABLE }, bump)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: INCIDENTS_TABLE }, bump)
       .subscribe();

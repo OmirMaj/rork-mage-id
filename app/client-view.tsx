@@ -6,6 +6,7 @@ import {
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -547,7 +548,7 @@ export default function ClientViewScreen() {
     if (!isSupabaseConfigured || !localProject?.id) return;
     const projectId = localProject.id;
     const channel = supabase
-      .channel(`client-portal-${projectId}`)
+      .channel(mountTopic(`client-portal-${projectId}`))
       .on(
         'postgres_changes' as any,
         { event: '*', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` },

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { generateUUID } from '@/utils/generateId';
 import type { FinancingReferral, FinancingReferralSource } from '@/types';
 import { referralRefreshPatch } from '@/utils/financingCore';
@@ -115,9 +116,7 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
 
   useEffect(() => {
     if (!enabled || !gcUserId) return;
-    const channelName = `financing-referrals-${gcUserId}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) return;
+    const channelName = mountTopic(`financing-referrals-${gcUserId}`);
     const channel = supabase.channel(channelName);
     channel.on(
       'postgres_changes',

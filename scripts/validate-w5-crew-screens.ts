@@ -31,6 +31,7 @@ const code = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\
 const crew = code('app/crew.tsx');
 const claim = code('app/claim-crew.tsx');
 const hook = code('hooks/useSchedulePresence.ts');
+const presenceRegistry = readFileSync(join(ROOT, 'utils/realtimePresenceRegistry.ts'), 'utf8');
 const mig = read('supabase/migrations/20260923160000_crew_claim_freeze_and_schedule_presence.sql');
 const presence = code('utils/crewPresence.ts');
 
@@ -125,8 +126,8 @@ ok('crewScan throws through edgeFunctionError', (read('utils/crewScan.ts').match
 
 console.log('\n#168 / #169');
 ok('reportDay reads the LOCAL day of an instant', /function reportDay\(raw: string \| null \| undefined\): string \| null \{\s*return calendarDayOf\(raw\?\.trim\(\)\);\s*\}/.test(presence));
-ok('presence channel is private', /config: \{ private: true, presence: \{ key: self\.userId \} \}/.test(hook));
-ok('setAuth before subscribe', /await supabase\.realtime\.setAuth\(\);[\s\S]*?channel\.subscribe\(/.test(hook));
+ok('presence channel is private', /config: \{ private: true, presence: \{ key: presenceKey \} \}/.test(presenceRegistry) && /presenceRegistry\.acquire\(`schedule:\$\{projectId\}`, self\.userId,/.test(hook));
+ok('setAuth before subscribe', /await client\.setAuth\?\.\(\);[\s\S]*?client\.subscribe\(channel/.test(presenceRegistry) && /setAuth: \(\) => supabase\.realtime\.setAuth\(\)/.test(hook));
 ok('a peer whose userId disagrees with its key is dropped', /if \(m\.userId !== key\) continue;/.test(hook));
 ok('realtime policies: authenticated, schedule topics, presence/broadcast, can_access_project(text, text)',
   (mig.match(/ON realtime\.messages\s+FOR (SELECT|INSERT) TO authenticated/g) ?? []).length === 2
