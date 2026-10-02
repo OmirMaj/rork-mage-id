@@ -576,12 +576,12 @@ export default function CloseoutBinderScreen() {
         submittals: projectSubmittals,
         warranties: warranties ?? [],
         lienWaivers,
+        // Lane SEAL: the "Final punch record" section prints only with a seal.
+        ...(punchSeal ? { punchSeal } : {}),
         // Founder decision 5: the binder is the owner's handover document, so
         // supplier names and sub phone/email print only when the GC switched
         // them on for this job — the same two switches as the portal.
         sharing: ownerSharingFor(project.clientPortal),
-        // Lane SEAL: the "Final punch record" section prints only with a seal.
-        ...(punchSeal ? { punchSeal } : {}),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
