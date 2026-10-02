@@ -876,6 +876,102 @@
   .msg-send-btn:hover { background: var(--brand-dark); }
   .msg-send-btn:disabled { opacity: 0.5; cursor: wait; }
 
+  /* Photos and PDFs on a message (track MSG, lane MSGPORTAL). A pending item
+     keeps the plain .from-client look: brand green stays on the send button,
+     the attach hover and links, never on a bubble that is not sent yet. */
+  .msg-attach-btn {
+    position: relative; flex: 0 0 auto;
+    width: 42px; height: 42px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--concrete-2); color: var(--text-2);
+    border: 1px solid var(--bone); border-radius: 12px;
+    cursor: pointer; font-family: inherit;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .msg-attach-btn:hover, .msg-attach-btn:focus-visible { border-color: var(--brand); color: var(--brand); outline: none; }
+  .msg-attach-count {
+    position: absolute; top: -6px; right: -6px;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 999px; background: var(--ink); color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+  }
+  .msg-attach-count[hidden] { display: none; }
+  .msg-tray { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; }
+  .msg-tray[hidden] { display: none; }
+  .msg-chip {
+    position: relative; flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 56px; padding: 0 30px 0 0;
+    background: var(--surface); border: 1px solid var(--bone);
+    border-radius: var(--radius-md); overflow: hidden;
+    font-size: 12px; color: var(--text-2);
+  }
+  .msg-chip.photo { padding: 0; width: 56px; }
+  .msg-chip-img { width: 56px; height: 56px; object-fit: cover; display: block; background: var(--bone-2); }
+  .msg-chip-icon {
+    width: 56px; height: 56px; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--bone-2); color: var(--text-2);
+  }
+  .msg-chip-text { display: flex; flex-direction: column; max-width: 150px; min-width: 0; }
+  .msg-chip-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-chip-x {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 999px;
+    border: none; background: rgba(11,13,16,0.78); color: #fff;
+    font-size: 14px; line-height: 22px; cursor: pointer; font-family: inherit;
+  }
+  .msg-note {
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--warning-tint); color: var(--text);
+    border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.45;
+  }
+  .msg-note[hidden] { display: none; }
+  .msg-files { display: grid; gap: 4px; margin-top: 8px; }
+  .msg-files.n1 { grid-template-columns: minmax(0, 240px); }
+  .msg-files.grid { grid-template-columns: repeat(2, minmax(0, 120px)); }
+  .msg-file-tile {
+    position: relative; display: block; padding: 0;
+    border: none; background: var(--bone-2);
+    border-radius: var(--radius-md); overflow: hidden;
+    cursor: pointer; font-family: inherit; color: var(--text-2);
+  }
+  .msg-files.grid .msg-file-tile { width: 100%; aspect-ratio: 1 / 1; }
+  .msg-files.n1 .msg-file-tile { width: 100%; min-height: 80px; max-height: 320px; aspect-ratio: 4 / 3; }
+  .msg-file-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: var(--radius-md); background: var(--bone-2); }
+  .msg-file-img:not([src]) { visibility: hidden; }
+  .msg-file-more {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(11,13,16,0.55); color: #fff; font-size: 20px; font-weight: 700;
+  }
+  .msg-file-failed {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 8px; text-align: center; font-size: 12px; line-height: 1.35; color: var(--text-2);
+  }
+  .msg-file-pdf {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 8px; padding: 10px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--bone); border-radius: var(--radius-md);
+  }
+  .msg-file-pdf-icon { color: var(--text-2); display: inline-flex; }
+  .msg-file-pdf-text { flex: 1 1 140px; min-width: 0; }
+  .msg-file-pdf-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+  .msg-file-pdf-meta { font-size: 11.5px; color: var(--text-2); }
+  .msg-file-pdf-acts { display: flex; gap: 6px; }
+  .msg-file-pdf-acts button, .msg-actions button {
+    min-height: 44px; padding: 0 14px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--bone); border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .msg-file-pdf-acts button:hover, .msg-actions button:hover { border-color: var(--brand); color: var(--brand); }
+  .msg.pending .msg-status { font-size: 11.5px; margin-top: 6px; color: var(--text-muted); }
+  .msg.failed .msg-status {
+    font-size: 12px; margin-top: 8px; padding: 8px 10px;
+    color: var(--error); background: var(--error-tint); border-radius: var(--radius-sm);
+  }
+  .msg-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
   /* ───────── Schedule task ───────── */
   .task-row { padding: 18px 0; }
   .task-progress {
@@ -3029,7 +3125,37 @@
     paceFinishing: 'finishing {date}',
     pacePlannedFinish: 'planned finish {date}',
     paceWasDue: 'was due {date}',
-    paceBasis: '{done}% of the work reported done · {elapsed}% of the scheduled time used'
+    paceBasis: '{done}% of the work reported done · {elapsed}% of the scheduled time used',
+    // Photos and PDFs on a message (lane MSGPORTAL). utils/portalLanguages.ts
+    // carries the same English plus a Spanish draft; scripts/validate-portal-
+    // message-files.ts pins the English equal and lints every line.
+    msgFileAttach: 'Attach a photo or PDF',
+    msgFileRemove: 'Remove {name}',
+    msgFileRefuseType: '{name} can\'t be sent. Send a photo (JPG, PNG or WebP) or a PDF.',
+    msgFileRefuseSize: '{name} is {size}. Files can be up to 20 MB.',
+    msgFileRefuseEmpty: '{name} is empty, so it can\'t be sent.',
+    msgFileRefuseCount: 'A message can carry up to 10 files.',
+    msgFileRefuseDecode: 'This photo type can\'t be sent from this browser. Save it as a JPG, then attach it.',
+    msgFileUploading: 'Uploading… {pct}%',
+    msgFileSending: 'Sending…',
+    msgFileWaiting: 'Waiting for a connection. Keep this page open and it sends when you\'re back online.',
+    msgFileNotSent: 'Not sent.',
+    msgFileFailEnded: 'This portal link has ended. Ask your contractor for a new one.',
+    msgFileFailBusy: 'Too many files at once. Wait a few minutes, then try again.',
+    msgFileFailRejected: '{name} isn\'t the photo or PDF it says it is, so it wasn\'t sent.',
+    msgFileFailServer: 'The upload didn\'t finish. Try again when you have a good connection.',
+    msgFileTryAgain: 'Try again',
+    msgFileRemoveMsg: 'Remove',
+    msgFileNotKeptOne: '1 message didn\'t send before the page closed. Its text is back in the box. Attach the files again.',
+    msgFileNotKeptOther: '{count} messages didn\'t send before the page closed. The last one\'s text is back in the box. Attach the files again.',
+    msgFilePhotoAlt: 'Photo {name}',
+    msgFilePhotoFailed: 'Couldn\'t load this photo. Tap to try again.',
+    msgFilePdfMeta: 'PDF · {size}',
+    msgFileOpen: 'Open',
+    msgFileDownload: 'Download',
+    msgFileOpenFailed: 'Couldn\'t open the file. Check your connection and try again.',
+    msgFilePopupBlocked: 'Your browser blocked the new tab. Allow pop-ups for this page, then try again.',
+    msgFileMore: '+{count}'
   };
   // Passport wording for a commercial project. Only the keys that actually
   // say "home" are overridden — everything else (warranties, trade contacts,
@@ -3108,6 +3234,7 @@
     tool:      '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     external:  '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
     lock:      '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
   };
 
   // ───────── URL fragment decoder ─────────
@@ -5963,18 +6090,23 @@
     var locallySent = loadLocalMessages(data);
     locallySent.forEach(function (m) { thread.push(m); });
 
-    var threadHtml = thread.length
+    // Photo / PDF messages still on their way (an earlier render's sends)
+    // are drawn after the thread, never with a time.
+    var pendingHtml = msgPendingBubblesHtml(thread);
+    var threadHtml = (thread.length || pendingHtml)
       ? thread.map(function (m) {
           var who = m.authorType === 'client' ? 'You' : (m.authorName || 'Contractor');
           var localCls = m.local ? ' local' : '';
+          var atts = msgParseAttachments(m.attachments);
           return (
             '<div class="msg from-' + m.authorType + localCls + '">' +
               '<div class="msg-author">' + esc(who) + '</div>' +
-              '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' +
+              ((m.body || !atts.length) ? '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' : '') +
+              renderAttachmentsHtml({ id: m.id, attachments: atts }, msgAttachmentOpts()) +
               '<div class="msg-time">' + esc(timeAgo(m.createdAt)) + '</div>' +
             '</div>'
           );
-        }).join('')
+        }).join('') + pendingHtml
       : '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
 
     // Tap-to-start prompts. A blank box is the reason a homeowner phones
@@ -5985,6 +6117,9 @@
     // These are MESSAGES and nothing else. Zuper converts a portal request
     // into a job automatically; MAGE does not, and a chip that implied it did
     // would be the lie. The heading says what happens: the contractor reads it.
+    // Photos and PDFs go through portal-message-files with the ?t= token: a
+    // link without it can read nothing and upload nothing.
+    var canAttach = !!(data.portalApi && getPortalToken());
     var chips = MESSAGE_PROMPTS.map(function (c) {
       return '<button type="button" class="msg-prompt" data-msg-prompt="' + esc(c.text) + '">' +
                esc(c.label) + '</button>';
@@ -5994,13 +6129,22 @@
       '<div id="msg-thread" class="msg-thread">' + threadHtml + '</div>' +
       '<div class="msg-prompts-label">Start a message — your contractor reads these</div>' +
       '<div class="msg-prompts">' + chips + '</div>' +
+      (canAttach ? '<div id="msg-tray" class="msg-tray" hidden></div>' : '') +
       '<div class="msg-compose">' +
+        (canAttach
+          ? '<button type="button" id="msg-attach" class="msg-attach-btn" aria-label="' + esc(t('msgFileAttach')) + '">' +
+              icn(ICONS.paperclip, 18) +
+              '<span id="msg-attach-count" class="msg-attach-count" aria-live="polite" hidden></span>' +
+            '</button>' +
+            '<input type="file" id="msg-file" multiple accept="' + MSG_FILE_MIMES.join(',') + '" hidden>'
+          : '') +
         '<textarea id="msg-input" class="msg-input" placeholder="Write a message…" rows="1"></textarea>' +
         '<button id="msg-send" class="msg-send-btn">' +
           icn(ICONS.arrowRight, 14) +
           '<span>Send</span>' +
         '</button>' +
-      '</div>'
+      '</div>' +
+      (canAttach ? '<div id="msg-note" class="msg-note" role="status" hidden></div>' : '')
     );
   }
 
@@ -6083,6 +6227,9 @@
           authorName: r.author_name || '',
           body: r.body || '',
           createdAt: r.created_at,
+          // Photos and PDFs: names, types and sizes only. The RPC never sends
+          // the storage key, and msgParseAttachments drops one if it did.
+          attachments: msgParseAttachments(r.attachments),
         };
       });
     } catch (e) { return null; }
@@ -6110,6 +6257,852 @@
       }).catch(function () {});
     } catch (e) { /* best-effort */ }
   }
+
+  // ───────── Message attachments: photos and PDFs (track MSG, lane MSGPORTAL) ─────────
+  // The homeowner holds no Supabase session, only the ?t= link. Every file goes
+  // through the portal-message-files edge function (MSGDATA): it mints a signed
+  // upload URL for exactly one storage key, checks every file is really there
+  // and really the type it claims before it writes the row, and signs short
+  // display URLs for this portal's own messages. The token travels only in POST
+  // bodies, never in a URL and never in storage.
+  //
+  // A file message is "sent" only when the server row exists: until the live
+  // thread paints a row with its id, the bubble says what is happening
+  // ("Uploading… 45%", "Sending…", waiting, or "Not sent.") and never shows a
+  // time. Constants are pinned equal to utils/messageAttachments.ts by
+  // scripts/validate-portal-message-files.ts.
+  var MSG_FILE_MAX_BYTES = 20971520; // 20 MB
+  var MSG_FILE_MAX_COUNT = 10;
+  var MSG_FILE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  var MSG_FILE_URL_REFRESH_MS = 240000; // re-sign before the 300 s display URLs lapse
+  // MSG_FILE_FN is read at call time: SUPABASE_URL_PUBLIC is assigned further
+  // down this script, so a value computed here would read "undefined/functions…".
+  var MSG_FILE_FN_PATH = '/functions/v1/portal-message-files';
+  function msgFileFn() { return SUPABASE_URL_PUBLIC + MSG_FILE_FN_PATH; }
+
+  var MSG_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var MSG_FILE_BY_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
+  var MSG_PNG_KEEP_BYTES = 4 * 1024 * 1024; // a screenshot this size stays a sharp PNG
+  var MSG_IMAGE_LONG_EDGE = 2560;
+
+  // In memory only: entries survive a re-render, never a reload (a browser
+  // cannot keep picked files). Signed URLs are bearer links: never written to
+  // localStorage.
+  var msgTray = [];            // [{id,name,mime,size,width,height,blob,thumbUrl}]
+  var msgOutbox = [];          // pending file messages, oldest first
+  var msgFileUrls = {};        // attachment id -> { url, at }
+  var msgSignInFlight = {};    // message id -> true while its 'urls' call runs
+  var msgImgRetried = {};      // attachment id -> re-signed once after an image error
+  var msgImgFailed = {};       // attachment id -> the second failure: tile says so
+  var msgExpanded = {};        // message id -> show every photo, not 4
+  var msgRows = [];            // the messages last painted (for signing)
+  var msgSignStopped = false;  // a 401: the link ended, stop asking
+  var msgRestoreDone = false;  // the pending-record check runs once per page load
+  var msgPicking = 0;
+  var msgPickChain = Promise.resolve();
+  var msgHooks = { data: null, refresh: null };
+
+  function msgFileNormalizeMime(type, name) {
+    var m = String(type == null ? '' : type).split(';')[0].trim().toLowerCase();
+    if (m === 'image/jpg' || m === 'image/pjpeg') return 'image/jpeg';
+    if (MSG_FILE_MIMES.indexOf(m) > -1) return m;
+    if (m !== '') return null;
+    var n = String(name == null ? '' : name);
+    var dot = n.lastIndexOf('.');
+    if (dot < 0) return null;
+    return MSG_FILE_BY_EXT[n.slice(dot + 1).trim().toLowerCase()] || null;
+  }
+
+  /** What the first bytes say the file is (JPEG, PNG, WebP or PDF), else null. */
+  function msgFileSniff(head) {
+    if (!head || typeof head.length !== 'number') return null;
+    function at(bytes, off) {
+      if (head.length < off + bytes.length) return false;
+      for (var i = 0; i < bytes.length; i++) if (head[off + i] !== bytes[i]) return false;
+      return true;
+    }
+    if (at([0xff, 0xd8, 0xff], 0)) return 'image/jpeg';
+    if (at([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0)) return 'image/png';
+    if (at([0x52, 0x49, 0x46, 0x46], 0) && at([0x57, 0x45, 0x42, 0x50], 8)) return 'image/webp';
+    if (at([0x25, 0x50, 0x44, 0x46, 0x2d], 0)) return 'application/pdf';
+    return null;
+  }
+
+  /**
+   * Can this file go on the message? Count first (the eleventh is refused
+   * whatever it is), then the type, then empty, then the bytes against the
+   * type (when `head` is given), then the size (when it is a number).
+   */
+  function msgFileCheck(file, head, alreadyAttached) {
+    if ((alreadyAttached || 0) >= MSG_FILE_MAX_COUNT) return { ok: false, reason: 'count' };
+    var mime = msgFileNormalizeMime(file && file.type, file && file.name);
+    if (!mime) return { ok: false, reason: 'type' };
+    var size = file ? file.size : null;
+    if (size === 0) return { ok: false, reason: 'empty' };
+    if (head != null && msgFileSniff(head) !== mime) return { ok: false, reason: 'type' };
+    if (typeof size === 'number') {
+      if (!(size > 0)) return { ok: false, reason: 'empty' };
+      if (size > MSG_FILE_MAX_BYTES) return { ok: false, reason: 'size' };
+    }
+    return { ok: true, mime: mime };
+  }
+
+  /** Only https URLs on the project's own Supabase origin are ever used. */
+  function msgFileUrlOk(url) {
+    if (typeof url !== 'string' || !url) return false;
+    try {
+      var u = new URL(url);
+      return u.protocol === 'https:' && u.origin === new URL(SUPABASE_URL_PUBLIC).origin;
+    } catch (e) { return false; }
+  }
+
+  /** "2.4 MB" / "840 KB": one decimal for MB, whole KB. */
+  function msgFmtSize(bytes) {
+    var b = Number(bytes) || 0;
+    if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+    return Math.max(1, Math.round(b / 1024)) + ' KB';
+  }
+
+  /** t() with "$" in a value kept literal (String.replace reads "$&" otherwise). */
+  function msgT(key, vars) {
+    var safe = {};
+    Object.keys(vars || {}).forEach(function (k) { safe[k] = String(vars[k]).replace(/\$/g, '$$$$'); });
+    return t(key, safe);
+  }
+
+  function msgIsDim(v) { return typeof v === 'number' && Math.floor(v) === v && v >= 1 && v <= 20000; }
+
+  /**
+   * Tolerant reader for the RPC's `attachments`: keeps id, name, mime, size,
+   * kind, width, height; drops anything malformed and never copies a `path`.
+   */
+  function msgParseAttachments(raw) {
+    if (!Array.isArray(raw)) return [];
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < raw.length && out.length < MSG_FILE_MAX_COUNT; i++) {
+      var o = raw[i];
+      if (!o || typeof o !== 'object' || Array.isArray(o)) continue;
+      var id = typeof o.id === 'string' ? o.id.toLowerCase() : '';
+      if (!MSG_UUID_RE.test(id) || seen[id]) continue;
+      if (MSG_FILE_MIMES.indexOf(o.mime) < 0) continue;
+      var kind = o.mime === 'application/pdf' ? 'pdf' : 'image';
+      if (o.kind !== undefined && o.kind !== kind) continue;
+      if (typeof o.name !== 'string' || !o.name) continue;
+      if (typeof o.size !== 'number' || Math.floor(o.size) !== o.size || o.size < 1 || o.size > MSG_FILE_MAX_BYTES) continue;
+      var a = { id: id, name: o.name.slice(0, 200), mime: o.mime, size: o.size, kind: kind };
+      if (msgIsDim(o.width)) a.width = o.width;
+      if (msgIsDim(o.height)) a.height = o.height;
+      seen[id] = true;
+      out.push(a);
+    }
+    return out;
+  }
+
+  /** The photo grid of a sent message (1 = up to 240 px at its aspect, 2+ = 2 x 120 px, "+n" on the 4th). */
+  function msgPhotosHtml(message, opts) {
+    var photos = msgParseAttachments(message && message.attachments).filter(function (a) { return a.kind === 'image'; });
+    if (!photos.length) return '';
+    opts = opts || {};
+    var urls = opts.urls || {};
+    var failed = opts.failed || {};
+    var msgId = String((message && message.id) || '');
+    var expanded = !!(opts.expanded && opts.expanded[msgId]);
+    var collapse = photos.length > 4 && !expanded;
+    var shown = collapse ? photos.slice(0, 4) : photos;
+    return '<div class="msg-files ' + (photos.length === 1 ? 'n1' : 'grid') + '">' + shown.map(function (a, i) {
+      var more = collapse && i === 3 ? photos.length - 3 : 0;
+      var isFailed = !more && !!failed[a.id];
+      var url = urls[a.id];
+      var src = (!isFailed && msgFileUrlOk(url)) ? ' src="' + esc(url) + '"' : '';
+      var ratio = (photos.length === 1 && a.width && a.height) ? ' style="aspect-ratio:' + a.width + ' / ' + a.height + '"' : '';
+      return '<button type="button" class="msg-file-tile' + (isFailed ? ' failed' : '') + '"' + ratio +
+          ' data-msg-act="' + (more ? 'more' : 'photo') + '" data-msg-att="' + esc(a.id) + '" data-msg-id="' + esc(msgId) + '">' +
+          '<img class="msg-file-img" data-msg-att="' + esc(a.id) + '" data-msg-id="' + esc(msgId) + '" alt="' + esc(msgT('msgFilePhotoAlt', { name: a.name })) + '"' + src + '>' +
+          (more ? '<span class="msg-file-more">' + esc(msgT('msgFileMore', { count: more })) + '</span>' : '') +
+          (isFailed ? '<span class="msg-file-failed">' + esc(t('msgFilePhotoFailed')) + '</span>' : '') +
+        '</button>';
+    }).join('') + '</div>';
+  }
+
+  /** The PDF chips of a sent message: name, "PDF · size", Open and Download. */
+  function msgPdfsHtml(message) {
+    var msgId = String((message && message.id) || '');
+    return msgParseAttachments(message && message.attachments).filter(function (a) { return a.kind === 'pdf'; }).map(function (a) {
+      var ids = ' data-msg-att="' + esc(a.id) + '" data-msg-id="' + esc(msgId) + '"';
+      return '<div class="msg-file-pdf">' +
+          '<span class="msg-file-pdf-icon" aria-hidden="true">' + icn(ICONS.fileText, 22) + '</span>' +
+          '<div class="msg-file-pdf-text">' +
+            '<div class="msg-file-pdf-name">' + esc(a.name) + '</div>' +
+            '<div class="msg-file-pdf-meta">' + esc(msgT('msgFilePdfMeta', { size: msgFmtSize(a.size) })) + '</div>' +
+          '</div>' +
+          '<div class="msg-file-pdf-acts">' +
+            '<button type="button" data-msg-act="open"' + ids + '>' + esc(t('msgFileOpen')) + '</button>' +
+            '<button type="button" data-msg-act="download"' + ids + '>' + esc(t('msgFileDownload')) + '</button>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  /**
+   * Every attachment of a message from the server (either author). Pure: the
+   * signed URLs, expanded grids and failed tiles come in through `opts`; every
+   * name goes through esc(); an image has no src until it is signed.
+   */
+  function renderAttachmentsHtml(message, opts) {
+    return msgPhotosHtml(message, opts) + msgPdfsHtml(message);
+  }
+
+  function msgUrlFresh(attId) {
+    var u = msgFileUrls[attId];
+    return !!(u && Date.now() - u.at < MSG_FILE_URL_REFRESH_MS);
+  }
+  function msgAttachmentOpts() {
+    var urls = {};
+    Object.keys(msgFileUrls).forEach(function (k) { if (msgUrlFresh(k)) urls[k] = msgFileUrls[k].url; });
+    return { urls: urls, expanded: msgExpanded, failed: msgImgFailed };
+  }
+
+  // ── Pending file messages ──
+  function msgPct(e) {
+    var total = 0, done = 0;
+    e.files.forEach(function (f) { total += f.size; done += f.uploaded ? f.size : (f.loaded || 0); });
+    return total > 0 ? Math.min(100, Math.floor(done * 100 / total)) : 0;
+  }
+  function msgFailText(e) {
+    if (e.reason === 'ended') return t('msgFileFailEnded');
+    if (e.reason === 'busy') return t('msgFileFailBusy');
+    if (e.reason === 'rejected') return msgT('msgFileFailRejected', { name: e.failName || '' });
+    return t('msgFileFailServer');
+  }
+  /** The status line of a pending bubble. Never a time: it is not sent. */
+  function msgPendingFootHtml(e) {
+    if (e.state === 'failed') {
+      var ids = ' data-msg-id="' + esc(e.id) + '"';
+      return '<div class="msg-status"><strong>' + esc(t('msgFileNotSent')) + '</strong> ' + esc(msgFailText(e)) + '</div>' +
+        '<div class="msg-actions">' +
+          '<button type="button" data-msg-act="retry"' + ids + '>' + esc(t('msgFileTryAgain')) + '</button>' +
+          '<button type="button" data-msg-act="remove"' + ids + '>' + esc(t('msgFileRemoveMsg')) + '</button>' +
+        '</div>';
+    }
+    if (e.state === 'waiting') return '<div class="msg-status">' + esc(t('msgFileWaiting')) + '</div>';
+    if (e.state === 'sending') return '<div class="msg-status">' + esc(t('msgFileSending')) + '</div>';
+    return '<div class="msg-status">' + esc(msgT('msgFileUploading', { pct: msgPct(e) })) + '</div>';
+  }
+  /** The files of a pending bubble, from the device (local previews, no buttons). */
+  function msgLocalFilesHtml(files) {
+    var photos = files.filter(function (f) { return f.mime !== 'application/pdf'; });
+    var pdfs = files.filter(function (f) { return f.mime === 'application/pdf'; });
+    var html = '';
+    if (photos.length) {
+      html += '<div class="msg-files ' + (photos.length === 1 ? 'n1' : 'grid') + '">' + photos.map(function (f) {
+        return '<span class="msg-file-tile"><img class="msg-file-img" alt="' + esc(msgT('msgFilePhotoAlt', { name: f.name })) + '"' +
+          (f.thumbUrl ? ' src="' + esc(f.thumbUrl) + '"' : '') + '></span>';
+      }).join('') + '</div>';
+    }
+    pdfs.forEach(function (f) {
+      html += '<div class="msg-file-pdf">' +
+          '<span class="msg-file-pdf-icon" aria-hidden="true">' + icn(ICONS.fileText, 22) + '</span>' +
+          '<div class="msg-file-pdf-text">' +
+            '<div class="msg-file-pdf-name">' + esc(f.name) + '</div>' +
+            '<div class="msg-file-pdf-meta">' + esc(msgT('msgFilePdfMeta', { size: msgFmtSize(f.size) })) + '</div>' +
+          '</div>' +
+        '</div>';
+    });
+    return html;
+  }
+  function msgPendingBubbleHtml(e) {
+    return '<div class="msg from-client pending' + (e.state === 'failed' ? ' failed' : '') + '" data-msg-id="' + esc(e.id) + '">' +
+        '<div class="msg-author">You</div>' +
+        (e.body ? '<div class="msg-body">' + esc(e.body).replace(/\n/g, '<br/>') + '</div>' : '') +
+        msgLocalFilesHtml(e.files) +
+        '<div class="msg-pending-foot">' + msgPendingFootHtml(e) + '</div>' +
+      '</div>';
+  }
+  /** Bubbles for every pending entry the given thread does not already hold (matched by id). */
+  function msgPendingBubblesHtml(thread) {
+    var have = {};
+    (thread || []).forEach(function (m) { if (m && m.id) have[String(m.id).toLowerCase()] = true; });
+    return msgOutbox.filter(function (e) { return !have[e.id]; }).map(msgPendingBubbleHtml).join('');
+  }
+  /** Redraw one pending bubble's status in the CURRENT thread (it may have been re-rendered). */
+  function msgRefreshPending(e) {
+    var bubble = document.querySelector('#msg-thread .msg.pending[data-msg-id="' + e.id + '"]');
+    if (!bubble) return;
+    if (e.state === 'failed') bubble.classList.add('failed'); else bubble.classList.remove('failed');
+    var foot = bubble.querySelector('.msg-pending-foot');
+    if (foot) foot.innerHTML = msgPendingFootHtml(e);
+    // The newest bubble grew (Try again / Remove): keep it in view in the thread.
+    var thread = bubble.parentNode;
+    if (thread && thread.lastElementChild === bubble && (e.state === 'failed' || e.state === 'waiting')) thread.scrollTop = thread.scrollHeight;
+  }
+  function msgRevoke(files) {
+    (files || []).forEach(function (f) {
+      if (f.thumbUrl) { try { URL.revokeObjectURL(f.thumbUrl); } catch (e) {} f.thumbUrl = ''; }
+    });
+  }
+
+  // The pending record: survives a reload so the typed text is not lost. Never
+  // a token, a URL or file bytes: id, text, names/sizes/types and the time.
+  function msgPendingKey(portalId) { return 'mage_portal_pending_files_' + portalId; }
+  function msgLoadPendingRecords(portalId) {
+    try {
+      var raw = localStorage.getItem(msgPendingKey(portalId));
+      var list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+  }
+  function msgSavePendingRecords(portalId, list) {
+    try {
+      if (list.length) localStorage.setItem(msgPendingKey(portalId), JSON.stringify(list));
+      else localStorage.removeItem(msgPendingKey(portalId));
+    } catch (e) {}
+  }
+  function msgPersistEntry(e) {
+    var list = msgLoadPendingRecords(e.portalId).filter(function (r) { return r && r.id !== e.id; });
+    list.push({
+      id: e.id, body: e.body,
+      files: e.files.map(function (f) { return { name: f.name, size: f.size, mime: f.mime }; }),
+      createdAt: e.createdAt,
+    });
+    msgSavePendingRecords(e.portalId, list);
+  }
+  function msgDropRecord(portalId, id) {
+    msgSavePendingRecords(portalId, msgLoadPendingRecords(portalId).filter(function (r) { return r && r.id !== id; }));
+  }
+
+  // ── Talking to portal-message-files ──
+  function msgFnPost(payload) {
+    return fetch(msgFileFn(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC },
+      body: JSON.stringify(payload),
+    }).then(function (r) {
+      return r.json().then(
+        function (b) { return { status: r.status, body: (b && typeof b === 'object') ? b : {} }; },
+        function () { return { status: r.status, body: {} }; });
+    });
+  }
+  var MSG_WAITING = { kind: 'waiting' };
+  function msgFailFor(status) {
+    if (status === 401) return { kind: 'failed', reason: 'ended' };
+    if (status === 429) return { kind: 'failed', reason: 'busy' };
+    return { kind: 'failed', reason: 'server' };
+  }
+  function msgFileRef(f) {
+    var o = { id: f.id, name: f.name, mime: f.mime, size: f.size };
+    if (msgIsDim(f.width)) o.width = f.width;
+    if (msgIsDim(f.height)) o.height = f.height;
+    return o;
+  }
+
+  /** PUT one file to its signed upload URL (storage-js uploadToSignedUrl's shape), with real progress. */
+  function msgPut(e, f, url) {
+    return new Promise(function (resolve, reject) {
+      var xhr;
+      try {
+        xhr = new XMLHttpRequest();
+        xhr.open('PUT', url);
+        xhr.setRequestHeader('x-upsert', 'false');
+      } catch (err) { reject({ kind: 'failed', reason: 'server' }); return; }
+      var fd = new FormData();
+      fd.append('cacheControl', '3600');
+      fd.append('', f.blob);
+      if (xhr.upload) {
+        xhr.upload.onprogress = function (ev) {
+          if (ev && ev.lengthComputable && ev.total > 0) {
+            f.loaded = Math.min(f.size, Math.round(f.size * ev.loaded / ev.total));
+            msgRefreshPending(e);
+          }
+        };
+      }
+      xhr.onload = function () {
+        var st = xhr.status;
+        var dup = st === 409 || (st === 400 && /duplicate|already exists/i.test(String(xhr.responseText || '')));
+        if ((st >= 200 && st < 300) || dup) {
+          // A duplicate is a retry of an upload that landed; 'send' re-checks the bytes.
+          f.uploaded = true; f.loaded = f.size; msgRefreshPending(e); resolve(); return;
+        }
+        f.loaded = 0;
+        reject(st === 429 ? { kind: 'failed', reason: 'busy' } : { kind: 'failed', reason: 'server' });
+      };
+      xhr.onerror = function () { f.loaded = 0; reject(navigator.onLine === false ? MSG_WAITING : { kind: 'failed', reason: 'server' }); };
+      xhr.ontimeout = xhr.onerror;
+      xhr.onabort = function () { f.loaded = 0; reject({ kind: 'failed', reason: 'server' }); };
+      xhr.send(fd);
+    });
+  }
+
+  function msgUploadOne(e, f) {
+    return msgFnPost({
+      action: 'upload', portalId: e.portalId, token: getPortalToken(), messageId: e.id,
+      file: { id: f.id, name: f.name, mime: f.mime, size: f.size },
+    }).then(function (res) {
+      // 409: the file (or the whole message) is already there; 'send' re-verifies.
+      if (res.status === 409) { f.uploaded = true; f.loaded = f.size; msgRefreshPending(e); return; }
+      if (res.status !== 200) throw msgFailFor(res.status);
+      var url = res.body.uploadUrl;
+      if (!msgFileUrlOk(url)) throw { kind: 'failed', reason: 'server' };
+      return msgPut(e, f, url);
+    }, function () { throw MSG_WAITING; });
+  }
+
+  /** Upload `files`, at most 2 at a time; settles only when none is still running. */
+  function msgUploadAll(e, files) {
+    return new Promise(function (resolve, reject) {
+      var next = 0, active = 0, failure = null;
+      function pump() {
+        while (!failure && active < 2 && next < files.length) {
+          var f = files[next++];
+          active++;
+          msgUploadOne(e, f).then(function () {
+            active--; pump();
+          }, function (err) {
+            active--;
+            if (!failure) failure = err || { kind: 'failed', reason: 'server' };
+            pump();
+          });
+        }
+        if (active === 0 && (failure || next >= files.length)) {
+          if (failure) reject(failure); else resolve();
+        }
+      }
+      pump();
+    });
+  }
+
+  function msgSendEntry(e, reuploadsLeft) {
+    e.state = 'sending';
+    msgRefreshPending(e);
+    return msgFnPost({
+      action: 'send', portalId: e.portalId, token: getPortalToken(), messageId: e.id,
+      body: e.body, authorName: e.authorName, files: e.files.map(msgFileRef),
+    }).then(function (res) {
+      if (res.status === 200) return;
+      if (res.status === 422) {
+        var ids = Array.isArray(res.body.ids) ? res.body.ids.map(function (x) { return String(x).toLowerCase(); }) : [];
+        var named = e.files.filter(function (f) { return ids.indexOf(f.id) > -1; });
+        if (res.body.error === 'not_uploaded' && reuploadsLeft > 0 && named.length) {
+          // Storage does not have these: upload exactly those again, then send once more.
+          named.forEach(function (f) { f.uploaded = false; f.loaded = 0; });
+          e.state = 'uploading';
+          msgRefreshPending(e);
+          return msgUploadAll(e, named).then(function () { return msgSendEntry(e, reuploadsLeft - 1); });
+        }
+        if (res.body.error === 'file_rejected') {
+          // The function removed what it refused, so Try again uploads it afresh.
+          named.forEach(function (f) { f.uploaded = false; f.loaded = 0; });
+          throw { kind: 'failed', reason: 'rejected', name: (named[0] || e.files[0] || {}).name || '' };
+        }
+        throw { kind: 'failed', reason: 'server' };
+      }
+      throw msgFailFor(res.status);
+    }, function () { throw MSG_WAITING; });
+  }
+
+  /** Upload what is not uploaded yet, then send. Only the server row makes it "sent". */
+  function msgRunEntry(e) {
+    if (e.running || e.removed) return;
+    e.running = true;
+    e.state = 'uploading'; e.reason = null; e.failName = null;
+    msgRefreshPending(e);
+    var todo = e.files.filter(function (f) { return !f.uploaded; });
+    var run = navigator.onLine === false
+      ? Promise.reject(MSG_WAITING)
+      : msgUploadAll(e, todo).then(function () { return msgSendEntry(e, 1); });
+    run.then(function () {
+      e.running = false;
+      if (e.removed) return;
+      // The server took it. Still "Sending…" until the thread paints the row.
+      e.state = 'sending';
+      msgRefreshPending(e);
+      if (msgHooks.refresh) msgHooks.refresh();
+    }, function (err) {
+      e.running = false;
+      if (e.removed) return;
+      if (err && err.kind === 'waiting') {
+        e.state = 'waiting';
+      } else {
+        e.state = 'failed';
+        e.reason = (err && err.reason) || 'server';
+        e.failName = (err && err.name) || null;
+      }
+      msgRefreshPending(e);
+    });
+  }
+  /** Back online (or back on the tab): send what was waiting for a connection. */
+  function msgRetryWaiting() {
+    msgOutbox.forEach(function (e) { if (e.state === 'waiting' && !e.running) msgRunEntry(e); });
+  }
+  /** Remove drops the bubble and the record here. Nothing on the server changes. */
+  function msgRemoveEntry(id) {
+    var e = null;
+    msgOutbox = msgOutbox.filter(function (x) { if (x.id === id) { e = x; return false; } return true; });
+    if (!e) return;
+    e.removed = true;
+    msgRevoke(e.files);
+    msgDropRecord(e.portalId, e.id);
+    var bubble = document.querySelector('#msg-thread .msg.pending[data-msg-id="' + e.id + '"]');
+    if (bubble) bubble.remove();
+  }
+  /** Server rows that carry a pending entry's id replace it: the message is sent. */
+  function msgSettleOutbox(serverIds) {
+    msgOutbox = msgOutbox.filter(function (e) {
+      if (!serverIds[e.id]) return true;
+      e.removed = true;
+      msgRevoke(e.files);
+      msgDropRecord(e.portalId, e.id);
+      return false;
+    });
+  }
+
+  // ── Signing the thread's files (display URLs, memory only) ──
+  function msgApplyUrls() {
+    document.querySelectorAll('#msg-thread img.msg-file-img[data-msg-att]').forEach(function (img) {
+      var att = img.getAttribute('data-msg-att');
+      if (msgImgFailed[att] || !msgUrlFresh(att)) return;
+      var url = msgFileUrls[att].url;
+      if (img.getAttribute('src') !== url) img.setAttribute('src', url);
+    });
+  }
+  function msgFindMessage(id) {
+    for (var i = 0; i < msgRows.length; i++) if (msgRows[i] && String(msgRows[i].id).toLowerCase() === id) return msgRows[i];
+    return null;
+  }
+  function msgEnded() {
+    msgSignStopped = true;
+    msgFileUrls = {};
+    showPortalProblem('denied');
+  }
+  /** Sign the files of `messages` that have no fresh URL (all of them when `force`). */
+  function msgSign(messages, force) {
+    var data = msgHooks.data;
+    var token = getPortalToken();
+    if (msgSignStopped || !data || !data.portalApi || !token) return;
+    var ids = [];
+    (messages || []).forEach(function (m) {
+      var id = String((m && m.id) || '').toLowerCase();
+      if (!MSG_UUID_RE.test(id) || msgSignInFlight[id] || ids.indexOf(id) > -1) return;
+      var atts = msgParseAttachments(m.attachments);
+      if (!atts.length) return;
+      if (force || atts.some(function (a) { return !msgUrlFresh(a.id); })) ids.push(id);
+    });
+    for (var i = 0; i < ids.length; i += 50) msgSignChunk(data.portalApi.portalId, ids.slice(i, i + 50));
+  }
+  function msgSignChunk(portalId, ids) {
+    ids.forEach(function (id) { msgSignInFlight[id] = true; });
+    msgFnPost({ action: 'urls', portalId: portalId, token: getPortalToken(), messageIds: ids }).then(function (res) {
+      if (res.status === 401) { msgEnded(); return; }
+      var urls = res.status === 200 && res.body.urls && typeof res.body.urls === 'object' ? res.body.urls : {};
+      var now = Date.now();
+      Object.keys(urls).forEach(function (k) {
+        if (msgFileUrlOk(urls[k])) msgFileUrls[String(k).toLowerCase()] = { url: urls[k], at: now };
+      });
+    }, function () { /* tiles stay placeholders; the next paint asks again */ }).then(function () {
+      ids.forEach(function (id) { delete msgSignInFlight[id]; });
+      msgApplyUrls();
+    });
+  }
+  /** A signed image that will not load: sign that message again once, then say so on the tile. */
+  function msgImgError(img) {
+    var att = img.getAttribute('data-msg-att');
+    var m = msgFindMessage(String(img.getAttribute('data-msg-id') || '').toLowerCase());
+    img.removeAttribute('src');
+    delete msgFileUrls[att];
+    if (!msgImgRetried[att] && m) {
+      msgImgRetried[att] = true;
+      msgSign([m], true);
+      return;
+    }
+    msgImgFailed[att] = true;
+    var tile = img.closest('.msg-file-tile');
+    if (tile && !tile.classList.contains('failed')) {
+      tile.classList.add('failed');
+      var note = document.createElement('span');
+      note.className = 'msg-file-failed';
+      note.textContent = t('msgFilePhotoFailed');
+      tile.appendChild(note);
+    }
+  }
+  function msgImgRetry(tile, att, msgId) {
+    delete msgImgFailed[att];
+    msgImgRetried[att] = false;
+    tile.classList.remove('failed');
+    var note = tile.querySelector('.msg-file-failed');
+    if (note) note.remove();
+    var m = msgFindMessage(msgId);
+    if (m) msgSign([m], true);
+  }
+
+  /** PDF Open / Download: a tab opened in the tap itself (pop-up rules), pointed at a fresh URL. */
+  function msgOpenFile(act, msgId, attId) {
+    var data = msgHooks.data;
+    if (!data || !data.portalApi) return;
+    var win = null;
+    try { win = window.open('', '_blank'); } catch (e) { win = null; }
+    if (!win) { msgShowNote(t('msgFilePopupBlocked')); return; }
+    try { win.opener = null; } catch (e) {}
+    function fail() { try { win.close(); } catch (e) {} msgShowNote(t('msgFileOpenFailed')); }
+    var payload = act === 'download'
+      ? { action: 'download', portalId: data.portalApi.portalId, token: getPortalToken(), messageId: msgId, attachmentId: attId }
+      : { action: 'urls', portalId: data.portalApi.portalId, token: getPortalToken(), messageIds: [msgId] };
+    msgFnPost(payload).then(function (res) {
+      if (res.status === 401) { try { win.close(); } catch (e) {} msgEnded(); return; }
+      var url = res.status !== 200 ? null : (act === 'download' ? res.body.url : (res.body.urls && res.body.urls[attId]));
+      if (!msgFileUrlOk(url)) { fail(); return; }
+      try { win.location.href = url; } catch (e) { fail(); }
+    }, fail);
+  }
+
+  // ── The composer: tray, picking, note ──
+  function msgShowNote(text) {
+    var el = document.getElementById('msg-note');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = false;
+  }
+  function msgHideNote() {
+    var el = document.getElementById('msg-note');
+    if (el) { el.textContent = ''; el.hidden = true; }
+  }
+  function msgPaintTray() {
+    var tray = document.getElementById('msg-tray');
+    var count = document.getElementById('msg-attach-count');
+    if (count) {
+      count.textContent = msgTray.length ? String(msgTray.length) : '';
+      count.hidden = !msgTray.length;
+    }
+    if (!tray) return;
+    tray.hidden = !msgTray.length;
+    tray.innerHTML = msgTray.map(function (f) {
+      var isPdf = f.mime === 'application/pdf';
+      return '<div class="msg-chip' + (!isPdf && f.thumbUrl ? ' photo' : '') + '" data-tray-id="' + esc(f.id) + '">' +
+          (isPdf
+            ? '<span class="msg-chip-icon" aria-hidden="true">' + icn(ICONS.fileText, 20) + '</span>' +
+              '<span class="msg-chip-text"><span class="msg-chip-name">' + esc(f.name) + '</span><span>' + esc(msgFmtSize(f.size)) + '</span></span>'
+            : (f.thumbUrl
+                ? '<img class="msg-chip-img" alt="' + esc(msgT('msgFilePhotoAlt', { name: f.name })) + '" src="' + esc(f.thumbUrl) + '">'
+                : '<span class="msg-chip-icon" aria-hidden="true">' + icn(ICONS.image, 20) + '</span>' +
+                  '<span class="msg-chip-text"><span class="msg-chip-name">' + esc(f.name) + '</span></span>')) +
+          '<button type="button" class="msg-chip-x" data-tray-remove="' + esc(f.id) + '" aria-label="' + esc(msgT('msgFileRemove', { name: f.name })) + '">×</button>' +
+        '</div>';
+    }).join('');
+  }
+  function msgTrayRemove(id) {
+    msgTray = msgTray.filter(function (f) {
+      if (f.id !== id) return true;
+      msgRevoke([f]);
+      return false;
+    });
+    msgPaintTray();
+  }
+  function msgRefusalText(r) {
+    var name = (r.file && r.file.name) || '';
+    if (r.reason === 'count') return t('msgFileRefuseCount');
+    if (r.reason === 'size') return msgT('msgFileRefuseSize', { name: name, size: msgFmtSize(r.size != null ? r.size : (r.file && r.file.size)) });
+    if (r.reason === 'empty') return msgT('msgFileRefuseEmpty', { name: name });
+    if (r.reason === 'decode') return t('msgFileRefuseDecode');
+    return msgT('msgFileRefuseType', { name: name });
+  }
+  function msgReadHead(file) {
+    var part = file.slice(0, 16);
+    if (part && typeof part.arrayBuffer === 'function') {
+      return part.arrayBuffer().then(function (b) { return new Uint8Array(b); });
+    }
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(new Uint8Array(fr.result)); };
+      fr.onerror = function () { reject(fr.error); };
+      fr.readAsArrayBuffer(part);
+    });
+  }
+  /**
+   * A photo drawn at most 2560 px on the long edge and re-encoded as JPEG 0.85
+   * (fast on a phone connection, and it drops the embedded location data),
+   * except a PNG of 4 MB or less (screenshots stay sharp). No decoder in this
+   * browser: the original file. Neither createImageBitmap nor an <img> can
+   * read it: { failed } (the 'decode' refusal).
+   */
+  function msgDecodeViaImg(file) {
+    return new Promise(function (resolve, reject) {
+      var url = msgObjectUrl(file);
+      if (!url || typeof Image !== 'function') { reject(new Error('no decoder')); return; }
+      var img = new Image();
+      img.onload = function () {
+        resolve({ src: img, width: img.naturalWidth, height: img.naturalHeight, close: function () { try { URL.revokeObjectURL(url); } catch (e) {} } });
+      };
+      img.onerror = function () { try { URL.revokeObjectURL(url); } catch (e) {} reject(new Error('decode')); };
+      img.src = url;
+    });
+  }
+  function msgPrepareImage(file, mime) {
+    if (typeof window.createImageBitmap !== 'function') return Promise.resolve({ blob: file, mime: mime });
+    return window.createImageBitmap(file, { imageOrientation: 'from-image' })
+      .catch(function () { return window.createImageBitmap(file); })
+      .then(function (bmp) {
+        return { src: bmp, width: bmp.width, height: bmp.height, close: function () { try { if (bmp.close) bmp.close(); } catch (e) {} } };
+      })
+      .catch(function () { return msgDecodeViaImg(file); })
+      .then(function (dec) {
+        var w = dec.width, h = dec.height;
+        if (!(w > 0) || !(h > 0)) { dec.close(); return { failed: true }; }
+        if (mime === 'image/png' && file.size <= MSG_PNG_KEEP_BYTES) { dec.close(); return { blob: file, mime: mime, width: w, height: h }; }
+        var scale = Math.min(1, MSG_IMAGE_LONG_EDGE / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext && canvas.getContext('2d');
+        if (!ctx || typeof canvas.toBlob !== 'function') { dec.close(); return { blob: file, mime: mime, width: w, height: h }; }
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(dec.src, 0, 0, cw, ch);
+        dec.close();
+        return new Promise(function (resolve) {
+          canvas.toBlob(function (b) {
+            resolve(b ? { blob: b, mime: 'image/jpeg', width: cw, height: ch } : { blob: file, mime: mime, width: w, height: h });
+          }, 'image/jpeg', 0.85);
+        });
+      }, function () { return { failed: true }; });
+  }
+  /** The name the message carries: last path segment, no control characters, the extension the bytes now have. */
+  function msgCleanName(name, mime) {
+    var s = String(name || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f-\u009f]/g, '').replace(/\s+/g, ' ').trim();
+    if (mime === 'image/jpeg' && s && !/\.(jpe?g)$/i.test(s)) s = s.replace(/\.[A-Za-z0-9]{1,5}$/, '') + '.jpg';
+    if (!s || /^\.*$/.test(s)) s = mime === 'application/pdf' ? 'Document.pdf' : 'Photo.jpg';
+    return s.length > 200 ? s.slice(s.length - 200) : s;
+  }
+  function msgObjectUrl(blob) {
+    try { return (window.URL && typeof URL.createObjectURL === 'function') ? URL.createObjectURL(blob) : ''; }
+    catch (e) { return ''; }
+  }
+  function msgPrepareOne(file, already) {
+    if (already >= MSG_FILE_MAX_COUNT) return Promise.resolve({ ok: false, reason: 'count' });
+    return msgReadHead(file).then(function (head) {
+      // Size is checked after preparation: a 25 MB phone photo comes out far smaller.
+      var pre = msgFileCheck({ type: file.type, name: file.name, size: file.size === 0 ? 0 : null }, head, already);
+      if (!pre.ok) return pre;
+      var prep = pre.mime === 'application/pdf' ? Promise.resolve({ blob: file, mime: pre.mime }) : msgPrepareImage(file, pre.mime);
+      return prep.then(function (p) {
+        if (!p || p.failed) return { ok: false, reason: 'decode' };
+        var post = msgFileCheck({ type: p.mime, name: file.name, size: p.blob.size }, null, already);
+        if (!post.ok) return { ok: false, reason: post.reason, size: p.blob.size };
+        // Re-wrapped with the checked type: Storage records the part's type, and
+        // 'send' refuses a file whose stored type is not the one the row names.
+        var blob = new Blob([p.blob], { type: p.mime });
+        return {
+          ok: true,
+          item: {
+            id: msgUuid(), name: msgCleanName(file.name, p.mime), mime: p.mime, size: blob.size,
+            width: p.width, height: p.height, blob: blob,
+            thumbUrl: p.mime === 'application/pdf' ? '' : msgObjectUrl(blob),
+          },
+        };
+      });
+    }).catch(function () { return { ok: false, reason: 'type' }; });
+  }
+  /** Add picked or dropped files to the tray, in order; one note names the first refused file. */
+  function msgAddFiles(list) {
+    var files = Array.prototype.slice.call(list || []);
+    if (!files.length) return msgPickChain;
+    msgPicking++;
+    msgPickChain = msgPickChain.then(function () {
+      var firstRefusal = null;
+      var seq = Promise.resolve();
+      files.forEach(function (file) {
+        seq = seq.then(function () {
+          return msgPrepareOne(file, msgTray.length).then(function (r) {
+            if (r.ok) { msgTray.push(r.item); msgPaintTray(); }
+            else if (!firstRefusal) firstRefusal = { reason: r.reason, file: file, size: r.size };
+          });
+        });
+      });
+      return seq.then(function () {
+        if (firstRefusal) msgShowNote(msgRefusalText(firstRefusal)); else msgHideNote();
+      });
+    }).catch(function () {}).then(function () { msgPicking--; });
+    return msgPickChain;
+  }
+  function msgUuid() {
+    var c = window.crypto;
+    if (c && typeof c.randomUUID === 'function') {
+      try { return String(c.randomUUID()).toLowerCase(); } catch (e) {}
+    }
+    var b = new Uint8Array(16);
+    if (c && typeof c.getRandomValues === 'function') c.getRandomValues(b);
+    else for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    var h = Array.prototype.map.call(b, function (x) { return (x + 0x100).toString(16).slice(1); }).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+  }
+  /** Send the tray with this text: the bubble is drawn at once and is never "sent" until the server row paints. */
+  function msgSendWithFiles(data, body, clientName) {
+    var files = msgTray.splice(0, msgTray.length);
+    var e = {
+      id: msgUuid(), portalId: data.portalApi.portalId, body: body, authorName: clientName || '',
+      createdAt: new Date().toISOString(), state: 'uploading',
+      files: files.map(function (f) {
+        return { id: f.id, name: f.name, mime: f.mime, size: f.size, width: f.width, height: f.height, blob: f.blob, thumbUrl: f.thumbUrl, uploaded: false, loaded: 0 };
+      }),
+    };
+    msgOutbox.push(e);
+    msgPersistEntry(e);
+    var thread = document.getElementById('msg-thread');
+    if (thread) {
+      var emptyEl = thread.querySelector('.empty-section');
+      if (emptyEl) emptyEl.remove();
+      thread.insertAdjacentHTML('beforeend', msgPendingBubbleHtml(e));
+      thread.scrollTop = thread.scrollHeight;
+    }
+    msgPaintTray();
+    msgHideNote();
+    msgRunEntry(e);
+  }
+  /**
+   * Once per page load, after the first live thread: a pending record whose
+   * message never reached the server lost its files with the page. Say so,
+   * put the text back, drop the record.
+   */
+  function msgRestorePending(rows) {
+    var data = msgHooks.data;
+    if (msgRestoreDone || !rows || !data || !data.portalApi) return;
+    msgRestoreDone = true;
+    var portalId = data.portalApi.portalId;
+    var live = {};
+    rows.forEach(function (m) { if (m && m.id) live[String(m.id).toLowerCase()] = true; });
+    var mine = {};
+    msgOutbox.forEach(function (e) { mine[e.id] = true; });
+    var keep = [], lost = [];
+    msgLoadPendingRecords(portalId).forEach(function (r) {
+      if (!r || typeof r.id !== 'string') return;
+      if (mine[r.id]) { keep.push(r); return; }
+      if (live[r.id]) return;
+      lost.push(r);
+    });
+    msgSavePendingRecords(portalId, keep);
+    if (!lost.length) return;
+    var last = lost[lost.length - 1];
+    var input = document.getElementById('msg-input');
+    if (input && typeof last.body === 'string' && last.body) {
+      input.value = input.value ? input.value + '\n' + last.body : last.body;
+      try { input.dispatchEvent(new Event('input')); } catch (e) {}
+    }
+    msgShowNote(lost.length === 1 ? t('msgFileNotKeptOne') : msgT('msgFileNotKeptOther', { count: lost.length }));
+  }
+
+  // The validator (jsdom, flag set before the page runs) and a localhost dev
+  // server get the pure helpers; production never has this object.
+  try {
+    if (window.location.hostname === 'localhost' || window.__MSG_FILES_TEST__ === true) {
+      window.__msgFilesTest = {
+        MSG_FILE_MAX_BYTES: MSG_FILE_MAX_BYTES, MSG_FILE_MAX_COUNT: MSG_FILE_MAX_COUNT,
+        MSG_FILE_MIMES: MSG_FILE_MIMES.slice(), MSG_FILE_URL_REFRESH_MS: MSG_FILE_URL_REFRESH_MS,
+        msgFileFn: msgFileFn, msgFileCheck: msgFileCheck, msgFileSniff: msgFileSniff,
+        msgFileNormalizeMime: msgFileNormalizeMime, renderAttachmentsHtml: renderAttachmentsHtml,
+        msgFileUrlOk: msgFileUrlOk, msgParseAttachments: msgParseAttachments, msgFmtSize: msgFmtSize,
+      };
+    }
+  } catch (e) {}
 
   async function postCOApproval(api, payload) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
@@ -8425,7 +9418,17 @@
           }
         });
         msgSend.addEventListener('click', async function () {
+          // Files still being read or downsized join this message, not the next.
+          if (msgPicking > 0) await msgPickChain;
           var body = (msgInput.value || '').trim();
+          // Photos / PDFs in the tray: the portal-message-files path (text may be
+          // empty). A text-only message keeps the portal_post_message path below.
+          if (msgTray.length && document.getElementById('msg-tray')) {
+            msgSendWithFiles(data, body, clientName);
+            msgInput.value = '';
+            autoGrow();
+            return;
+          }
           if (!body) return;
           msgSend.disabled = true;
           var prevText = msgSend.textContent;
@@ -8458,9 +9461,17 @@
         // disturb the compose box or anything else on the page.
         function paintThread(rows) {
           if (!rows) return;
+          // A photo / PDF message the server now holds replaces its pending
+          // bubble: matched by id, never by text.
+          var serverIds = {};
+          rows.forEach(function (m) { if (m && m.id) serverIds[String(m.id).toLowerCase()] = true; });
+          msgSettleOutbox(serverIds);
           // De-dupe local-only optimistic bubbles that now exist server-side.
+          // (The local mirror holds TEXT messages only, so rows with files
+          // never stand in for one.)
           var seenBodies = {};
           rows.forEach(function (m) {
+            if (m.attachments && m.attachments.length) return;
             var key = (m.authorType || '') + '|' + (m.body || '');
             seenBodies[key] = true;
           });
@@ -8470,27 +9481,34 @@
           saveLocalMessages(data.portalApi.portalId, localOnly);
 
           var combined = rows.concat(localOnly);
-          if (!combined.length) {
+          var pendingHtml = msgPendingBubblesHtml(rows);
+          msgRows = rows;
+          if (!combined.length && !pendingHtml) {
             msgThread.innerHTML = '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
             return;
           }
+          var attOpts = msgAttachmentOpts();
           msgThread.innerHTML = combined.map(function (m) {
             var who = m.authorType === 'client' ? 'You' : (m.authorName || 'Contractor');
             var localCls = m.local ? ' local' : '';
+            var atts = msgParseAttachments(m.attachments);
             return (
               '<div class="msg from-' + m.authorType + localCls + '">' +
                 '<div class="msg-author">' + esc(who) + '</div>' +
-                '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' +
+                ((m.body || !atts.length) ? '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' : '') +
+                renderAttachmentsHtml({ id: m.id, attachments: atts }, attOpts) +
                 '<div class="msg-time">' + esc(timeAgo(m.createdAt)) + '</div>' +
               '</div>'
             );
-          }).join('');
+          }).join('') + pendingHtml;
           msgThread.scrollTop = msgThread.scrollHeight;
+          msgSign(rows, false);
         }
 
         function refreshLiveThread() {
           fetchLiveMessages(data.portalApi).then(function (rows) {
             paintThread(rows);
+            msgRestorePending(rows);
             // Only after a real paint that holds a contractor message.
             if (rows && rows.some(function (m) { return m.authorType === 'gc'; })) {
               markContractorMessagesRead(data.portalApi);
@@ -8517,6 +9535,97 @@
             liveTimer = setInterval(refreshLiveThread, 15000);
           }
         });
+
+        // ── Photos and PDFs (lane MSGPORTAL) ──
+        msgHooks.data = data;
+        msgHooks.refresh = refreshLiveThread;
+        msgRows = (data.messages || []).slice();
+        msgPaintTray(); // a re-render keeps what was picked
+        var msgAttach = document.getElementById('msg-attach');
+        var msgFile = document.getElementById('msg-file');
+        var msgTrayEl = document.getElementById('msg-tray');
+        if (msgAttach && msgFile && msgTrayEl) {
+          msgAttach.addEventListener('click', function () { msgFile.click(); });
+          msgFile.addEventListener('change', function () {
+            var picked = Array.prototype.slice.call(msgFile.files || []);
+            try { msgFile.value = ''; } catch (e) {}
+            msgAddFiles(picked);
+          });
+          msgTrayEl.addEventListener('click', function (ev) {
+            var x = ev.target && ev.target.closest ? ev.target.closest('[data-tray-remove]') : null;
+            if (x) msgTrayRemove(x.getAttribute('data-tray-remove'));
+          });
+          // Desktop: drop files anywhere on the Messages section.
+          var msgSec = document.getElementById('sec-messages');
+          var hasFiles = function (ev) {
+            var types = ev.dataTransfer && ev.dataTransfer.types;
+            return !!types && Array.prototype.indexOf.call(types, 'Files') > -1;
+          };
+          onRender(msgSec, 'dragover', function (ev) {
+            if (!hasFiles(ev)) return;
+            ev.preventDefault();
+            try { ev.dataTransfer.dropEffect = 'copy'; } catch (e) {}
+          });
+          onRender(msgSec, 'drop', function (ev) {
+            if (!hasFiles(ev)) return;
+            ev.preventDefault();
+            msgAddFiles(ev.dataTransfer.files);
+          });
+        }
+        // Sends that were waiting for a connection go when it is back (while
+        // this page is open), or when the tab is visible again.
+        onRender(window, 'online', msgRetryWaiting);
+        onRender(document, 'visibilitychange', function () {
+          if (!document.hidden) msgRetryWaiting();
+        });
+        // Display URLs last 300 s: re-sign while the tab is visible (one timer).
+        var msgSignTimer = setInterval(function () {
+          if (!document.hidden) msgSign(msgRows, true);
+        }, MSG_FILE_URL_REFRESH_MS);
+        renderCleanups.push(function () { clearInterval(msgSignTimer); });
+        msgSign(msgRows, false);
+        // The thread's own taps (it is rebuilt on every poll, so delegated).
+        msgThread.addEventListener('click', function (ev) {
+          var el = ev.target && ev.target.closest ? ev.target.closest('[data-msg-act]') : null;
+          if (!el || !msgThread.contains(el)) return;
+          var act = el.getAttribute('data-msg-act');
+          var msgId = String(el.getAttribute('data-msg-id') || '').toLowerCase();
+          var attId = String(el.getAttribute('data-msg-att') || '').toLowerCase();
+          if (act === 'retry') {
+            var entry = msgOutbox.filter(function (x) { return x.id === msgId; })[0];
+            if (entry) msgRunEntry(entry);
+            return;
+          }
+          if (act === 'remove') { msgRemoveEntry(msgId); return; }
+          if (act === 'open' || act === 'download') { msgOpenFile(act, msgId, attId); return; }
+          var m = msgFindMessage(msgId);
+          if (act === 'more') {
+            msgExpanded[msgId] = true;
+            var grid = el.closest('.msg-files');
+            if (grid && m) {
+              grid.outerHTML = msgPhotosHtml({ id: msgId, attachments: m.attachments }, msgAttachmentOpts());
+              msgApplyUrls();
+            }
+            return;
+          }
+          if (act === 'photo') {
+            if (el.classList.contains('failed')) { msgImgRetry(el, attId, msgId); return; }
+            if (!msgUrlFresh(attId)) { if (m) msgSign([m], true); return; }
+            var att = msgParseAttachments(m && m.attachments).filter(function (a) { return a.id === attId; })[0];
+            lbMode = 'single';
+            lbImg.src = msgFileUrls[attId].url;
+            if (lbSvg) { lbSvg.innerHTML = ''; lbSvg.style.display = 'none'; }
+            if (lbCap) { lbCap.textContent = att ? att.name : ''; lbCap.style.display = ''; }
+            if (lbPrev) lbPrev.style.display = 'none';
+            if (lbNext) lbNext.style.display = 'none';
+            lbEl.classList.add('open');
+          }
+        });
+        // Image load errors do not bubble: listen in the capture phase.
+        msgThread.addEventListener('error', function (ev) {
+          var img = ev.target;
+          if (img && img.tagName === 'IMG' && img.hasAttribute('data-msg-att')) msgImgError(img);
+        }, true);
       }
     }
 
