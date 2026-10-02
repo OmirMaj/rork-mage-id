@@ -71,7 +71,7 @@ function setup(opts: { reduce?: boolean; overflow?: boolean; frameW?: number } =
   Object.defineProperty(track, 'clientWidth', { configurable: true, value: 400 });
 }
 const run = () => { new Function('window', 'document', JS)(window, document); };
-const io = () => observers.find((o) => (o.opts as { rootMargin?: string }).rootMargin === '0px 0px -10% 0px')!;
+const io = () => observers.find((o) => (o.opts as { rootMargin?: string }).rootMargin === '0px 0px -20% 0px')!;
 function enter(el: Element) {
   inIOCallback = true;
   try { io().cb([{ target: el, isIntersecting: true }]); } finally { inIOCallback = false; }

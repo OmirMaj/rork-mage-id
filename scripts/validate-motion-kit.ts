@@ -641,6 +641,63 @@ async function main() {
     for (const s of Object.values(K.KIT_SPRING)) for (let t = 0; t <= 800; t += 3.7) portErr = Math.max(portErr, Math.abs(MageMotion.springAt(t, s, 0, 1) - K.springAt(t, s, 0, 1)));
   }
   ok(`K5.3 MageMotion.springAt equals springAt on a grid within 1e-3 (max ${Number.isFinite(portErr) ? portErr.toExponential(2) : '—'})`, portErr <= 1e-3);
+
+  // K5.9 (lane MKITG7, kit gap G7) — a group of any height starts. The start observer used
+  // to fire at a ratio of 0.2 (intersection / target height) inside a root shrunk 10% at the
+  // bottom, so a group taller than 4.5 screens never got there and sat at opacity 0. The kit
+  // runs against a fake window; the fake IO delivers an entry only when a browser would: the
+  // ratio has reached one of the observer's thresholds (a threshold of 0 means any overlap).
+  type G7Entry = { target: unknown; isIntersecting: boolean; intersectionRatio: number };
+  type G7Opts = { threshold?: number | number[]; rootMargin?: string };
+  const g7: string[] = [];
+  const g7IOs: { cb: (e: G7Entry[]) => void; opts: G7Opts; watched: Set<unknown> }[] = [];
+  class G7IO {
+    watched = new Set<unknown>();
+    constructor(public cb: (e: G7Entry[]) => void, public opts: G7Opts = {}) { g7IOs.push(this); }
+    observe(el: unknown) { this.watched.add(el); }
+    unobserve(el: unknown) { this.watched.delete(el); }
+    disconnect() { this.watched.clear(); }
+  }
+  const G7_VH = 800;
+  const g7El = (top: number, h: number) => {
+    const cls = new Set<string>();
+    return {
+      cls,
+      getAttribute: (n: string) => (n === 'data-mk' ? 'rise' : null),
+      getBoundingClientRect: () => ({ top, bottom: top + h, left: 0, right: 600, width: 600, height: h }),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      classList: { add: (c: string) => { cls.add(c); }, remove: (c: string) => { cls.delete(c); }, contains: (c: string) => cls.has(c), toggle: (c: string, f?: boolean) => { if (f ?? !cls.has(c)) cls.add(c); else cls.delete(c); } },
+      style: { setProperty: () => undefined },
+    };
+  };
+  const g7Tall = g7El(2 * G7_VH, 6 * G7_VH); // below the fold, 6 screens tall
+  const g7Short = g7El(9 * G7_VH, 0.5 * G7_VH); // below the fold, half a screen tall
+  try {
+    const doc = { readyState: 'complete', querySelectorAll: (sel: string) => (sel === '[data-mk]' ? [g7Tall, g7Short] : []), addEventListener: () => undefined };
+    const win = { document: doc, innerHeight: G7_VH, IntersectionObserver: G7IO, MageMotion: undefined as unknown };
+    new Function('window', 'document', 'setTimeout', 'clearTimeout', jsRaw)(win, doc, () => 0, () => undefined);
+  } catch (e) {
+    g7.push(`the kit threw on a fake window: ${String(e)}`);
+  }
+  const g7Start = g7IOs.find((o) => o.watched.has(g7Tall));
+  const g7Th = g7Start ? ([] as number[]).concat(g7Start.opts.threshold ?? 0) : [];
+  const g7Fire = (target: ReturnType<typeof g7El>, ratio: number) => {
+    if (g7Start && g7Th.some((t) => (t === 0 ? ratio > 0 : ratio >= t))) g7Start.cb([{ target, isIntersecting: true, intersectionRatio: ratio }]);
+  };
+  const g7Started = (x: ReturnType<typeof g7El>) => x.cls.has('mk-in') || x.cls.has('mk-run');
+  if (!g7Start) g7.push('no IntersectionObserver watches the armed 6-screen group');
+  if (!g7Tall.cls.has('mk-armed') || !g7Short.cls.has('mk-armed')) g7.push('a below-fold group was not armed at init');
+  // (a) threshold 0 and the root's bottom 20% left out (a group starts once its top is 20% up the screen).
+  if (g7Start && !(g7Th.length === 1 && g7Th[0] === 0)) g7.push(`(a) start observer threshold ${JSON.stringify(g7Start.opts.threshold)}, want 0`);
+  if (g7Start && g7Start.opts.rootMargin !== '0px 0px -20% 0px') g7.push(`(a) start observer rootMargin ${String(g7Start.opts.rootMargin)}, want '0px 0px -20% 0px'`);
+  // (b) the 6-screen group at ratio 0.15 (the most of it a screen can show) starts.
+  g7Fire(g7Tall, 0.15);
+  if (!g7Started(g7Tall)) g7.push('(b) the 6-screen group at ratio 0.15 did not start (kit gap G7)');
+  // (c) a half-screen group at ratio 0.25 still starts (the short-group behavior kept).
+  g7Fire(g7Short, 0.25);
+  if (!g7Started(g7Short)) g7.push('(c) the half-screen group at ratio 0.25 did not start');
+  ok('K5.9 the start observer starts a group of any height: threshold 0, rootMargin -20% bottom; a 6-screen group at ratio 0.15 and a half-screen group at 0.25 both start', g7.length === 0, g7.join('\n'));
   const jsGz = gzipSync(Buffer.from(jsRaw)).length;
   ok(`K5.4 motion-kit.js ≤ 16 000 bytes raw (${Buffer.byteLength(jsRaw)}) and ≤ 5 200 gzip (${jsGz}); motion-kit.css ≤ 6 000 raw (${Buffer.byteLength(cssRaw)})`,
     Buffer.byteLength(jsRaw) <= 16000 && jsGz <= 5200 && Buffer.byteLength(cssRaw) <= 6000);

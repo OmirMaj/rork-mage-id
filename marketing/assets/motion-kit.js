@@ -239,7 +239,7 @@
 
   var io = new window.IntersectionObserver(function (entries) {
     entries.forEach(function (e) { if (e.isIntersecting) { io.unobserve(e.target); start(e.target); } });
-  }, { threshold: 0.2, rootMargin: '0px 0px -10% 0px' });
+  }, { threshold: 0, rootMargin: '0px 0px -20% 0px' });
 
   function sidebar(el, g) {
     var marker = el.querySelector('[data-mk-marker]'), navs = $$(el, '[data-mk-nav]');
