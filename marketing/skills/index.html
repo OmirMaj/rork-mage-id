@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#ECEDE9" />
+<meta name="robots" content="noindex" />
+<!-- The check code is in this page's address. No Referer leaves it, and the page
+     loads no analytics and no third-party script or font, so the code goes only
+     to the MAGE ID check (skill-certificate-verify). -->
+<meta name="referrer" content="no-referrer" />
+<title>Check a MAGE ID skills certificate</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  /* Equipment green on concrete (the marketing site's tokens). A plain
+     document: one column, no decoration that could read as a credential. */
+  :root {
+    --ink: #0B0D10; --brand: #2F6B3A; --brand-on-dark: #5DB36E;
+    --ground: #ECEDE9; --off: #FFFFFF; --hairline: #D7DAD4; --bone: #E2E4DF;
+    --text-dark: #12171C; --text-muted: #5C6673;
+    --warning: #8A4B00; --warning-tint: #FFF4E0;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --ff-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
+  body { font-family: var(--ff-sans); background: var(--ground); color: var(--text-dark); line-height: 1.55; font-size: 16px; min-height: 100vh; overflow-wrap: anywhere; }
+
+  a { color: var(--brand); }
+  :where(a):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 56px; }
+  .brandbar { display: flex; align-items: center; gap: 10px; padding: 8px 0 24px; color: var(--text-muted); font-size: 14px; font-weight: 600; }
+  .brandmark { width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--brand-on-dark); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; }
+
+  .doc { background: var(--off); border: 1px solid var(--hairline); border-radius: 12px; padding: 28px 24px; }
+  h1 { font-family: var(--ff-display); font-size: clamp(24px, 6vw, 32px); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+  .awarded { margin-top: 20px; font-size: 18px; }
+  .awarded strong { font-weight: 700; }
+  .name-note { margin-top: 4px; font-size: 14px; color: var(--text-muted); }
+  .facts { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bone); display: grid; gap: 6px; }
+  .scope { margin-top: 20px; }
+  .scope-note { margin-top: 12px; font-size: 14px; color: var(--text-muted); }
+  .state-line { font-size: 17px; }
+  .doc.warn { background: var(--warning-tint); border-color: rgba(138,75,0,0.35); }
+  .doc.warn .state-line { color: var(--warning); font-weight: 600; }
+  [hidden] { display: none !important; }
+
+  .home { margin-top: 24px; font-size: 14px; color: var(--text-muted); }
+  .home a { display: inline-block; min-height: 24px; line-height: 24px; }
+
+  @media print {
+    body { background: #FFFFFF; }
+    .home { display: none; }
+    .doc { border: 0; padding: 0; }
+    .wrap { padding: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brandbar"><span class="brandmark" aria-hidden="true">M</span><span>MAGE ID</span></div>
+
+  <main id="main">
+    <section id="loading" class="doc" aria-live="polite">
+      <p class="state-line">Checking this certificate…</p>
+    </section>
+
+    <section id="found" class="doc" hidden>
+      <h1 id="cert-title"></h1>
+      <p class="awarded">Awarded to <strong id="cert-name"></strong></p>
+      <p class="name-note" id="cert-name-note">The name is the one the account holder typed. MAGE ID does not check identity.</p>
+      <div class="facts">
+        <p id="cert-score"></p>
+        <p id="cert-issued"></p>
+      </div>
+      <p class="scope" id="cert-scope"></p>
+      <p class="scope-note" id="cert-scope-note">This shows the person passed a short check on using the MAGE ID app. It is not a trade, safety or license credential.</p>
+    </section>
+
+    <section id="notfound" class="doc warn" hidden>
+      <p class="state-line">We couldn't find a certificate with this code.</p>
+    </section>
+
+    <section id="removed" class="doc warn" hidden>
+      <p class="state-line">This certificate was removed by its owner.</p>
+    </section>
+
+    <section id="error" class="doc warn" hidden>
+      <p class="state-line">Couldn't check this certificate right now. Try again in a minute.</p>
+    </section>
+  </main>
+
+  <p class="home"><a href="/">mageid.app</a></p>
+</div>
+
+<script>
+  // Reads the code from /skills/<code>, asks skill-certificate-verify, and shows
+  // only what the answer holds. Every value goes in with textContent, never as
+  // markup: the name is whatever the account holder typed.
+  var API = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/skill-certificate-verify';
+  var CODE_RE = /^[A-HJ-NP-Z2-9]{12}$/;
+
+  // '/skills/abcd-efgh-2345' → 'ABCDEFGH2345'; '' when the path holds no code.
+  function codeFromPath(pathname) {
+    var m = /^\/skills\/([^\/?#]+)/.exec(pathname || '');
+    if (!m) return '';
+    var raw;
+    try { raw = decodeURIComponent(m[1]); } catch (e) { return ''; }
+    return raw.replace(/[\s-]/g, '').toUpperCase();
+  }
+
+  // What the response means. Kept pure so scripts/validate-skill-certificates.ts
+  // can run it. A 200 counts only with the fields the page prints. "Not found"
+  // needs the function's own answer ({valid:false} / bad_code): a gateway 404
+  // (function missing, mid-deploy) is an outage, not a missing certificate.
+  function classifyVerifyResponse(status, d) {
+    if (!d || typeof d !== 'object') return 'error';
+    if (status === 404 && d.valid === false) return 'notfound';
+    if (status === 400 && d.error === 'bad_code') return 'notfound';
+    if (status !== 200) return 'error';
+    if (d.revoked === true) return 'removed';
+    if (d.valid === true && typeof d.holderName === 'string' && typeof d.certificateTitle === 'string' &&
+        typeof d.scope === 'string' && typeof d.issuedAt === 'string' &&
+        typeof d.correct === 'number' && typeof d.total === 'number') return 'found';
+    return 'error';
+  }
+
+  // 'October 1, 2026'. '' when the date does not parse.
+  function issuedDate(iso) {
+    var t = new Date(iso);
+    if (isNaN(t.getTime())) return '';
+    return t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+  }
+
+  function show(id) {
+    ['loading', 'found', 'notfound', 'removed', 'error'].forEach(function (s) {
+      document.getElementById(s).hidden = s !== id;
+    });
+  }
+  function setText(id, value) { document.getElementById(id).textContent = value; }
+
+  function render(kind, d) {
+    if (kind === 'found') {
+      var date = issuedDate(d.issuedAt);
+      if (!date) { show('error'); return; }
+      setText('cert-title', d.certificateTitle);
+      setText('cert-name', d.holderName);
+      setText('cert-score', 'Passed the in-app check, ' + d.correct + ' of ' + d.total);
+      setText('cert-issued', 'Issued ' + date);
+      setText('cert-scope', d.scope);
+    }
+    show(kind);
+  }
+
+  (function run() {
+    var code = codeFromPath(window.location.pathname);
+    if (!CODE_RE.test(code)) { render('notfound'); return; }
+    fetch(API + '?code=' + encodeURIComponent(code), { credentials: 'omit', referrerPolicy: 'no-referrer' })
+      .then(function (r) {
+        return r.json().catch(function () { return null; })
+          .then(function (d) { return { status: r.status, d: d }; });
+      })
+      .then(function (res) { render(classifyVerifyResponse(res.status, res.d), res.d); })
+      .catch(function () { render('error'); });
+  })();
+</script>
+</body>
+</html>
