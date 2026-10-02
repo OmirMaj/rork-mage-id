@@ -18,7 +18,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, ScrollText, BookOpen, Footprints,
+  HardHat, FolderOpen, ScrollText, BookOpen, Footprints, FileCheck,
   Clock, Lock, Mic, FileSignature, CalendarClock, Truck, Info,
 } from 'lucide-react-native';
 import {
@@ -178,7 +178,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety' | 'aiReport' | 'subsPay';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'jobFacts' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety' | 'aiReport' | 'subsPay';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -780,6 +780,8 @@ export default function ProjectDetailScreen() {
     lienWaivers: false,
     closeoutBinder: false,
     handover: false,
+    // Routes out to /job-facts — flag never read.
+    jobFacts: false,
     timeTracking: false,
     projectFiles: false,
     scope: false,
@@ -2288,6 +2290,7 @@ export default function ProjectDetailScreen() {
     if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
     if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
     if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'jobFacts') { router.push({ pathname: '/job-facts', params: { projectId: id } }); return; }
     if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
     if (tile.key === 'safety') { router.push({ pathname: '/safety' as any, params: { projectId: id } }); return; }
     if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
@@ -2468,7 +2471,7 @@ export default function ProjectDetailScreen() {
     // docs
     rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
     projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
-    scope: DOCS_COLOR,
+    scope: DOCS_COLOR, jobFacts: DOCS_COLOR,
     // people
     collaborators: PEOPLE_COLOR, clientPortal: PEOPLE_COLOR,
     oacMeetings: PEOPLE_COLOR, communications: PEOPLE_COLOR,
@@ -2485,6 +2488,8 @@ export default function ProjectDetailScreen() {
     { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
     { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
     { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
+    // Lane FACTS: the read-only job facts link. Owner-only (the link table's RLS is owner-only).
+    ...(hubPerms.showClientPortal ? [{ key: 'jobFacts' as SectionKey, label: 'Job Facts', icon: FileCheck, color: colorFor('jobFacts'), count: null as number | null }] : []),
     { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
     { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
     // W1 UXDOORS (D5): who is on this job, what they are owed and paid, and
@@ -2523,7 +2528,7 @@ export default function ProjectDetailScreen() {
   const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
     { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
     { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'] },
-    { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
+    { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'jobFacts', 'activity', 'calendar'] },
     { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
   ];
 

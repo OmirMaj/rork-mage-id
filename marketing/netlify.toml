@@ -74,6 +74,15 @@
   to = "/skills/index.html"
   status = 200
 
+# Job facts link — /facts/<code> from the read-only link a GC publishes in the
+# app. The page reads the code from the path and asks the job-facts-view edge
+# function. Mirrored in _redirects (a rule in only one of the two files is a
+# 404 waiting on whichever wins).
+[[redirects]]
+  from = "/facts/*"
+  to = "/facts/index.html"
+  status = 200
+
 # The Price Index — free public cost data. Bare /costs resolves to the index
 # page. Future per-trade pages added as real files are served before this.
 [[redirects]]
