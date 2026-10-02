@@ -7,8 +7,31 @@
 //      names is in utils/tutorial/registry; do and wait steps wait on a REAL
 //      success point (`until`) and look steps don't; a step's layer matches
 //      its target's; checkpoints are route-entry steps; no step waits on an
-//      outbound or failure signal; practiceFeatures stay inside the four the
-//      founder's practice pass may open; every route exists under app/.
+//      outbound or failure signal; practiceFeatures stay inside the list the
+//      founder's practice pass may open (PRACTICE_FEATURES_ALLOWED); every
+//      route exists under app/.
+//
+//   1b. FRAGMENTS (LEARN wave) — the registry is the core records plus four
+//      lane fragments (utils/tutorial/learn/lane{A,B,C,D}.ts) spread after
+//      them, and a spread lets a later key win silently. So: no target,
+//      signal or assist id is declared twice across core + fragments (counted
+//      BEFORE the spread), no payload context twice either, every SignalName
+//      has a FULL_PAYLOADS entry (a lane cannot add a signal and skip the copy
+//      contexts), the fragments are pure and import the engine as types only
+//      (registry.ts imports them at run time: a runtime import back is a
+//      cycle), and TUTORIAL_ORDER lists each id once.
+//      MUTATION PLANTS (each must turn this red; restore byte-identical):
+//        • laneA.ts LANE_A_TARGETS gains 'dfr.voice': {…}   → "declared twice"
+//        • laneB.ts LANE_B_SIGNALS gains 'x.y': {…} with no
+//          LANE_B_FULL_PAYLOADS entry                       → "every signal has a payload context"
+//        • core FULL_PAYLOADS loses 'invoice.send.failed'   → the same rule
+//        • laneC.ts `import { type PayloadRecord, … } from '../types'`
+//                                                           → "fragments import the engine as types only"
+//          (a VALUE import from '../registry' is the real cycle: the run
+//          crashes on "Cannot access 'LANE_C_TARGETS' before initialization"
+//          before any rule prints — red either way)
+//        • fixtures.ts renames 'Paint' to 'Paint drywall'   → "exactly one drywall task"
+//        • sandbox.ts drops the patchSchedule call          → "real save calls"
 //
 //   2. ANTI-SLIDESHOW + COPY — at least one do step, never more than two look
 //      steps in a row, and the last step is a look at where the result landed
@@ -38,7 +61,24 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TUTORIAL_DEFS, TUTORIAL_DEF_LIST, TUTORIAL_ORDER, SANDBOX_PROJECT_NAME } from '../utils/tutorial/defs';
-import { ASSISTS, BLOCKER_TARGETS, DYNAMIC_TARGET_FAMILIES, LAYERS, SIGNALS, TARGETS, isBlockerTarget, targetSpec } from '../utils/tutorial/registry';
+import {
+  ASSISTS,
+  BLOCKER_TARGETS,
+  CORE_ASSISTS,
+  CORE_SIGNALS,
+  CORE_TARGETS,
+  DYNAMIC_TARGET_FAMILIES,
+  LAYERS,
+  LAYER_ORDER,
+  SIGNALS,
+  TARGETS,
+  isBlockerTarget,
+  targetSpec,
+} from '../utils/tutorial/registry';
+import * as LANE_A from '../utils/tutorial/learn/laneA';
+import * as LANE_B from '../utils/tutorial/learn/laneB';
+import * as LANE_C from '../utils/tutorial/learn/laneC';
+import * as LANE_D from '../utils/tutorial/learn/laneD';
 import { fillCopy, targetChain } from '../utils/tutorial/machine';
 import { PRACTICE_FEATURES_ALLOWED } from '../utils/tutorial/practicePass';
 import { statLine } from '../utils/tutorial/stats';
@@ -49,9 +89,12 @@ import {
   SAMPLE_ESTIMATE_TOTAL,
   SAMPLE_PLAN,
   SAMPLE_PROGRESS_PCT,
+  SAMPLE_SCHEDULE_TASKS,
   SCHEDULE_SAMPLE,
   sampleLinkedEstimate,
+  sampleScheduleTasks,
 } from '../utils/tutorial/fixtures';
+import { buildScheduleFromTasks, recalculateStartDays } from '../utils/scheduleEngine';
 import { inferTradeFromText } from '../utils/tradeInference';
 import { SAMPLE_PROJECT_PREFIX } from '../utils/projectCap';
 import { REQUIRED_TIER } from '../utils/featureTiers';
@@ -115,7 +158,16 @@ const routeExists = (p: string) => APP_ROUTES.has(p);
 
 // ── copy contexts ───────────────────────────────────────────────────────────
 
-const FULL_PAYLOADS: PayloadRecord = {
+/** The four lane fragments, by name, for the fragment rules. */
+const FRAGMENTS = [
+  { lane: 'A', file: 'utils/tutorial/learn/laneA.ts', targets: LANE_A.LANE_A_TARGETS, signals: LANE_A.LANE_A_SIGNALS, assists: LANE_A.LANE_A_ASSISTS, payloads: LANE_A.LANE_A_FULL_PAYLOADS, defs: LANE_A.LANE_A_DEFS },
+  { lane: 'B', file: 'utils/tutorial/learn/laneB.ts', targets: LANE_B.LANE_B_TARGETS, signals: LANE_B.LANE_B_SIGNALS, assists: LANE_B.LANE_B_ASSISTS, payloads: LANE_B.LANE_B_FULL_PAYLOADS, defs: LANE_B.LANE_B_DEFS },
+  { lane: 'C', file: 'utils/tutorial/learn/laneC.ts', targets: LANE_C.LANE_C_TARGETS, signals: LANE_C.LANE_C_SIGNALS, assists: LANE_C.LANE_C_ASSISTS, payloads: LANE_C.LANE_C_FULL_PAYLOADS, defs: LANE_C.LANE_C_DEFS },
+  { lane: 'D', file: 'utils/tutorial/learn/laneD.ts', targets: LANE_D.LANE_D_TARGETS, signals: LANE_D.LANE_D_SIGNALS, assists: LANE_D.LANE_D_ASSISTS, payloads: LANE_D.LANE_D_FULL_PAYLOADS, defs: LANE_D.LANE_D_DEFS },
+] as const;
+
+/** The core copy contexts. The lanes' own ride in through their fragments. */
+const CORE_FULL_PAYLOADS: PayloadRecord = {
   'dfr.voice.applied': { projectId: 's', fields: ['manpower', 'workPerformed', 'issuesAndDelays'], source: 'sample' },
   'dfr.saved': { projectId: 's', reportId: 'r', status: 'draft', date: '2026-09-23', crew: 12, offline: false },
   'punch.photo.added': { projectId: 's', source: 'sample' },
@@ -125,6 +177,16 @@ const FULL_PAYLOADS: PayloadRecord = {
   'punch.saved': { projectId: 's', itemId: 'p', location: 'Primary Bath', trade: 'Electrical', pinned: true, sheet: 'A-101' },
   'invoice.amount.set': { projectId: 's', total: 1_234_567.89 },
   'invoice.sent': { projectId: 's', invoiceId: 'i', number: 1234, total: 1_234_567.89, to: 'estimating@riverbendbuild.com' },
+  // A failure report: no copy slot reads it (the card shows it verbatim), but
+  // every signal carries a context so a lane cannot skip one.
+  'invoice.send.failed': { projectId: 's', reason: "Couldn't reach the mail server. Check your connection and try again." },
+};
+const FULL_PAYLOADS: PayloadRecord = {
+  ...CORE_FULL_PAYLOADS,
+  ...LANE_A.LANE_A_FULL_PAYLOADS,
+  ...LANE_B.LANE_B_FULL_PAYLOADS,
+  ...LANE_C.LANE_C_FULL_PAYLOADS,
+  ...LANE_D.LANE_D_FULL_PAYLOADS,
 };
 const CTXS: CopyCtx[] = [];
 for (const web of [false, true]) {
@@ -233,6 +295,66 @@ const defs = TUTORIAL_DEF_LIST;
   rule('def ids are unique', ids.filter((x, i) => ids.indexOf(x) !== i));
   rule('TUTORIAL_DEFS is keyed by def.id', defs.filter(d => TUTORIAL_DEFS[d.id] !== d).map(d => d.id));
   rule('every def is in TUTORIAL_ORDER (hub order)', defs.filter(d => !TUTORIAL_ORDER.includes(d.id)).map(d => d.id));
+  rule('TUTORIAL_ORDER lists each tutorial once', TUTORIAL_ORDER.filter((x, i) => TUTORIAL_ORDER.indexOf(x) !== i));
+}
+
+// ── 1b. fragments ───────────────────────────────────────────────────────────
+console.log('fragments (core + lanes A-D)');
+{
+  /** Every key declared twice across core + the four fragments. */
+  const twice = (kind: string, core: object, pick: (f: (typeof FRAGMENTS)[number]) => object): string[] => {
+    const seen = new Map<string, string>();
+    const out: string[] = [];
+    const sources: [string, object][] = [['core', core], ...FRAGMENTS.map(f => [`lane ${f.lane}`, pick(f)] as [string, object])];
+    for (const [where, rec] of sources) {
+      for (const k of Object.keys(rec)) {
+        const prev = seen.get(k);
+        if (prev) out.push(`${kind} '${k}' declared in ${prev} AND ${where}`);
+        else seen.set(k, where);
+      }
+    }
+    return out;
+  };
+  rule('no target, signal or assist id is declared twice across core and fragments', [
+    ...twice('target', CORE_TARGETS, f => f.targets),
+    ...twice('signal', CORE_SIGNALS, f => f.signals),
+    ...twice('assist', CORE_ASSISTS, f => f.assists),
+  ]);
+  rule('no payload context is declared twice across core and fragments', twice('payload', CORE_FULL_PAYLOADS, f => f.payloads));
+  rule('the registry is exactly core + fragments (nothing lost in a spread)', [
+    ...(Object.keys(TARGETS).length === Object.keys(CORE_TARGETS).length + FRAGMENTS.reduce((n, f) => n + Object.keys(f.targets).length, 0) ? [] : ['TARGETS count ≠ core + fragments']),
+    ...(Object.keys(SIGNALS).length === Object.keys(CORE_SIGNALS).length + FRAGMENTS.reduce((n, f) => n + Object.keys(f.signals).length, 0) ? [] : ['SIGNALS count ≠ core + fragments']),
+    ...(Object.keys(ASSISTS).length === Object.keys(CORE_ASSISTS).length + FRAGMENTS.reduce((n, f) => n + Object.keys(f.assists).length, 0) ? [] : ['ASSISTS count ≠ core + fragments']),
+  ]);
+  rule('every signal has a payload context (FULL_PAYLOADS)', Object.keys(SIGNALS).filter(n => !(n in FULL_PAYLOADS)).map(n => `${n}: no FULL_PAYLOADS entry (add it to the lane's LANE_X_FULL_PAYLOADS)`));
+  rule('every payload context is a declared signal', Object.keys(FULL_PAYLOADS).filter(n => !(n in SIGNALS)).map(n => `${n}: not in SIGNALS`));
+  rule('every payload context carries its projectId',
+    Object.entries(FULL_PAYLOADS).flatMap(([n, p]) => {
+      const rec = p as Record<string, unknown> | undefined;
+      if (!rec || typeof rec.projectId !== 'string') return [`${n}: no projectId`];
+      return [];
+    }));
+  const laneDefIds = FRAGMENTS.flatMap(f => f.defs.map(d => d.id));
+  rule('every lane def is in TUTORIAL_DEF_LIST', laneDefIds.filter(id => !defs.some(d => d.id === id)));
+  rule('the registry layers draw in LAYER_ORDER', (Object.keys(LAYERS) as (keyof typeof LAYERS)[]).filter(l => !LAYER_ORDER.includes(l)).concat(LAYER_ORDER.filter((x, i) => LAYER_ORDER.indexOf(x) !== i)));
+  const cyc: string[] = [];
+  for (const f of FRAGMENTS) {
+    const text = strip(read(f.file));
+    for (const m of text.matchAll(/^\s*import\s+(type\s+)?[^;]*?from\s+['"]([^'"]+)['"]/gm)) {
+      const typeOnly = !!m[1];
+      const from = m[2];
+      if (!typeOnly && /^\.\.\/(registry|types|defs(\/index)?|practicePass|machine|store|sandbox)$/.test(from)) cyc.push(`${f.file}: runtime import from '${from}' (use \`import type\`)`);
+      if (/^\.\/lane[A-D]$/.test(from)) cyc.push(`${f.file}: imports another lane's fragment ('${from}')`);
+    }
+  }
+  rule('fragments import the engine as types only (registry.ts imports them: no runtime cycle)', cyc);
+  const exportNames = ['TargetId', 'AssistId', 'SignalPayloadMap'];
+  const missing: string[] = [];
+  for (const f of FRAGMENTS) {
+    const text = read(f.file);
+    for (const n of exportNames) if (!new RegExp(`export\\s+(type|interface)\\s+Lane${f.lane}${n}\\b`).test(text)) missing.push(`${f.file}: export Lane${f.lane}${n}`);
+  }
+  rule('every fragment exports its three type names (LaneXTargetId, LaneXAssistId, LaneXSignalPayloadMap)', missing);
 }
 
 for (const def of defs) {
@@ -337,7 +459,7 @@ for (const def of defs) {
   if (!def.steps[0]?.checkpoint) probs.checkpoint.push(P('the first step must be a checkpoint'));
 
   const bad = def.practiceFeatures.filter(f => !PRACTICE_FEATURES_ALLOWED.includes(f));
-  if (bad.length) probs.practice.push(P(`practiceFeatures outside the allowed four: ${bad.join(', ')}`));
+  if (bad.length) probs.practice.push(P(`practiceFeatures outside PRACTICE_FEATURES_ALLOWED: ${bad.join(', ')}`));
   if (def.sandbox === 'current-real' && def.practiceFeatures.length) probs.practice.push(P('current-real mode never gets a practice pass'));
 
   // Start: the pushed screen is the first step's screen, on the sandbox.
@@ -465,7 +587,34 @@ console.log('fixtures');
   ok('schedule fixture: exact sentence normalizes equal, an edit does not',
     SCHEDULE_SAMPLE.normalize('Push drywall 2 days — board delivery slipped') === SCHEDULE_SAMPLE.normalize(SCHEDULE_SAMPLE.sentence) &&
       SCHEDULE_SAMPLE.normalize('Push drywall 3 days') !== SCHEDULE_SAMPLE.normalize(SCHEDULE_SAMPLE.sentence));
-  const fixtureText = [DFR_SAMPLE_NOTE.transcript, PUNCH_SAMPLE.line, SCHEDULE_SAMPLE.sentence];
+  // The sample schedule the sandbox writes ('schedule' need).
+  const titles = SAMPLE_SCHEDULE_TASKS.map(t => t.title);
+  ok('sample schedule: the six tasks Demo, Rough plumbing, Rough electrical, Frame walls, Hang & finish drywall, Paint',
+    titles.length === 6 && ['Demo', 'Rough plumbing', 'Rough electrical', 'Frame walls', 'Hang & finish drywall', 'Paint'].every(x => titles.includes(x)), titles.join(', '));
+  let n = 0;
+  const built = sampleScheduleTasks(() => `id-${++n}`);
+  const drywall = built.filter(t => /drywall/i.test(t.title));
+  const sampleOps = SCHEDULE_SAMPLE.ops(built.map(t => ({ id: t.id, name: t.title })));
+  ok('sample schedule: SCHEDULE_SAMPLE.ops finds exactly one drywall task and moves it 2 days',
+    drywall.length === 1 && JSON.stringify(sampleOps) === JSON.stringify([{ op: 'move', task: drywall[0].id, deltaDays: 2 }]), JSON.stringify(sampleOps));
+  ok('sample schedule: fresh ids per write, keys unique, every predecessor resolves',
+    new Set(built.map(t => t.id)).size === 6 && new Set(SAMPLE_SCHEDULE_TASKS.map(t => t.key)).size === 6
+      && built.every(t => t.dependencies.every(d => built.some(x => x.id === d))) && SAMPLE_SCHEDULE_TASKS.every(t => t.after.every(k => SAMPLE_SCHEDULE_TASKS.some(x => x.key === k))));
+  const resolved = recalculateStartDays(built.map(t => ({ ...t })));
+  ok('sample schedule: start days are already resolved finish-to-start (the engine moves nothing)',
+    resolved.every((t, i) => t.startDay === built[i].startDay), resolved.map(t => `${t.title}@${t.startDay}`).join(', '));
+  ok('sample schedule: an honest blank — 0 % done, not started, no invented crew',
+    built.every(t => t.progress === 0 && t.status === 'not_started' && t.crew === '' && t.notes === ''));
+  const sched = buildScheduleFromTasks('Sample — Sarah\'s Place Schedule', 'sample', built, null, { startDate: '2026-10-01' });
+  ok('sample schedule: builds through buildScheduleFromTasks to an 18-day job anchored where asked',
+    sched.tasks.length === 6 && sched.criticalPathDays === 18 && sched.totalDurationDays === 18 && sched.startDate === '2026-10-01', `${sched.criticalPathDays} days, start ${sched.startDate}`);
+  const sandboxSrc = strip(read('utils/tutorial/sandbox.ts'));
+  ok('sandbox writes the schedule through the real save calls (addProject on a seed, updateProject on an older sample), once per sample',
+    /addProject\(\{\s*\.\.\.p,\s*schedule:\s*sampleSchedule\(/.test(sandboxSrc)
+      && /updateProject\(p\.id,\s*\{\s*schedule:\s*sampleSchedule\(/.test(sandboxSrc)
+      && /schedulePatched\.has\(p\.id\)/.test(sandboxSrc)
+      && /needs\.includes\('schedule'\)\s*&&\s*existing/.test(sandboxSrc));
+  const fixtureText = [DFR_SAMPLE_NOTE.transcript, PUNCH_SAMPLE.line, SCHEDULE_SAMPLE.sentence, ...titles];
   ok('fixture text has no emoji', fixtureText.every(t => !EMOJI.test(t)));
 }
 
@@ -475,7 +624,8 @@ console.log('purity');
 {
   const PURE = ['types', 'registry', 'machine', 'placement', 'practicePass', 'stats', 'handoff', 'offers', 'sandboxCore', 'fixtures', 'activeRun']
     .map(n => `utils/tutorial/${n}.ts`)
-    .concat(readdirSync(join(ROOT, 'utils/tutorial/defs')).filter(n => n.endsWith('.ts')).map(n => `utils/tutorial/defs/${n}`));
+    .concat(readdirSync(join(ROOT, 'utils/tutorial/defs')).filter(n => n.endsWith('.ts')).map(n => `utils/tutorial/defs/${n}`))
+    .concat(readdirSync(join(ROOT, 'utils/tutorial/learn')).filter(n => n.endsWith('.ts')).map(n => `utils/tutorial/learn/${n}`));
   const probs: string[] = [];
   for (const f of PURE) {
     if (!existsSync(join(ROOT, f))) { probs.push(`${f} missing`); continue; }

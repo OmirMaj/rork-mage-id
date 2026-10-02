@@ -7,7 +7,8 @@
  *    (a HOLLOW centred bubble — never a solid "on plan"), and no data (the
  *    grey hollow vial, "Not enough data yet");
  *  - one golden of the three (a new snapshot, recorded once);
- *  - tapping opens the reason sheet with the label and every reason;
+ *  - tapping opens the reason sheet with the label and every reason, then
+ *    the four legend lines; site counts are listed there and never drawn;
  *  - a changed reading eases ONCE to its new place (450 ms), a remount of the
  *    same project starts where it was (no replay), and under Reduce Motion
  *    the bubble jumps to the final position;
@@ -20,7 +21,7 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { act, cleanupAsync, fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { JobLevel, __resetJobLevelMemory } from '@/components/level/JobLevel';
-import { computeJobLevel, JOB_LEVEL_ROW_SIZE, type JobLevelMargin } from '@/utils/jobLevel';
+import { computeJobLevel, JOB_LEVEL_LEGEND, JOB_LEVEL_ROW_SIZE, type JobLevelMargin } from '@/utils/jobLevel';
 import { levelParts } from '@/utils/levelTimeline';
 import type { PortfolioSchedule } from '@/utils/portfolio/portfolioRow';
 
@@ -174,6 +175,26 @@ describe('The Level — project health', () => {
     expect(r.getByTestId('joblevel-reason-label').props.children).toBe(READING.label);
     READING.reasons.forEach((reason, i) => expect(r.getByTestId(`joblevel-reason-${i}`).props.children).toBe(reason));
     expect(r.getByText('6 working days behind the baseline finish.')).toBeTruthy();
+  });
+
+  it('the reason sheet explains itself: the four legend lines, under the reasons (every Level — Home, portfolio, hub)', () => {
+    const r = render(<Wrap><JobLevel projectId="p1" reading={READING} projectName="Henderson" /></Wrap>);
+    fireEvent.press(r.getByTestId('joblevel-p1'));
+    const legend = r.getByTestId('joblevel-legend');
+    const lines = (legend.props.children as React.ReactElement<{ children: string }>[]).map((c) => c.props.children);
+    expect(lines).toEqual(JOB_LEVEL_LEGEND.map((l) => l.text));
+    expect(JOB_LEVEL_LEGEND.map((l) => l.id)).toEqual(['bubble', 'colour', 'listed', 'empty']);
+  });
+
+  it('site counts are listed in the sheet and never move the drawn reading', () => {
+    const withSite = computeJobLevel({ schedule: sched(6), margin: margin('elevated'), site: { openPunch: 3, overdueRfis: 1 } });
+    expect(withSite.key).toBe(READING.key);
+    expect(withSite.offset).toBe(READING.offset);
+    expect(withSite.label).toBe(READING.label);
+    const r = render(<Wrap><JobLevel projectId="ps" reading={withSite} /></Wrap>);
+    fireEvent.press(r.getByTestId('joblevel-ps'));
+    expect(r.getByText('3 punch items are open.')).toBeTruthy();
+    expect(r.getByText('1 RFI is past its due date.')).toBeTruthy();
   });
 
   it('a changed reading eases once (450 ms); a remount starts where it was', () => {

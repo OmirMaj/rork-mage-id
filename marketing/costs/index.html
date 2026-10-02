@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The MAGE Price Index — What construction actually costs, from real jobs | MAGE ID</title>
+<title>The MAGE Price Index (not published yet) — MAGE ID</title>
 <link rel="canonical" href="https://mageid.app/costs/" />
-<meta name="description" content="The MAGE Price Index: a free, public index of what contractors actually paid on completed jobs — not catalog averages. Not published yet: it opens once rates are computed on our servers from logged job costs, so no contractor's own price can be worked out from it." />
+<meta name="description" content="A free public index of what contractors paid on completed projects. Not published yet: it opens once rates come from logged job costs, not typed-in prices." />
 <meta name="theme-color" content="#0B0D10" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="The MAGE Price Index — what construction actually costs" />
-<meta property="og:description" content="A free index of real paid rates from completed jobs — not published yet, and here is exactly why." />
+<meta property="og:title" content="The MAGE Price Index (not published yet)" />
+<meta property="og:description" content="A free public index of what contractors paid on completed projects. Not published yet: it opens once rates come from logged job costs, not typed-in prices." />
 <meta property="og:url" content="https://mageid.app/costs/" />
 <meta property="og:site_name" content="MAGE ID" />
 <meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
@@ -133,10 +133,18 @@
   .trust-strip a{color:var(--navy);text-decoration:none}
   .trust-strip a:hover{text-decoration:underline}
   @media(max-width:560px){h1{font-size:30px}.sub{font-size:16px}}
+  /* Accessibility (audit 2026-10-01): skip link, a focus ring on every
+     control (:where = zero specificity, so the rules above still win), and
+     24px footer/trust-strip tap targets. Pinned by validate-marketing-seo. */
+  .skip-link{position:absolute;left:-9999px;top:8px;z-index:1000;padding:10px 14px;background:var(--brand);color:#fff;border-radius:8px}
+  .skip-link:focus{left:16px}
+  :where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  footer a,.foot a,.footnav a,.trust-strip a{display:inline-block;min-height:24px;padding:3px 0}
 </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="wrap" id="main">
   <div class="brandbar">
     <a href="/"><span class="dot"></span><span>MAGE ID</span></a>
   </div>

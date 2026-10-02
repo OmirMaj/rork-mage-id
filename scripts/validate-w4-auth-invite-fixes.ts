@@ -143,8 +143,15 @@ console.log('\n#7 the root navigator survives a sign-in:');
       && /pointerEvents=\{active \? 'auto' : 'none'\}/.test(veil))(code(read('components/launch/ReloadVeil.tsx'))));
   ok('…and keys the Stack container by the account generation',
     /<View style=\{\{ flex: 1 \}\} key=\{`stack-\$\{navNext\.generation\}`\}>\s*<Stack /.test(LAYOUT));
+  // Lane INSTANTOPEN moved this pin: the gate is utils/bootGate.ts now. It
+  // still waits while the routing reads load (auth, settings, onboarding,
+  // persona — ProjectContext bootGateLoading) and while the curtain stands;
+  // only the project list stopped holding a Home landing. The truth table is
+  // scripts/validate-boot-gate.ts.
   ok('the gate still waits while the boot queries load (nothing routes under the overlay)',
-    /useEffect\(\(\) => \{\s*if \(authLoading \|\| projectLoading \|\| hasSeenOnboarding === null\) return;/.test(LAYOUT));
+    /useEffect\(\(\) => \{\s*if \(!gate\.routingReady \|\| bootstrapping\) return;/.test(LAYOUT)
+    && /const gate = bootGate\(\{\s*authLoading,\s*routingLoading: bootGateLoading \?\? projectLoading,/.test(LAYOUT)
+    && /const bootstrapping = gate\.bootstrapping;/.test(LAYOUT));
   ok('a redirect to /login right after a session ended does not stash that screen for the next account',
     /const sessionJustEnded = lastSettledAuthRef\.current === true && !isAuthenticated;\s*lastSettledAuthRef\.current = isAuthenticated;/.test(LAYOUT)
     && /if \(pathname !== '\/login' && !PUBLIC_PATHS\.has\(firstSeg\) && !sessionJustEnded\) \{\s*void setPendingDeepLink\(/.test(LAYOUT));

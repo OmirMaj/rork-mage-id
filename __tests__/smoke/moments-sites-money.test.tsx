@@ -574,13 +574,14 @@ describe('B3 the unsent-changes hold, on the slide', () => {
     expect(appends).toHaveLength(0);
   });
 
-  test('a payment that lands after he left: no late back() closes the screen he opened since, and the result is still said', async () => {
+  test('a payment that lands after he left: the sheet holds while it runs, no late back() closes the screen he opened since, and the result is still said', async () => {
     const tree = await openPaymentSheet(() => ({ kind: 'ok', latencyMs: 4000 }));
     await recordBySlide(tree);
     await pump(500);
-    const closes = tree.getAllByLabelText('Close');
-    await act(async () => { fireEvent.press(closes[closes.length - 1]); });
+    // 2026-10-01: while the append is on the wire the sheet holds (its X does nothing).
+    await act(async () => { fireEvent.press(tree.getByTestId('record-payment-close')); });
     await pump(300);
+    expect(tree.getByTestId('record-payment-slide')).toBeTruthy();
     await act(async () => { router.back(); });
     await pump(300);
     await act(async () => { router.push('/cash-flow' as never); });
@@ -589,7 +590,8 @@ describe('B3 the unsent-changes hold, on the slide', () => {
     let said = false;
     for (let t = 0; t < 15000 && !said; t += 100) {
       await pump(100);
-      said = !!tree.queryByText('Payment of $5,000.00 recorded');
+      // The slide says its own confirmed title in the toast once it is gone.
+      said = /^Recorded \$5,000\.00/.test(String(tree.queryByTestId('nailit-toast-message')?.props.children ?? ''));
     }
     expect(said).toBe(true);
     expect(tree.getPathname()).toBe('/cash-flow');

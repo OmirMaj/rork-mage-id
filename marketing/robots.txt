@@ -18,6 +18,9 @@ Disallow: /preferences
 # Internal preview / screenshot pages — not public landing pages.
 Disallow: /app-store-screenshots/
 Disallow: /screenshots/
+# …but the product images under /screenshots/screens/ are embedded on 19
+# public pages, so image search may crawl them (the longer rule wins).
+Allow: /screenshots/screens/
 
 # 404 page — should never be linked-to directly.
 Disallow: /404.html

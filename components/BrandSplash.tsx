@@ -35,6 +35,25 @@
 // still frame (animate={false}: no clock, no breath), the wordmark fades in
 // without a rise if its rule fires, and on ready the overlay fades in 200 ms.
 // Never 'lifting', so no screen entrance arms. No minimum hold.
+//
+// LAPTOPS AND MONITORS (lane LOADERDESK, utils/levelDesk.ts). On a web window
+// 768 px and wider the launch is composed for the wide canvas instead of the
+// phone picture capped at 240 px: the same level, larger (clamp per tier), on
+// a hairline DATUM that runs out to the screen gutters, and a larger wordmark
+// from a laptop up. It is an ADDITIVE override: `desk` is null on every native
+// platform and on the web below 768, and the phone expressions below are
+// untouched. The datum scales with this splash's OWN amp (no new value, timing
+// or timer): it draws outward as the bubble comes alive and folds with the
+// settle; a fast boot or Reduce Motion never shows it.
+//
+// THE WEB LAUNCH IS GREEN (orchestrator decision, 2026-10-01). The web has no
+// native splash to continue, so on the web the ground is the concrete token and
+// the level the brand green (WEB_LAUNCH), at every width, matching the pre-JS
+// still in public/index.html. On a DARK page (the data-theme tag, else the OS
+// prefers-color-scheme) it is the dark twin (WEB_LAUNCH_DARK: the green-black
+// ground, the on-dark green, the dark ink), read once at mount, so a dark-mode
+// user goes from a dark launch to the dark app. Native keeps the baked (orange)
+// PNG replica until the next native build.
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
@@ -51,6 +70,8 @@ import { Motion } from '@/constants/designTokens';
 import { deriveAccentPalette, getCustomPrimary } from '@/constants/colors';
 import { nativeDriver } from '@/components/ui/motion';
 import LevelMark from '@/components/loaders/LevelMark';
+import { DatumSegment } from '@/components/loaders/LevelDatum';
+import { WEB_LAUNCH_STYLES, readWebLaunchScheme } from '@/components/loaders/webLaunch';
 import {
   getBootReady,
   getLaunchTarget,
@@ -73,6 +94,7 @@ import {
   plateau,
   splashRect,
 } from '@/utils/levelTimeline';
+import { DESK_DATUM, deskLaunchLayout, webLaunchColors, webLaunchHue, type LaunchScheme } from '@/utils/levelDesk';
 
 // The app tree mounts under the NATIVE splash before this component can; mark the curtain now so a
 // fast /login's first render already sees 'covered'. Never under jest: _layout imports this module in
@@ -147,6 +169,14 @@ interface Controller {
 export default function BrandSplash({ onDone, live = true, onFirstFrame }: BrandSplashProps) {
   const { width, height } = useWindowDimensions();
   const rect = splashRect(width, height, Platform.OS);
+  // The wide-canvas override: null on the phone (native at any width, web < 768).
+  const desk = deskLaunchLayout(width, height, Platform.OS);
+  const markRect = desk ? desk.rect : rect;
+  const web = Platform.OS === 'web';
+  // The web launch's light / dark scheme, read once (native: never read, never used).
+  const [scheme] = useState<LaunchScheme>(() => (web ? readWebLaunchScheme() : 'light'));
+  const launch = webLaunchColors(scheme);
+  const ls = WEB_LAUNCH_STYLES[scheme];
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [isLive, setIsLive] = useState(live);
   if (live && !isLive) setIsLive(true);
@@ -166,8 +196,10 @@ export default function BrandSplash({ onDone, live = true, onFirstFrame }: Brand
   // orange brand it equals the baked accent and no hue layer renders.
   // Read per render, but the timeline reads it through a ref, so a hue that
   // hydrates mid-launch never restarts the timeline.
-  const liveHue = deriveAccentPalette(getCustomPrimary(), 'dark').accent;
-  const hueShift = liveHue.toUpperCase() !== NATIVE_SPLASH_ACCENT;
+  // On the web the launch is the green brand, so the hue it shifts to is the
+  // scheme's accent and only when it differs from the launch green.
+  const liveHue = web ? webLaunchHue(scheme) : deriveAccentPalette(getCustomPrimary(), 'dark').accent;
+  const hueShift = web ? liveHue.toUpperCase() !== launch.accent.toUpperCase() : liveHue.toUpperCase() !== NATIVE_SPLASH_ACCENT;
   const hueShiftRef = useRef(hueShift);
   hueShiftRef.current = hueShift;
 
@@ -550,7 +582,7 @@ export default function BrandSplash({ onDone, live = true, onFirstFrame }: Brand
     });
   }, []);
 
-  const box = splashWordmarkBox(rect);
+  const box = desk ? desk.wordmarkBox : splashWordmarkBox(rect);
 
   return (
     <Animated.View
@@ -560,14 +592,27 @@ export default function BrandSplash({ onDone, live = true, onFirstFrame }: Brand
       onLayout={onRootLayout}
     >
       {/* The ink field, on its own layer so it can dissolve under the fly. */}
-      <Animated.View style={[StyleSheet.absoluteFill, styles.ink, { opacity: inkOpacity }]} />
+      <Animated.View style={[StyleSheet.absoluteFill, web ? ls.ink : styles.ink, { opacity: inkOpacity }]} />
+      {/* The datum (desk only): it scales with the splash's own amp, outward from the level. */}
+      {desk && (
+        <>
+          <DatumSegment
+            side="left" color={launch.cap} opacity={DESK_DATUM.splashOpacity} drive={amp}
+            style={[styles.datum, desk.datum.left]} testID="brand-splash-datum-l"
+          />
+          <DatumSegment
+            side="right" color={launch.cap} opacity={DESK_DATUM.splashOpacity} drive={amp}
+            style={[styles.datum, desk.datum.right]} testID="brand-splash-datum-r"
+          />
+        </>
+      )}
       <View
         testID="brand-splash-mark"
-        style={{ position: 'absolute', left: rect.markLeft, top: rect.markTop, width: rect.markW, height: rect.markH }}
+        style={{ position: 'absolute', left: markRect.markLeft, top: markRect.markTop, width: markRect.markW, height: markRect.markH }}
       >
         <LevelMark
           tone="splash"
-          size={rect.markW}
+          size={markRect.markW}
           revealDelayMs={0}
           exit="none"
           animate={reduceMotion !== true}
@@ -584,7 +629,7 @@ export default function BrandSplash({ onDone, live = true, onFirstFrame }: Brand
         >
           {/* The fly wrapper's box IS the Text's box, so the fly's scale pivots on the wordmark's own centre. */}
           <Animated.View style={{ opacity: flyOpacity, transform: flyTransform }}>
-            <Text ref={wordmarkRef} onLayout={onWordmarkLayout} style={styles.wordmark} numberOfLines={1}>MAGE&nbsp;ID</Text>
+            <Text ref={wordmarkRef} onLayout={onWordmarkLayout} style={desk?.wordmarkLarge ? ls.wordmarkLarge : web ? ls.wordmarkWeb : styles.wordmark} numberOfLines={1}>MAGE&nbsp;ID</Text>
           </Animated.View>
         </Animated.View>
       )}
@@ -599,6 +644,9 @@ const styles = StyleSheet.create({
   },
   ink: {
     backgroundColor: NATIVE_SPLASH_BG,
+  },
+  datum: {
+    position: 'absolute',
   },
   wordmarkBox: {
     position: 'absolute',

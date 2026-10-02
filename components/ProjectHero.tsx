@@ -2,9 +2,15 @@
 //
 // One big number as the subject: projected final margin %, counted up in the
 // display face, framed by a drafting dimension bracket that measures out to its
-// health label. Below it, a spirit level whose bubble settles toward centre when
-// the job reads healthy and drifts off as margin risk climbs — then a compact
-// row of the numbers that move the finish: owed, schedule, open RFIs, punch.
+// health label. Below it, the "Margin risk" band in words — then a compact row
+// of the numbers that move the finish: owed, schedule, open RFIs, punch.
+//
+// It draws NO spirit level. That used to be a second, private level here whose
+// bubble meant "margin risk score" while The Level everywhere else means
+// schedule slip. The hub's Level now lives in components/level/ProjectLevelCard
+// (the same engine and drawing as the Home rows): there a bubble is schedule
+// slip and its colour follows this card's margin-risk band, read from the
+// same pulse risk — one bubble, one meaning.
 //
 // Fed by hooks/useProjectPulse (wave 6c): the screen reads the job's pulse
 // once — computeLivingEstimate + computeMarginRisk on the full cost streams,
@@ -25,7 +31,7 @@ import type { MarginHealth } from '@/utils/livingEstimate';
 import { riskBandLabel } from '@/utils/marginRiskScore';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { Type } from '@/constants/typography';
-import { Motion, Tokens } from '@/constants/designTokens';
+import { Tokens } from '@/constants/designTokens';
 import { motionCurve, nativeDriver, reducedMotion } from '@/components/ui/motion';
 
 /**
@@ -68,7 +74,6 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
   const marginPct = living ? living.projected.marginPct * 100 : 0;
   const erosion = living ? living.marginErosionPoints : 0; // pts, negative = eroded from bid
   const health: MarginHealth = living ? living.health : 'healthy';
-  const riskScore = risk ? risk.score : 0;
 
   const owed = pulse.owed;
   const openRfis = pulse.openRfis;
@@ -79,7 +84,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
   const schedulePct = pulse.progress.hasSchedule ? pulse.progress.pct : null;
 
   // ── count the margin number up on mount ──
-  // All three entrances (this count-up, the bracket, the bubble) start after
+  // Both entrances (this count-up and the bracket) start after
   // the push transition (afterPush), not on mount: on mount they were JS-thread
   // work competing with the slide-in. Reduce Motion: final values at once.
   const anim = useRef(new Animated.Value(0)).current;
@@ -105,30 +110,21 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
   // ── dimension bracket draws out ──
   const bracket = useRef(new Animated.Value(0)).current;
-  // ── spirit-level bubble settles toward its risk position ──
-  const bubble = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!costSourcesReady) return;
-    const target = Math.max(0, Math.min(1, riskScore / 100));
     if (reducedMotion()) {
       bracket.setValue(1);
-      bubble.setValue(target);
       return;
     }
-    let runs: Animated.CompositeAnimation[] = [];
+    let run: Animated.CompositeAnimation | null = null;
     const cancel = afterPush(() => {
-      runs = [
-        // The bar is laid out at full width; scaleX draws it from the left on
-        // the native driver (it was a '0%' → '100%' width on the JS thread).
-        Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: motionCurve.out, useNativeDriver: nativeDriver }),
-        // Settles on the rise preset (ζ≈0.96); it was friction 5 / tension 40
-        // (ζ≈0.4, a visible wobble).
-        Animated.spring(bubble, { toValue: target, ...Motion.spring.rise, delay: 350, useNativeDriver: nativeDriver }),
-      ];
-      runs.forEach((r) => r.start());
+      // The bar is laid out at full width; scaleX draws it from the left on
+      // the native driver (it was a '0%' → '100%' width on the JS thread).
+      run = Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: motionCurve.out, useNativeDriver: nativeDriver });
+      run.start();
     });
-    return () => { cancel(); runs.forEach((r) => r.stop()); };
-  }, [bracket, bubble, riskScore, costSourcesReady]);
+    return () => { cancel(); run?.stop(); };
+  }, [bracket, costSourcesReady]);
 
   // Field-role collaborators never see the money hero. canViewFinancials fails
   // CLOSED (null role while loading → hidden) so a margin never flashes before
@@ -173,9 +169,9 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
   const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
   // The risk readout gets its OWN colour. Until 2026-09-07 both the band label
-  // and the bubble were painted `healthColor` — the MARGIN band's colour — so a
-  // fat margin rendered "Moderate risk" in green and a thin one would have
-  // rendered "Low risk" in red. The word and the colour were reporting
+  // and the (since retired) bubble were painted `healthColor` — the MARGIN
+  // band's colour — so a fat margin rendered "Moderate risk" in green and a
+  // thin one would have rendered "Low risk" in red. The word and the colour were reporting
   // different variables, which reads as the app contradicting itself on the one
   // card a GC uses to decide whether a job is in trouble (founder report).
   // accentLabel/dangerLabel rather than accent/danger: these are TEXT.
@@ -184,8 +180,6 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     : risk.band === 'moderate' ? t.warningLabel
     : risk.band === 'elevated' ? t.accentLabel
     : t.dangerLabel;
-  // Bubble travels within the vial; 0 (no risk) sits centred, 1 (max) drifts right.
-  const bubbleX = bubble.interpolate({ inputRange: [0, 1], outputRange: [0, 92] });
 
   const erosionLabel = Math.abs(erosion) < 0.1
     ? 'On bid'
@@ -214,17 +208,10 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
       <Text style={[styles.erosion, { color: erosionColor }]}>{erosionLabel}</Text>
 
-      {/* spirit level → margin risk */}
-      <View style={styles.levelWrap}>
-        <View style={styles.levelHead}>
-          <Text style={styles.levelLabel}>Margin risk</Text>
-          <Text style={[styles.levelBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
-        </View>
-        <View style={styles.vial}>
-          <View style={[styles.centerMark, styles.centerA]} />
-          <View style={[styles.centerMark, styles.centerB]} />
-          <Animated.View style={[styles.bubble, { backgroundColor: riskColor, transform: [{ translateX: bubbleX }] }]} />
-        </View>
+      {/* margin risk, in words (the Level card draws it as colour) */}
+      <View style={styles.riskRow}>
+        <Text style={styles.riskLabel}>Margin risk</Text>
+        <Text style={[styles.riskBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
       </View>
 
       {/* the numbers that move the finish */}
@@ -280,18 +267,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   loadingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
 
-  levelWrap: { marginTop: 18 },
-  levelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
-  levelLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' },
-  levelBand: { ...Type.monoCaption, letterSpacing: 0.6, fontWeight: '700' },
-  vial: {
-    height: 22, borderRadius: 11, backgroundColor: t.bg,
-    borderWidth: 1, borderColor: t.line, justifyContent: 'center', overflow: 'hidden',
-  },
-  centerMark: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: t.line },
-  centerA: { left: '50%', marginLeft: -13 },
-  centerB: { left: '50%', marginLeft: 12 },
-  bubble: { position: 'absolute', left: '50%', marginLeft: -13, width: 26, height: 14, borderRadius: 8 },
+  riskRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18 },
+  riskLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' },
+  riskBand: { ...Type.monoCaption, letterSpacing: 0.6, fontWeight: '700' },
 
   statRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
   stat: {

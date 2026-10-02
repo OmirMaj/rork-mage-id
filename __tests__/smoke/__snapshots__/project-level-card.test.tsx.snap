@@ -1,0 +1,778 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ProjectLevelCard — The Level on the project hub golden: full reading, partial with no baseline, no data 1`] = `
+<RNCSafeAreaProvider
+  onInsetsChange={[Function]}
+  style={
+    [
+      {
+        "flex": 1,
+      },
+      undefined,
+    ]
+  }
+>
+  <View>
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#D7DAD4",
+            "borderCurve": "continuous",
+          },
+          {
+            "borderRadius": 16,
+            "borderWidth": 1,
+            "padding": 16,
+          },
+          {
+            "gap": 12,
+            "marginHorizontal": 20,
+            "marginTop": 16,
+          },
+        ]
+      }
+      testID="card-full"
+    >
+      <Text
+        accessibilityRole="header"
+        style={
+          {
+            "color": "rgba(43,48,56,0.72)",
+            "fontFamily": "JetBrainsMono_400Regular",
+            "fontSize": 12,
+            "letterSpacing": 1.4,
+            "lineHeight": 16,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Project health
+      </Text>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "paddingVertical": 12,
+          }
+        }
+      >
+        <View
+          accessibilityHint="Shows the reasons"
+          accessibilityLabel="Schedule: 5 working days behind. Margin risk: moderate."
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          hitSlop={8}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            [
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 6,
+                "minHeight": 20,
+              },
+              {
+                "flexDirection": "column",
+                "gap": 8,
+              },
+            ]
+          }
+          testID="project-level"
+        >
+          <View
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={
+              {
+                "height": 10,
+                "width": 120,
+              }
+            }
+            testID="project-level-vial"
+          >
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 0,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 118,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "#B84A00",
+                  "borderRadius": 1,
+                  "height": 2,
+                  "left": 2,
+                  "opacity": 0.25,
+                  "position": "absolute",
+                  "top": 4,
+                  "width": 116,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 49,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 70,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              collapsable={false}
+              style={
+                {
+                  "backgroundColor": "#B84A00",
+                  "borderRadius": 3.5,
+                  "height": 7,
+                  "left": 51,
+                  "position": "absolute",
+                  "top": 1.5,
+                  "transform": [
+                    {
+                      "translateX": 14,
+                    },
+                  ],
+                  "width": 18,
+                }
+              }
+              testID="project-level-vial-bubble"
+            />
+          </View>
+          <Text
+            numberOfLines={1}
+            style={
+              [
+                {
+                  "fontSize": 13,
+                  "fontWeight": "400",
+                  "lineHeight": 18,
+                },
+                {
+                  "color": "rgba(43,48,56,0.78)",
+                },
+              ]
+            }
+            testID="project-level-label"
+          >
+            5 working days behind · Margin risk: moderate
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flexShrink": 1,
+            "gap": 4,
+            "minWidth": 0,
+          }
+        }
+        testID="project-level-legend"
+      >
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The bubble moves right when the finish slips past the baseline.
+        </Text>
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The colour is margin risk.
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#D7DAD4",
+            "borderCurve": "continuous",
+          },
+          {
+            "borderRadius": 16,
+            "borderWidth": 1,
+            "padding": 16,
+          },
+          {
+            "gap": 12,
+            "marginHorizontal": 20,
+            "marginTop": 16,
+          },
+        ]
+      }
+      testID="card-partial"
+    >
+      <Text
+        accessibilityRole="header"
+        style={
+          {
+            "color": "rgba(43,48,56,0.72)",
+            "fontFamily": "JetBrainsMono_400Regular",
+            "fontSize": 12,
+            "letterSpacing": 1.4,
+            "lineHeight": 16,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Project health
+      </Text>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "paddingVertical": 12,
+          }
+        }
+      >
+        <View
+          accessibilityHint="Shows the reasons"
+          accessibilityLabel="Schedule: no slip reading. Margin risk: low."
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          hitSlop={8}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            [
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 6,
+                "minHeight": 20,
+              },
+              {
+                "flexDirection": "column",
+                "gap": 8,
+              },
+            ]
+          }
+          testID="project-level"
+        >
+          <View
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={
+              {
+                "height": 10,
+                "width": 120,
+              }
+            }
+            testID="project-level-vial"
+          >
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 0,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 118,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "#2F6B3A",
+                  "borderRadius": 1,
+                  "height": 2,
+                  "left": 2,
+                  "opacity": 0.25,
+                  "position": "absolute",
+                  "top": 4,
+                  "width": 116,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 49,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 70,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              collapsable={false}
+              style={
+                {
+                  "backgroundColor": "transparent",
+                  "borderColor": "#2F6B3A",
+                  "borderRadius": 3.5,
+                  "borderWidth": 1.5,
+                  "height": 7,
+                  "left": 51,
+                  "position": "absolute",
+                  "top": 1.5,
+                  "transform": [
+                    {
+                      "translateX": 0,
+                    },
+                  ],
+                  "width": 18,
+                }
+              }
+              testID="project-level-vial-bubble"
+            />
+          </View>
+          <Text
+            numberOfLines={1}
+            style={
+              [
+                {
+                  "fontSize": 13,
+                  "fontWeight": "400",
+                  "lineHeight": 18,
+                },
+                {
+                  "color": "rgba(43,48,56,0.78)",
+                },
+              ]
+            }
+            testID="project-level-label"
+          >
+            No slip reading · Margin risk: low
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flexShrink": 1,
+            "gap": 4,
+            "minWidth": 0,
+          }
+        }
+        testID="project-level-legend"
+      >
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The bubble moves right when the finish slips past the baseline.
+        </Text>
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The colour is margin risk.
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#D7DAD4",
+            "borderCurve": "continuous",
+          },
+          {
+            "borderRadius": 16,
+            "borderWidth": 1,
+            "padding": 16,
+          },
+          {
+            "gap": 12,
+            "marginHorizontal": 20,
+            "marginTop": 16,
+          },
+        ]
+      }
+      testID="card-none"
+    >
+      <Text
+        accessibilityRole="header"
+        style={
+          {
+            "color": "rgba(43,48,56,0.72)",
+            "fontFamily": "JetBrainsMono_400Regular",
+            "fontSize": 12,
+            "letterSpacing": 1.4,
+            "lineHeight": 16,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Project health
+      </Text>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "paddingVertical": 12,
+          }
+        }
+      >
+        <View
+          accessibilityHint="Shows the reasons"
+          accessibilityLabel="Project health: not enough data yet."
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          hitSlop={8}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            [
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 6,
+                "minHeight": 20,
+              },
+              {
+                "flexDirection": "column",
+                "gap": 8,
+              },
+            ]
+          }
+          testID="project-level"
+        >
+          <View
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={
+              {
+                "height": 10,
+                "width": 120,
+              }
+            }
+            testID="project-level-vial"
+          >
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 0,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 10,
+                  "left": 118,
+                  "position": "absolute",
+                  "top": 0,
+                  "width": 2,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 1,
+                  "height": 2,
+                  "left": 2,
+                  "opacity": 0.25,
+                  "position": "absolute",
+                  "top": 4,
+                  "width": 116,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 49,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              style={
+                {
+                  "backgroundColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 0.5,
+                  "height": 6,
+                  "left": 70,
+                  "opacity": 0.55,
+                  "position": "absolute",
+                  "top": 2,
+                  "width": 1,
+                }
+              }
+            />
+            <View
+              collapsable={false}
+              style={
+                {
+                  "backgroundColor": "transparent",
+                  "borderColor": "rgba(43,48,56,0.72)",
+                  "borderRadius": 3.5,
+                  "borderWidth": 1.5,
+                  "height": 7,
+                  "left": 51,
+                  "position": "absolute",
+                  "top": 1.5,
+                  "transform": [
+                    {
+                      "translateX": 0,
+                    },
+                  ],
+                  "width": 18,
+                }
+              }
+              testID="project-level-vial-bubble"
+            />
+          </View>
+          <Text
+            numberOfLines={1}
+            style={
+              [
+                {
+                  "fontSize": 13,
+                  "fontWeight": "400",
+                  "lineHeight": 18,
+                },
+                {
+                  "color": "rgba(43,48,56,0.72)",
+                },
+              ]
+            }
+            testID="project-level-label"
+          >
+            Not enough data yet
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flexShrink": 1,
+            "gap": 4,
+            "minWidth": 0,
+          }
+        }
+        testID="project-level-legend"
+      >
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The bubble moves right when the finish slips past the baseline.
+        </Text>
+        <Text
+          style={
+            {
+              "color": "rgba(43,48,56,0.78)",
+              "fontSize": 13,
+              "fontWeight": "400",
+              "lineHeight": 18,
+            }
+          }
+        >
+          The colour is margin risk.
+        </Text>
+      </View>
+    </View>
+  </View>
+</RNCSafeAreaProvider>
+`;

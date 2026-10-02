@@ -45,7 +45,8 @@ export const MOMENT_TIMING = {
   ringRev: 900, holdFill: 700, srOpen: 240, srBar: 180, srClose: 140,
   nudgeOut: 90, nudgePx: 16, reasonPulse: 240, reasonPulseFrom: 0.55,
   reducedFade: 100, reducedHold: 200, reducedFailHold: 700,
-  holdMs: 1200, holdMsCompact: 600,
+  // Compact (clock-out) hold raised 600 -> 1000 ms (2026-10-01): 600 ms was too short to read the result before the sheet closed.
+  holdMs: 1200, holdMsCompact: 1000,
 } as const;
 
 /** H track height, D capsule diameter, inset rail padding, icon size, check box, ring inset. */

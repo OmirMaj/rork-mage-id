@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Markup vs. Margin Calculator — Are you actually making money on this job? | MAGE ID</title>
+<title>Markup vs. margin calculator for contractors — MAGE ID</title>
 <link rel="canonical" href="https://mageid.app/calculator.html" />
-<meta name="description" content="Free markup vs. margin calculator for contractors. Enter your job cost and see the price to charge, your real profit, and the markup-vs-margin trap that quietly loses you money. By MAGE ID." />
+<meta name="description" content="A free markup vs. margin calculator. Enter your job cost and markup to see the price to charge, your actual margin and the gap that costs contractors money." />
 <meta name="theme-color" content="#0B0D10" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Markup vs. Margin Calculator for Contractors" />
-<meta property="og:description" content="Markup isn't margin — and the gap is where money quietly disappears. Free calculator by MAGE ID." />
+<meta property="og:title" content="Markup vs. margin calculator for contractors" />
+<meta property="og:description" content="A free markup vs. margin calculator. Enter your job cost and markup to see the price to charge, your actual margin and the gap that costs contractors money." />
 <meta property="og:url" content="https://mageid.app/calculator.html" />
 <meta property="og:site_name" content="MAGE ID" />
 <meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
@@ -126,9 +126,17 @@
   .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
   .footnav a:hover{color:var(--navy)}
   @media(max-width:420px){h1{font-size:22px}.price .val{font-size:25px}}
+  /* Accessibility (audit 2026-10-01): skip link, a focus ring on every
+     control (:where = zero specificity, so the rules above still win), and
+     24px footer/trust-strip tap targets. Pinned by validate-marketing-seo. */
+  .skip-link{position:absolute;left:-9999px;top:8px;z-index:1000;padding:10px 14px;background:var(--brand);color:#fff;border-radius:8px}
+  .skip-link:focus{left:16px}
+  :where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  footer a,.foot a,.footnav a,.trust-strip a{display:inline-block;min-height:24px;padding:3px 0}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <nav class="sitenav" aria-label="Primary">
   <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
   <!-- Third of the site's three primary navs, and the thinnest — it had no
@@ -145,7 +153,7 @@
     <a href="https://app.mageid.app" class="start">Start free</a>
   </div>
 </nav>
-<div class="wrap">
+<div class="wrap" id="main">
   <h1>Are you actually making money on this job?</h1>
   <p class="sub">The #1 way contractors lose profit: confusing markup with margin. Enter your numbers and see the truth.</p>
 

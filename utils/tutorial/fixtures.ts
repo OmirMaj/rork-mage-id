@@ -10,7 +10,7 @@
 // estimate lines foot to the small sample's $422,400; the punch line infers
 // Electrical with no AI call).
 
-import type { LinkedEstimate } from '@/types';
+import type { LinkedEstimate, ScheduleTask } from '@/types';
 import type { SampleDfrParse, SampleEstimateLine } from './types';
 
 /** On-screen label for every fixture-driven fill. */
@@ -170,3 +170,54 @@ export const SCHEDULE_SAMPLE = {
     return t ? [{ op: 'move', task: t.id, deltaDays: 2 }] : [];
   },
 } as const;
+
+// ── Schedule: the sample's six tasks (LEARN wave) ───────────────────────────
+// The small sample carries no schedule, and "say it, the schedule moves" needs
+// one with a drywall task for SCHEDULE_SAMPLE.ops to find. utils/tutorial/
+// sandbox.ts writes these through the real schedule save (buildScheduleFromTasks
+// → addProject / updateProject), on the sample only, once. `key` is a stable
+// handle: real task ids are fresh UUIDs minted at write time, like any task
+// the app creates, and `after` is re-pointed to them.
+//
+// startDay is 1-based and already resolved finish-to-start (a successor starts
+// on its predecessor's startDay + durationDays), so recalculateStartDays leaves
+// every day where it is — the validator pins that, and pins ops() finding
+// exactly one drywall task here. No crew names: the honest value for a task
+// nobody assigned is '' (utils/autoScheduleFromEstimate.ts explains why).
+
+export interface SampleScheduleTask {
+  key: string;
+  title: string;
+  phase: string;
+  durationDays: number;
+  startDay: number;
+  /** Keys of the finish-to-start predecessors. */
+  after: readonly string[];
+}
+
+export const SAMPLE_SCHEDULE_TASKS: readonly SampleScheduleTask[] = [
+  { key: 'demo', title: 'Demo', phase: 'Demo', durationDays: 3, startDay: 1, after: [] },
+  { key: 'framing', title: 'Frame walls', phase: 'Framing', durationDays: 3, startDay: 4, after: ['demo'] },
+  { key: 'plumbing', title: 'Rough plumbing', phase: 'Plumbing', durationDays: 4, startDay: 7, after: ['framing'] },
+  { key: 'electrical', title: 'Rough electrical', phase: 'Electrical', durationDays: 3, startDay: 7, after: ['framing'] },
+  { key: 'drywall', title: 'Hang & finish drywall', phase: 'Drywall', durationDays: 5, startDay: 11, after: ['plumbing', 'electrical'] },
+  { key: 'paint', title: 'Paint', phase: 'Finishes', durationDays: 3, startDay: 16, after: ['drywall'] },
+];
+
+/** SAMPLE_SCHEDULE_TASKS as real ScheduleTasks, each with a fresh id from
+ *  `newId` (generateUUID at the write; a counter in the validator). Pure. */
+export function sampleScheduleTasks(newId: () => string): ScheduleTask[] {
+  const ids = new Map(SAMPLE_SCHEDULE_TASKS.map(t => [t.key, newId()] as const));
+  return SAMPLE_SCHEDULE_TASKS.map(t => ({
+    id: ids.get(t.key)!,
+    title: t.title,
+    phase: t.phase,
+    durationDays: t.durationDays,
+    startDay: t.startDay,
+    progress: 0,
+    crew: '',
+    dependencies: t.after.map(k => ids.get(k)!),
+    notes: '',
+    status: 'not_started' as const,
+  }));
+}

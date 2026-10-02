@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The MAGE Brain — it writes down every call it makes, then shows you the misses | MAGE ID</title>
+<title>How MAGE grades its own predictions — MAGE ID</title>
 <link rel="canonical" href="https://mageid.app/brain/" />
-<meta name="description" content="MAGE grades its own predictions against what actually happened on your jobs — hits, misses and ties. It won't automate anything until it has earned it, and every threshold is published." />
+<meta name="description" content="MAGE grades its own predictions against what happened on your projects, shows the misses, and automates nothing until it clears a published threshold." />
 <meta name="theme-color" content="#0B0D10" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="The MAGE Brain — ask your software how often it's wrong" />
-<meta property="og:description" content="Every duration, price and verdict goes in a ledger. When the job closes, MAGE grades itself. The misses stay on the board." />
+<meta property="og:title" content="How MAGE grades its own predictions" />
+<meta property="og:description" content="MAGE grades its own predictions against what happened on your projects, shows the misses, and automates nothing until it clears a published threshold." />
 <meta property="og:url" content="https://mageid.app/brain/" />
 <meta property="og:site_name" content="MAGE ID" />
 <meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
@@ -170,9 +170,17 @@
   footer{border-top:1px solid var(--line);padding:30px 0;font-size:13.5px;color:var(--muted)}
   footer a{color:var(--navy-2)}
   .flinks{display:flex;gap:15px;flex-wrap:wrap;margin-top:9px}
+  /* Accessibility (audit 2026-10-01): skip link, a focus ring on every
+     control (:where = zero specificity, so the rules above still win), and
+     24px footer/trust-strip tap targets. Pinned by validate-marketing-seo. */
+  .skip-link{position:absolute;left:-9999px;top:8px;z-index:1000;padding:10px 14px;background:var(--brand);color:#fff;border-radius:8px}
+  .skip-link:focus{left:16px}
+  :where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  footer a,.foot a,.footnav a,.trust-strip a{display:inline-block;min-height:24px;padding:3px 0}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
 <nav class="nav"><div class="wrap">
   <a class="brand" href="/"><span class="dot"></span>MAGE&nbsp;ID</a>
@@ -197,7 +205,7 @@
   <a class="navcta" href="https://app.mageid.app">Start free</a>
 </div></nav>
 
-<section class="hero"><div class="wrap">
+<section id="main" class="hero"><div class="wrap">
   <p class="kick">The MAGE brain</p>
   <h1>It writes down every call it makes. Then it shows you the misses.</h1>
   <p class="sub">
@@ -333,7 +341,7 @@
     </details>
     <details>
       <summary>What if I've only finished a couple of jobs?</summary>
-      <p>Then it shows you almost nothing, on purpose. Categories under three graded results are suppressed, and the autonomy features above stay switched off until their thresholds are met. It gets sharper as your history accumulates — the first few weeks are honest about being early.</p>
+      <p>Then it shows you almost nothing, on purpose. Categories under three graded results are suppressed, and the autonomy features above stay switched off until their thresholds are met. It gets sharper as your history accumulates; in the first few weeks it tells you it is still early.</p>
     </details>
     <details>
       <summary>Can a competitor just copy this?</summary>

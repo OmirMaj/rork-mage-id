@@ -72,6 +72,11 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { isAppHowTo } from '@/utils/oneMind/composePrompt';
+import type { AskActionProposal } from '@/utils/oneMind/askAction';
+import { useAskAction } from '@/hooks/useAskAction';
+import { useAskCopy } from '@/hooks/useAskCopy';
+import { AskActionCard } from '@/components/brain/AskActionCard';
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -82,6 +87,15 @@ interface Turn {
    *  See plans / Sign in action under a blocked turn. */
   errorKind?: string;
   errorCode?: string;
+  /** Stable per-turn id (Date.now() + suffix); the React key and the do-it
+   *  card's turnKey. Older saved threads have none (index fallback). */
+  key?: string;
+  /** Lane AIDO: the do-it card's workflows under this assistant turn. Saved
+   *  threads keep them; a recalled card shows Start again, never an outcome. */
+  actions?: AskActionProposal[];
+  /** The words he sent, on the assistant turn that carries `actions`, so
+   *  "Answer instead" can re-ask them through One Mind. */
+  askedText?: string;
 }
 
 /**
@@ -261,7 +275,10 @@ export function AskConversation(props: AskConversationProps) {
   const turnsRef = useRef<Turn[]>([]);
   turnsRef.current = turns;
 
-  const ask = useCallback(async (question: string) => {
+  const doIt = useAskAction({ variant: panel ? 'panel' : 'page' });
+  const askCopy = useAskCopy();
+
+  const ask = useCallback(async (question: string, opts?: { skipAction?: boolean }) => {
     const q = question.trim();
     if (!q || busy) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -275,6 +292,22 @@ export function AskConversation(props: AskConversationProps) {
         { role: 'user', text: q },
         { role: 'assistant', text: demo.answer, citations: demo.citations },
       ]);
+      return;
+    }
+    // Lane AIDO: a do-request ("build the schedule", "write an RFI about the
+    // beam") gets the Start card instead of a how-to answer. No AI call and no
+    // meter: detection is deterministic, and nothing is written until the
+    // Copilot's own review.
+    const acts = opts?.skipAction ? [] : doIt.detect(q, anchorProjectId);
+    if (acts.length) {
+      const k = String(Date.now());
+      setDraft('');
+      setTurns(prev => [
+        ...prev,
+        { role: 'user', text: q, key: `${k}-u` },
+        { role: 'assistant', text: askCopy.actionLead(acts.length), actions: acts, askedText: q, key: `${k}-a` },
+      ]);
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
       return;
     }
     const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
@@ -308,6 +341,9 @@ export function AskConversation(props: AskConversationProps) {
       if (res.usedAI) {
         void recordAIUsage('smart', 'askMage');
       }
+      // An app how-to ("how do I create a project") is answered from the
+      // guide as today, with the offer to do it under the answer.
+      const offer = !res.errorKind && isAppHowTo(q) ? doIt.howTo(q, anchorProjectId) : null;
       setTurns(prev => [...prev, {
         role: 'assistant',
         text: res.answer,
@@ -315,12 +351,13 @@ export function AskConversation(props: AskConversationProps) {
         citations: res.citations,
         errorKind: res.errorKind,
         errorCode: res.errorCode,
+        ...(offer ? { actions: [offer], key: `${Date.now()}-a` } : {}),
       }]);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, bundle, tier, router, anchorProjectId]);
+  }, [busy, bundle, tier, router, anchorProjectId, doIt, askCopy]);
 
   // Desktop web: Enter sends, Shift+Enter keeps the newline. Preventing the
   // default also stops react-native-web's own submit-and-blur, so the cursor
@@ -489,7 +526,7 @@ export function AskConversation(props: AskConversationProps) {
     </View>
   ) : (
     turns.map((t, i) => (
-      <View key={i}>
+      <View key={t.key ?? i}>
         <View
           style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
         >
@@ -500,6 +537,14 @@ export function AskConversation(props: AskConversationProps) {
             <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
           </View>
         </View>
+        {t.role === 'assistant' && !!t.actions?.length && (
+          <AskActionCard
+            turnKey={t.key ?? `${sessionId}-${i}`}
+            proposals={t.actions}
+            action={doIt}
+            onAnswerInstead={t.askedText ? () => { void ask(t.askedText ?? '', { skipAction: true }); } : undefined}
+          />
+        )}
         {t.role === 'assistant' && (() => {
           const action = blockedAction(t, tier);
           if (!action) return null;

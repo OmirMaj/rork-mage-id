@@ -132,9 +132,16 @@ console.log('\nC. Record Payment after "Open Not saved", and after he left the i
     /if \(r\.status !== 'confirmed' && r\.status !== 'queued'\) return; if \(!screenInFrontRef\.current\) return; setShowPaymentModal\(false\);/.test(done)
       && /router\.back\(\);$/.test(done.trim()), done);
   // The result shows either way: on the slide while the sheet is up, and as a
-  // toast when the answer lands after it closed (onResultAfterUnmount).
-  ok('...the result still shows either way', /onResultAfterUnmount=\{onPaymentLate\}/.test(INV)
-    && /if \(r\.status === 'confirmed'\) nailIt\(payRecordedToast\(paymentAttemptCentsRef\.current\)\);/.test(INV));
+  // toast once it is gone. The slide says it itself (SlideToConfirm hands
+  // onDone, onResultAfterUnmount and onLateResult to sayCommitResult), so the
+  // record-payment slide must not opt out, and a toast of the screen's own
+  // would say it twice (2026-10-01: the founder saw no confirmation at all).
+  const SLIDE = read('components/moments/SlideToConfirm.tsx');
+  const paySlide = INV.slice(INV.indexOf('<SlideToConfirm\n                  ref={paymentSlideRef}'), INV.indexOf('testID="record-payment-slide"'));
+  ok('...the result still shows either way', paySlide.length > 0 && !/\ssay=\{false\}/.test(paySlide)
+    && !/payRecordedToast\(/.test(INV)
+    && /onResultAfterUnmount: \(r: CommitResult\) => \{\s*try \{ props\.onResultAfterUnmount\?\.\(r\); \} finally \{ if \(say\) sayCommitResult\(r\); \}/.test(SLIDE)
+    && /onDone: \(r: CommitResult\) => \{\s*try \{ props\.onDone\?\.\(r\); \} finally \{ if \(say\) sayCommitResult\(r, \{ quiet: true \}\); \}/.test(SLIDE));
   ok('the invoice clears "in front" on blur and on unmount',
     /useFocusEffect\(useCallback\(\(\) => \{\s*screenInFrontRef\.current = true;\s*return \(\) => \{ screenInFrontRef\.current = false; \};\s*\}, \[\]\)\);/.test(INV)
       && /useEffect\(\(\) => \(\) => \{ screenInFrontRef\.current = false; \}, \[\]\);/.test(INV));

@@ -1,6 +1,7 @@
 // IDEAS-1 SPEED-2: FIRST import — stamps JS start and registers the
 // after-interactions release of the first-screen signal before anything else.
-import '@/utils/startupTiming';
+// markBootPhase (lane INSTANTOPEN M2): the per-phase launch marks.
+import { markBootPhase } from '@/utils/startupTiming';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -82,6 +83,7 @@ import { renderDesktopStackHeader } from '@/components/desktop/DesktopStackHeade
 import { ShellDockProvider, ShellDockHost, ASK_DOCK_ID } from '@/components/desktop/ShellDock';
 import { ShellHotkeys } from '@/components/desktop/ShellHotkeys';
 import { useReducedMotion, webMotion } from '@/components/ui/motion';
+import { bootGate } from '@/utils/bootGate';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -565,7 +567,47 @@ function RootLayoutNav() {
   const globalParamsRef = useRef(globalParams);
   globalParamsRef.current = globalParams;
   const { isAuthenticated, isLoading: authLoading, user, session } = useAuth();
-  const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
+  const {
+    hasSeenOnboarding, userRole, isLoading: projectLoading,
+    bootGateLoading, projectsLoading, projectsLoaded, settingsLoaded,
+  } = useProjects();
+  // Lane INSTANTOPEN M3 — the boot gate (utils/bootGate.ts). The routing
+  // facts (session, onboarding, persona, first settings read) decide when
+  // anything may route; the project list holds the launch curtain only when
+  // the app is NOT landing on Home (Home has its own skeleton, and a deep link
+  // to /project-detail must never say "not found" for a job still loading).
+  // The landing path is the first render's pathname, captured once.
+  // `?? projectLoading`: a test mock without the new fields keeps today's gate.
+  const landingPathRef = useRef<string | null>(pathname);
+  const gate = bootGate({
+    authLoading,
+    routingLoading: bootGateLoading ?? projectLoading,
+    projectsLoading: projectsLoading ?? projectLoading,
+    hasSeenOnboarding,
+    landingPath: landingPathRef.current,
+  });
+  // The launch curtain (BrandSplash / BootShell / the reload veil) stands while
+  // this is true. Never false while the routing facts are still loading.
+  const bootstrapping = gate.bootstrapping;
+  // Boot phase marks (M2): first call per phase per launch wins. A LAYOUT
+  // effect on purpose: Home (a descendant) calls markFirstUseful from a passive
+  // effect in the same commit its list lands, and children's passive effects
+  // run before this component's — a passive mark here would miss the event.
+  // projects_resolved is the list query settling for the SIGNED-IN key (what
+  // Home's skeleton waits on); settings_resolved is the first settings read
+  // for that owner. Both wait for auth: before it resolves, ProjectContext
+  // runs a signed-out pass (key ['projects', null], settings owner
+  // 'signed-out') that settles in milliseconds from the device, and first-wins
+  // would lock in a number that is not this account's. With authLoading false
+  // the user is already live (setUser lands before setIsLoading(false)), so
+  // both flags are per-key for the right owner. The query flag, not the
+  // sticky projectsLoaded copy, which stays true across a key switch.
+  React.useLayoutEffect(() => {
+    if (!authLoading) markBootPhase('auth_resolved');
+    if (gate.routingReady) markBootPhase('routing_resolved');
+    if (!authLoading && (projectsLoading ?? !projectsLoaded) === false) markBootPhase('projects_resolved');
+    if (!authLoading && settingsLoaded) markBootPhase('settings_resolved');
+  }, [authLoading, gate.routingReady, projectsLoading, projectsLoaded, settingsLoaded]);
   // #74 (wave 5): a worker who claimed his crew profile (claim-crew) has an
   // account but may not have picked a persona — he came to see HIS profile,
   // not to set up a contracting business. CrewProvider sits above this, and
@@ -588,7 +630,12 @@ function RootLayoutNav() {
   useQuickActionRouting();
 
   useEffect(() => {
-    if (authLoading || projectLoading || hasSeenOnboarding === null) return;
+    // Routes only on settled routing facts (gate.routingReady: never while the
+    // session, onboarding flag or persona is loading — a tenant switch never
+    // routes the new account with the old persona), and only while the Stack
+    // is the thing on screen: while the curtain stands in loader mode there is
+    // no navigator to route, and a deep link off Home still waits for its job.
+    if (!gate.routingReady || bootstrapping) return;
     const sessionJustEnded = lastSettledAuthRef.current === true && !isAuthenticated;
     lastSettledAuthRef.current = isAuthenticated;
 
@@ -706,7 +753,7 @@ function RootLayoutNav() {
       router.replace('/(tabs)/(home)' as any);
       return;
     }
-  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, claimedCrewWorker, pathname, accountInviteHref, accountInviteToken]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, gate.routingReady, bootstrapping, segments, router, claimedCrewWorker, pathname, accountInviteHref, accountInviteToken]);
 
   // #74 (wave 5): claim-crew's "Sign in" stashes the claim address and sends
   // him to /login. The general replay below waits for a persona AND the GC
@@ -906,18 +953,19 @@ function RootLayoutNav() {
     document.documentElement.setAttribute('data-theme', resolvedTheme);
   }, [resolvedTheme]);
 
-  // Cold-start gate: while the auth + project contexts are hydrating from
-  // AsyncStorage/Supabase, render the branded construction loader instead
-  // of a blank white screen. `hasSeenOnboarding === null` means the
-  // onboarding-state check hasn't resolved yet either. Once all three are
-  // ready, we drop into the normal Stack and the effect above handles
+  // Cold-start gate: while the auth + routing reads are hydrating from
+  // AsyncStorage/Supabase (and, off Home, the project list), render the
+  // branded loader instead of a blank white screen. `bootstrapping` is the
+  // boot gate computed at the top of this component (utils/bootGate.ts). Once
+  // it clears, we drop into the normal Stack and the effect above handles
   // redirects.
-  const bootstrapping =
-    authLoading || projectLoading || hasSeenOnboarding === null;
   // The launch curtain (components/launch/launchCurtain): BrandSplash holds
   // its ink until the app underneath is ready, then hands off. Above the
   // loader's early return, so the hook order never changes.
-  useEffect(() => { setBootReady(!bootstrapping); }, [bootstrapping]);
+  useEffect(() => {
+    setBootReady(!bootstrapping);
+    if (!bootstrapping) markBootPhase('boot_ready');
+  }, [bootstrapping]);
 
   // #7: the loader REPLACES the Stack only on the first boot and on a switch
   // between two different accounts; any other reload (a sign-in from signed
@@ -926,7 +974,7 @@ function RootLayoutNav() {
   // that was navigating — login/signup's return trip to /accept-invite?token=…
   // either threw or was discarded, and the invitee landed on Home, then
   // persona-select, then the GC onboarding. The gate above already waits while
-  // these queries load, so nothing routes early under the overlay. Policy and
+  // the routing facts load, so nothing routes early under the overlay. Policy and
   // reasoning: utils/deepLinksInvite.rootNavPresentation.
   const navStateRef = useRef<RootNavState>(ROOT_NAV_INITIAL);
   const { mode: navMode, next: navNext } = rootNavPresentation(navStateRef.current, {
@@ -1803,6 +1851,10 @@ export default Sentry.wrap(function RootLayout() {
   const [splashPainted, setSplashPainted] = useState(false);
   const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
+  // Boot phase mark (lane INSTANTOPEN M2): the five faces are in.
+  useEffect(() => {
+    if (fontsLoaded) markBootPhase('fonts_ready');
+  }, [fontsLoaded]);
   // Failsafe: stop waiting for fonts after 1.2 s. BrandSplash + onboarding
   // fall back to the platform serif so they remain usable.
   useEffect(() => {
@@ -1816,6 +1868,7 @@ export default Sentry.wrap(function RootLayout() {
   const hideNativeSplash = useCallback(() => {
     if (nativeHiddenRef.current) return;
     nativeHiddenRef.current = true;
+    markBootPhase('native_splash_hidden');
     void SplashScreen.hideAsync();
     setNativeHidden(true);
   }, []);
@@ -1833,7 +1886,10 @@ export default Sentry.wrap(function RootLayout() {
     return () => clearTimeout(backstop);
   }, [hideNativeSplash]);
 
-  const handleBrandSplashDone = useCallback(() => setBrandSplashDone(true), []);
+  const handleBrandSplashDone = useCallback(() => {
+    markBootPhase('splash_done');
+    setBrandSplashDone(true);
+  }, []);
   const handleSplashFirstFrame = useCallback(() => setSplashPainted(true), []);
 
   // Capture the marketing-site signup intent (?plan=pro&trial=14) on first

@@ -20,7 +20,8 @@
 //      react-native).
 //   5. utils/startupTiming.ts: the after-interactions path is registered at
 //      module load, markFirstUseful releases the signal, sends ONE event per
-//      launch with labelled fields, and never calls the number "cold start".
+//      launch with labelled fields (now with phase_<phase> numbers, lane INSTANTOPEN), and
+//      never calls the number "cold start".
 //
 // VALIDATE_ROOT=<dir> points it at a scratch copy of the tree.
 // Run: bun run scripts/validate-startup-deferral.ts
@@ -167,6 +168,20 @@ ok('ms is an integer', /const ms = Math\.max\(0, Math\.round\(clock\.now - clock
 ok('the three bases are labelled bundle_start / js_module / navigation_start',
   /'bundle_start' \| 'js_module' \| 'navigation_start'/.test(timingCode));
 ok('never labels the number "cold start" in code or event names', !/cold[_ ]?start/i.test(timingCode));
+
+// Lane INSTANTOPEN: the ONE event also carries the boot phases (only the ones
+// that happened this launch). No new event; the pure half is table-tested in
+// scripts/validate-boot-gate.ts.
+ok('the event carries the phases as flat phase_<phase> numbers (bootPhaseProps: only phases that happened), right after deferred_count',
+  /deferred_count: DEFERRED_CONTEXTS\.length,\s*\.\.\.bootPhaseProps\(bootMarks\),\s*\};/.test(timingCode));
+ok('still exactly ONE analytics call in the module (no new event)', (timingCode.match(/\btrack\(/g) ?? []).length === 1);
+ok('markBootPhase(phase: BootPhase) is exported and first-call-wins',
+  /export function markBootPhase\(phase: BootPhase\): void \{\s*if \(bootMarks\[phase\] !== undefined\) return;/.test(timingCode));
+ok('first_useful is recorded with the event\'s own ms', /recordBootPhase\(bootMarks, 'first_useful', ms\)/.test(timingCode));
+{
+  const gateSrc = code(read('utils/bootGate.ts'));
+  ok('the phase summary in utils/bootGate.ts never says "cold start" either', !/cold[_ ]?start/i.test(gateSrc));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
