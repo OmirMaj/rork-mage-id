@@ -20,6 +20,9 @@ import { describeDropped, type EditOp, type DroppedOp } from '@/utils/copilot/sc
 import { interpretScheduleOps, applyEditEffects } from '@/utils/copilot/scheduleEdit/interpretOps';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { buildSchedulePreviewOverlay, type SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
+// Tutorials (schedule-say-it): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { useTutorialSandboxId } from '@/utils/tutorial/store';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -90,9 +93,12 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
   const total = ops.length + dropped.length;
   const valid = okCount > 0;
   const dd = (n: number) => (n > 0 ? `+${n}d` : `${n}d`);
-  return (
-    <View style={styles.wrap}>
-      <Text style={styles.eyebrow}>The ripple</Text>
+  // A tutorial run is live on THIS job: only then are the ripple and Apply
+  // wrapped (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!ctx.projectId && tutorialSandboxId === ctx.projectId;
+  const ripple = (
+    <>
       {total > 0 && (
         <Text style={styles.count} testID="schedule-edit-understood">
           {okCount === total ? `Understood ${plural(total, 'change')}` : `Understood ${okCount} of ${plural(total, 'change')}`}
@@ -125,10 +131,19 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
         {diff.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>Couldn’t apply: {r.summary}</Text>)}
         {!valid && <Text style={styles.reject}>Nothing to change yet — say it another way below.</Text>}
       </ScrollView>
-      <TouchableOpacity style={[styles.apply, !valid && styles.applyOff]} onPress={onApply} disabled={!valid} activeOpacity={0.9} testID="schedule-edit-apply" accessibilityRole="button">
-        <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-        <Text style={styles.applyText}>{valid ? `Apply ${plural(okCount, 'change')}` : 'Nothing to apply'}</Text>
-      </TouchableOpacity>
+    </>
+  );
+  const applyBtn = (
+    <TouchableOpacity style={[styles.apply, !valid && styles.applyOff]} onPress={onApply} disabled={!valid} activeOpacity={0.9} testID="schedule-edit-apply" accessibilityRole="button">
+      <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
+      <Text style={styles.applyText}>{valid ? `Apply ${plural(okCount, 'change')}` : 'Nothing to apply'}</Text>
+    </TouchableOpacity>
+  );
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.eyebrow}>The ripple</Text>
+      {runOnThis ? <TutorialTarget id="scheduleEdit.diff" style={styles.wrap}>{ripple}</TutorialTarget> : ripple}
+      {runOnThis ? <TutorialTarget id="scheduleEdit.apply">{applyBtn}</TutorialTarget> : applyBtn}
       <TouchableOpacity style={styles.discard} onPress={onDiscard} activeOpacity={0.7} testID="schedule-edit-discard" accessibilityRole="button">
         <X size={14} color={colors.textMuted} strokeWidth={2} />
         <Text style={styles.discardText}>Not that — discard</Text>
