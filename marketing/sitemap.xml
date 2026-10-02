@@ -250,4 +250,19 @@
     <priority>0.8</priority>
   </url>
 
+  <!-- City pages: what MAGE ID reads for a New York City or Baltimore jobsite. -->
+  <url>
+    <loc>https://mageid.app/cities/new-york-city.html</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://mageid.app/cities/baltimore.html</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
 </urlset>
