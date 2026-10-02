@@ -15,6 +15,36 @@
 // Set TUTORIAL_PRACTICE_PASS = false to turn it off: practiceAllows then
 // returns false for everything, and the entry points show those tutorials
 // only to users whose plan already includes them.
+//
+// THE LEARN WAVE (founder default FQ1, 2026-10-01). The pass also opens pay
+// applications (aia_pay_app), the time clock (subcontractor_management), plan
+// markup (plan_markup), the takeoff's estimate step (ai_estimate_wizard), Ask
+// your plans (ask_your_plans) and Construction AI — whose TAB gates on
+// ai_code_check (app/(tabs)/construction-ai/index.tsx) and whose Ask mode
+// gates on construction_answer (components/construction/AskConstructionMode).
+// Same bounds: the sample only, the features that tutorial's def lists, while
+// its run is live.
+//
+// THE AI INVARIANT — WHY AN AI-BACKED FEATURE MAY BE OPENED AT ALL. Several of
+// those features normally spend AI credits. The pass may open them ONLY
+// because, on a sample while a pass is live:
+//   1. every AI step in a tutorial is FIXTURE-backed: the answer is bundled
+//      data, labelled on screen with SAMPLE_NO_CREDITS_LABEL
+//      (utils/tutorial/fixtures.ts) — no server call, no meter change; and
+//   2. the screen REFUSES typed / spoken AI input (and every other AI run the
+//      gate opens: Code check, Plan review, Roadmap, plan Ask, the estimate
+//      wizard's AI fill) on the sample while the pass is what let him in.
+// The AI entry points this pass opens on a sample — each guarded by its
+// content lane (LEARNDEFS-A / LEARNDEFS-B source scans):
+//   ai_code_check        Construction AI tab: Code check, Plan review, Roadmap
+//   construction_answer  Construction AI Ask mode (AskConstructionMode)
+//   ask_your_plans       the plan room's Ask modal (app/plans.tsx, AskPlansPanel)
+//   ai_estimate_wizard   the estimate wizard's AI fill (app/estimate-wizard.tsx)
+//   plan_markup          takeoff on a plan sheet (app/takeoff.tsx)
+// A later lane that lets one of them call the server on a sample, or bill a
+// meter there, breaks the reason this list is allowed: remove the feature
+// from PRACTICE_FEATURES_ALLOWED instead. There is still no server-side
+// tutorial exemption, ever (fixtures.ts header).
 
 import type { FeatureKey, RunState, TutorialDefs } from './types';
 import { TUTORIAL_DEFS } from './defs';
@@ -25,13 +55,22 @@ export const TUTORIAL_PRACTICE_PASS = true;
  *  clears. The grace covers the pop animation so no Paywall flashes. */
 export const PRACTICE_GRACE_MS = 1500;
 
-/** The only features a pass may ever open (spec §11). A def listing anything
- *  else is refused here AND by validate-tutorial-defs. */
+/** The only features a pass may ever open (spec §11, plus the LEARN wave's
+ *  seven above). A def listing anything else is refused here AND by
+ *  validate-tutorial-defs. */
 export const PRACTICE_FEATURES_ALLOWED: readonly FeatureKey[] = [
   'punch_list_closeout',
   'change_orders_invoicing',
   'client_portal',
   'schedule_gantt_pdf',
+  // LEARN wave (FQ1). The AI ones stand on THE AI INVARIANT above.
+  'aia_pay_app',
+  'subcontractor_management',
+  'plan_markup',
+  'ai_estimate_wizard',
+  'ask_your_plans',
+  'ai_code_check',
+  'construction_answer',
 ];
 
 /** Every feature the pass opens right now on `projectId`. Empty when idle,

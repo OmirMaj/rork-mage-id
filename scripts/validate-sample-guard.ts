@@ -631,6 +631,48 @@ console.log('\n6. utils/tutorial/sandbox — seed, reuse, top-ups, the plan');
     await SB.ensureTutorialSample(['estimateLines'], x.deps);
     ok('an estimate that has lines, and a recorded retainage rate, are never overwritten', x.w.updates.length === 0);
   }
+  // schedule top-up (LEARNCORE): the six sample tasks, through the real saves.
+  {
+    // A fresh seed carries the schedule on its addProject write — never a
+    // second write right after (that would map over a list without the job).
+    const seeded: Record<string, unknown>[] = [];
+    const fresh = makeWorld();
+    const add = (fresh.deps as unknown as { getActions: () => { addProject: (p: Record<string, unknown>) => unknown } }).getActions();
+    const realAdd = add.addProject;
+    add.addProject = (p: Record<string, unknown>) => { seeded.push(p); return realAdd(p); };
+    const r = await SB.ensureTutorialSample(['schedule'], fresh.deps);
+    const sch = seeded[0]?.schedule as { tasks: { title: string; id: string; dependencies: string[] }[]; startDate?: string; projectId?: string } | undefined;
+    ok('a fresh seed carries the six-task sample schedule on its create write, and nothing else is written',
+      r.ok && seeded.length === 1 && sch?.tasks.length === 6 && fresh.w.updates.length === 0
+        && sch.projectId === (r as { sandboxProjectId: string }).sandboxProjectId && /^\d{4}-\d{2}-\d{2}$/.test(sch.startDate ?? '')
+        && sch.tasks.filter(t => /drywall/i.test(t.title)).length === 1, JSON.stringify(sch?.tasks.map(t => t.title)));
+    ok('…its task ids are fresh UUIDs and the predecessors point at them',
+      !!sch && sch.tasks.every(t => /^[0-9a-f-]{36}$/.test(t.id)) && sch.tasks.every(t => t.dependencies.every(d => sch.tasks.some(x => x.id === d))));
+    // An older sample with no schedule: one updateProject with ONLY schedule,
+    // even for two starts in one frame.
+    const old = { id: uuid(20), name: NAME, ownerUserId: 'u1', schedule: null };
+    const o = makeWorld([old]);
+    await Promise.all([SB.ensureTutorialSample(['schedule'], o.deps), SB.ensureTutorialSample(['schedule'], o.deps)]);
+    const up = o.w.updates.filter(x => 'schedule' in x.u);
+    const tasks = (up[0]?.u.schedule as { tasks: unknown[] } | undefined)?.tasks ?? [];
+    ok('an older sample with no schedule gets it through updateProject once (only the schedule field)',
+      up.length === 1 && up[0].id === old.id && Object.keys(up[0].u).join() === 'schedule' && tasks.length === 6 && o.w.updates.length === 1);
+    // An empty schedule object keeps its sidecars and its own (absent) anchor.
+    const empty = { id: uuid(21), name: NAME, ownerUserId: 'u1', schedule: { id: 'sch-old', name: 'Mine', tasks: [], nonWorkingDates: ['2026-11-26'] } };
+    const e = makeWorld([empty]);
+    await SB.ensureTutorialSample(['schedule'], e.deps);
+    const es = e.w.updates[0]?.u.schedule as { id: string; name: string; tasks: unknown[]; nonWorkingDates?: string[]; startDate?: string } | undefined;
+    ok('…an empty schedule keeps its id, name, non-working days and its own (absent) anchor',
+      !!es && es.id === 'sch-old' && es.name === 'Mine' && es.tasks.length === 6 && es.nonWorkingDates?.[0] === '2026-11-26' && !('startDate' in es));
+    // A schedule with tasks is his: never touched. Nor without the need.
+    const mine = { id: uuid(22), name: NAME, ownerUserId: 'u1', schedule: { id: 's', tasks: [{ id: 't', title: 'Mine' }] } };
+    const m = makeWorld([mine]);
+    await SB.ensureTutorialSample(['schedule'], m.deps);
+    const n = makeWorld([{ id: uuid(23), name: NAME, ownerUserId: 'u1', schedule: null }]);
+    await SB.ensureTutorialSample(['estimateLines'], n.deps);
+    ok('a sample schedule with tasks is never overwritten, and no schedule is written without the need',
+      m.w.updates.length === 0 && n.w.updates.every(x => !('schedule' in x.u)));
+  }
   // The plan.
   {
     const s = { id: uuid(7), name: NAME, ownerUserId: 'u1' };

@@ -28,7 +28,19 @@
 //                  unsynced or failed → samplePlan:false, and the machine
 //                  auto-skips the pin steps (skipIf 'noSamplePlan') while the
 //                  camera step says the plan didn't load.
-//   schedule       Wave A2 (the Residential Build example) — not built here.
+//   schedule       The six SAMPLE_SCHEDULE_TASKS (utils/tutorial/fixtures),
+//                  built by the real buildScheduleFromTasks with day 1 = today
+//                  (the creation anchor every schedule-creation flow uses).
+//                  A FRESH tutorial seed carries it in its addProject write —
+//                  always, whatever the start needs, because the seed is shared
+//                  by concurrent starts and an updateProject right after a seed
+//                  would map over a project list that does not hold the new
+//                  job yet (projectsRef updates a render later) and drop it.
+//                  An OLDER sample with no tasks gets it through updateProject,
+//                  the same call a schedule save makes, once per sample per
+//                  session. A schedule that has tasks is never touched (he may
+//                  have edited the sample's). Never a real job: only the
+//                  sandbox picked above is ever written.
 // No sample subs are seeded: the punch tutorial never assigns one, so no sub
 // is notified and his real sub directory is never polluted.
 
@@ -38,8 +50,10 @@ import type { WriteOutcome } from '@/utils/offlineQueue';
 import { seedDemoProject } from '@/utils/demoSeed';
 import { generateUUID } from '@/utils/generateId';
 import { addFloorPlan, type FloorPlanActions, type FloorPlanImage } from '@/utils/addFloorPlan';
+import { buildScheduleFromTasks, mergeEditedSchedule } from '@/utils/scheduleEngine';
+import { todayCalendarDay } from '@/utils/calendarDate';
 import { pickSandboxProject } from './sandboxCore';
-import { SAMPLE_PLAN, SAMPLE_RETAINAGE, sampleLinkedEstimate } from './fixtures';
+import { SAMPLE_PLAN, SAMPLE_RETAINAGE, sampleLinkedEstimate, sampleScheduleTasks } from './fixtures';
 import { isRecordedRetainageRate } from '@/utils/retainageSource';
 import { SANDBOX_PROJECT_NAME } from './defs';
 import type { BootFlags, SandboxNeed } from './types';
@@ -128,6 +142,9 @@ export async function ensureTutorialSample(needs: readonly SandboxNeed[], deps: 
     patchEstimateLines(existing, deps);
     patchRetainage(existing, deps);
   }
+  // A fresh seed already carries the schedule (resolveSandbox); only an older
+  // sample can be missing one.
+  if (needs.includes('schedule') && existing) patchSchedule(existing, deps);
 
   let samplePlan = true;
   let planReason: string | undefined;
@@ -161,7 +178,8 @@ async function resolveSandbox(deps: SandboxDeps): Promise<Resolved> {
       // seed itself only returns the id.
       const { projectId } = await seedDemoProject({
         addProject: (p: Project) => {
-          const out = actions.addProject(p);
+          // The sample schedule rides on the create write (see the header).
+          const out = actions.addProject({ ...p, schedule: sampleSchedule(p, null, now) });
           createOutcome = isPromise(out) ? (out as Promise<WriteOutcome>).catch((): WriteOutcome => 'failed') : null;
         },
         addInvoice: actions.addInvoice,
@@ -199,6 +217,34 @@ function patchEstimateLines(p: Project, deps: SandboxDeps): void {
   estimatePatched.add(p.id);
   const at = new Date((deps.now ?? Date.now)()).toISOString();
   deps.getActions().updateProject(p.id, { linkedEstimate: sampleLinkedEstimate(generateUUID(), at) });
+}
+
+// Schedule patches issued this session (same double-start reason as above).
+const schedulePatched = new Set<string>();
+
+/** True when `p` has no schedule tasks for the schedule tutorial to move. */
+export function needsSampleSchedule(p: Pick<Project, 'schedule'>): boolean {
+  return !p.schedule || !Array.isArray(p.schedule.tasks) || p.schedule.tasks.length === 0;
+}
+
+/** The sample's six-task schedule, built the way a schedule save builds one.
+ *  `existing` is a schedule object with no tasks (an older sample's): its
+ *  sidecar fields and its own anchor — including none — are kept, the rule
+ *  MobileScheduleScreen's save follows. With none, day 1 is today. */
+export function sampleSchedule(p: Pick<Project, 'id' | 'name'>, existing: Project['schedule'] | null, now: number): NonNullable<Project['schedule']> {
+  const anchor = existing ? existing.startDate : todayCalendarDay(new Date(now));
+  const built = buildScheduleFromTasks(existing?.name ?? `${p.name} Schedule`, p.id, sampleScheduleTasks(generateUUID), existing?.baseline ?? null, {
+    ...(anchor ? { startDate: anchor } : {}),
+  });
+  return existing ? mergeEditedSchedule(existing, built, { projectId: p.id }) : built;
+}
+
+/** Older samples (and one seeded outside a tutorial) have no schedule: write
+ *  the six tasks through updateProject. Never over a schedule with tasks. */
+function patchSchedule(p: Project, deps: SandboxDeps): void {
+  if (!needsSampleSchedule(p) || schedulePatched.has(p.id)) return;
+  schedulePatched.add(p.id);
+  deps.getActions().updateProject(p.id, { schedule: sampleSchedule(p, p.schedule ?? null, (deps.now ?? Date.now)()) });
 }
 
 // Retainage patches issued this session (same double-start reason as above).
