@@ -24,7 +24,7 @@
 // location ends in a ZIP that lies in one government, or whose parcel side
 // the contractor confirmed, gets that government's codes.
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, Linking, Platform, StyleSheet,
@@ -54,6 +54,19 @@ import type { Project } from '@/types';
 import { codesSummary, jurisdictionQueryForProject, resolveCodeJurisdiction, type AddressableProject } from '@/utils/codeJurisdiction';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { useJobBuildingRecord, type JobBuildingRecordState } from '@/hooks/useJobBuildingRecord';
+// Learn-by-doing tutorial "construction-ai-ask" (utils/tutorial/defs): on the
+// SAMPLE job while a run is live, the sample question — about the job's own
+// records, never codes — is answered by fixturesB sampleJobAnswer from the
+// sample's estimate, change orders and invoices: no construction-answer call,
+// no meter change. Every other question says why it is blocked
+// (validate-tutorial-learn-b pins the guard). Wrappers render only during the run.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtures';
+import { SAMPLE_JOB_QUESTION, isSampleQuestion, sampleJobAnswer, tutorialAiLock } from '@/utils/tutorial/learn/fixturesB';
+import { useProjects } from '@/contexts/ProjectContext';
+import { t } from '@/i18n/core';
 
 /** The selected job's verified adoption record, or null (unknown place / no job). */
 function jurisdictionForAsk(
@@ -95,6 +108,11 @@ export function buildingRecordForAsk(
 interface Props {
   projects: Project[];
   bottomInset: number;
+  /** The job to link when the tab is opened for one with mode=ask. */
+  entryProjectId?: string | null;
+  /** The tutorial's sample job when the tab was opened on it during a run
+   *  (the tab's lock). While set, nothing on this mode reaches the network. */
+  tutorialSampleId?: string | null;
 }
 
 const PRESETS = [
@@ -103,14 +121,32 @@ const PRESETS = [
   'What permits do I need for a garage-to-ADU conversion?',
 ];
 
-export default function AskConstructionMode({ projects, bottomInset }: Props) {
+export default function AskConstructionMode({ projects, bottomInset, entryProjectId = null, tutorialSampleId = null }: Props) {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
-  const canAsk = canAccess('construction_answer');
 
   const [question, setQuestion] = useState('');
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(entryProjectId);
+  // A later entry for another job (the tab stays mounted) links that job.
+  useEffect(() => { if (entryProjectId) setProjectId(entryProjectId); }, [entryProjectId]);
+
+  // ── Tutorial: construction-ai-ask (the sample job only) ──────────────────
+  // The practice pass is keyed to the LINKED job (or, before the entry link
+  // lands, the tab's sample), so linking a real job drops it (practicePass.ts
+  // scopes it to the run's sandbox id).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const practice = useTutorialPractice(projectId ?? tutorialSampleId);
+  const canAsk = canAccess('construction_answer') || practice.has('construction_answer');
+  // The AI lock: the tab's own lock, or a run live / the pass open on the
+  // linked job. While it holds, askConstruction() is never called.
+  const tutorialLock = !!tutorialSampleId || tutorialAiLock(projectId, tutorialSandboxId, practice.size);
+  // The job the sample answer is computed from.
+  const sampleJobId = tutorialSampleId ?? (tutorialLock ? projectId : null);
+  const tutorialOn = !!tutorialSandboxId && (tutorialSandboxId === tutorialSampleId || tutorialSandboxId === projectId);
+  const { getProject, getInvoicesForProject, getChangeOrdersForProject, invoicesLoaded, changeOrdersLoaded } = useProjects();
+  const [tutorialBlocked, setTutorialBlocked] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ConstructionAnswerResponse | null>(null);
   const [errCode, setErrCode] = useState<string | null>(null);
@@ -130,7 +166,58 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
   );
   const confirmedCounty = building.confirmedCounty;
 
+  /** The sample answer, computed now from the sample job's own records. No
+   *  construction-answer call, no meter change. */
+  const showSampleAnswer = useCallback(() => {
+    const job = sampleJobId ? getProject(sampleJobId) : null;
+    if (!job) return;
+    setErrCode(null);
+    setErrMsg(null);
+    // Never answer "nothing billed" from a list that has not loaded yet.
+    if (!invoicesLoaded || !changeOrdersLoaded) {
+      setResult(null);
+      setTutorialBlocked(t('common.tutorial.caiStillLoading', "This job's invoices are still loading. Try again in a moment."));
+      return;
+    }
+    const a = sampleJobAnswer(job, getInvoicesForProject(job.id), getChangeOrdersForProject(job.id));
+    setTutorialBlocked(null);
+    setResult({
+      answer: a.answer,
+      citations: a.citations,
+      consulted: a.consulted,
+      verified: a.verified,
+      disclaimer: a.disclaimer,
+      usedAI: a.usedAI,
+    });
+    tutorialSignal('cai.answered', { projectId: job.id, source: 'sample', consulted: a.citations.length + a.consulted.length, leftCents: a.leftCents });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [sampleJobId, getProject, invoicesLoaded, changeOrdersLoaded, getInvoicesForProject, getChangeOrdersForProject]);
+
+  // The question step's real success point: the box holds the sample
+  // question (typed word for word, or filled by the chip / Do it for me).
+  useEffect(() => {
+    if (!tutorialLock || !sampleJobId) return;
+    if (isSampleQuestion(question, SAMPLE_JOB_QUESTION)) tutorialSignal('cai.question.filled', { projectId: sampleJobId, chars: question.length });
+  }, [question, tutorialLock, sampleJobId]);
+  const fillSampleQuestion = useCallback(() => {
+    setQuestion(SAMPLE_JOB_QUESTION);
+    setTutorialBlocked(null);
+  }, []);
+  // 'Do it for me': fills the box. He still taps Get answer.
+  useTutorialAssist('cai.useSampleQuestion', fillSampleQuestion);
+
   const runAsk = useCallback(async () => {
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): on the sample during a
+    // run the sample question is answered from the job's records and anything
+    // else is refused — askConstruction() is never reached.
+    if (tutorialLock) {
+      if (sampleJobId && isSampleQuestion(question, SAMPLE_JOB_QUESTION)) showSampleAnswer();
+      else {
+        setResult(null);
+        setTutorialBlocked(t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.'));
+      }
+      return;
+    }
     if (!canAsk) { setShowPaywall(true); return; }
     if (!canSubmit) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -156,7 +243,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [canAsk, canSubmit, question, projectId, linkedProject, confirmedCounty, attachedRecord]);
+  }, [canAsk, canSubmit, question, projectId, linkedProject, confirmedCounty, attachedRecord, tutorialLock, sampleJobId, showSampleAnswer]);
 
   const openCitation = useCallback((c: AnswerCitation) => {
     if (c.kind === 'web' && c.url) { void Linking.openURL(c.url); return; }
@@ -165,12 +252,93 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
 
   const showHonesty = !!result && (!result.verified || !!result.disclaimer);
 
+  // Hoisted so the tutorial's spotlights can wrap them during a run on the
+  // sample; otherwise they render exactly as before.
+  const questionInput = (
+    <TextInput
+      value={question}
+      onChangeText={setQuestion}
+      placeholder="Ask about codes, spans, permits or your plans"
+      placeholderTextColor={Colors.textMuted}
+      style={styles.textArea}
+      multiline
+      numberOfLines={4}
+      textAlignVertical="top"
+      // The server refuses longer questions (400); cap here so it can't.
+      maxLength={MAX_QUESTION_CHARS}
+      testID="construction-ask-input"
+    />
+  );
+  const runButton = (
+    <TouchableOpacity
+      style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
+      onPress={runAsk}
+      disabled={!canSubmit}
+      activeOpacity={0.85}
+      testID="construction-ask-run"
+    >
+      {loading ? <ActivityIndicator color="#FFF" /> : <MageAIMark size={18} color="#FFF" />}
+      <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get answer'}</Text>
+    </TouchableOpacity>
+  );
+
+  // The answer's grounding (what it rests on, what else it checked) and its
+  // honesty banner — hoisted for the tutorial's two look steps.
+  const groundingBlock = result ? (
+    <>
+    {result.citations.length > 0 ? (
+      <>
+        <Text style={styles.sourcesLabel}>Sources</Text>
+        <View style={styles.chipWrap}>
+          {result.citations.map((c, i) => {
+            const tappable = (c.kind === 'web' && !!c.url) || (c.kind === 'plan' && !!c.ref);
+            const Icon = c.kind === 'web' ? ExternalLink : c.kind === 'plan' ? FileText : c.kind === 'rfi' ? FileQuestion : DollarSign;
+            return (
+              <TouchableOpacity
+                key={`${c.kind}-${i}`}
+                style={styles.sourceChip}
+                onPress={() => openCitation(c)}
+                disabled={!tappable}
+                activeOpacity={tappable ? 0.7 : 1}
+              >
+                <Icon size={12} color={tappable ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.sourceChipText, tappable && styles.sourceChipTextLink]} numberOfLines={1}>{c.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </>
+    ) : null}
+
+    {result.consulted && result.consulted.length > 0 ? (
+      // Looked at, not used: muted and never tappable, so "Sources"
+      // means only what the answer rests on.
+      <View testID="construction-ask-consulted">
+        <Text style={styles.consultedLabel}>Also checked</Text>
+        <Text style={styles.consultedText}>
+          {consultedSummary(result.consulted.map(c => c.label))}
+        </Text>
+      </View>
+    ) : null}
+    </>
+  ) : null;
+  const honestyBanner = result && showHonesty ? (
+    <View style={styles.honestyBanner} testID="construction-ask-ahj">
+      <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+      <Text style={styles.honestyText}>
+        {result.disclaimer || 'General guidance — confirm details with your local building department (AHJ).'}
+      </Text>
+    </View>
+  ) : null;
+
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={{ padding: 20, paddingBottom: bottomInset + 80 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      <MaybeScrollAnchor on={tutorialOn} scrollRef={scrollRef}>
       <View style={styles.hero}>
         <View style={styles.heroIconWrap}>
           <MessageCircleQuestion size={28} color={Colors.primary} strokeWidth={1.75} />
@@ -226,20 +394,28 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
       )}
 
       <Text style={styles.label}>Your question</Text>
-      <TextInput
-        value={question}
-        onChangeText={setQuestion}
-        placeholder="Ask about codes, spans, permits or your plans"
-        placeholderTextColor={Colors.textMuted}
-        style={styles.textArea}
-        multiline
-        numberOfLines={4}
-        textAlignVertical="top"
-        // The server refuses longer questions (400); cap here so it can't.
-        maxLength={MAX_QUESTION_CHARS}
-        testID="construction-ask-input"
-      />
+      {tutorialOn ? (
+        // The tutorial's sample question rides in the same spotlight hole as
+        // the box. It is about the job's records — never a code question.
+        <TutorialTarget id="cai.askInput" style={styles.sampleWrap}>
+          {questionInput}
+          <TouchableOpacity
+            style={styles.sampleChip}
+            onPress={fillSampleQuestion}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.tutorial.caiSampleA11y', 'Use the sample question. {note}.', { note: SAMPLE_NO_CREDITS_LABEL })}
+            testID="construction-ask-sample-question"
+          >
+            <Text style={styles.sampleLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+            <Text style={styles.sampleChipText}>{t('common.tutorial.caiSampleQuestion', 'Use the sample question: {question}', { question: SAMPLE_JOB_QUESTION })}</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+      ) : questionInput}
 
+      {/* The code presets stay out of the tutorial: it teaches asking about
+          the job, not code content. */}
+      {!tutorialOn && (
       <View style={styles.presetList}>
         {PRESETS.map((q) => (
           <TouchableOpacity
@@ -252,18 +428,10 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           </TouchableOpacity>
         ))}
       </View>
+      )}
 
       {canAsk ? (
-        <TouchableOpacity
-          style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
-          onPress={runAsk}
-          disabled={!canSubmit}
-          activeOpacity={0.85}
-          testID="construction-ask-run"
-        >
-          {loading ? <ActivityIndicator color="#FFF" /> : <MageAIMark size={18} color="#FFF" />}
-          <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get answer'}</Text>
-        </TouchableOpacity>
+        tutorialOn ? <TutorialTarget id="cai.run">{runButton}</TutorialTarget> : runButton
       ) : (
         <TouchableOpacity
           style={styles.runBtn}
@@ -275,6 +443,13 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           <Text style={styles.runBtnText}>See Business plan</Text>
         </TouchableOpacity>
       )}
+
+      {/* Why the sample refused that question (a blocked control says why). */}
+      {tutorialBlocked ? (
+        <View style={styles.noticeCard} testID="construction-ask-tutorial-blocked">
+          <Text style={styles.noticeText}>{tutorialBlocked}</Text>
+        </View>
+      ) : null}
 
       {/* ── Errors (graceful, never a crash) ── */}
       {errCode ? (
@@ -329,51 +504,16 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
             </View>
           ) : null}
 
-          {result.citations.length > 0 ? (
-            <>
-              <Text style={styles.sourcesLabel}>Sources</Text>
-              <View style={styles.chipWrap}>
-                {result.citations.map((c, i) => {
-                  const tappable = (c.kind === 'web' && !!c.url) || (c.kind === 'plan' && !!c.ref);
-                  const Icon = c.kind === 'web' ? ExternalLink : c.kind === 'plan' ? FileText : c.kind === 'rfi' ? FileQuestion : DollarSign;
-                  return (
-                    <TouchableOpacity
-                      key={`${c.kind}-${i}`}
-                      style={styles.sourceChip}
-                      onPress={() => openCitation(c)}
-                      disabled={!tappable}
-                      activeOpacity={tappable ? 0.7 : 1}
-                    >
-                      <Icon size={12} color={tappable ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
-                      <Text style={[styles.sourceChipText, tappable && styles.sourceChipTextLink]} numberOfLines={1}>{c.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>
+          {groundingBlock ? (
+            tutorialOn ? <TutorialTarget id="cai.consulted" style={styles.groundingWrap}>{groundingBlock}</TutorialTarget> : groundingBlock
           ) : null}
 
-          {result.consulted && result.consulted.length > 0 ? (
-            // Looked at, not used: muted and never tappable, so "Sources"
-            // means only what the answer rests on.
-            <View testID="construction-ask-consulted">
-              <Text style={styles.consultedLabel}>Also checked</Text>
-              <Text style={styles.consultedText}>
-                {consultedSummary(result.consulted.map(c => c.label))}
-              </Text>
-            </View>
-          ) : null}
-
-          {showHonesty ? (
-            <View style={styles.honestyBanner} testID="construction-ask-ahj">
-              <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-              <Text style={styles.honestyText}>
-                {result.disclaimer || 'General guidance — confirm details with your local building department (AHJ).'}
-              </Text>
-            </View>
+          {honestyBanner ? (
+            tutorialOn ? <TutorialTarget id="cai.honesty">{honestyBanner}</TutorialTarget> : honestyBanner
           ) : null}
         </View>
       ) : null}
+      </MaybeScrollAnchor>
 
       <Paywall
         visible={showPaywall}
@@ -381,8 +521,19 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         requiredTier="business"
         onClose={() => setShowPaywall(false)}
       />
+      {/* Tutorial blocker: the Paywall sheet draws above the root layer, so
+          while it is up the coach draws nothing. Run-only. */}
+      {tutorialOn && showPaywall ? <TutorialTarget id="cai.askModalUp" /> : null}
     </ScrollView>
   );
+}
+
+/** The scroll anchor only during a tutorial run, so the tree is unchanged
+ *  otherwise (a composite with no host View of its own when off). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
 }
 
 const makeStyles = (c: ThemeColors) => StyleSheet.create({
@@ -475,4 +626,14 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     backgroundColor: `${Colors.warning}14`, borderWidth: 1, borderColor: `${Colors.warning}40`,
   },
   honestyText: { flex: 1, fontSize: Type.footnote.fontSize, color: c.textSecondary, lineHeight: 19 },
+  // The tutorial's wrappers and its sample-question chip (alt surface — the
+  // accent is never the background), in the same hole as the box.
+  sampleWrap: { gap: 8 },
+  groundingWrap: { gap: 12 },
+  sampleChip: {
+    padding: 12, gap: 4, borderRadius: Tokens.radius.card,
+    backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.line,
+  },
+  sampleLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: c.textSecondary, letterSpacing: 0.3 },
+  sampleChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.text },
 });

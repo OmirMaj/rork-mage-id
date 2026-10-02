@@ -70,6 +70,15 @@ import {
 import { disciplineChips, disciplineOf, type Discipline } from '@/utils/plans/planDiscipline';
 import { describeError } from '@/utils/errorCopy';
 import { edgeErrorCode } from '@/utils/edgeError';
+// Learn-by-doing tutorial "ask-your-plans" (utils/tutorial/defs): the Ask CTA
+// is lit on the sample job, the Ask sheet hosts the askPlans layer (an RN
+// Modal draws above the root one), and the practice pass opens the plan room
+// on the sample only. Wrappers render only during that run, so the screen is
+// byte-identical otherwise (the phone goldens hash the tree).
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialLayer } from '@/components/tutorial/TutorialLayer';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
 
 type PlanImageSource = 'camera' | 'library';
 
@@ -535,20 +544,18 @@ export default function PlansScreen() {
   useSheetPrimaryHotkey(!!newSheet, () => { void confirmImport(); });
   useSheetPrimaryHotkey(!!titleReview, applyTitleNumbers);
 
+  // ── Tutorial: ask-your-plans (the sample job only) ───────────────────────
+  // The pass is keyed to THIS screen's job (practicePass scopes it to the
+  // run's sandbox id), so it never opens a real job's plan room.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const practice = useTutorialPractice(projectId);
+  const tutorialOn = !!projectId && tutorialSandboxId === projectId;
+  const plansScrollRef = useRef<ScrollView>(null);
+  const askScrollRef = useRef<ScrollView>(null);
+
   // Project picker when launched without a project
   if (!projectId || !project) {
     return <PlansProjectPicker projects={projects} onPick={(id) => router.replace({ pathname: '/plans' as never, params: { projectId: id } as never })} onBack={() => router.back()} />;
-  }
-
-  // The gating contract (utils/plans/revisionActions planScreenGate): a
-  // spinner only while the role read is in flight — never a paywall flash for
-  // a free foreman — a retry on a failed read, and "no access" said plainly.
-  const planAccess = canAccess('plan_markup');
-  const gate = planScreenGate({ canAccess: planAccess, roleLoading: roleState.isLoading, roleError: roleState.isError, role, offline });
-  if (!planAccess) {
-    return gate === 'locked'
-      ? <PaywallView onUpgrade={() => router.push('/paywall' as never)} onBack={() => router.back()} insets={insets} />
-      : <PlansAccessGate gate={gate} projectName={project.name} onRetry={roleState.refetch} onBack={() => router.back()} insets={insets} />;
   }
 
   // One card per shown sheet: a row on the phone, a thumbnail tile in the
@@ -666,7 +673,28 @@ export default function PlansScreen() {
     );
   });
 
-  return (
+  // Hoisted so the tutorial's spotlight can wrap it during a run (and the
+  // screen renders exactly this otherwise).
+  const askCta = (
+    <TouchableOpacity
+      onPress={() => setAskOpen(true)}
+      activeOpacity={0.85}
+      style={[styles.compareBtn, { marginTop: 8 }]}
+      testID="plans-ask-cta"
+    >
+      <MageAIMark size={16} color={themeColors.accent} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.compareBtnTitle}>Ask your plans</Text>
+        <Text style={styles.compareBtnSub}>Ask in plain English. MAGE finds it in the sheets.</Text>
+      </View>
+      <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+    </TouchableOpacity>
+  );
+
+  // The room, built before the gate so the tutorial's practice pass can open
+  // it from inside the gate's 'locked' branch (below) without moving a line
+  // of the pinned gating contract.
+  const room = (
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -716,10 +744,12 @@ export default function PlansScreen() {
       ) : null}
 
       <ScrollView
+        ref={plansScrollRef}
         {...fabScroll}
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         refreshControl={<RefreshControl refreshing={plansRefreshing} onRefresh={() => { void onRefreshPlans(); }} tintColor={themeColors.textMuted} />}
       >
+        <MaybeScrollAnchor on={tutorialOn} scrollRef={plansScrollRef}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
             <FileImage size={28} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -785,19 +815,7 @@ export default function PlansScreen() {
             tapping a sheet started a metered AI estimate. The panel carries
             its own Business gate and upgrade button. Always shown so a
             first-time user knows it exists before uploading sheets. */}
-        <TouchableOpacity
-          onPress={() => setAskOpen(true)}
-          activeOpacity={0.85}
-          style={[styles.compareBtn, { marginTop: 8 }]}
-          testID="plans-ask-cta"
-        >
-          <MageAIMark size={16} color={themeColors.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.compareBtnTitle}>Ask your plans</Text>
-            <Text style={styles.compareBtnSub}>Ask in plain English. MAGE finds it in the sheets.</Text>
-          </View>
-          <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
-        </TouchableOpacity>
+        {tutorialOn ? <TutorialTarget id="plans.askCta">{askCta}</TutorialTarget> : askCta}
 
         {/* Plan Set Code Sweep — questions for the architect on the sheets that
             matter for this job's scope. The panel carries its own Pro gate. */}
@@ -836,6 +854,7 @@ export default function PlansScreen() {
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         )}
+        </MaybeScrollAnchor>
       </ScrollView>
 
       {/* #163: the Ask-only destination. The panel gets every sheet; it
@@ -860,10 +879,20 @@ export default function PlansScreen() {
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 520, flexShrink: 1 }} keyboardShouldPersistTaps="handled">
-              <AskPlansPanel projectId={project.id} sheets={allSheets} onUpgrade={() => { setAskOpen(false); router.push('/paywall' as never); }} />
+            <ScrollView ref={askScrollRef} style={{ maxHeight: 520, flexShrink: 1 }} keyboardShouldPersistTaps="handled">
+              <MaybeScrollAnchor on={tutorialOn} scrollRef={askScrollRef}>
+                <AskPlansPanel projectId={project.id} sheets={allSheets}
+                  onUpgrade={() => { setAskOpen(false); router.push('/paywall' as never); }}
+                  // A citation opens the plan viewer, a pushed route: close this
+                  // sheet first, or on iOS the RN Modal stays drawn over it.
+                  onBeforeOpenSheet={() => setAskOpen(false)}
+                />
+              </MaybeScrollAnchor>
             </ScrollView>
           </View>
+          {/* LAST child, so the tutorial's askPlans spotlight draws over the
+              sheet (an RN Modal is above the root layer). Idle: renders null. */}
+          <TutorialLayer host="askPlans" />
         </KeyboardAvoidingView>
       </Modal>
 
@@ -994,8 +1023,38 @@ export default function PlansScreen() {
           </View>
         </View>
       </Modal>
+      {/* Tutorial blocker: these sheets carry no tutorial layer and draw above
+          the root one, so while any is up the coach draws nothing. The Ask
+          sheet is NOT here — it hosts the askPlans layer. Run-only. */}
+      {tutorialOn && (sweepOpen || !!newSheet || !!titleReview)
+        ? <TutorialTarget id="plans.modalUp" />
+        : null}
     </View>
   );
+
+  // The gating contract (utils/plans/revisionActions planScreenGate): a
+  // spinner only while the role read is in flight — never a paywall flash for
+  // a free foreman — a retry on a failed read, and "no access" said plainly.
+  const planAccess = canAccess('plan_markup');
+  // The tutorial's practice pass: where his plan would show the paywall, it
+  // opens the room instead — on the run's sample only (practicePass.ts keys
+  // it to the sandbox id), while the run is live. No other job, no other gate.
+  const planPractice = practice.has('plan_markup');
+  const gate = planScreenGate({ canAccess: planAccess, roleLoading: roleState.isLoading, roleError: roleState.isError, role, offline });
+  if (!planAccess) {
+    return gate === 'locked'
+      ? (planPractice ? room : <PaywallView onUpgrade={() => router.push('/paywall' as never)} onBack={() => router.back()} insets={insets} />)
+      : <PlansAccessGate gate={gate} projectName={project.name} onRetry={roleState.refetch} onBack={() => router.back()} insets={insets} />;
+  }
+  return room;
+}
+
+/** The scroll anchor only during a tutorial run, so the tree is unchanged
+ *  otherwise (a composite with no host View of its own when off). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
 }
 
 // ─────────────────────────────────────────────────────────────
