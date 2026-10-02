@@ -903,7 +903,11 @@ type COFrozenPdfFields = {
   priorApprovedChangesTotal?: number;
 };
 
-function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
+/** The change order document's body (title through the client-approval block),
+ *  without the shell, the letterhead or the footer. The CO PDF and the proof
+ *  packet (utils/coProofPacketShare.ts) both print THIS string, so the two can
+ *  never show a different amount, tax row or approval line. */
+export function buildChangeOrderBodyHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
   const now = D.fmtDate(co.date || new Date().toISOString());
@@ -1008,11 +1012,17 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
     ${approvalLineHtml}${approval?.kind === 'client_signed' ? '' : blankSigLines}
   </div>`;
 
+  return titleHtml + statusBadge + reasonHtml + tableHtml + totalsBlock + sigBlock;
+}
+
+function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
   return D.pdfShell({
     title: `Change order #${co.number} — ${project.name}`,
     branding,
     bodyHtml:
-      D.pdfHeader(branding) + titleHtml + statusBadge + reasonHtml + tableHtml + totalsBlock + sigBlock +
+      D.pdfHeader(branding) + buildChangeOrderBodyHtml(co, project, branding) +
       D.pdfFooter(branding, `Change order #${co.number}`, D.PDF_DISCLAIMERS.changeOrder),
   });
 }

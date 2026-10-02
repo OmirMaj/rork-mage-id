@@ -24,7 +24,7 @@
 // the AI's row id. Persistence is Phase 2b — for now the override only
 // lives until the user resets or navigates away.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image, TextInput,
 } from 'react-native';
@@ -80,6 +80,29 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { describeError } from '@/utils/errorCopy';
+// Learn-by-doing tutorial "takeoff-to-estimate" (utils/tutorial/defs): on the
+// SAMPLE job while a run is live, the takeoff shows a bundled A-101 result
+// priced from HIS cost book, and every AI run on this screen (upload, retry,
+// spec match) shows why it is blocked instead — scripts/validate-tutorial-
+// learn-b.ts pins each guard. The wrappers render only during that run, so a
+// screen with no tutorial is byte-identical to before.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtures';
+import {
+  SAMPLE_TAKEOFF_RESULT, formatCents, mergeSampleTakeoffIntoEstimate, priceSampleTakeoff, sampleTakeoffAsResult,
+  sampleTakeoffCostItems, sampleTakeoffItemsAfterEdits, tutorialAiLock, type PricedSampleTakeoff,
+} from '@/utils/tutorial/learn/fixturesB';
+import { isSampleProject } from '@/utils/sampleGuard';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { generateUUID } from '@/utils/generateId';
+import { cardSurface } from '@/components/ui';
+import { t } from '@/i18n/core';
 import type {
   TakeoffResult, TakeoffConfidence, TakeoffWall, TakeoffFloorArea,
   TakeoffDoor, TakeoffWindow, TakeoffFinish, TakeoffFixture, TakeoffBulkMaterial,
@@ -127,7 +150,7 @@ function TakeoffInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject, addBidPackage } = useProjects();
+  const { projects, getProject, addBidPackage, updateProject } = useProjects();
   const { isBusinessTier, isEnterpriseTier, tier } = useSubscription();
   const { canAccess } = useTierAccess();
   const { refresh: refreshQuota } = useUsageStatus();
@@ -137,7 +160,7 @@ function TakeoffInner() {
   // Pro+. Knowing this up here lets the "Convert to estimate" CTA present as
   // an explicit upsell at the moment of intent instead of silently bouncing
   // the user into a full-screen paywall (audit P1: free trial dead-ends).
-  const canConvertToEstimate = canAccess('ai_estimate_wizard');
+  const ownCanConvertToEstimate = canAccess('ai_estimate_wizard');
 
   const [step, setStep] = useState<Step>('idle');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -173,6 +196,25 @@ function TakeoffInner() {
     [pickedProjectId, getProject],
   );
 
+  // ── Tutorial: takeoff-to-estimate (the sample job only) ──────────────────
+  // The practice pass is keyed to the PICKED job, not the URL: picking a real
+  // job's chip mid-run drops the pass, so it can never open a real job's
+  // estimate step (the invoice escape, practice-pass-real-job).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const practice = useTutorialPractice(pickedProjectId);
+  // The AI lock: a run live on this job, or the pass open on it. While it
+  // holds, every AI run here (upload + analysis, retry, spec match, the
+  // AI-priced estimate screen) is refused and the sample path is the only one.
+  const sampleRun = tutorialAiLock(pickedProjectId, tutorialSandboxId, practice.size);
+  // The wrappers (real Views) render only during the run on this job.
+  const tutorialOn = !!pickedProjectId && tutorialSandboxId === pickedProjectId;
+  const canConvertToEstimate = ownCanConvertToEstimate || practice.has('ai_estimate_wizard');
+  // True while the result on screen is the bundled A-101 sample.
+  const [sampleShown, setSampleShown] = useState(false);
+  // His cost book's prices for the sample lines, reported by SampleTakeoffLines.
+  const samplePricedRef = useRef<PricedSampleTakeoff | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
   /**
    * Why the upload is blocked, or null when it is available (DB-F11).
    *
@@ -194,6 +236,8 @@ function TakeoffInner() {
   // mount + whenever the user switches projects. If there's saved data,
   // jump straight to review mode so the user picks up where they left off.
   useEffect(() => {
+    // A tutorial run on the sample starts from the upload card every time.
+    if (sampleRun) return;
     let cancelled = false;
     (async () => {
       const saved = await loadTakeoff(pickedProjectId);
@@ -209,10 +253,11 @@ function TakeoffInner() {
       setModelUsed(saved.modelUsed);
       setPages(restoredPages);
       setUploadedFileName(saved.fileName);
+      setSampleShown(false);
       setStep('review');
     })();
     return () => { cancelled = true; };
-  }, [pickedProjectId]);
+  }, [pickedProjectId, sampleRun]);
 
   // Rendered pages belong to the project they were uploaded into.
   useEffect(() => {
@@ -236,6 +281,8 @@ function TakeoffInner() {
   // a result; saving an empty takeoff is meaningless.
   useEffect(() => {
     if (step !== 'review' || !result) return;
+    // The bundled sample is never persisted as if it were his takeoff.
+    if (sampleShown || sampleRun) return;
     void saveTakeoff(pickedProjectId, {
       result,
       overrides,
@@ -244,7 +291,7 @@ function TakeoffInner() {
       pages,
       fileName: uploadedFileName,
     });
-  }, [step, result, overrides, rejected, modelUsed, pages, uploadedFileName, pickedProjectId]);
+  }, [step, result, overrides, rejected, modelUsed, pages, uploadedFileName, pickedProjectId, sampleShown, sampleRun]);
 
   // The analyze half of a takeoff, on pages already rendered. Shared by a
   // fresh pick and by "Retry analysis" (#39), so a retry never renders or
@@ -294,6 +341,12 @@ function TakeoffInner() {
   const handlePick = useCallback(async () => {
     setError(null);
     setErrorKind(null);
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): on the sample during a
+    // run there is no upload and no analysis — the sample plan is the path.
+    if (sampleRun) {
+      setError(t('common.tutorial.takeoffUploadBlocked', 'On the sample, use the sample plan. Upload your own plans on a real job.'));
+      return;
+    }
     // DB-F11. The bucket folder IS the tenant boundary, so there is no
     // project-less place to put a drawing. uploadAndRenderPdf refuses a
     // non-project prefix and the edge function 403s it; say so here, before the
@@ -361,10 +414,15 @@ function TakeoffInner() {
     } catch (e) {
       failRun(e, rendered);
     }
-  }, [pickedProjectId, uploadBlockedReason, router, refreshQuota, tier, analyzePages, failRun]);
+  }, [pickedProjectId, uploadBlockedReason, router, refreshQuota, tier, analyzePages, failRun, sampleRun]);
 
   // #39: read the pages that already rendered again — analyze-takeoff only.
   const handleRetryAnalysis = useCallback(async () => {
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b).
+    if (sampleRun) {
+      setError(t('common.tutorial.takeoffUploadBlocked', 'On the sample, use the sample plan. Upload your own plans on a real job.'));
+      return;
+    }
     const kept = retryPages;
     if (!kept || kept.length === 0) return;
     const gate = await checkAILimit(tier, 'smart', 'aiTakeoff');
@@ -380,10 +438,16 @@ function TakeoffInner() {
     } catch (e) {
       failRun(e, kept);
     }
-  }, [retryPages, tier, router, analyzePages, failRun]);
+  }, [retryPages, tier, router, analyzePages, failRun, sampleRun]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): the spec-book read is an
+    // AI run too. (The sample review hides its card; this is the backstop.)
+    if (sampleRun) {
+      setSpecMatchError(t('common.tutorial.takeoffUploadBlocked', 'On the sample, use the sample plan. Upload your own plans on a real job.'));
+      return;
+    }
     // Same rule as the drawings upload: the spec book is rendered into the
     // project's plan-sheets folder, so it needs a real project id (DB-F11).
     if (!pickedProjectId) {
@@ -440,7 +504,7 @@ function TakeoffInner() {
       setSpecMatchLoading(false);
       refreshQuota();
     }
-  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota]);
+  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota, sampleRun]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -454,11 +518,70 @@ function TakeoffInner() {
     setRejected({});
     setSpecMatch(null);
     setSpecMatchError(null);
-    void clearTakeoff(pickedProjectId);
-  }, [pickedProjectId]);
+    setSampleShown(false);
+    // The sample was never saved; there is nothing of his to clear.
+    if (!sampleRun) void clearTakeoff(pickedProjectId);
+  }, [pickedProjectId, sampleRun]);
+
+  // ── Tutorial: the sample plan (takeoff-to-estimate, step takeoff-sample) ──
+  // The bundled A-101 counts, shown in the REAL review. No upload, no AI call,
+  // no meter change, nothing saved as his takeoff. Only on the sample during a
+  // run; the chip that calls it is labelled SAMPLE_NO_CREDITS_LABEL.
+  const applySampleTakeoff = useCallback(() => {
+    if (!sampleRun || !pickedProjectId) return;
+    setError(null);
+    setErrorKind(null);
+    setRetryPages(null);
+    setPages([]);
+    setResult(sampleTakeoffAsResult());
+    setModelUsed(null);
+    setOverrides({});
+    setRejected({});
+    setSpecMatch(null);
+    setSpecMatchError(null);
+    setUploadedFileName(`Sheet ${SAMPLE_TAKEOFF_RESULT.sheetNumber}`);
+    setSampleShown(true);
+    setStep('review');
+    tutorialSignal('takeoff.result.ready', { projectId: pickedProjectId, items: SAMPLE_TAKEOFF_RESULT.items.length, source: 'sample' });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [sampleRun, pickedProjectId]);
+  // 'Do it for me' on the sample step: the same thing the chip does.
+  useTutorialAssist('takeoff.useSamplePlan', applySampleTakeoff);
+
+  /** The sample lines onto the sample job's estimate: ADDED at the estimate's
+   *  own ratio (never a replace — the invoice tutorial bills from its seeded
+   *  lines), a replay's earlier copy taken back out first. Priced from his
+   *  cost book; a line with no rate lands at $0 named for him to price. */
+  const convertSampleTakeoff = useCallback(() => {
+    if (!pickedProjectId) return;
+    const target = getProject(pickedProjectId);
+    if (!target) return;
+    const priced = samplePricedRef.current ?? priceSampleTakeoff([]);
+    const items = sampleTakeoffCostItems(priced);
+    const { next, addedSellCents } = mergeSampleTakeoffIntoEstimate(target.linkedEstimate, items, generateUUID(), new Date().toISOString());
+    updateProject(target.id, commitEstimatePatch(target, next, { reason: 'manual', note: `Sample takeoff, sheet ${SAMPLE_TAKEOFF_RESULT.sheetNumber}` }));
+    // The real success point: right after the estimate write.
+    tutorialSignal('takeoff.converted', { projectId: target.id, lineCount: items.length, pricedCount: priced.pricedCount, totalCents: addedSellCents });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    // The takeoff sits on the sample hub (the tutorial stacks it there), where
+    // the next step shows the estimate.
+    if (router.canGoBack()) router.back();
+  }, [pickedProjectId, getProject, updateProject, router]);
+  const onSamplePriced = useCallback((p: PricedSampleTakeoff) => { samplePricedRef.current = p; }, []);
 
   const handleConvertToEstimate = useCallback(() => {
     if (!result) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): /takeoff-estimate prices
+    // every line with an AI call. On the sample during a run the bundled
+    // result converts here, from his own cost book; anything else is refused.
+    if (sampleRun) {
+      if (sampleShown) convertSampleTakeoff();
+      else showAlert(
+        t('common.tutorial.takeoffSampleOnlyTitle', 'Use the sample plan'),
+        t('common.tutorial.takeoffUploadBlocked', 'On the sample, use the sample plan. Upload your own plans on a real job.'),
+      );
+      return;
+    }
     // Free/sub-Pro users can't reach the priced-estimate screen — it hard-
     // gates on canAccess('ai_estimate_wizard'). Rather than push them into
     // /takeoff-estimate only to slam a full-screen Paywall over their result
@@ -482,7 +605,7 @@ function TakeoffInner() {
       pathname: '/takeoff-estimate',
       params: pickedProjectId ? { projectId: pickedProjectId } : {},
     } as never);
-  }, [result, router, pickedProjectId, canConvertToEstimate]);
+  }, [result, router, pickedProjectId, canConvertToEstimate, sampleRun, sampleShown, convertSampleTakeoff]);
 
   // Look up the AI's original value + confidence + sourcePages for a row
   // key. Used by the correction-recording path so we capture training
@@ -533,7 +656,8 @@ function TakeoffInner() {
     // Capture the diff as training signal. Skip when the user is just
     // resetting back to the AI's value (prevents noisy entries).
     const meta = findRowMeta(key);
-    if (meta && value !== meta.aiValue) {
+    // An edit to the bundled sample teaches his correction history nothing.
+    if (meta && value !== meta.aiValue && !sampleShown) {
       void recordCorrection({
         rowKey: key,
         aiValue: meta.aiValue,
@@ -545,7 +669,7 @@ function TakeoffInner() {
         projectId: pickedProjectId,
       });
     }
-  }, [findRowMeta, modelUsed, pickedProjectId]);
+  }, [findRowMeta, modelUsed, pickedProjectId, sampleShown]);
 
   // Toggle a single row in/out of the rejected set. Rejected rows are
   // hidden from totals, the buyout generator, and the estimate-conversion
@@ -567,7 +691,7 @@ function TakeoffInner() {
     // telling us "AI was wrong to surface this" is high-value training
     // data even when no quantity change happened.
     const meta = findRowMeta(rowKey);
-    if (meta) {
+    if (meta && !sampleShown) {
       void recordCorrection({
         rowKey,
         aiValue: meta.aiValue,
@@ -579,7 +703,7 @@ function TakeoffInner() {
         projectId: pickedProjectId,
       });
     }
-  }, [findRowMeta, modelUsed, pickedProjectId]);
+  }, [findRowMeta, modelUsed, pickedProjectId, sampleShown]);
 
   // Bulk-reject everything below a given confidence threshold. Most
   // useful for cleaning up a fresh takeoff: tap "Drop low-confidence" and
@@ -723,6 +847,34 @@ function TakeoffInner() {
     }
   }, [buyoutDrafts, pickedProjectId, addBidPackage, router]);
 
+  // The upload card, hoisted so the tutorial's spotlight can wrap it with the
+  // sample chip while a run is live (and the screen is unchanged otherwise).
+  const uploadCard = (
+    <TouchableOpacity
+      style={styles.uploadCard}
+      onPress={handlePick}
+      activeOpacity={0.85}
+      disabled={!!uploadBlockedReason}
+      accessibilityState={{ disabled: !!uploadBlockedReason }}
+      testID="takeoff-upload-card"
+    >
+      <View style={styles.uploadIcon}>
+        <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
+      </View>
+      <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
+      <Text style={styles.uploadBody}>
+        Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
+      </Text>
+      <View style={styles.uploadCta}>
+        <MageAIMark size={14} color={Colors.textOnAccent} />
+        <Text style={styles.uploadCtaText}>Pick a PDF</Text>
+      </View>
+      <Text style={styles.uploadHint}>
+        Each page is rendered to PNG and read by MAGE&apos;s vision engine. Uploaded drawings live in your project plans bucket.
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -737,10 +889,12 @@ function TakeoffInner() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         {...fabScroll}
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
+        <MaybeScrollAnchor on={tutorialOn} scrollRef={scrollRef}>
         {step === 'idle' && (
           <>
             {/* Quota badge — visible above all the configuration cards
@@ -816,29 +970,24 @@ function TakeoffInner() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.uploadCard}
-              onPress={handlePick}
-              activeOpacity={0.85}
-              disabled={!!uploadBlockedReason}
-              accessibilityState={{ disabled: !!uploadBlockedReason }}
-              testID="takeoff-upload-card"
-            >
-              <View style={styles.uploadIcon}>
-                <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
-              <Text style={styles.uploadBody}>
-                Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
-              </Text>
-              <View style={styles.uploadCta}>
-                <MageAIMark size={14} color={Colors.textOnAccent} />
-                <Text style={styles.uploadCtaText}>Pick a PDF</Text>
-              </View>
-              <Text style={styles.uploadHint}>
-                Each page is rendered to PNG and read by MAGE&apos;s vision engine. Uploaded drawings live in your project plans bucket.
-              </Text>
-            </TouchableOpacity>
+            {/* The tutorial's sample plan rides in the SAME spotlight hole as the
+                real upload card, above it — only during a run on the sample. */}
+            {tutorialOn ? (
+              <TutorialTarget id="takeoff.useSample">
+                <TouchableOpacity
+                  style={styles.sampleChip}
+                  onPress={applySampleTakeoff}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.tutorial.takeoffUseSampleA11y', 'Use the sample plan, sheet {sheet}. {note}.', { sheet: SAMPLE_TAKEOFF_RESULT.sheetNumber, note: SAMPLE_NO_CREDITS_LABEL })}
+                  testID="takeoff-sample-plan"
+                >
+                  <Text style={styles.sampleChipLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+                  <Text style={styles.sampleChipTitle}>{t('common.tutorial.takeoffUseSample', 'Use the sample plan, sheet {sheet}', { sheet: SAMPLE_TAKEOFF_RESULT.sheetNumber })}</Text>
+                </TouchableOpacity>
+                {uploadCard}
+              </TutorialTarget>
+            ) : uploadCard}
 
             {/* A blocked button that says why (standing rule) — and names the
                 action, not just the obstacle. */}
@@ -971,8 +1120,20 @@ function TakeoffInner() {
             onToggleReject={toggleReject}
             onBulkReject={bulkRejectByConfidence}
             onRestoreAllRejected={restoreAllRejected}
+            sample={sampleShown}
+            tutorialOn={tutorialOn}
+            sampleLines={sampleShown ? (
+              tutorialOn ? (
+                <TutorialTarget id="takeoff.results">
+                  <SampleTakeoffLines overrides={overrides} rejected={rejected} onPriced={onSamplePriced} />
+                </TutorialTarget>
+              ) : (
+                <SampleTakeoffLines overrides={overrides} rejected={rejected} onPriced={onSamplePriced} />
+              )
+            ) : null}
           />
         )}
+        </MaybeScrollAnchor>
       </ScrollView>
 
       {/* Page inspector — opens when user taps a source-page badge on a row. */}
@@ -1003,6 +1164,75 @@ function TakeoffInner() {
         featureLabel="AI Takeoff"
         onClose={() => setUpgradeLimit(null)}
       />
+      {/* Tutorial blocker: while any of these sheets is up the coach draws
+          nothing (they draw above the root layer). Zero-size, inert, and only
+          during a run on this job. */}
+      {tutorialOn && (inspectorPage != null || !!buyoutDrafts || !!upgradeLimit)
+        ? <TutorialTarget id="takeoff.modalUp" />
+        : null}
+    </View>
+  );
+}
+
+/** The scroll anchor only during a tutorial run, so the tree is unchanged
+ *  otherwise (a composite with no host View of its own when off). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
+}
+
+/**
+ * The tutorial's sample lines (takeoff-to-estimate, step takeoff-results):
+ * each count, the room and sheet it came from, and HIS price for it — from
+ * his own cost book (sample jobs left out), or "No price yet". Mounted only
+ * while the bundled sample is on screen, so the cost-book reads never run on
+ * an ordinary takeoff. Reports the priced lines up for the convert.
+ */
+function SampleTakeoffLines({ overrides, rejected, onPriced }: {
+  overrides: QuantityOverrides;
+  rejected: RejectedRows;
+  onPriced: (p: PricedSampleTakeoff) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { projects, commitments } = useProjects();
+  const { seeds } = useCostSeeds();
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+  const book = useMemo(
+    () => buildCostDatabase(projects.filter(p => !isSampleProject(p)), commitments ?? [], receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
+  );
+  const priced = useMemo(
+    () => priceSampleTakeoff(book.entries, sampleTakeoffItemsAfterEdits(overrides, rejected)),
+    [book, overrides, rejected],
+  );
+  useEffect(() => { onPriced(priced); }, [priced, onPriced]);
+  const sheet = SAMPLE_TAKEOFF_RESULT.sheetNumber;
+  return (
+    <View style={styles.sampleLinesCard} testID="takeoff-sample-lines">
+      <Text style={styles.sampleChipLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+      <Text style={styles.sampleLinesTitle}>{t('common.tutorial.takeoffSampleTitle', 'What it counted on sheet {sheet}', { sheet })}</Text>
+      <Text style={styles.sampleLinesSub}>
+        {priced.pricedCount > 0
+          ? t('common.tutorial.takeoffSamplePriced', 'Prices are your own rates from your cost book, at cost.')
+          : t('common.tutorial.takeoffSampleUnpriced', 'Your cost book has no rates for these yet, so each line says No price yet.')}
+      </Text>
+      {priced.lines.map(l => (
+        <View key={l.key} style={styles.sampleLineRow} testID={`takeoff-sample-line-${l.key}`}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sampleLineName}>{l.name}</Text>
+            <Text style={styles.sampleLineMeta}>
+              {t('common.tutorial.takeoffSampleLineMeta', '{qty} {unit} · from sheet {sheet}', { qty: formatNum(l.quantity), unit: l.unit, sheet })}
+            </Text>
+          </View>
+          {l.lineCents === null ? (
+            <Text style={styles.sampleLineNoPrice}>{t('common.tutorial.takeoffNoPriceYet', 'No price yet')}</Text>
+          ) : (
+            <Text style={styles.sampleLinePrice}>{formatCents(l.lineCents)}</Text>
+          )}
+        </View>
+      ))}
     </View>
   );
 }
@@ -1136,6 +1366,7 @@ function ResultView({
   verificationsByRow, onCaptureVerification, onDeleteVerification,
   pendingMeasuredCount,
   rejected, rejectedCount, onToggleReject, onBulkReject, onRestoreAllRejected,
+  sample = false, tutorialOn = false, sampleLines = null,
 }: {
   result: TakeoffResult;
   pages: RenderedPlanPage[];
@@ -1169,6 +1400,14 @@ function ResultView({
   onToggleReject: (rowKey: string) => void;
   onBulkReject: (level: 'low' | 'medium_or_lower') => void;
   onRestoreAllRejected: () => void;
+  /** The bundled tutorial sample is on screen: the two AI-only parts (the
+   *  spec-book read and "Pages the AI read") are left out — no AI read it,
+   *  and no AI run may start from it. */
+  sample?: boolean;
+  /** A tutorial run is live on this job (the CTA's wrapper renders). */
+  tutorialOn?: boolean;
+  /** The sample's priced lines, under the summary. */
+  sampleLines?: React.ReactNode;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -1179,6 +1418,26 @@ function ResultView({
   const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
   const confColor = confidenceColor(result.confidenceOverall, themeColors);
   const confSoft = confidenceSoft(result.confidenceOverall, themeColors);
+
+  const convertCta = (
+    <TouchableOpacity
+      style={styles.ctaPrimary}
+      onPress={onConvert}
+      testID="takeoff-convert-cta"
+    >
+      {canConvertToEstimate ? (
+        <>
+          <CheckCircle2 size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+          <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
+        </>
+      ) : (
+        <>
+          <Crown size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+          <Text style={styles.ctaPrimaryText}>See these priced on Pro</Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
 
   // Headline rollups (cheap to compute on each render). Rejected rows
   // drop out of every total — once you cross out a wall it stops feeding
@@ -1285,15 +1544,19 @@ function ResultView({
         </View>
       </View>
 
+      {sampleLines}
+
       {/* Spec book match card */}
-      <SpecMatchCard
-        specMatch={specMatch}
-        loading={specMatchLoading}
-        error={specMatchError}
-        onMatch={onMatchSpecs}
-        onClear={onClearSpecs}
-        targetCodesCount={extractCodesFromTakeoff(result).length}
-      />
+      {!sample && (
+        <SpecMatchCard
+          specMatch={specMatch}
+          loading={specMatchLoading}
+          error={specMatchError}
+          onMatch={onMatchSpecs}
+          onClear={onClearSpecs}
+          targetCodesCount={extractCodesFromTakeoff(result).length}
+        />
+      )}
 
       {/* Bulk-reject toolbar — closes the #1 industry complaint
           ("AI over-detects, hard to clean up"). Hidden when there's
@@ -1345,6 +1608,7 @@ function ResultView({
       )}
 
       {/* Pages the AI saw */}
+      {!sample && (<>
       <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Pages the AI read" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is &quot;poor,&quot; rerun with a higher-resolution scan. Tap a thumbnail to inspect the page + every quantity extracted from it.
@@ -1381,6 +1645,7 @@ function ResultView({
           );
         })}
       </View>
+      </>)}
 
       {/* Walls */}
       {result.walls.length > 0 && (
@@ -1645,23 +1910,9 @@ function ResultView({
         <TouchableOpacity style={styles.ctaSecondary} onPress={onReset}>
           <Text style={styles.ctaSecondaryText}>Run again</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.ctaPrimary}
-          onPress={onConvert}
-          testID="takeoff-convert-cta"
-        >
-          {canConvertToEstimate ? (
-            <>
-              <CheckCircle2 size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
-            </>
-          ) : (
-            <>
-              <Crown size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.ctaPrimaryText}>See these priced on Pro</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {tutorialOn ? (
+          <TutorialTarget id="takeoff.convert" style={styles.ctaPrimaryWrap}>{convertCta}</TutorialTarget>
+        ) : convertCta}
       </View>
       <View style={styles.ctaBarSecondary}>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onPreviewBuyouts}>
@@ -2489,6 +2740,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.accentFill,
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnAccent },
+  // The tutorial's wrapper takes the CTA's flex share; the CTA fills it.
+  ctaPrimaryWrap: { flex: 1.4, flexDirection: 'row' },
+
+  // The tutorial's sample-plan chip: a plain alt-surface card (the accent is
+  // never the background), above the upload card, inside the same hole.
+  sampleChip: {
+    marginBottom: 10, padding: 12, gap: 4,
+    backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  sampleChipLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textSecondary, letterSpacing: 0.3 },
+  sampleChipTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  // The sample's priced lines (the primitive's surface, not a hand-rolled one).
+  sampleLinesCard: { ...cardSurface(themeColors, { pad: 14 }), gap: 6, marginBottom: 14 },
+  sampleLinesTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: themeColors.text },
+  sampleLinesSub: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17, marginBottom: 4 },
+  sampleLineRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: themeColors.line,
+  },
+  sampleLineName: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text },
+  sampleLineMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 1 },
+  sampleLinePrice: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text, fontVariant: ['tabular-nums'] },
+  sampleLineNoPrice: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.textMuted },
 
   measuredNotice: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,

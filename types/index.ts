@@ -3900,6 +3900,21 @@ export interface SubSubmittedInvoice {
   paidOn?: string;
 }
 
+export type MessageAttachmentKind = 'image' | 'pdf';
+export type MessageAttachmentMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+/** A photo or PDF on a portal message (portal_messages.attachments, rules in utils/messageAttachments.ts). */
+export interface MessageAttachment {
+  id: string;
+  name: string;
+  mime: MessageAttachmentMime;
+  size: number;
+  kind: MessageAttachmentKind;
+  width?: number;
+  height?: number;
+  /** Storage key in the private message-attachments bucket. Absent on rows the portal RPC returns. */
+  path?: string;
+}
+
 export interface PortalMessage {
   id: string;
   projectId: string;
@@ -3911,6 +3926,7 @@ export interface PortalMessage {
   createdAt: string;
   readByGc: boolean;
   readByClient: boolean;
+  attachments?: MessageAttachment[];
 }
 
 // ─── Scan Anything → auto-file ────────────────────────────────────────────

@@ -48,15 +48,42 @@ import {
   type TitleBlockSuggestion, type PlanRole,
 } from '@/utils/plans/revisionActions';
 import type { PlanSheet } from '@/types';
+// Learn-by-doing tutorial "ask-your-plans" (utils/tutorial/defs): on the
+// SAMPLE job while a run is live, the sample question gets a bundled answer
+// built from sheet A-101's own room labels (fixturesB samplePlanAnswer) — no
+// plan search, no AI call, no meter change — and every other ask, and the
+// Index run, says why it is blocked (validate-tutorial-learn-b pins both
+// guards). The wrappers render only during that run (askPlans layer).
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { SAMPLE_NO_CREDITS_LABEL, SAMPLE_PLAN } from '@/utils/tutorial/fixtures';
+import { SAMPLE_PLAN_QUESTION, isSampleQuestion, samplePlanAnswer, tutorialAiLock } from '@/utils/tutorial/learn/fixturesB';
+import { t } from '@/i18n/core';
+
+/** The refusal on the sample during a run. A module-level function (not a
+ *  constant: t() never runs at import time) because inside the components
+ *  `t` is the theme. */
+function sampleQuestionBlockedCopy(): string {
+  return t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.');
+}
+function sampleChipCopy(): { label: string; a11y: string } {
+  return {
+    label: t('common.tutorial.askPlansSampleQuestion', 'Ask the sample question: {question}', { question: SAMPLE_PLAN_QUESTION }),
+    a11y: t('common.tutorial.askPlansSampleA11y', 'Ask the sample question. {note}.', { note: SAMPLE_NO_CREDITS_LABEL }),
+  };
+}
 
 interface Props {
   projectId: string;
   sheets: PlanSheet[];
   /** Where "See Business plan" goes. Defaults to the paywall screen. */
   onUpgrade?: () => void;
+  /** Called right before a citation pushes the plan viewer — the plan room
+   *  closes its Ask sheet here (an RN Modal would stay drawn over the push). */
+  onBeforeOpenSheet?: () => void;
 }
 
-export default function AskPlansPanel({ projectId, sheets, onUpgrade }: Props) {
+export default function AskPlansPanel({ projectId, sheets, onUpgrade, onBeforeOpenSheet }: Props) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -68,8 +95,11 @@ export default function AskPlansPanel({ projectId, sheets, onUpgrade }: Props) {
   const { user } = useAuth();
   // The job's owner keeps Index through a failed/offline role read.
   const seatRole = effectivePlanRole(role, getProject(projectId), user?.id);
+  // The tutorial's practice pass: the sample job only, while its run is live
+  // (practicePass.ts scopes it to the run's sandbox id).
+  const practice = useTutorialPractice(projectId);
 
-  if (!canAccess('ask_your_plans')) {
+  if (!canAccess('ask_your_plans') && !practice.has('ask_your_plans')) {
     // The gating contract: never an upsell while the role is still resolving
     // (a collaborator would see a paywall flash), a retry on a failed read.
     if (roleState.isLoading) {
@@ -95,7 +125,7 @@ export default function AskPlansPanel({ projectId, sheets, onUpgrade }: Props) {
     return <UpsellCard t={t} styles={styles} onUpgrade={onUpgrade ?? (() => router.push('/paywall' as never))} />;
   }
 
-  return <AskPlansPanelInner projectId={projectId} sheets={sheets} role={seatRole} roleStatus={{ isError: roleState.isError, offline }} onRetryRole={roleState.refetch} t={t} styles={styles} />;
+  return <AskPlansPanelInner projectId={projectId} sheets={sheets} role={seatRole} roleStatus={{ isError: roleState.isError, offline }} onRetryRole={roleState.refetch} onBeforeOpenSheet={onBeforeOpenSheet} t={t} styles={styles} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,7 +136,7 @@ type AskState = 'idle' | 'asking' | 'answered' | 'error';
 type IndexState = 'idle' | 'indexing' | 'done' | 'error';
 
 function AskPlansPanelInner({
-  projectId, sheets, role, roleStatus, onRetryRole, t, styles,
+  projectId, sheets, role, roleStatus, onRetryRole, onBeforeOpenSheet, t, styles,
 }: Props & { role: PlanRole; roleStatus: PlanRoleStatus; onRetryRole?: () => void; t: ThemeColors; styles: ReturnType<typeof makeStyles> }) {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
@@ -144,6 +174,13 @@ function AskPlansPanelInner({
   // offered for his yes — never written silently.
   const [titleReview, setTitleReview] = useState<(TitleBlockSuggestion & { use: boolean })[] | null>(null);
 
+  // ── Tutorial: the sample question (ask-your-plans) ──────────────────────
+  const tutorialSandboxId = useTutorialSandboxId();
+  const practice = useTutorialPractice(projectId);
+  // The AI lock: a run live on this job, or the pass open on it.
+  const tutorialLock = tutorialAiLock(projectId, tutorialSandboxId, practice.size);
+  const tutorialOn = tutorialSandboxId === projectId;
+
   // Keyed on what the manifest depends on — the current sheets' identity and
   // fingerprint inputs — so a re-render with the same set does not re-ask.
   const currentKey = useMemo(
@@ -155,15 +192,59 @@ function AskPlansPanelInner({
   useEffect(() => {
     let live = true;
     if (!currentKey) { setChangedCount(0); return; }
+    // Under the tutorial lock Index is refused, so the manifest has nothing to
+    // say: no request leaves the sample during a run (unknown, never "up to date").
+    if (tutorialLock) { setChangedCount(null); return; }
     void readPlanIndexManifest(projectId, sheetsRef.current, false).then((man) => {
       if (live) setChangedCount(man ? man.staleIds.size : null);
     });
     return () => { live = false; };
-  }, [projectId, currentKey]);
+  }, [projectId, currentKey, tutorialLock]);
+
+  // ── Tutorial: the sample question (ask-your-plans), continued ───────────
+  // Why an ask or an Index run was refused on the sample (null otherwise).
+  const [tutorialBlocked, setTutorialBlocked] = useState<string | null>(null);
+  const [sampleAnswered, setSampleAnswered] = useState(false);
+  // The sample's own A-101, current. No sheet → no sample answer to cite.
+  const sampleSheet = useMemo(
+    () => sheets.find(s => s.projectId === projectId && !s.superseded && s.sheetNumber === SAMPLE_PLAN.sheetNumber) ?? null,
+    [sheets, projectId],
+  );
+
+  /** The bundled answer, cited to the sample's own A-101 sheet. No search,
+   *  no AI call, no meter change. */
+  const showSampleAnswer = useCallback(() => {
+    if (!tutorialLock || !sampleSheet) return;
+    const a = samplePlanAnswer(SAMPLE_PLAN);
+    const cites = a.citations.map(c => ({ ref: c.ref, sheetId: sampleSheet.id }));
+    setQuestion(a.question);
+    setTutorialBlocked(null);
+    setSearchFailed(null);
+    setAnswerFailed(null);
+    setNoneFound(false);
+    setWeakGrounding(false);
+    setStaleDropped(0);
+    setAnswer(a.answer);
+    setCitations(cites);
+    setSampleAnswered(true);
+    setAskState('answered');
+    tutorialSignal('askPlans.answered', { projectId, citations: cites.length, source: 'sample' });
+  }, [tutorialLock, sampleSheet, projectId]);
+  // 'Do it for me': the same thing the sample chip does.
+  useTutorialAssist('askPlans.useSampleQuestion', showSampleAnswer);
 
   const handleAsk = useCallback(async () => {
     const q = question.trim();
     if (!q || askState === 'asking') return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): on the sample during a
+    // run, the sample question takes the bundled answer and anything else is
+    // refused — askPlans() is never reached.
+    if (tutorialLock) {
+      if (sampleSheet && isSampleQuestion(q, SAMPLE_PLAN_QUESTION)) showSampleAnswer();
+      else setTutorialBlocked(sampleQuestionBlockedCopy());
+      return;
+    }
+    setSampleAnswered(false);
     setAskState('asking');
     setAnswer('');
     setCitations([]);
@@ -191,10 +272,16 @@ function AskPlansPanelInner({
       setAnswerFailed(null);
       setAskState('error');
     }
-  }, [projectId, question, askState, sheets]);
+  }, [projectId, question, askState, sheets, tutorialLock, sampleSheet, showSampleAnswer]);
 
   const handleIndex = useCallback(async () => {
     if (indexState === 'indexing' || indexBlock) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): indexing reads every
+    // sheet with a metered vision call — never on the sample during a run.
+    if (tutorialLock) {
+      setTutorialBlocked(sampleQuestionBlockedCopy());
+      return;
+    }
     setIndexState('indexing');
     setIndexResult(null);
     setIndexProgress(null);
@@ -213,7 +300,7 @@ function AskPlansPanelInner({
     } finally {
       setIndexProgress(null);
     }
-  }, [projectId, sheets, indexState, indexBlock]);
+  }, [projectId, sheets, indexState, indexBlock, tutorialLock]);
 
   // Apply the confirmed numbers exactly as app/plans.tsx applyTitleNumbers
   // does: one ordered plan against the set as it is now, chain columns through
@@ -252,8 +339,13 @@ function AskPlansPanelInner({
   }, [titleReview, projectId, updatePlanSheet, canSyncSheets]);
 
   const jumpToSheet = useCallback((sheetId: string) => {
+    // The tutorial's real success point for the open-the-sheet step (a no-op
+    // when no run is live, and ignored off the sample).
+    const sheetNumber = sheets.find(s => s.id === sheetId)?.sheetNumber ?? undefined;
+    tutorialSignal('askPlans.sheet.opened', { projectId, ...(sheetNumber ? { sheetNumber } : {}) });
+    onBeforeOpenSheet?.();
     router.push({ pathname: '/plan-viewer', params: { sheetId } });
-  }, [router]);
+  }, [router, sheets, projectId, onBeforeOpenSheet]);
 
   // Superseded revisions are never indexed — the count on the button is the
   // count the run will actually try to cover.
@@ -286,6 +378,94 @@ function AskPlansPanelInner({
   const liveCitations = citations.filter(c => sheets.some(s => s.id === c.sheetId && !s.superseded));
   const staleNote = staleMatchesNote(staleDropped, !!answer, indexBlock === null);
 
+  // Hoisted so the tutorial's spotlights can wrap them during a run on the
+  // sample; otherwise they render exactly as before.
+  const inputRow = (
+    <View style={styles.inputRow}>
+      <TextInput
+        ref={inputRef}
+        style={styles.input}
+        value={question}
+        onChangeText={setQuestion}
+        placeholder="Ask your plans"
+        placeholderTextColor={t.textMuted}
+        returnKeyType="send"
+        onSubmitEditing={() => void handleAsk()}
+        editable={askState !== 'asking'}
+        multiline={false}
+      />
+      <TouchableOpacity
+        style={[styles.sendBtn, (!question.trim() || askState === 'asking') && styles.sendBtnDisabled]}
+        onPress={() => void handleAsk()}
+        disabled={!question.trim() || askState === 'asking'}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Ask"
+      >
+        {askState === 'asking' ? (
+          <ActivityIndicator size="small" color={Colors.textOnAccent} />
+        ) : (
+          <Search size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+  const chip = tutorialOn && sampleSheet ? sampleChipCopy() : null;
+
+  const answerCard = (
+    <View style={styles.answerCard}>
+      {sampleAnswered ? <Text style={styles.sampleLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text> : null}
+      <Text style={styles.answerText}>{answer}</Text>
+
+      {/* Citations */}
+      {liveCitations.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.citationRow}
+        >
+          {liveCitations.map(({ ref, sheetId }, i) => {
+            const citeChip = (
+              <TouchableOpacity
+                key={sheetId}
+                style={styles.citationChip}
+                onPress={() => jumpToSheet(sheetId)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Jump to sheet ${ref}`}
+              >
+                <Text style={styles.citationChipText}>Sheet {ref}</Text>
+                <ArrowRight size={11} color={t.accent} strokeWidth={2} />
+              </TouchableOpacity>
+            );
+            return tutorialOn && i === 0
+              ? <TutorialTarget key={sheetId} id="askPlans.openCitation">{citeChip}</TutorialTarget>
+              : citeChip;
+          })}
+        </ScrollView>
+      )}
+
+      {/* Grounding chip. The answer came from the nearest sheets even
+          though none of them scored as a confident match, so it is
+          presented as a lead to check, not as a fact off the drawing. */}
+      {weakGrounding && (
+        <View style={styles.weakRow}>
+          <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
+          <Text style={styles.weakText}>
+            Weak match — no sheet scored as a close match to that question. Open the cited sheet and verify before you build to this.
+          </Text>
+        </View>
+      )}
+
+      {/* None-found message */}
+      {noneFound && staleDropped === 0 && (
+        <Text style={styles.noneFoundText}>
+          I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
+        </Text>
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.panel}>
       {/* Header */}
@@ -294,35 +474,33 @@ function AskPlansPanelInner({
         <Text style={styles.panelTitle}>Ask your plans</Text>
       </View>
 
-      {/* Input row */}
-      <View style={styles.inputRow}>
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          value={question}
-          onChangeText={setQuestion}
-          placeholder="Ask your plans"
-          placeholderTextColor={t.textMuted}
-          returnKeyType="send"
-          onSubmitEditing={() => void handleAsk()}
-          editable={askState !== 'asking'}
-          multiline={false}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!question.trim() || askState === 'asking') && styles.sendBtnDisabled]}
-          onPress={() => void handleAsk()}
-          disabled={!question.trim() || askState === 'asking'}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Ask"
-        >
-          {askState === 'asking' ? (
-            <ActivityIndicator size="small" color={Colors.textOnAccent} />
-          ) : (
-            <Search size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Input row (with the tutorial's sample-question chip during a run on
+          the sample — one spotlight hole over both). */}
+      {tutorialOn ? (
+        <TutorialTarget id="askPlans.sampleQuestion" style={styles.sampleWrap}>
+          {chip ? (
+            <TouchableOpacity
+              style={styles.sampleChip}
+              onPress={showSampleAnswer}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={chip.a11y}
+              testID="ask-plans-sample-question"
+            >
+              <Text style={styles.sampleLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+              <Text style={styles.sampleChipText}>{chip.label}</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TutorialTarget id="askPlans.input">{inputRow}</TutorialTarget>
+        </TutorialTarget>
+      ) : inputRow}
+
+      {/* Why the sample refused that ask (a blocked control says why). */}
+      {tutorialBlocked ? (
+        <View style={styles.weakRow} testID="ask-plans-tutorial-blocked">
+          <Text style={styles.skipText}>{tutorialBlocked}</Text>
+        </View>
+      ) : null}
 
       {/* Loading state */}
       {askState === 'asking' && (
@@ -331,51 +509,7 @@ function AskPlansPanelInner({
 
       {/* Answer */}
       {(askState === 'answered' || askState === 'error') && answer ? (
-        <View style={styles.answerCard}>
-          <Text style={styles.answerText}>{answer}</Text>
-
-          {/* Citations */}
-          {liveCitations.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.citationRow}
-            >
-              {liveCitations.map(({ ref, sheetId }) => (
-                <TouchableOpacity
-                  key={sheetId}
-                  style={styles.citationChip}
-                  onPress={() => jumpToSheet(sheetId)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Jump to sheet ${ref}`}
-                >
-                  <Text style={styles.citationChipText}>Sheet {ref}</Text>
-                  <ArrowRight size={11} color={t.accent} strokeWidth={2} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Grounding chip. The answer came from the nearest sheets even
-              though none of them scored as a confident match, so it is
-              presented as a lead to check, not as a fact off the drawing. */}
-          {weakGrounding && (
-            <View style={styles.weakRow}>
-              <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
-              <Text style={styles.weakText}>
-                Weak match — no sheet scored as a close match to that question. Open the cited sheet and verify before you build to this.
-              </Text>
-            </View>
-          )}
-
-          {/* None-found message */}
-          {noneFound && staleDropped === 0 && (
-            <Text style={styles.noneFoundText}>
-              I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
-            </Text>
-          )}
-        </View>
+        tutorialOn ? <TutorialTarget id="askPlans.citation">{answerCard}</TutorialTarget> : answerCard
       ) : null}
 
       {/* #78: older-revision matches were left out — said, never silently
@@ -659,6 +793,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...Type.caption1,
     color: t.textSecondary,
     lineHeight: 16,
+  },
+
+  // The tutorial's sample-question chip (alt surface; the accent is never the
+  // background), in the same spotlight hole as the question row.
+  sampleWrap: {
+    gap: 8,
+  },
+  sampleChip: {
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: 1,
+    borderColor: t.line,
+    padding: 10,
+    gap: 3,
+  },
+  sampleLabel: {
+    ...Type.caption2,
+    fontWeight: '700' as const,
+    color: t.textSecondary,
+    letterSpacing: 0.3,
+  },
+  sampleChipText: {
+    ...Type.footnote,
+    fontWeight: '600' as const,
+    color: t.text,
   },
 
   upsellCard: {

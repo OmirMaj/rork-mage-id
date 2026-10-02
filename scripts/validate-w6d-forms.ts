@@ -176,8 +176,11 @@ const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s
 }
 {
   const wz = read('app/estimate-wizard.tsx');
+  // LEARNDEFS-A: a tutorial run on the SAMPLE asks through the stepper (its
+  // scope box and Generate are the controls the coach lights); every other
+  // desktop-web wizard is the one-page form, exactly as before.
   ok('estimate-wizard: the one-page wizard sits behind isDesktopWeb',
-    /\{isDesktopWeb \? \(\s*<EstimateWizardDesktop/.test(wz) && /const isDesktopWeb = useIsDesktopWeb\(\);/.test(wz));
+    /\{isDesktopWeb(?: && !sampleRun)? \? \(\s*<EstimateWizardDesktop/.test(wz) && /const isDesktopWeb = useIsDesktopWeb\(\);/.test(wz));
   ok('estimate-wizard: the desktop Cancel is uncast',
     wz.includes("onCancel={() => (isOnboarding ? router.replace('/(tabs)/(home)') : safeBack())}"));
   ok('estimate-wizard: the phone Cancel line is byte-identical',

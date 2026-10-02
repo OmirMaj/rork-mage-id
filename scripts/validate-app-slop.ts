@@ -161,7 +161,7 @@ failures += report(
 //
 // Failing here means you added a new one. Use Type.eyebrow (11/700/uppercase)
 // for small loud labels, or Type.headline / Type.title* for real headings.
-const WEIGHT_800_CEILING = 874;
+const WEIGHT_800_CEILING = 872;
 const weight800 = scan(collectFiles(['app', 'components']), (l) => /fontWeight: '800'/.test(l));
 if (weight800.length > WEIGHT_800_CEILING) {
   failures += report(

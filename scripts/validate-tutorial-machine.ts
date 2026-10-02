@@ -36,7 +36,7 @@ import {
   RESTORE_MAX_AGE_MS,
   OFFLINE_SUCCESS_SUB,
 } from '../utils/tutorial/machine';
-import { TUTORIAL_DEFS } from '../utils/tutorial/defs';
+import { TUTORIAL_DEFS, TUTORIAL_ORDER } from '../utils/tutorial/defs';
 import { practiceAllows, practiceFeatures, PRACTICE_GRACE_MS, TUTORIAL_PRACTICE_PASS } from '../utils/tutorial/practicePass';
 import { formatDuration, statLine } from '../utils/tutorial/stats';
 import { handoffFor } from '../utils/tutorial/handoff';
@@ -615,8 +615,20 @@ console.log('offers');
   ok('practised → never', !shouldOfferChip(p({ byId: { 'daily-report-voice': { status: 'practised', version: 1 } } }), base));
   ok('exited → never', !shouldOfferChip(p({ byId: { 'daily-report-voice': { status: 'exited', version: 1 } } }), base));
   ok('field seat never offered invoicing', !shouldOfferChip(EMPTY_PROGRESS, { ...base, tutorialId: 'invoice-to-self', fieldOnly: true }));
-  eq('contractor sees all three', tutorialsForUser('contractor', false).map(d => d.id), ['daily-report-voice', 'punch-walk', 'invoice-to-self']);
-  eq('field seat: daily report and punch only', tutorialsForUser('contractor', true).map(d => d.id), ['daily-report-voice', 'punch-walk']);
+  // The wave-A trio, pinned on its own: the LEARN wave adds tutorials through
+  // the lane fragments (utils/tutorial/learn/lane*.ts), and each one must not
+  // turn this persona rule red. The full list is pinned to hub order below.
+  const WAVE_A = { 'daily-report-voice': defs['daily-report-voice'], 'punch-walk': defs['punch-walk'], 'invoice-to-self': defs['invoice-to-self'] };
+  eq('contractor sees all three', tutorialsForUser('contractor', false, WAVE_A).map(d => d.id), ['daily-report-voice', 'punch-walk', 'invoice-to-self']);
+  eq('field seat: daily report and punch only', tutorialsForUser('contractor', true, WAVE_A).map(d => d.id), ['daily-report-voice', 'punch-walk']);
+  eq('…every tutorial in the build, contractor: the wave-A three first, then hub order',
+    tutorialsForUser('contractor', false).map(d => d.id),
+    TUTORIAL_ORDER.filter(id => !!defs[id] && defs[id]!.personas.includes('contractor')));
+  eq('…field seat: only the ones a field seat may run, in hub order',
+    tutorialsForUser('contractor', true).map(d => d.id),
+    TUTORIAL_ORDER.filter(id => !!defs[id] && defs[id]!.personas.includes('contractor') && defs[id]!.fieldSeatOk));
+  // LEARNDEFS-B: the field-seat rule, checked for every def in the build.
+  ok('field seat: never a tutorial whose def is not fieldSeatOk', tutorialsForUser('contractor', true).every(d => d.fieldSeatOk));
   eq('client persona: none', tutorialsForUser('client', false), []);
   eq('property manager: none', tutorialsForUser('property_manager', false), []);
   const def = defs['punch-walk']!;

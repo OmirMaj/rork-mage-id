@@ -109,9 +109,12 @@ describe('tutorials hub', () => {
   // environment down, which crashed the whole run with no results.
   it('tags the practice pass on a plan that lacks the feature', () => {
     const free = renderHub({ canAccess: freePlan });
+    // The LEARN wave adds more Pro / Business tutorials, so the same tag text
+    // now appears on several cards: the wave-A cards carry theirs.
     expect(free.getByTestId('tutorial-card-punch-walk-tier')).toBeTruthy();
-    expect(free.getByText('Business — practise free on the sample')).toBeTruthy();
-    expect(free.getByText('Pro — practise free on the sample')).toBeTruthy();
+    expect(free.getByTestId('tutorial-card-invoice-to-self-tier')).toBeTruthy();
+    expect(free.getAllByText('Business — practise free on the sample').length).toBeGreaterThan(0);
+    expect(free.getAllByText('Pro — practise free on the sample').length).toBeGreaterThan(0);
     expect(free.queryByTestId('tutorial-card-daily-report-voice-tier')).toBeNull();
   });
 

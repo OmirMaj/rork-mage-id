@@ -322,6 +322,23 @@ console.log('\n9. the practice pass: opt-in on the tutorial\'s own screens only;
     'app/punch-walk.tsx',      // walk mode: no record-id param; writes to the URL project
     'app/invoice.tsx',         // route gate on the URL project + InvoiceInner re-check on the job it writes
     'app/project-detail.tsx',  // tile-lock DISPLAY only; every screen behind a tile gates itself
+    // LEARNDEFS-A (change-order-draft, field-ticket-log): both load a record
+    // by id from ANY project, so each ORs the pass in only for a NEW record or
+    // one whose OWN project is the URL's sample (pinned below and executed by
+    // __tests__/smoke/practice-pass-record-links), never after a picker pick.
+    'app/change-order.tsx',    // route gate on the URL project; coId only when that CO's project IS it
+    'app/field-ticket.tsx',    // route gate on the URL project; ticketId only when that ticket's project IS it
+    // LEARNDEFS-B (takeoff-to-estimate, ask-your-plans, construction-ai-ask):
+    // none loads a record by id. Each reads the pass for the ONE job it acts
+    // on, and while a run is live there every AI entry point is behind the
+    // tutorial lock (scripts/validate-tutorial-learn-b pins each guard and
+    // that the pass opens nothing on a real job).
+    'app/takeoff.tsx',                                  // the PICKED job; a real chip drops the pass; the sample path writes only that job's estimate
+    'app/plans.tsx',                                    // the URL job (no picker inside the room)
+    'components/plans/AskPlansPanel.tsx',               // the panel's job prop; reads only
+    'app/(tabs)/construction-ai/index.tsx',             // the URL job; under the lock the tab is Ask mode only (no roadmap / review editor)
+    'components/construction/AskConstructionMode.tsx',  // the linked job; reads only
+    'app/plan-viewer.tsx',                              // (LEARNDEFS-B patch) the SHEET's own project, resolved before the gate; a real sheet → a real job → no pass
   ]);
   const readers: string[] = [];
   const walkDir = (dir: string) => {
@@ -336,7 +353,17 @@ console.log('\n9. the practice pass: opt-in on the tutorial\'s own screens only;
   };
   for (const d of ['app', 'components', 'hooks', 'contexts', 'utils']) walkDir(d);
   const stray = readers.filter(f => !PASS_READERS.has(f));
-  ok('only punch-walk, invoice and the hub read the practice pass', stray.length === 0, stray.join(', '));
+  ok('only punch-walk, invoice, the hub, change-order and field-ticket read the practice pass', stray.length === 0, stray.join(', '));
+  const CO_SRC = strip(read('app/change-order.tsx'));
+  const FT_SRC = strip(read('app/field-ticket.tsx'));
+  ok('change-order reads the pass for the URL project, and a coId only when that CO is the sample\'s own',
+    /const practice = useTutorialPractice\(paramProjectId \|\| undefined\);/.test(CO_SRC)
+      && /const practiceOpen = practice\.has\('change_orders_invoicing'\)\s*&& \(!coId \|\| changeOrders\.find\(c => c\.id === coId\)\?\.projectId === paramProjectId\);/.test(CO_SRC)
+      && (CO_SRC.match(/useTutorialPractice\(/g) ?? []).length === 1);
+  ok('field-ticket reads the pass for the URL project, never after a pick, and a ticketId only when that ticket is the sample\'s own',
+    /const practice = useTutorialPractice\(paramProjectId \|\| undefined\);/.test(FT_SRC)
+      && /const practiceOpen = practice\.has\('change_orders_invoicing'\) && pickedProjectId == null\s*&& \(!ticketId \|\| fieldTickets\.find\(x => x\.id === ticketId\)\?\.projectId === paramProjectId\);/.test(FT_SRC)
+      && (FT_SRC.match(/useTutorialPractice\(/g) ?? []).length === 1);
   ok('useProjectAccess does NOT carry the pass (it would open every gated screen)',
     !/useTutorialPractice|practiceAllows|tutorial\//.test(ACCESS)
       && /resolveProjectAccess\(canAccess\(feature\), role, feature as string\),/.test(ACCESS));

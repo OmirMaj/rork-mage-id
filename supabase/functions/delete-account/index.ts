@@ -257,7 +257,8 @@ const USER_KEYED_BUCKETS = [
 ];
 
 // Keyed by project id, so we have to walk the user's projects first.
-const PROJECT_KEYED_BUCKETS = ['plan-sheets', 'project-documents'];
+//   message-attachments  <projectId>/<messageId>/<attachmentId>.<ext> (portal message photos/PDFs)
+const PROJECT_KEYED_BUCKETS = ['plan-sheets', 'project-documents', 'message-attachments'];
 
 // sub-documents is keyed by SUBCONTRACTOR id — neither the user nor a
 // project appears anywhere in the path (`<subId>/w9-<ts>.pdf`). Its RLS uses

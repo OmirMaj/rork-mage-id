@@ -200,7 +200,12 @@ export const SURFACES: Surface[] = [
 
   // LEARN (tutorials, skills checks, certificates) — literal-key screen chrome
   // only; tutorial def copy and quiz text stay English data (utils/tutorial/types.ts header).
-  { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], lane: 'LEARN' },
+  // LEARNDEFS-A: the estimate wizard renders three common.tutorial. strings
+  // (the sample-run refusal and its sample save). LEARNDEFS-B: the takeoff,
+  // Ask your plans and Construction AI render a few (the sample-run refusals,
+  // the sample chips and the takeoff's sample lines). The rest of each file is
+  // still raw English, so each joins as a partial file.
+  { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], partialFiles: ['app/estimate-wizard.tsx', 'app/takeoff.tsx', 'components/plans/AskPlansPanel.tsx', 'components/construction/AskConstructionMode.tsx', 'app/(tabs)/construction-ai/index.tsx'], lane: 'LEARN' },
   { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: [], lane: 'LEARN' },
 
   // Phase 2 — the office surfaces. The Level's project-health card + its reason
@@ -209,6 +214,9 @@ export const SURFACES: Surface[] = [
     id: 'office.project-health', phase: 2, state: 'pending', keyPrefixes: ['office.projectHealth.'], lane: 'LEVELGAUGE',
     files: ['components/level/ProjectLevelCard.tsx', 'components/level/JobLevelReason.tsx'],
   },
+
+  // thu PROOF — the change order "Proof packet" button (the packet PDF itself stays English).
+  { id: 'money.co-proof', phase: 2, state: 'pending', keyPrefixes: ['money.coProof.'], lane: 'thu PROOF', files: ['components/changeOrders/COProofPacketButton.tsx'] },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

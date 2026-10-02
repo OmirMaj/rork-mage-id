@@ -72,6 +72,16 @@ import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { permitTypeLabel } from '@/utils/statusLabels';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
+// Learn-by-doing tutorial "construction-ai-ask" (utils/tutorial/defs): the tab
+// opens on the SAMPLE job in Ask mode, the practice pass opens the tab there
+// only (practicePass.ts scopes it to the run's sandbox id), and while the run
+// is live every AI run here — Code check, Roadmap, Plan review, the per-code
+// drill-in and the photo look — says why it is blocked instead
+// (validate-tutorial-learn-b pins each guard). Wrappers render only then.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { tutorialAiLock } from '@/utils/tutorial/learn/fixturesB';
+import { t } from '@/i18n/core';
 import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
 import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
@@ -436,8 +446,12 @@ export default function ConstructionAITab() {
   const { canAccess } = useTierAccess();
   const [showPaywall, setShowPaywall] = useState(false);
   const insets = useSafeAreaInsets();
+  // The tutorial's practice pass, on the URL's job: the sample only, while its
+  // run is live. Any other job gets nothing from it.
+  const tabParams = useLocalSearchParams<{ projectId?: string }>();
+  const practice = useTutorialPractice(typeof tabParams.projectId === 'string' ? tabParams.projectId : undefined);
 
-  if (!canAccess('ai_code_check')) {
+  if (!canAccess('ai_code_check') && !practice.has('ai_code_check')) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16, paddingHorizontal: 24 }]}>
         <View style={styles.lockedHero}>
@@ -485,8 +499,34 @@ function ConstructionAIScreenInner() {
   // these (utils/codeThread/actions.ts codeCheckRoute). No params → nothing.
   const params = useLocalSearchParams<{ projectId?: string; source?: string; sourceId?: string; mode?: string }>();
 
+  // ── Tutorial: construction-ai-ask (the sample job only) ──────────────
+  const entryProjectId = typeof params.projectId === 'string' ? params.projectId : undefined;
+  const tutorialSandboxId = useTutorialSandboxId();
+  const entryPractice = useTutorialPractice(entryProjectId);
+  // The AI lock: the tab was opened on the run's sample (or the pass is open
+  // on it). While it holds, no AI run on this tab reaches the network; Ask
+  // mode's sample question is the only answer.
+  const tutorialLock = tutorialAiLock(entryProjectId, tutorialSandboxId, entryPractice.size);
+  const tutorialOn = !!entryProjectId && tutorialSandboxId === entryProjectId;
+  const tutorialBlockedAlert = useCallback(() => {
+    showAlert(
+      t('common.tutorial.caiModeBlockedTitle', 'Not on the sample'),
+      t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.'),
+    );
+  }, []);
+
   // ── Mode toggle ─────────────────────────────────────────────────────
-  const [mode, setMode] = useState<'code' | 'roadmap' | 'plan' | 'ask'>('code');
+  // An Ask entry (the tutorial's, and its hand-off) opens straight on Ask.
+  const [mode, setMode] = useState<'code' | 'roadmap' | 'plan' | 'ask'>(() => (params.mode === 'ask' ? 'ask' : 'code'));
+  // The job Ask mode links when the tab is opened for one with mode=ask.
+  const [askEntryProjectId, setAskEntryProjectId] = useState<string | null>(null);
+  // Under the lock the tab is Ask mode ONLY. Code check, Roadmap and Plan
+  // review would otherwise let the practice pass open a Pro editor on any
+  // job's saved roadmap or review (the invoice escape, practice-pass-real-job):
+  // their toggles say why instead, and nothing else can switch to them.
+  useEffect(() => {
+    if (tutorialLock && mode !== 'ask') setMode('ask');
+  }, [tutorialLock, mode]);
 
   // ── Code-Check state ─────────────────────────────────────────────────
   const [codeCheckProjectId, setCodeCheckProjectId] = useState<string | null>(null);
@@ -607,6 +647,9 @@ function ConstructionAIScreenInner() {
   const [photoLookUri, setPhotoLookUri] = useState<string | null>(null);
   const checkAPhoto = useCallback(async () => {
     if (!codeCheckProject) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): the photo look is a
+    // metered vision run.
+    if (tutorialLock) { tutorialBlockedAlert(); return; }
     try {
       let res: ImagePicker.ImagePickerResult;
       if (Platform.OS === 'web') {
@@ -621,7 +664,7 @@ function ConstructionAIScreenInner() {
     } catch (e) {
       showAlert('Couldn\u2019t open the camera', 'Try again.');
     }
-  }, [codeCheckProject]);
+  }, [codeCheckProject, tutorialLock, tutorialBlockedAlert]);
   // The building record for the LINKED job — NYC DOB or Baltimore City /
   // County open data (null project → unsupported, no network). Its summary
   // goes into the prompt only once it is 'ready'; a job whose record was not
@@ -752,6 +795,12 @@ function ConstructionAIScreenInner() {
     if (params.mode === 'roadmap') {
       setMode('roadmap');
       setRoadmapProjectId(pid);
+      return;
+    }
+    // Ask about this job (the tutorial's entry, and its hand-off to a real job).
+    if (params.mode === 'ask') {
+      setMode('ask');
+      setAskEntryProjectId(pid);
       return;
     }
     setMode('code');
@@ -1141,6 +1190,8 @@ function ConstructionAIScreenInner() {
 
   const runPlanReview = useCallback(async () => {
     if (!planProject || !planSheet) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b).
+    if (tutorialLock) { tutorialBlockedAlert(); return; }
     const used = await getPlanReviewMonthUsage(user?.id);
     if (used >= planMonthlyCap) { setPlanOverLimit(true); return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1194,7 +1245,7 @@ function ConstructionAIScreenInner() {
     } finally {
       setPlanLoading(false);
     }
-  }, [planProject, planSheet, planMonthlyCap, user?.id, getPlanReviewForSheet, savePlanReview]);
+  }, [planProject, planSheet, planMonthlyCap, user?.id, getPlanReviewForSheet, savePlanReview, tutorialLock, tutorialBlockedAlert]);
 
   const cycleFindingStatus = useCallback((review: PlanReview, findingId: string) => {
     const next: Record<CodeFinding['status'], CodeFinding['status']> = { open: 'resolved', resolved: 'dismissed', dismissed: 'open' };
@@ -1203,6 +1254,8 @@ function ConstructionAIScreenInner() {
 
   const runGenerateRoadmap = useCallback(async (isRegen: boolean) => {
     if (!roadmapProject) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b).
+    if (tutorialLock) { tutorialBlockedAlert(); return; }
     const used = await getRoadmapTodayUsage(user?.id);
     if (used >= roadmapDailyCap) {
       setRoadmapOverLimit(true);
@@ -1255,7 +1308,7 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap(newRoadmap);
     if (!res.cached) void bumpRoadmapTodayUsage(user?.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapInspectionGrounding, roadmapBuilding.confirmedCounty, roadmapBuilding.summary.promptBlock, roadmapBuilding.summary.cacheKey]);
+  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapInspectionGrounding, roadmapBuilding.confirmedCounty, roadmapBuilding.summary.promptBlock, roadmapBuilding.summary.cacheKey, tutorialLock, tutorialBlockedAlert]);
 
   const onAddToPermits = useCallback((p: RoadmapPermit) => {
     if (!roadmapProject || !roadmap || p.linkedPermitId) return;
@@ -1310,6 +1363,8 @@ function ConstructionAIScreenInner() {
 
   const runCheck = useCallback(async (answeredOverride?: CodeThreadAnswer[]) => {
     if (!canSubmit) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b).
+    if (tutorialLock) { tutorialBlockedAlert(); return; }
     const answered = answeredOverride ?? answers;
     const used = await getTodayUsage(user?.id);
     if (used >= dailyCap) {
@@ -1450,7 +1505,7 @@ Never invent a section number you are unsure of — leave section empty and desc
       const copy = describeError(err, { action: 'run the code check' });
       showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
     }
-  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeBuilding.notCheckedHeadline, codeCheckAuthority, threadId, savedRecord, threadSource]);
+  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeBuilding.notCheckedHeadline, codeCheckAuthority, threadId, savedRecord, threadSource, tutorialLock, tutorialBlockedAlert]);
 
   // A follow-up tap. iOS will not present a second Modal while the pageSheet
   // result is still dismissing (the openDelay rule above), so close it FIRST
@@ -1629,6 +1684,48 @@ Never invent a section number you are unsure of — leave section empty and desc
     </View>
   ) : null;
 
+  // The four-mode toggle, hoisted so the tutorial's spotlight can wrap it.
+  const modeToggle = (
+    <View style={[styles.modeToggleBar, isDesktop && segmentedDesktop.container]}>
+      <TouchableOpacity
+        style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'code' && styles.modeToggleBtnActive]}
+        onPress={() => (tutorialLock ? tutorialBlockedAlert() : setMode('code'))}
+        activeOpacity={0.8}
+        testID="mode-toggle-code"
+      >
+        <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+        <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code check</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'roadmap' && styles.modeToggleBtnActive]}
+        onPress={() => (tutorialLock ? tutorialBlockedAlert() : setMode('roadmap'))}
+        activeOpacity={0.8}
+        testID="mode-toggle-roadmap"
+      >
+        <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+        <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project roadmap</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'plan' && styles.modeToggleBtnActive]}
+        onPress={() => (tutorialLock ? tutorialBlockedAlert() : setMode('plan'))}
+        activeOpacity={0.8}
+        testID="mode-toggle-plan"
+      >
+        <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+        <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan review</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'ask' && styles.modeToggleBtnActive]}
+        onPress={() => setMode('ask')}
+        activeOpacity={0.8}
+        testID="mode-toggle-ask"
+      >
+        <MessageCircleQuestion size={14} color={mode === 'ask' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+        <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Ask</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen
@@ -1655,45 +1752,8 @@ Never invent a section number you are unsure of — leave section empty and desc
           testID="construction-ai-back-to-tools"
         />
 
-        {/* ── Mode toggle ── */}
-        <View style={[styles.modeToggleBar, isDesktop && segmentedDesktop.container]}>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'code' && styles.modeToggleBtnActive]}
-            onPress={() => setMode('code')}
-            activeOpacity={0.8}
-            testID="mode-toggle-code"
-          >
-            <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code check</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'roadmap' && styles.modeToggleBtnActive]}
-            onPress={() => setMode('roadmap')}
-            activeOpacity={0.8}
-            testID="mode-toggle-roadmap"
-          >
-            <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project roadmap</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'plan' && styles.modeToggleBtnActive]}
-            onPress={() => setMode('plan')}
-            activeOpacity={0.8}
-            testID="mode-toggle-plan"
-          >
-            <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan review</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'ask' && styles.modeToggleBtnActive]}
-            onPress={() => setMode('ask')}
-            activeOpacity={0.8}
-            testID="mode-toggle-ask"
-          >
-            <MessageCircleQuestion size={14} color={mode === 'ask' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Ask</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── Mode toggle ── (lit by the tutorial's first step during a run) */}
+        {tutorialOn ? <TutorialTarget id="cai.modeAsk">{modeToggle}</TutorialTarget> : modeToggle}
 
         {mode === 'code' ? (
           <ScrollView
@@ -2471,7 +2531,12 @@ Never invent a section number you are unsure of — leave section empty and desc
             ) : null}
           </ScrollView>
         ) : mode === 'ask' ? (
-          <AskConstructionMode projects={projects} bottomInset={insets.bottom} />
+          <AskConstructionMode
+            projects={projects}
+            bottomInset={insets.bottom}
+            entryProjectId={askEntryProjectId}
+            tutorialSampleId={tutorialLock ? entryProjectId ?? null : null}
+          />
         ) : null}
       </KeyboardAvoidingView>
 
@@ -2503,7 +2568,13 @@ Never invent a section number you are unsure of — leave section empty and desc
         answers={answers}
         onAnswer={onAnswerFollowUp}
         dailyCap={dailyCap}
+        aiLocked={tutorialLock}
       />
+      {/* Tutorial blocker: these sheets and loaders draw above the root
+          layer, so while any is up the coach draws nothing. Run-only. */}
+      {tutorialOn && (showInspectionSheet || !!pendingResult || loading || roadmapLoading || planLoading || (resultOpen && !!result) || !!photoLookUri)
+        ? <TutorialTarget id="cai.modalUp" />
+        : null}
     </View>
   );
 }
@@ -2976,7 +3047,10 @@ type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 function ResultModal({
   visible, result, onClose, location, scenario, grounding, jurisdiction, inspectionGrounding,
   project = null, savedRecord = null, followUps = [], answeredCount = 0, answers = [], onAnswer, dailyCap,
+  aiLocked = false,
 }: {
+  /** The tutorial lock: the drill-in's AI call is refused while it holds. */
+  aiLocked?: boolean;
   visible: boolean;
   result: CodeCheckResult | null;
   onClose: () => void;
@@ -3041,6 +3115,11 @@ function ResultModal({
     const key = codeDetailKey(c);
     // Already loaded or in flight — just toggle.
     if (details[key]?.data || details[key]?.loading) return;
+    // TUTORIAL AI GUARD (validate-tutorial-learn-b): the drill-in is an AI run.
+    if (aiLocked) {
+      setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.') } }));
+      return;
+    }
     setDetails(prev => ({ ...prev, [key]: { loading: true, data: null, error: null } }));
 
     const label = [c.code, c.section].filter(Boolean).join(' ');
@@ -3075,7 +3154,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
     } catch {
       setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: 'Could not load detail.' } }));
     }
-  }, [details, location, scenario, grounding]);
+  }, [details, location, scenario, grounding, aiLocked]);
 
   const toggleCode = useCallback((c: { code: string; section: string; requirement: string }) => {
     const key = codeDetailKey(c);
