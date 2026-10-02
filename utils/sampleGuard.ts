@@ -43,6 +43,13 @@ export const SAMPLE_SEND_NOTE = 'Sample job — this goes to you, not a client. 
  *  a blanket "nothing is sent" would be false (honest-copy rule). */
 export const SAMPLE_NOTHING_SENT = 'Sample job — reminders and pay links never go out from a sample.';
 
+/** On the legal documents' outbound controls (contract Sign & send / Sign
+ *  together / delivery, the pay application's pay link, the closeout binder's
+ *  Deliver) — refused on a sample, with this as the reason. Unlike an invoice
+ *  there is no "send to me" form of these: none of them goes anywhere from a
+ *  sample (LEARNDEFS-D M4). */
+export const SAMPLE_DOC_NOT_SENT = 'Sample job — contracts, pay applications and binders never go out from a sample.';
+
 /** The send button's label on a sample. */
 export const SAMPLE_SEND_TO_ME_LABEL = 'Send to me';
 
