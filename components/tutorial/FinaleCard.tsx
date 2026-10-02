@@ -10,7 +10,9 @@
 // The primary button comes from utils/tutorial/handoff.handoffFor: the same
 // screen on his newest real job, 'Start your first job' when he has none, or
 // the plans page for a feature he practised on the pass but does not own. The
-// chain offer is an OFFER — nothing auto-chains.
+// chain offer is an OFFER — nothing auto-chains. 'Take the skills check'
+// (finale.quiz, LEARN wave) shows only when the host found a check he has not
+// passed yet; it ends the run and opens /skills-check.
 
 import React, { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -115,6 +117,15 @@ export function FinaleCard({ finale, reduceMotion, wide, onAction }: FinaleCardP
                 fullWidth
                 onPress={() => onAction(finale.chain!.key)}
                 testID="tutorial-finale-chain"
+              />
+            ) : null}
+            {finale.quiz ? (
+              <Button
+                label={finale.quiz.label}
+                variant="secondary"
+                fullWidth
+                onPress={() => onAction(finale.quiz!.key)}
+                testID="tutorial-finale-quiz"
               />
             ) : null}
             <Button label="Done" variant="ghost" fullWidth onPress={() => onAction('done')} testID="tutorial-finale-done" />

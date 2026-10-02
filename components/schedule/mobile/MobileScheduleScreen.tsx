@@ -70,6 +70,9 @@ import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProj
 import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/intentTable';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { jobBackLink, readUxDoorParams } from '@/utils/uxRoutes';
+// Tutorials (schedule-say-it): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { useTutorialSandboxId } from '@/utils/tutorial/store';
 
 // MISS-08 (runtime audit 2026-09-06): the second sub-tab was labelled
 // "4D Model". There is no 3D model behind it and no 3D dependency anywhere in
@@ -300,6 +303,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     [projects, selectedProjectId],
   );
   const activeSchedule = selectedProject?.schedule ?? null;
+  // A tutorial run is live on the job on screen: only then are the targets and
+  // the blocker sentinel rendered (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!selectedProject && tutorialSandboxId === selectedProject.id;
   // Voice-build generates the schedule FROM the linked estimate — without one the
   // Copilot interview would run and then dead-end at "Build it". Gate the voice
   // entries on it so estimate-less projects only see the manual path.
@@ -1366,9 +1373,17 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {(() => {
+        const back = (
+          <>
       {jobBack ? (
         <HiddenTabBackLink label={jobBack.label} href={jobBack.href} style={styles.jobBack} testID="schedule-back-to-job" />
       ) : null}
+          </>
+        );
+        // Tutorial: the way back to the job (phone; run only).
+        return runOnThis && jobBack ? <TutorialTarget id="schedule.backToJob" style={styles.tutorialJobBack}>{back}</TutorialTarget> : back;
+      })()}
       <View style={styles.header}>
         <TouchableOpacity
           style={{ flex: 1, minWidth: 0 }}
@@ -1568,7 +1583,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             {/* The AI editor's front door on the phone. Owner / editor only:
                 everything it does (add, move, link, remove) is outside what a
                 field seat saves, and a view-only seat saves nothing. */}
-            {writePath === 'row' && (
+            {(() => {
+              const bar = writePath === 'row' && (
               <TouchableOpacity
                 style={styles.copilotBar}
                 onPress={() => openEditor(undefined)}
@@ -1580,7 +1596,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 <Mic size={16} color={colors.accent} strokeWidth={1.75} />
                 <Text style={styles.copilotBarText} numberOfLines={1}>Tell me what to change</Text>
               </TouchableOpacity>
-            )}
+              );
+              // Tutorial: the editor's front door (run only).
+              return runOnThis && bar ? <TutorialTarget id="schedule.sayIt">{bar}</TutorialTarget> : bar;
+            })()}
             {/* UX wave B5 on the phone: what is on the next working day, with
                 the lineup one tap away. An undated schedule has no calendar
                 day to name, so the card waits for a start date (the banner
@@ -1769,6 +1788,12 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         onClose={() => setShowStartDatePicker(false)}
         onChange={(iso) => applyStartDate(iso.slice(0, 10))}
       />
+
+      {/* Tutorial blocker sentinel: these sheets draw above the root tutorial
+          layer. NOT the editor sheet — it hosts its own scheduleEdit layer. */}
+      {runOnThis && (!!detailTask || showAdd || showProjectPicker || (showCalendar && !isUndated) || showFinishSheet || showHistory || (showExport && !isUndated) || showStartDatePicker || showZoneEditor)
+        ? <TutorialTarget id="schedule.modalUp" />
+        : null}
 
       {/* Living Floor Plan zone editor (full-screen modal) */}
       <Modal visible={showZoneEditor} animationType="slide" onRequestClose={() => setShowZoneEditor(false)}>
@@ -2302,6 +2327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // D2: HiddenTabBackLink carries 6pt of its own padding, so 10 lines the
   // chevron up with the header's 16pt edge.
   jobBack: { marginLeft: 10, marginTop: 4 },
+  tutorialJobBack: { alignSelf: 'flex-start' },
   titleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
   projName: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.4 },
   loc: { fontSize: 12, fontWeight: '600' as const, color: t.textMuted, marginTop: 1 },

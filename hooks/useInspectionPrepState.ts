@@ -19,7 +19,7 @@ export interface InspectionPrepEntry {
   answers: Record<string, string>;
   recall?: RecallAnswer;
   recallAt?: string;
-  /** Lines added from a Photo Code Look (group 'verify'; stable ids). */
+  /** Lines added from a photo code check (group 'verify'; stable ids). */
   extras?: PrepItem[];
 }
 
@@ -78,8 +78,8 @@ function extrasOf(e: Partial<InspectionPrepEntry> | undefined): PrepItem[] {
 }
 
 /**
- * Add one line to an inspection's "From your Code look" group, outside the
- * sheet (the Code look opened from a photo viewer). Device-local like the rest
+ * Add one line to an inspection's "From your photo code check" group, outside
+ * the sheet (the photo code check opened from a photo viewer). Device-local like the rest
  * of this file: read, normalise, dedupe by id, write — never throws.
  */
 export async function appendPrepExtra(key: string, item: PrepItem): Promise<boolean> {

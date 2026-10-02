@@ -403,7 +403,7 @@ export async function captionPhoto(opts: { photoUrl: string; projectName?: strin
 }
 
 /**
- * Photo Code Look — ONE photo, at most five things an inspector would look at
+ * Photo code check (the codeLook task) — ONE photo, at most five things an inspector would look at
  * in it, plus what the photo cannot show (utils/codeLook normalises it again).
  * Errors are edgeFunctionError's: the function's own sentence and its code
  * (monthly_cap_reached / unknown_task / one_photo), so the sheet can say which.

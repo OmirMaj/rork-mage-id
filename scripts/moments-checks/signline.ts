@@ -366,4 +366,29 @@ export default async function run(ctx: Ctx): Promise<void> {
     ctx.ok('S16 the chip says "Sent" only for a fold whose email left (waitingChipText, wired in the ceremony)',
       got.length === 0 && wired, JSON.stringify({ got, wired }));
   }
+
+  // ── S17 the line reasons go through t(), with the same English ──────────
+  // "Sign above the line" and its two siblings are read under the signature
+  // and as the slide's disabled reason, so they translate (common.moment.line*).
+  // LINE_REASONS stays the English statement S15 lints; each t() fallback must
+  // equal it, and lineReadiness may not hand back a raw LINE_REASONS string.
+  {
+    const ink = await load<typeof import('../../utils/moments/signatureInk')>(ctx, 'utils/moments/signatureInk.ts');
+    const src = strip('utils/moments/signatureInk.ts');
+    const KEYS = { sign: 'common.moment.lineSign', name: 'common.moment.lineName', consent: 'common.moment.lineConsent' } as const;
+    const mismatch: string[] = [];
+    for (const [k, key] of Object.entries(KEYS) as [keyof typeof KEYS, string][]) {
+      const m = new RegExp(`\\bt\\('${key.replace(/\./g, '\\.')}', '([^']*)'\\)`).exec(src);
+      if (!m) mismatch.push(`${key}: no t() call`);
+      else if (m[1] !== ink.LINE_REASONS[k]) mismatch.push(`${key}: "${m[1]}" is not LINE_REASONS.${k} "${ink.LINE_REASONS[k]}"`);
+    }
+    const body = bodyFrom(src, src.indexOf('export function lineReadiness'));
+    const raw = /return LINE_REASONS\./.test(body);
+    const base = { offline: false, offlineReason: 'off', mode: 'drawn' as const, paths: [] as string[], name: '', minName: 2 };
+    const english = ink.lineReadiness(base) === ink.LINE_REASONS.sign
+      && ink.lineReadiness({ ...base, mode: 'typed' }) === ink.LINE_REASONS.name
+      && ink.lineReadiness({ ...base, mode: 'typed', name: 'Jane Smith', consent: { version: 'v1', checked: false } }) === ink.LINE_REASONS.consent;
+    ctx.ok('S17 the line reasons are t(common.moment.line*) with LINE_REASONS\' exact English; lineReadiness returns no raw LINE_REASONS',
+      mismatch.length === 0 && !raw && english, JSON.stringify({ mismatch, raw, english }));
+  }
 }

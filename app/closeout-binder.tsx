@@ -84,8 +84,28 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
+// Tutorials (closeout-binder) + the sample outbound fence: see the header of
+// utils/tutorial/learn/laneD.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { tutorialSignal, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { binderSectionsFilled } from '@/utils/tutorial/learn/fixturesD';
+import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
 
 type BinderStatus = CloseoutBinder['status'];
+
+/** The tutorial wrapper only while a run is live on this job: off, it renders
+ *  its children with no host View of its own, so the tree is unchanged. */
+function TutorialWrap({ on, wrap, children }: { on: boolean; wrap: React.ReactElement; children: React.ReactNode }) {
+  return on ? React.cloneElement(wrap, undefined, children) : <>{children}</>;
+}
+
+/** The scroll anchor only during a tutorial run (no host View when off). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
+}
 
 export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
@@ -138,6 +158,26 @@ export default function CloseoutBinderScreen() {
   const [passportBusy, setPassportBusy] = useState(false);
   const [passportStep, setPassportStep] = useState('');
   const { canAccess } = useTierAccess();
+
+  // ── Tutorial (closeout-binder) + the sample fence ────────────────────────
+  // runOnThis: a tutorial run is live on THIS project — the only time the
+  // TutorialTargets, the scroll anchor and the blocker sentinel render (a real
+  // job renders byte-identical). sampleJob: the outbound fence
+  // (utils/sampleGuard) — Deliver and Re-deliver refuse on a sample, run or
+  // no run. The saved signal reads a ref, so handleSave's deps are unchanged.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const sampleJob = isSampleProject(project);
+  const binderScrollRef = useRef<ScrollView>(null);
+  // The preview card's four sections, counted the way the card counts them.
+  const binderSections = runOnThis ? binderSectionsFilled({
+    selections: selections.filter(s => (s.options ?? []).some(o => o.isChosen)).length,
+    trades: (commitments ?? []).filter((c: any) => c.projectId === projectId && c.status !== 'draft').length,
+    warranties: (warranties ?? []).filter((w: any) => w.projectId === projectId).length,
+    maintenance: maintenance.length,
+  }) : 0;
+  const binderTutorialRef = useRef({ runOnThis, sections: binderSections });
+  binderTutorialRef.current = { runOnThis, sections: binderSections };
 
   const branding = useMemo<CompanyBranding>(() => ({
     companyName:   settings?.branding?.companyName ?? 'MAGE ID',
@@ -205,6 +245,11 @@ export default function CloseoutBinderScreen() {
       const saved = await persistBinder({});
       if (saved) {
         setBinderId(saved.id);
+        // Tutorial success point: saveCloseoutBinder resolved with the row.
+        const tut = binderTutorialRef.current;
+        if (tut.runOnThis && saved.status === 'draft') {
+          tutorialSignal('binder.saved', { projectId, sections: tut.sections, status: 'draft' });
+        }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         showAlert("Couldn't save the binder", 'Check your connection and try again.');
@@ -402,6 +447,9 @@ export default function CloseoutBinderScreen() {
 
   const handleDeliver = useCallback(() => {
     if (!project) return;
+    // Sample fence (utils/sampleGuard): Deliver posts to the client's portal
+    // and emails them — never from a sample, run or no run.
+    if (isSampleProject(project)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
     const title = sentAt ? 'Re-deliver to client?' : 'Deliver to client?';
     const message = sentAt
       ? 'The client already received this binder. The email is sent again and the portal copy is refreshed.'
@@ -736,9 +784,11 @@ export default function CloseoutBinderScreen() {
           stay because the screen hides the nav bar, and deleting it outright —
           which is what the audit proposed — would leave no way back. */}
       <View style={styles.header}>
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.back" />}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
+        </TutorialWrap>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow} numberOfLines={1}>{project.name}</Text>
         </View>
@@ -767,7 +817,8 @@ export default function CloseoutBinderScreen() {
           <Text style={styles.loadingText}>Loading your binder…</Text>
         </View>
       ) : (
-        <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
+        <ScrollView ref={binderScrollRef} {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
+          <MaybeScrollAnchor on={runOnThis} scrollRef={binderScrollRef}>
           {/* Status timeline — small and informational so the GC always
               knows where this binder stands. */}
           {(finalizedAt || sentAt) && (
@@ -788,6 +839,7 @@ export default function CloseoutBinderScreen() {
           )}
 
           {/* What's in it */}
+          <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.sections" />}>
           <View style={styles.previewCard}>
             <View style={styles.previewHead}>
               <MageAIMark size={14} color={themeColors.accent} />
@@ -806,6 +858,7 @@ export default function CloseoutBinderScreen() {
               <Text style={styles.emptyHint}>Your maintenance schedule and personal note go into the binder even with nothing else logged. Deliver a partial binder now and re-deliver as the project closes out.</Text>
             )}
           </View>
+          </TutorialWrap>
 
           {/* Shared with your client — the two owner-sharing switches. */}
           <View style={styles.card} testID="owner-sharing-card">
@@ -997,6 +1050,7 @@ export default function CloseoutBinderScreen() {
               These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.
             </Text>
           </View>
+          </MaybeScrollAnchor>
         </ScrollView>
       )}
 
@@ -1014,12 +1068,17 @@ export default function CloseoutBinderScreen() {
         />
       )}
 
+      {/* Sample fence: why Deliver is off on a sample. */}
+      {!loading && sampleJob && status !== 'draft' ? (
+        <Text style={[styles.emptyHint, { paddingHorizontal: 14 }]} testID="binder-sample-note">{SAMPLE_DOC_NOT_SENT}</Text>
+      ) : null}
       {/* Action bar — different actions per status. PDF is always
           available so the GC can always pull a paper copy. */}
       {!loading && (
         <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
           {status === 'draft' && (
             <View style={styles.actionColumn}>
+              <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.finalize" />}>
               <SlideToConfirm
                 ref={finalizeSlideRef}
                 label={fieldCopy.binderFinalizeSlideLabel()}
@@ -1035,10 +1094,13 @@ export default function CloseoutBinderScreen() {
                 onLateResult={(r) => { if (r.status === 'confirmed') onFinalizeDone(r); }}
                 testID="binder-finalize"
               />
+              </TutorialWrap>
               <View style={styles.actionRowInner}>
+              <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.saveDraft" style={styles.secondaryWide} />}>
               <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleSave} disabled={saving || finalizeBusy} testID="binder-save-draft">
                 {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save draft</Text>}
               </TouchableOpacity>
+              </TutorialWrap>
               <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleExport} disabled={exporting} testID="binder-pdf">
                 {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
@@ -1063,7 +1125,8 @@ export default function CloseoutBinderScreen() {
                   </>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primary} onPress={handleDeliver} disabled={delivering} testID="binder-deliver">
+              <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.deliver" style={{ flex: 1 }} />}>
+              <TouchableOpacity style={sampleJob ? [styles.primary, { opacity: 0.5 }] : styles.primary} onPress={handleDeliver} disabled={delivering || sampleJob} testID="binder-deliver">
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
                     <Send size={14} color="#FFF" strokeWidth={1.75} />
@@ -1071,6 +1134,7 @@ export default function CloseoutBinderScreen() {
                   </>
                 )}
               </TouchableOpacity>
+              </TutorialWrap>
             </>
           )}
           {status === 'sent' && (
@@ -1083,7 +1147,7 @@ export default function CloseoutBinderScreen() {
                   </>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primary} onPress={handleDeliver} disabled={delivering} testID="binder-redeliver">
+              <TouchableOpacity style={sampleJob ? [styles.primary, { opacity: 0.5 }] : styles.primary} onPress={handleDeliver} disabled={delivering || sampleJob} testID="binder-redeliver">
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
                     <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
@@ -1095,6 +1159,10 @@ export default function CloseoutBinderScreen() {
           )}
         </View>
       )}
+      {/* Tutorial blocker sentinel: while the AIA-styled form modal is up (it
+          draws above the root coach layer on iOS), the coach draws nothing.
+          Only while a run is live on this job. */}
+      {runOnThis && aiaModal ? <TutorialTarget id="binder.modalUp" /> : null}
     </View>
   );
 }

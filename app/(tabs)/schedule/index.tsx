@@ -132,6 +132,9 @@ import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
+// Tutorials (schedule-say-it): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { useTutorialSandboxId } from '@/utils/tutorial/store';
 
 interface TaskDraft {
   title: string;
@@ -553,6 +556,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const selectedProject = useMemo<Project | null>(() => {
     return projects.find(p => p.id === selectedProjectId) ?? null;
   }, [projects, selectedProjectId]);
+  // A tutorial run is live on the job on screen: only then are the targets and
+  // the blocker sentinel rendered (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!selectedProject && tutorialSandboxId === selectedProject.id;
 
   // ── LIVE on the web too (#91). Only Schedule Pro and the phone tab were
   // subscribed, so a GC on this tab in a browser kept the old percent and
@@ -2921,6 +2928,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         requiredTier="pro"
       />
 
+      {/* Tutorial blocker sentinel: these modals draw above the root tutorial
+          layer. NOT the editor sheet — it hosts its own scheduleEdit layer. */}
+      {runOnThis && (isEditModalOpen || startPickerOpen || !!rippleConfirm || showDepPicker || showScenariosModal || isTemplatePickerOpen
+        || isProPaywallOpen || isProjectPickerOpen || isProjectStartDatePickerOpen || isQuickAddOpen || taskDetailModal !== null
+        || isShareSheetOpen || isQuickBuildOpen)
+        ? <TutorialTarget id="schedule.modalUp" />
+        : null}
+
       {/* Conversational schedule edit — reuses the surface-agnostic ScheduleEditPanel.
           mobileCommit reflowed the edited tasks via applyToProjectSchedule so
           dependents visibly shift, then persists via updateProject. */}
@@ -3447,6 +3462,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               mount, so this cannot bounce the user straight back. See
               components/HiddenTabBackLink.tsx for why it names its
               destination. */}
+          {(() => {
+            const back = (
+              <>
           {jobBack ? (
             <HiddenTabBackLink
               label={jobBack.label}
@@ -3462,6 +3480,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             testID="schedule-back-to-schedules"
           />
           )}
+              </>
+            );
+            // Tutorial: the way back to the job (run only; none on a desktop).
+            return runOnThis && jobBack ? <TutorialTarget id="schedule.backToJob" style={styles.tutorialJobBack}>{back}</TutorialTarget> : back;
+          })()}
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.title} numberOfLines={1}>Schedule</Text>
@@ -3612,24 +3635,28 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               </TouchableOpacity>
             )}
 
-            {sortedTasks.length > 0 && (
-              <TouchableOpacity
-                style={styles.copilotBar}
-                // A seat that cannot save the change, or a saved plan on
-                // screen, is told so BEFORE he spends an AI turn on it.
-                onPress={() => {
-                  if (refuseScheduleWrite('AI schedule change') || refuseWhileWhatIf()) return;
-                  openEditor(undefined);
-                }}
-                testID="schedule-copilot-bar"
-                accessibilityRole="button"
-                accessibilityLabel="Tell the copilot what to change"
-                activeOpacity={0.85}
-              >
-                <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.copilotBarText}>Tell me what to change</Text>
-              </TouchableOpacity>
-            )}
+            {sortedTasks.length > 0 && (() => {
+              const bar = (
+                <TouchableOpacity
+                  style={styles.copilotBar}
+                  // A seat that cannot save the change, or a saved plan on
+                  // screen, is told so BEFORE he spends an AI turn on it.
+                  onPress={() => {
+                    if (refuseScheduleWrite('AI schedule change') || refuseWhileWhatIf()) return;
+                    openEditor(undefined);
+                  }}
+                  testID="schedule-copilot-bar"
+                  accessibilityRole="button"
+                  accessibilityLabel="Tell the copilot what to change"
+                  activeOpacity={0.85}
+                >
+                  <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.copilotBarText}>Tell me what to change</Text>
+                </TouchableOpacity>
+              );
+              // Tutorial: the editor's front door (run only).
+              return runOnThis ? <TutorialTarget id="schedule.sayIt">{bar}</TutorialTarget> : bar;
+            })()}
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.viewTabScroll}>
               <View style={styles.viewTabBar}>
@@ -4490,6 +4517,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   header: { paddingHorizontal: 20, paddingBottom: 4 },
   backToSchedules: { marginBottom: 6 },
+  tutorialJobBack: { alignSelf: 'flex-start' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   // Screen title — the display face (Barlow since the 2026-09-16 rebrand) per
   // the type rule in constants/typography.ts (display face for screen titles +

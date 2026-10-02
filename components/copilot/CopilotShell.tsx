@@ -9,7 +9,7 @@
 //   grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput, type StyleProp, type TextStyle } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt, Undo2 } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -25,6 +25,15 @@ import { isLimitErrorKind } from '@/utils/copilot/turnMeter';
 import type { CopilotCapabilityId, CopilotContext } from '@/utils/copilot/types';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { desktopCta } from '@/components/ui/desktop';
+// Tutorials (schedule-say-it): the FIXTURE SEAM — see the header of
+// utils/tutorial/defs/scheduleSayIt.ts and utils/tutorial/learn/laneC.ts.
+import { t } from '@/i18n/core';
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialAssist, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { SAMPLE_NO_CREDITS_LABEL, SCHEDULE_SAMPLE } from '@/utils/tutorial/fixtures';
+import { scheduleSampleTurn } from '@/utils/tutorial/defs/scheduleSayIt';
+import { normalizeEditOps } from '@/utils/copilot/scheduleEdit/editOps';
+import { isSampleProject } from '@/utils/sampleGuard';
 
 interface Props {
   capabilityId: CopilotCapabilityId;
@@ -60,7 +69,9 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   const router = useRouter();
   const pathname = usePathname();
   const convo = useCopilotConversation(capabilityId, ctx);
-  const { state, cap, start, utterance, answer, skip, confirm, cancel, patchDraft, backToReview } = convo;
+  // utterance() below is the tutorial-guarded wrapper around the hook's own
+  // (realUtterance — the only road to the relay and the meter).
+  const { state, cap, start, utterance: realUtterance, answer, skip, confirm, cancel, patchDraft, backToReview } = convo;
   const [micOpen, setMicOpen] = useState(false);
   const [compose, setCompose] = useState(seed ?? '');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -71,6 +82,52 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   const [landed, setLanded] = useState<LandedResult | null>(null);
   const [undoResult, setUndoResult] = useState<{ ok: boolean; message: string } | null>(null);
   const undone = !!undoResult?.ok;
+
+  // ── Tutorial (schedule-say-it): the fixture seam ──────────────────────────
+  // While a run is live on THIS job and the job is a sample, the schedule
+  // editor's turns are decided here, BEFORE utterance() (the only path to the
+  // relay and the meter): the sample sentence is answered from SCHEDULE_SAMPLE
+  // and shown in the real review; any other words are refused with a reason.
+  // Every other capability, project and moment goes through utterance() as
+  // before (scheduleSampleTurn answers 'real').
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = capabilityId === 'scheduleEdit' && !!ctx.projectId && tutorialSandboxId === ctx.projectId;
+  const sampleRun = runOnThis && isSampleProject(ctx.project);
+  const [sampleReview, setSampleReview] = useState(false);
+  const [sampleRefusal, setSampleRefusal] = useState<'words' | 'noTask' | null>(null);
+  /** 'sample' / 'refused' = handled here, no AI call; null = the real turn. */
+  const tutorialTurn = useCallback((text: string): 'sample' | 'refused' | null => {
+    const turn = scheduleSampleTurn(text, sampleRun, ctx.currentTasks ?? []);
+    if (turn.kind === 'real') return null;
+    if (turn.kind === 'refuse') {
+      // His words stay in the box (a call site may have just cleared it), the
+      // reason under it.
+      setCompose(text);
+      setSampleRefusal(turn.why);
+      return 'refused';
+    }
+    // Through the real normalizer, into the real review — the same draft
+    // shape mergeDraft would have built from an AI answer.
+    const { ops } = normalizeEditOps(turn.ops);
+    patchDraft({ ops, dropped: [] });
+    setSampleRefusal(null);
+    setSampleReview(true);
+    tutorialSignal('schedule.edit.previewed', { projectId: ctx.projectId, ops: ops.length, source: 'sample' });
+    return 'sample';
+  }, [sampleRun, ctx.currentTasks, ctx.projectId, patchDraft]);
+  /** Every turn the shell sends goes through here: decided by tutorialTurn()
+   *  first, and only an undecided ('real') turn reaches the hook. */
+  const utterance = useCallback((text: string) => {
+    if (tutorialTurn(text)) return;
+    realUtterance(text);
+  }, [tutorialTurn, realUtterance]);
+  // 'Do it for me': the sample sentence into the compose box. Never Continue.
+  const sampleRunRef = useRef(sampleRun);
+  sampleRunRef.current = sampleRun;
+  useTutorialAssist('schedule.useSampleSentence', () => {
+    if (!sampleRunRef.current) return;
+    setCompose(SCHEDULE_SAMPLE.sentence);
+  });
 
   // On mount: build grounding → listening (the compose view; voice is optional).
   useEffect(() => {
@@ -175,6 +232,10 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         }}
       />
 
+      {/* Tutorial blocker sentinel: the voice and date modals draw above the
+          editor's own tutorial layer, so the coach hides while one is up. */}
+      {runOnThis && (micOpen || datePickerOpen) ? <TutorialTarget id="scheduleEdit.modalUp" /> : null}
+
       {/* top bar */}
       <View style={styles.topbar}>
         <View style={styles.topRow}>
@@ -211,23 +272,32 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             </View>
           ))}
 
-        {(state.phase === 'listening' || state.phase === 'idle') && (
+        {(state.phase === 'listening' || state.phase === 'idle') && !sampleReview && (
           <View style={styles.ask}>
             <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'Tell me about the project'}</Text>
             <Text style={styles.question}>{cap.copy.composeQuestion ?? 'What are we building?'}</Text>
             <Text style={styles.grounding}>{cap.copy.composeHint ?? 'Speak it or type it: scope, rooms, start date, what’s ordered.'}</Text>
-            <TextInput
-              style={styles.composeInput}
-              value={compose}
-              onChangeText={setCompose}
-              placeholder={cap.suggestions[0]}
-              placeholderTextColor={colors.textMuted}
-              multiline
-              testID="copilot-compose"
-            />
-            <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
-              <Text style={styles.buildBtnText}>Continue</Text>
-            </TouchableOpacity>
+            {(() => {
+              const composeBox = (
+                <>
+                  <TextInput
+                    style={styles.composeInput}
+                    value={compose}
+                    onChangeText={setCompose}
+                    placeholder={cap.suggestions[0]}
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    testID="copilot-compose"
+                  />
+                  {sampleRun && sampleRefusal ? <SampleRefusal why={sampleRefusal} style={styles.grounding} /> : null}
+                  <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
+                    <Text style={styles.buildBtnText}>Continue</Text>
+                  </TouchableOpacity>
+                </>
+              );
+              // Tutorial: the compose box and Continue, one hole (run only).
+              return runOnThis ? <TutorialTarget id="scheduleEdit.input">{composeBox}</TutorialTarget> : composeBox;
+            })()}
           </View>
         )}
 
@@ -320,9 +390,11 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
         {/* review / confirm-back — a capability may render its own review
             (e.g. an edit diff) via renderReview; else the generic build screen. */}
-        {state.phase === 'review' && (
+        {(state.phase === 'review' || (sampleReview && state.phase === 'listening')) && (
           cap.renderReview ? (
             <View style={styles.ask}>
+              {/* The bundled answer is labelled as one (no relay call was made). */}
+              {sampleReview ? <Text style={styles.grounding} testID="copilot-sample-label">{SAMPLE_NO_CREDITS_LABEL}</Text> : null}
               {cap.renderReview({
                 draft: state.draft,
                 ctx,
@@ -348,6 +420,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 multiline
                 testID="copilot-review-compose"
               />
+              {sampleRun && sampleRefusal ? <SampleRefusal why={sampleRefusal} style={styles.grounding} /> : null}
               {compose.trim().length > 0 && (
                 <TouchableOpacity accessibilityRole="button" style={styles.ghostBtn} activeOpacity={0.8} onPress={submitCompose} testID="copilot-review-send">
                   <Text style={styles.ghostBtnText}>Send</Text>
@@ -473,6 +546,17 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         </View>
       </View>
     </View>
+  );
+}
+
+/** Why the editor did nothing with his words on the sample (tutorial run). */
+function SampleRefusal({ why, style }: { why: 'words' | 'noTask'; style: StyleProp<TextStyle> }) {
+  return (
+    <Text style={style} testID="copilot-sample-refusal">
+      {why === 'noTask'
+        ? t('common.tutorial.scheduleSampleNoTask', 'This sample schedule has no drywall task to move.')
+        : t('common.tutorial.scheduleSampleRefusal', 'On the sample, use the sample sentence. Your own changes run on a real job.')}
+    </Text>
   );
 }
 

@@ -28,6 +28,7 @@ import { jobBackLink } from '../utils/uxRoutes';
 import { formatMoney } from '../utils/formatters';
 import type { RowCount } from '../utils/sidebarCounts';
 import { buildPaletteRows } from '../utils/paletteRows';
+import { PANEL_SECTION_KEYS, SECTION_TITLES, sectionTitle, desktopTileTarget } from '../utils/projectWorkspaceLayout';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8');
@@ -362,6 +363,20 @@ console.log('\nux-doors validation (Lane D):');
     && /if \(key === 'subsPay' && !perms\.showSubsPay\) return false;/.test(pd)
     && /showSubsPay: role === 'owner',/.test(pd)
     && /\{activeTile === 'subsPay' && hubPerms\.showMoney && hubPerms\.showSubsPay && \(\s*<SubsPayTile\s+rows=\{subsPayRowList\}/.test(pd));
+  // Desktop (2026-10-02): the Money column lists Subs & pay too and opens it in
+  // the side panel. The tile is on every layout (no `!isDesktop ?` gate), the
+  // panel knows the key and titles it, and both headers read sectionTitle.
+  ok('D5 desktop: the Subs & pay tile is not gated off desktop',
+    !/!isDesktop \? \[\{ key: 'subsPay'/.test(pd)
+    && /\n\s*\{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor\('subsPay'\), count: subsPayRowList\.length as number \| null \},/.test(pd));
+  ok("D5 desktop: SECTION_TITLES.subsPay === 'Subs & pay' and sectionTitle reads it",
+    SECTION_TITLES.subsPay === 'Subs & pay' && sectionTitle('subsPay') === 'Subs & pay', SECTION_TITLES.subsPay);
+  ok("D5 desktop: PANEL_SECTION_KEYS has 'subsPay', so the desktop row opens the side panel",
+    (PANEL_SECTION_KEYS as readonly string[]).includes('subsPay') && desktopTileTarget('subsPay', 'p1').kind === 'panel');
+  ok('D5 desktop: both section headers print sectionTitle(activeTile), with no subsPay special case',
+    !/activeTile === 'subsPay' \? 'Subs & pay'/.test(pd)
+    && /title=\{sectionTitle\(activeTile\)\}/.test(pd)
+    && /<Text style=\{styles\.sectionModalTitle\} numberOfLines=\{1\}>\s*\{sectionTitle\(activeTile\)\}/.test(pd));
   ok('D5: the rows come from subsPayRows over the context\'s commitments; the bills are read only while the section is open',
     /useSubSubmittedInvoices\(\{ projectId: activeTile === 'subsPay' \? \(id \?\? undefined\) : undefined \}\)/.test(pd)
     && /subsPayRows\(\{\s*projectId: id \?\? '',\s*commitments: projectCommitments,/.test(pd));

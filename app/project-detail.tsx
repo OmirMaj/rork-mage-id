@@ -2488,9 +2488,11 @@ export default function ProjectDetailScreen() {
     { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
     { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
     // W1 UXDOORS (D5): who is on this job, what they are owed and paid, and
-    // the Pay / Get waiver doors. A phone and tablet section (the section
-    // sheet); the desktop index keeps its nine-row Money column.
-    ...(!isDesktop ? [{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor('subsPay'), count: subsPayRowList.length }] : []),
+    // the Pay / Get waiver doors. Every layout: the section sheet on phone and
+    // tablet, and on desktop a Money-column row (after Invoices, in the
+    // group's tileKeys order) that opens the side panel (PANEL_SECTION_KEYS).
+    // Owner-only everywhere (hubTileVisible / showSubsPay).
+    { key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor('subsPay'), count: subsPayRowList.length as number | null },
     { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
     // T&M ticket — extra work signed for on site. The badge counts
     // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
@@ -5549,7 +5551,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.sectionModalBackText}>Back</Text>
               </TouchableOpacity>
               <Text style={styles.sectionModalTitle} numberOfLines={1}>
-                {activeTile === 'subsPay' ? 'Subs & pay' : sectionTitle(activeTile)}
+                {sectionTitle(activeTile)}
               </Text>
               <View style={{ width: 72 }} />
             </View>
@@ -5664,9 +5666,7 @@ export default function ProjectDetailScreen() {
         <SidePanel
           open={activeTile !== null}
           onClose={closeSection}
-          // 'subsPay' has no SECTION_TITLES entry yet (orchestrator item: add it
-          // to utils/projectWorkspaceLayout.ts); never a blank panel title.
-          title={activeTile === 'subsPay' ? 'Subs & pay' : sectionTitle(activeTile)}
+          title={sectionTitle(activeTile)}
           panelId="project-section"
           containerWidth={panelRow.width}
           testID="project-section-panel"
@@ -6358,7 +6358,7 @@ export default function ProjectDetailScreen() {
             <TouchableOpacity
               testID="codelook-open-lightbox"
               accessibilityRole="button"
-              accessibilityLabel="Code look"
+              accessibilityLabel="Photo code check"
               style={styles.lightboxCodeLookBtn}
               onPress={() => {
                 const target = { photoUri: lightboxPhoto.uri, sourcePhotoId: lightboxPhoto.id };
@@ -6370,7 +6370,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
             >
               <ScanSearch size={14} color={themeColors.surface} strokeWidth={1.75} />
-              <Text style={styles.lightboxMarkupBtnText}>Code look</Text>
+              <Text style={styles.lightboxMarkupBtnText} numberOfLines={1}>Photo code check</Text>
             </TouchableOpacity>
           )}
           {lightboxPhoto && project && (

@@ -27,6 +27,20 @@ import type { TimeEntry } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { computeOvertime, overtimeFor, normalizeOvertimeRule, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
+import { isSampleProject } from '@/utils/sampleGuard';
+
+/** A shift clocked on a SAMPLE project ("Sample — Sarah's Place", the
+ *  time-clock tutorial's sandbox). Sample hours are practice, not labor: they
+ *  never reach the cost book (buildLaborSamples, computeLaborStats) or a
+ *  payroll export (utils/timeClockPayroll selectPayrollEntries /
+ *  buildTimeEntriesCSV), and they are not counted toward a worker's overtime.
+ *  Keyed on the project NAME stamped on the entry at clock-in — the same
+ *  byte-exact 'Sample — ' prefix utils/sampleGuard reads everywhere (one
+ *  definition of "sample") — so a renamed project's earlier sample shifts stay
+ *  out. Pure. */
+export function isSampleTimeEntry(e: Pick<TimeEntry, 'projectName'> | null | undefined): boolean {
+  return !!e && isSampleProject(e.projectName ?? '');
+}
 
 /** The local calendar day a shift was worked, from its clock-in instant; the
  *  stored `date` only when there is no usable clock-in. Older rows wrote
@@ -176,9 +190,11 @@ export function buildLaborSamples(
     lastDate: string;
   }
   const groups = new Map<string, Group>();
-  const ot = computeOvertime(entries, overtimeRule);
+  // Sample shifts are practice (isSampleTimeEntry): no sample, no overtime share.
+  const real = (entries ?? []).filter(e => !isSampleTimeEntry(e));
+  const ot = computeOvertime(real, overtimeRule);
 
-  for (const e of entries ?? []) {
+  for (const e of real) {
     if (!isEligibleLaborEntry(e)) continue;
     const tradeKey = normalizeTradeKey(e.trade);
     const rate = rates?.[tradeKey];
@@ -255,7 +271,7 @@ export function computeLaborStats(entries: TimeEntry[], rates: LaborRateMap): La
   let sampledHours = 0;
   const missing = new Set<string>();
   for (const e of entries ?? []) {
-    if (!isEligibleLaborEntry(e)) continue;
+    if (!isEligibleLaborEntry(e) || isSampleTimeEntry(e)) continue;
     eligibleEntries++;
     const tradeKey = normalizeTradeKey(e.trade);
     const rate = rates?.[tradeKey];

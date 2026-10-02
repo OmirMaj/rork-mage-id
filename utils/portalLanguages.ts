@@ -127,6 +127,38 @@ export interface PortalUIStrings {
   // Stats / generic
   empty: string;                        // "No data shared yet."
   payNow: string;
+  // Photos and PDFs on a portal message (lane MSGPORTAL, 2026-10). OPTIONAL:
+  // English and a Spanish draft (for the founder's Spanish reviewer) only;
+  // pt / zh / vi / fr omit them and the page falls back to its English
+  // FALLBACK_STRINGS. scripts/validate-portal-message-files.ts pins the
+  // English equal to the page.
+  msgFileAttach?: string;
+  msgFileRemove?: string;
+  msgFileRefuseType?: string;
+  msgFileRefuseSize?: string;
+  msgFileRefuseEmpty?: string;
+  msgFileRefuseCount?: string;
+  msgFileRefuseDecode?: string;
+  msgFileUploading?: string;
+  msgFileSending?: string;
+  msgFileWaiting?: string;
+  msgFileNotSent?: string;
+  msgFileFailEnded?: string;
+  msgFileFailBusy?: string;
+  msgFileFailRejected?: string;
+  msgFileFailServer?: string;
+  msgFileTryAgain?: string;
+  msgFileRemoveMsg?: string;
+  msgFileNotKeptOne?: string;
+  msgFileNotKeptOther?: string;
+  msgFilePhotoAlt?: string;
+  msgFilePhotoFailed?: string;
+  msgFilePdfMeta?: string;
+  msgFileOpen?: string;
+  msgFileDownload?: string;
+  msgFileOpenFailed?: string;
+  msgFilePopupBlocked?: string;
+  msgFileMore?: string;
 }
 
 const en: PortalUIStrings = {
@@ -188,6 +220,33 @@ const en: PortalUIStrings = {
   closeoutNoteEyebrow: 'A note from your contractor',
   empty: 'Nothing shared yet.',
   payNow: 'Pay now',
+  msgFileAttach: 'Attach a photo or PDF',
+  msgFileRemove: 'Remove {name}',
+  msgFileRefuseType: '{name} can\'t be sent. Send a photo (JPG, PNG or WebP) or a PDF.',
+  msgFileRefuseSize: '{name} is {size}. Files can be up to 20 MB.',
+  msgFileRefuseEmpty: '{name} is empty, so it can\'t be sent.',
+  msgFileRefuseCount: 'A message can carry up to 10 files.',
+  msgFileRefuseDecode: 'This photo type can\'t be sent from this browser. Save it as a JPG, then attach it.',
+  msgFileUploading: 'Uploading… {pct}%',
+  msgFileSending: 'Sending…',
+  msgFileWaiting: 'Waiting for a connection. Keep this page open and it sends when you\'re back online.',
+  msgFileNotSent: 'Not sent.',
+  msgFileFailEnded: 'This portal link has ended. Ask your contractor for a new one.',
+  msgFileFailBusy: 'Too many files at once. Wait a few minutes, then try again.',
+  msgFileFailRejected: '{name} isn\'t the photo or PDF it says it is, so it wasn\'t sent.',
+  msgFileFailServer: 'The upload didn\'t finish. Try again when you have a good connection.',
+  msgFileTryAgain: 'Try again',
+  msgFileRemoveMsg: 'Remove',
+  msgFileNotKeptOne: '1 message didn\'t send before the page closed. Its text is back in the box. Attach the files again.',
+  msgFileNotKeptOther: '{count} messages didn\'t send before the page closed. The last one\'s text is back in the box. Attach the files again.',
+  msgFilePhotoAlt: 'Photo {name}',
+  msgFilePhotoFailed: 'Couldn\'t load this photo. Tap to try again.',
+  msgFilePdfMeta: 'PDF · {size}',
+  msgFileOpen: 'Open',
+  msgFileDownload: 'Download',
+  msgFileOpenFailed: 'Couldn\'t open the file. Check your connection and try again.',
+  msgFilePopupBlocked: 'Your browser blocked the new tab. Allow pop-ups for this page, then try again.',
+  msgFileMore: '+{count}',
 };
 
 const es: PortalUIStrings = {
@@ -249,6 +308,34 @@ const es: PortalUIStrings = {
   closeoutNoteEyebrow: 'UNA NOTA DE SU CONTRATISTA',
   empty: 'Aún no se ha compartido información.',
   payNow: 'Pagar Ahora',
+  // Spanish draft, waiting on the founder's reviewer (lane MSGPORTAL).
+  msgFileAttach: 'Adjuntar una foto o un PDF',
+  msgFileRemove: 'Quitar {name}',
+  msgFileRefuseType: 'No se puede enviar {name}. Envíe una foto (JPG, PNG o WebP) o un PDF.',
+  msgFileRefuseSize: '{name} pesa {size}. Los archivos pueden pesar hasta 20 MB.',
+  msgFileRefuseEmpty: '{name} está vacío, así que no se puede enviar.',
+  msgFileRefuseCount: 'Un mensaje puede llevar hasta 10 archivos.',
+  msgFileRefuseDecode: 'Este tipo de foto no se puede enviar desde este navegador. Guárdela como JPG y luego adjúntela.',
+  msgFileUploading: 'Subiendo… {pct}%',
+  msgFileSending: 'Enviando…',
+  msgFileWaiting: 'Esperando conexión. Mantenga esta página abierta y se enviará cuando vuelva a tener conexión.',
+  msgFileNotSent: 'No enviado.',
+  msgFileFailEnded: 'Este enlace del portal ya no está activo. Pida uno nuevo a su contratista.',
+  msgFileFailBusy: 'Demasiados archivos a la vez. Espere unos minutos y vuelva a intentarlo.',
+  msgFileFailRejected: '{name} no es la foto o el PDF que dice ser, así que no se envió.',
+  msgFileFailServer: 'La subida no terminó. Vuelva a intentarlo cuando tenga buena conexión.',
+  msgFileTryAgain: 'Intentar de nuevo',
+  msgFileRemoveMsg: 'Quitar',
+  msgFileNotKeptOne: '1 mensaje no se envió antes de cerrar la página. Su texto está otra vez en el cuadro. Vuelva a adjuntar los archivos.',
+  msgFileNotKeptOther: '{count} mensajes no se enviaron antes de cerrar la página. El texto del último está otra vez en el cuadro. Vuelva a adjuntar los archivos.',
+  msgFilePhotoAlt: 'Foto {name}',
+  msgFilePhotoFailed: 'No se pudo cargar esta foto. Toque para intentarlo de nuevo.',
+  msgFilePdfMeta: 'PDF · {size}',
+  msgFileOpen: 'Abrir',
+  msgFileDownload: 'Descargar',
+  msgFileOpenFailed: 'No se pudo abrir el archivo. Revise su conexión y vuelva a intentarlo.',
+  msgFilePopupBlocked: 'Su navegador bloqueó la pestaña nueva. Permita las ventanas emergentes para esta página y vuelva a intentarlo.',
+  msgFileMore: '+{count}',
 };
 
 const pt: PortalUIStrings = {

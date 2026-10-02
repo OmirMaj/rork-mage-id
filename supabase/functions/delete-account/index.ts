@@ -163,6 +163,10 @@ const USER_SCOPED_TABLES = [
   // deleted here too so this function is correct whether or not that
   // migration has been applied yet.
   'memory_embeddings', 'rate_overrides', 'ai_daily_usage',
+  // App-skills certificates (20261001120000). user_id … ON DELETE CASCADE
+  // already removes them with the login; listed so the erasure does not depend
+  // on the FK, like every other user table.
+  'app_skill_certificates',
 ];
 
 // 'portal_messages' USED TO BE IN THE LIST ABOVE. The table has no user_id

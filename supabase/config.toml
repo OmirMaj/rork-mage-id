@@ -133,6 +133,11 @@ verify_jwt = false
 [functions.public-cost-index]
 verify_jwt = false
 
+# skill-certificate-verify: the public check behind mageid.app/skills/<code> (anyone holding
+# the link, no account); reads one certificate by its unguessable check code, rate-limited per IP.
+[functions.skill-certificate-verify]
+verify_jwt = false
+
 [functions.widget-estimate]
 verify_jwt = false
 
@@ -241,6 +246,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.send-email]
+verify_jwt = true
+
+[functions.skill-certificate-award]
 verify_jwt = true
 
 [functions.transcribe-audio]

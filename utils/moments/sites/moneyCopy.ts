@@ -106,8 +106,13 @@ export function coApprovedUnsignedToast(coNumber: number): string {
 
 // ── Invoice record payment (B3) ─────────────────────────────────────────────
 
-/** The track label: "Slide to record $4,200.00". */
-export function paySlideLabel(amountCents: number): string {
+/**
+ * The track label: "Slide to record $4,200.00". null = no readable amount yet
+ * (an empty field, one that can't be read, or $0.00): the label says the action
+ * and never a figure the GC did not type ("Slide to record a payment").
+ */
+export function paySlideLabel(amountCents: number | null): string {
+  if (amountCents === null) return 'Slide to record a payment';
   return `Slide to record ${money(amountCents)}`;
 }
 
@@ -151,13 +156,15 @@ export function payBusy(): string {
   return 'Recording…';
 }
 
-/** The screen reader's one-button label: "Record a payment of $4,200.00". */
-export function paySrLabel(amountCents: number): string {
+/** The screen reader's one-button label: "Record a payment of $4,200.00"; null = "Record a payment". */
+export function paySrLabel(amountCents: number | null): string {
+  if (amountCents === null) return 'Record a payment';
   return `Record a payment of ${money(amountCents)}`;
 }
 
-/** The screen reader's Confirm button: "Record $4,200.00". */
-export function paySrConfirm(amountCents: number): string {
+/** The screen reader's Confirm button: "Record $4,200.00"; null = "Record payment". */
+export function paySrConfirm(amountCents: number | null): string {
+  if (amountCents === null) return 'Record payment';
   return `Record ${money(amountCents)}`;
 }
 

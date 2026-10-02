@@ -289,7 +289,8 @@ export function jobLevelFromPulse(schedule: JobLevelInput['schedule'], f: JobLev
 // JobLevelReason renders all four through t(); the hub card renders the first
 // two). The keys are office.projectHealth.legend.<id>; the English here is the
 // t() fallback text, pinned equal by scripts/validate-job-level.ts.
-// The colour line names no colour words: the accent follows the company's
+// The color line names no color words (its id stays 'colour'; ids and i18n
+// keys are not copy): the accent follows the company's
 // theme preset (Settings), so "green" would be false for anyone who picked
 // another hue.
 
@@ -297,9 +298,9 @@ export type JobLevelLegendId = 'bubble' | 'colour' | 'listed' | 'empty';
 
 export const JOB_LEVEL_LEGEND: readonly { id: JobLevelLegendId; text: string }[] = [
   { id: 'bubble', text: 'The bubble moves right when the finish slips past the baseline.' },
-  { id: 'colour', text: 'The colour is margin risk.' },
+  { id: 'colour', text: 'The color is margin risk.' },
   { id: 'listed', text: 'Open punch, late RFIs and late tasks are listed, not drawn.' },
-  { id: 'empty', text: 'A grey, hollow level means there is not enough data yet.' },
+  { id: 'empty', text: 'A gray, hollow level means there is not enough data yet.' },
 ];
 
 /**

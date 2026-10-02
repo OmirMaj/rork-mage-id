@@ -111,6 +111,15 @@ import {
 } from '@/utils/punchLocations';
 import { useT } from '@/contexts/LanguageContext';
 import { t, tn } from '@/i18n/core';
+// Tutorials (punch-list-close): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialRun, useTutorialSandboxId } from '@/utils/tutorial/store';
+import type { RunState } from '@/utils/tutorial/types';
+import { PUNCH_LIST_SAMPLE } from '@/utils/tutorial/defs/punchListClose';
+import { isSampleProject } from '@/utils/sampleGuard';
+
+/** The item the live run saved (punchList.saved) — the row its later steps light. */
+const tutorialPunchItemId = (s: RunState): string | null => (s.status === 'running' ? s.payloads['punchList.saved']?.itemId ?? null : null);
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -417,6 +426,8 @@ type PunchRowData =
       subIsTradeWord: boolean;
       /** The item a "ready for review" notification opened (#51). */
       focused: boolean;
+      /** The live tutorial run's own item: its text and status badge are lit. */
+      tutorial: boolean;
     };
 
 type PunchStyles = ReturnType<typeof makeStyles>;
@@ -508,7 +519,7 @@ const PunchRow = React.memo(function PunchRow({
   actions: PunchRowActions;
 }) {
   const { t, tn } = useT();
-  const { item, selected, selectMode, photoFailed, variant, onPlan, canDelete, subIsTradeWord, focused } = row;
+  const { item, selected, selectMode, photoFailed, variant, onPlan, canDelete, subIsTradeWord, focused, tutorial } = row;
   const dueUnreadable = dueDateUnreadable(item.dueDate);
   const sc = getStatusConfig(themeColors, item.status);
   const pc = getPriorityConfig(themeColors, item.priority);
@@ -587,25 +598,31 @@ const PunchRow = React.memo(function PunchRow({
               edit sheet mid-selection is how a 30-item selection gets lost.
               A long press starts selecting from any row — the one-handed way
               in, with no mode switch to find first. */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => (selectMode ? actions.onToggleSelect(item.id) : actions.onEdit(item))}
-            onLongPress={() => actions.onStartSelecting(item.id)}
-            delayLongPress={350}
-            accessibilityRole="button"
-            accessibilityLabel={selectMode
-              ? (selected ? t('field.punch.deselectItem', 'Deselect: {description}', { description: item.description }) : t('field.punch.selectItem', 'Select: {description}', { description: item.description }))
-              : t('field.punch.editPunchItem', 'Edit punch item: {description}', { description: item.description })}
-            accessibilityHint={selectMode ? undefined : t('field.punch.opensThisItemFor', 'Opens this item for editing. Long press to start selecting.')}
-            testID={`punch-item-${item.id}`}
-          >
-            <Text style={[styles.punchDesc, !formal && styles.punchDescCrew]}>{item.description}</Text>
-            {/* #56: '' (and the legacy 'Unspecified' walk placeholder) is "no
-                room given", worded here at render time — never saved. */}
-            {locationText
-              ? <Text style={styles.punchLocation}>{locationText}</Text>
-              : <Text style={[styles.punchLocation, styles.punchLocationNone]}>{PUNCH_NO_ROOM_TEXT}</Text>}
-          </TouchableOpacity>
+          {(() => {
+            const itemText = (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => (selectMode ? actions.onToggleSelect(item.id) : actions.onEdit(item))}
+                onLongPress={() => actions.onStartSelecting(item.id)}
+                delayLongPress={350}
+                accessibilityRole="button"
+                accessibilityLabel={selectMode
+                  ? (selected ? t('field.punch.deselectItem', 'Deselect: {description}', { description: item.description }) : t('field.punch.selectItem', 'Select: {description}', { description: item.description }))
+                  : t('field.punch.editPunchItem', 'Edit punch item: {description}', { description: item.description })}
+                accessibilityHint={selectMode ? undefined : t('field.punch.opensThisItemFor', 'Opens this item for editing. Long press to start selecting.')}
+                testID={`punch-item-${item.id}`}
+              >
+                <Text style={[styles.punchDesc, !formal && styles.punchDescCrew]}>{item.description}</Text>
+                {/* #56: '' (and the legacy 'Unspecified' walk placeholder) is "no
+                    room given", worded here at render time — never saved. */}
+                {locationText
+                  ? <Text style={styles.punchLocation}>{locationText}</Text>
+                  : <Text style={[styles.punchLocation, styles.punchLocationNone]}>{PUNCH_NO_ROOM_TEXT}</Text>}
+              </TouchableOpacity>
+            );
+            // Tutorial: the run's own item opens its edit form (run only).
+            return tutorial ? <TutorialTarget id="punchList.row">{itemText}</TutorialTarget> : itemText;
+          })()}
           {/* Where the PHONE was when the photo was taken — written by
               punch-walk and ai-punch on every stamped capture and, until now,
               rendered on no screen at all. Labelled as GPS rather than merged
@@ -634,20 +651,26 @@ const PunchRow = React.memo(function PunchRow({
             </TouchableOpacity>
           ) : null}
         </View>
-        <TouchableOpacity
-          style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
-          onPress={() => actions.onAdvance(item)}
-          disabled={item.status === 'closed'}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={item.status === 'closed' ? t('field.punch.statusA11y', 'Status: {label}', { label: sc.label }) : t('field.punch.statusTapToAdvance', 'Status: {label}, tap to advance', { label: sc.label })}
-          accessibilityHint={item.status === 'closed' ? undefined : t('field.punch.advancesStatusOneStep', 'Advances status one step')}
-        >
-          <Text style={[styles.punchBadgeText, { color: sc.color }]}>{sc.label}</Text>
-          {item.status !== 'closed' && (
-            <Text style={[styles.punchBadgeChevron, { color: sc.color }]}>›</Text>
-          )}
-        </TouchableOpacity>
+        {(() => {
+          const badge = (
+            <TouchableOpacity
+              style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
+              onPress={() => actions.onAdvance(item)}
+              disabled={item.status === 'closed'}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={item.status === 'closed' ? t('field.punch.statusA11y', 'Status: {label}', { label: sc.label }) : t('field.punch.statusTapToAdvance', 'Status: {label}, tap to advance', { label: sc.label })}
+              accessibilityHint={item.status === 'closed' ? undefined : t('field.punch.advancesStatusOneStep', 'Advances status one step')}
+            >
+              <Text style={[styles.punchBadgeText, { color: sc.color }]}>{sc.label}</Text>
+              {item.status !== 'closed' && (
+                <Text style={[styles.punchBadgeChevron, { color: sc.color }]}>›</Text>
+              )}
+            </TouchableOpacity>
+          );
+          // Tutorial: each tap advances one step, to Closed (run only).
+          return tutorial ? <TutorialTarget id="punchList.markDone">{badge}</TutorialTarget> : badge;
+        })()}
       </View>
 
       {/* PUNCH: the due date is the headline of the meta line, as a chip —
@@ -829,6 +852,11 @@ export default function PunchListScreen() {
   // being paywalled while it is in flight.
   const invited = useMemo(() => invitedPunchProjects(projects), [projects]);
   const ownTier = canAccessOwnTier('punch_list_closeout');
+  // The founder's practice pass (utils/tutorial/practicePass): while the
+  // punch-list tutorial runs, anyone may open THIS screen on its SAMPLE job —
+  // keyed to the URL's projectId only (empty on any other project).
+  const practiceOpen = useTutorialPractice(gateProjectId).has('punch_list_closeout');
+  if (practiceOpen && !canAccess('punch_list_closeout')) return <PunchListScreenInner ownTier={ownTier} />;
   if (!canAccess('punch_list_closeout')) {
     const answer = punchGateAnswer({
       projectId: gateProjectId,
@@ -936,6 +964,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const pickableProjects = useMemo(() => (ownTier ? projects : invitedPunchProjects(projects)), [ownTier, projects]);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  // A tutorial run is live on THIS job: only then are the targets and the
+  // blocker sentinel rendered (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const tutorialItemId = useTutorialRun(tutorialPunchItemId);
+  const punchSampleRef = useRef(false);
+  punchSampleRef.current = runOnThis && !!project && isSampleProject(project);
   // LS-5: every punch_items insert AND update needs a field/editor/owner seat
   // (punch_items_collab_insert/_update). A viewer's add, template, walk or
   // status change would land optimistically and then be refused by RLS, so
@@ -1231,6 +1266,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     setPhotoEdit({ kind: 'keep' });
     setPaneViewerOpen(false);
   }, [activeList]);
+  // 'Do it for me': the add form opens with the sample line and room filled
+  // in (sample run only). He still taps Save.
+  useTutorialAssist('punchList.useSampleLine', () => {
+    if (!punchSampleRef.current) return;
+    resetForm();
+    setDescription(PUNCH_LIST_SAMPLE.line);
+    setLocation(PUNCH_LIST_SAMPLE.room);
+    setShowForm(true);
+  });
 
   // The only path that puts a REAL item in `editingItem`. Before this every
   // route into the sheet ran resetForm() first, which meant `editingItem` was
@@ -1642,6 +1686,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       canDelete: canDeleteItem(item),
       subIsTradeWord: isTradeWordOnly(item.assignedSub, pickerSubNames),
       focused: item.id === focusedId,
+      tutorial: runOnThis && item.id === tutorialItemId,
     });
 
     if (!grouped) {
@@ -1669,7 +1714,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       for (const item of section.items) out.push(itemRow(item));
     }
     return out;
-  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames, focusedId]);
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames, focusedId, runOnThis, tutorialItemId]);
   // Read by glideRows() at the moment of a write (a ref: no callback deps).
   const rowCountRef = useRef(0);
   rowCountRef.current = rows.length;
@@ -1746,6 +1791,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           // Only the web panel can change it; 'keep' adds no keys at all.
           ...punchPhotoPatch(photoEdit, replacementUpload),
         });
+        // Tutorial success point: the item now names a sub (written locally).
+        if (assignedSub.trim()) tutorialSignal('punchList.assigned', { projectId: editingItem.projectId, itemId: editingItem.id, sub: assignedSub.trim() });
       } else {
         const item: PunchItem = {
           id: createId('punch'), projectId: projectId ?? '', description: desc,
@@ -1770,6 +1817,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           updatedAt: new Date().toISOString(),
         };
         addPunchItem(item);
+        // Tutorial success point: the new item is written locally.
+        tutorialSignal('punchList.saved', { projectId: item.projectId, itemId: item.id });
       }
       setShowForm(false);
       setAttachedPhotoUri(undefined);
@@ -1938,6 +1987,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     // server neutralises an un-review that carries no later rejected_at).
     glideRows(rowCountRef.current);
     updatePunchItem(item.id, punchStatusPatch(item, newStatus, new Date().toISOString()));
+    // Tutorial success point: the close is written locally.
+    if (newStatus === 'closed') tutorialSignal('punchList.closed', { projectId: item.projectId, itemId: item.id });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
 
     // Auto-suggest project closeout when this close zeros out the open
@@ -3516,19 +3567,25 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           {/* LS-5: a viewer seat cannot file — both doors are off and say why. */}
           {recordWriteBlock ? <Text style={styles.bulkBarHint} testID="punch-add-bar-viewer-block">{recordWriteBlock}</Text> : null}
           <View style={styles.addBar}>
-            <TouchableOpacity
-              style={[styles.addBarPrimary, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
-              onPress={() => { resetForm(); setShowForm(true); }}
-              disabled={recordWriteBlock ? true : undefined}
-              accessibilityState={recordWriteBlock ? { disabled: true } : undefined}
-              activeOpacity={0.85}
-              testID="add-punch-item"
-              accessibilityRole="button"
-              accessibilityLabel={activeList === 'punch' ? t('field.punch.addPunchItem', 'Add punch item') : t('field.punch.addCrewListItem', 'Add crew list item')}
-            >
-              <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
-              <Text style={styles.addBarPrimaryText}>{t('field.punch.add', 'Add')}</Text>
-            </TouchableOpacity>
+            {(() => {
+              const addBtn = (
+                <TouchableOpacity
+                  style={[styles.addBarPrimary, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
+                  onPress={() => { resetForm(); setShowForm(true); }}
+                  disabled={recordWriteBlock ? true : undefined}
+                  accessibilityState={recordWriteBlock ? { disabled: true } : undefined}
+                  activeOpacity={0.85}
+                  testID="add-punch-item"
+                  accessibilityRole="button"
+                  accessibilityLabel={activeList === 'punch' ? t('field.punch.addPunchItem', 'Add punch item') : t('field.punch.addCrewListItem', 'Add crew list item')}
+                >
+                  <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                  <Text style={styles.addBarPrimaryText}>{t('field.punch.add', 'Add')}</Text>
+                </TouchableOpacity>
+              );
+              // Tutorial: the add step (run only).
+              return runOnThis ? <TutorialTarget id="punchList.addBar" style={styles.tutorialFlex}>{addBtn}</TutorialTarget> : addBtn;
+            })()}
             <TouchableOpacity
               style={[styles.addBarSecondary, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
               onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
@@ -3704,6 +3761,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           decisions, and asking for them here is what turns a five-minute walk
           back into an hour. Every item files as open / medium and gets sorted
           later from the list. */}
+      {/* Tutorial blocker sentinel: these sheets draw above the root tutorial
+          layer, so the coach draws nothing while one is up (run only). */}
+      {runOnThis && (showWalk || showForm || showTaskPicker || showRejectModal !== null || viewerItem !== null || showTemplates
+        || showFilterDrawer || showBulkSubPicker || showBulkStatusPicker || closeSheetOpen || showExport)
+        ? <TutorialTarget id="punchList.modalUp" />
+        : null}
       <Modal visible={showWalk} transparent animationType={fWalk.animationType} onRequestClose={() => setShowWalk(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fWalk.overlay]}>
@@ -3964,7 +4027,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               <TouchableOpacity
                 testID="codelook-open-punch"
                 accessibilityRole="button"
-                accessibilityLabel={t('field.punch.codeLook', 'Code look')}
+                accessibilityLabel={t('field.punch.codeLook', 'Photo code check')}
                 style={styles.viewerCodeLookBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => {
@@ -3975,7 +4038,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 }}
               >
                 <ScanSearch size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.viewerCodeLookText}>{t('field.punch.codeLook', 'Code look')}</Text>
+                <Text style={styles.viewerCodeLookText} numberOfLines={1}>{t('field.punch.codeLook', 'Photo code check')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -4512,6 +4575,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   // UX wave B2 — the sticky Add / Walk bar (positioned by bulkBar).
   addBar: { flexDirection: 'row' as const, gap: 10 },
+  // A tutorial wrapper around a flex:1 control keeps its share of the row.
+  tutorialFlex: { flex: 1 },
   addBarPrimary: {
     flex: 1, minHeight: 50, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill,

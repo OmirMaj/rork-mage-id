@@ -303,7 +303,7 @@ const FEATURE_TITLE: Record<string, string> = {
   // heading prints the sentence-case name from this map; an unmapped string
   // still prints as passed.
   'Unlimited Projects': 'Unlimited projects',
-  'Photo Code Look': 'Photo code look',
+  'Photo Code Look': 'Photo code check',
   'Inspection Ready commonly-checked list': 'Inspection checklist',
   'Morning Brief': 'Morning brief',
   'Scan Anything': 'Scan anything',

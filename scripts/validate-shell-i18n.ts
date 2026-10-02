@@ -109,6 +109,8 @@ const TITLES_BEFORE: Record<string, string> = {
   'payments': 'Payments', 'aia-pay-app': 'Pay app', 'data-export': 'Export my data', 'scope-sheet': 'Scope sheet',
   'connect-claude': 'Connect Claude', 'data-import': 'Import data', 'client-update': 'Weekly client update',
   'client-messages': 'Messages', 'estimate-wizard': 'Quick estimate', 'client-view': 'Client portal',
+  // LEARN wave (LEARNQUIZ): the skills check.
+  'skills-check': 'Skills check',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */

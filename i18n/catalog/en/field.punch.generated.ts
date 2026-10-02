@@ -110,7 +110,7 @@ export const EN: EnCatalog = {
   "field.punch.closeProject": "Close project",
   "field.punch.closedOfCrew": "{closed} of {total} crew list items closed",
   "field.punch.closedOfPunch": "{closed} of {total} punch items closed",
-  "field.punch.codeLook": "Code look",
+  "field.punch.codeLook": "Photo code check",
   "field.punch.collapsesThisLocation": "Collapses this location",
   "field.punch.companyName": "Company name",
   "field.punch.couldntLoadYourGcs": "Couldn’t load your GC’s subs on this project. Leave it unassigned and your GC assigns it.",

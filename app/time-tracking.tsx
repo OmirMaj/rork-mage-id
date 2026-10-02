@@ -55,6 +55,9 @@ import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { pickDefaultProjectId, PICK_JOB_FIRST } from '@/utils/defaultProjectId';
 import { readUxDoorParams } from '@/utils/uxRoutes';
+// Tutorials (time-clock-in): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { tutorialSignal, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
 import {
   toggleCrewPick, toggleAllCrew, livePicks, clockInButton, allCrewChipLabel, splitAlreadyOnClock,
   batchLapsedText, batchClockOutJobs, batchOutMs, defaultBatchOutText, planBatchClockOut,
@@ -115,6 +118,7 @@ function LiveTimeCard({
   missed,
   loggedBy,
   readOnly,
+  tutorialClockOut,
 }: {
   entry: TimeEntry;
   onAction: (entry: TimeEntry, action: string) => void;
@@ -125,6 +129,8 @@ function LiveTimeCard({
   loggedBy?: string;
   /** #99: someone else's shift on a job he does not own — shown, never acted on. */
   readOnly?: boolean;
+  /** Tutorial run on this card's job: wrap its Clock out as 'time.clockOut'. */
+  tutorialClockOut?: boolean;
 }) {
   const { t } = useT();
   const { colors: themeColors } = useTheme();
@@ -260,14 +266,20 @@ function LiveTimeCard({
                   <Coffee size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>{t('field.time.break', 'Break')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: themeColors.dangerSoft }]}
-                  onPress={() => onAction(entry, 'clock_out')}
-                  activeOpacity={0.7}
-                >
-                  <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{t('field.time.clockOut', 'Clock out')}</Text>
-                </TouchableOpacity>
+                {(() => {
+                  const outBtn = (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: themeColors.dangerSoft }]}
+                      onPress={() => onAction(entry, 'clock_out')}
+                      activeOpacity={0.7}
+                    >
+                      <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                      <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{t('field.time.clockOut', 'Clock out')}</Text>
+                    </TouchableOpacity>
+                  );
+                  // Tutorial: opens the clock-out sheet (the slide is never wrapped).
+                  return tutorialClockOut ? <TutorialTarget id="time.clockOut" style={styles.tutorialFlex}>{outBtn}</TutorialTarget> : outBtn;
+                })()}
               </>
             ) : (
               <TouchableOpacity
@@ -301,6 +313,14 @@ export default function TimeTrackingScreen() {
   // inside, against the selected project's role (clockGate).
   const ownTier = canAccess('subcontractor_management');
   const hasSeat = projects.some(p => p.myRole === 'field' || p.myRole === 'editor');
+  // The founder's practice pass (utils/tutorial/practicePass): while the
+  // time-clock tutorial runs, anyone may clock crew on its SAMPLE job — keyed
+  // to the URL's projectId only (empty on any other project).
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const practiceOpen = useTutorialPractice(gateProjectId || undefined).has('subcontractor_management');
+  if (practiceOpen && !ownTier && !hasSeat) {
+    return <TimeTrackingScreenInner ownTier={ownTier} practiceProjectId={gateProjectId ?? null} />;
+  }
   // Until the projects load we cannot know whether he holds a seat — wait,
   // rather than flash the Business wall at a foreman who has one.
   if (!ownTier && !hasSeat && projectsLoading) {
@@ -320,7 +340,7 @@ export default function TimeTrackingScreen() {
       />
     );
   }
-  return <TimeTrackingScreenInner ownTier={ownTier} />;
+  return <TimeTrackingScreenInner ownTier={ownTier} practiceProjectId={practiceOpen ? gateProjectId ?? null : null} />;
 }
 
 /** #155: why Clock In is off with no job — hours are always filed to one.
@@ -338,7 +358,7 @@ function clockableReason(p: Project, ownTier: boolean): string | null {
   return ownTier ? null : t('field.time.needsBusinessPlan', 'Clocking in crew on your own projects is on the Business plan.');
 }
 
-function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
+function TimeTrackingScreenInner({ ownTier, practiceProjectId = null }: { ownTier: boolean; practiceProjectId?: string | null }) {
   const { t, tn, lang, displayLang } = useT();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -419,12 +439,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // seat, or his own job without Business, is listed but blocked with the
   // reason (clockableReason) — never silently missing.
   const projects = useMemo(
-    () => allProjects.filter(p => clockableReason(p, ownTier) === null),
-    [allProjects, ownTier],
+    () => allProjects.filter(p => clockableReason(p, ownTier || p.id === practiceProjectId) === null),
+    [allProjects, ownTier, practiceProjectId],
   );
   const blockedProjects = useMemo(
     () => allProjects
-      .map(p => ({ p, reason: clockableReason(p, ownTier) }))
+      .map(p => ({ p, reason: clockableReason(p, ownTier || p.id === practiceProjectId) }))
       .filter((x): x is { p: Project; reason: string } => x.reason !== null),
     [allProjects, ownTier],
   );
@@ -465,6 +485,10 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     () => projects.find(p => p.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
+  // A tutorial run is live on the job picked here: only then are the targets
+  // and the blocker sentinel rendered (a real job renders exactly as before).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!selectedProject && tutorialSandboxId === selectedProject.id;
   // #155: no job he can clock crew onto means no clock-in — say which case.
   const clockInDisabledReason: string | null = allProjects.length === 0
     ? noJobReason()
@@ -491,9 +515,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const clockGate: ClockGate = useMemo(() => resolveClockGate({
     hasProject: !!selectedProject,
     stampedRole,
-    ownTierAllows: canAccessOwnTier('subcontractor_management'),
+    ownTierAllows: canAccessOwnTier('subcontractor_management') || (!!selectedProject && selectedProject.id === practiceProjectId),
     live: { role, isLoading: roleState.isLoading, isError: roleState.isError },
-  }), [selectedProject, stampedRole, roleState.isLoading, roleState.isError, role, canAccessOwnTier]);
+  }), [selectedProject, stampedRole, roleState.isLoading, roleState.isError, role, canAccessOwnTier, practiceProjectId]);
 
   // On a job where he holds a seat, the roster is the GC's crew assigned to
   // THAT job (CrewContext useProjectCrew — read-only, never merged into his
@@ -918,6 +942,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const plan = planClockOut(entry, outIso, releaseMs);
     const outcome = await clockOutDetailed(entry.id, outIso);
     if (outcome === 'already') return { status: 'refused', reason: fieldCopy.clockOutAlready() };
+    // Tutorial success point: the clock-out write landed (on the server, in
+    // the queue, or on this phone) — never on a failed one.
+    if (outcome === 'synced' || outcome === 'queued' || outcome === 'local') {
+      tutorialSignal('time.clockedOut', { projectId: entry.projectId, ...(plan.kind === 'ok' ? { hours: plan.totalHours } : {}), offline: outcome !== 'synced' });
+    }
     const recorded = formatHoursMinutes(plan.kind === 'ok' ? plan.totalHours : 0);
     return fromWriteOutcome(outcome, { title: fieldCopy.clockedOutTitle(recorded) }, {
       refused: fieldCopy.clockOutRefused(),
@@ -1102,6 +1131,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         showAlert(t('field.time.couldntClockIn', 'Couldn\u2019t clock in'), t('field.time.hasntSyncedToYour', '{name} hasn\u2019t synced to your account yet, so hours can\u2019t be filed against it. Try again once it has.', { name: project.name }));
         return;
       }
+      // Tutorial success point: the clock-in entry exists.
+      tutorialSignal('time.clockedIn', { projectId: project.id, count: 1 });
 
       setShowClockInModal(false);
     };
@@ -1228,6 +1259,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         made++;
       }
       if (made === 0) return;
+      // Tutorial success point: `made` clock-in entries exist.
+      tutorialSignal('time.clockedIn', { projectId: project.id, count: made });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCrewPicks([]);
       setShowClockInModal(false);
@@ -1549,18 +1582,29 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           {/* #155: with no job to file hours against, Clock In is shown but
               disabled, with the reason under it — never a row the server
               refuses. */}
-          <TouchableOpacity
-            style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }, isDesktop && desktopCta, clockInDisabledReason ? { opacity: 0.5 } : null]}
-            onPress={openClockInSheet}
-            disabled={!!clockInDisabledReason}
-            accessibilityState={{ disabled: !!clockInDisabledReason }}
-            accessibilityHint={clockInDisabledReason ?? undefined}
-            activeOpacity={0.85}
-            testID="time-tracking-clock-in"
-          >
-            <Play size={18} color="#fff" strokeWidth={1.75} />
-            <Text style={styles.clockInButtonText}>{t('field.time.clockInCrew', 'Clock in crew')}</Text>
-          </TouchableOpacity>
+          {(() => {
+            const clockInBtn = (
+              <TouchableOpacity
+                style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }, isDesktop && desktopCta, clockInDisabledReason ? { opacity: 0.5 } : null]}
+                onPress={openClockInSheet}
+                disabled={!!clockInDisabledReason}
+                accessibilityState={{ disabled: !!clockInDisabledReason }}
+                accessibilityHint={clockInDisabledReason ?? undefined}
+                activeOpacity={0.85}
+                testID="time-tracking-clock-in"
+              >
+                <Play size={18} color="#fff" strokeWidth={1.75} />
+                <Text style={styles.clockInButtonText}>{t('field.time.clockInCrew', 'Clock in crew')}</Text>
+              </TouchableOpacity>
+            );
+            if (!runOnThis) return clockInBtn;
+            // Tutorial: with no crew on his own list the same button is
+            // 'time.noCrew' (the card says to add crew first; the sheet's own
+            // Add crew is the way there, and nothing is written).
+            return roster.length === 0 && !isSeat
+              ? <TutorialTarget id="time.noCrew" style={styles.tutorialFlex}>{clockInBtn}</TutorialTarget>
+              : <TutorialTarget id="time.clockIn" style={styles.tutorialFlex}>{clockInBtn}</TutorialTarget>;
+          })()}
           {/* Payroll CSV for one pay period — a real .csv file (#64, #68). */}
           <TouchableOpacity
             style={{
@@ -1740,17 +1784,30 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   {t('field.time.missedClockOutEnter', 'Missed clock-out ({length}) — enter when they left', { length: missedLiveRows.length })}
                 </Text>
               ) : null}
-              {[...missedLiveRows, ...activeLiveRows].map(r => (
-                <LiveTimeCard
-                  key={r.entry.id}
-                  entry={r.entry}
-                  onAction={handleAction}
-                  alertThresholdHours={shiftAlertHours}
-                  missed={isMissed(r.entry)}
-                  loggedBy={r.loggedBy}
-                  readOnly={r.readOnly}
-                />
-              ))}
+              {(() => {
+                // Tutorial: the first of HIS running shifts on the sample is
+                // the card the run lights (run only).
+                const tutorialEntryId = runOnThis
+                  ? activeLiveRows.find(r => r.entry.projectId === selectedProject?.id && r.entry.status === 'clocked_in' && !r.loggedBy && !r.readOnly)?.entry.id
+                  : undefined;
+                return [...missedLiveRows, ...activeLiveRows].map(r => {
+                  const card = (
+                    <LiveTimeCard
+                      key={r.entry.id}
+                      entry={r.entry}
+                      onAction={handleAction}
+                      alertThresholdHours={shiftAlertHours}
+                      missed={isMissed(r.entry)}
+                      loggedBy={r.loggedBy}
+                      readOnly={r.readOnly}
+                      tutorialClockOut={r.entry.id === tutorialEntryId}
+                    />
+                  );
+                  return r.entry.id === tutorialEntryId
+                    ? <TutorialTarget key={r.entry.id} id="time.running">{card}</TutorialTarget>
+                    : card;
+                });
+              })()}
             </View>
           )
         ) : (
@@ -1787,6 +1844,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         )}
       </ScrollView>
 
+      {/* Tutorial blocker sentinel: these sheets draw above the root tutorial
+          layer, so the coach draws nothing while one is up (run only). */}
+      {runOnThis && (showClockInModal || showAlertPicker || showRatesModal || correcting !== null || outFor !== null || clockOutFor !== null || batchOutOpen || showExport)
+        ? <TutorialTarget id="time.modalUp" />
+        : null}
       <Modal visible={showClockInModal} transparent animationType={fClockIn.animationType} onRequestClose={() => setShowClockInModal(false)}>
         <View style={[styles.modalOverlay, fClockIn.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card, fClockIn.cardMotion]}>
@@ -2673,6 +2735,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   liveCardTimerText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
   liveCardNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, flex: 1 },
   liveCardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  // A tutorial wrapper around a flex:1 control keeps its share of the row.
+  tutorialFlex: { flex: 1 },
   // Inline yellow/red banner inside an active LiveTimeCard when the worker
   // is approaching or past the shift-alert threshold.
   thresholdBanner: {

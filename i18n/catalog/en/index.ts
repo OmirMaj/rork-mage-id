@@ -37,6 +37,7 @@ import { EN as EN_COMMON_TUTORIAL } from './common.tutorial.generated';
 import { EN as EN_SETTINGS_LEARN } from './settings.learn.generated';
 import { EN as EN_OFFICE_PROJECT_HEALTH } from './office.project-health.generated';
 import { EN as EN_MONEY_CO_PROOF } from './money.co-proof.generated';
+import { EN as EN_OFFICE_CLIENT_MESSAGES } from './office.client-messages.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -63,6 +64,7 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'settings.learn': EN_SETTINGS_LEARN,
   'office.project-health': EN_OFFICE_PROJECT_HEALTH,
   'money.co-proof': EN_MONEY_CO_PROOF,
+  'office.client-messages': EN_OFFICE_CLIENT_MESSAGES,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

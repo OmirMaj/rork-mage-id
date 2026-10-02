@@ -274,7 +274,10 @@ const LEGEND_KEY = (id: string) => `office.projectHealth.legend.${id}`;
   ok('the colour line names margin risk and NO colour word (the accent follows the theme preset)',
     /margin risk/.test(L[1].text) && !/\b(green|amber|orange|red|yellow|blue)\b/i.test(L[1].text), L[1].text);
   ok('the listed line names punch, RFIs and tasks as listed, not drawn', /punch/.test(L[2].text) && /RFIs/.test(L[2].text) && /tasks/.test(L[2].text) && /not drawn/.test(L[2].text));
-  ok('the empty line names the grey, hollow level and not enough data', /grey, hollow/.test(L[3].text) && /not enough data/.test(L[3].text));
+  ok('the empty line names the gray, hollow level and not enough data', /gray, hollow/.test(L[3].text) && /not enough data/.test(L[3].text));
+  // American spelling in the copy (2026-10-02): color / gray, never colour / grey.
+  // The ids ('colour') and i18n keys are not copy and keep their names.
+  ok('the legend copy is American (color / gray, never colour / grey)', L.every((x) => !/\b(colour|grey)\b/i.test(x.text)), L.map((x) => x.text).join(' | '));
 }
 
 // ── B. The Health column budget ─────────────────────────────────────────────
@@ -398,6 +401,13 @@ console.log('\nC. source rules:');
   ok('ProjectHero: no spring and no bubble remain (the Level lives in ProjectLevelCard)', !/Animated\.spring/.test(hero) && !/\bbubble\w*\b/i.test(hero), (hero.match(/Animated\.spring|\bbubble\w*\b/i) ?? [''])[0]);
   ok('ProjectHero: the "Margin risk" words + band row stays', />Margin risk<\/Text>/.test(hero) && /\{riskBandLabel\(risk\.band\)\}/.test(hero));
   ok('ProjectHero: no private vial / centre marks', !/styles\.(vial|centerMark)/.test(hero));
+  // 2026-10-02: a warning state (health 'watch', risk 'moderate' / 'elevated')
+  // wears the WARNING ink, never the brand accent (brand green reads "fine").
+  // The loading spinner is the only accent left on the card.
+  ok('ProjectHero: watch and elevated wear warningLabel; no brand accent on a state',
+    /health === 'watch' \? t\.warningLabel/.test(hero) && /risk\.band === 'moderate' \? t\.warningLabel/.test(hero)
+    && /risk\.band === 'elevated' \? t\.warningLabel/.test(hero)
+    && !/\bt\.accent(Label)?\b/.test(hero.replace(/<ActivityIndicator[^>]*\/>/g, '')));
 
   // ── The hub mounts it twice, with the page's one pulse ──
   const hub = stripComments(read('app/project-detail.tsx'));

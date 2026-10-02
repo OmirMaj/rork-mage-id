@@ -175,13 +175,13 @@ export function renumberSavedMessage(
 ): string {
   const lines = [`${applied} sheet${applied === 1 ? '' : 's'} numbered.`, ...messages];
   if (index.reembedded > 0) {
-    lines.push(`Ask Your Plans now cites ${index.reembedded === 1 ? 'it' : 'them'} by the new number \u2014 re-used the text already read, no extra plan reads.`);
+    lines.push(`Ask your plans now cites ${index.reembedded === 1 ? 'it' : 'them'} by the new number. It re-used the text already read, so no extra plan reads.`);
   }
   if (index.failed) {
-    lines.push(`Couldn\u2019t update the index citations just now \u2014 ${index.failed}. The next Index re-reads ${index.reembedded === 0 ? 'those sheets' : 'them'}.`);
+    lines.push(`Couldn\u2019t update the index citations just now: ${index.failed}. The next Index re-reads ${index.reembedded === 0 ? 'those sheets' : 'them'}.`);
   }
   if (index.missingText > 0) {
-    lines.push(`${index.missingText} renumbered sheet${index.missingText === 1 ? '' : 's'} still cite${index.missingText === 1 ? 's' : ''} the old name \u2014 the next Index re-reads ${index.missingText === 1 ? 'it' : 'them'} (${index.missingText} plan read${index.missingText === 1 ? '' : 's'}).`);
+    lines.push(`${index.missingText} renumbered sheet${index.missingText === 1 ? '' : 's'} still cite${index.missingText === 1 ? 's' : ''} the old name. The next Index re-reads ${index.missingText === 1 ? 'it' : 'them'} (${index.missingText} plan read${index.missingText === 1 ? '' : 's'}).`);
   }
   return lines.join('\n\n');
 }

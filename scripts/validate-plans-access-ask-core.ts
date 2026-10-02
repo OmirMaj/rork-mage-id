@@ -303,7 +303,7 @@ console.log('\n#161 the plan index belongs to the project');
     allPlanDocIds(['plan-sheet:a', 'plan-sheet:b#1']) && !allPlanDocIds(['plan-sheet:a', 'rfi-1']) && !allPlanDocIds([]));
   ok('a Project Memory search is never owner-scoped', !planOnlySources(['Plan Sheet', 'RFI']) && planOnlySources(['Plan Sheet']) && !planOnlySources([]));
   ok('tier rank: business meets pro, pro does not meet business', tierMeets('business', 'pro') && !tierMeets('pro', 'business'));
-  ok('a collaborator\'s refusal is about the OWNER\'s plan', /project owner's plan/.test(ownerPlanRefusal('Ask Your Plans', 'pro')));
+  ok('a collaborator\'s refusal is about the OWNER\'s plan', /project owner's plan/.test(ownerPlanRefusal('Ask your plans', 'pro')));
 
   const search = code('supabase/functions/project-memory-search/index.ts');
   ok('search resolves the owner for a plan-only search and reads HIS rows',
