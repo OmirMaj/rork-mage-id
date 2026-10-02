@@ -358,13 +358,64 @@ function step(name: string, fn: () => Promise<void>) { STEPS.push([name, fn]); }
     u.unmount();
   });
 
+  // iOS on the New Architecture delivers only BEGAN and END to JS for this
+  // native-driver drag: the move events go to the native animation engine and
+  // the Animated.event listener never runs. So these steps never call
+  // onGestureEvent: the release payload alone must decide.
+  step('T13 slow full-length slide with no move events (iOS delivery) commits; 84% springs home, 86% commits', async () => {
+    let u = mount();
+    await advance(10);
+    // T = 358 - 8 - 56 = 294: the head let go at the end, no speed at all
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 5, translationX: 294, velocityX: 0 } }); });
+    await advance(100);
+    expect(u.onCommit).toHaveBeenCalledTimes(1);
+    await advance(3000);
+    expect(u.getByTestId('slide-result').props.children).toBe(TITLE);
+    u.unmount();
+
+    // just under the 0.85 threshold: 247 / 294 = 0.840
+    u = mount();
+    await advance(10);
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 5, translationX: 247, velocityX: 0 } }); });
+    await advance(800);
+    expect(u.onCommit).not.toHaveBeenCalled();
+    // just past it: 253 / 294 = 0.861
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 5, translationX: 253, velocityX: 0 } }); });
+    await advance(100);
+    expect(u.onCommit).toHaveBeenCalledTimes(1);
+    u.unmount();
+  });
+
+  step('T14 clock-out size (md, threshold 0.70): a slow release past 70% commits, 65% springs home, a cancel never commits', async () => {
+    const u = mount({ size: 'md' });
+    await advance(10);
+    // md: T = 358 - 8 - 44 = 306
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 5, translationX: 200, velocityX: 0 } }); });
+    await advance(800);
+    expect(u.onCommit).not.toHaveBeenCalled();
+    // a recognizer cancel at full travel is not a release: it must not commit
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 3, translationX: 306, velocityX: 0 } }); });
+    await advance(800);
+    expect(u.onCommit).not.toHaveBeenCalled();
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 2 } }); });
+    act(() => { mockPan.props.onHandlerStateChange({ nativeEvent: { state: 5, translationX: 220, velocityX: 0 } }); });
+    await advance(100);
+    expect(u.onCommit).toHaveBeenCalledTimes(1);
+    u.unmount();
+  });
+
 // ONE test on purpose (the glide-dots harness note): in this harness a render
 // in a second `it`, after the first one's cleanup, never commits (the stray
 // render then runs after the environment is torn down). Inside one test, with
 // every tree unmounted explicitly, every render commits. Each step resets the
 // shared switches and names itself in any failure.
 describe('SlideToConfirm (Commit Capsule, track skin)', () => {
-  it('T1-T12: idle, disabled, screen reader, confirmed, refused, timeout, legal queued/offline, Reduce Motion, unmount, hold, drag', async () => {
+  it('T1-T14: idle, disabled, screen reader, confirmed, refused, timeout, legal queued/offline, Reduce Motion, unmount, hold, drag, release-decides', async () => {
     for (const [name, fn] of STEPS) {
       mockReduced = false;
       srOn = false;
@@ -378,6 +429,6 @@ describe('SlideToConfirm (Commit Capsule, track skin)', () => {
         throw e;
       }
     }
-    expect(STEPS).toHaveLength(13);
+    expect(STEPS).toHaveLength(15);
   });
 });

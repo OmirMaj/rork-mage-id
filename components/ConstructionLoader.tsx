@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import LevelMark, { useLevelReveal } from '@/components/loaders/LevelMark';
 import { splashFallbackColors } from '@/components/loaders/themeFallback';
 import { LOADER } from '@/utils/levelTimeline';
+import { DESK_INLINE_LG, loaderTier } from '@/utils/levelDesk';
 
 /**
  * ConstructionLoader — the inline / section loader used across the app. Every
@@ -14,7 +15,10 @@ import { LOADER } from '@/utils/levelTimeline';
  * The props API is UNCHANGED so no call site moves (several live in files other
  * lanes own). What changed underneath:
  *   - sm / md / lg → a level 20 / 36 / 64 pt wide (120 is reserved for the
- *     CraneSvg hero sizes and the splash).
+ *     CraneSvg hero sizes and the splash). On a web window 768 px and wider
+ *     (lane LOADERDESK) the page loader `lg` is sized for the canvas: 120 on a
+ *     tablet, 160 / 200 on a laptop / monitor (the desk table past 120). The
+ *     phone — every native platform, and the web below 768 — is unchanged.
  *   - `colorTop` colours the bubble. `colorMid`, `colorBase`, `scene` and
  *     `labelIntervalMs` are accepted and IGNORED (the house / city SVG they
  *     styled is gone).
@@ -77,6 +81,10 @@ export default function ConstructionLoader({
   const theme = useTheme() as ReturnType<typeof useTheme> | undefined;
   const colors = theme?.colors ?? splashFallbackColors();
   const words = useLevelReveal(REVEAL_MS);
+  const { width } = useWindowDimensions();
+  const tier = loaderTier(width, Platform.OS);
+  // The desk page loader: only `lg`, only on the web ≥ 768.
+  const deskW = size === 'lg' && tier !== 'phone' ? DESK_INLINE_LG[tier] : null;
 
   const shownLabel = Array.isArray(labels) && labels.length > 0 ? labels[0] : label;
 
@@ -99,7 +107,7 @@ export default function ConstructionLoader({
       accessibilityLabel={shownLabel ?? 'Loading'}
       testID="construction-loader"
     >
-      <LevelMark size={MARK_W[size]} color={colorTop} revealDelayMs={REVEAL_MS} />
+      <LevelMark size={deskW ?? MARK_W[size]} desk={deskW != null} color={colorTop} revealDelayMs={REVEAL_MS} />
       {!!text && (
         <Animated.View style={{ opacity: words }}>
           <Text style={[LABEL_TYPE[size], styles.label, { color: colors.textSecondary }]} numberOfLines={1}>

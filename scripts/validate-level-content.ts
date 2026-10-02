@@ -363,7 +363,10 @@ console.log('\nNailItToast, haptics, Spinner, the AI panels');
 {
   const toast = code('components/animations/NailItToast.tsx');
   ok('NailItToast: no direct Haptics.notificationAsync', !/Haptics\.notificationAsync/.test(toast) && !/expo-haptics/.test(toast));
-  ok('NailItToast: error → haptic.error(), else haptic.success()', /if \(event\.kind === 'error'\) haptic\.error\(\);\s*else haptic\.success\(\);/.test(toast));
+  // 2026-10-01: a neutral toast (kept on this phone / no answer yet) taps or
+  // warns, never buzzes success; a quiet toast plays none (its moment already did).
+  ok('NailItToast: error → haptic.error(), neutral → tap / warning, else haptic.success(); quiet plays none',
+    /if \(Platform\.OS !== 'web' && !event\.quiet\) \{\s*if \(event\.kind === 'error'\) haptic\.error\(\);\s*else if \(event\.kind === 'neutral'\) \{\s*if \(event\.icon === 'alert'\) haptic\.warning\(\);\s*else haptic\.tap\(\);\s*\} else haptic\.success\(\);/.test(toast));
 
   const h = code('utils/haptics.ts');
   ok('utils/haptics: a 400 ms window compared per type', /export const HAPTIC_DEDUPE_MS = 400;/.test(h) && /now - lastFired\[kind\] <= HAPTIC_DEDUPE_MS/.test(h));

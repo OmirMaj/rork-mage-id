@@ -82,7 +82,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // the owner's subs on the job when he is a collaborator (#110).
 import { useProjectSubcontractors } from '@/hooks/useProjectSubcontractors';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
-import { nailIt, oops } from '@/components/animations/NailItToast';
+import { nailIt } from '@/components/animations/NailItToast';
 import {
   SlideToConfirm, fromWriteOutcome,
   type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
@@ -287,17 +287,6 @@ function isTradeWordOnly(name: string | undefined, subNames: ReadonlySet<string>
 function dueDateUnreadable(due: string | undefined): boolean {
   const v = (due ?? '').trim();
   return !!v && !parseCalendarDay(v.slice(0, 10));
-}
-
-/**
- * A slide's answer that lands after this screen unmounted (moments rule 4:
- * nailIt survives only here). Confirmed is the one success toast; a refusal
- * or a timeout still says what did not happen; queued needs no toast.
- */
-function momentAfterUnmount(r: CommitResult): void {
-  if (r.status === 'confirmed') nailIt(r.title);
-  else if (r.status === 'refused') oops(r.reason);
-  else if (r.status === 'timeout') oops(r.message);
 }
 
 /**
@@ -3563,6 +3552,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         title={fieldCopy.closeProjectAction()}
         size="dialog"
         dismissOnBackdrop={!closeBusy}
+        dismissible={!closeBusy}
         testID="punch-close-project-sheet"
         // Always the slide (a closed Modal draws nothing), so its disabled
         // reason is decided by the data, never by when the sheet opened.
@@ -3581,7 +3571,6 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             // the sheet up until onDone, which goes back with it.
             onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setCloseBusy(false); }}
             onDone={onCloseProjectDone}
-            onResultAfterUnmount={momentAfterUnmount}
             testID="punch-close-project-slide"
           />
         )}

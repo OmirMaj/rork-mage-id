@@ -18,7 +18,6 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ChipRail, Sheet, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
-import { nailIt, oops } from '@/components/animations/NailItToast';
 import {
   SlideToConfirm, fromWriteOutcome,
   type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle,
@@ -178,13 +177,6 @@ function lockRefusal(target: WipPeriodWithSources | undefined, hasLiveRows: bool
   if (target.rows.length === 0) return `This period has no projects on it. ${NOTHING_TO_REPORT}`;
   if (target.lockedAt) return fieldCopy.wipAlreadyLockedReason();
   return null;
-}
-
-/** The lock slide's answer when it lands after this screen unmounted (nailIt survives only here). */
-function momentAfterUnmount(r: CommitResult): void {
-  if (r.status === 'confirmed') nailIt(r.title);
-  else if (r.status === 'refused') oops(r.reason);
-  else if (r.status === 'timeout') oops(r.message);
 }
 
 export default function WipReportScreen() {
@@ -1852,6 +1844,7 @@ function WipReportScreenInner() {
         title={fieldCopy.wipLockSheetTitle()}
         size="dialog"
         dismissOnBackdrop={!lockBusy}
+        dismissible={!lockBusy}
         testID="wip-lock-sheet"
         footer={lockSheet ? (
           <SlideToConfirm
@@ -1869,7 +1862,6 @@ function WipReportScreenInner() {
             // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
             onResolved={(r) => { if (r.status !== 'confirmed' && r.status !== 'queued') setLockBusy(false); }}
             onDone={() => { setLockBusy(false); setLockSheet(null); }}
-            onResultAfterUnmount={momentAfterUnmount}
             testID="wip-lock-slide"
           />
         ) : null}

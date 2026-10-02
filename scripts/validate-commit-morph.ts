@@ -135,8 +135,8 @@ ok('no hand-rolled send bar or "Sending…" swap left', !/styles\.primary\b/.tes
 console.log('\nNailItToast');
 ok('no Hammer import, no spark', !/\bHammer\b/.test(TOAST) && !/spark/i.test(TOAST));
 ok('still exports nailIt, oops and NailItToastHost',
-  /export function nailIt\(message: string\): void/.test(TOAST)
-  && /export function oops\(message: string\): void/.test(TOAST)
+  /export function nailIt\(message: string(?:, opts\?: ToastOptions)?\): void/.test(TOAST)
+  && /export function oops\(message: string(?:, opts\?: ToastOptions)?\): void/.test(TOAST)
   && /export function NailItToastHost\(\)/.test(TOAST));
 ok('the card rises on Tokens.motion.spring.rise (enter AND replace)',
   (TOAST.match(/Animated\.spring\(translateY, \{ toValue: 0, useNativeDriver: nativeDriver, \.\.\.Tokens\.motion\.spring\.rise \}\)/g) ?? []).length === 2);

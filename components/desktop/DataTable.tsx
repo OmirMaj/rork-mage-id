@@ -722,12 +722,15 @@ function DataRow({
   // a plain button, which also keeps Link's native press path from racing an
   // in-place open.
   const linkHref = Platform.OS === 'web' ? href : undefined;
+  // The row's style is FLATTENED: a linked row renders inside <Link asChild>,
+  // whose web merge turns a style array into {0: …} and crashes the page
+  // (Sentry REACT-NATIVE-R/S). scripts/validate-link-aschild-style.ts pins it.
   const main = (
     <Pressable
       onPress={linkHref ? undefined : onOpen}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={[styles.rowMain, { minHeight: height }]}
+      style={StyleSheet.flatten([styles.rowMain, { minHeight: height }])}
       accessibilityRole={linkHref ? 'link' : 'button'}
       testID={testID}
     >

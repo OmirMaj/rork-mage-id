@@ -11,7 +11,10 @@
 // The sheet stays open through the result (plan rule 7): it closes in onDone
 // after the hold, and only for a confirmed or queued answer. A refused or
 // timed-out slide keeps the sheet up with its reason line. No confetti, no
-// success Alert, no success haptic (the capsule plays its own).
+// success Alert, no success haptic (the capsule plays its own). From release
+// until the answer is in (and through a stored answer's hold) the sheet cannot
+// be dismissed: no drag, no X, no scrim, no Esc. The slide itself says the
+// result in the toast once the sheet is gone (sayCommitResult).
 //
 // A slide never sits inline in a list row: the row's "Approve CO #4" stays a
 // tap that opens this sheet.
@@ -27,7 +30,6 @@ import {
   type SlideToConfirmHandle,
 } from '@/components/moments/core/contract';
 import { useProjectCrossActions, type ChangeOrderFrozenFields } from '@/contexts/ProjectContext';
-import { nailIt } from '@/components/animations/NailItToast';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -38,10 +40,8 @@ import { loadActiveContract } from '@/utils/contractEngine';
 import {
   coApproved,
   coApprovedNoTotal,
-  coApprovedToast,
   coApprovedUnsigned,
   coApprovedUnsignedNoTotal,
-  coApprovedUnsignedToast,
   coBusy,
   coQueued,
   coRefused,
@@ -155,11 +155,16 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
   const styles = useThemedStyles(makeStyles);
   const slideRef = useRef<SlideToConfirmHandle>(null);
   const amountCents = dollarsToCents(changeOrder.changeAmount);
+  // A write in flight (and a stored answer's hold) holds the sheet open.
+  const [busy, setBusy] = useState(false);
+  // Closed from outside mid-write (the slide unmounted with it): the next open starts free.
+  useEffect(() => { if (!visible) setBusy(false); }, [visible]);
 
   // Cmd+Enter plays the hold, never an instant commit (plan rule 6).
   useSheetPrimaryHotkey(visible, () => slideRef.current?.playHoldToCommit(), { saveKey: false });
 
   const approve = useCallback(async (): Promise<CommitResult> => {
+    setBusy(true);
     const outcome = await (frozen ? approveChangeOrder(changeOrder.id, { frozen }) : approveChangeOrder(changeOrder.id));
     return fromWriteOutcome(outcome, {
       title: unsigned ? coApprovedUnsignedTitle(coNumber, amountCents, contractAfterCents) : coApprovedTitle(coNumber, amountCents, contractAfterCents),
@@ -172,15 +177,16 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
     copy: { refused: coRefused(), timeout: coTimeout(coNumber) },
   }), [coNumber]);
 
+  // A result that plays a hold (confirmed, or kept on this phone) keeps the sheet up until onDone.
+  const onResolved = useCallback((r: CommitResult) => {
+    if (r.status !== 'confirmed' && r.status !== 'queued') setBusy(false);
+  }, []);
   // The sheet closes after the result hold, and only when the approval is stored or waiting to send.
+  // The slide says the result in the toast ("CO #4 approved, unsigned · …" names an unsigned one).
   const onDone = useCallback((r: CommitResult) => {
+    setBusy(false);
     if (r.status === 'confirmed' || r.status === 'queued') onClose();
   }, [onClose]);
-
-  // The sheet was closed before the answer came back: a confirmed approval still gets said.
-  const onResultAfterUnmount = useCallback((r: CommitResult) => {
-    if (r.status === 'confirmed') nailIt(unsigned ? coApprovedUnsignedToast(coNumber) : coApprovedToast(coNumber));
-  }, [coNumber, unsigned]);
 
   return (
     <Sheet
@@ -188,6 +194,7 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
       onClose={onClose}
       title={props.title}
       size="dialog"
+      dismissible={!busy}
       testID={props.testID ?? 'co-approve-sheet'}
       footer={(
         <View style={styles.footer}>
@@ -202,9 +209,8 @@ export function COApproveSheet(props: COApproveSheetProps): React.JSX.Element {
             size="lg"
             tone="brand"
             resultIcon="check"
+            onResolved={onResolved}
             onDone={onDone}
-            onLateResult={onResultAfterUnmount}
-            onResultAfterUnmount={onResultAfterUnmount}
             testID="co-approve-slide"
           />
         </View>

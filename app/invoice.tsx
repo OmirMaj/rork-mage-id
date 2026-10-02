@@ -50,7 +50,7 @@ import { SlideToConfirm, type CommitResult, type CommitWriteOptions, type SlideT
 import {
   payAmountEmpty, payAmountNotAboveZero, payAmountUnreadable,
   payBusy, payEarlierChangeReason, payHeld, payOverDetail, payPaidInFull, payQueued, payQueuedPayLinkNext,
-  payRecorded, payRecordedOnInvoice, payRecordedToast, payRefused, payReviewUnsentLink, paySlideLabel,
+  payRecorded, payRecordedOnInvoice, payRefused, payReviewUnsentLink, paySlideLabel,
   paySlideLabelOver, paySrConfirm, paySrLabel, payTimeout,
 } from '@/utils/moments/sites/moneyCopy';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
@@ -747,7 +747,13 @@ function InvoiceInner() {
   // start a second append.
   const paymentIdRef = useRef<string | null>(null);
   const paymentSlideRef = useRef<SlideToConfirmHandle>(null);
-  const paymentAttemptCentsRef = useRef(0);
+  // From release until the answer is in (and through a stored answer's hold)
+  // the sheet cannot be closed: Android back, Esc and the X do nothing. The
+  // slide closes it after the hold and says the result in the toast.
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const closePaymentSheet = useCallback(() => { if (!paymentBusy) setShowPaymentModal(false); }, [paymentBusy]);
+  // Closed from outside mid-write (the slide unmounted with it): the next open starts free.
+  useEffect(() => { if (!showPaymentModal) setPaymentBusy(false); }, [showPaymentModal]);
   // The unsent-changes check, read while the sheet is open (see recordPayment).
   const [paymentChain, setPaymentChain] = useState<{ held: boolean; sameMoney: boolean }>({ held: false, sameMoney: false });
   // True after "No answer yet": the fields lock until the sheet closes, so a
@@ -2074,10 +2080,10 @@ function InvoiceInner() {
     : paymentChain.held ? payEarlierChangeReason() : null;
 
   const recordPayment = useCallback(async (): Promise<CommitResult> => {
+    setPaymentBusy(true);
     if (!existingInvoice || paymentDecision.kind === 'refuse') return { status: 'refused', reason: payRefused() };
     const amt = paymentDecision.amount;
     const amountCents = Math.round(amt * 100);
-    paymentAttemptCentsRef.current = amountCents;
     // ONE id per sheet session: a retry is the same entry to the server.
     if (!paymentIdRef.current) paymentIdRef.current = createId('pay');
 
@@ -2203,6 +2209,7 @@ function InvoiceInner() {
   // screen goes back — only while this invoice is still in front (a late
   // back() after he left closed the screen he had opened since).
   const onPaymentDone = useCallback((r: CommitResult) => {
+    setPaymentBusy(false);
     if (r.status !== 'confirmed' && r.status !== 'queued') return;
     if (!screenInFrontRef.current) return;
     setShowPaymentModal(false);
@@ -2213,12 +2220,10 @@ function InvoiceInner() {
     router.back();
   }, [router]);
   // No answer in time: the fields lock, so a retry is the same payment (same id).
+  // A result that plays a hold (stored, or kept on this phone) keeps the sheet up until onDone.
   const onPaymentResolved = useCallback((r: CommitResult) => {
     if (r.status === 'timeout') setPaymentAwaitingAnswer(true);
-  }, []);
-  // A confirmed answer after the timeout, or after the sheet was closed: say it once.
-  const onPaymentLate = useCallback((r: CommitResult) => {
-    if (r.status === 'confirmed') nailIt(payRecordedToast(paymentAttemptCentsRef.current));
+    if (r.status !== 'confirmed' && r.status !== 'queued') setPaymentBusy(false);
   }, []);
 
   // Stripe payment link: generate once per invoice (or regenerate if the link
@@ -3825,13 +3830,13 @@ function InvoiceInner() {
         sendInFlight,
       }) ? <TutorialTarget id="invoice.modalUp" /> : null}
 
-      <Modal visible={showPaymentModal} transparent animationType={fPayment.animationType} onRequestClose={() => setShowPaymentModal(false)}>
+      <Modal visible={showPaymentModal} transparent animationType={fPayment.animationType} onRequestClose={closePaymentSheet}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fPayment.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fPayment.card, fPayment.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record payment</Text>
-                <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <TouchableOpacity onPress={closePaymentSheet} disabled={paymentBusy ? true : undefined} accessibilityRole="button" accessibilityLabel="Close" testID="record-payment-close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -3914,8 +3919,6 @@ function InvoiceInner() {
                   resultIcon="check"
                   onDone={onPaymentDone}
                   onResolved={onPaymentResolved}
-                  onLateResult={onPaymentLate}
-                  onResultAfterUnmount={onPaymentLate}
                   testID="record-payment-slide"
                 />
                 {paymentDecision.kind === 'confirm' && !paymentDisabledReason ? (

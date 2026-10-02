@@ -483,6 +483,16 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
       }
     }
     ok(`C10 every useNativeDriver in components/moments/** is exactly \`nativeDriver\` (${n})`, bad.length === 0, bad.join('\n'));
+    // iOS (New Architecture) never runs a native-driver Animated.event's JS
+    // listener, so a lock only that listener sets is never set: the release
+    // must decide from its own position, and the live feel reads a value listener.
+    const endedBody = hook.slice(hook.indexOf('const ended = '), hook.indexOf('const onDrag = '));
+    ok('C10 ended() decides from the release position: shouldCommit gets lockStep(lockedRef.current, p, threshold)',
+      /lockStep\(\s*lockedRef\.current\s*,\s*p\s*,\s*threshold\s*\)/.test(endedBody)
+        && /shouldCommit\(\{\s*locked:\s*lockedAtRelease\b/.test(endedBody));
+    const beganBody = hook.slice(hook.indexOf('const began = '), hook.indexOf('const ended = '));
+    ok('C10 began() follows the head with a v.x value listener on the native driver',
+      /if\s*\(\s*nativeDriver\s*\)[\s\S]*v\.x\.addListener\([\s\S]*track\(/.test(beganBody));
   }
 
   // C11
