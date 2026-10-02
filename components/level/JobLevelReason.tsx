@@ -42,9 +42,9 @@ export function JobLevelReason({ visible, onClose, reading, projectName, childre
       </View>
       <View style={styles.legend} testID="joblevel-legend">
         <Text style={styles.legendLine}>{t('office.projectHealth.legend.bubble', 'The bubble moves right when the finish slips past the baseline.')}</Text>
-        <Text style={styles.legendLine}>{t('office.projectHealth.legend.colour', 'The colour is margin risk.')}</Text>
+        <Text style={styles.legendLine}>{t('office.projectHealth.legend.colour', 'The color is margin risk.')}</Text>
         <Text style={styles.legendLine}>{t('office.projectHealth.legend.listed', 'Open punch, late RFIs and late tasks are listed, not drawn.')}</Text>
-        <Text style={styles.legendLine}>{t('office.projectHealth.legend.empty', 'A grey, hollow level means there is not enough data yet.')}</Text>
+        <Text style={styles.legendLine}>{t('office.projectHealth.legend.empty', 'A gray, hollow level means there is not enough data yet.')}</Text>
       </View>
     </Sheet>
   );

@@ -31,9 +31,12 @@ import { buildScheduledStartDays, taskWindow, type TaskWindowCalendar } from '@/
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Sections whose body is drawn in the desktop side panel (the in-page
- *  sections that have no screen of their own). */
+ *  sections that have no screen of their own). 'subsPay' joined on
+ *  2026-10-02: the desktop Money column lists Subs & pay and opens it here,
+ *  like the phone and tablet section sheet (owner-only either way). */
 export const PANEL_SECTION_KEYS = [
   'linkedEstimate', 'schedule', 'collaborators', 'budget', 'photos', 'clientPortal', 'communications', 'aiReport',
+  'subsPay',
 ] as const;
 export type PanelSectionKey = typeof PANEL_SECTION_KEYS[number];
 
@@ -101,6 +104,7 @@ export const SECTION_TITLES: Readonly<Record<string, string>> = {
   clientPortal: 'Client Portal',
   communications: 'Communications',
   aiReport: 'AI Project Report',
+  subsPay: 'Subs & pay',
 };
 
 /** '' for an unknown key or none — exactly what the phone ternary printed. */

@@ -504,6 +504,32 @@ describe('B3 record a payment (the real invoice screen)', () => {
     expect(appends).toHaveLength(0);
   });
 
+  // LOOSE (d), 2026-10-02: an empty or zero amount used to print "Slide to
+  // record $0.00" and "Record a payment of $0.00". The slide now says the
+  // action and never a figure the GC did not type; the reason still says why
+  // it waits. The zero case's reason names the $0.00 floor (an honest rule,
+  // not an amount), so it is the one sanctioned "$0.00" on the sheet.
+  test.each([
+    ['empty', '', 'Type the amount received to record a payment.'],
+    ['zero', '0', 'Enter an amount above $0.00 to record a payment.'],
+  ])('no amount typed (%s): "Slide to record a payment", no made-up $0.00 on the sheet', async (_name, amount, reason) => {
+    const tree = await openPaymentSheet(() => ({ kind: 'ok', latencyMs: 0 }), { amount });
+    expect(tree.getByTestId('record-payment-slide-label').props.children).toBe('Slide to record a payment');
+    expect(tree.getByTestId('record-payment-slide-disabled-reason').props.children).toBe(reason);
+    type Node = { type: unknown; props: Record<string, unknown>; parent: Node | null; findAll: (p: (n: Node) => boolean) => Node[] };
+    let sheet = tree.getByTestId('record-payment-amount') as unknown as Node;
+    while (sheet.parent && sheet.findAll((n) => n.props?.testID === 'record-payment-submit').length === 0) sheet = sheet.parent;
+    const said: string[] = [];
+    for (const n of sheet.findAll((x) => typeof x.type === 'string')) {
+      const kids = ([] as unknown[]).concat(n.props.children ?? []);
+      if (kids.length && kids.every((k) => typeof k === 'string' || typeof k === 'number')) said.push(kids.join(''));
+      if (typeof n.props.accessibilityLabel === 'string') said.push(n.props.accessibilityLabel);
+    }
+    expect(said).toContain('Slide to record a payment');
+    expect(said.filter((s) => s.includes('$0.00') && s !== reason)).toEqual([]);
+    expect(appends).toHaveLength(0);
+  });
+
   test('a timeout says "Check invoice #1042", locks the fields, and the retry sends the SAME payment id', async () => {
     let call = 0;
     const tree = await openPaymentSheet(() => (++call === 1 ? { kind: 'ok', latencyMs: 25000 } : { kind: 'ok', latencyMs: 300 }));

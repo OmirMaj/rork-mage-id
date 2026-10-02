@@ -13,10 +13,10 @@
 // Free tier: groups 1-2 and Pass/Fail work fully with no AI at all; the recall
 // group says it needs Pro and offers the existing Paywall.
 //
-// Code look (wave 4, lane P): each line can open a Photo Code Look on a photo
+// Photo code check (wave 4, lane P): each line can open a photo code check on a photo
 // picked the way Snap proof picks one. It renders INSIDE this sheet's own
 // Modal tree (covering the card), never as a second presented modal; its
-// lines land in a "From your Code look" group (entry.extras).
+// lines land in a "From your photo code check" group (entry.extras).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -98,7 +98,7 @@ export default function InspectionReadySheet({
     recall: full.items.filter((i) => i.group === 'recall'),
     verify: full.items.filter((i) => i.group === 'verify'),
   }), [full.items]);
-  // Lines added from a Code look — their own group, not re-run through the
+  // Lines added from a photo code check, their own group, not re-run through the
   // checklist (they are what HIS photo showed, not recall).
   const extras = useMemo(() => {
     const shown = new Set(full.items.map((i) => i.id));
@@ -187,7 +187,7 @@ export default function InspectionReadySheet({
     }
   }, [pickPhoto, linkedPunch, updatePunchItem, addToPunch, update]);
 
-  // ── Code look (inside this Modal tree) ─────────────────────────────────
+  // ── Photo code check (inside this Modal tree) ──────────────────────────────
   const [codeLookTarget, setCodeLookTarget] = useState<{ photoUri: string; item: PrepItem } | null>(null);
   const openCodeLook = useCallback(async (item: PrepItem) => {
     try {
@@ -203,7 +203,7 @@ export default function InspectionReadySheet({
       return { ...e, extras: list.filter((x, i) => list.findIndex((y) => y.id === x.id) === i) };
     });
   }, [update]);
-  // Back / Esc closes the Code look first, the prep sheet second.
+  // Back / Esc closes the photo code check first, the prep sheet second.
   const requestClose = useCallback(() => {
     if (codeLookTarget) { setCodeLookTarget(null); return; }
     onClose();
@@ -290,11 +290,11 @@ export default function InspectionReadySheet({
             style={s.action}
             onPress={() => { void openCodeLook(item); }}
             accessibilityRole="button"
-            accessibilityLabel="Code look"
+            accessibilityLabel="Photo code check"
             testID={`codelook-prep-${item.id}`}
           >
             <ScanSearch size={13} color={t.textSecondary} strokeWidth={1.75} />
-            <Text style={s.actionText}>Code look</Text>
+            <Text style={s.actionText} numberOfLines={1}>Photo code check</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.action, na && s.actionOn]}
@@ -428,12 +428,12 @@ export default function InspectionReadySheet({
               </View>
             ) : null}
 
-            {/* Lines he added from a Code look photo. */}
+            {/* Lines added from a photo code check. */}
             {extras.length > 0 ? (
               <View style={s.section} testID="codelook-prep-extras">
                 <View style={s.sectionHead}>
                   <ScanSearch size={15} color={t.accentLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>From your code look</Text>
+                  <Text style={s.sectionHeading}>From your photo code check</Text>
                 </View>
                 {extras.map(renderItem)}
               </View>

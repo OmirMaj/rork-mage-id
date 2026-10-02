@@ -1,4 +1,4 @@
-// utils/codeLook.ts — Photo Code Look: point the phone at work that is about
+// utils/codeLook.ts — Photo code check (ids keep the old "code look" name): point the phone at work that is about
 // to be covered up (rough-in, framing, insulation, fire-stopping) and get at
 // most five things an inspector would look at IN THAT PHOTO. PURE: no React,
 // no network, no storage. scripts/validate-code-look.ts drives it under bun.
@@ -237,7 +237,7 @@ export function codeLookToPrepItem(o: CodeLookObservation): PrepItem {
     id: `codelook_${digest(o.what)}`,
     group: 'verify',
     text: o.what,
-    why: `From a Code look photo · ${CONFIDENCE_WORD[o.confidence]} confidence in what was seen`,
+    why: `From a photo code check · ${CONFIDENCE_WORD[o.confidence]} confidence in what was seen`,
     confidence: o.confidence,
   };
   if (o.codeRef) item.codeRef = o.codeRef;

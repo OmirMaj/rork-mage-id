@@ -4027,7 +4027,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               <TouchableOpacity
                 testID="codelook-open-punch"
                 accessibilityRole="button"
-                accessibilityLabel={t('field.punch.codeLook', 'Code look')}
+                accessibilityLabel={t('field.punch.codeLook', 'Photo code check')}
                 style={styles.viewerCodeLookBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => {
@@ -4038,7 +4038,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 }}
               >
                 <ScanSearch size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.viewerCodeLookText}>{t('field.punch.codeLook', 'Code look')}</Text>
+                <Text style={styles.viewerCodeLookText} numberOfLines={1}>{t('field.punch.codeLook', 'Photo code check')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>

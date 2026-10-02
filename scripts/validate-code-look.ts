@@ -138,7 +138,7 @@ console.log('\n3. codeLookToPunch / codeLookToPrepItem');
   ok("prep group 'verify'", prep.group === 'verify');
   ok('prep id codelook_ + digest, stable', /^codelook_[0-9a-z]+$/.test(prep.id) && codeLookToPrepItem({ ...o, id: 'other' }).id === prep.id);
   ok('prep text = what', prep.text === o.what);
-  ok('prep why names the photo + confidence in what was seen', prep.why === 'From a Code look photo · Medium confidence in what was seen', prep.why);
+  ok('prep why names the photo + confidence in what was seen', prep.why === 'From a photo code check · Medium confidence in what was seen', prep.why);
   ok('prep codeRef absent when null', !('codeRef' in prep));
   ok('prep codeRef kept when set', codeLookToPrepItem({ ...o, codeRef: 'IRC R302.11' }).codeRef === 'IRC R302.11');
   ok('prep confidence carried', prep.confidence === 'med');
@@ -186,8 +186,9 @@ console.log('\n5. source pins');
   ok("allow-list gains 'codeLook'", /\['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi', 'codeLook'\]\.includes\(body\.task\)/.test(edge));
   ok('unknown_task message names codeLook', edge.includes('task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", "conditionRisk", "coi", or "codeLook"'));
   ok('three-way meterKey', edge.includes("const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : body.task === 'codeLook' ? 'code_look' : 'analyze_photos';"));
-  ok('one-photo guard right after inputCount', /const inputCount = [^\n]*\n\s*if \(body\.task === 'codeLook' && inputCount !== 1\) return jsonResponse\(\{ success: false, error: 'Code look reads one photo at a time\.', code: 'one_photo' \}, 400\);/.test(edge));
-  ok('Code Look cap sentence', edge.includes('Monthly Code Look limit reached (${cap} on ${auth.tier}). Resets on the 1st.'));
+  ok('one-photo guard right after inputCount', /const inputCount = [^\n]*\n\s*if \(body\.task === 'codeLook' && inputCount !== 1\) return jsonResponse\(\{ success: false, error: 'Photo code check reads one photo at a time\.', code: 'one_photo' \}, 400\);/.test(edge));
+  ok('photo code check cap sentence', edge.includes('Monthly photo code check limit reached (${cap} on ${auth.tier}). Resets on the 1st.'));
+  ok('bad-shape 500 says it plainly', edge.includes("error: 'The photo code check came back unreadable. Try again.' }, 500)"));
   ok('maxOutputTokens 8000 kept', /maxOutputTokens: 8000\b/.test(edge));
   ok('abort signal kept', /signal: ac\.signal/.test(edge));
   ok('basePrompt routes codeLook', /body\.task === 'codeLook' \? codeLookPrompt\(body\.codeLook\) :/.test(edge));
@@ -232,6 +233,78 @@ console.log('\n5. source pins');
     && !/cantTell\.length > 0 \?/.test(sheet));
   ok('the Esc binding is enabled only while visible', /scope: 'dialog', enabled: visible/.test(sheet));
   ok('the sheet root testID is codelook-sheet', sheet.includes('testID="codelook-sheet"'));
+}
+
+// ═══ 6. one name ════════════════════════════════════════════════════════════
+// The feature had three names on screen ("Code look", "Photo code look",
+// "Photo Code Look"). It now has ONE, "Photo code check": its three entry
+// buttons, its sheet, the Pro gate, the plans row, the prep line and the
+// server's refusals. Ids keep the old name on purpose (the Paywall feature KEY
+// 'Photo Code Look' is also an analytics prop and a FEATURE_PITCH key; the
+// codelook-* testIDs, field.punch.codeLook and the CODE_LOOK_* identifiers).
+console.log('\n6. one name');
+{
+  const NAME = 'Photo code check';
+  // Comments may keep the old name; strings may not. Strip block + line
+  // comments (a `//` right after ':' or a quote is a URL, not a comment), then
+  // drop the one sanctioned id literal, the Paywall feature key.
+  const stripCode = (src: string) => src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
+    .replace(/(['"])Photo Code Look\1/g, '<feature-key>');
+  const files = [
+    'components/codeLook/CodeLookSheet.tsx',
+    'app/punch-list.tsx',
+    'app/project-detail.tsx',
+    'components/inspectionPrep/InspectionReadySheet.tsx',
+    'components/Paywall.tsx',
+    'app/paywall.tsx',
+    'utils/codeLook.ts',
+    'supabase/functions/analyze-photos/index.ts',
+  ];
+  for (const f of files) {
+    const code = stripCode(read(f));
+    const old = /\bCode [Ll]ook\b|Photo code look/.exec(code);
+    ok(`${f}: no "Code look" / "Photo code look" left in a string`, !old,
+      old ? code.slice(Math.max(0, old.index - 60), old.index + 30).replace(/\s+/g, ' ') : undefined);
+  }
+
+  // An entry button: the element around `testID`, its accessibilityLabel and
+  // its <Text> child, either a plain literal or t('key', 'English').
+  const entry = (src: string, testId: string) => {
+    const at = src.indexOf(testId);
+    if (at < 0) return null;
+    const open = Math.max(src.lastIndexOf('<TouchableOpacity', at), src.lastIndexOf('<Pressable', at));
+    const close = src.indexOf('</TouchableOpacity>', at);
+    if (open < 0 || close < 0) return null;
+    const el = src.slice(open, close);
+    const lit = (v: string | undefined) => v === undefined ? undefined
+      : (/^\{t\('[^']+', '([^']*)'\)\}$/.exec(v)?.[1] ?? /^"([^"]*)"$/.exec(v)?.[1] ?? v);
+    const label = lit(/accessibilityLabel=(\{t\('[^']+', '[^']*'\)\}|"[^"]*")/.exec(el)?.[1]);
+    const textM = /<Text\b([^>]*)>([^<]*)<\/Text>/.exec(el);
+    const text = lit(textM?.[2]);
+    const oneLine = !!textM && /numberOfLines=\{1\}/.test(textM[1]);
+    return { label, text, oneLine };
+  };
+  const sheet = read('components/codeLook/CodeLookSheet.tsx');
+  const heading = /<Text style=\{s\.sheetHeading\}>([^<]*)<\/Text>/.exec(sheet)?.[1];
+  ok('the sheet heading is "Photo code check"', heading === NAME, heading);
+  for (const [f, id] of [
+    ['app/punch-list.tsx', 'testID="codelook-open-punch"'],
+    ['app/project-detail.tsx', 'testID="codelook-open-lightbox"'],
+    ['components/inspectionPrep/InspectionReadySheet.tsx', 'testID={`codelook-prep-${item.id}`}'],
+  ] as const) {
+    const e = entry(read(f), id);
+    ok(`${f}: the entry button's label and text are "${NAME}"`, !!e && e.label === NAME && e.text === NAME, JSON.stringify(e));
+    ok(`${f}: the entry button's text stays on one line (390 pt)`, !!e && e.oneLine, JSON.stringify(e));
+  }
+  const pw = read('components/Paywall.tsx');
+  const title = /'Photo Code Look': '([^']*)'/.exec(/const FEATURE_TITLE[\s\S]*?\n\};/.exec(pw)?.[0] ?? '')?.[1];
+  ok("Paywall FEATURE_TITLE['Photo Code Look'] is \"Photo code check\" (the key stays)", title === NAME, title);
+  const plansRow = /const CODE_LOOK_LIMIT: AILimitRow = \{ label: '([^']*)'/.exec(read('app/paywall.tsx'))?.[1];
+  ok('the plans row reads "Photo code checks /mo"', plansRow === 'Photo code checks /mo', plansRow);
+  const readySrc = read('components/inspectionPrep/InspectionReadySheet.tsx');
+  ok('the prep group heading is "From your photo code check"', readySrc.includes('<Text style={s.sectionHeading}>From your photo code check</Text>'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

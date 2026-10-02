@@ -124,6 +124,21 @@ export function checkNamedSentences(m: typeof money): Fails {
   eq('coRefused', m.coRefused(), 'Not approved. Something went wrong on our side.');
   eq('coTimeout', m.coTimeout(4), 'No answer yet. Check CO #4 before trying again.');
   eq('paySlideLabel', m.paySlideLabel(420000), 'Slide to record $4,200.00');
+  eq('paySrLabel', m.paySrLabel(420000), 'Record a payment of $4,200.00');
+  eq('paySrConfirm', m.paySrConfirm(420000), 'Record $4,200.00');
+  // No readable amount (an empty field, one that can't be read, or $0.00): the
+  // slide says the action and never a figure the GC did not type.
+  const bare = [
+    ['paySlideLabel(null)', m.paySlideLabel(null), 'Slide to record a payment'],
+    ['paySrLabel(null)', m.paySrLabel(null), 'Record a payment'],
+    ['paySrConfirm(null)', m.paySrConfirm(null), 'Record payment'],
+  ] as const;
+  for (const [label, got, want] of bare) {
+    eq(label, got, want);
+    if (got.includes('$')) f.push(`M1 ${label}: "${got}" prints an amount with none typed`);
+    const lint = lintMomentCopy(got);
+    if (lint.length) f.push(`M1 ${label} "${got}": ${lint.join(', ')}`);
+  }
   eq('paySlideLabelOver', m.paySlideLabelOver(500000, 80000), 'Slide to record $5,000.00 · $800.00 over the balance');
   eq('payAmountEmpty', m.payAmountEmpty(), 'Type the amount received to record a payment.');
   eq('payAmountUnreadable', m.payAmountUnreadable(), "Couldn't read that amount. Type it like 12500.00 or 12,500.00.");

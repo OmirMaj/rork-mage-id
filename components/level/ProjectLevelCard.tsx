@@ -71,7 +71,7 @@ export function ProjectLevelCard({ project, pulse, testID = 'project-level-card'
   const legend = (
     <View style={styles.legend} testID="project-level-legend">
       <Text style={styles.legendLine}>{t('office.projectHealth.legend.bubble', 'The bubble moves right when the finish slips past the baseline.')}</Text>
-      <Text style={styles.legendLine}>{t('office.projectHealth.legend.colour', 'The colour is margin risk.')}</Text>
+      <Text style={styles.legendLine}>{t('office.projectHealth.legend.colour', 'The color is margin risk.')}</Text>
     </View>
   );
 
