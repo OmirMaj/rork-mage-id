@@ -12,6 +12,13 @@
 // screen never saw them; GC→client messages were never sent at all
 // because addPortalMessage was local-only. Both ends now share Supabase,
 // filtered by portal_id (the column BOTH ends always populate).
+//
+// ATTACHMENTS (track MSG, lane MSGAPP) — photos and PDFs ride a message
+// through the device outbox (utils/messageOutbox.ts): a file message is drawn
+// from there with its real state ("Uploading 1 of 2…", the waiting line,
+// "Sending…", "Not sent" with Retry / Remove) until its row is written, and
+// it never shows a sent time before that. A text message queued offline says
+// "Waiting to send". Text-only sends take the unchanged sendMessage path.
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Animated, Pressable,
@@ -21,7 +28,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { MessageSquare, Send, Inbox, Lock, ChevronLeft } from 'lucide-react-native';
+import { MessageSquare, Send, Inbox, Lock, ChevronLeft, Paperclip } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -36,16 +43,37 @@ import { Motion, Tokens } from '@/constants/designTokens';
 import { nativeDriver } from '@/components/ui/motion';
 import { showAlert } from '@/utils/alert';
 import { oops, nailIt } from '@/components/animations/NailItToast';
+import AttachmentTray from '@/components/messages/AttachmentTray';
+import { AttachmentGrid, MessageStatusLine } from '@/components/messages/AttachmentGrid';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import AttachmentViewer from '@/components/messages/AttachmentViewer';
+import { useAttachmentPicker, type PickedAttachment, type PickKind, type PickResult } from '@/hooks/useAttachmentPicker';
+import { useMessageAttachmentUrls, type ThreadAttachment, type MessageAttachmentUrls } from '@/hooks/useMessageAttachmentUrls';
+import { useMessageAttachmentCopy, type MessageAttachmentCopy } from '@/hooks/useMessageAttachmentCopy';
+import { outboxDisplay, type OutboxDisplay, type OutboxEntry } from '@/utils/messageAttachments';
 
 // Anything older than this gap from the previous message gets a fresh
 // timestamp pill above it AND breaks the bubble-run grouping.
 const GROUP_GAP_MS = 15 * 60 * 1000;
 
+/** A message the server does not hold yet: an outbox entry, or a text send
+ *  queued offline. It never gets a time label (and so never a separator). */
+interface Pending {
+  display?: OutboxDisplay;
+  queued?: boolean;
+  outboxId?: string;
+}
+
+/** A thread message as drawn: its attachments may be outbox copies. */
+type ThreadMessage = Omit<PortalMessage, 'attachments'> & { attachments?: ThreadAttachment[] };
+interface ThreadItem { message: ThreadMessage; pending?: Pending }
+
 type DisplayItem =
   | { kind: 'separator'; id: string; label: string }
   | {
       kind: 'message';
-      message: PortalMessage;
+      message: ThreadMessage;
+      pending?: Pending;
       // True when this message is the first in a same-sender run (so we
       // show the author label above it on the theirs side).
       isFirstInRun: boolean;
@@ -67,10 +95,12 @@ function formatDayLabel(d: Date): string {
   return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`;
 }
 
-function buildDisplayList(messages: PortalMessage[]): DisplayItem[] {
+function buildDisplayList(items: ThreadItem[]): DisplayItem[] {
   const out: DisplayItem[] = [];
+  const messages = items.map((x) => x.message);
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
+    const pending = items[i].pending;
     const prev = i > 0 ? messages[i - 1] : null;
     const next = i < messages.length - 1 ? messages[i + 1] : null;
 
@@ -81,7 +111,8 @@ function buildDisplayList(messages: PortalMessage[]): DisplayItem[] {
     const gapFromPrev = prev ? mTime - prevTime : Infinity;
     const senderChangedFromPrev = !prev || prev.authorType !== m.authorType;
 
-    if (!prev || gapFromPrev > GROUP_GAP_MS) {
+    // A separator is a time label: a pending message never gets one.
+    if (!pending && (!prev || gapFromPrev > GROUP_GAP_MS)) {
       out.push({
         kind: 'separator',
         id: `sep-${m.id}`,
@@ -92,9 +123,12 @@ function buildDisplayList(messages: PortalMessage[]): DisplayItem[] {
     const isFirstInRun = senderChangedFromPrev || gapFromPrev > GROUP_GAP_MS;
     const senderChangesNext = !next || next.authorType !== m.authorType;
     const gapToNext = next ? nextTime - mTime : Infinity;
-    const isLastInRun = senderChangesNext || gapToNext > GROUP_GAP_MS;
+    // A pending message never closes a run with a time: the sent message
+    // before it keeps its own time.
+    const nextPending = !!(next && items[i + 1].pending);
+    const isLastInRun = senderChangesNext || gapToNext > GROUP_GAP_MS || (!pending && nextPending);
 
-    out.push({ kind: 'message', message: m, isFirstInRun, isLastInRun });
+    out.push({ kind: 'message', message: m, pending, isFirstInRun, isLastInRun });
   }
   return out;
 }
@@ -105,13 +139,23 @@ function MessageBubble({
   onLongPress,
   styles,
   themeColors,
+  urls,
+  wide,
+  onRetry,
+  onRemove,
 }: {
   item: Extract<DisplayItem, { kind: 'message' }>;
   onLongPress?: () => void;
   styles: ReturnType<typeof makeStyles>;
   themeColors: ThemeColors;
+  urls: MessageAttachmentUrls;
+  wide: boolean;
+  onRetry?: (outboxId: string) => void;
+  onRemove?: (outboxId: string) => void;
 }) {
-  const { message: m, isFirstInRun, isLastInRun } = item;
+  const { message: m, pending, isFirstInRun, isLastInRun } = item;
+  const atts = m.attachments ?? [];
+  const hasText = m.body.trim().length > 0;
   const mine = m.authorType === 'gc';
   const enter = useRef(new Animated.Value(0)).current;
 
@@ -146,11 +190,27 @@ function MessageBubble({
         borderBottomLeftRadius: isLastInRun ? tail : radius,
       };
 
-  const bubble = (
+  const grid = atts.length > 0 ? (
+    <AttachmentGrid
+      attachments={atts}
+      mine={mine}
+      bare={!hasText}
+      urlFor={urls.urlFor}
+      onRefresh={urls.refresh}
+      onOpen={urls.open}
+      onShare={urls.share}
+    />
+  ) : null;
+  // A message with files and no text draws only the grid. `bare` gives a
+  // contractor PDF chip its own green fill there: with no bubble behind it,
+  // white ink on the page background would be unreadable.
+  const bubble = hasText ? (
     <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, cornerStyle]}>
+      {grid ? <View style={styles.bubbleGrid}>{grid}</View> : null}
       <Text style={[styles.body, mine && styles.bodyMine]} selectable>{m.body}</Text>
     </View>
-  );
+  ) : <View>{grid}</View>;
+  const outboxId = pending?.outboxId;
 
   return (
     <Animated.View
@@ -161,7 +221,7 @@ function MessageBubble({
         isFirstInRun ? styles.runFirst : styles.runFollow,
       ]}
     >
-      <View style={mine ? styles.bubbleCol : styles.bubbleColTheirs}>
+      <View style={[mine ? styles.bubbleCol : styles.bubbleColTheirs, wide && styles.bubbleColWide]}>
         {/* Author label sits above the FIRST bubble in a theirs-run only.
             Mine never shows a label — it's obvious it's from the GC. */}
         {!mine && isFirstInRun ? (
@@ -179,16 +239,55 @@ function MessageBubble({
           </Pressable>
         ) : bubble}
 
-        {isLastInRun ? (
+        {isLastInRun && !pending ? (
           <Text style={[styles.time, mine && styles.timeMine]}>
             {new Date(m.createdAt).toLocaleTimeString('en-US', {
               hour: 'numeric', minute: '2-digit',
             })}
           </Text>
         ) : null}
+        {pending ? (
+          <MessageStatusLine
+            display={pending.display}
+            queued={pending.queued}
+            web={Platform.OS === 'web'}
+            onRetry={outboxId && onRetry ? () => onRetry(outboxId) : undefined}
+            onRemove={outboxId && onRemove ? () => onRemove(outboxId) : undefined}
+            testID={`message-status-${m.id}`}
+          />
+        ) : null}
       </View>
     </Animated.View>
   );
+}
+
+/** An outbox entry as a gc message at its createdAt, its files as device copies. */
+function outboxMessage(e: OutboxEntry): ThreadMessage {
+  return {
+    id: e.id, projectId: e.projectId, portalId: e.portalId, authorType: 'gc', authorName: e.authorName,
+    body: e.body, createdAt: e.createdAt, readByGc: true, readByClient: false,
+    // No storage path: until the row is written the thread shows the copy on this device.
+    attachments: e.attachments.map(({ id, name, mime, size, kind, width, height, localUri }) => ({
+      id, name, mime, size, kind, width, height, localUri,
+    })),
+  };
+}
+
+/** Server rows (a queued one marked as such) plus the outbox, oldest first. */
+function threadItems(messages: PortalMessage[], outbox: OutboxEntry[], queuedIds: ReadonlySet<string>): ThreadItem[] {
+  const seen = new Set(messages.map((m) => m.id));
+  const out: ThreadItem[] = messages.map((m) => (queuedIds.has(m.id) ? { message: m, pending: { queued: true } } : { message: m }));
+  let extra = false;
+  for (const e of outbox) {
+    if (seen.has(e.id)) continue; // its row is already in the thread (sent or queued)
+    out.push({ message: outboxMessage(e), pending: { display: outboxDisplay(e), outboxId: e.id } });
+    extra = true;
+  }
+  if (!extra) return out;
+  return out
+    .map((x, i) => ({ x, i }))
+    .sort((a, b) => (new Date(a.x.message.createdAt).getTime() - new Date(b.x.message.createdAt).getTime()) || a.i - b.i)
+    .map(({ x }) => x);
 }
 
 function TimeSeparator({ label, styles }: { label: string; styles: ReturnType<typeof makeStyles> }) {
@@ -248,7 +347,22 @@ export default function ClientMessagesScreen() {
   const ownerOnlyBlocked = role === 'editor' || role === 'viewer' || role === 'field';
 
   const messages = threadQ.messages;
-  const display: DisplayItem[] = useMemo(() => buildDisplayList(messages), [messages]);
+  const outbox = threadQ.outbox;
+  const queuedIds = threadQ.queuedIds;
+  const items = useMemo(() => threadItems(messages, outbox, queuedIds), [messages, outbox, queuedIds]);
+  const display: DisplayItem[] = useMemo(() => buildDisplayList(items), [items]);
+
+  // Attachments: picked files for the next message, the signed URLs of the
+  // thread's files, and the full-screen photo.
+  const copy: MessageAttachmentCopy = useMessageAttachmentCopy();
+  const { pick, vetDroppedFiles } = useAttachmentPicker();
+  const [files, setFiles] = useState<PickedAttachment[]>([]);
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const [viewing, setViewing] = useState<ThreadAttachment | null>(null);
+  const urls = useMessageAttachmentUrls(messages, { onOpenPhoto: setViewing });
+  // The single desktop gate (web >= 900): the same width the sidebar uses.
+  const wide = useIsDesktopWeb();
 
   const [composeBody, setComposeBody] = useState('');
   // Mutation.isPending stays true from the moment the Supabase insert
@@ -280,13 +394,67 @@ export default function ClientMessagesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadQ.unreadFromClient.length]);
 
-  // Auto-scroll to bottom as messages land.
+  // Auto-scroll to bottom as messages land (or wait in the outbox).
   useEffect(() => {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     return () => clearTimeout(t);
-  }, [messages.length]);
+  }, [display.length]);
 
-  const canSend = composeBody.trim().length > 0 && !sending;
+  // A pick's refusals: one toast naming the first refused file; the rest of
+  // the pick is kept.
+  const addPicked = useCallback((res: PickResult) => {
+    if (res.picked.length > 0) setFiles((prev) => [...prev, ...res.picked]);
+    const first = res.refused[0];
+    if (first) oops(copy.refusal(first.reason, first.name, first.size));
+  }, [copy]);
+  const runPick = useCallback(async (kind: PickKind) => {
+    addPicked(await pick(kind, filesRef.current.length));
+  }, [pick, addPicked]);
+  const handleAttach = useCallback(() => {
+    // Desktop web: the browser's file chooser, images and PDFs, several at once.
+    if (Platform.OS === 'web') { void runPick('any'); return; }
+    showAlert(copy.sheetTitle, undefined, [
+      { text: copy.takePhoto, onPress: () => { void runPick('camera'); } },
+      { text: copy.choosePhotos, onPress: () => { void runPick('photos'); } },
+      { text: copy.choosePdf, onPress: () => { void runPick('pdf'); } },
+      { text: copy.cancel, style: 'cancel' },
+    ]);
+  }, [copy, runPick]);
+
+  // Desktop web: files dropped on the thread join the tray, held to the same
+  // checks as the picker. A browser DOM event, so inert on a phone.
+  const dropRef = useRef<View | null>(null);
+  const dropLive = useRef({ blocked: ownerOnlyBlocked, add: (_l: File[]) => {} });
+  dropLive.current = {
+    blocked: ownerOnlyBlocked,
+    add: (list: File[]) => addPicked(vetDroppedFiles(list, filesRef.current.length)),
+  };
+  const dropReady = !!project && !!portal?.enabled;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !dropReady) return;
+    const node = dropRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== 'function') return;
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types ?? []).includes('Files');
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); // without it the browser opens the file in the tab
+      if (e.dataTransfer) e.dataTransfer.dropEffect = dropLive.current.blocked ? 'none' : 'copy';
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (dropLive.current.blocked) return;
+      dropLive.current.add(Array.from(e.dataTransfer?.files ?? []));
+    };
+    node.addEventListener('dragover', onOver);
+    node.addEventListener('drop', onDrop);
+    return () => {
+      node.removeEventListener('dragover', onOver);
+      node.removeEventListener('drop', onDrop);
+    };
+  }, [dropReady]);
+
+  const canSend = (composeBody.trim().length > 0 || files.length > 0) && !sending;
 
   // Smooth send-button activation: gray → accent + scale up when there's
   // text to send. Springs back when the input empties.
@@ -313,8 +481,36 @@ export default function ClientMessagesScreen() {
     }).start();
   }, [sendScale]);
 
+  // A message with files goes into the device outbox and is drawn in the
+  // thread with its state, so the composer and tray clear at once (nothing is
+  // lost if an upload fails). No success haptic or toast here: it is not sent
+  // until the outbox has written its row.
+  const sendFiles = useCallback(async () => {
+    if (!project || !portal?.portalId) return;
+    const picked = filesRef.current;
+    if (picked.length === 0) return;
+    const body = composeBody.trim();
+    const gcName = settings?.branding?.companyName || 'Your contractor';
+    setComposeBody('');
+    setFiles([]);
+    try {
+      await threadQ.sendWithAttachments({
+        portalId: portal.portalId,
+        projectId: project.id,
+        body,
+        authorName: gcName,
+        files: picked,
+      });
+    } catch {
+      setComposeBody(body);
+      setFiles(picked);
+      oops("Message didn't send. Check your connection and try again.");
+    }
+  }, [project, portal, composeBody, settings, threadQ]);
+
   const handleSend = useCallback(async () => {
     if (!project || !portal?.portalId) return;
+    if (filesRef.current.length > 0) { await sendFiles(); return; }
     const body = composeBody.trim();
     if (!body) return;
     const gcName = settings?.branding?.companyName || 'Your contractor';
@@ -336,32 +532,43 @@ export default function ClientMessagesScreen() {
     setComposeBody('');
     if (outcome === 'queued') nailIt("Saved offline. It sends when you're back online.");
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, portal, composeBody, settings, threadQ]);
+  }, [project, portal, composeBody, settings, threadQ, sendFiles]);
 
-  // Long-press a client message → draft a change order from its body.
-  const handleConvertToCO = useCallback((messageBody: string) => {
+  // Long-press a client message → draft a change order from its body (and
+  // the names of its files, on a line of their own).
+  const handleConvertToCO = useCallback((messageBody: string, fileNames: string[] = []) => {
     if (!project) return;
+    const filesLine = fileNames.length > 0 ? `\n${copy.coPrefillFiles(fileNames.join(', '))}` : '';
     router.push({
       pathname: '/change-order' as any,
       params: {
         projectId: project.id,
         prefillReason: 'client_request',
-        prefillDescription: `Client request from portal message:\n\n"${messageBody}"`,
+        prefillDescription: `Client request from portal message:\n\n"${messageBody}"${filesLine}`,
       },
     });
-  }, [project, router]);
+  }, [project, router, copy]);
 
-  const showMessageActions = useCallback((messageBody: string) => {
+  const showMessageActions = useCallback((messageBody: string, fileNames: string[] = []) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
     showAlert(
       'Message actions',
       undefined,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Convert to change order', onPress: () => handleConvertToCO(messageBody) },
+        { text: 'Convert to change order', onPress: () => handleConvertToCO(messageBody, fileNames) },
       ],
     );
   }, [handleConvertToCO]);
+
+  // A message that never went: Retry runs the outbox again; Remove asks first.
+  const retryOutbox = useCallback((outboxId: string) => { void threadQ.retryOutbox(outboxId); }, [threadQ]);
+  const confirmRemoveOutbox = useCallback((outboxId: string) => {
+    showAlert(copy.removeTitle, copy.removeBody, [
+      { text: copy.cancel, style: 'cancel' },
+      { text: copy.remove, style: 'destructive', onPress: () => { void threadQ.removeOutbox(outboxId); } },
+    ]);
+  }, [copy, threadQ]);
 
   if (!project) {
     return (
@@ -412,6 +619,7 @@ export default function ClientMessagesScreen() {
         </Text>
       </View>
 
+      <View ref={dropRef} style={styles.dropZone}>
       <ScrollView
         {...fabScroll}
         ref={scrollRef}
@@ -439,9 +647,13 @@ export default function ClientMessagesScreen() {
               <MessageBubble
                 key={item.message.id}
                 item={item}
-                onLongPress={() => showMessageActions(item.message.body)}
+                onLongPress={() => showMessageActions(item.message.body, (item.message.attachments ?? []).map((a) => a.name))}
                 styles={styles}
                 themeColors={themeColors}
+                urls={urls}
+                wide={wide}
+                onRetry={retryOutbox}
+                onRemove={confirmRemoveOutbox}
               />
             );
           })
@@ -459,6 +671,19 @@ export default function ClientMessagesScreen() {
       </View>
       ) : (
       <View style={[styles.compose, { paddingBottom: insets.bottom + 10 }]}>
+        <AttachmentTray files={files} onRemove={(fid) => setFiles((prev) => prev.filter((f) => f.id !== fid))} />
+        <View style={styles.composeRow}>
+        <Pressable
+          onPress={handleAttach}
+          disabled={sending}
+          style={styles.attachBtn}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel={copy.attachA11y}
+          testID="client-messages-attach"
+        >
+          <Paperclip size={20} color={themeColors.textSecondary} strokeWidth={1.75} />
+        </Pressable>
         <TextInput
           style={styles.input}
           value={composeBody}
@@ -486,8 +711,17 @@ export default function ClientMessagesScreen() {
             </Animated.View>
           </Pressable>
         </Animated.View>
+        </View>
       </View>
       )}
+      </View>
+      <AttachmentViewer
+        attachment={viewing}
+        uri={viewing ? ((viewing.path ? urls.urlFor(viewing.id) : null) ?? viewing.localUri ?? null) : null}
+        onClose={() => setViewing(null)}
+        onShare={urls.share}
+        onRetry={(a) => urls.refresh(a.id)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -534,6 +768,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   runFollow: { marginTop: 2 },
   bubbleCol:       { maxWidth: '78%', alignItems: 'flex-end' },
   bubbleColTheirs: { maxWidth: '78%', alignItems: 'flex-start' },
+  // Desktop web: a photo grid does not stretch across a wide thread.
+  bubbleColWide:   { maxWidth: 560 },
+  bubbleGrid: { marginBottom: 6 },
+  dropZone: { flex: 1 },
   bubble: {
     paddingHorizontal: 13, paddingVertical: 8,
   },
@@ -555,8 +793,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   timeMine: { color: t.textMuted },
 
+  // A column: the tray of picked files (when there are any), then the row.
   compose: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: 12, paddingTop: 10,
     backgroundColor: t.surface,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
@@ -567,7 +805,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
     fontSize: 15, color: t.text, backgroundColor: t.bg,
   },
-  composeBlocked: { alignItems: 'center', paddingBottom: 12 },
+  composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  attachBtn: { width: 36, height: 36, borderRadius: Tokens.radius.full, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  composeBlocked: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingBottom: 12 },
   composeBlockedText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
   sendBtnWrap: { },
   sendBtn: {

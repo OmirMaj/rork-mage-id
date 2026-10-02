@@ -22,6 +22,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { usePortalThread } from '@/hooks/usePortalThread';
+import { AttachmentGrid } from '@/components/messages/AttachmentGrid';
+import { useMessageAttachmentUrls } from '@/hooks/useMessageAttachmentUrls';
 import { usePortalSnapshot, type PortalSnapshotStatus } from '@/hooks/usePortalSnapshot';
 import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
@@ -665,6 +667,9 @@ export default function ClientViewScreen() {
   // In snapshot mode the thread comes baked into the payload — portal_messages
   // is owner-scoped, so there is nothing for an anon reader to query.
   const messages = isSnapshotMode ? (hydrated?.messages ?? []) : thread.messages;
+  // The thread's photos and PDFs, drawn read-only (local-project mode only:
+  // snapshot messages carry no attachments).
+  const attachmentUrls = useMessageAttachmentUrls(messages);
   const [composeBody, setComposeBody] = useState('');
   const sendingMsg = thread.isSendingClient;
 
@@ -1361,6 +1366,17 @@ export default function ClientViewScreen() {
                             {mine ? 'You' : m.authorName}
                           </Text>
                           <Text style={[styles.msgBody, mine && styles.msgBodyMine]}>{m.body}</Text>
+                          {!isSnapshotMode && (m.attachments?.length ?? 0) > 0 ? (
+                            <AttachmentGrid
+                              attachments={m.attachments ?? []}
+                              mine={mine}
+                              readOnly
+                              urlFor={attachmentUrls.urlFor}
+                              onRefresh={attachmentUrls.refresh}
+                              onOpen={attachmentUrls.open}
+                              onShare={attachmentUrls.share}
+                            />
+                          ) : null}
                           <Text style={[styles.msgTime, mine && styles.msgTimeMine]}>
                             {new Date(m.createdAt).toLocaleString('en-US', {
                               month: 'short', day: 'numeric',
