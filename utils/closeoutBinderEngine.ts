@@ -15,7 +15,7 @@ import {
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
   Submittal, Warranty as ProjectWarranty, SelectionCategory, LienWaiver,
-  Subcontractor, SubmittalStatus, RFIStatus,
+  Subcontractor, SubmittalStatus, RFIStatus, PunchSeal,
 } from '@/types';
 import { WAIVER_LABELS } from './lienWaiverEngine';
 import { calendarDayStart } from './calendarDate';
@@ -259,6 +259,13 @@ export interface BuildBinderInput {
    * caller that forgets to pass it shares less, never more.
    */
   sharing?: OwnerSharing;
+  /**
+   * The sealed final punch (punch_seals, lane SEAL), when there is one. Prints
+   * a "Final punch record" section: the statement, count, signer, day, record
+   * id and hash, no photos (the record's own PDF carries those). Absent = no
+   * section at all, so a binder without a seal prints exactly as before.
+   */
+  punchSeal?: Pick<PunchSeal, 'id' | 'sealedAt' | 'signerName' | 'signerRole' | 'itemCount' | 'manifestHash'>;
 }
 
 /**
@@ -294,6 +301,26 @@ function completionLabel(value: string | null | undefined): string {
   if (!value) return 'Not yet certified';
   const d = calendarDayStart(value);
   return d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : value;
+}
+
+/** The binder's "Final punch record" section, or '' when there is no seal. */
+export function punchSealSection(seal: BuildBinderInput['punchSeal']): string {
+  if (!seal) return '';
+  const day = fmtCellDay(seal.sealedAt, '');
+  const row = (k: string, v: string) => `<tr><td style="width:170px;padding:6px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.textMuted}">${escHtml(k)}</td><td style="padding:6px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px">${v}</td></tr>`;
+  const mono = (v: string) => `<span style="font-family:Menlo,Consolas,monospace;font-size:10px;word-break:break-all">${escHtml(v)}</span>`;
+  return `
+    <div class="no-break" style="margin-bottom:24px">
+      <h2 style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:700;color:${PDF_PALETTE.ink};margin:0 0 10px;letter-spacing:-0.3px">Final punch record</h2>
+      <p style="font-size:12px;margin:0 0 8px">The punch items were closed, each with an after photo, and accepted in person by the client. It is not a warranty and does not change the contract or its warranty terms.</p>
+      <table style="width:100%;border-collapse:collapse;border:1px solid ${PDF_PALETTE.hairline}">
+        ${row('Accepted by', `${escHtml(seal.signerName)}${seal.signerRole ? ` (${escHtml(seal.signerRole)})` : ''}`)}
+        ${row('Sealed', day)}
+        ${row('Punch items', escHtml(String(seal.itemCount)))}
+        ${row('Record id', mono(seal.id))}
+        ${row('Record hash (SHA-256)', mono(seal.manifestHash))}
+      </table>
+    </div>`;
 }
 
 // Exported for scripts/validate-closeout-binder.ts, which renders it with the
@@ -532,6 +559,8 @@ export function buildBinderHtml(input: BuildBinderInput): string {
       ['Subcontractor', 'Waiver type', 'Through date', 'Paid amount'],
       lienWaiverRows,
       'No lien waivers on file.')}
+
+    ${punchSealSection(input.punchSeal)}
 
     ${sectionTable('Maintenance schedule',
       ['Task', 'Frequency', 'Next due', 'Notes'],

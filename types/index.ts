@@ -871,6 +871,11 @@ export interface ScheduleTask {
   linkedEstimateItems?: string[];
   assignedSubId?: string;
   assignedSubName?: string;
+  /** Extra days added because the assigned sub ran over plan on the GC's past
+   *  jobs (utils/pace/partyLateness.ts). Only ever set by the GC accepting an
+   *  offer; removing the pad (Undo, or editing the duration down) clears it.
+   *  Stored inside projects.schedule jsonb, so no mapper change. */
+  latenessPad?: { subId: string; days: number; jobs: number; medianOverrunDays: number; residualOfPace: boolean };
   /** Optional per-task checklist (sub-steps), e.g. Rebar / Formwork / Pour.
    *  Rendered in the mobile task-detail sheet; persisted with the task. */
   checklist?: { id: string; label: string; done: boolean }[];
@@ -3121,6 +3126,45 @@ export interface PunchItem {
   xray?: CostXrayMeta;
   // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
   rejectedAt?: string;
+  /** Best URL to render the AFTER photo right now (lane SEAL). Same rules as photoUri. */
+  afterPhotoUri?: string;
+  /** Durable `project-photos` path of the after photo (`<uid>/<projectId>/punch-<id>-after.jpg`):
+   *  what punch_items.after_photo_uri stores. Written only when set. */
+  afterPhotoStoragePath?: string;
+  /** Device-local original of the after photo, so an offline preview survives a refetch. */
+  afterPhotoLocalUri?: string;
+  /** When the after photo was taken (ISO). Column after_photo_taken_at. */
+  afterPhotoTakenAt?: string;
+  /** punch_seals.id once the item is in the sealed final punch. Set ONLY by the
+   *  seal-punch edge function; a sealed item is never edited (sealedPunchEditBlock),
+   *  rework after the seal is a new item. READ only from the app. */
+  sealId?: string;
+}
+
+/**
+ * The sealed final punch for one project (table punch_seals, lane SEAL): every
+ * formal punch item closed with an after photo, accepted in person by the
+ * client, hashed on the server. Read only from the app; written by the
+ * seal-punch edge function. Certifies closure as of `sealedAt` and nothing else
+ * (not a warranty, not a lien release, not a payment record).
+ */
+export interface PunchSeal {
+  id: string;
+  projectId: string;
+  /** Server time (ISO). */
+  sealedAt: string;
+  itemCount: number;
+  /** The stored record the hash is taken over (canonical JSON, SHA-256). */
+  manifest: import('@/supabase/functions/_shared/punchSealManifest').PunchSealManifest;
+  manifestHash: string;
+  signerName: string;
+  signerRole: string;
+  method: 'in_person';
+  signaturePaths: string[];
+  consentVersion: string;
+  /** `punch-seals/<uid>/<sealId>/record.pdf` once a phone stored the hash-verified PDF. */
+  pdfPath?: string;
+  pdfHash?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
