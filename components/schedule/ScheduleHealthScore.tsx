@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { HealthScoreResult, HealthCheck, HealthGrade } from '@/utils/scheduleHealthScore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PriorityGrid } from '@/components/motion/kit';
 
 // A and B are GETTERS so they follow the theme at read time (a module-scope
 // literal freezes at import). A is success, and success is TEAL since the
@@ -146,14 +147,24 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
           </View>
 
           <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 12 }}>
-            {sorted.map((c, i) => (
-              <CheckRow
-                key={c.key + i}
-                check={c}
-                onJumpToTask={onJumpToTask}
-                onClose={onClose}
-              />
-            ))}
+            {/* B3 (lane MOTIONADOPT-B): the checks lay themselves down worst
+                first (first 8 animate), then the worst one gets a 2 pt "start
+                here" rule — only when it is really failing. Every other check
+                stays fully present. gap 0 keeps today's widths and spacing;
+                the keys are today's c.key + i. Armed by the open itself (the
+                Modal mounts its content on open). */}
+            <PriorityGrid
+              testID="schedule-health-checks"
+              columns={1}
+              gap={0}
+              armed={visible}
+              ruleColor={themeColors.accent}
+              cells={sorted.map((c, i) => ({
+                key: c.key + i,
+                render: () => <CheckRow check={c} onJumpToTask={onJumpToTask} onClose={onClose} />,
+              }))}
+              priorityKey={sorted[0] && sorted[0].severity !== 'good' ? sorted[0].key + 0 : null}
+            />
           </ScrollView>
         </View>
       </View>

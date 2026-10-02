@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -67,6 +67,7 @@ import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { ActionBar, ActionBarReadout, ChipRail, TileGrid, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { describeError } from '@/utils/errorCopy';
+import { useStagger } from '@/components/motion/kit';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -202,6 +203,12 @@ export default function CostXrayScreen() {
   const [pending, setPending] = useState(false); // detection failed on connectivity
   const [reviews, setReviews] = useState<ReviewTell[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // B7 (lane MOTIONADOPT-B): after the photos are analysed, "what the walk
+  // found" lays down card by card in reading order (first 8). Wrapper-free
+  // (TileGrid clones its direct children on desktop). First analysis per
+  // visit only — useStagger arms once per mount.
+  const [reviewsLive, setReviewsLive] = useState(false);
+  const tellStagger = useStagger({ armed: reviewsLive, count: reviews.length });
 
   const resetScan = useCallback(() => {
     setReviews([]);
@@ -332,6 +339,7 @@ export default function CostXrayScreen() {
           unitPrice: priced.band.expected,
         });
       }
+      if (built.length > 0) setReviewsLive(true);
       setReviews(built);
       if (built.length === 0) {
         setError('No hidden conditions detected in these shots. For better results, try a closer shot of the panel edges, look for water staining on the basement wall, or shoot in brighter light — then scan again.');
@@ -687,13 +695,13 @@ export default function CostXrayScreen() {
             </Text>
 
             <TileGrid preset="content" phoneStyle={undefined}>
-            {reviews.map((r) => {
+            {reviews.map((r, i) => {
               const Icon = CAT_ICON[r.category];
               const band = effectiveBand(r);
               const isEditing = editingId === r.id;
               const rejected = r.status === 'rejected';
               return (
-                <View key={r.id} style={[styles.tellCard, rejected && styles.tellCardRejected, r.status === 'accepted' && styles.tellCardAccepted]}>
+                <Animated.View key={r.id} style={[styles.tellCard, rejected && styles.tellCardRejected, r.status === 'accepted' && styles.tellCardAccepted, tellStagger(i)]}>
                   {/* Source photo with bbox */}
                   <View style={styles.tellPhotoWrap}>
                     <Image source={{ uri: r.sourcePhotoUri }} style={styles.tellPhoto} resizeMode="cover" />
@@ -801,7 +809,7 @@ export default function CostXrayScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                </View>
+                </Animated.View>
               );
             })}
             </TileGrid>
