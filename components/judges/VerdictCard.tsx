@@ -10,7 +10,7 @@
 // fontSize, no numeric borderRadius. Verdict colors use the semantic names
 // cost-xray uses: success (take), accentHot (hold firm), danger (walk).
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -20,6 +20,7 @@ import type { JudgesResult } from '@/utils/judges/runJudges';
 import { BidDriverRow } from './BidDriverRow';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { RangeSettle, useStagger } from '@/components/motion/kit';
 
 const VERDICT_LABEL: Record<Verdict, string> = {
   take: 'Take it',
@@ -48,6 +49,9 @@ export function VerdictCard({ result, marginSource }: { result: JudgesResult; ma
     v.verdict === 'take' ? t.success : v.verdict === 'hold_firm' ? t.accentHot : t.danger;
 
   const drivers = v.drivers.slice(0, 5);
+  // B6 (lane MOTIONADOPT-B): this card mounts only for a fresh run
+  // (app/judges.tsx renders it after a result lands), so it arms at mount.
+  const stagger = useStagger({ armed: true, count: drivers.length });
 
   return (
     <View style={styles.card}>
@@ -64,6 +68,20 @@ export function VerdictCard({ result, marginSource }: { result: JudgesResult; ma
       <Text style={styles.range}>
         {money(v.recommendedLow)}–{money(v.recommendedHigh)}
       </Text>
+      {/* The same range drawn: low and high glide to the ends with their
+          figures readable from the first frame, and the mid — the price his
+          margin is scored at — settles last. Money is never tweened; the
+          headline above stays the text truth. */}
+      <RangeSettle
+        testID="judges-range"
+        armed
+        low={Math.round(v.recommendedLow * 100)}
+        high={Math.round(v.recommendedHigh * 100)}
+        expected={Math.round(v.recommendedMid * 100)}
+        format={(c) => money(c / 100)}
+        tone={{ track: t.line, bubble: t.accent }}
+        textStyle={styles.rangeSub}
+      />
       <Text style={styles.rangeSub}>
         True cost {money(v.trueCost)} · {Math.round(v.marginAtMid * 100)}% margin at {money(v.recommendedMid)}
       </Text>
@@ -91,7 +109,9 @@ export function VerdictCard({ result, marginSource }: { result: JudgesResult; ma
         <View style={styles.driversWrap}>
           <Text style={styles.sectionLabel}>Why</Text>
           {drivers.map((d, i) => (
-            <BidDriverRow key={`${d.kind}-${i}`} driver={d} />
+            <Animated.View key={`${d.kind}-${i}`} style={stagger(i)}>
+              <BidDriverRow driver={d} />
+            </Animated.View>
           ))}
         </View>
       )}

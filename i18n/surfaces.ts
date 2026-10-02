@@ -207,7 +207,7 @@ export const SURFACES: Surface[] = [
   // the sample chips and the takeoff's sample lines). The rest of each file is
   // still raw English, so each joins as a partial file.
   { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], partialFiles: ['app/estimate-wizard.tsx', 'app/takeoff.tsx', 'components/plans/AskPlansPanel.tsx', 'components/construction/AskConstructionMode.tsx', 'app/(tabs)/construction-ai/index.tsx', 'components/copilot/CopilotShell.tsx'], lane: 'LEARN' },
-  { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: ['app/skills-check.tsx', 'components/learn/QuizQuestionCard.tsx', 'components/learn/QuizResultCard.tsx'], partialFiles: ['app/tutorials.tsx', 'components/tutorial/TutorialHost.tsx'], lane: 'LEARN' },
+  { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: ['app/skills-check.tsx', 'components/learn/QuizQuestionCard.tsx', 'components/learn/QuizResultCard.tsx', 'app/skills-certificates.tsx', 'components/learn/CertificateCard.tsx', 'components/learn/SkillsProfileRow.tsx'], partialFiles: ['app/tutorials.tsx', 'components/tutorial/TutorialHost.tsx'], lane: 'LEARN' },
 
   // Phase 2 — the office surfaces. The Level's project-health card + its reason
   // sheet legend (English now via t(); Spanish when the office surface is translated).
@@ -222,6 +222,11 @@ export const SURFACES: Surface[] = [
   // thu MSGAPP — the contractor's client thread with photos and PDFs. Every
   // string lives in one copy hook (the components and the screen call it).
   { id: 'office.client-messages', phase: 2, state: 'pending', keyPrefixes: ['office.clientMessages.'], lane: 'MSGAPP', files: ['hooks/useMessageAttachmentCopy.ts'] },
+
+  // thu NYCHECK — the New York contract checklist's chrome (title, summary,
+  // statuses, maybe lines, the sign-gate warning). The item labels and details
+  // are legal paraphrase and stay English data in utils/nyHomeImprovement.ts.
+  { id: 'office.ny-contract', phase: 2, state: 'pending', keyPrefixes: ['office.nyContract.'], lane: 'NYCHECK', files: ['components/contract/NyContractChecklist.tsx'] },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

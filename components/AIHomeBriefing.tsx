@@ -22,6 +22,8 @@ import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError } from '@/utils/errorCopy';
+import { useStagger } from '@/components/motion/kit';
+import { Skeleton } from '@/components/Skeleton';
 
 interface Props {
   projects: Project[];
@@ -50,20 +52,12 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   // True once the cache has been read, so the "Tap to run" card doesn't flash
   // over a briefing that is already on disk.
   const [checkedCache, setCheckedCache] = useState(false);
-  const shimmerAnim = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (isLoading) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(shimmerAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-          Animated.timing(shimmerAnim, { toValue: 0, duration: 1000, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
-    }
-  }, [isLoading, shimmerAnim]);
+  // B5 (lane MOTIONADOPT-B): true only for a briefing he just ran (the network
+  // branch) — its project rows, then its urgent items, lay down in reading
+  // order (first 8). A cached briefing shows at once. Once per mount.
+  const [freshRun, setFreshRun] = useState(false);
+  const projectCount = result?.projects?.length ?? 0;
+  const stagger = useStagger({ armed: freshRun, count: projectCount + (result?.urgentItems?.length ?? 0) });
 
   const loadUsage = useCallback(async () => {
     const stats = await getAIUsageStats(subscriptionTier);
@@ -111,6 +105,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       const data = await generateHomeBriefing(projects, invoices);
       await recordAIUsage('fast', 'homeBriefing');
       await setCachedResult(cacheKey, data);
+      setFreshRun(true);
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void loadUsage();
@@ -138,10 +133,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   if (projects.length === 0) return null;
 
   if (isLoading && !result) {
-    const shimmerOpacity = shimmerAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.4, 0.8],
-    });
+    // The skeleton rides the Level's one shared clock (components/Skeleton).
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -150,9 +142,9 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
             <Text style={styles.headerTitle}>Daily briefing</Text>
           </View>
         </View>
-        <Animated.View style={[styles.skeletonLine, { opacity: shimmerOpacity }]} />
-        <Animated.View style={[styles.skeletonLine, styles.skeletonShort, { opacity: shimmerOpacity }]} />
-        <Animated.View style={[styles.skeletonLine, styles.skeletonMedium, { opacity: shimmerOpacity }]} />
+        <Skeleton height={12} index={0} style={{ marginBottom: 8 }} />
+        <Skeleton height={12} width="60%" index={1} style={{ marginBottom: 8 }} />
+        <Skeleton height={12} width="80%" index={2} style={{ marginBottom: 8 }} />
       </View>
     );
   }
@@ -219,7 +211,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         const config = STATUS_ICONS[proj.status] ?? STATUS_ICONS.on_track;
         const StatusIcon = config.Icon;
         return (
-          <View key={idx} style={styles.projectRow}>
+          <Animated.View key={idx} style={[styles.projectRow, stagger(idx)]}>
             <View style={[styles.statusDot, { backgroundColor: config.bg }]}>
               <StatusIcon size={12} color={config.color} />
             </View>
@@ -230,17 +222,17 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
                 <Text style={styles.actionItem}>→ {proj.actionItem}</Text>
               ) : null}
             </View>
-          </View>
+          </Animated.View>
         );
       })}
 
       {(result.urgentItems ?? []).length > 0 && (
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
-            <View key={idx} style={styles.urgentRow}>
+            <Animated.View key={idx} style={[styles.urgentRow, stagger(projectCount + idx)]}>
               <AlertTriangle size={12} color={Colors.dangerLabel} strokeWidth={1.75} />
               <Text style={styles.urgentText}>{item}</Text>
-            </View>
+            </Animated.View>
           ))}
         </View>
       )}
@@ -407,18 +399,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
     lineHeight: 18,
-  },
-  skeletonLine: {
-    height: 12,
-    backgroundColor: t.line,
-    borderRadius: Tokens.radius.xs,
-    marginBottom: 8,
-    width: '100%',
-  },
-  skeletonShort: {
-    width: '60%',
-  },
-  skeletonMedium: {
-    width: '80%',
   },
 });

@@ -63,6 +63,7 @@ import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel } from '@/utils/
 import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
+import { SkillsProfileRow } from '@/components/learn/SkillsProfileRow';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -1057,6 +1058,8 @@ export default function SettingsScreen() {
         ) : (
           <Text style={styles.largeTitle}>Settings</Text>
         )}
+
+        <SkillsProfileRow />
 
         {/* Account type — marketplace persona. Lets a user flip between
             the contractor experience and the property-owner experience

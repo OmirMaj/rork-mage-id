@@ -117,9 +117,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'client-messages': 'form', 'messages': 'form', '+not-found': 'form',
   'tutorials': 'form',
   // LEARN wave: the skills check is one question per screen, a single column.
-  // 'skills-certificates' joins here with its screen (LEARNPROFILE, wave 4):
-  // validate-desktop-page-map fails a key with no route file.
   'skills-check': 'form',
+  'skills-certificates': 'form',
 
   // ── reading 760 — long single-column text. No route takes it today:
   // construction-news was seeded here, but on desktop that screen lays its

@@ -50,17 +50,17 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — dark 1`] = `
 {
-  "lines": 39,
+  "lines": 46,
   "modalCount": 1,
-  "sha256": "ca8ba3d0bfc8631dae1e21cbdb518c5f5bde2c96147f7e574e9cfc11644d3ac6",
+  "sha256": "90c27e070119af4e3f125b418e9f8acfc4f72dcc55250a13cf86a22d615073b4",
 }
 `;
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — light 1`] = `
 {
-  "lines": 39,
+  "lines": 46,
   "modalCount": 1,
-  "sha256": "3ed3025ffb10a64ad21dd32f5e0561375ec5317b09d6436619bc7f533dd35ac9",
+  "sha256": "b63b4c39c4be5d7c78ec6e1e144cc231ac1f59ef6fc88aa1ad41149ae4de9832",
 }
 `;
 

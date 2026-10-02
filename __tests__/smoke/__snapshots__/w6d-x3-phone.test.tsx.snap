@@ -82,17 +82,17 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 
 exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-quick-estimate — dark 1`] = `
 {
-  "lines": 207,
+  "lines": 204,
   "modals": 2,
-  "sha256": "0064641d57faa22685d76deb544a57b03d9fd2cc1cf1baa8d504d3974faa06e5",
+  "sha256": "c1b3ff4bb2ba057e1fdac79b157b0238a57c0c3ee0d5cc3805d872b6f19e11e6",
 }
 `;
 
 exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-quick-estimate — light 1`] = `
 {
-  "lines": 207,
+  "lines": 204,
   "modals": 2,
-  "sha256": "6eda9bcd3e53617bb33b8439632c0a55481284b75a48315a33438d60102241a7",
+  "sha256": "1fa2d50851c50e98eef56d8a422c396c8b51f673eb68a21c5fdfda33e907aa6e",
 }
 `;
 

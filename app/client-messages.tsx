@@ -3,7 +3,11 @@
 // iMessage-style layout: consecutive bubbles from the same author within
 // 15 min collapse into a run (author label only on first, timestamp only
 // on last). Time-separator pills slip in between runs that cross a 15-min
-// gap or a calendar-day boundary. New bubbles slide up + spring in.
+// gap or a calendar-day boundary. MOTION (kit ChatTurn + useSeenKeys): the
+// history never moves — opening a thread is still. Only the NEWEST message
+// that arrives while the thread is open moves, once: the one he just sent
+// glides up out of the composer, a client reply fades in. Reduce Motion: a
+// 100 ms fade, no travel.
 //
 // DATA SOURCE — Supabase via usePortalThread. The old implementation read
 // from a LOCAL AsyncStorage `portalMessages` array and wrote to it via
@@ -51,6 +55,7 @@ import { useAttachmentPicker, type PickedAttachment, type PickKind, type PickRes
 import { useMessageAttachmentUrls, type ThreadAttachment, type MessageAttachmentUrls } from '@/hooks/useMessageAttachmentUrls';
 import { useMessageAttachmentCopy, type MessageAttachmentCopy } from '@/hooks/useMessageAttachmentCopy';
 import { outboxDisplay, type OutboxDisplay, type OutboxEntry } from '@/utils/messageAttachments';
+import { ChatTurn, useSeenKeys } from '@/components/motion/kit';
 
 // Anything older than this gap from the previous message gets a fresh
 // timestamp pill above it AND breaks the bubble-run grouping.
@@ -133,9 +138,11 @@ function buildDisplayList(items: ThreadItem[]): DisplayItem[] {
   return out;
 }
 
-/** Single message bubble. Animates in on mount (slide up + slight scale). */
+/** Single message bubble. Still unless `live` (the newest message, arrived
+ *  while the thread is open): then ChatTurn moves it in once. */
 function MessageBubble({
   item,
+  live,
   onLongPress,
   styles,
   themeColors,
@@ -145,6 +152,7 @@ function MessageBubble({
   onRemove,
 }: {
   item: Extract<DisplayItem, { kind: 'message' }>;
+  live: boolean;
   onLongPress?: () => void;
   styles: ReturnType<typeof makeStyles>;
   themeColors: ThemeColors;
@@ -157,19 +165,6 @@ function MessageBubble({
   const atts = m.attachments ?? [];
   const hasText = m.body.trim().length > 0;
   const mine = m.authorType === 'gc';
-  const enter = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.spring(enter, {
-      toValue: 1,
-      ...Motion.spring.rise,
-      useNativeDriver: nativeDriver,
-    }).start();
-  }, [enter]);
-
-  const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
-  const scale      = enter.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
-  const opacity    = enter;
 
   // Corner radii — iMessage tightens the corner closest to the run's anchor
   // (bottom-right for mine, bottom-left for theirs) and only on the last
@@ -213,13 +208,11 @@ function MessageBubble({
   const outboxId = pending?.outboxId;
 
   return (
-    <Animated.View
-      style={[
-        styles.row,
-        mine ? styles.rowMine : styles.rowTheirs,
-        { opacity, transform: [{ translateY }, { scale }] },
-        isFirstInRun ? styles.runFirst : styles.runFollow,
-      ]}
+    <ChatTurn
+      role={mine ? 'user' : 'assistant'}
+      live={live}
+      variant="page"
+      style={[styles.row, mine ? styles.rowMine : styles.rowTheirs, isFirstInRun ? styles.runFirst : styles.runFollow]}
     >
       <View style={[mine ? styles.bubbleCol : styles.bubbleColTheirs, wide && styles.bubbleColWide]}>
         {/* Author label sits above the FIRST bubble in a theirs-run only.
@@ -257,7 +250,7 @@ function MessageBubble({
           />
         ) : null}
       </View>
-    </Animated.View>
+    </ChatTurn>
   );
 }
 
@@ -351,6 +344,25 @@ export default function ClientMessagesScreen() {
   const queuedIds = threadQ.queuedIds;
   const items = useMemo(() => threadItems(messages, outbox, queuedIds), [messages, outbox, queuedIds]);
   const display: DisplayItem[] = useMemo(() => buildDisplayList(items), [items]);
+
+  // Motion: which bubble may move. Nothing is live until the thread has
+  // loaded once (the first commit after `loaded` seeds every id shown then,
+  // a cached thread included); after that only the NEWEST message, the first
+  // time it is shown, is live. Every id on screen is marked seen after each
+  // commit, so history, a refresh that brings several and the outbox → sent
+  // hand-off (same id) never animate again.
+  const seenMsgs = useSeenKeys();
+  const seededRef = useRef(false);
+  let newestId: string | null = null;
+  for (let k = display.length - 1; k >= 0; k--) {
+    const d = display[k];
+    if (d.kind === 'message') { newestId = d.message.id; break; }
+  }
+  const liveId = seededRef.current && newestId && !seenMsgs.has(newestId) ? newestId : null;
+  useEffect(() => {
+    seenMsgs.mark(display.flatMap((d) => (d.kind === 'message' ? [d.message.id] : [])));
+    if (threadQ.loaded) seededRef.current = true;
+  });
 
   // Attachments: picked files for the next message, the signed URLs of the
   // thread's files, and the full-screen photo.
@@ -647,6 +659,7 @@ export default function ClientMessagesScreen() {
               <MessageBubble
                 key={item.message.id}
                 item={item}
+                live={item.message.id === liveId}
                 onLongPress={() => showMessageActions(item.message.body, (item.message.attachments ?? []).map((a) => a.name))}
                 styles={styles}
                 themeColors={themeColors}

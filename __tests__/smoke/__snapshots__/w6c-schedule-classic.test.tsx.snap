@@ -135,8 +135,8 @@ exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleAuditM
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleHealthDetail, open 1`] = `
 {
-  "lines": 386,
-  "sha256": "846bd4e0b9e004bd04053b6482d650641d8792f8e2f6fc42c2a3078174a9aec5",
+  "lines": 425,
+  "sha256": "f6e469557d33fbfa80df4b3cf84c843345d195b4b887716c2ec4b0ced83c90ba",
 }
 `;
 
