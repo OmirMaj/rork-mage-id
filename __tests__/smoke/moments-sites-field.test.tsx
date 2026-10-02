@@ -62,8 +62,10 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
 
 // The clock-out screen decides "today's shift" at mount, before setClock can pin
 // the fake clock, so the shift is dated from the real current day (a fixed date
-// passed only on the day it was written). NOW is the real minute at load.
-const NOW = Math.floor(Date.now() / 60_000) * 60_000;
+// passed only on the day it was written). NOW is 3 pm LOCAL on that day, not the
+// real minute: with the real minute, a run between 00:00 and 08:12 put the
+// 8h 12m clock-in on the previous day and the summary rendered empty.
+const NOW = (() => { const d = new Date(); d.setHours(15, 0, 0, 0); return d.getTime(); })();
 const NOW_DAY = (() => {
   const d = new Date(NOW);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
