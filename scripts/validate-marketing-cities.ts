@@ -327,8 +327,8 @@ function mutate(src: string, from: string | RegExp, to: string): string {
 }
 
 export const FIXTURES: { name: string; expect: RegExp; run: () => string[] }[] = [
-  { name: 'NYC page missing "DOB ECB Violations"', expect: /"DOB ECB Violations" \(6bgk-3dad\) is missing/, run: () => cityClaimProblems(mutate(page('nyc'), /<li>DOB ECB Violations<\/li>\s*/, ''), 'nyc') },
-  { name: 'NYC page listing a dataset the code does not read', expect: /not a RECORD_DATASET_IDS dataset/, run: () => cityClaimProblems(mutate(page('nyc'), '<li>DOB Violations</li>', '<li>DOB Violations</li><li>HPD Violations</li>'), 'nyc') },
+  { name: 'NYC page missing "DOB ECB Violations"', expect: /"DOB ECB Violations" \(6bgk-3dad\) is missing/, run: () => cityClaimProblems(mutate(page('nyc'), /<li\b[^>]*>DOB ECB Violations<\/li>\s*/, ''), 'nyc') },
+  { name: 'NYC page listing a dataset the code does not read', expect: /not a RECORD_DATASET_IDS dataset/, run: () => cityClaimProblems(mutate(page('nyc'), /(<li\b[^>]*>DOB Violations<\/li>)/, '$1<li>HPD Violations</li>'), 'nyc') },
   { name: 'NYC page with the dataset count wrong', expect: /dataset count must read "seven/, run: () => cityClaimProblems(mutate(page('nyc'), 'reads seven Department', 'reads eight Department'), 'nyc') },
   { name: 'NYC page saying "clean building"', expect: /banned claim "clean building"/, run: () => cityClaimProblems(mutate(page('nyc'), 'shows each open item with its date.', 'shows each open item with its date, or tells you it is a clean building.'), 'nyc') },
   { name: 'NYC "Not checked" list missing DEP', expect: /"Not checked" item missing: "DEP"/, run: () => cityClaimProblems(mutate(page('nyc'), 'FDNY, DEP, ', 'FDNY, '), 'nyc') },
