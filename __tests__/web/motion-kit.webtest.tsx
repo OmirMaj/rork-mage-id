@@ -6,6 +6,12 @@
  *  W2 prefers-reduced-motion: reduce → no kit keyframe class anywhere.
  *  W3 FocusMarker: no marker at rest; an active change mounts ONE marker that
  *     unmounts when its springs end.
+ *  W4 (lane KITFIX, KG2) AccumulateCards in a desktop 3-up TileGrid: the
+ *     wrapper-free paths (useAccumulate, asChild) keep every card a direct
+ *     child of the grid at the column width, entrance class kept; the shipped
+ *     wrapper path still collapses (the reason the adopters dropped the row).
+ *  W5 (KG3) useFocusPush ruleAxis 'y' draws with the drawT keyframe; the
+ *     default stays drawL.
  */
 
 import React, { act } from 'react';
@@ -42,7 +48,9 @@ jest.mock('@/utils/useResponsiveLayout', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { FocusMarker, StaggerList, resetBudget } from '@/components/motion/kit';
+import { AccumulateCards, FocusMarker, StaggerList, kitWebStyle, resetBudget, useAccumulate, useFocusPush, type AccumulateItem } from '@/components/motion/kit';
+// eslint-disable-next-line import/first
+import { TileGrid } from '@/components/ui/TileGrid';
 // eslint-disable-next-line import/first
 import { reducedMotion } from '@/components/ui/motion';
 
@@ -145,5 +153,91 @@ describe('motion kit on react-native-web', () => {
     expect(flights).toEqual([true, false]);
     setReduce(false);
     m.done();
+  });
+
+  // ── lane KITFIX ────────────────────────────────────────────────────────────
+  const CARDS: AccumulateItem[] = [140000, 82000, 61000].map((c, i) => ({
+    key: `k${i}`,
+    cents: c,
+    render: (st: ViewStyle | null) => <Animated.View testID={`card-${i}`} style={[{ padding: 12 }, st]}><Text>{`Hidden condition ${i + 1}`}</Text></Animated.View>,
+  }));
+  const money = (c: number) => `$${(c / 100).toLocaleString('en-US')}`;
+  /** Give the grid a measured width the way react-native-web's ResizeObserver would (jsdom has none). */
+  const layoutGrid = (host: HTMLElement, width: number) => {
+    const grid = host.querySelector('[data-testid="grid"]') as HTMLElement & { __reactLayoutHandler?: (e: unknown) => void };
+    expect(typeof grid.__reactLayoutHandler).toBe('function');
+    act(() => { grid.__reactLayoutHandler!({ nativeEvent: { layout: { x: 0, y: 0, width, height: 400, left: 0, top: 0 } }, timeStamp: 0 }); });
+    return grid;
+  };
+  // Layout.tile.content = { min 380, maxCols 3, gap 16 }: 1240 → 3 columns of floor((1240 − 32) / 3) = 402.
+  const COL = 402;
+
+  it('W4 AccumulateCards in a 3-up TileGrid: useAccumulate / asChild keep the column widths; the shipped wrapper collapses', () => {
+    function HookGrid() {
+      const acc = useAccumulate({ items: CARDS, armed: true, format: money });
+      return <View><TileGrid preset="content" testID="grid">{acc.cards}</TileGrid><View testID="total">{acc.total}</View></View>;
+    }
+    const restClass = (() => {
+      const m = mount(<TileGrid preset="content" testID="grid"><AccumulateCards asChild items={CARDS} armed={false} format={money} renderTotal={() => null} /></TileGrid>);
+      const c = (m.host.querySelector('[data-testid="card-0"]') as HTMLElement).className;
+      m.done();
+      return c;
+    })();
+    for (const [name, ui] of [
+      ['useAccumulate', <HookGrid key="h" />],
+      ['asChild', <TileGrid key="a" preset="content" testID="grid"><AccumulateCards asChild items={CARDS} armed format={money} renderTotal={() => null} /></TileGrid>],
+    ] as const) {
+      resetBudget();
+      const m = mount(ui);
+      const grid = layoutGrid(m.host, 1240);
+      const cards = [0, 1, 2].map((i) => m.host.querySelector(`[data-testid="card-${i}"]`) as HTMLElement);
+      for (const c of cards) {
+        expect([name, c.parentElement === grid]).toEqual([name, true]);
+        expect([name, c.style.width]).toEqual([name, `${COL}px`]);
+        expect([name, c.style.maxWidth]).toEqual([name, `${COL}px`]);
+        // The entrance survives the grid's clone: the card still carries its kit class.
+        expect([name, c.className === restClass]).toEqual([name, false]);
+      }
+      expect(3 * COL + 2 * 16).toBeLessThanOrEqual(1240);
+      if (name === 'useAccumulate') expect(m.host.querySelector('[data-testid="total"]')?.textContent).toBe(money(283000));
+      m.done();
+    }
+    // The shipped wrapper path (no asChild) is unchanged — and it is why the row was dropped:
+    // the grid sizes the ONE wrapper to a column and the cards inside get no width at all.
+    resetBudget();
+    const w = mount(<TileGrid preset="content" testID="grid"><AccumulateCards items={CARDS} armed={false} format={money} renderTotal={(n) => n} testID="acc" /></TileGrid>);
+    const grid = layoutGrid(w.host, 1240);
+    const wrapper = w.host.querySelector('[data-testid="acc"]') as HTMLElement;
+    expect(wrapper.parentElement).toBe(grid);
+    expect(wrapper.style.width).toBe(`${COL}px`);
+    for (const i of [0, 1, 2]) {
+      const c = w.host.querySelector(`[data-testid="card-${i}"]`) as HTMLElement;
+      expect(c.parentElement).toBe(wrapper);
+      expect(c.style.width).toBe('');
+    }
+    w.done();
+  });
+
+  it("W5 useFocusPush ruleAxis 'y' draws with drawT (scaleY from the top); the default stays drawL", () => {
+    const ref = { current: { scrollTo: () => {} } };
+    let push: ReturnType<typeof useFocusPush> | null = null;
+    function Host({ ruleAxis }: { ruleAxis?: 'x' | 'y' }) {
+      push = useFocusPush(ref, ruleAxis ? { ruleAxis } : {});
+      return <View><Animated.View testID="rule" style={push.styleFor('today')} /><View testID="drawT" style={kitWebStyle('drawT', 320)} /><View testID="drawL" style={kitWebStyle('drawL', 320)} /></View>;
+    }
+    const classOf = (host: HTMLElement, id: string) => (host.querySelector(`[data-testid="${id}"]`) as HTMLElement).className;
+    for (const ruleAxis of ['y', undefined] as const) {
+      const m = mount(<Host ruleAxis={ruleAxis} />);
+      const rest = classOf(m.host, 'rule');
+      act(() => { push!('today', { x: 0, y: 300, w: 2, h: 400 }); });
+      const drawn = classOf(m.host, 'rule');
+      expect(drawn).not.toBe(rest);
+      expect(drawn).toBe(classOf(m.host, ruleAxis === 'y' ? 'drawT' : 'drawL'));
+      expect(drawn).not.toBe(classOf(m.host, ruleAxis === 'y' ? 'drawL' : 'drawT'));
+      m.done();
+    }
+    const css = insertedCss();
+    expect(css).toContain('scaleY(0)');
+    expect(css).toMatch(/transform-origin:top/);
   });
 });
