@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { supabaseWriteDetailed, onQueueFlushed, getOfflineQueue } from '@/utils/offlineQueue';
 import { oops } from '@/components/animations/NailItToast';
 import type { PortalBudgetProposal } from '@/types';
@@ -175,9 +176,7 @@ export function usePortalBudgetProposals(projectId: string | undefined) {
 
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
-    const channelName = `portal-budget-${projectId}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) return;
+    const channelName = mountTopic(`portal-budget-${projectId}`);
 
     const channel = supabase.channel(channelName);
     channel.on(

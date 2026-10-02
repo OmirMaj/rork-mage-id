@@ -8,6 +8,7 @@ import * as Notifications from 'expo-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabase';
+import { mountTopic } from '@/utils/realtimeTopic';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { showAlert } from '@/utils/alert';
 import {
@@ -203,7 +204,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     console.log('[NotificationContext] Setting up bid response realtime listener');
 
     const bidChannel = supabase
-      .channel('realtime-bid-notifications')
+      .channel(mountTopic('realtime-bid-notifications'))
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'public_bids' },

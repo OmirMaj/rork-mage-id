@@ -403,7 +403,13 @@ describe('/(tabs)/(home)', () => {
     // Your-Projects tab badge renders beside this card (sim-audit #15 was this
     // card showing 5 while the badge showed 11).
     await primeWorld('populated');
-    const text = collectText((await mountRouteChecked('/(tabs)/(home)')).toJSON()).join(' | ');
+    // The fixture world (__tests__/fixtures/world.ts) is dated from 2026-08-15:
+    // its electrical permit lapsed 2026-09-05 and its building permit lapses
+    // 2026-12-21, so on the real clock this count turned 3 on that day. Mount on
+    // the day the assertion was written (2026-09-10, c9f04c22), when exactly the
+    // lapsed permit and the overdue RFI are open.
+    const PINNED_NOW = new Date('2026-09-10T15:00:00').getTime();
+    const text = collectText((await mountRouteChecked('/(tabs)/(home)', { now: PINNED_NOW })).toJSON()).join(' | ');
     expect(text).toContain('2 things need your attention');
     expect(text).toContain('RFI #');
     expect(text).not.toContain('1 thing needs your attention');

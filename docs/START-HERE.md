@@ -154,6 +154,9 @@ wave recorded phone goldens FIRST and ran them with --ci afterwards).
   validate-desktop-page-map fails on drift.
 - Web jest is a separate config: __tests__/web/jest.web.config.js via
   `bun run test:desktop-web`.
+- A test with a dated fixture pins the clock: pinDateOnly for render(),
+  mountRoute(url, { now }) for routes (__tests__/helpers/testClock.ts). Check with
+  `bun run test:smoke-shifted` (scripts/run-smoke-shifted.sh; not in ship-check).
 - w6c-home needs --forceExit when run alone (Home's Smart Inbox now also runs a
   60 s clock tick, cleared on unmount).
 - useProjects() is identity-stable after 6d: a memo or effect keyed on the
