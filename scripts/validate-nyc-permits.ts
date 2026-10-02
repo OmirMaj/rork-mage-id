@@ -196,8 +196,10 @@ console.log('\napp/project-detail.tsx:');
   eq('InspectionReadyCard mounts in both branches', (pd.match(/<InspectionReadyCard project=\{project\} openKey=\{prepParam \?\? null\} \/>/g) ?? []).length, 2);
   eq('BuildingRecordCard mounts in both branches', (pd.match(/<BuildingRecordCard project=\{project\} testID="project-building-record" \/>/g) ?? []).length, 2);
   ok('phone: right after </BlueprintReveal>', /<\/BlueprintReveal>\s*<InspectionReadyCard/.test(pd));
-  ok('desktop: right after the KPI strip, before the quick actions',
-    /onOpenSection=\{openSection\}\s*\/>\s*<InspectionReadyCard[^\n]*\n\s*<BuildingRecordCard[^\n]*\n(?:\s*<ProjectCodeChecksCard project=\{project\} \/>\n)?\s*\{\/\* One row of quick actions/.test(pd));
+  // The project-health Level card (LEVELGAUGE) sits directly under the KPI
+  // strip; the record cards follow it, still before the quick actions.
+  ok('desktop: right after the KPI strip (and its Level card), before the quick actions',
+    /onOpenSection=\{openSection\}\s*\/>\s*(?:<ProjectLevelCard project=\{project\} pulse=\{pulse\} \/>\s*)?<InspectionReadyCard[^\n]*\n\s*<BuildingRecordCard[^\n]*\n(?:\s*<ProjectCodeChecksCard project=\{project\} \/>\n)?\s*\{\/\* One row of quick actions/.test(pd));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

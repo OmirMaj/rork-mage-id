@@ -23,6 +23,8 @@
 //     yet", a hollow grey vial); with one half it is 'partial' and the missing
 //     half is NAMED in the reasons — never drawn as centred-and-fine. "On plan"
 //     is printed only when slipDays is exactly known and ≤ 0.
+//   • SITE COUNTS (open punch, RFIs past due) are LISTED in the reasons, never
+//     drawn: they move no offset, tint, kind, label or key.
 //
 // PURE: no React, no react-native (bun-executable; scripts/validate-job-level.ts
 // runs the reading table over it).
@@ -66,6 +68,17 @@ export interface JobLevelInput {
   schedule: PortfolioSchedule | 'undated' | null;
   margin: JobLevelMargin | null;
   marginWithheld?: JobLevelMarginWithheld;
+  /**
+   * Site counts the hub knows (open punch, RFIs past their due date). They are
+   * LISTED in the reasons and never drawn: a count is not a number of days, so
+   * they change no offset, tint, kind, label or key (no ease fires on them).
+   */
+  site?: JobLevelSite;
+}
+
+export interface JobLevelSite {
+  openPunch: number;
+  overdueRfis: number;
 }
 
 export interface JobLevelReading {
@@ -202,7 +215,24 @@ export function computeJobLevel(input: JobLevelInput): JobLevelReading {
   }
   const key = `${kind}|${hasSchedule ? offset.toFixed(3) : 'x'}|${tint}`;
 
+  // ── Site counts: said after both halves, never drawn ───────────────────────
+  reasons.push(...siteReasons(input.site));
+
   return { kind, offset, tint, hasSchedule, hasMargin, label, accessibilityLabel, reasons, key };
+}
+
+/** A usable count: a finite whole number above zero, else 0 (negative / NaN add nothing). */
+const count = (n: number | null | undefined): number => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
+
+/** The site reasons, one full sentence per count above zero. */
+export function siteReasons(site: JobLevelSite | null | undefined): string[] {
+  if (!site) return [];
+  const out: string[] = [];
+  const punch = count(site.openPunch);
+  const rfis = count(site.overdueRfis);
+  if (punch > 0) out.push(punch === 1 ? '1 punch item is open.' : `${punch} punch items are open.`);
+  if (rfis > 0) out.push(rfis === 1 ? '1 RFI is past its due date.' : `${rfis} RFIs are past their due date.`);
+  return out;
 }
 
 /** The margin half from a MarginRiskScore-shaped value (null passes through). */
@@ -219,6 +249,58 @@ export function marginForLevel(risk: {
     topFactors: risk.topFactors.map((f) => ({ label: f.label, detail: f.detail })),
   };
 }
+
+// ── The hub's reading, from the job page's one pulse ────────────────────────
+//
+// app/project-detail reads the job once (hooks/useProjectPulse) and hands that
+// pulse to ProjectHero, the desktop KPI strip and the Level card. The margin
+// half here uses the PULSE's risk — the very object ProjectHero prints as its
+// "Margin risk" band — so the hub's colour and the hero's band are one number.
+
+/** The fields of a ProjectPulse the Level reads (a structural subset; no import). */
+export interface JobLevelPulseFacts {
+  canSeeMoney: boolean;
+  roleLoading: boolean;
+  costSourcesReady: boolean;
+  risk: {
+    hasBasis: boolean; band: RiskBand; score: number; costBasis?: MarginCostBasis;
+    topFactors: readonly { label: string; detail: string }[];
+  } | null;
+  openPunch: number;
+  overdueRfis: number;
+}
+
+/**
+ * The hub reading. Margin, in order: the role still resolving → 'loading';
+ * a role that may not see money → 'no_access'; the cost streams not read yet
+ * → 'loading'; else the pulse's own risk. The site counts are listed only.
+ */
+export function jobLevelFromPulse(schedule: JobLevelInput['schedule'], f: JobLevelPulseFacts): JobLevelReading {
+  const site: JobLevelSite = { openPunch: f.openPunch, overdueRfis: f.overdueRfis };
+  if (!f.canSeeMoney && f.roleLoading) return computeJobLevel({ schedule, margin: null, marginWithheld: 'loading', site });
+  if (!f.canSeeMoney) return computeJobLevel({ schedule, margin: null, marginWithheld: 'no_access', site });
+  if (!f.costSourcesReady) return computeJobLevel({ schedule, margin: null, marginWithheld: 'loading', site });
+  return computeJobLevel({ schedule, margin: marginForLevel(f.risk), site });
+}
+
+// ── The legend ──────────────────────────────────────────────────────────────
+//
+// What every Level's sheet says about how to read it (components/level/
+// JobLevelReason renders all four through t(); the hub card renders the first
+// two). The keys are office.projectHealth.legend.<id>; the English here is the
+// t() fallback text, pinned equal by scripts/validate-job-level.ts.
+// The colour line names no colour words: the accent follows the company's
+// theme preset (Settings), so "green" would be false for anyone who picked
+// another hue.
+
+export type JobLevelLegendId = 'bubble' | 'colour' | 'listed' | 'empty';
+
+export const JOB_LEVEL_LEGEND: readonly { id: JobLevelLegendId; text: string }[] = [
+  { id: 'bubble', text: 'The bubble moves right when the finish slips past the baseline.' },
+  { id: 'colour', text: 'The colour is margin risk.' },
+  { id: 'listed', text: 'Open punch, late RFIs and late tasks are listed, not drawn.' },
+  { id: 'empty', text: 'A grey, hollow level means there is not enough data yet.' },
+];
 
 /**
  * The Health column's sort value: ascending = worst first (like Schedule).

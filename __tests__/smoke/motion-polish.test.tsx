@@ -210,12 +210,12 @@ describe('ProjectHero', () => {
 
     act(() => { pending.splice(0).forEach((fn) => fn()); });
     expect(timing).toHaveBeenCalled();
-    expect(spring).toHaveBeenCalled();
     // The bracket runs on the native driver now (it was a JS width animation).
     const bracketCall = timing.mock.calls.find((c) => (c[1] as { duration?: number }).duration === 900);
     expect(bracketCall && (bracketCall[1] as { useNativeDriver: boolean }).useNativeDriver).toBe(true);
-    // The bubble is a Motion.spring.rise preset with the same 350 ms delay.
-    expect(spring.mock.calls[0][1]).toMatchObject({ ...Motion.spring.rise, delay: 350 });
+    // No bubble: the hero's private margin-risk level is retired (one bubble,
+    // one meaning — The Level lives in components/level/ProjectLevelCard).
+    expect(spring).not.toHaveBeenCalled();
 
     r.unmount();
     expect(cancel).toHaveBeenCalled();
