@@ -5,14 +5,22 @@
 // pages / files really landed (a scan saved, an upload resolved) — a queued
 // offline write never flies; the host's queued line shows instead.
 //
-// ONE measurement batch (measureInWindow for every source and the target),
-// then up to 3 proxy thumbs travel in <FileIntoLayer> (rendered ONCE
-// at the screen root, pointerEvents none) from their source to the target's
+// ONE measurement batch (measureInWindow for the layer itself, every source and
+// the target — the layer first, so its answer is in before theirs), then up to
+// 3 proxy thumbs travel in <FileIntoLayer> (rendered ONCE, pointerEvents none,
+// at the screen root or inside the host's own frame) from their source to the target's
 // centre, scaling to max(targetW / sourceW, 0.3) on Motion.spring.sheet
 // (ζ 1.006, no overshoot), 60 ms apart, each fading over its last 120 ms. More
 // than 3: a '+N' chip flies with the 3rd. The folder "receives" when the first
 // flyer arrives — scale 1 → 1.04 → 1 on snap (receiveStyle, for the host's
 // folder Animated.View) — and onReceive fires so the host steps its count.
+//
+// Placement (lane KITFIX, KG1): the layer is absoluteFill inside its host, and
+// the host is rarely at the window's origin (a stack header, a modal sheet, the
+// desktop sidebar, a scrolled container). Each flyer's box starts at
+// source − the layer's own window origin (flyerGeometry in utils/motion/kit/
+// plans.ts), so it lands exactly on the target wherever the layer sits. A layer
+// that cannot be measured counts as (0, 0) — the shipped behaviour.
 //
 // Fallback (a measure failed, Reduce Motion, a refused budget): no flyers;
 // onReceive fires at once and the host's "Filed to <folder>" line carries it.
@@ -21,7 +29,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { motionCurve, nativeDriver, useReducedMotion } from '@/components/ui/motion';
 import { KIT_CAPS, KIT_SCALE, KIT_SPRING } from '@/utils/motion/kit/kitSpec';
-import { FLYER_FADE_MS, planFileInto, stepFor } from '@/utils/motion/kit/plans';
+import { FLYER_FADE_MS, flyerGeometry, planFileInto, stepFor, type KitPoint } from '@/utils/motion/kit/plans';
 import { plateauEase, plateauFraction } from '@/utils/motion/kit/stagger';
 import { kitFlight } from './css/kitCss';
 import { acquire } from './budget';
@@ -68,6 +76,7 @@ export function useFileInto(opts: UseFileIntoOptions = {}): {
   const [receiving, setReceiving] = useState(false);
   const recv = useRef(new Animated.Value(1)).current;
   const ids = useRef(0);
+  const layerRef = useRef<View>(null);
   const reduceRef = useRef(reduce);
   reduceRef.current = reduce;
 
@@ -76,7 +85,17 @@ export function useFileInto(opts: UseFileIntoOptions = {}): {
     const first = stepFor(plan, 'flyer-0');
     const fallback = () => { a.onReceive?.(); return false; };
     if (!first) return fallback();
-    // ONE measurement batch: every read before anything is written.
+    // ONE measurement batch: every read before anything is written. The layer
+    // asks first: measureInWindow answers in the order it is asked (a FIFO
+    // bridge / a 0 ms timer on the web), so by the time the target and the
+    // sources are in, so is the layer. A layer that never answers (a test
+    // renderer's mock) is (0, 0), the shipped behaviour.
+    let origin: KitPoint | null = null;
+    try {
+      layerRef.current?.measureInWindow?.((x, y) => { if (Number.isFinite(x) && Number.isFinite(y)) origin = { x, y }; });
+    } catch {
+      origin = null;
+    }
     const n = Math.min(a.sources.length, KIT_CAPS.flyers);
     const [target, ...sources] = await Promise.all([
       measure(a.target),
@@ -85,19 +104,17 @@ export function useFileInto(opts: UseFileIntoOptions = {}): {
     if (!okRect(target) || sources.some((s) => !okRect(s))) return fallback();
     const granted = acquire(n, first.durationMs + (n - 1) * (stepFor(plan, 'flyer-1')?.delayMs ?? 0));
     if (granted === 0) return fallback();
-    // The layer sits at the screen root, i.e. at the window's origin.
-    const ox = 0;
-    const oy = 0;
-    const tcx = target.x + target.w / 2;
-    const tcy = target.y + target.h / 2;
+    // Window rects → the layer's own coordinates (the origin cancels in dx / dy).
+    const layerOrigin: KitPoint | null = origin;
     const flyers: Flyer[] = (sources as Rect[]).slice(0, granted).map((s, i) => {
       const step = stepFor(plan, `flyer-${i}`);
       const extra = a.sources.length - n;
+      const g = flyerGeometry(s, target, layerOrigin);
       return {
-        from: { x: s.x - ox, y: s.y - oy, w: s.w, h: s.h },
-        dx: tcx - (s.x + s.w / 2),
-        dy: tcy - (s.y + s.h / 2),
-        scale: Math.max(target.w / s.w, KIT_SCALE.flyMin),
+        from: { x: g.left, y: g.top, w: g.w, h: g.h },
+        dx: g.dx,
+        dy: g.dy,
+        scale: g.scale,
         delayMs: step?.delayMs ?? 0,
         node: a.thumbs[i] ?? null,
         chip: i === n - 1 && extra > 0 ? extra : null,
@@ -124,7 +141,7 @@ export function useFileInto(opts: UseFileIntoOptions = {}): {
   const done = useCallback((id: number) => setFlight((f) => (f && f.id === id ? null : f)), []);
 
   const layer = (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="file-into-layer">
+    <View ref={layerRef} pointerEvents="none" style={StyleSheet.absoluteFill} testID="file-into-layer">
       {flight ? <FlightView key={flight.id} flight={flight} onDone={done} chipStyle={opts.chipStyle} chipTextStyle={opts.chipTextStyle} /> : null}
     </View>
   );

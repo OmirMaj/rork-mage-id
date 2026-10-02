@@ -1,11 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { onQueueFlushed, onQueueChanged, onQueueDropped, getOwnOfflineQueue, type WriteOutcome } from '@/utils/offlineQueue';
+import { onQueueFlushed, onQueueChanged, onQueueDropped, getOwnOfflineQueue, currentSessionUserId, type WriteOutcome } from '@/utils/offlineQueue';
 import { oops } from '@/components/animations/NailItToast';
 import { generateUUID } from '@/utils/generateId';
 import type { PortalMessage, ClientCOApproval } from '@/types';
 import { useProjectActions } from '@/contexts/ProjectContext';
+import { parseAttachments, type OutboxEntry } from '@/utils/messageAttachments';
+import { messageOutbox } from '@/utils/messageOutbox';
+import type { PickedAttachment } from '@/hooks/useAttachmentPicker';
 
 // Fetches the GC↔client message thread for a project AND any pending CO
 // approvals. RLS scopes both tables to projects the GC owns.
@@ -32,6 +35,8 @@ interface MessageRow {
   read_by_gc: boolean;
   read_by_client: boolean;
   created_at: string;
+  /** Photos / PDFs (portal_messages.attachments); absent before the migration. */
+  attachments?: unknown;
 }
 
 interface ApprovalRow {
@@ -59,6 +64,7 @@ function rowToMessage(r: MessageRow): PortalMessage {
     createdAt: r.created_at,
     readByGc: r.read_by_gc,
     readByClient: r.read_by_client,
+    attachments: parseAttachments(r.attachments),
   };
 }
 
@@ -78,6 +84,7 @@ function queuedRowToMessage(d: Record<string, unknown>): PortalMessage | null {
     read_by_gc: d.read_by_gc !== false,
     read_by_client: d.read_by_client === true,
     created_at: typeof d.created_at === 'string' ? d.created_at : new Date().toISOString(),
+    attachments: parseAttachments(d.attachments),
   });
 }
 
@@ -173,6 +180,63 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
   // retry exhaustion). They never reached the server, so they must not be
   // bridged "until the next fetch" the way a landed message is — they are gone.
   const droppedIds = useRef(new Set<string>());
+
+  // MSGAPP: messages with photos / PDFs wait in the device outbox
+  // (utils/messageOutbox.ts) until every file is in storage and the row is
+  // written. The thread draws them from here with their real state; this
+  // session's entries for this portal only (another tenant's are never shown).
+  const [outbox, setOutbox] = useState<OutboxEntry[]>([]);
+  const lastOutbox = useRef(new Map<string, OutboxEntry>());
+  const readOutbox = useCallback(async () => {
+    if (!portalId) { lastOutbox.current = new Map(); setOutbox([]); return; }
+    let mine: OutboxEntry[];
+    try {
+      const [all, uid] = await Promise.all([messageOutbox.read(), currentSessionUserId()]);
+      mine = uid ? all.filter((e) => e.portalId === portalId && e.userId === uid) : [];
+    } catch {
+      return;
+    }
+    // An entry that left the outbox while its row was being written has just
+    // been sent (or queued behind its project): bridge it like a landed send
+    // so the thread never blinks. A failed entry that left was removed.
+    const now = new Map(mine.map((e) => [e.id, e] as const));
+    const landed: BridgedMessage[] = [];
+    const since = Date.now();
+    for (const [id, e] of lastOutbox.current) {
+      if (now.has(id) || e.phase !== 'writing') continue;
+      landed.push({
+        since,
+        message: {
+          id: e.id, projectId: e.projectId, portalId: e.portalId, authorType: 'gc', authorName: e.authorName,
+          body: e.body, createdAt: e.createdAt, readByGc: true, readByClient: false,
+          attachments: e.attachments.map(({ id: aid, name, mime, size, kind, width, height, path, localUri }) => ({
+            id: aid, name, mime, size, kind, width, height, path, localUri,
+          })),
+        },
+      });
+    }
+    lastOutbox.current = now;
+    setOutbox(mine);
+    if (landed.length > 0) setBridge((prev) => [...prev, ...landed]);
+  }, [portalId]);
+  useEffect(() => {
+    lastOutbox.current = new Map();
+    void readOutbox();
+    return messageOutbox.onChanged(() => { void readOutbox(); });
+  }, [readOutbox]);
+
+  // Run the outbox: uploads, then the row write. writePortalMessage is read
+  // through a ref so the kick stays stable across renders.
+  const writeRef = useRef(writePortalMessage);
+  writeRef.current = writePortalMessage;
+  const kickOutbox = useCallback(() => {
+    void messageOutbox.process({ writePortalMessage: (row) => writeRef.current(row) }).then((r) => {
+      if (r.sent > 0) void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] });
+    });
+  }, [portalId, queryClient]);
+  useEffect(() => {
+    if (enabled) kickOutbox();
+  }, [enabled, kickOutbox]);
 
   const readQueuedEcho = useCallback(async () => {
     if (!portalId) return;
@@ -322,8 +386,38 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
       if (tables.has('portal_messages')) {
         void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] });
       }
+      // A flush means the network is back: send what the outbox holds.
+      kickOutbox();
     });
-  }, [enabled, portalId, queryClient]);
+  }, [enabled, portalId, queryClient, kickOutbox]);
+
+  // A file message: into the outbox (files copied to the device), then sent
+  // in the background. Resolves once it is safely in the outbox; throws when
+  // it could not be stored (the screen keeps the text and files then).
+  const sendWithAttachments = useCallback(async (args: {
+    portalId: string; projectId: string; body: string; authorName: string; files: PickedAttachment[];
+  }): Promise<void> => {
+    await messageOutbox.add({
+      id: generateUUID(),
+      projectId: args.projectId,
+      portalId: args.portalId,
+      body: args.body,
+      authorName: args.authorName,
+      files: args.files,
+    });
+    kickOutbox();
+  }, [kickOutbox]);
+
+  const retryOutbox = useCallback(async (id: string) => {
+    await messageOutbox.retry(id);
+    kickOutbox();
+  }, [kickOutbox]);
+
+  const removeOutbox = useCallback(async (id: string) => {
+    await messageOutbox.remove(id);
+  }, []);
+
+  const queuedIds = useMemo((): ReadonlySet<string> => new Set(queuedEcho.map((m) => m.id)), [queuedEcho]);
 
   const markReadMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -416,6 +510,13 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
     isSending: sendMessageMutation.isPending,
     isSendingClient: sendClientMessageMutation.isPending,
     refetchMessages: messagesQ.refetch,
+    /** The thread has been fetched once (or failed): what is on screen now is history. */
+    loaded: messagesQ.isFetched || messagesQ.isError,
     refetchApprovals: approvalsQ.refetch,
+    outbox,
+    queuedIds,
+    sendWithAttachments,
+    retryOutbox,
+    removeOutbox,
   };
 }

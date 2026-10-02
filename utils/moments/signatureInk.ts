@@ -15,7 +15,10 @@
 //   PDF builders and the on-screen renderer in the same release, or not at all:
 //   the signature on screen must be the signature in the PDF.
 //
-// Pure TypeScript: no react-native import, so bun validators can load it.
+// Pure TypeScript: no react-native import, so bun validators can load it
+// (@/i18n/core is pure too).
+
+import { t } from '@/i18n/core';
 
 export interface InkPoint {
   x: number;
@@ -106,6 +109,12 @@ export function consentRenderable(version: string | null | undefined): boolean {
   return typeof version === 'string' && version.trim().length > 0;
 }
 
+/**
+ * The English of the three line reasons. lineReadiness returns them through
+ * t() (common.moment.line*, Spanish in i18n/catalog/es/common.ts); this map
+ * stays the English statement the signline copy lint reads, and each t()
+ * fallback must equal it (scripts/moments-checks/signline.ts S17).
+ */
 export const LINE_REASONS = {
   sign: 'Sign above the line',
   name: 'Type your full legal name',
@@ -116,7 +125,8 @@ export const LINE_REASONS = {
  * The first missing step, in this order: offline, the mark, the name, the
  * consent box. null = ready (the X becomes the capsule head).
  * `offlineReason` is CAPSULE's offlineLegalReason() (passed in so this file
- * stays dependency-free).
+ * stays free of the capsule; its only import is the pure i18n core). The three
+ * reasons come back through t(), English when the language is English.
  */
 export function lineReadiness(o: {
   offline: boolean;
@@ -128,8 +138,8 @@ export function lineReadiness(o: {
   consent?: { version: string; checked: boolean } | null;
 }): string | null {
   if (o.offline) return o.offlineReason;
-  if (o.mode === 'drawn' && !signatureReadiness(o.paths).ok) return LINE_REASONS.sign;
-  if (o.name.trim().length < o.minName) return LINE_REASONS.name;
-  if (o.consent && consentRenderable(o.consent.version) && !o.consent.checked) return LINE_REASONS.consent;
+  if (o.mode === 'drawn' && !signatureReadiness(o.paths).ok) return t('common.moment.lineSign', 'Sign above the line');
+  if (o.name.trim().length < o.minName) return t('common.moment.lineName', 'Type your full legal name');
+  if (o.consent && consentRenderable(o.consent.version) && !o.consent.checked) return t('common.moment.lineConsent', 'Check the consent box');
   return null;
 }

@@ -15,6 +15,8 @@ export const EN: EnCatalog = {
   "common.tutorial.estimateSaveToSample": "Save to the sample job",
   "common.tutorial.estimateSavedOpenJob": "Saved as a revision — open the job",
   "common.tutorial.sampleQuestionBlocked": "On the sample, use the sample question. Your own questions run on a real job.",
+  "common.tutorial.scheduleSampleNoTask": "This sample schedule has no drywall task to move.",
+  "common.tutorial.scheduleSampleRefusal": "On the sample, use the sample sentence. Your own changes run on a real job.",
   "common.tutorial.takeoffNoPriceYet": "No price yet",
   "common.tutorial.takeoffSampleLineMeta": "{qty} {unit} · from sheet {sheet}",
   "common.tutorial.takeoffSampleOnlyTitle": "Use the sample plan",

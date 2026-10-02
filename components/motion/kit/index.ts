@@ -13,13 +13,13 @@ export { ThinkingRow, ThinkingDots, useDotClock, dotClockStats, type ThinkingRow
 export { StaggerList, useStagger, type StaggerListProps } from './StaggerList';
 export { CheckSync, useCheckBeat, useCheckBeats, type CheckRow, type CheckStatus, type CheckSyncProps } from './CheckSync';
 export { CountRoll, type CountRollProps } from './CountRoll';
-export { AccumulateCards, type AccumulateCardsProps, type AccumulateItem } from './AccumulateCards';
+export { AccumulateCards, useAccumulate, withLayout, type AccumulateCardsProps, type AccumulateItem, type UseAccumulateArgs } from './AccumulateCards';
 export { RangeSettle, type RangeSettleProps } from './RangeSettle';
 export { useFileInto, FileIntoLayer, type FileIntoArgs, type MeasureRef, type UseFileIntoOptions } from './FileInto';
 export { PriorityGrid, type PriorityCell, type PriorityGridProps } from './PriorityGrid';
 export { FocusMarker, useFocusRects, type FocusMarkerProps, type FocusRects } from './FocusMarker';
 export { StackPush, type StackPushProps } from './StackPush';
-export { useFocusPush, type FocusPush, type Scrollable } from './FocusPush';
+export { useFocusPush, type FocusPush, type FocusPushOptions, type Scrollable } from './FocusPush';
 export { CornerTags, type CornerTagsProps } from './CornerTags';
 export { MatrixFill, type MatrixFillProps, type MatrixRow } from './MatrixFill';
 export { useEntrance, entranceMs, reducedEntrance, type EntranceSpec, type EntranceOpts } from './useEntrance';

@@ -167,18 +167,24 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     );
   }
 
-  const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
+  // Watch is a warning state, so it wears the WARNING ink, never the brand
+  // accent (2026-10-02: brand green read as "fine" on a margin to watch).
+  // warningLabel is legible as text and solid enough for the bracket's fill.
+  const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.warningLabel : t.danger;
   // The risk readout gets its OWN colour. Until 2026-09-07 both the band label
   // and the (since retired) bubble were painted `healthColor` — the MARGIN
   // band's colour — so a fat margin rendered "Moderate risk" in green and a
   // thin one would have rendered "Low risk" in red. The word and the colour were reporting
   // different variables, which reads as the app contradicting itself on the one
   // card a GC uses to decide whether a job is in trouble (founder report).
-  // accentLabel/dangerLabel rather than accent/danger: these are TEXT.
+  // warningLabel/dangerLabel rather than warning/danger: these are TEXT.
+  // Moderate and elevated are both warning states: the WARNING ink, never the
+  // brand accent (until 2026-10-02 "Elevated risk" printed in brand green, the
+  // color the app uses for "on plan"). The words tell the two apart.
   const riskColor =
     risk.band === 'low' ? t.success
     : risk.band === 'moderate' ? t.warningLabel
-    : risk.band === 'elevated' ? t.accentLabel
+    : risk.band === 'elevated' ? t.warningLabel
     : t.dangerLabel;
 
   const erosionLabel = Math.abs(erosion) < 0.1

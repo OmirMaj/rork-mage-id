@@ -57,6 +57,24 @@ jest.mock('@/contexts/ActiveProjectContext', () => {
   };
 });
 
+// The seat's role. null = the real resolution (the populated world's owner),
+// so every case that never sets it renders exactly what it rendered before.
+let mockRole: 'owner' | 'editor' | null = null;
+jest.mock('@/hooks/useProjectRole', () => {
+  const actual = jest.requireActual('@/hooks/useProjectRole');
+  return {
+    ...actual,
+    useProjectRoleState: (pid: string | undefined) => {
+      const real = actual.useProjectRoleState(pid);
+      return mockRole ? { ...real, role: mockRole, isLoading: false, isError: false } : real;
+    },
+    useProjectRole: (pid: string | undefined) => {
+      const real = actual.useProjectRole(pid);
+      return mockRole ?? real;
+    },
+  };
+});
+
 type J = { type: string; props: Record<string, unknown>; children: (J | string)[] | null };
 
 function viewport(width: number, height: number) {
@@ -107,6 +125,7 @@ const URL = `/project-detail?id=${PROJECT_ID}`;
 
 afterEach(() => {
   mockDeskWeb = false;
+  mockRole = null;
   mockSetActive.mockClear();
   jest.restoreAllMocks();
   cleanup();
@@ -207,5 +226,49 @@ describe('desktop web at 1512 x 945: the workspace', () => {
     const tree = await mountRouteChecked(`${URL}&tile=photos`);
     expect(tree.getByTestId('project-section-panel')).toBeTruthy();
     expect(tree.queryByTestId('section-modal-back')).toBeNull();
+  });
+
+  // LOOSE (c), 2026-10-02: Subs & pay has a desktop home. The Money column
+  // lists it right after Invoices (the group's tileKeys order) and it opens in
+  // the side panel, like the phone and tablet section sheet. Owner only.
+  type Inst = { type: unknown; props: Record<string, unknown>; findAll: (p: (n: Inst) => boolean) => Inst[] };
+  const panelSays = (panel: Inst, text: string) => panel.findAll((n) => typeof n.type === 'string' && n.props.children === text).length > 0;
+  const panelHas = (panel: Inst, testID: string) => panel.findAll((n) => n.props.testID === testID).length > 0;
+
+  it('Subs & pay: a Money-column row after Invoices that opens the side panel through ?tile=subsPay (owner)', async () => {
+    const setParams = jest.spyOn(router, 'setParams');
+    await primeWorld('populated');
+    const tree = await mountRouteChecked(URL);
+    const tiles = testIds(tree.toJSON() as J).filter((t) => t.startsWith('section-tile-'));
+    expect(tiles).toContain('section-tile-subsPay');
+    expect(tiles[tiles.indexOf('section-tile-invoices') + 1]).toBe('section-tile-subsPay');
+    expect(tree.queryByTestId('project-section-panel')).toBeNull();
+    fireEvent.press(tree.getByTestId('section-tile-subsPay'));
+    await settle();
+    expect(setParams).toHaveBeenCalledWith({ tile: 'subsPay' });
+    const panel = tree.getByTestId('project-section-panel') as unknown as Inst;
+    expect(panelSays(panel, 'Subs & pay')).toBe(true);
+    expect(panelHas(panel, 'subs-pay')).toBe(true);
+    expect(tree.queryByTestId('section-modal-back')).toBeNull();
+  });
+
+  it('Subs & pay: a deep link with &tile=subsPay opens the same panel on load (owner)', async () => {
+    await primeWorld('populated');
+    const tree = await mountRouteChecked(`${URL}&tile=subsPay`);
+    const panel = tree.getByTestId('project-section-panel') as unknown as Inst;
+    expect(panelSays(panel, 'Subs & pay')).toBe(true);
+    expect(panelHas(panel, 'subs-pay')).toBe(true);
+  });
+
+  it('Subs & pay stays the owner\'s: an editor gets no row, and &tile=subsPay opens no panel', async () => {
+    mockRole = 'editor';
+    await primeWorld('populated');
+    const tree = await mountRouteChecked(`${URL}&tile=subsPay`);
+    const ids = testIds(tree.toJSON() as J);
+    // The editor still sees the Money column (Invoices), just not Subs & pay.
+    expect(ids).toContain('section-tile-invoices');
+    expect(ids).not.toContain('section-tile-subsPay');
+    expect(tree.queryByTestId('project-section-panel')).toBeNull();
+    expect(tree.queryByTestId('subs-pay')).toBeNull();
   });
 });

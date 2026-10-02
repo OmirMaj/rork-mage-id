@@ -23,7 +23,7 @@
 //                 the vault screen (canAccess('rfis_submittals') = Pro). Until
 //                 this build is deployed the live function answers 400 for
 //                 'coi', and the client says reading isn't live (audit #23/#40).
-//   - 'codeLook' → Photo Code Look: ONE photo of work about to be covered
+//   - 'codeLook' → Photo code check: ONE photo of work about to be covered
 //                 up; at most 5 things an inspector would look at in it, and
 //                 a required list of what the photo cannot show. Never a
 //                 verdict. Its own meter ('code_look', Pro+).
@@ -404,7 +404,7 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Either photos[] (inline base64) or photoUrls[] required' }, 400);
   }
   const inputCount = usingInline ? body.photos!.length : body.photoUrls!.length;
-  if (body.task === 'codeLook' && inputCount !== 1) return jsonResponse({ success: false, error: 'Code look reads one photo at a time.', code: 'one_photo' }, 400);
+  if (body.task === 'codeLook' && inputCount !== 1) return jsonResponse({ success: false, error: 'Photo code check reads one photo at a time.', code: 'one_photo' }, 400);
   if (inputCount > 12) {
     return jsonResponse({ success: false, error: 'Max 12 photos per call (cost / latency control)' }, 400);
   }
@@ -492,7 +492,7 @@ serve(async (req) => {
     return jsonResponse({
       success: false,
       error: meterKey === 'code_look'
-        ? `Monthly Code Look limit reached (${cap} on ${auth.tier}). Resets on the 1st.`
+        ? `Monthly photo code check limit reached (${cap} on ${auth.tier}). Resets on the 1st.`
         : `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
       code: 'monthly_cap_reached',
       used, cap,
@@ -757,7 +757,7 @@ Return JSON only — no preamble.`;
     // utils/codeLook.normalizeCodeLook re-normalises on the client; here the
     // caps, the enums and the shape. Rows with no `what` are dropped.
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return jsonResponse({ success: false, error: 'Expected a Code look object' }, 500);
+      return jsonResponse({ success: false, error: 'The photo code check came back unreadable. Try again.' }, 500);
     }
     const o = parsed as Record<string, unknown>;
     const cut = (v: unknown, n: number) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, n) : '');

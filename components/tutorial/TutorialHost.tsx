@@ -137,6 +137,12 @@ import {
   withoutActive,
 } from '@/utils/tutorial/progress';
 import { TutorialLayer } from './TutorialLayer';
+import { t } from '@/i18n';
+import { QUIZ_BANKS } from '@/utils/learn/quizBank';
+import { skillTopic } from '@/utils/learn/topics';
+import { currentCertificate } from '@/utils/learn/quizEngine';
+import { lastKnownCertificates, listMyCertificates } from '@/utils/learn/certificateClient';
+import type { SkillCertificate, SkillTopicId } from '@/utils/learn/types';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -354,6 +360,9 @@ export function TutorialHost() {
     handoffRunKey: null as string | null,
     stripeConnected: true,
     offeredChainKey: null as string | null,
+    /** The finale's skills-check door: the topic to open, or null. */
+    quizTopic: null as SkillTopicId | null,
+    offeredQuizKey: null as string | null,
     booting: false,
   }).current;
 
@@ -424,6 +433,15 @@ export function TutorialHost() {
   const finaleAction = useCallback((key: string) => {
     const s = getTutorialState();
     if (s.status !== 'running' || s.phase !== 'finale') return;
+    if (key === 'quiz') {
+      // The skills check is a screen of its own, off the sample: the run ends
+      // first (FINISH, exactly like the hand-off buttons), then it opens.
+      const topic = ui.quizTopic;
+      if (!topic) return;
+      dispatchTutorial({ type: 'FINISH', now: Date.now() });
+      routerRef.current.push({ pathname: '/skills-check', params: { topic } });
+      return;
+    }
     const h = ui.handoff;
     const action: HandoffAction | null =
       key === 'primary' ? h?.primary ?? null : key === 'secondary' ? h?.secondary ?? null : key === 'chain' ? h?.chain ?? null : null;
@@ -768,8 +786,10 @@ export function TutorialHost() {
       const def = getTutorialDefs()[s.tutorialId];
       if (!def) return;
       ui.stripeConnected = true;
+      ui.quizTopic = null;
       computeHandoff(s, def);
       publish();
+      void prepareQuizDoor(s);
       if (def.handoff.offerStripe && hostData.userId) {
         // Unreachable reads as connected: never tell him he has not connected
         // Stripe on the strength of a failed request (billingFlowCore #36).
@@ -782,6 +802,30 @@ export function TutorialHost() {
           publish();
         }
       }
+    };
+
+    // 'Take the skills check' shows when the tutorial has a skills check and
+    // he holds no unrevoked certificate on its current version. The list this
+    // session already read answers at once; otherwise one read (5 s cap). A
+    // failed read still offers the check: the screen re-checks, and the
+    // server decides what is issued.
+    const prepareQuizDoor = async (s: RunningState) => {
+      const topic = skillTopic(s.tutorialId);
+      if (!topic || !(QUIZ_BANKS[topic.id]?.questions.length > 0)) return;
+      let certs: readonly SkillCertificate[] | null = lastKnownCertificates(hostData.userId);
+      if (!certs) {
+        certs = await withTimeout(listMyCertificates(hostData.userId).catch(() => null), 5000, null);
+        if (disposed) return;
+      }
+      const cur = getTutorialState();
+      if (cur.status !== 'running' || cur.phase !== 'finale' || cur.startedAt !== s.startedAt) return;
+      ui.quizTopic = certs && currentCertificate(topic.id, certs) ? null : topic.id;
+      const runKey = `${s.tutorialId}:${s.startedAt}`;
+      if (ui.quizTopic && ui.offeredQuizKey !== runKey) {
+        ui.offeredQuizKey = runKey;
+        track('skills_check_offered', { topic: topic.id });
+      }
+      publish();
     };
 
     const computeHandoff = (s: RunningState, def: TutorialDef) => {
@@ -1069,6 +1113,7 @@ interface UiFacts {
   toast: string | null;
   rects: Partial<Record<string, Rect>>;
   handoff: Handoff | null;
+  quizTopic: SkillTopicId | null;
 }
 
 function copyCtxFor(s: RunningState, ui: UiFacts, signal?: SignalName | null): CopyCtx {
@@ -1124,6 +1169,7 @@ function buildPresentation(s: RunState, ui: UiFacts): TutorialPresentation {
       primary: h?.primary ? { key: 'primary', label: h.primary.label } : null,
       secondary: h?.secondary ? { key: 'secondary', label: h.secondary.label } : null,
       chain: h?.chain ? { key: 'chain', label: h.chain.label } : null,
+      quiz: ui.quizTopic ? { key: 'quiz', label: t('settings.learn.finaleQuiz', 'Take the skills check') } : null,
     };
     return { ...out, finale };
   }

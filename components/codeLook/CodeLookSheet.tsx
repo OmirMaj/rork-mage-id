@@ -60,8 +60,8 @@ import {
   type CodeLookResult,
 } from '@/utils/codeLook';
 
-export const CODE_LOOK_NEEDS_PRO = 'Code look uses AI and needs Pro';
-export const CODE_LOOK_NOT_LIVE = "Code look isn't live on the server yet.";
+export const CODE_LOOK_NEEDS_PRO = 'Photo code check uses AI and needs Pro';
+export const CODE_LOOK_NOT_LIVE = "Photo code check isn't live on the server yet.";
 
 type RunState =
   | { kind: 'idle' }
@@ -98,13 +98,13 @@ export default function CodeLookSheet({
   const { canAccess } = useTierAccess();
   const canAI = canAccess('ai_code_check');
 
-  // Esc closes the Code look. Standalone: the handler closes it (its own
+  // Esc closes the photo code check. Standalone: the handler closes it (its own
   // Modal's Escape does the same — closing twice is a no-op). Embedded: listed
   // at priority 1 WITHOUT a handler — the host Modal's Escape (keyup) is routed
   // to this sheet first by the host's onRequestClose, so one Esc never closes
   // both sheets.
   useHotkeys(
-    [{ combo: 'escape', handler: embedded ? undefined : onClose, priority: embedded ? 1 : 0, label: 'Close Code look' }],
+    [{ combo: 'escape', handler: embedded ? undefined : onClose, priority: embedded ? 1 : 0, label: 'Close photo code check' }],
     { scope: 'dialog', enabled: visible },
   );
 
@@ -143,7 +143,7 @@ export default function CodeLookSheet({
       setRun({ kind: 'done', result });
     } catch (e) {
       if (!alive.current || mine !== seq.current) return;
-      const message = e instanceof Error && e.message.trim() ? e.message.trim() : 'Code look failed.';
+      const message = e instanceof Error && e.message.trim() ? e.message.trim() : "Photo code check didn't finish. Try again.";
       setRun({ kind: 'error', message, code: edgeErrorCode(e) });
     }
   }, [canAI, photoUri, project, trade, checklist]);
@@ -218,7 +218,7 @@ export default function CodeLookSheet({
             <ClipboardCheck size={13} color={t.textSecondary} strokeWidth={1.75} />
             <Text style={s.actionText}>
               {addedTo
-                ? (prepFull[o.id] ? `Not added: ${addedTo}'s Code look list is full` : `Added to ${addedTo} prep on this device`)
+                ? (prepFull[o.id] ? `Not added: ${addedTo}'s photo code check list is full` : `Added to ${addedTo} prep on this device`)
                 : prepBlocked
                   ? `No inspection in the next ${PREP_WINDOW_DAYS} days to add it to`
                   : 'Add to inspection prep'}
@@ -236,7 +236,7 @@ export default function CodeLookSheet({
     >
       <View style={s.header}>
         <View style={s.headerBody}>
-          <Text style={s.sheetHeading}>Code look</Text>
+          <Text style={s.sheetHeading}>Photo code check</Text>
           <Text style={s.disclaimer} testID="codelook-disclaimer">{CODE_LOOK_DISCLAIMER}</Text>
           <Text style={s.groundingChip}>{grounding.chipLabel}</Text>
         </View>

@@ -105,6 +105,15 @@ import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/Pr
 import type { DriftAtSend } from '@/utils/priceDriftGate';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
+// Tutorials (contract-from-estimate) + the sample outbound fence: see the
+// header of utils/tutorial/learn/laneD.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { tutorialSignal, useTutorialPractice, useTutorialSandboxId, useTutorialStepActive } from '@/utils/tutorial/store';
+import { contractTermsSource, contractTimelinePayload } from '@/utils/tutorial/learn/fixturesD';
+import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { NyContractChecklist, askNyMissingItems } from '@/components/contract/NyContractChecklist';
+import { nyMissingBeforeSign } from '@/utils/nyHomeImprovement';
 
 // Pipeline shown at the top of every saved contract. Void is omitted
 // from the visual (user can still set status=void via the existing UI);
@@ -206,10 +215,18 @@ function wasSignedElsewhere(outcome: RecordSignatureOutcome): boolean {
 // auto-creates selection categories) yet couldn't create the invoice to bill
 // against it. `client_portal` is the closest Pro FeatureKey and matches the
 // product bible, where client-portal / contract is a Pro feature.
+//
+// The practice pass (utils/tutorial/practicePass): while a tutorial that
+// practises contracts runs, a Free user may open this screen on its SAMPLE job
+// only — keyed to the URL's projectId, and the inner screen refuses any other
+// project (a pick, a stale id). Client-side monetisation, not security.
 export default function ContractScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
-  if (!canAccess('client_portal')) {
+  const { projectId: practiceParam } = useLocalSearchParams<{ projectId?: string }>();
+  const practice = useTutorialPractice(practiceParam || undefined);
+  const paid = canAccess('client_portal');
+  if (!paid && !practice.has('client_portal')) {
     return (
       <Paywall
         visible={true}
@@ -219,10 +236,16 @@ export default function ContractScreen() {
       />
     );
   }
-  return <ContractScreenInner />;
+  return <ContractScreenInner practiceProjectId={paid ? undefined : practiceParam} />;
 }
 
-function ContractScreenInner() {
+/** The tutorial wrapper only while a run is live on this job: off, it renders
+ *  its children with no host View of its own, so the tree is unchanged. */
+function TutorialWrap({ on, wrap, children }: { on: boolean; wrap: React.ReactElement; children: React.ReactNode }) {
+  return on ? React.cloneElement(wrap, undefined, children) : <>{children}</>;
+}
+
+function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -328,6 +351,40 @@ function ContractScreenInner() {
   // these prices" / "Keep these prices".
   const [driftAsk, setDriftAsk] = useState(false);
   const [driftNote, setDriftNote] = useState<string | null>(null);
+  // NYCHECK: the New York checklist warns once per contract id (never blocks).
+  const nyAckRef = useRef<string | null>(null);
+  const signPressRef = useRef<() => void>(() => {});
+  const [nyReveal, setNyReveal] = useState(0);
+
+  // ── Tutorial (contract-from-estimate) + the sample fence ────────────────
+  // runOnThis: a tutorial run is live on THIS project — the only time the
+  // TutorialTargets, the scroll anchor and the blocker sentinel render (a real
+  // job renders byte-identical). sampleJob: the outbound fence
+  // (utils/sampleGuard) — Sign & send, Sign together and every delivery refuse
+  // on a sample, run or no run. Signals read refs so the existing callbacks
+  // keep their dependency lists.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const sampleJob = isSampleProject(project);
+  const sampleJobRef = useRef(sampleJob);
+  sampleJobRef.current = sampleJob;
+  const contractTutorialRef = useRef({ runOnThis, termsSource: termsSource as string | null });
+  contractTutorialRef.current = { runOnThis, termsSource };
+  const contractScrollRef = useRef<ScrollView>(null);
+  // The timeline step: BOTH halves on the draft, debounced 600 ms. The screen
+  // has no timeline save of its own (Save draft writes it), so no stamp here.
+  // Only while that step is the live one: a draft that already carries a
+  // timeline (a replay) completes it when the coach gets there, and never
+  // skips the look step before it.
+  const timelineStepLive = useTutorialStepActive('contract-timeline');
+  const timelineSig = runOnThis && timelineStepLive ? contractTimelinePayload(contract?.startDate, contract?.durationDays) : null;
+  const timelineKey = timelineSig ? `${timelineSig.startDate}|${timelineSig.durationDays}` : '';
+  useEffect(() => {
+    if (!timelineKey || !projectId) return;
+    const [startDate, days] = timelineKey.split('|');
+    const timer = setTimeout(() => tutorialSignal('contract.timeline.set', { projectId, startDate, durationDays: Number(days) }), 600);
+    return () => clearTimeout(timer);
+  }, [timelineKey, projectId]);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
@@ -738,6 +795,18 @@ function ContractScreenInner() {
       const saved = await saveContractDetailed({ ...c, id: c.id || undefined });
       if (saved.ok) {
         setContract(saved.contract);
+        // Tutorial success point: the draft is WRITTEN, with a payment
+        // schedule on it. Everything in the payload is the saved row's.
+        const tut = contractTutorialRef.current;
+        const row = saved.contract;
+        if (tut.runOnThis && row.paymentSchedule.length > 0) {
+          tutorialSignal('contract.terms.set', {
+            projectId: row.projectId,
+            source: contractTermsSource(tut.termsSource),
+            warrantySet: !hasWarrantyPlaceholder(row.warrantyText),
+            ...(contractTimelinePayload(row.startDate, row.durationDays) ?? {}),
+          });
+        }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else if (saved.reason === 'duplicate') {
         adoptExistingContract(saved.existing);
@@ -849,6 +918,10 @@ function ContractScreenInner() {
   const handleSignPress = useCallback(() => {
     const c = contractRef.current;
     if (!c) return;
+    // Sample fence (utils/sampleGuard): Sign & send emails the client and Sign
+    // together posts to the portal — neither ever goes out from a sample, run
+    // or no run, so nothing below opens on one.
+    if (sampleJobRef.current) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
     // THE LOCK IS THE FIRST QUESTION, not a footnote inside the missing-terms
     // branch (review round 6). The action row renders on status 'draft', but a
     // draft that already carries his signature is locked like a sent one —
@@ -867,6 +940,15 @@ function ContractScreenInner() {
     const needsWarranty = hasWarrantyPlaceholder(c.warrantyText);
     if (needsTerms || needsWarranty) {
       askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
+      return;
+    }
+    // NYCHECK: after the lock and the terms ask, before the drift card and the mode.
+    const nyMissing = nyMissingBeforeSign({ project: projectRef.current, contract: c, branding: settingsRef.current?.branding });
+    if (nyMissing > 0 && nyAckRef.current !== c.id) {
+      askNyMissingItems(nyMissing, {
+        onReview: () => { pendingSignModeRef.current = 'send'; setNyReveal((n) => n + 1); },
+        onContinue: () => { nyAckRef.current = c.id; signPressRef.current(); },
+      });
       return;
     }
     // T2: a newer receipt of his contradicts a price on this job's estimate.
@@ -906,6 +988,7 @@ function ContractScreenInner() {
     setReviewBeforeSigning(false);
     setSignatureModal(true);
   }, [askContractTerms]);
+  signPressRef.current = handleSignPress;
 
   // C1: "Sign together now" — the same press, with the in-person mode queued.
   const handleSignTogetherPress = useCallback(() => {
@@ -1012,6 +1095,8 @@ function ContractScreenInner() {
     moment.fold.body = signingCopy.contractNotSentEmailFailed();
     moment.sentAnnounce = signingCopy.contractNotSentTitle();
     if (!contract) return { status: 'refused', reason: signingCopy.contractRefused() };
+    // Last line of the sample fence: a press that reached the pad anyway.
+    if (sampleJobRef.current) return { status: 'refused', reason: SAMPLE_DOC_NOT_SENT };
     // Last check, behind handleSignPress (which opens the sheet only with
     // terms and a warranty): the sheet shows these as the reason instead of
     // the line, and a write that still reaches here refuses with the same words.
@@ -1245,6 +1330,7 @@ function ContractScreenInner() {
     const c = contractRef.current;
     const p = projectOverride ?? projectRef.current;
     if (!c?.id || !p || c.status !== 'sent') return;
+    if (isSampleProject(p)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
     const state = portalDeliveryState(p, user?.id ?? null);
     if (state === 'collaborator') {
       showAlert('Only the project owner can send this', 'The client portal\'s signing link belongs to the account that owns this project.');
@@ -1279,6 +1365,7 @@ function ContractScreenInner() {
   }, [emailContractLink, user?.id]);
 
   const copyContractLink = useCallback(async () => {
+    if (isSampleProject(projectRef.current)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
     const url = portalShareUrl(projectRef.current?.clientPortal);
     if (!url) {
       showAlert('No signing link yet', 'This project\'s client portal has no signing link yet. Open the client portal once to finish it, then copy the link here.');
@@ -1308,6 +1395,7 @@ function ContractScreenInner() {
     const ask = deliveryAsk;
     const p = projectRef.current;
     if (!ask || !p) return;
+    if (isSampleProject(p)) { setDeliveryAsk(null); showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
     // 'no_signing_key': the ask is a wait with a Retry — nothing to type.
     if (ask.state === 'no_signing_key') {
       const now = portalDeliveryState(p, user?.id ?? null);
@@ -1684,6 +1772,11 @@ function ContractScreenInner() {
     }
   }, [contract, user?.id]);
 
+  // The practice pass opened this screen for the sample ONLY: a pick or a
+  // stale id that lands anywhere else needs his own plan.
+  if (practiceProjectId && project?.id !== practiceProjectId) {
+    return <Paywall visible={true} feature="Contracts" requiredTier="pro" onClose={() => router.back()} />;
+  }
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
@@ -1804,9 +1897,11 @@ function ContractScreenInner() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.back" />}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
+        </TutorialWrap>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
           <Text style={styles.title}>Construction agreement</Text>
@@ -1815,6 +1910,7 @@ function ContractScreenInner() {
       </View>
 
       <ScrollView
+        ref={contractScrollRef}
         {...fabScroll}
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         // Pull to re-read a sent/signed contract (#119) — the homeowner can
@@ -1824,6 +1920,7 @@ function ContractScreenInner() {
           ? <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor={themeColors.accent} />
           : undefined}
       >
+        <MaybeScrollAnchor on={runOnThis} scrollRef={contractScrollRef}>
         {/* Centered icon-circle hero — matches the AI-feature screens
             (Construction AI, AI Punch, Payment Predictions) so the
             contract screen reads as part of the same design language. */}
@@ -1848,6 +1945,7 @@ function ContractScreenInner() {
         )}
 
         {/* Title + value */}
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.sum" />}>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Contract title</Text>
           <TextInput
@@ -1911,12 +2009,14 @@ function ContractScreenInner() {
             </View>
           )}
         </View>
+        </TutorialWrap>
 
         {/* Timeline — CONTRACT-TIME-1. Several states require a start date and
             a completion date on a residential contract, and clause 7 binds a
             change of timeline to a written Change Order for a timeline the
             document did not state. Calendar days, because that is what
             "substantial completion within N days" means to a homeowner. */}
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.timeline" />}>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Timeline</Text>
           <Text style={styles.cardHelper}>
@@ -1997,6 +2097,7 @@ function ContractScreenInner() {
             </TouchableOpacity>
           ) : null}
         </View>
+        </TutorialWrap>
 
         {/* Scope */}
         <View style={styles.card}>
@@ -2033,6 +2134,7 @@ function ContractScreenInner() {
           </View>
 
           {!isLocked && scheduleEmpty && (
+            <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.paymentTerms" />}>
             <View style={styles.termsNotice} testID="contract-terms-not-set">
               <Text style={styles.termsNoticeTitle}>Payment schedule — not set yet</Text>
               <Text style={styles.termsNoticeBody}>
@@ -2047,6 +2149,7 @@ function ContractScreenInner() {
                 <Text style={styles.termsNoticeBtnText}>Set your payment terms</Text>
               </TouchableOpacity>
             </View>
+            </TutorialWrap>
           )}
 
           {/* THE ROWS DECIDE, NOT THE SESSION (review round 6). Only while the
@@ -2280,6 +2383,7 @@ function ContractScreenInner() {
         </View>
 
         {/* Warranty */}
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.warranty" />}>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Warranty</Text>
           {!isLocked && warrantyNotSet && (
@@ -2336,6 +2440,7 @@ function ContractScreenInner() {
             textAlignVertical="top"
           />
         </View>
+        </TutorialWrap>
 
         {/* Signatures */}
         {(contract.gcSignature || contract.homeownerSignature) && (
@@ -2360,17 +2465,25 @@ function ContractScreenInner() {
             it did nothing: see reviewBeforeSigning for why this is a notice on
             the page and not a second toast. */}
         {reviewBeforeSigning && contract.status === 'draft' && (
+          <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.reviewNotice" />}>
           <View style={styles.termsNotice} testID="contract-review-before-signing">
             <Text style={styles.termsNoticeTitle}>Your terms are on this contract</Text>
             <Text style={styles.termsNoticeBody}>
               Review it — the payment schedule and warranty above — then tap Sign &amp; send.
             </Text>
           </View>
+          </TutorialWrap>
+        )}
+
+        {contract.status === 'draft' && (
+          <NyContractChecklist project={project} contract={contract} branding={settings?.branding} revealSignal={nyReveal}
+            scrollRef={contractScrollRef} onOpenProfile={() => router.push('/company-profile')} testID="contract-ny-checklist" />
         )}
 
         {/* Action bar */}
         {contract.status === 'draft' && (
           <ActionBar style={styles.actionRow} width="form">
+            <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.saveDraft" style={{ flex: 1 }} />}>
             <Button
               label="Save draft"
               onPress={handleSaveDraft}
@@ -2379,6 +2492,11 @@ function ContractScreenInner() {
               iconLeft={<Edit3 size={14} color={themeColors.text} strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
+            </TutorialWrap>
+            {/* Sign & send stays pressable on a sample (its disabled rule is
+                pinned by validate-money-definitions): the press refuses with
+                SAMPLE_DOC_NOT_SENT, which also prints under this row. */}
+            <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.sign" style={{ flex: 1 }} />}>
             <Button
               label="Sign & send"
               onPress={handleSignPress}
@@ -2386,6 +2504,7 @@ function ContractScreenInner() {
               iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
+            </TutorialWrap>
           </ActionBar>
         )}
         {/* C1: the homeowner is at the kitchen table — both sign on this
@@ -2395,11 +2514,14 @@ function ContractScreenInner() {
             label="Sign together now"
             variant="secondary"
             onPress={handleSignTogetherPress}
-            disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving}
+            disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving || sampleJob}
             iconLeft={<FileSignature size={14} color={themeColors.text} strokeWidth={1.75} />}
             style={{ marginTop: 10 }}
             testID="contract-sign-together"
           />
+        )}
+        {contract.status === 'draft' && sampleJob && (
+          <Text style={[styles.cardHelper, { marginTop: 8 }]} testID="contract-sample-note">{SAMPLE_DOC_NOT_SENT}</Text>
         )}
 
         {/* C1: "Sent to the homeowner" only when THIS device saw the email
@@ -2548,6 +2670,7 @@ function ContractScreenInner() {
             </TouchableOpacity>
           </>
         )}
+        </MaybeScrollAnchor>
       </ScrollView>
 
       {/* "Ask when it matters" — rendered once. Opened only by a press. */}
@@ -2684,8 +2807,22 @@ function ContractScreenInner() {
           setStartDatePicker(false);
         }}
       />
+      {/* Tutorial blocker sentinel: while any of this screen's layer-less
+          sheets is up (they draw above the root coach layer on iOS), the coach
+          draws nothing. Only while a run is live on this job. */}
+      {runOnThis && (
+        gate.sheet.visible || signatureModal || recordModal || !!deliveryAsk || startDatePicker
+      ) ? <TutorialTarget id="contract.modalUp" /> : null}
     </View>
   );
+}
+
+/** The scroll anchor only during a tutorial run (a composite with no host
+ *  View of its own when off, so the tree is unchanged). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────

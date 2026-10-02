@@ -942,6 +942,10 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       'marketing/architect/index.html', 'marketing/bid-invite/index.html',
       'marketing/lien-waiver/index.html', 'marketing/preferences/index.html',
       'marketing/unsubscribe/index.html',
+      // LEARNCERT: the app-skills certificate check (/skills/<code>) is a
+      // token surface like lien-waiver: noindex, the check code in its path,
+      // no analytics, and nothing to navigate to from it.
+      'marketing/skills/index.html',
       'marketing/portal/index.html', 'marketing/sub-portal/index.html',
     ];
     const NAVLESS_KNOWN_GAP = ['marketing/builders/index.html', 'marketing/costs/index.html'];

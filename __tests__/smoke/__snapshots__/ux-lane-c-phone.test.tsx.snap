@@ -16,8 +16,8 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (b) /change-order, a new C
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (c) /estimate-wizard for a job that already has an estimate 1`] = `
 {
-  "lines": 433,
-  "sha256": "fb4a0d97f0d3b54bf9c133612b2a50daec4cc08fb0ec27ad8c1949ddcb6c1891",
+  "lines": 430,
+  "sha256": "fa9e4e0ee3c647c5bafaaa59dcc023dd7cb9087c24ebb56814f56ae961df8e6e",
 }
 `;
 
@@ -38,21 +38,21 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (e) /quick-quote 1`] = `
 exports[`Lane C golden — the phone (390 × 844 iOS) (f) /invoice, an overdue sent invoice 1`] = `
 {
   "lines": 989,
-  "sha256": "27c447d51ee875666728024c7bf3a16bd1c9c251ec6ecc4469e95c890dcc9141",
+  "sha256": "d4a645be699d324d2a7dd75008f1bdd9ab2795d2dc7b708cce9c52a10a64fdad",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (g) /invoice, a paid invoice 1`] = `
 {
   "lines": 924,
-  "sha256": "ab44876313410767dc27b37de560a83b04230dac66f03a2c091cb889a24fa7fc",
+  "sha256": "4a45ef78d82610982e8343bf7ab46fd37e3546d85c114592b3666b176e48bc89",
 }
 `;
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (h) /invoice, a new invoice on the fixture job 1`] = `
 {
   "lines": 1021,
-  "sha256": "351569a0558f169dc9d9bec6a159a840dfc02deac54aa6d54663eacf452678f5",
+  "sha256": "fbbd534fa958de53f1d60aa54cba4593214b016486dd7a949b54e6cb2d91e506",
 }
 `;
 

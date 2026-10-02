@@ -102,4 +102,7 @@ export const ES_COMMON: EsCatalog = {
   "common.moment.signHere": { s: "Firma aquí", src: "38e18e3a" },
   "common.moment.signedEmailNotSent": { s: "Firmado. El correo no se envió.", src: "5794ea34" },
   "common.moment.signing": { s: "Firmando…", src: "c5b93276" },
+  "common.moment.lineSign": { s: "Firma sobre la línea", src: "12594644" },
+  "common.moment.lineName": { s: "Escribe tu nombre legal completo", src: "9006fcdb" },
+  "common.moment.lineConsent": { s: "Marca la casilla de consentimiento", src: "2148da87" },
 };

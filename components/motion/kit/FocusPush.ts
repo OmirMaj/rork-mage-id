@@ -15,12 +15,18 @@
 //
 // Reduce Motion: the scroll jumps (animated: false) and the rule is simply
 // there. Web (desktop): the drawL keyframe after the same 320 ms.
+//
+// A vertical rule (lane KITFIX, KG3): `axis` is the SCROLL axis (default 'y',
+// shipped); the rule's own axis is `ruleAxis` — 'x' (default, shipped: scaleX
+// from the left, drawL) or 'y' (scaleY growing down from the top, drawT), for a
+// vertical line such as the Gantt's Today marker:
+//   useFocusPush(hScrollRef, { axis: 'x', ruleAxis: 'y' })
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, type ViewStyle } from 'react-native';
 import { motionCurve, nativeDriver, useReducedMotion } from '@/components/ui/motion';
 import type { KitRect } from '@/utils/motion/kit/focusGlide';
-import { planFocusPush, stepFor } from '@/utils/motion/kit/plans';
+import { planFocusPush, ruleDraw, stepFor, type RuleAxis } from '@/utils/motion/kit/plans';
 import { plateauEase, plateauFraction } from '@/utils/motion/kit/stagger';
 import { kitWebStyle } from './css/kitCss';
 
@@ -34,7 +40,16 @@ export type FocusPush = ((key: string, rect: KitRect) => ViewStyle | null) & {
   activeKey: string | null;
 };
 
-export function useFocusPush(scrollRef: { current: Scrollable | null }, opts: { axis?: 'x' | 'y'; inset?: number } = {}): FocusPush {
+export type FocusPushOptions = {
+  /** The scroll axis (default 'y'). */
+  axis?: 'x' | 'y';
+  /** How far before the item the scroll stops (default 16). */
+  inset?: number;
+  /** The rule's own axis: 'x' draws horizontally from the left (default), 'y' vertically from the top. */
+  ruleAxis?: RuleAxis;
+};
+
+export function useFocusPush(scrollRef: { current: Scrollable | null }, opts: FocusPushOptions = {}): FocusPush {
   const reduce = useReducedMotion();
   const web = Platform.OS === 'web';
   const [active, setActive] = useState<{ key: string; at: number } | null>(null);
@@ -44,8 +59,10 @@ export function useFocusPush(scrollRef: { current: Scrollable | null }, opts: { 
   const done = useRef(true);
   const axis = opts.axis ?? 'y';
   const inset = opts.inset ?? 16;
+  const ruleAxis: RuleAxis = opts.ruleAxis === 'y' ? 'y' : 'x';
+  const draw = ruleDraw(ruleAxis);
 
-  const plan = planFocusPush(reduce);
+  const plan = planFocusPush(reduce, ruleAxis);
   const rule = stepFor(plan, 'rule');
   const waitMs = rule?.delayMs ?? 0;
   const drawMs = rule?.durationMs ?? 0;
@@ -84,16 +101,19 @@ export function useFocusPush(scrollRef: { current: Scrollable | null }, opts: { 
     a.start(({ finished }) => { if (finished) done.current = true; });
   }, [drawMs, reduce, v, web]);
 
-  const nativeRule = useMemo(() => ({ transform: [{ scaleX: v }], transformOrigin: 'left' } as unknown as ViewStyle), [v]);
+  const nativeRule = useMemo(
+    () => ({ transform: [draw.scaleKey === 'scaleY' ? { scaleY: v } : { scaleX: v }], transformOrigin: draw.origin } as unknown as ViewStyle),
+    [v, draw.scaleKey, draw.origin],
+  );
 
   const styleFor = useCallback((key: string): ViewStyle | null => {
     if (!active || active.key !== key || reduce) return null;
     if (web) {
       if (Date.now() - active.at >= waitMs + drawMs) return null;
-      return kitWebStyle('drawL', waitMs);
+      return kitWebStyle(draw.web, waitMs);
     }
     return done.current ? null : nativeRule;
-  }, [active, reduce, web, waitMs, drawMs, nativeRule]);
+  }, [active, reduce, web, waitMs, drawMs, nativeRule, draw.web]);
 
   return useMemo(() => Object.assign((key: string, rect: KitRect) => {
     push(key, rect);

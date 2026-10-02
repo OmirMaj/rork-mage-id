@@ -145,7 +145,7 @@ serve(async (req: Request) => {
     return json({
       success: false,
       error: planScope && planScope.role !== "owner"
-        ? ownerPlanRefusal("Ask Your Plans", "pro")
+        ? ownerPlanRefusal("Ask your plans", "pro")
         : `This feature requires pro or business or enterprise or higher. You're currently on ${meter.tier}.`,
       code: "tier_required",
     }, 403);

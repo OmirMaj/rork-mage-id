@@ -13,6 +13,18 @@
 // items[i].render receives the card's entrance style for an Animated.View it
 // renders (null at rest). Reduce Motion: the cards fade in together over
 // 100 ms and the counter shows the total at once.
+//
+// In a grid (lane KITFIX, KG2). A desktop TileGrid sizes its DIRECT children
+// (it clones each with the column width), so a wrapper View would take one
+// column and squeeze every card into it. Two wrapper-free ways in:
+//   • useAccumulate({ items, armed, format }) → { cards, total, badge }: the
+//     cards are elements to put straight into the grid (each one forwards the
+//     `style` the grid clones onto it to the node its render() returns), and
+//     the total / badge go wherever the screen wants them;
+//   • <AccumulateCards asChild …>: the same parts as siblings in the CALLER's
+//     layout (no wrapper View); `style` then goes onto every card, not a wrapper.
+// Without asChild the tree is the shipped one: one View (testID, style) around
+// the cards, the total and the badge.
 
 import React from 'react';
 import { Animated, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
@@ -37,15 +49,27 @@ export type AccumulateCardsProps = {
   renderTotal: (rollNode: React.ReactNode) => React.ReactNode;
   badge?: React.ReactNode;
   totalStyle?: StyleProp<TextStyle>;
+  /** The wrapper's style; with asChild, every card's (there is no wrapper). */
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** No wrapper View: the cards, the total and the badge join the caller's own layout. */
+  asChild?: boolean;
 };
 
-function Card({ item, index, armed, n }: { item: AccumulateItem; index: number; armed: boolean; n: number }) {
+type CardProps = { item: AccumulateItem; index: number; armed: boolean; n: number; style?: StyleProp<ViewStyle> };
+
+/** Lay `style` (a grid's column width) onto the card's own node, after the node's own style. */
+export function withLayout(node: React.ReactNode, style: StyleProp<ViewStyle> | undefined): React.ReactNode {
+  if (style == null || !React.isValidElement(node)) return node;
+  const own = (node.props as { style?: StyleProp<ViewStyle> }).style;
+  return React.cloneElement(node as React.ReactElement<{ style?: StyleProp<ViewStyle> }>, { style: own == null ? style : [own, style] });
+}
+
+function Card({ item, index, armed, n, style: layout }: CardProps) {
   const reduce = useReducedMotion();
   const s = stepFor(planAccumulateCards(reduce, n, false), `card-${index}`);
   const style = useEntrance(armed && !!s, s ? { ...entranceOf(s), web: 'rise8' } : { fadeMs: 0 }, { desktopWebOnly: true });
-  return <>{item.render(style)}</>;
+  return <>{withLayout(item.render(style), layout)}</>;
 }
 
 function Badge({ armed, n, children }: { armed: boolean; n: number; children: React.ReactNode }) {
@@ -55,17 +79,55 @@ function Badge({ armed, n, children }: { armed: boolean; n: number; children: Re
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
-export function AccumulateCards({ items, armed, format, renderTotal, badge, totalStyle, style, testID }: AccumulateCardsProps) {
+export type UseAccumulateArgs = {
+  items: readonly AccumulateItem[];
+  armed: boolean;
+  format: (cents: number) => string;
+  badge?: React.ReactNode;
+  totalStyle?: StyleProp<TextStyle>;
+  /** Laid onto every card's node (a grid's own clone does the same). */
+  cardStyle?: StyleProp<ViewStyle>;
+};
+
+/**
+ * The accumulate pattern with NO container: `cards` go straight into the
+ * caller's grid / row (a TileGrid's clone style reaches each card's node),
+ * `total` is the CountRoll stepping through the real partial sums, `badge` the
+ * closing badge (null without one). Same numbers, same plan as AccumulateCards.
+ */
+export function useAccumulate({ items, armed, format, badge, totalStyle, cardStyle }: UseAccumulateArgs): {
+  cards: React.ReactElement[];
+  total: React.ReactNode;
+  badge: React.ReactNode | null;
+} {
   const reduce = useReducedMotion();
   const n = items.length;
   const plan = planAccumulateCards(reduce, n, !!badge);
   const sums = partialSums(items.map((i) => i.cents));
   const times = reduce ? undefined : stepSchedule(shownSteps(sums).length);
+  return {
+    cards: items.map((it, i) => <Card key={it.key} item={it} index={i} armed={armed} n={n} style={cardStyle} />),
+    total: <CountRoll steps={sums} format={format} armed={armed && plan.steps.length > 0} stepTimes={times} style={totalStyle} />,
+    badge: badge ? <Badge armed={armed} n={n}>{badge}</Badge> : null,
+  };
+}
+
+export function AccumulateCards({ items, armed, format, renderTotal, badge, totalStyle, style, testID, asChild }: AccumulateCardsProps) {
+  const parts = useAccumulate({ items, armed, format, badge, totalStyle, cardStyle: asChild ? style : undefined });
+  if (asChild) {
+    return (
+      <>
+        {parts.cards}
+        {renderTotal(parts.total)}
+        {parts.badge}
+      </>
+    );
+  }
   return (
     <View testID={testID} style={style}>
-      {items.map((it, i) => <Card key={it.key} item={it} index={i} armed={armed} n={n} />)}
-      {renderTotal(<CountRoll steps={sums} format={format} armed={armed && plan.steps.length > 0} stepTimes={times} style={totalStyle} />)}
-      {badge ? <Badge armed={armed} n={n}>{badge}</Badge> : null}
+      {parts.cards}
+      {renderTotal(parts.total)}
+      {parts.badge}
     </View>
   );
 }

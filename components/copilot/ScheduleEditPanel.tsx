@@ -7,10 +7,14 @@ import CopilotShell from '@/components/copilot/CopilotShell';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { ScheduleTask } from '@/types';
-import type { RunCpmOptions } from '@/utils/cpm';
+import { runCpm, type RunCpmOptions } from '@/utils/cpm';
 import { commitRefused, type CommitOutcome, type CopilotContext } from '@/utils/copilot/types';
 import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+// Tutorials (schedule-say-it): see the header of utils/tutorial/learn/laneC.ts.
+import { TutorialLayer } from '@/components/tutorial/TutorialLayer';
+import { tutorialSignal, useTutorialSandboxId } from '@/utils/tutorial/store';
+import { scheduleAppliedPayload } from '@/utils/tutorial/defs/scheduleSayIt';
 
 /** What a structural undo compares: the shape of the plan, not the start days
  *  a host reflows after the commit (the classic tab writes CPM starts back),
@@ -54,12 +58,22 @@ export default function ScheduleEditPanel({
   const projectsCtx = useProjects() as any;
   const { tier } = useSubscription();
   const project = projectsCtx.getProject?.(projectId) ?? null;
+  // A tutorial run is live on THIS project: only then is the scheduleEdit
+  // layer mounted and the applied signal sent (a real job is unchanged).
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!projectId && tutorialSandboxId === projectId;
+  const runOnThisRef = useRef(runOnThis);
+  runOnThisRef.current = runOnThis;
 
   // Snapshot the plan the Apply replaced, so the "what landed" card can undo
   // it through the host's own commit (the same undo-safe path as any edit).
   const beforeRef = useRef<ScheduleTask[] | null>(null);
   const afterRef = useRef<ScheduleTask[] | null>(null);
   const commitWithSnapshot = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
+    // Cleared first, so the snapshot (and the tutorial signal below) can only
+    // ever describe THIS commit's producer run.
+    beforeRef.current = null;
+    afterRef.current = null;
     const wrote = commit(prev => {
       const next = producer(prev);
       beforeRef.current = prev;
@@ -68,8 +82,18 @@ export default function ScheduleEditPanel({
     });
     // A refused write leaves nothing to undo.
     if (commitRefused(wrote)) { beforeRef.current = null; afterRef.current = null; }
+    // Tutorial success point: AFTER the host's commit reported success — a
+    // refused CommitOutcome sends nothing and the step stays.
+    else if (runOnThisRef.current && beforeRef.current && afterRef.current) {
+      const before = beforeRef.current;
+      const after = afterRef.current;
+      tutorialSignal('schedule.edit.applied', {
+        projectId,
+        ...scheduleAppliedPayload(before, after, runCpm(before, cpmOptions).projectFinish, runCpm(after, cpmOptions).projectFinish),
+      });
+    }
     return wrote;
-  }, [commit]);
+  }, [commit, projectId, cpmOptions]);
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
   const undo = useCallback((): { ok: boolean; message: string } => {
@@ -123,6 +147,7 @@ export default function ScheduleEditPanel({
           onUndo={undo}
           autoSubmitSeed={autoSubmitSeed}
         />
+        {runOnThis ? <TutorialLayer host="scheduleEdit" /> : null}
       </View>
     );
   }
@@ -140,6 +165,9 @@ export default function ScheduleEditPanel({
             onUndo={undo}
           />
         </View>
+        {/* The coach for the editor's steps draws INSIDE this modal (iOS
+            draws an RN Modal above the root layer). Run on this job only. */}
+        {runOnThis ? <TutorialLayer host="scheduleEdit" /> : null}
       </KeyboardAvoidingView>
     </Modal>
   );

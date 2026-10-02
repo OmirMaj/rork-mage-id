@@ -30,7 +30,7 @@
 // accidentally check things off, and the checklist auto-clears when
 // 4 of 5 are real.
 
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -42,7 +42,7 @@ import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -56,6 +56,9 @@ import { isFieldOnlyUser } from '@/utils/tutorial/sandboxCore';
 import { useTutorialProgress } from '@/utils/tutorial/progress';
 import { startTutorial } from '@/utils/tutorial/store';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { nativeDriver, useReducedMotion } from '@/components/ui/motion';
+import { useCheckBeat } from '@/components/motion/kit';
+import { beatSchedule } from '@/utils/motion/kit';
 
 const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v2';
 /** Hide the panel automatically when at least this many items are done.
@@ -111,6 +114,19 @@ interface ChecklistItem {
   /** The pending row is waiting on a check that is still running (a11y busy);
    *  false for a check that has given up. */
   pendingBusy?: boolean;
+  /** The app KNOWS this step's state (its data has loaded). A step only ticks
+   *  if it was once seen known-and-not-done: a load that lands "done" (the
+   *  project list hydrating, Stripe answering) is not something he just did. */
+  known: boolean;
+}
+
+/** The check that lands when a step he just did is seen done (lane
+ *  MOTIONADOPT-B, B1). `live` comes from the ticks state below; keyed by the
+ *  host, so each real completion mounts a fresh glyph and arms it once. At
+ *  rest the wrapper's style is null. */
+function DoneGlyph({ live, delayMs, color }: { live: boolean; delayMs: number; color: string }) {
+  const beat = useCheckBeat('done', delayMs, live);
+  return <Animated.View style={beat}><CheckCircle2 size={18} color={color} strokeWidth={1.75} /></Animated.View>;
 }
 
 function OnboardingChecklistImpl({
@@ -123,7 +139,7 @@ function OnboardingChecklistImpl({
   // Learn-by-doing: 'Show me first' under the Try-it and first-invoice rows
   // practises the step on a sample job. It NEVER ticks the row — the ticks
   // stay real-state only (practising is not doing).
-  const { projects, userRole } = useProjects();
+  const { projects, userRole, projectsLoaded, settingsLoaded, invoicesLoaded } = useProjects();
   const { user } = useAuth();
   const { canAccess } = useTierAccess();
   const { progress: tutorialProgress } = useTutorialProgress();
@@ -169,7 +185,7 @@ function OnboardingChecklistImpl({
         toValue: 1,
         duration: 320,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: nativeDriver,
       }).start();
     }
   }, [dismissed, enter]);
@@ -180,6 +196,7 @@ function OnboardingChecklistImpl({
       title: 'Try it: voice capture or an AI estimate',
       done: triedWowFeature || estimateCount > 0,
       Icon: Mic,
+      known: projectsLoaded,
       href: '/estimate-wizard',
       cta: 'Try it free',
       // Named precisely, because this row offers TWO metered things and only
@@ -194,6 +211,7 @@ function OnboardingChecklistImpl({
       title: 'Create your first project',
       done: projectCount > 0,
       Icon: FolderPlus,
+      known: projectsLoaded,
       href: '/?openCreate=1',
       cta: 'Add a project',
     },
@@ -202,6 +220,7 @@ function OnboardingChecklistImpl({
       title: 'Add your company info',
       done: companyInfoDone,
       Icon: Building2,
+      known: settingsLoaded,
       href: '/company-profile',
       cta: 'Add info',
     },
@@ -210,6 +229,9 @@ function OnboardingChecklistImpl({
       title: 'Connect Stripe to get paid',
       done: stripeConnected === true,
       Icon: Wallet,
+      // Only a real "not connected" answer: unknown → connected is the check
+      // answering, not him connecting.
+      known: stripeConnected === false,
       href: '/payments-setup',
       cta: 'Connect',
       pendingLabel: stripeConnected === undefined
@@ -225,6 +247,7 @@ function OnboardingChecklistImpl({
       // contradiction — seeded sample invoices used to produce exactly that.
       done: invoiceCount > 0 && projectCount > 0,
       Icon: Receipt,
+      known: projectsLoaded && invoicesLoaded,
       href: '/invoice?new=1',
       cta: 'New invoice',
       // Invoices live inside a project — /invoice renders "No projects yet" for
@@ -232,7 +255,36 @@ function OnboardingChecklistImpl({
       // that lands on that is a step which cannot be done in the order given.
       heldReason: projectCount === 0 ? 'after your first project' : undefined,
     },
-  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, stripeCheckFailed, invoiceCount, freeEstimatesLeft]);
+  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, stripeCheckFailed, invoiceCount, freeEstimatesLeft, projectsLoaded, settingsLoaded, invoicesLoaded]);
+
+  // Seen-on-focus (B1): a step ticks when Home is on screen and sees it done
+  // for the first time — he comes back from creating his first project or
+  // connecting Stripe, or finishes it in a sheet over Home. Read from the real
+  // props above, never a timer. Steps already done at mount never tick; a
+  // step seen done once never re-ticks; nothing ticks while Home is in the
+  // background (useFocusEffect runs only while focused). Several seen at once
+  // tick on the kit's beats (≥ 120 ms apart, 4 beats at most).
+  const reduce = useReducedMotion();
+  const seenDone = useRef<Set<string> | null>(null);
+  if (seenDone.current === null) seenDone.current = new Set(items.filter(i => i.done).map(i => i.key));
+  const seenOpen = useRef<Set<string>>(new Set());
+  const [ticks, setTicks] = useState<{ keys: string[]; gen: number }>({ keys: [], gen: 0 });
+  useFocusEffect(useCallback(() => {
+    const seen = seenDone.current;
+    if (!seen) return;
+    const fresh: string[] = [];
+    for (const item of items) {
+      if (!item.done) {
+        if (item.known) seenOpen.current.add(item.key);
+        continue;
+      }
+      if (seen.has(item.key)) continue;
+      seen.add(item.key);
+      if (seenOpen.current.has(item.key)) fresh.push(item.key);
+    }
+    if (fresh.length) setTicks(t => ({ keys: fresh, gen: t.gen + 1 }));
+  }, [items]));
+  const tickBeats = beatSchedule(ticks.keys.length, reduce);
 
   const doneCount = items.filter(i => i.done).length;
   const total = items.length;
@@ -244,7 +296,7 @@ function OnboardingChecklistImpl({
       toValue: 0,
       duration: 220,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start(async () => {
       try { await AsyncStorage.setItem(DISMISSED_KEY, '1'); } catch {}
       setDismissed(true);
@@ -355,7 +407,12 @@ function OnboardingChecklistImpl({
             >
               <View style={styles.itemLeft}>
                 {item.done ? (
-                  <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
+                  <DoneGlyph
+                    key={ticks.keys.includes(item.key) ? `t${ticks.gen}` : 'seen'}
+                    live={ticks.keys.includes(item.key)}
+                    delayMs={tickBeats[ticks.keys.indexOf(item.key)] ?? 0}
+                    color={colors.success}
+                  />
                 ) : (
                   <Circle size={18} color={colors.textMuted} strokeWidth={1.8} />
                 )}

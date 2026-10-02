@@ -116,6 +116,9 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'insurance-audit': 'form', 'tomorrow-lineup': 'form',
   'client-messages': 'form', 'messages': 'form', '+not-found': 'form',
   'tutorials': 'form',
+  // LEARN wave: the skills check is one question per screen, a single column.
+  'skills-check': 'form',
+  'skills-certificates': 'form',
 
   // ── reading 760 — long single-column text. No route takes it today:
   // construction-news was seeded here, but on desktop that screen lays its

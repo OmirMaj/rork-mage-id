@@ -3906,10 +3906,10 @@ function InvoiceInner() {
                   ref={paymentSlideRef}
                   label={paymentDecision.kind === 'confirm'
                     ? paySlideLabelOver(paymentAmountCents, paymentOverCents)
-                    : paySlideLabel(paymentAmountCents)}
+                    : paySlideLabel(paymentDecision.kind === 'refuse' ? null : paymentAmountCents)}
                   busyLabel={payBusy()}
-                  srLabel={paySrLabel(paymentAmountCents)}
-                  srConfirm={paySrConfirm(paymentAmountCents)}
+                  srLabel={paySrLabel(paymentDecision.kind === 'refuse' ? null : paymentAmountCents)}
+                  srConfirm={paySrConfirm(paymentDecision.kind === 'refuse' ? null : paymentAmountCents)}
                   onCommit={recordPayment}
                   writeOptions={paymentWriteOptions}
                   disabledReason={paymentDisabledReason}

@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal, Animated,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -93,6 +93,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { formatMoney } from '@/utils/formatters';
+import { AccumulateCards } from '@/components/motion/kit';
+import { breakdownSteps } from '@/utils/estimateBreakdownSteps';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 // Tutorials (estimate-first): the sample-job seam. See the header of
 // utils/tutorial/learn/laneA.ts — targets wrap only while a run is live on
@@ -386,6 +388,15 @@ function EstimateWizardScreenInner() {
   // `loading` off under a newer run. The fetch itself is not aborted (the
   // AbortController is internal to mageAI) — this is the stale-state check.
   const runRef = useRef(0);
+  // B2 (lane MOTIONADOPT-B): true only while a result that JUST arrived from
+  // a run (sample or AI) has not been shown yet — the Cost distribution card
+  // lays down and its "Line items" counter steps through the real running
+  // sums once. Cleared after the first commit that shows the summary, so a
+  // revisit, an edit or a result that arrives any other way stays static.
+  const summaryLiveRef = useRef(false);
+  useEffect(() => {
+    if (result && summaryLiveRef.current) summaryLiveRef.current = false;
+  });
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
   // How many free AI estimates are left, or null on a paid tier / unmetered.
   // Free gets TWO for life (utils/aiRateLimiterCore FEATURE_CONFIG
@@ -697,6 +708,7 @@ function EstimateWizardScreenInner() {
     runRef.current += 1; // orphan any run still in flight
     setGroundingUsed(EMPTY_GROUNDING);
     setContingencyRateUsed(null);
+    summaryLiveRef.current = true;
     setCostResult(data);
     setFixtureRun(true);
     setSampleSaved(false);
@@ -823,6 +835,7 @@ function EstimateWizardScreenInner() {
 
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setContingencyRateUsed(rateUsable ? rate : null);
+        summaryLiveRef.current = true;
         setCostResult(data);
         setFixtureRun(false);
 
@@ -1458,6 +1471,9 @@ function EstimateWizardScreenInner() {
         subtotal: items.reduce((s, li) => s + li.total, 0),
       }))
       .sort((a, b) => b.subtotal - a.subtotal);
+    // B2: the Cost distribution card in whole cents (rows + "Line items" total).
+    const breakdown = breakdownSteps(sortedCategories);
+    const breakdownTotalCents = breakdown.totalCents;
 
     // Estimate metadata for the in-app preview, mirroring what the PDF
     // generator stamps on the client-facing doc. The estimate # changes
@@ -1760,30 +1776,55 @@ function EstimateWizardScreenInner() {
             </View>
           )}
 
-          {/* Cost Distribution — same layout as the PDF, percentage bars. */}
+          {/* Cost Distribution — same layout as the PDF, percentage bars.
+              B2: the categories land biggest first and a "Line items" total
+              steps through their real running sums (whole cents) to land on
+              exactly the sum of the rows above it. Contingency, permits and
+              markup stay in the hero total. Keyed on the total: an edit that
+              changes it remounts the card static on the new figure. */}
           {result.total > 0 && sortedCategories.length > 0 ? (
             <View style={styles.breakdownCard}>
               <Text style={styles.breakdownTitle}>Cost distribution</Text>
-              {sortedCategories.map(({ cat, subtotal }, i) => {
-                const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
-                const barColor = breakdownColor(i);
-                return (
-                  <View key={i} style={styles.breakdownRow}>
-                    <View style={styles.breakdownHead}>
-                      <View style={styles.breakdownCatWrap}>
-                        <View style={[styles.breakdownDot, { backgroundColor: barColor }]} />
-                        <Text style={styles.breakdownCat}>{cat}</Text>
-                      </View>
-                      <Text style={styles.breakdownAmt}>
-                        {formatMoney(subtotal, 2)} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
-                      </Text>
-                    </View>
-                    <View style={styles.breakdownBar}>
-                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%`, backgroundColor: barColor }]} />
-                    </View>
+              <AccumulateCards
+                key={breakdownTotalCents}
+                testID="estimate-breakdown"
+                armed={summaryLiveRef.current}
+                format={(c) => formatMoney(c / 100, 2)}
+                totalStyle={styles.breakdownAmt}
+                items={breakdown.items.map(({ key, cents }, i) => ({
+                  key,
+                  cents,
+                  render: (enter) => {
+                    const subtotal = sortedCategories[i].subtotal;
+                    const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+                    const barColor = breakdownColor(i);
+                    return (
+                      // At most 8 rows move (MOTIONKIT E): the kit plans an
+                      // entrance for every card, so rows 9 and up sit still.
+                      <Animated.View style={[styles.breakdownRow, i < 8 ? enter : null]}>
+                        <View style={styles.breakdownHead}>
+                          <View style={styles.breakdownCatWrap}>
+                            <View style={[styles.breakdownDot, { backgroundColor: barColor }]} />
+                            <Text style={styles.breakdownCat}>{key}</Text>
+                          </View>
+                          <Text style={styles.breakdownAmt}>
+                            {formatMoney(cents / 100, 2)} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.breakdownBar}>
+                          <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%`, backgroundColor: barColor }]} />
+                        </View>
+                      </Animated.View>
+                    );
+                  },
+                }))}
+                renderTotal={(roll) => (
+                  <View style={styles.breakdownTotalRow} testID="estimate-breakdown-total">
+                    <Text style={styles.breakdownCat}>Line items</Text>
+                    {roll}
                   </View>
-                );
-              })}
+                )}
+              />
             </View>
           ) : null}
 
@@ -2719,6 +2760,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: 12,
   },
   breakdownRow: { marginBottom: 10 },
+  breakdownTotalRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: themeColors.line,
+    paddingTop: 10,
+    marginTop: 4,
+  },
   breakdownHead: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     marginBottom: 4,

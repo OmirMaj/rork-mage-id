@@ -108,7 +108,7 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
-import { useOffline } from '@/hooks/useOnline';
+import { useOffline, isOfflineNow } from '@/hooks/useOnline';
 import {
   SlideToConfirm,
   fromOnlineOutcome,
@@ -121,18 +121,34 @@ import {
   certNextPdf, certNoAccount, certNoPayButton, certOffline, certOfflineRefused, certPayBalanceRefused,
   certPayLinkFailed, certPayLinkPending, certRefused, certSlideLabel, certSrConfirm, certSrLabel, certTimeout,
 } from '@/utils/moments/sites/moneyCopy';
+// Tutorials (pay-app-period) + the sample outbound fence: see the header of
+// utils/tutorial/learn/laneD.ts.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId, useTutorialStepActive } from '@/utils/tutorial/store';
+import { payAppLinePayload, payAppPeriodPayload, toCentsD } from '@/utils/tutorial/learn/fixturesD';
+import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
 function fmtG703(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// The practice pass (utils/tutorial/practicePass): while a tutorial that
+// practises pay apps runs, a Free user may open this screen on its SAMPLE job
+// only — keyed to the URL's projectId; the inner screen refuses any other
+// project (Different project, another job's invoice). Client-side
+// monetisation, not security.
 export default function AIAPayAppScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
-  if (!canAccess('aia_pay_app')) {
+  const { projectId: practiceParam } = useLocalSearchParams<{ projectId?: string }>();
+  const practice = useTutorialPractice(practiceParam || undefined);
+  const paid = canAccess('aia_pay_app');
+  if (!paid && !practice.has('aia_pay_app')) {
     return (
       <Paywall
         visible={true}
@@ -142,10 +158,23 @@ export default function AIAPayAppScreen() {
       />
     );
   }
-  return <AIAPayAppScreenInner />;
+  return <AIAPayAppScreenInner practiceProjectId={paid ? undefined : practiceParam} />;
 }
 
-function AIAPayAppScreenInner() {
+/** The tutorial wrapper only while a run is live on this job: off, it renders
+ *  its children with no host View of its own, so the tree is unchanged. */
+function TutorialWrap({ on, wrap, children }: { on: boolean; wrap: React.ReactElement; children: React.ReactNode }) {
+  return on ? React.cloneElement(wrap, undefined, children) : <>{children}</>;
+}
+
+/** The scroll anchor only during a tutorial run (no host View when off). */
+function MaybeScrollAnchor({ on, scrollRef, children }: {
+  on: boolean; scrollRef: React.RefObject<ScrollView | null>; children: React.ReactNode;
+}) {
+  return on ? <TutorialScrollAnchor scrollRef={scrollRef}>{children}</TutorialScrollAnchor> : <>{children}</>;
+}
+
+function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: string }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -212,6 +241,24 @@ function AIAPayAppScreenInner() {
   );
   /** The URL named a project (or an invoice) that no longer exists. */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
+
+  // ── Tutorial (pay-app-period) + the sample fence ─────────────────────────
+  // runOnThis: a tutorial run is live on THIS project — the only time the
+  // TutorialTargets, the scroll anchor and the blocker sentinel render (a real
+  // job renders byte-identical). sampleJob: the outbound fence
+  // (utils/sampleGuard) — no pay link is minted and Send to client portal is
+  // off on a sample, run or no run. Handlers read refs, so their dependency
+  // lists are unchanged.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const runOnThis = !!project && tutorialSandboxId === project.id;
+  const sampleJob = isSampleProject(project);
+  const aiaTutorialRef = useRef({ runOnThis, sampleJob });
+  aiaTutorialRef.current = { runOnThis, sampleJob };
+  /** The line his last edit wrote "This period" on (updateLine /
+   *  applyPercentToLine — the card, the % chips and the grid all go through
+   *  them). The line-set signal reads it; a re-seed never sets it. */
+  const touchedLineRef = useRef<string | null>(null);
+  const aiaScrollRef = useRef<ScrollView>(null);
 
   const pickProject = useCallback((id: string) => {
     setPickedProjectId(id);
@@ -711,6 +758,7 @@ function AIAPayAppScreenInner() {
 
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
     if (isReadOnly) return;
+    if ('thisPeriod' in patch) touchedLineRef.current = lineId;
     setApp(prev => prev ? {
       ...prev,
       lines: prev.lines.map(l => l.id === lineId ? { ...l, ...patch } : l),
@@ -719,6 +767,7 @@ function AIAPayAppScreenInner() {
 
   const applyPercentToLine = useCallback((lineId: string, percent: number) => {
     if (isReadOnly) return;
+    touchedLineRef.current = lineId;
     setApp(prev => {
       if (!prev) return prev;
       return {
@@ -1047,6 +1096,9 @@ function AIAPayAppScreenInner() {
     // CARRY #83: never while the client's bank payment is settling (the
     // screen is locked then anyway; this is the belt — create-payment-link
     // refuses too, 409 payment_pending).
+    // Sample fence (utils/sampleGuard): a sample never takes real money, so no
+    // pay link is minted from one (create-payment-link refuses it too).
+    if (!aiaTutorialRef.current.sampleJob)
     if (!pendingBankPayment)
     if (!payLinkUrl && due > 0 && !savedPaidAt && !sourceInvoiceSettled && user?.id) {
       try {
@@ -1093,6 +1145,16 @@ function AIAPayAppScreenInner() {
     // MONEY-F2: remember the amount the link charges (portal shows Pay only
     // while it still equals what is owed).
     addAIAPayApp({ ...rec, payLinkUrl, payLinkId, payLinkAmount: payLinkUrl ? Math.round(due * 100) / 100 : undefined });
+    // Tutorial success point: the plain save wrote the pay app (addAIAPayApp —
+    // local first, queued). It certifies nothing; that is the slide's write.
+    if (aiaTutorialRef.current.runOnThis) {
+      tutorialSignal('payApp.saved', {
+        projectId: rec.projectId,
+        applicationNumber: rec.applicationNumber,
+        currentDueCents: toCentsD(rec.totals?.currentPaymentDue ?? 0),
+        offline: isOfflineNow(),
+      });
+    }
     // Saving is not "I am done editing". Without this the record appears, the
     // screen notices it, and the form the GC is mid-way through filling in
     // goes read-only under his hands the instant he taps Save. Review mode is
@@ -1167,6 +1229,8 @@ function AIAPayAppScreenInner() {
   const latestCertRecordRef = useRef<SavedAIAPayApp | null>(null);
   const remintCertifiedPayLink = useCallback(async (updated: SavedAIAPayApp) => {
     latestCertRecordRef.current = updated;
+    // Sample fence: no pay link is ever minted from a sample.
+    if (aiaTutorialRef.current.sampleJob) return;
     if (certRemintInFlight.current) return;
     certRemintInFlight.current = true;
     try {
@@ -1342,6 +1406,8 @@ function AIAPayAppScreenInner() {
     // ONE BILLING PERIOD IS ONE OBLIGATION (see handleSave): never mint for
     // money already collected, or while the client's bank payment settles.
     const sourceInvoiceSettled = !!invoice && invoiceOutstanding(invoice) <= 0.01;
+    // Sample fence: no pay link is ever minted from a sample.
+    if (aiaTutorialRef.current.sampleJob) return { kind: 'skipped' };
     if (pendingBankPayment || !(due > 0) || savedPaidAt || sourceInvoiceSettled || !user?.id) return { kind: 'skipped' };
     try {
       const status = await fetchStripeConnectStatus(user.id);
@@ -1557,9 +1623,54 @@ function AIAPayAppScreenInner() {
   // THE ARCHITECT'S CONFIRMATIONS are dialogs on desktop (useSheetFrame). No
   // useSheetPrimaryHotkey: "Ready to certify?" is an attestation, and Save on
   // this screen mints a Stripe pay link — so no Cmd+S / Cmd+Enter here either.
+  // ── Tutorial signals (pay-app-period). None of these is a save: no stamp.
+  // PERIOD TO: while that step is live on an editable pay app, a real day
+  // other than the one this period opened with — or any real day once 'Use
+  // today' was pressed — debounced 600 ms. The baseline is the first figure
+  // seeded per invoice.
+  const periodStepLive = useTutorialStepActive('pay-period-to');
+  const periodAssistRef = useRef(false);
+  const openedPeriodRef = useRef<{ invoiceId: string | undefined; periodTo: string | null } | null>(null);
+  if (app && (!openedPeriodRef.current || openedPeriodRef.current.invoiceId !== invoice?.id)) {
+    openedPeriodRef.current = { invoiceId: invoice?.id, periodTo: app.periodTo ?? null };
+  }
+  const periodSig = runOnThis && periodStepLive && app && !isReadOnly
+    ? payAppPeriodPayload(app.periodTo, periodAssistRef.current ? null : openedPeriodRef.current?.periodTo)
+    : null;
+  const periodSigTo = periodSig?.periodTo ?? '';
+  useEffect(() => {
+    const pid = project?.id;
+    if (!periodSigTo || !pid) return;
+    const timer = setTimeout(() => tutorialSignal('payApp.period.set', { projectId: pid, periodTo: periodSigTo }), 600);
+    return () => clearTimeout(timer);
+  }, [periodSigTo, project?.id]);
+  // A line he changed now bills this period, debounced 600 ms.
+  const touchedLine = runOnThis && app && touchedLineRef.current ? app.lines.find(l => l.id === touchedLineRef.current) : undefined;
+  const lineSig = payAppLinePayload(touchedLine);
+  const lineSigKey = lineSig ? `${lineSig.lineId}|${lineSig.thisPeriodCents}` : '';
+  useEffect(() => {
+    const pid = project?.id;
+    if (!lineSigKey || !pid) return;
+    const [lineId, cents] = lineSigKey.split('|');
+    const timer = setTimeout(() => tutorialSignal('payApp.line.set', { projectId: pid, lineId, thisPeriodCents: Number(cents) }), 600);
+    return () => clearTimeout(timer);
+  }, [lineSigKey, project?.id]);
+  // 'Do it for me' on PERIOD TO: today, through the screen's own setPeriodTo
+  // (sample only) — never presses Save.
+  useTutorialAssist('payApp.usePeriodToday', () => {
+    if (!aiaTutorialRef.current.runOnThis || !aiaTutorialRef.current.sampleJob) return;
+    periodAssistRef.current = true;
+    setPeriodTo(todayCalendarDay());
+  });
+
   const fDisclaimer = useSheetFrame('dialog', { visible: showFirstUseDisclaimer, animationType: 'fade' });
   const fConfirm = useSheetFrame('dialog', { visible: showPreExportConfirm, animationType: 'fade' });
 
+  // The practice pass opened this screen for the sample ONLY: Different
+  // project, a stale id or another job's invoice needs his own plan.
+  if (practiceProjectId && (forceProjectPick || project?.id !== practiceProjectId)) {
+    return <Paywall visible={true} feature="AIA G702/G703 Pay Applications" requiredTier="pro" onClose={() => router.back()} />;
+  }
   // Step 1 — which job.
   if (!project || forceProjectPick) {
     return (
@@ -1610,6 +1721,7 @@ function AIAPayAppScreenInner() {
                 app certifies one period. Pick the one you are billing.
               </Text>
               <Text style={styles.periodPickTitle}>Pick a billing period</Text>
+              <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.pickPeriod" />}>
               {progressInvoices.map(inv => (
                 <TouchableOpacity
                   key={inv.id}
@@ -1632,6 +1744,7 @@ function AIAPayAppScreenInner() {
                   <MagePayApp size={18} color={themeColors.accent} />
                 </TouchableOpacity>
               ))}
+              </TutorialWrap>
             </>
           )}
           <TouchableOpacity
@@ -1728,18 +1841,22 @@ function AIAPayAppScreenInner() {
         options={{
           title: 'Progress billing',
           headerLeft: () => (
+            <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.back" />}>
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
+            </TutorialWrap>
           ),
         }}
       />
       <ScrollView
+        ref={aiaScrollRef}
         {...fabScroll}
         style={[styles.container, { backgroundColor: themeColors.bg }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
+        <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>
         <FeatureHeader
           eyebrow="AIA G702 / G703"
           title="Bill the bank"
@@ -1781,6 +1898,7 @@ function AIAPayAppScreenInner() {
                 <Text style={styles.sovFooterBtnText}>Print as saved</Text>
               </TouchableOpacity>
               {!isLocked && (
+                <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.editDraft" />}>
                 <TouchableOpacity
                   style={styles.sovFooterBtn}
                   onPress={() => setEditRequested(true)}
@@ -1792,6 +1910,7 @@ function AIAPayAppScreenInner() {
                   <Pencil size={15} color={themeColors.accent} strokeWidth={2} />
                   <Text style={styles.sovFooterBtnText}>{reviewNotice.editLabel}</Text>
                 </TouchableOpacity>
+                </TutorialWrap>
               )}
             </View>
           </View>
@@ -1992,6 +2111,7 @@ function AIAPayAppScreenInner() {
               months&rdquo; because it can&apos;t tell which month they landed in.
             </Text>
           )}
+          <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.periodTo" />}>
           <View style={styles.formRow}>
             <Text style={styles.formLabel}>Period to</Text>
             <TextInput
@@ -2005,6 +2125,7 @@ function AIAPayAppScreenInner() {
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
+          </TutorialWrap>
           {!isCalendarDay(app.periodTo) && (
             <Text style={styles.fieldError} testID="aia-period-to-error">
               Period end is not a date MAGE can read. Use YYYY-MM-DD (for example 2026-03-31).
@@ -2168,6 +2289,7 @@ function AIAPayAppScreenInner() {
             one. With nowhere to record it, an architect certifying $58,200
             against a $64,000 application left the GC permanently $5,800 short
             in a number he believed was automatic. */}
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.certifyExplain" />}>
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
           <Text style={styles.sectionTitle}>Architect&apos;s certificate</Text>
           {/* RECORDABLE ON A LOCKED CERTIFICATE, deliberately. A GC with
@@ -2337,6 +2459,7 @@ function AIAPayAppScreenInner() {
             </>
           )}
         </View>
+        </TutorialWrap>
 
         {/* G702 — the cover's figures in one row, in cents (desktop). Balance
             to Finish stays on the G702 card: it is line 9, not the G703 H. */}
@@ -2364,6 +2487,7 @@ function AIAPayAppScreenInner() {
         ) : null}
 
         {/* Schedule of Values */}
+        <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.g703" />}>
         <View style={styles.section} {...(isDesktopWeb ? { onLayout: sovBox.onLayout } : null)}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Schedule of values (G703)</Text>
@@ -2511,6 +2635,7 @@ function AIAPayAppScreenInner() {
             const over = lineOverBill(line);
             const isOver = over > 0;
             return (
+              <TutorialWrap key={line.id} on={runOnThis && lineIdx === 0} wrap={<TutorialTarget id="payApp.lineProgress" />}>
               <View key={line.id} style={[styles.sovCard, isOver && styles.sovCardOver]}>
                 <View style={styles.sovHeaderRow}>
                   {sovEditing && !isReadOnly ? (
@@ -2751,6 +2876,7 @@ function AIAPayAppScreenInner() {
                   </View>
                 )}
               </View>
+              </TutorialWrap>
             );
           })}
 
@@ -2783,6 +2909,7 @@ function AIAPayAppScreenInner() {
             </View>
           )}
         </View>
+        </TutorialWrap>
 
         {/* Running totals */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
@@ -2841,6 +2968,7 @@ function AIAPayAppScreenInner() {
             </>
           )}
         </View>
+        </MaybeScrollAnchor>
       </ScrollView>
 
       {savedForThisAppNumber && (
@@ -2850,8 +2978,9 @@ function AIAPayAppScreenInner() {
           projectId={savedForThisAppNumber.projectId}
           portalState={savedForThisAppNumber.portalState}
           itemUpdatedAt={savedForThisAppNumber.savedAt}
-          canSend={app.lines.length > 0}
-          canSendReason={app.lines.length === 0 ? 'Add schedule of values lines before sending.' : undefined}
+          // Sample fence (utils/sampleGuard): never sent from a sample.
+          canSend={app.lines.length > 0 && !sampleJob}
+          canSendReason={sampleJob ? SAMPLE_DOC_NOT_SENT : app.lines.length === 0 ? 'Add schedule of values lines before sending.' : undefined}
         />
       )}
 
@@ -2878,6 +3007,7 @@ function AIAPayAppScreenInner() {
           </ActionBar>
         ) : (
         <ActionBar style={styles.bottomBarRow} width="table">
+          <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.saveDraft" />}>
           <TouchableOpacity
             style={[styles.saveBtn, savedFlash && styles.saveBtnDone]}
             onPress={handleSave}
@@ -2891,6 +3021,7 @@ function AIAPayAppScreenInner() {
               {savedFlash ? 'Saved to project' : 'Save to project'}
             </Text>
           </TouchableOpacity>
+          </TutorialWrap>
           <TouchableOpacity
             style={[styles.generateBtn, { flex: 1 }]}
             onPress={requestGenerate}
@@ -2908,7 +3039,9 @@ function AIAPayAppScreenInner() {
         </ActionBar>
         )}
         <Text style={styles.bottomBarHint}>
-          A pay app reaches your client portal once you send it there and the portal updates. Clients and architects can then review and download it.
+          {sampleJob
+            ? SAMPLE_DOC_NOT_SENT
+            : 'A pay app reaches your client portal once you send it there and the portal updates. Clients and architects can then review and download it.'}
         </Text>
       </View>
 
@@ -2998,6 +3131,10 @@ function AIAPayAppScreenInner() {
           </View>
         </View>
       </Modal>
+      {/* Tutorial blocker sentinel: while either RN Modal is up (they draw
+          above the root coach layer on iOS), the coach draws nothing. Only
+          while a run is live on this job. */}
+      {runOnThis && (showFirstUseDisclaimer || showPreExportConfirm) ? <TutorialTarget id="payApp.modalUp" /> : null}
     </>
   );
 }

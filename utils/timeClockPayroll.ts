@@ -18,6 +18,7 @@ import {
   isMissedOpenShift, missedClockOutHours as missedClockOutHoursRule,
   DEFAULT_OVERTIME_RULE, type OvertimeRule, type Weekday,
 } from '@/utils/overtime';
+import { isSampleTimeEntry } from '@/utils/laborSamples';
 
 /**
  * Hours for a clock-in/clock-out pair minus break minutes. The implementation
@@ -229,6 +230,9 @@ export function selectPayrollEntries<T extends TimeEntry>(
   const rows: T[] = [];
   const open: T[] = [];
   for (const e of entries) {
+    // A shift on a sample project is practice: never a payroll row, never an
+    // open shift to name (utils/laborSamples isSampleTimeEntry).
+    if (isSampleTimeEntry(e)) continue;
     if (opts.projectId && e.projectId !== opts.projectId) continue;
     const day = shiftWorkDay(e);
     if (!day || day < startDay || day > endDay) continue;
@@ -313,10 +317,13 @@ export type PayrollRow = TimeEntry & { loggedByLabel?: string };
  * import — not a QuickBooks timesheet import format.
  */
 export function buildTimeEntriesCSV(
-  entries: readonly PayrollRow[],
+  rowsIn: readonly PayrollRow[],
   overtimeRule: OvertimeRule = DEFAULT_OVERTIME_RULE,
-  allEntries: readonly TimeEntry[] = entries,
+  allEntriesIn: readonly TimeEntry[] = rowsIn,
 ): string {
+  // Sample shifts never reach payroll: not as a row, not toward overtime.
+  const entries = rowsIn.filter(e => !isSampleTimeEntry(e));
+  const allEntries = allEntriesIn.filter(e => !isSampleTimeEntry(e));
   const escape = (v: string | undefined): string => {
     if (!v) return '';
     if (v.includes(',') || v.includes('"') || v.includes('\n')) {

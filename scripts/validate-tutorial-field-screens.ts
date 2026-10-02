@@ -339,6 +339,19 @@ console.log('\n9. the practice pass: opt-in on the tutorial\'s own screens only;
     'app/(tabs)/construction-ai/index.tsx',             // the URL job; under the lock the tab is Ask mode only (no roadmap / review editor)
     'components/construction/AskConstructionMode.tsx',  // the linked job; reads only
     'app/plan-viewer.tsx',                              // (LEARNDEFS-B patch) the SHEET's own project, resolved before the gate; a real sheet → a real job → no pass
+    // LEARNDEFS-C (time-clock-in, punch-list-close): neither loads a record by
+    // id from another project. Each reads the pass for the URL project only
+    // (scripts/validate-tutorial-learn-c pins both gates).
+    'app/time-tracking.tsx',   // outer gate on the URL project; inside, only THAT job is clockable on the pass (clockableReason / resolveClockGate)
+    'app/punch-list.tsx',      // route gate on the URL project; itemId only focuses a row of that project's own list
+    // LEARNDEFS-D (contract-from-estimate, pay-app-period): each reads the pass
+    // for the URL's projectId in its route gate, and the inner screen renders
+    // the Paywall for ANY other project it lands on (a picker pick, a stale
+    // id, Different project, another job's invoiceId). Pinned (source scan) in
+    // scripts/validate-tutorial-learn-d.ts. (The closeout binder has no plan
+    // gate, so it reads no pass.)
+    'app/contract.tsx',                                 // the URL job; the inner screen refuses project?.id !== the pass's project
+    'app/aia-pay-app.tsx',                              // the URL job; an invoiceId resolves its OWN project first, then the same refusal
   ]);
   const readers: string[] = [];
   const walkDir = (dir: string) => {

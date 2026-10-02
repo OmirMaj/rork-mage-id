@@ -58,7 +58,7 @@ export type EntranceOpts = {
 
 const WEB_MS: Partial<Record<KitWebKey, number>> = {
   rise8: 220, rise8B: 220, fade: 160, fadeB: 160, send56: 280, send44: 280, pairX6: 160, pop98: 280,
-  tagTL: 220, tagTR: 220, tagBR: 220, tagBL: 220, check60: 180, rollIn6: 140, rollOut6: 90, drawL: 240, drawC: 240, lift2: 520,
+  tagTL: 220, tagTR: 220, tagBR: 220, tagBL: 220, check60: 180, rollIn6: 140, rollOut6: 90, drawL: 240, drawC: 240, drawT: 240, lift2: 520,
 };
 
 type Run = {

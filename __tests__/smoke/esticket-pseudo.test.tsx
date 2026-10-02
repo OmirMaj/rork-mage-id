@@ -90,11 +90,11 @@ describe('pseudo-locale pass (W3 ESTICKET)', () => {
     const all = texts(r);
     expect(all.length).toBeGreaterThan(5);
     // Allowed: the data this test passes in, the ceremony's own date stamp (a
-    // date, formatted by the primitive), the line's "X" mark, and ONE string
-    // the W2 moments primitive does not extract yet — utils/moments/signatureInk.ts
-    // LINE_REASONS.sign ("Sign above the line"), reported to the orchestrator.
-    // Everything this lane owns on the sheet must be bracketed.
-    const PRIMITIVE_LEFTOVERS = ['Sign above the line'];
+    // date, formatted by the primitive) and the line's "X" mark. "Sign above
+    // the line" used to be the one leftover; since 2026-10-02 (LOOSE e) the
+    // line reasons go through t() (common.moment.line*), so it is bracketed
+    // like everything else on the sheet.
+    const PRIMITIVE_LEFTOVERS: string[] = [];
     const left = unextracted(all, ['FT-12', 'Broke out footing', '$1,240.00', 'Sep 27, 2026', 'CM', 'X', ...PRIMITIVE_LEFTOVERS])
       .filter(s => !/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(s));
     expect(left).toEqual([]);

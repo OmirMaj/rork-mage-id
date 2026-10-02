@@ -18,7 +18,7 @@ import { KIT_WEB } from '@/utils/motion/kit/kitSpec';
 export type KitWebKey =
   | 'rise8' | 'rise8B' | 'fade' | 'fadeB' | 'send56' | 'send44' | 'pairX6' | 'pop98'
   | 'tagTL' | 'tagTR' | 'tagBR' | 'tagBL' | 'check60' | 'rollIn6' | 'rollOut6' | 'dotPulse'
-  | 'drawL' | 'drawC' | 'lift2';
+  | 'drawL' | 'drawC' | 'drawT' | 'lift2';
 
 type Frame = { opacity?: number; transform?: string };
 
@@ -79,6 +79,8 @@ const RAW: Record<KitWebKey, ViewStyle> = {
   // A 2 pt rule drawing itself: from the left edge, or from its centre (the Level's track).
   drawL: entry({ transform: 'scaleX(0)' }, '240ms', KIT_WEB.easeOut, { transformOrigin: 'left' }),
   drawC: entry({ transform: 'scaleX(0)' }, '240ms'),
+  // A vertical rule drawing itself down from its top edge (useFocusPush ruleAxis 'y').
+  drawT: entry({ transform: 'scaleY(0)' }, '240ms', KIT_WEB.easeOut, { transformOrigin: 'top' }),
   // The priority cell's 2 pt nudge: up and back, nothing left at rest.
   lift2: keyframes({
     '0%': { transform: 'none' },
