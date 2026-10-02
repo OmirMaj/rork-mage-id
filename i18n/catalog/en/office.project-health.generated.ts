@@ -6,8 +6,8 @@ import type { EnCatalog } from '../../types';
 
 export const EN: EnCatalog = {
   "office.projectHealth.legend.bubble": "The bubble moves right when the finish slips past the baseline.",
-  "office.projectHealth.legend.colour": "The colour is margin risk.",
-  "office.projectHealth.legend.empty": "A grey, hollow level means there is not enough data yet.",
+  "office.projectHealth.legend.colour": "The color is margin risk.",
+  "office.projectHealth.legend.empty": "A gray, hollow level means there is not enough data yet.",
   "office.projectHealth.legend.listed": "Open punch, late RFIs and late tasks are listed, not drawn.",
   "office.projectHealth.title": "Project health",
 };

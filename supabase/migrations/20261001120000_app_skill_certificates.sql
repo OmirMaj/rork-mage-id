@@ -32,6 +32,20 @@
 -- DEPLOY ORDER: apply this BEFORE deploying skill-certificate-award (the award
 -- would 500 on a missing table) and before the OTA that ships the skills screens.
 --
+-- VERIFY AFTER
+--   select relrowsecurity from pg_class where oid = 'public.app_skill_certificates'::regclass;   -- true
+--   select policyname, roles, cmd from pg_policies
+--    where schemaname = 'public' and tablename = 'app_skill_certificates' order by policyname;
+--     -- exactly two, both {authenticated}: app_skill_certificates_delete_own DELETE, app_skill_certificates_select_own SELECT
+--   select has_table_privilege('authenticated', 'public.app_skill_certificates', 'SELECT'),       -- true
+--          has_table_privilege('authenticated', 'public.app_skill_certificates', 'DELETE'),       -- true
+--          has_any_column_privilege('authenticated', 'public.app_skill_certificates', 'INSERT'),  -- false
+--          has_any_column_privilege('authenticated', 'public.app_skill_certificates', 'UPDATE'),  -- false
+--          has_table_privilege('authenticated', 'public.app_skill_certificates', 'TRUNCATE'),     -- false
+--          has_table_privilege('anon', 'public.app_skill_certificates', 'SELECT');                -- false
+--   select conname from pg_constraint where conrelid = 'public.app_skill_certificates'::regclass order by conname;
+--     -- includes app_skill_certificates_correct_range, app_skill_certificates_one_per_version, app_skill_certificates_pass
+--
 -- Idempotent: create ... if not exists, drop policy if exists, and grants that
 -- are no-ops the second time.
 

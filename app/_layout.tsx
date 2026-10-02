@@ -58,6 +58,7 @@ import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue, onQueueChanged } from "@/utils/offlineQueue";
 import { processPhotoUploadQueue } from "@/utils/photoUploadQueue";
+import { messageOutbox } from "@/utils/messageOutbox";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
@@ -350,7 +351,13 @@ function OfflineSyncManager() {
   const appState = useRef(AppState.currentState);
   const { isAuthenticated } = useAuth();
   // SYNC-F7: the provider's debounced project syncs, flushed on background.
-  const { flushPendingProjectSyncs } = useProjectActions();
+  const { flushPendingProjectSyncs, writePortalMessage } = useProjectActions();
+  // MSGAPP: client messages with photos / PDFs wait in the device outbox until
+  // every file is uploaded, then their row is written through the same ordered
+  // writer the thread uses. Read through a ref so the drain effect is not
+  // re-armed on every provider render.
+  const writePortalMessageRef = useRef(writePortalMessage);
+  writePortalMessageRef.current = writePortalMessage;
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffMs = useRef(0);
   const draining = useRef(false);
@@ -405,7 +412,13 @@ function OfflineSyncManager() {
         // another session left behind come back as `foreign` and must not
         // re-arm this backoff — they are the tenant switch's to drop, and no
         // number of retries under this JWT would ever send them.
-        return { processed: res.processed, remaining: res.remaining + photos.remaining };
+        // Then file messages (after the photo queue: their row writes are small,
+        // their uploads are not). Without this an entry only drained while its
+        // thread was open, and "it sends when you're back online" would not hold.
+        const msgs = await messageOutbox
+          .process({ writePortalMessage: (row) => writePortalMessageRef.current(row) })
+          .catch(() => ({ sent: 0, remaining: 0 }));
+        return { processed: res.processed, remaining: res.remaining + photos.remaining + msgs.remaining };
       }).then(({ processed, remaining }) => {
         draining.current = false;
         if (cancelled) return;
@@ -1384,6 +1397,7 @@ function RootLayoutNav() {
           pushed screen, not a modal — a tutorial it starts pushes the sample
           hub and the real screen on top of it. */}
       <Stack.Screen name="tutorials" options={{ title: 'Tutorials' }} />
+      <Stack.Screen name="skills-check" options={{ title: 'Skills check' }} />
       <Stack.Screen
         name="drawing-analyzer"
         options={{ headerShown: false }}

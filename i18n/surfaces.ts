@@ -178,6 +178,7 @@ export const SURFACES: Surface[] = [
     id: 'common.moments', phase: 1, state: 'pending', keyPrefixes: ['common.moment.'], lane: 'W2 ESTOOLS',
     files: [
       'utils/moments/copy.ts', 'utils/moments/commitResult.ts', 'utils/moments/commitAdapters.ts', 'utils/moments/sealText.ts',
+      'utils/moments/signatureInk.ts',
       'components/moments/SlideToConfirm.tsx',
       'components/moments/signing/CeremonyDocTop.tsx', 'components/moments/signing/ConsentRow.tsx',
       'components/moments/signing/HandoffTurn.tsx', 'components/moments/signing/LetterFold.tsx',
@@ -205,8 +206,8 @@ export const SURFACES: Surface[] = [
   // Ask your plans and Construction AI render a few (the sample-run refusals,
   // the sample chips and the takeoff's sample lines). The rest of each file is
   // still raw English, so each joins as a partial file.
-  { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], partialFiles: ['app/estimate-wizard.tsx', 'app/takeoff.tsx', 'components/plans/AskPlansPanel.tsx', 'components/construction/AskConstructionMode.tsx', 'app/(tabs)/construction-ai/index.tsx'], lane: 'LEARN' },
-  { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: [], lane: 'LEARN' },
+  { id: 'common.tutorial', phase: 2, state: 'pending', keyPrefixes: ['common.tutorial.'], files: [], partialFiles: ['app/estimate-wizard.tsx', 'app/takeoff.tsx', 'components/plans/AskPlansPanel.tsx', 'components/construction/AskConstructionMode.tsx', 'app/(tabs)/construction-ai/index.tsx', 'components/copilot/CopilotShell.tsx'], lane: 'LEARN' },
+  { id: 'settings.learn', phase: 2, state: 'pending', keyPrefixes: ['settings.learn.'], files: ['app/skills-check.tsx', 'components/learn/QuizQuestionCard.tsx', 'components/learn/QuizResultCard.tsx'], partialFiles: ['app/tutorials.tsx', 'components/tutorial/TutorialHost.tsx'], lane: 'LEARN' },
 
   // Phase 2 — the office surfaces. The Level's project-health card + its reason
   // sheet legend (English now via t(); Spanish when the office surface is translated).
@@ -217,6 +218,10 @@ export const SURFACES: Surface[] = [
 
   // thu PROOF — the change order "Proof packet" button (the packet PDF itself stays English).
   { id: 'money.co-proof', phase: 2, state: 'pending', keyPrefixes: ['money.coProof.'], lane: 'thu PROOF', files: ['components/changeOrders/COProofPacketButton.tsx'] },
+
+  // thu MSGAPP — the contractor's client thread with photos and PDFs. Every
+  // string lives in one copy hook (the components and the screen call it).
+  { id: 'office.client-messages', phase: 2, state: 'pending', keyPrefixes: ['office.clientMessages.'], lane: 'MSGAPP', files: ['hooks/useMessageAttachmentCopy.ts'] },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

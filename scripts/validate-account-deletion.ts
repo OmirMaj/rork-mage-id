@@ -49,7 +49,7 @@
 //
 // Run via: bun run test:account-deletion
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -191,10 +191,31 @@ const inlineDeletes = [...code.matchAll(/\.from\(\s*'(\w+)'\s*\)\s*\.delete\(\)/
 const explicit = new Set<string>([...userScoped, ...tenantDeletes.map(t => t.table), ...inlineDeletes]);
 
 // Rule 3: every explicit delete targets a real column.
-const deadUserEntries = userScoped.filter(t => !tables.has(t) || !tables.get(t)!.columns.has('user_id'));
+// schema.sql is regenerated from production by hand, so a table a NEWER
+// migration creates is absent from it until the next dump. Such an entry is
+// accepted only when a migration in supabase/migrations creates exactly that
+// table WITH a user_id column (read from the CREATE TABLE body, never from a
+// name list), and it is reported as schema-pending so the dump gets refreshed.
+const migrationTables = new Map<string, Set<string>>();
+for (const f of readdirSync(join(ROOT, 'supabase', 'migrations')).filter(f => /^\d{14}_[\w-]+\.sql$/.test(f)).sort()) {
+  const sql = readFileSync(join(ROOT, 'supabase', 'migrations', f), 'utf8').replace(/--[^\n]*/g, '');
+  for (const m of sql.matchAll(/create table (?:if not exists )?public\.(\w+)\s*\(([\s\S]*?)\n\);/gi)) {
+    const cols = new Set<string>();
+    for (const line of m[2].split('\n')) {
+      if (/^\s*(constraint|primary|unique|check|foreign)\b/i.test(line)) continue;
+      const cm = line.match(/^\s+"?(\w+)"?\s+\S/);
+      if (cm) cols.add(cm[1]);
+    }
+    migrationTables.set(m[1], cols);
+  }
+}
+const schemaPending = userScoped.filter(t => !tables.has(t) && !!migrationTables.get(t)?.has('user_id'));
+for (const t of schemaPending) note(`'${t}' is created by a migration (with user_id) but not yet in schema.sql — regenerate the dump after it is applied`);
+const deadUserEntries = userScoped.filter(t =>
+  tables.has(t) ? !tables.get(t)!.columns.has('user_id') : !migrationTables.get(t)?.has('user_id'));
 ok("every USER_SCOPED_TABLES entry exists and has a user_id column (the dead 'portal_messages' entry class)",
   deadUserEntries.length === 0,
-  deadUserEntries.map(t => `• '${t}' — ${tables.has(t) ? 'no user_id column: .eq(\'user_id\', …) answers 42703 on every run' : 'table does not exist in schema.sql'}`).join('\n      '));
+  deadUserEntries.map(t => `• '${t}' — ${tables.has(t) || migrationTables.has(t) ? 'no user_id column: .eq(\'user_id\', …) answers 42703 on every run' : 'table does not exist in schema.sql or any migration'}`).join('\n      '));
 
 const deadTenantEntries = tenantDeletes.filter(d => !tables.has(d.table) || !tables.get(d.table)!.columns.has(d.column));
 ok('every TENANT_SCOPED_DELETES entry targets a column that exists',
