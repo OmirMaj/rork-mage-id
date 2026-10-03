@@ -67,6 +67,17 @@ module.exports = {
     '<rootDir>/marketing/',
   ],
 
+  // Image requires → `{ testUri: '<rootDir>/assets/…' }`, never a disk path.
+  // The stock RN transformer (inherited through jest-expo) names the file
+  // relative to wherever react-native is INSTALLED, so under a symlinked
+  // node_modules (every agent worktree) the absolute worktree path rode into
+  // the goldens and failed CI. Same key as the preset's entry, so this
+  // replaces it; jest merges a preset's `transform` with ours keys-first, and
+  // the first matching pattern wins. See __tests__/setup/asset-transformer.js.
+  transform: {
+    '^.+\\.(bmp|gif|jpg|jpeg|mp4|png|psd|svg|webp)$': '<rootDir>/__tests__/setup/asset-transformer.js',
+  },
+
   setupFiles: ['<rootDir>/__tests__/setup/edge-mocks.js'],
   setupFilesAfterEnv: ['<rootDir>/__tests__/setup/after-env.ts'],
 
