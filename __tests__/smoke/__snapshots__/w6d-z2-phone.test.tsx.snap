@@ -9,15 +9,15 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b1) daily-report, new report, jobsite 124 Park Slope (wttr answers) 1`] = `
 {
-  "lines": 1159,
-  "sha256": "b4c90c6710c37ff60afce277d7cbb20517a2929ce98d25736aeb8cb942478f74",
+  "lines": 1154,
+  "sha256": "857af52874d98067a4dce8b16a22bb0da5e8081f789eaeb09e0b419bc27ad838",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report, new report, location 'United States' 1`] = `
 {
-  "lines": 1157,
-  "sha256": "397c6576c130e3d8219b53f3e6e261aa285758532e0a8059cc61e13a3b2bf19d",
+  "lines": 1154,
+  "sha256": "857af52874d98067a4dce8b16a22bb0da5e8081f789eaeb09e0b419bc27ad838",
 }
 `;
 

@@ -580,27 +580,27 @@ ok('the stored oshaRecordable is the computed verdict',
   dfrSrc.includes('oshaRecordable: recordability.recordable'),
   'the report is storing something other than the classifier output.');
 
-ok('the weather fetch is bound to the report date',
-  dfrSrc.includes('canReadLiveWeatherFor(requestedDay, todayCalendarDay())'),
-  'fetchWeather no longer checks whether the report is FOR today, so a backfilled report ' +
-  "carries this morning's sky stamped as fetched.");
-ok('the day guard sits BEFORE the network read, not after',
-  dfrSrc.indexOf('canReadLiveWeatherFor(requestedDay') < dfrSrc.indexOf('https://wttr.in/'),
-  'the guard has to stop the request, not filter the answer.');
-ok('the guard compares calendar days, not instants',
-  dfrSrc.includes('const requestedDay = calendarDayOf(reportDate);'),
+// The wrong-day weather guards (canReadLiveWeatherFor before the wttr.in read,
+// the in-flight re-check, the disabled Auto-fetch button) guarded a live read
+// that content rights retired on 2026-10-02. With no read there is no
+// wrong-day reading to guard; what stays is the clear of a reading an older
+// version saved into an unsaved draft, and it must never touch typed weather.
+const dfrNoComments = dfrSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+ok('the daily report makes no network weather read, so no reading can land under the wrong day',
+  !dfrNoComments.includes('wttr.in') && !/\bfetchWeather\b/.test(dfrNoComments),
+  'a weather read is back in the daily report. Content rights retired it (no license, and it ' +
+  'sent the jobsite address); a live read also needs the report-date guard again.');
+ok('no button offers a weather fetch that does not exist',
+  !dfrNoComments.includes('dfr-weather-fetch') && !dfrNoComments.includes("'Auto-fetch'"),
+  'a dead control is a silent wrong answer waiting to be tapped.');
+ok('a backfilled, unsaved report clears only an app-read value, never typed weather',
+  /if \(reportIsToday \|\| existingReport\) return;\s*if \(weather\.isManual\) return;/.test(dfrNoComments),
+  "this morning's saved reading under last Monday's date is the wrong-day lie; wiping what " +
+  'the super typed, or a saved record, is a different one.');
+ok('the guard still compares calendar days, not instants',
+  dfrSrc.includes('canReadLiveWeatherFor(calendarDayOf(reportDate)'),
   'reportDate is an instant. Comparing instants misclassifies an evening-filed report near ' +
-  'midnight, which re-introduces the wrong-day weather this guard exists to stop.');
-ok('an in-flight read re-checks the day it was asked for',
-  dfrSrc.includes('calendarDayOf(reportDateRef.current) === requestedDay'),
-  'the date can move while the request is in flight (the mount fetch fires before the super ' +
-  'has touched anything, and backfilling is the first thing he does).');
-ok('the Auto-fetch button is disabled on a backfilled report',
-  /disabled=\{weatherLoading \|\| !reportIsToday\}/.test(dfrSrc),
-  'a live button on a past day is a silent wrong answer waiting to be tapped.');
-ok('and it says why',
-  dfrSrc.includes('backfilledWeatherNotice(reportDayLabel)'),
-  'this app\'s rule is that a blocked control names its reason.');
+  'midnight.');
 ok('the weather block shows its provenance',
   dfrSrc.includes('weatherProvenanceLine({'),
   'isManual is write-only without this — flipping the flag changes nothing anyone can see.');

@@ -1,22 +1,21 @@
 /**
- * Slick round 3, lane C — the landing. PHONE PROOF.
+ * Content rights, lane CRAPP — PHONE PROOF for the hidden entry points.
  *
- * Lane C makes a skeleton that was actually on screen hand over to its content
- * with a short fade, and lets the first six rows of the most-visited lists land
- * on a short stagger (components/animations/Landing.tsx). The hand-off arms
- * ONLY when the loading phase lasted ≥ 120 ms by Date.now(). This harness pins
- * Date.now (both realms), so the loading phase lasts 0 ms and nothing may arm:
- * AT REST NOTHING CHANGES.
+ * MAGE ID's first App Store submission hides Construction News and Discover >
+ * Companies (contentfix-specs/RIGHTS-VERDICT.md: no publisher permission; Google
+ * forbids storing its listings). This golden mounts the three routes that carry
+ * or are those doors, inside the real app (16-provider stack, populated fixture
+ * world) at 390 x 844 iOS.
  *
- * GOLDEN — recorded FIRST, on the untouched base (2cff3bd7), before a single
- * line of the lane was written, and never regenerated. Each case mounts a real
- * route inside the real app (the 16-provider stack, the populated fixture
- * world) at 390 × 844 iOS with useResponsiveLayout mocked to phone and records
- * the whole tree (every <Modal> renders its content, open or not).
- *
- * The harness is w6d-z2-phone's, verbatim: the phone layout mock, the Modal
- * mock, the two pinned clocks, dumpLines / fingerprint and pump. Set
- * SLICK3_DUMP_DIR to write each dump for a diff.
+ * GOLDEN — recorded FIRST, on the untouched base (195b7361), before a line of
+ * the lane was written. The ONLY permitted deltas after the lane:
+ *   (a) /discover        — the Companies pill, the Companies card and the word
+ *                          "companies" in two hint lines are gone;
+ *   (b) /discover/tools  — the Construction news tile and its INDUSTRY section
+ *                          are gone;
+ *   (c) /construction-news — redirects to Discover (renders Discover's tree).
+ * Set CR_DUMP_DIR to write each dump for a diff. The harness is
+ * slick3-landing's, verbatim.
  */
 
 import React from 'react';
@@ -26,7 +25,6 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
-import { COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 
 // ── The layout gate (phone) ────────────────────────────────────────────────
 let mockWidth = 390;
@@ -152,7 +150,7 @@ function fingerprint(name: string, json: unknown): { lines: number; sha256: stri
   const out: string[] = [];
   dumpLines(json, 0, out);
   const text = out.join('\n');
-  const dir = process.env.SLICK3_DUMP_DIR;
+  const dir = process.env.CR_DUMP_DIR;
   if (dir) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require('node:fs');
@@ -182,38 +180,21 @@ async function phoneRoute(url: string) {
 }
 
 // ── GOLDEN, phone ──────────────────────────────────────────────────────────
-describe('slick3 landing golden — at rest nothing changes (390 × 844 iOS)', () => {
+describe('content rights golden — hidden doors (390 x 844 iOS)', () => {
   jest.setTimeout(120000);
 
-  it('(a) discover/bids', async () => {
-    const tree = await phoneRoute('/discover/bids');
-    expect(fingerprint('a-discover-bids', tree.toJSON())).toMatchSnapshot();
+  it('(a) discover overview', async () => {
+    const tree = await phoneRoute('/discover');
+    expect(fingerprint('a-discover', tree.toJSON())).toMatchSnapshot();
   });
 
-  // Content rights (2026-10-03): Discover > Companies is hidden for launch
-  // (COMPANIES_DIRECTORY_ENABLED = false) and its route redirects to Discover.
-  // The golden is kept for the day the flag comes back on; while it is off, the
-  // route must render exactly the Discover overview and nothing of Companies.
-  (COMPANIES_DIRECTORY_ENABLED ? it : it.skip)('(b) discover/companies', async () => {
-    const tree = await phoneRoute('/discover/companies');
-    expect(fingerprint('b-discover-companies', tree.toJSON())).toMatchSnapshot();
+  it('(b) discover/tools', async () => {
+    const tree = await phoneRoute('/discover/tools');
+    expect(fingerprint('b-discover-tools', tree.toJSON())).toMatchSnapshot();
   });
 
-  (COMPANIES_DIRECTORY_ENABLED ? it.skip : it)('(b2) discover/companies while hidden: the Discover overview, nothing of Companies', async () => {
-    const tree = await phoneRoute('/discover/companies');
-    expect(tree.getPathname()).toBe('/discover');
-    expect(tree.queryByTestId('companies-use-location')).toBeNull();
-    expect(tree.queryByTestId('companies-location-notice')).toBeNull();
-    expect(tree.getByTestId('discover-equipment-cta')).toBeTruthy();
-  });
-
-  it('(c) discover/hire', async () => {
-    const tree = await phoneRoute('/discover/hire');
-    expect(fingerprint('c-discover-hire', tree.toJSON())).toMatchSnapshot();
-  });
-
-  it('(d) mage-id-bids', async () => {
-    const tree = await phoneRoute('/mage-id-bids');
-    expect(fingerprint('d-mage-id-bids', tree.toJSON())).toMatchSnapshot();
+  it('(c) construction-news', async () => {
+    const tree = await phoneRoute('/construction-news');
+    expect(fingerprint('c-construction-news', tree.toJSON())).toMatchSnapshot();
   });
 });

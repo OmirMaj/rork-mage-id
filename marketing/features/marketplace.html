@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Marketplace: suppliers, materials, equipment — MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/features/marketplace.html" />
-  <meta name="description" content="Local supplier directory across nine metros refreshed weekly, a regional materials catalog, and equipment tracking — built into the app." />
+  <meta name="description" content="A regional materials catalog that learns your own supply-house prices, and equipment tracking — built into the app." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Marketplace: suppliers, materials, equipment" />
-  <meta property="og:description" content="Local supplier directory across nine metros refreshed weekly, a regional materials catalog, and equipment tracking — built into the app." />
+  <meta property="og:description" content="A regional materials catalog that learns your own supply-house prices, and equipment tracking — built into the app." />
   <meta property="og:url" content="https://mageid.app/features/marketplace.html" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
@@ -45,38 +45,18 @@
       <span class="eyebrow">Marketplace</span>
       <h1>Suppliers, materials, equipment — <br>in the pocket, in the moment.</h1>
       <p>
-        A supplier directory across nine metros, refreshed weekly. A materials catalog with regional
+        A materials catalog with regional
         cost factors &mdash; and, from your first scanned receipt, your own supply-house prices.
         Plus every owned or rented machine tracked in one place &mdash; daily rates, status, and which job it&apos;s on.
       </p>
     </section>
 
-    <!-- Supplier Directory -->
-    <section class="section wrap-wide">
-      <div class="feature-row">
-        <div>
-          <h2>Local supplier directory.</h2>
-          <p>
-            A curated directory of construction suppliers — lumber yards, steel, concrete,
-            masonry, MEP — across nine US metros. Refreshed weekly.
-            Filter by material type, distance, and delivery options.
-          </p>
-          <ul>
-            <!-- These are the nine metros the code actually queries, verbatim from
-                 supabase/functions/fetch-external-data (the Google Places step). The
-                 page used to list San Antonio and San Diego, which it has never
-                 indexed; Atlanta and Miami, which it does, were missing. A city list
-                 is the single easiest thing on this page for a buyer to disprove. -->
-            <li>Indexed metros: New York, Los Angeles, Chicago, Houston, Dallas, Phoenix, Philadelphia, Atlanta, Miami</li>
-            <li>Filter by material category (lumber, concrete, steel, finishes, MEP, tools)</li>
-            <li>Distance-sorted with drive time estimates</li>
-            <li>Delivery availability and lead times</li>
-            <li>One-tap call, navigate, or open website</li>
-          </ul>
-        </div>
-        <div class="screenshot phone" data-label="Supplier directory · Map view"><img src="/screenshots/screens/28-companies.png" alt="Supplier directory" width="1290" height="2796" decoding="async" loading="lazy" /></div>
-      </div>
-    </section>
+    <!-- The supplier directory section was removed for the App Store launch
+         (content rights, 2026-10-03; contentfix-specs/RIGHTS-VERDICT.md). Its
+         listings came from Google Places, whose terms forbid storing them; the
+         app hides Discover > Companies (COMPANIES_DIRECTORY_ENABLED = false) and
+         the stored listings are deleted. Do not sell it here until a licensed
+         source replaces it. scripts/validate-marketing-claims.ts (c) pins this. -->
 
     <!-- Material pricing -->
     <section class="section-alt">
@@ -155,15 +135,11 @@
           </div>
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 3l2.9 6 6.1.9-4.5 4.3 1.1 6.1L12 17.8 6.4 20.3l1.1-6.1L3 9.9 9.1 9z"/></svg></div>
-            <div><h4>Supplier reviews</h4><p>Rate suppliers after each job. Community reviews help you pick.</p></div>
+            <div><h4>Supplier scorecard</h4><p>Grades each supplier on promised dates kept and damage found at receiving, from your own deliveries.</p></div>
           </div>
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5H3.5S6 15 6 9zM10.5 20a1.9 1.9 0 0 0 3 0"/></svg></div>
             <div><h4>Price alerts</h4><p>Get notified when key materials in your area drop below a threshold.</p></div>
-          </div>
-          <div class="feature-list-item">
-            <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg></div>
-            <div><h4>Preferred supplier list</h4><p>Star your go-to suppliers. They surface first in search.</p></div>
           </div>
         </div>
       </div>
@@ -172,7 +148,7 @@
     <section class="wrap-wide">
       <div class="cta-band">
         <h2>Stop calling around for prices.</h2>
-        <p>Start free and see the supplier directory for your metro.</p>
+        <p>Start free and price your next job off your own receipts.</p>
         <a class="btn btn-primary" href="https://app.mageid.app">Start free</a>
       </div>
     </section>

@@ -555,7 +555,8 @@ export async function resolveWeatherQuery(
 // binder.
 //
 // There is NO historical-weather source in this repo (OpenWeather's free tier is
-// forecast-only, and wttr.in answers "now"), so the fix is to stop asserting a
+// forecast-only; the daily report reads no "now" source either since
+// contentfix 2026-10-03), so the fix is to stop asserting a
 // wrong day's weather, not to look up the right one. Same line the rest of the
 // app already holds: ProjectSchedule.weatherDelayLog refuses to record a day
 // whose weather was simulated.
