@@ -11,11 +11,12 @@ import {
   Animated,
   ActivityIndicator,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { HardHat, Mail, Lock, Eye, EyeOff, User, ArrowRight, ChevronLeft } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, ArrowRight, ChevronLeft } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -24,7 +25,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
-import { Type } from '@/constants/typography';
+import { Type, DISPLAY_FONT } from '@/constants/typography';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { AuthGround, MonogramMark, SamplePill, SpineHeadline, NIGHT } from '@/components/auth/AuthGround';
+import MiniSpine from '@/components/auth/MiniSpine';
+import SpineHero from '@/components/auth/SpineHero';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import {
@@ -64,6 +69,11 @@ export default function SignupScreen() {
   const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // The spine ("Take D"), the same family as login: phone = a mini spine over
+  // the sheet; desktop web = the full spine on a night panel, the form right.
+  const isDeskWeb = useIsDesktopWeb();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const miniWidth = Math.min(winW, 390 * Math.min(1, Math.max(0.6, (winH - 600) / 212)));
   // Cold-start hand-off from BrandSplash (a web visitor can land here cold from
   // the marketing site). Unarmed, and the tree unchanged, on every other mount.
   const entrance = useLaunchEntrance(8);
@@ -333,44 +343,54 @@ export default function SignupScreen() {
   }, [name, email, password, signup, setError, inviteToken, isSubmitting, submitDone]);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.topSection, { paddingTop: insets.top + 16 }]}>
-        <Slot style={entrance.slot(0)}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-            <ChevronLeft size={24} color={Colors.textOnAccent} strokeWidth={2} />
-          </TouchableOpacity>
-        </Slot>
+    <View style={[styles.container, isDeskWeb && styles.containerDesk]}>
+      {/* The night hero: back, the monogram (no hard-hat mark), the "Sample
+          project" pill, and the spine. Decorative apart from Back. */}
+      <View style={isDeskWeb ? styles.deskLeft : [styles.topSection, { paddingTop: insets.top + 12 }]}>
+        <AuthGround />
         <View style={styles.logoRow}>
-          <Slot style={entrance.slot(1)}>
-            <View style={styles.logoCircle}>
-              <HardHat size={28} color={Colors.textOnAccent} strokeWidth={1.8} />
-            </View>
+          <Slot style={entrance.slot(0)}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+              <ChevronLeft size={24} color={Colors.textOnAccent} strokeWidth={2} />
+            </TouchableOpacity>
           </Slot>
-          <View>
-            <Text
-              ref={launchTarget.ref}
-              {...launchTarget.layoutProps}
-              style={entrance.showWordmark ? styles.brandName : [styles.brandName, HIDDEN]}
-            >MAGE ID</Text>
-            <Slot style={entrance.slot(2)}>
-              <Text style={styles.brandTagline}>Create your account</Text>
-            </Slot>
-          </View>
+          <Slot style={entrance.slot(1)}>
+            <MonogramMark height={isDeskWeb ? 48 : 40} />
+          </Slot>
+          <Text
+            ref={launchTarget.ref}
+            {...launchTarget.layoutProps}
+            style={entrance.showWordmark ? styles.brandName : [styles.brandName, HIDDEN]}
+          >MAGE ID</Text>
+          <View style={styles.logoSpacer} />
+          <SamplePill />
         </View>
+        <Slot style={entrance.slot(2)}>
+          {isDeskWeb ? (
+            <View style={styles.deskSpine}>
+              <SpineHero width={Math.max(320, winW - 556 - 96)} height={Math.max(300, winH - 330)} maxScale={1.04} testID="signup-spine" />
+            </View>
+          ) : (
+            <MiniSpine width={miniWidth} style={styles.miniSpine} testID="signup-mini-spine" />
+          )}
+        </Slot>
+        {isDeskWeb ? <SpineHeadline size={40} style={styles.deskCopy} lede={styles.deskLede} /> : null}
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.formWrapper}
+        style={isDeskWeb ? styles.deskRight : styles.formWrapper}
       >
         <ScrollView
-          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }, isDesktop && authColumnDesktop]}
+          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }, isDesktop && authColumnDesktop, isDeskWeb && styles.formDesk]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <Text style={styles.sheetEyebrow}>Get started</Text>
+          <Text style={styles.sheetHeading} accessibilityRole="header">Create your account</Text>
           <View>
             {errorMessage ? (
               <Slot style={bannerFade}>
@@ -601,21 +621,23 @@ export default function SignupScreen() {
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  // The night ground (components/auth/AuthGround) shows behind the sheet's
+  // rounded top corners, so the screen itself is night, not t.bg.
   container: {
     flex: 1,
-    backgroundColor: t.bg,
+    backgroundColor: NIGHT.mid,
   },
-  // A fixed brand ink (#0B0D10; login.tsx's hero moved to the #151816 dark
-  // ground in the 2026-09-16 rebrand, and scripts/validate-front-door-motion.ts
-  // pins this literal), so login → signup never jumps from ink to an accent
-  // slab (the accent never becomes the background). Every hero child below
-  // clears AA on it.
+  containerDesk: {
+    flexDirection: 'row',
+  },
+  // A fixed dark ink under the night ground (scripts/validate-front-door-motion.ts
+  // pins this literal), so login → signup never jumps to an accent slab (the
+  // accent never becomes the background). Every hero child clears AA on it.
   topSection: {
     backgroundColor: '#0B0D10',
-    paddingBottom: 28,
+    paddingBottom: 40,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    overflow: 'hidden',
   },
   backButton: {
     width: 40,
@@ -624,48 +646,87 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
+    marginBottom: 14,
+    zIndex: 1,
   },
-  logoCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: Tokens.radius.panel,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+  logoSpacer: {
+    flex: 1,
   },
-  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #0B0D10 /
-  // Apple black / t.accentFill) that does not change with the theme, so the
-  // foreground must not either. In dark mode t.surface (then #14181D, #1D211F
-  // since the 2026-09-16 rebrand) made the Sign In label 1.09:1 on its own
-  // button, and the page behind it was #0B0D10 too, so the button had no edge
-  // and the label no contrast. validate-contrast.ts
-  // passes on this file — it prints an explicit allowance for it.
+  // Kept for the splash hand-off: BrandSplash's "MAGE ID" lands on this word.
+  // Colors.textOnAccent: it sits on the fixed night field in both themes.
   brandName: {
-    fontSize: 24,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
     color: Colors.textOnAccent,
-    letterSpacing: -0.5,
+    letterSpacing: 2,
   },
-  brandTagline: {
-    fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 2,
+  miniSpine: {
+    alignSelf: 'center',
   },
+  // Desktop web: the spine on a night panel on the left, the form on the right.
+  deskLeft: {
+    flex: 1,
+    paddingHorizontal: 48,
+    paddingTop: 44,
+    paddingBottom: 52,
+    overflow: 'hidden',
+    justifyContent: 'space-between',
+  },
+  deskSpine: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  deskCopy: {
+    maxWidth: 628,
+  },
+  deskLede: {
+    fontSize: 16,
+  },
+  deskRight: {
+    width: 556,
+    backgroundColor: t.bg,
+  },
+  formDesk: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    maxWidth: 372,
+    paddingTop: 48,
+  },
+  // The sheet: the light (themed) page rising over the night hero.
   formWrapper: {
     flex: 1,
+    marginTop: -24,
+    backgroundColor: t.bg,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
   },
   formContainer: {
     padding: 24,
-    paddingTop: 28,
+    paddingTop: 26,
+  },
+  sheetEyebrow: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: t.accentLabel,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+  },
+  sheetHeading: {
+    fontFamily: DISPLAY_FONT.bold,
+    fontSize: 30,
+    lineHeight: 34,
+    letterSpacing: -0.5,
+    color: t.text,
+    marginTop: 6,
+    marginBottom: 18,
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,
