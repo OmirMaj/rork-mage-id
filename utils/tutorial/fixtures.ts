@@ -19,8 +19,8 @@ export const SAMPLE_NO_CREDITS_LABEL = 'Sample — no AI credits used';
 // ── Daily report: the sample voice note ─────────────────────────────────────
 // Three sections from one note — crew, work done, the delay — and 3 crew, so
 // the stamp's "3 crew · 3 sections from one note" is literally what the fill
-// produced. No weather: the screen fills weather from the real forecast, and a
-// canned temperature would be an invented fact about his jobsite.
+// produced. No weather: the super types the weather by hand on the real
+// screen, and a canned temperature would be an invented fact about his jobsite.
 
 const DFR_TRANSCRIPT =
   'Three on site today. Riverbend had two setting kitchen base cabinets, and Volt Bros had one pulling wire for the island. ' +

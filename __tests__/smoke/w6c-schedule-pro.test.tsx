@@ -44,6 +44,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { world } from '@/__tests__/fixtures/world';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 import type { Project, ScheduleTask, SubScheduleUpdate } from '@/types';
 import type { ScheduleEvSnapshot } from '@/utils/scheduleEarnedValue';
 import type { DayForecast } from '@/utils/weatherService';
@@ -381,7 +382,12 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
       const r = render(<Wrap><View><WeatherReschedulePrompt tasks={TASKS} forecasts={FORECAST} projectStartDate={new Date(2026, 8, 7)} onPushTasks={() => {}} /></View></Wrap>);
       await pump(2);
       expect(r.getByText(/weather-sensitive task/)).toBeTruthy();
-      expect(fingerprint('weather-prompt-390', r.toJSON())).toMatchSnapshot();
+      // THE ONE NAMED DELTA (content rights, 2026-10-03): a live forecast now
+      // carries the OpenWeather credit. Assert it renders, strip exactly that
+      // node (sanctioned prefix 'weather-credit') and the rest must hash to the
+      // untouched golden.
+      expect(r.getAllByTestId('weather-credit').length).toBeGreaterThan(0);
+      expect(fingerprint('weather-prompt-390', stripSanctioned(r.toJSON()))).toMatchSnapshot();
     });
 
     it('EarnedValuePanel card + its sheet', async () => {
@@ -399,7 +405,10 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
       const r = render(<Wrap><View><WeatherRescheduleModal visible result={WEATHER_RESULT} projectStartDate={new Date(2026, 8, 7)} onClose={() => {}} onApply={() => {}} /></View></Wrap>);
       await pump(2);
       expect(r.getByText('Apply reschedule')).toBeTruthy();
-      expect(fingerprint('weather-reschedule-modal-390', r.toJSON())).toMatchSnapshot();
+      // The same named delta as the prompt: the credit renders, and without it
+      // the modal hashes to the untouched golden.
+      expect(r.getAllByTestId('weather-credit').length).toBeGreaterThan(0);
+      expect(fingerprint('weather-reschedule-modal-390', stripSanctioned(r.toJSON()))).toMatchSnapshot();
     });
 
     it('ScheduleShareSheet, open (full and by trade)', async () => {

@@ -1,6 +1,10 @@
 // construction-news — the latest construction headlines from a curated set of
 // publisher RSS/Atom feeds, merged into one list for app/construction-news.tsx.
 //
+// Since 2026-10-03 (content rights) the set is OSHA only — see the note above
+// FEED_SOURCES in core.ts for why, and for how a publisher is re-added once it
+// gives written permission.
+//
 // Founder request (2026-09-22): "a construction news place on the app that
 // has all the latest up to date construction news happening."
 //
@@ -16,7 +20,7 @@
 //      being an open feed-fetching proxy for anyone holding the anon key.
 //   2. Serves the merged result from this isolate's memory for 15 minutes.
 //      Every user sees the same news, so there is no reason for each app open
-//      to hit nine publishers.
+//      to hit every publisher.
 //   3. Otherwise fetches every feed in core.ts FEED_SOURCES IN PARALLEL, each
 //      with its own 6 s timeout, and merges them (core.ts mergeFeeds). One slow
 //      or dead publisher costs its own slot and is named in sources[]; the rest

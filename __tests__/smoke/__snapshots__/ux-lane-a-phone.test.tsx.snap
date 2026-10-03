@@ -16,8 +16,8 @@ exports[`ux lane A — phone golden (390 × 844 iOS) attention logs view 1`] = `
 
 exports[`ux lane A — phone golden (390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
-  "lines": 1153,
-  "sha256": "3e7ced96e62834a29534fa0773a207530e129c53b09df00ad13c8990895681fd",
+  "lines": 1150,
+  "sha256": "ff308272be4882bbe6f8d16960d5c8f4525f179e4211bd3bebfd281356761c3d",
 }
 `;
 

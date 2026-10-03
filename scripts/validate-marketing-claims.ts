@@ -1206,28 +1206,42 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
         + 'in the app really is managed and refunded by that store.');
     }
 
-    // (c) THE METRO LIST. features/marketplace.html names the nine metros the
-    // supplier directory queries. They are a literal array in the edge
-    // function; two of the nine on the page used to be cities the code has
-    // never queried, and nothing would have caught putting them back.
+    // (c) THE SUPPLIER DIRECTORY. features/marketplace.html used to sell "a
+    // supplier directory across nine metros", pinned to the Google Places metro
+    // array in fetch-external-data. Content rights (2026-10-03) removed that
+    // step (Google's terms forbid storing the listings), the stored listings are
+    // deleted and the app hides Discover > Companies behind
+    // COMPANIES_DIRECTORY_ENABLED. While the flag is off, the page may not sell
+    // the directory at all; with it on, the old metro rule applies again.
+    const flags = readFileSync('constants/featureFlags.ts', 'utf8');
+    const dirOn = /export const COMPANIES_DIRECTORY_ENABLED\s*=\s*true\b/.test(flags);
+    const dirOff = /export const COMPANIES_DIRECTORY_ENABLED\s*=\s*false\b/.test(flags);
+    ok('COMPANIES_DIRECTORY_ENABLED is a readable true/false literal', dirOn !== dirOff);
     const fx = readFileSync('supabase/functions/fetch-external-data/index.ts', 'utf8');
     const metroBlock = /const metros = \[([\s\S]*?)\]/.exec(fx)?.[1] ?? '';
     const metros = [...metroBlock.matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
-    ok('the metro array in fetch-external-data is still parseable', metros.length > 0, metros.join(', '));
     const mkt = prose('marketing/features/marketplace.html');
-    ok(`features/marketplace.html names the ${WORD[metros.length]} metros the code queries`,
-      new RegExp(`${WORD[metros.length]} metros`, 'i').test(mkt),
-      `the code queries ${metros.length}: ${metros.join(', ')}`);
-    const wrongMetro = metros.filter(m => !mkt.includes(m));
-    ok('every metro the code queries is named on the page', wrongMetro.length === 0,
-      wrongMetro.length ? `missing: ${wrongMetro.join(', ')}` : undefined);
-    // And the reverse: San Antonio and San Diego were on the page and have
-    // never been queried. Any US city named in the indexed-metros line must be
-    // in the array.
-    const listed = /Indexed metros:([^<]*)/.exec(mkt)?.[1] ?? '';
-    const invented = listed.split(',').map(x => x.trim()).filter(Boolean).filter(x => !metros.includes(x));
-    ok('the page names no metro the code has never queried', invented.length === 0,
-      invented.length ? `not in the fetch-external-data array: ${invented.join(', ')}` : undefined);
+    if (dirOff) {
+      const sells = [/supplier directory/i, /Indexed metros/i, /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+) (US )?metros\b/i, /28-companies\.png/]
+        .filter(re => re.test(mkt)).map(String);
+      ok('features/marketplace.html sells no supplier directory while the app hides it', sells.length === 0,
+        sells.length ? `still on the page: ${sells.join(', ')}` : undefined);
+    } else {
+      ok('the metro array in fetch-external-data is still parseable', metros.length > 0, metros.join(', '));
+      ok(`features/marketplace.html names the ${WORD[metros.length]} metros the code queries`,
+        new RegExp(`${WORD[metros.length]} metros`, 'i').test(mkt),
+        `the code queries ${metros.length}: ${metros.join(', ')}`);
+      const wrongMetro = metros.filter(m => !mkt.includes(m));
+      ok('every metro the code queries is named on the page', wrongMetro.length === 0,
+        wrongMetro.length ? `missing: ${wrongMetro.join(', ')}` : undefined);
+      // And the reverse: San Antonio and San Diego were on the page and have
+      // never been queried. Any US city named in the indexed-metros line must be
+      // in the array.
+      const listed = /Indexed metros:([^<]*)/.exec(mkt)?.[1] ?? '';
+      const invented = listed.split(',').map(x => x.trim()).filter(Boolean).filter(x => !metros.includes(x));
+      ok('the page names no metro the code has never queried', invented.length === 0,
+        invented.length ? `not in the fetch-external-data array: ${invented.join(', ')}` : undefined);
+    }
 
     // (d) THE WEATHER CAVEAT, WHEREVER THE CLAIM IS MADE.
     // eas.json carries no EXPO_PUBLIC_OPENWEATHER_API_KEY in either release

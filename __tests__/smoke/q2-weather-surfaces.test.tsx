@@ -165,9 +165,18 @@ describe('Q2 weather surfaces', () => {
       } else {
         expect(tomorrowBlock).toEqual([]);
       }
+      // Content rights (2026-10-03): a live OpenWeather forecast carries its
+      // credit line, followed by the OpenStreetMap credit for the place name.
+      // Split off as one block (the only sanctioned delta); simulated weather
+      // must not carry it, because it is not OpenWeather's data.
+      const creditAt = body.indexOf('Weather data provided by OpenWeather');
+      const creditBlock = creditAt >= 0 ? body.slice(creditAt, creditAt + 3) : [];
+      const credited = creditAt >= 0 ? [...body.slice(0, creditAt), ...body.slice(creditAt + 3)] : body;
+      if (s.name.includes('live')) expect(creditBlock).toEqual(['Weather data provided by OpenWeather', '·', '© OpenStreetMap contributors']);
+      else expect(creditBlock).toEqual([]);
       // New lines this lane adds; everything else must be the golden, in order.
-      const added = body.filter((l) => /^Weather for /.test(l));
-      const rest = body.filter((l) => !/^Weather for /.test(l));
+      const added = credited.filter((l) => /^Weather for /.test(l));
+      const rest = credited.filter((l) => !/^Weather for /.test(l));
       // The banner body may carry the cause sentence after the golden copy.
       const norm = (l: string) => l
         .replace(/ This project has no jobsite address, so there is nowhere to forecast\. Add the address in Edit project to see live weather\.$/, '')

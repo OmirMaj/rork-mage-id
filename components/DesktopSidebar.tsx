@@ -29,7 +29,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useClaimedCrewProfile } from '@/hooks/useClaimedCrewProfile';
-import { featureFor, type FeatureId } from '@/utils/featureRegistry';
+import { featureFor, isFeatureHidden, type FeatureId } from '@/utils/featureRegistry';
 import {
   SIDEBAR_SECTIONS_KEY, jobScopedTarget, jobSwitchTarget, normalizeRoutePath, parseSectionState,
 } from '@/utils/activeProject';
@@ -562,9 +562,13 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const isPropertyManager = userRole === 'property_manager';
   // Direct Hire + Messages belong to the same orphaned subsystem, gated
   // behind HIRE_ENABLED for launch. Hide their rail entries when it's off.
+  // Construction News and Companies are switched off for launch by their
+  // content-rights flags (constants/featureFlags.ts) — the rows stay declared
+  // above so the flags restore them exactly; isFeatureHidden drops them here.
   const navItems = useMemo(
     () => (isMinimalPersona ? (userRole === 'property_manager' ? PM_NAV_ITEMS : CLIENT_NAV_ITEMS) : NAV_ITEMS)
-      .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages')),
+      .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages'))
+      .filter(item => !isFeatureHidden(item.feature)),
     [isMinimalPersona, userRole],
   );
   const minimalSections = isPropertyManager ? PM_SECTIONS : CLIENT_SECTIONS;

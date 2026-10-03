@@ -81,6 +81,26 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
       + 'state; with ?projectId= it stays put.',
     states: ['empty'],
   },
+  {
+    from: '/construction-news',
+    to: '/discover',
+    why:
+      'App Store 5.2.2 content rights: constants/featureFlags.ts '
+      + 'CONSTRUCTION_NEWS_ENABLED is false for launch (no publisher has given '
+      + 'MAGE permission), so app/construction-news.tsx redirects to Discover. '
+      + 'Remove this entry in the change that flips the flag back on.',
+    states: ['empty', 'populated'],
+  },
+  {
+    from: '/discover/companies',
+    to: '/discover',
+    why:
+      'App Store 5.2.2 content rights: constants/featureFlags.ts '
+      + 'COMPANIES_DIRECTORY_ENABLED is false for launch (Google Places terms '
+      + 'forbid storing the listings), so app/(tabs)/discover/companies.tsx '
+      + 'redirects to Discover. Remove this entry when the flag flips back on.',
+    states: ['empty', 'populated'],
+  },
 ];
 
 export function expectedRedirectFor(

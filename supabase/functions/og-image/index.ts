@@ -1,10 +1,33 @@
+// og-image — automatic product photos for Selections (Pro+).
+//
+// CONTENT RIGHTS (contentfix 2026-10-03; contentfix-specs/RIGHTS-VERDICT.md,
+// row "Selections product photos"): AUTOMATIC PHOTOS ARE OFF. The function
+// answers { success: true, imageUrl: null } to every signed-in Pro+ call and
+// fetches nothing. MAGE ID has no permission from retailers to reuse their
+// product images, and Pexels requires a credit link the app never showed (the
+// Pexels search is deleted, not just switched off). The client already treats
+// imageUrl: null as "no photo" (utils/ogImage.ts resolveSelectionImage), the
+// card shows the option without one and the portal shows its letter
+// placeholder. The verdict counted 0 Pexels images in production; retailer
+// photos fetched before this change were NOT counted and are not purged here
+// (docs/ops/2026-10-03-content-rights-cleanup.sql section 5 counts them,
+// read-only, for the founder to decide).
+//
+// The old fetcher also announced itself as a desktop Chrome browser, which
+// works against retailers' anti-bot terms. It now names itself (UA below).
+// Turning retailer photos back on is a lawyer question (the verdict's
+// section 4), not a flag flip: AUTO_PRODUCT_PHOTOS_ENABLED stays false until
+// that answer and each retailer's permission are in hand. The SSRF guard is
+// kept intact so the code path stays safe if it is ever re-enabled.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier } from "../_shared/auth.ts";
 
-const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY") || "";
+/** OFF for content rights (see above). Nothing below the auth gate runs while false. */
+const AUTO_PRODUCT_PHOTOS_ENABLED = false;
 const MAX_HTML_SCAN = 200_000;
 const FETCH_TIMEOUT_MS = 8000;
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36";
+/** An honest, identifying User-Agent (never a spoofed browser string). */
+const UA = "MAGE-ID-LinkPreview/1.0 (+https://mageid.app)";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -186,20 +209,6 @@ async function fetchOgImage(startUrl: string): Promise<string | null> {
   finally { clearTimeout(timer); }
 }
 
-async function fetchPexels(query: string): Promise<string | null> {
-  if (!PEXELS_API_KEY || !query.trim()) return null;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=square`, { headers: { Authorization: PEXELS_API_KEY }, signal: ctrl.signal });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const src = j?.photos?.[0]?.src;
-    return src?.medium ?? src?.large ?? src?.original ?? null;
-  } catch { return null; }
-  finally { clearTimeout(timer); }
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return jsonResponse({ success: false, error: "Method not allowed" }, 405);
@@ -208,18 +217,14 @@ serve(async (req) => {
   if (!auth.ok) return jsonResponse(auth.body, auth.status);
 
   try {
+    // Content rights: no automatic photo. Same response shape as before, so
+    // every client (old and new) shows the option without a photo. Answered
+    // before the body is read, so no request can reach a fetch.
+    if (!AUTO_PRODUCT_PHOTOS_ENABLED) return jsonResponse({ success: true, imageUrl: null });
     const body = await req.json() as OgImageRequest;
     let imageUrl: string | null = null;
-    let source: "og" | "pexels" | undefined;
-    if (body.url && isHttpUrl(body.url)) {
-      imageUrl = await fetchOgImage(body.url);
-      if (imageUrl) source = "og";
-    }
-    if (!imageUrl && body.query) {
-      imageUrl = await fetchPexels(body.query);
-      if (imageUrl) source = "pexels";
-    }
-    return jsonResponse({ success: true, imageUrl, source });
+    if (body.url && isHttpUrl(body.url)) imageUrl = await fetchOgImage(body.url);
+    return jsonResponse({ success: true, imageUrl, source: imageUrl ? "og" : undefined });
   } catch (e) {
     console.error("[og-image] failed", e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);

@@ -6,9 +6,13 @@
  * (supabase/functions/building-record/md.ts) and summarized by the one client
  * renderer, over bodies shaped like the live 2026-09-28 reads:
  *
- *  (a) ready City record with an open exterior notice: the notice number,
- *      date and raw DHCD status code, and no "No open notices".
- *  (b) the notices part failed: "not checked", never "No open notices".
+ *  (a) ready City record (content rights, 2026-10-03): the unlicensed housing
+ *      notices feed, CHAP landmarks and National Register layers are no
+ *      longer read, so they say "not checked", the headline says the record
+ *      is incomplete, and the CoDeMap link is offered. Never "No open notices".
+ *  (b) a City record saved BEFORE that change (a phone's cached copy) with an
+ *      open exterior notice still shows the notice number, date and raw DHCD
+ *      status code.
  *  (c) an address outside both governments: the plain outside line, not an error.
  *  (d) a County record shows the County's permit STATUS verbatim and says
  *      code enforcement was not checked.
@@ -60,26 +64,14 @@ const CITY_BODIES: Partial<Record<MdJobId, unknown>> = {
   permits_count: { count: 1 },
   permits_rows: feats({ CaseNumber: 'BRCM-26-009216', Description: 'INSTALL 12 PLUMBING FIXTURES', IssuedDate: 1777953600000, ExpirationDate: 1793419200000, BLOCKLOT: '4074C009', Cost: 1000 }),
   vbn: empty,
-  notice_1: empty,
-  notice_2: empty,
-  notice_3: empty,
-  notice_4: feats({ NoticeNum: '2607703A', DateNotice: 1769006760000, NoticeType: 'Exterior', Status: 'NOTICE MAILED', BlockLot: '4074C009' }),
   // The live C8 URL at 620 E 31st St (fetched 2026-09-28).
   zoning: feats({ Zoning: 'R-6', overlay: ' ', Label: 'R-6', URL: 'https://s3.amazonaws.com/baltimorecity.gov.if-us-east-1/s3fs-public/2026-02/r5-10.pdf' }),
   historic: feats({ AREA_NAME: 'Better Waverly', CHAPcode: 'A29' }),
-  landmarks: empty,
-  national_register: empty,
   flood: empty,
   'asof:C4': stat(1790294400000),
   'asof:C6': stat(1790523180000),
-  'asof:C7_1': stat(1790520000000),
-  'asof:C7_2': stat(1790350000000),
-  'asof:C7_3': stat(1790523180000),
-  'asof:C7_4': stat(1790521800000),
   'asof:C8': layerJson(),
   'asof:C9': layerJson(1685990322999),
-  'asof:C10': layerJson(),
-  'asof:C11': layerJson(),
   'asof:C12': layerJson(1749503220000),
 };
 const COUNTY_BODIES: Partial<Record<MdJobId, unknown>> = {
@@ -142,35 +134,44 @@ const MD_JOB = project('620 E 31st St, Baltimore, MD 21218', 'MD');
 const allText = () => screen.toJSON() ? JSON.stringify(screen.toJSON()) : '';
 
 describe('Baltimore building record card', () => {
-  it('(a) ready City record with an open notice: number, date, raw DHCD status code; never "No open notices"', () => {
+  it('(a) ready City record: the unlicensed layers read "not checked", the CoDeMap link is offered; never "No open notices"', () => {
     mockMd = readyState(cityRecord());
     render(<MdBuildingRecordCard project={MD_JOB} />);
     expect(screen.getByTestId('mdrecord-card')).toBeTruthy();
     expect(screen.getByTestId('mdrecord-side').props.children).toBe('Baltimore City');
-    expect(screen.getByTestId('mdrecord-headline').props.children).toBe(
-      'Baltimore City records list open notices for this parcel: 1 exterior notice (as of 2026-09-27).',
-    );
-    expect(screen.getByText(/^Open exterior notice 2607703A, dated 2026-01-21, DHCD status code: NOTICE MAILED/)).toBeTruthy();
+    expect(screen.getByTestId('mdrecord-headline').props.children).toBe('Some Baltimore City datasets could not be fully checked for this parcel; see below.');
+    expect(screen.getByText("Couldn't read the exterior notices in the unpublished City inspections feed (MAGE no longer checks it; see the CoDeMap link) — not checked")).toBeTruthy();
+    expect(screen.getByText("Couldn't read the interior/exterior notices in the unpublished City inspections feed (MAGE no longer checks it; see the CoDeMap link) — not checked")).toBeTruthy();
+    expect(screen.getByText("Couldn't read the City's unpublished CHAP landmark layer (MAGE no longer checks it) — not checked")).toBeTruthy();
     expect(screen.getByText(/^BRCM-26-009216 · issued 2026-05-05 · expires 2026-10-31/)).toBeTruthy();
     expect(screen.getByText(/^Exterior work here needs CHAP approval/)).toBeTruthy();
     expect(screen.getByText(/^Not checked: Permits issued before 2019/)).toBeTruthy();
     expect(screen.getByText('E-Permits search')).toBeTruthy();
+    expect(screen.getByText('Open notices map (CoDeMap)')).toBeTruthy();
     // The zoning district PDF the City's zoning layer links (spec GOAL).
     expect(screen.getByTestId('mdrecord-link-0')).toBeTruthy();
     expect(screen.getByText('R-6 zoning district (PDF)')).toBeTruthy();
     expect(screen.getByText('Change building')).toBeTruthy();
     expect(allText()).not.toMatch(/No open notices listed/);
+    expect(allText()).not.toMatch(/No open (interior\/exterior|exterior|interior) notices/);
     expect(allText()).not.toMatch(/\bclean\b|no violations|not vacant|not historic|no flood risk/i);
   });
 
-  it('(b) the notices part failed: "not checked", never "No open notices"', () => {
-    mockMd = readyState(cityRecord({ notice_4: { status: 'timeout' }, notice_2: { status: 'failed' } }));
+  it('(b) a record saved before the change, with an open exterior notice: number, date, raw DHCD status code', () => {
+    const rec = cityRecord();
+    const saved = {
+      ...rec,
+      housingNotices: rec.housingNotices.map((p, i) => (i === 3
+        ? { ...rec.vacantNotices!, layer: 'Exterior', source: 'City inspections map feed (not a published dataset)', rows: [{ number: '2607703A', date: '2026-01-21', type: 'Exterior', statusCode: 'NOTICE MAILED' }] }
+        : p)),
+    } as MdBuildingRecord;
+    mockMd = readyState(saved);
     render(<MdBuildingRecordCard project={MD_JOB} />);
-    expect(screen.getByTestId('mdrecord-headline').props.children).toBe('Some Baltimore City datasets could not be fully checked for this parcel; see below.');
-    expect(screen.getByText("Couldn't read the exterior notices in the City inspections map feed (not a published dataset) — not checked")).toBeTruthy();
-    expect(screen.getByText("Couldn't read the interior/exterior notices in the City inspections map feed (not a published dataset) — not checked")).toBeTruthy();
+    expect(screen.getByTestId('mdrecord-headline').props.children).toBe(
+      'Baltimore City records list open notices for this parcel: 1 exterior notice (as of 2026-09-27).',
+    );
+    expect(screen.getByText(/^Open exterior notice 2607703A, dated 2026-01-21, DHCD status code: NOTICE MAILED/)).toBeTruthy();
     expect(allText()).not.toMatch(/No open notices listed/);
-    expect(allText()).not.toMatch(/No open (interior\/exterior|exterior) notices/);
   });
 
   it('(c) an address outside both governments: the plain outside line, not an error', () => {
