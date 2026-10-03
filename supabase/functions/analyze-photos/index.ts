@@ -195,6 +195,7 @@ Rules:
 - At most 5 observations. Prefer fewer, sharper ones.
 - No dimensions unless a visible reference in the photo lets you measure them.
 - codeRef: only a section you recall for the edition named in the jurisdiction block; leave it "" when unsure. It will be shown as model recall.
+- Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
 - confidence is how sure you are about what you SEE (high / med / low), never about the code.
 - cantTell is required: list at least one thing this photo cannot show (hidden side, box fill, fastener spacing behind the finish, a label out of frame), each with betterShot = the photo that would show it.
 - Never say the work passes or that there are no issues.
