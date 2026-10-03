@@ -23,6 +23,8 @@ import {
   SIMULATED_WEATHER_HEADLINE,
   SIMULATED_NO_LOG_NOTICE,
 } from '@/utils/weatherProvenance';
+import { coverageShowsOpenWeatherCredit } from '@/utils/contentCredits';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 
 export interface WeatherRescheduleModalProps {
   visible: boolean;
@@ -67,6 +69,10 @@ export default function WeatherRescheduleModal({
   const forecastSource = result?.forecastSource ?? 'empty';
   const isFullySimulated = hasImpact && forecastSource === 'simulated';
   const isPartlySimulated = hasImpact && forecastSource === 'mixed';
+  // OpenWeather's credit (contentfix-specs/RIGHTS-VERDICT.md) whenever this
+  // preview was computed from at least one live reading — never for a fully
+  // simulated window, which is the app's invention, not their data.
+  const creditDays = coverageShowsOpenWeatherCredit(forecastSource) ? [{ source: 'live' as const }] : [];
 
   return (
     <Modal visible={visible} transparent animationType={fW.animationType} onRequestClose={onClose}>
@@ -167,6 +173,8 @@ export default function WeatherRescheduleModal({
             </>
           )}
 
+          <WeatherCredit days={creditDays} style={styles.credit} />
+
           <View style={[styles.footer, fW.footer]}>
             <TouchableOpacity style={[styles.btnGhost, fW.footerButton]} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.btnGhostText}>{hasImpact ? 'Not now' : 'Close'}</Text>
@@ -197,6 +205,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
   subtitle: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, marginLeft: 4 },
   closeBtn: { padding: 4 },
+  credit: { paddingHorizontal: 16, paddingTop: 8 },
 
   emptyWrap: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 40, gap: 10 },
   emptyTitle: { fontSize: Type.headline.fontSize, fontWeight: '700', color: t.text },

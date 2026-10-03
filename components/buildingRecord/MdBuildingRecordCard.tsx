@@ -24,6 +24,11 @@ import { Tokens } from '@/constants/designTokens';
 import { CraneSvg } from '@/components/CraneLoader';
 import { useMdBuildingRecord, MD_NO_MATCH_TEXT } from '@/hooks/useMdBuildingRecord';
 import { MD_SIDE_NAME, mdRecordLinks, type MdCandidate } from '@/utils/buildingRecord';
+// The license notice each side's data needs where it is shown
+// (contentfix-specs/RIGHTS-VERDICT.md): Baltimore County's open-data license
+// requires its disclaimer, verbatim; the City's Real Property dataset is
+// CC BY 3.0, which requires a license link.
+import { mdRecordCredit } from '@/utils/contentCredits';
 
 const COMPACT_LINES = 3;
 
@@ -65,6 +70,7 @@ export function MdBuildingRecordCard({
 
   const compact = variant === 'compact';
   const sideName = md.confirmed ? MD_SIDE_NAME[md.confirmed.side] : null;
+  const credit = mdRecordCredit(md.confirmed?.side);
 
   let body: React.ReactNode = null;
   switch (md.phase) {
@@ -167,6 +173,23 @@ export function MdBuildingRecordCard({
               ))}
             </View>
           ) : null}
+          {credit?.kind === 'city_cc_by' ? (
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => openUrl(credit.url)}
+              accessibilityRole="link"
+              accessibilityLabel={`${credit.text}. Opens the Creative Commons license.`}
+              testID="mdrecord-license"
+            >
+              <Text style={styles.license}>{credit.text}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {credit?.kind === 'county_disclaimer' ? (
+            <View style={styles.disclaimer} testID="mdrecord-county-disclaimer">
+              <Text style={styles.disclaimerTitle}>{credit.title}</Text>
+              <Text style={styles.disclaimerText}>{credit.text}</Text>
+            </View>
+          ) : null}
           <View style={styles.footer}>
             <Text style={styles.muted} testID="mdrecord-checked">{checkedLabel(rec?.fetchedAt)}</Text>
             <TouchableOpacity style={styles.linkBtn} onPress={md.changeBuilding} accessibilityRole="button" accessibilityLabel="Change building" testID="mdrecord-change">
@@ -227,4 +250,8 @@ const makeStyles = (t: ThemeColors) =>
     linkBtn: { paddingVertical: 4 },
     link: { ...Type.footnoteEmphasized, color: t.accentLabel },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Tokens.spacing.sm },
+    license: { ...Type.caption1, color: t.textSecondary, textDecorationLine: 'underline' },
+    disclaimer: { gap: 2 },
+    disclaimerTitle: { ...Type.footnoteEmphasized, color: t.textSecondary },
+    disclaimerText: { ...Type.caption2, color: t.textSecondary },
   });

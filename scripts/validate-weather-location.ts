@@ -317,25 +317,23 @@ async function main(): Promise<void> {
   const notif = strip(read('app/notifications-settings.tsx'));
   ok('the digest location card classifies with classifyProjectLocation', /classifyProjectLocation\(p\)/.test(notif));
 
-  // Wave 6d (Z2): the daily report's live read. It sent the typed text to
-  // wttr.in (so 'United States' fetched some city's weather) and printed that
-  // text on the chip instead of the place wttr.in actually read.
+  // Wave 6d (Z2) pinned the daily report's live wttr.in read. Content rights
+  // (2026-10-02) retired that read: wttr.in publishes no terms or data license
+  // and every call sent it the jobsite address. The report now takes weather
+  // the super typed or dictated, and it never names a place it did not read.
   const dfr = strip(read('app/daily-report.tsx'));
-  ok('daily-report asks wttr.in only with usableLocationText(project?.location)',
-    /const weatherQuery = usableLocationText\(project\?\.location\);/.test(dfr)
-    && /encodeURIComponent\(weatherQuery\)/.test(dfr) && !/encodeURIComponent\(project\.location\)/.test(dfr));
-  ok('daily-report has no `if (!project?.location) return` gate (a country-only location is not an address)',
-    !/if \(!project\?\.location\) return/.test(dfr) && /if \(!weatherQuery\) \{/.test(dfr));
-  ok('daily-report: a tapped fetch with no usable address says why (NO_ADDRESS_WEATHER_CAUSE); the auto one stays quiet',
-    /if \(!weatherQuery\) \{\s*if \(opts\?\.auto !== true\) showAlert\(t\('field\.dfr\.noJobsiteAddress', 'No jobsite address'\), NO_ADDRESS_WEATHER_CAUSE\);\s*return;\s*\}/.test(dfr));
-  ok('daily-report: the mount fetch is gated on weatherQuery', /if \(!existingReport && weatherQuery\) \{\s*void fetchWeather\(\{ auto: true \}\);/.test(dfr));
-  ok("daily-report reads wttr.in's nearest_area for the place it read",
-    /data\?\.nearest_area\?\.\[0\]/.test(dfr) && /setWeatherPlace\(\[area\?\.areaName\?\.\[0\]\?\.value, area\?\.region\?\.\[0\]\?\.value\]\.filter\(Boolean\)\.join\(', '\) \|\| weatherQuery\)/.test(dfr));
-  ok('daily-report passes weatherPlace into weatherProvenanceLine (never the typed text)',
-    /weatherProvenanceLine\(\{[\s\S]{0,400}location: weatherPlace \?\? weatherQuery \?\? ''/.test(dfr)
+  ok('daily-report reads no weather from the network (no wttr.in, no fetchWeather, no weather fetch)',
+    !/wttr\.in/.test(dfr) && !/\bfetchWeather\b/.test(dfr) && !/\bfetch\([^)]*weather/i.test(dfr) && !/fetchForecast|getWeatherForecast/.test(dfr));
+  ok('daily-report: every typed weather field marks the value as typed (isManual: true)',
+    (['temperature', 'conditions', 'wind'] as const).every((f) =>
+      new RegExp(`setWeather\\(prev => \\(\\{ \\.\\.\\.prev, ${f}: v, isManual: true \\}\\)\\)`).test(dfr)));
+  ok('daily-report: dictated weather is marked as the super\'s own account (isManual: true), never a reading',
+    /setWeather\(\{ \.\.\.parsed\.weather, isManual: true \}\)/.test(dfr) && !/isManual: false/.test(dfr));
+  ok('daily-report names no place on the provenance chip (it read none; never the typed text)',
+    /weatherProvenanceLine\(\{[\s\S]{0,400}location: '',?/.test(dfr)
     && !/weatherProvenanceLine\(\{[\s\S]{0,400}location: project\?\.location/.test(dfr));
-  ok('daily-report clears the place with the reading (the backfill clear)',
-    /setWeatherReadAt\(null\);\s*setWeatherPlace\(null\);/.test(dfr));
+  ok('daily-report: the backfill clear only touches an app-read value on an unsaved, non-today report',
+    /if \(reportIsToday \|\| existingReport\) return;\s*if \(weather\.isManual\) return;/.test(dfr));
 
   const fn = read('supabase/functions/weather-forecast/index.ts');
   const fnCode = strip(fn);

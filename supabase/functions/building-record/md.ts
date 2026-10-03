@@ -53,19 +53,13 @@
 //   C6 Vacant Building Notices (open)  item 691d65a5f85640e6aaa46930bd9dc102  .../FeatureServer/1
 //      11,444 rows, "Data is updated on a daily basis"; DateNotice 2004-11-05 .. 2026-09-27;
 //      DateCancel / DateAbate null on every row; NT = 'Vacant' only.
-//   C7 NoticesInspections MapServer (NOT a published dataset; an internal inspections-app service)
-//      layers 1 Interior 2,514 / 2 Int/Ext 1,144 / 3 Vacant 11,435 / 4 Exterior 17,317 rows;
-//      max DateNotice 2026-09-27; Status values are DHCD workflow codes (ABATE?, APPROVED, BIN, BIN HOLD,
-//      BOOKER, CANCEL?, COMPLIANCE, EXTENSION, FOLLOW UP ON LITIGATION, LEGAL REJECT, NOTICE APPROVED,
-//      NOTICE MAILED, PreBIN EXTENSION) shown raw. Layer 0 (inspector names) is never read.
-//      3005 Woodland Ave -> Exterior notice 31756A (2006-03-23, EXTENSION).
+//   (C7 Housing/NoticesInspections MapServer — NOT READ since 2026-10-03, see CONTENT RIGHTS below.)
 //   C8 Zoning  item dc7bf04cec4e41ef85cc6b391652e1e7  CityView/Zoning_New/FeatureServer/0  2,469 rows; none published.
 //      620 E 31st St -> R-6; 1600 Thames St -> C-1-E (URL = the district regulation PDF).
 //   C9 CHAP districts  item 2aa812e5042e4fc8950ffff2a6ce9291  services1 .../CHAP_Historic_Districts/FeatureServer/0
 //      40 polygons; editingInfo dataLastEditDate 2023-06-05. 620 E 31st -> Better Waverly (A29); 1600 Thames -> Fells Point (A31).
-//   C10 CHAP landmarks  Planning/CHAPLandmarks_poly/FeatureServer/0  258 polygons; none published.
-//   C11 National Register districts  Planning/Boundaries/MapServer/11  78 rows; none published.
-//      1600 Thames St -> Fells Point Historic District, NR 86003777. Informational only.
+//   (C10 Planning/CHAPLandmarks_poly and C11 Planning/Boundaries/MapServer/11 — NOT READ since
+//      2026-10-03, see CONTENT RIGHTS below.)
 //   C12 Floodplain  item 517933b8965b47949f85a879cbdc954c  services1 .../FloodPlain_n/FeatureServer/0
 //      554 polygons (A, AE, AO, VE, X2 only; no zone X polygons); editingInfo dataLastEditDate 2025-06-09;
 //      1600 Thames St -> X2 '0.2 PCT ANNUAL CHANCE FLOOD HAZARD', STATIC_BFE -9999, DFIRM_ID 240087.
@@ -99,6 +93,28 @@
 //   point (-77.4108, 39.4154), outside the Baltimore box, so md_outside comes from the Census alone
 //   (mdCensusFallback). This host is the one addition to the three hosts the lane spec lists: the spec
 //   allows naming the county from the Census, and isAllowedMdUrl still refuses every other host.
+// ─────────────────────────────────────────────────────────────────────
+//
+// CONTENT RIGHTS (contentfix 2026-10-03; contentfix-specs/RIGHTS-VERDICT.md row
+// "Baltimore City / County building records"). Baltimore City Code Art. 1
+// §9-8(b) frees only datasets PUBLISHED on the Open Baltimore portal, and three
+// layers MAGE used to read are not on it and carry no licence: the internal
+// inspections-app housing notices feed (Housing/NoticesInspections, layers 1-4),
+// CHAP landmarks (Planning/CHAPLandmarks_poly) and National Register districts
+// (Planning/Boundaries/MapServer/11). None of them is fetched any more. The
+// licensed portal layers (C3, C4, C6, C8, C9, C12) and the County layers stay.
+//
+// WIRE COMPATIBILITY. Every installed app parses a City record strictly
+// (utils/buildingRecord.ts pMdRecord): exactly four housingNotices parts and
+// non-null landmarks / nationalRegister parts, or the WHOLE record is refused.
+// This function deploys before any app update reaches phones, so a City record
+// still carries those parts, built by unreadPart() with status 'failed', no
+// rows and a source that says MAGE no longer checks it. Every client renders a
+// failed part as "Couldn't read <source> — not checked": never "none", never a
+// count. The record's links add Baltimore Housing's CoDeMap
+// (cels.baltimorehousing.org; a link only, nothing is fetched from it), so the
+// contractor can still look notices up, and the notices source says so. Once every client accepts a City
+// record without these parts, they can be dropped from the wire.
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
@@ -169,7 +185,12 @@ export const MD_NOT_CHECKED_COUNTY: readonly string[] = [
 export const MD_EPERMITS_URL = 'https://aca-prod.accela.com/BALTIMORE/Default.aspx';
 export const MD_COUNTY_CITIZEN_ACCESS_URL = 'https://citizenaccess.baltimorecountymd.gov/CitizenAccess/Cap/Caphome.aspx?&Module=Enforcement';
 export const MD_COUNTY_PLL_URL = 'https://cityworkspro.baltimorecountymd.gov/PLLPortal/';
-export const MD_LINKS_CITY: readonly MdLink[] = [{ label: 'E-Permits search', url: MD_EPERMITS_URL }];
+/** Baltimore Housing's CoDeMap (cels.baltimorehousing.org). A link only: MAGE never fetches it. */
+export const MD_CODEMAP_URL = 'https://cels.baltimorehousing.org/codemapv2ext/';
+export const MD_LINKS_CITY: readonly MdLink[] = [
+  { label: 'E-Permits search', url: MD_EPERMITS_URL },
+  { label: 'Open notices map (CoDeMap)', url: MD_CODEMAP_URL },
+];
 export const MD_LINKS_COUNTY: readonly MdLink[] = [
   { label: 'Citizen Access (code enforcement)', url: MD_COUNTY_CITIZEN_ACCESS_URL },
   { label: 'County permit portal', url: MD_COUNTY_PLL_URL },
@@ -213,7 +234,7 @@ export function isAllowedMdUrl(url: unknown): boolean {
   return typeof url === 'string' && MD_ALLOWED_PREFIXES.some((p) => url.startsWith(p)) && !/[\s"'<>\\]/.test(url);
 }
 
-export type MdLayerId = 'C3' | 'C4' | 'C6' | 'C7_1' | 'C7_2' | 'C7_3' | 'C7_4' | 'C8' | 'C9' | 'C10' | 'C11' | 'C12' | 'K3' | 'K4' | 'K5' | 'K6' | 'K7';
+export type MdLayerId = 'C3' | 'C4' | 'C6' | 'C8' | 'C9' | 'C12' | 'K3' | 'K4' | 'K5' | 'K6' | 'K7';
 export interface MdLayer {
   id: MdLayerId;
   /** Service layer URL (no trailing /query). */
@@ -234,14 +255,8 @@ export const MD_SAFE_FIELDS: Record<MdLayerId, readonly string[]> = {
   C3: ['PIN', 'BLOCKLOT', 'BLOCK', 'LOT', 'FULLADDR', 'ZIP_CODE', 'YEAR_BUILD', 'STRUCTAREA', 'ZONECODE', 'USEGROUP', 'DWELUNIT', 'VACIND', 'NEIGHBOR', 'LDATE'],
   C4: ['CaseNumber', 'Description', 'IssuedDate', 'ExpirationDate', 'Address', 'BLOCKLOT', 'prc_block_no', 'prc_lot', 'ExistingUse', 'ProposedUse', 'Cost', 'IsPermitModification'],
   C6: ['NoticeNum', 'DateNotice', 'DateCancel', 'DateAbate', 'NT', 'BLOCKLOT', 'Address', 'Neighborhood'],
-  C7_1: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-  C7_2: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-  C7_3: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-  C7_4: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
   C8: ['Zoning', 'overlay', 'Label', 'URL'],
   C9: ['AREA_NAME', 'CHAPcode'],
-  C10: ['NAME', 'Address', 'BLOCKLOT', 'HistLdmkCode'],
-  C11: ['NAME', 'LISTEDDATE', 'NRREFNO'],
   C12: ['FLD_ZONE', 'ZONE_SUBTY', 'SFHA_TF', 'STATIC_BFE', 'DFIRM_ID'],
   K3: ['TAXPIN', 'DISTRICT', 'PREMISE_ADDRESS', 'ZIP_CODE', 'YEAR_BUILT', 'STRCT_SQFT', 'LU_CODE', 'MAP', 'GRID', 'PARCEL', 'LOT'],
   K4: ['PERMITNO', 'APPL_DATE', 'ISSDATE', 'OCCDATE', 'P_ADDRESS', 'TYPEDESCRIPTION', 'SUBTYPE_DESCRIPTION', 'DESC_WORK', 'STATUS', 'ZONING', 'EST_COST'],
@@ -251,21 +266,13 @@ export const MD_SAFE_FIELDS: Record<MdLayerId, readonly string[]> = {
 };
 
 const f = (id: MdLayerId) => MD_SAFE_FIELDS[id].join(',');
-const C7_BASE = `${EGIS}Housing/NoticesInspections/MapServer/`;
-const C7_SOURCE = 'City inspections map feed (not a published dataset)';
 
 export const MD_LAYERS: Record<MdLayerId, MdLayer> = {
   C3: { id: 'C3', layer: `${EGIS}CityView/RealProperty_OB/FeatureServer/0`, source: 'City Real Property data', page: 'https://data.baltimorecity.gov/datasets/64110b108565433d8da40dd0e422064e', outFields: f('C3'), asOf: { kind: 'ldate' } },
   C4: { id: 'C4', layer: `${EGIS}Housing/DHCD_Open_Baltimore_Datasets/FeatureServer/3`, source: 'City permits (2019 to present)', page: 'https://data.baltimorecity.gov/datasets/189e6d1c65df4e13b38c0027cee574f6', outFields: f('C4'), asOf: { kind: 'stat', field: 'IssuedDate' } },
   C6: { id: 'C6', layer: `${EGIS}Housing/DHCD_Open_Baltimore_Datasets/FeatureServer/1`, source: 'City vacant building notices', page: 'https://data.baltimorecity.gov/datasets/691d65a5f85640e6aaa46930bd9dc102', outFields: f('C6'), asOf: { kind: 'stat', field: 'DateNotice' } },
-  C7_1: { id: 'C7_1', layer: `${C7_BASE}1`, source: C7_SOURCE, page: `${C7_BASE}1`, outFields: f('C7_1'), asOf: { kind: 'stat', field: 'DateNotice' } },
-  C7_2: { id: 'C7_2', layer: `${C7_BASE}2`, source: C7_SOURCE, page: `${C7_BASE}2`, outFields: f('C7_2'), asOf: { kind: 'stat', field: 'DateNotice' } },
-  C7_3: { id: 'C7_3', layer: `${C7_BASE}3`, source: C7_SOURCE, page: `${C7_BASE}3`, outFields: f('C7_3'), asOf: { kind: 'stat', field: 'DateNotice' } },
-  C7_4: { id: 'C7_4', layer: `${C7_BASE}4`, source: C7_SOURCE, page: `${C7_BASE}4`, outFields: f('C7_4'), asOf: { kind: 'stat', field: 'DateNotice' } },
   C8: { id: 'C8', layer: `${EGIS}CityView/Zoning_New/FeatureServer/0`, source: 'City zoning map', page: 'https://data.baltimorecity.gov/datasets/dc7bf04cec4e41ef85cc6b391652e1e7', outFields: f('C8'), asOf: { kind: 'layer' } },
   C9: { id: 'C9', layer: `${AGOL}CHAP_Historic_Districts/FeatureServer/0`, source: "CHAP's historic district layer", page: 'https://data.baltimorecity.gov/datasets/2aa812e5042e4fc8950ffff2a6ce9291', outFields: f('C9'), asOf: { kind: 'layer' } },
-  C10: { id: 'C10', layer: `${EGIS}Planning/CHAPLandmarks_poly/FeatureServer/0`, source: "the City's CHAP landmark layer", page: `${EGIS}Planning/CHAPLandmarks_poly/FeatureServer/0`, outFields: f('C10'), asOf: { kind: 'layer' } },
-  C11: { id: 'C11', layer: `${EGIS}Planning/Boundaries/MapServer/11`, source: "the City's National Register district layer", page: `${EGIS}Planning/Boundaries/MapServer/11`, outFields: f('C11'), asOf: { kind: 'layer' } },
   C12: { id: 'C12', layer: `${AGOL}FloodPlain_n/FeatureServer/0`, source: "the City's floodplain layer", page: 'https://data.baltimorecity.gov/datasets/517933b8965b47949f85a879cbdc954c', outFields: f('C12'), asOf: { kind: 'layer' } },
   K3: { id: 'K3', layer: `${BCGIS}Property/Property/MapServer/1`, source: 'County tax parcel layer', page: `${BCGIS}Property/Property/MapServer/1`, outFields: f('K3'), asOf: { kind: 'layer' } },
   K4: { id: 'K4', layer: `${BCGIS}DevelopmentManagement/ActiveDevelopment/MapServer/4`, source: 'County permits (Cityworks)', page: 'https://opendata.baltimorecountymd.gov/datasets/cfd6eb593b524875a80e3c45e4575fa9', outFields: f('K4'), asOf: { kind: 'stat', field: 'ISSDATE' } },
@@ -752,7 +759,6 @@ export function mdWhere(id: MdLayerId, side: MdSide, keyIn: string): string | nu
   if (!key) return null;
   if (side === 'baltimore_city') {
     if (id === 'C3' || id === 'C4' || id === 'C6') return cityInList(key, 'BLOCKLOT');
-    if (id.startsWith('C7_')) return cityInList(key, 'BlockLot');
     return null;
   }
   if (id === 'K3') return `TAXPIN='${key}'`;
@@ -788,17 +794,24 @@ export function asOfUrl(id: MdLayerId): string | null {
 }
 
 export type MdJobId =
-  | 'parcel' | 'permits_count' | 'permits_rows' | 'vbn' | 'notice_1' | 'notice_2' | 'notice_3' | 'notice_4'
-  | 'zoning' | 'historic' | 'landmarks' | 'national_register' | 'flood'
+  | 'parcel' | 'permits_count' | 'permits_rows' | 'vbn'
+  | 'zoning' | 'historic' | 'flood'
   | `asof:${MdLayerId}`;
 export interface MdJob { id: MdJobId; url: string; asOf: boolean; }
 
-export const CITY_NOTICE_LAYERS: readonly { job: MdJobId; layer: MdLayerId; name: string }[] = [
-  { job: 'notice_1', layer: 'C7_1', name: 'Interior' },
-  { job: 'notice_2', layer: 'C7_2', name: 'Interior/exterior' },
-  { job: 'notice_3', layer: 'C7_3', name: 'Vacant' },
-  { job: 'notice_4', layer: 'C7_4', name: 'Exterior' },
-];
+/** The four housing-notice parts every City record still carries on the wire
+ *  (see WIRE COMPATIBILITY at the top). Never fetched: unreadPart() builds them. */
+export const MD_UNREAD_NOTICE_NAMES: readonly string[] = ['Interior', 'Interior/exterior', 'Vacant', 'Exterior'];
+/** Sources of the parts MAGE no longer reads. The client prints
+ *  "Couldn't read the <name> notices in the <notices source> — not checked"
+ *  and "Couldn't read <landmarks source> — not checked". */
+export const MD_UNREAD_SOURCES = {
+  notices: 'unpublished City inspections feed (MAGE no longer checks it; see the CoDeMap link)',
+  landmarks: "the City's unpublished CHAP landmark layer (MAGE no longer checks it)",
+  nationalRegister: "the City's unpublished National Register district layer (MAGE no longer checks it)",
+} as const;
+/** Where a contractor can look instead (the part's url; the card does not render it). */
+const OPEN_BALTIMORE_URL = 'https://data.baltimorecity.gov/';
 
 /** Every fetch one record needs, in the order the pool should start them. */
 export function mdRecordPlan(side: MdSide, keyIn: string, lat: number, lon: number): MdJob[] | null {
@@ -812,14 +825,11 @@ export function mdRecordPlan(side: MdSide, keyIn: string, lat: number, lon: numb
       { id: 'permits_count', url: countQueryUrl('C4', side, key), asOf: false },
       { id: 'permits_rows', url: attributeQueryUrl('C4', side, key, { orderBy: 'IssuedDate DESC', limit: MD_PERMIT_ROWS }), asOf: false },
       { id: 'vbn', url: attributeQueryUrl('C6', side, key, { orderBy: 'DateNotice DESC', limit: MD_NOTICE_ROWS }), asOf: false },
-      ...CITY_NOTICE_LAYERS.map((n) => ({ id: n.job, url: attributeQueryUrl(n.layer, side, key, { orderBy: 'DateNotice DESC', limit: MD_NOTICE_ROWS }), asOf: false })),
       { id: 'zoning', url: pointQueryUrl('C8', lat, lon), asOf: false },
       { id: 'historic', url: pointQueryUrl('C9', lat, lon), asOf: false },
-      { id: 'landmarks', url: pointQueryUrl('C10', lat, lon), asOf: false },
-      { id: 'national_register', url: pointQueryUrl('C11', lat, lon), asOf: false },
       { id: 'flood', url: pointQueryUrl('C12', lat, lon), asOf: false },
     );
-    layers.push('C4', 'C6', 'C7_1', 'C7_2', 'C7_3', 'C7_4', 'C8', 'C9', 'C10', 'C11', 'C12');
+    layers.push('C4', 'C6', 'C8', 'C9', 'C12');
   } else {
     jobs.push(
       { id: 'parcel', url: attributeQueryUrl('K3', side, key, { limit: 5 }), asOf: false },
@@ -967,16 +977,22 @@ function noticesPart(id: MdLayerId, layerName: string, key: string, got: MdFetch
   if (!rows) return { ...meta(id, 'failed', asOfIn), layer: layerName, truncated: false, rows: [] };
   const out: MdNoticeRow[] = [];
   for (const r of rows) {
-    const bl = normalizeCityBlockLot(str(id === 'C6' ? r.BLOCKLOT : r.BlockLot) ?? '');
+    const bl = normalizeCityBlockLot(str(r.BLOCKLOT) ?? '');
     if (bl !== key) continue;
     out.push({
       number: str(r.NoticeNum) ?? 'Notice number not published',
       date: mdDay(r.DateNotice),
-      type: str(id === 'C6' ? r.NT : r.NoticeType),
-      statusCode: id === 'C6' ? null : str(r.Status),
+      type: str(r.NT),
+      statusCode: null,
     });
   }
   return { ...meta(id, 'ok', asOfIn), layer: layerName, truncated: rows.length >= MD_NOTICE_ROWS, rows: out };
+}
+
+/** A part MAGE no longer reads (WIRE COMPATIBILITY): status 'failed', so every
+ *  client says "not checked", with no rows, no as-of and its own source. */
+function unreadPart(source: string, url: string): MdPartMeta & { truncated: false; rows: [] } {
+  return { status: 'failed', asOf: null, asOfKind: 'unread', source, url, truncated: false, rows: [] };
 }
 
 function listPart<R>(id: MdLayerId, got: MdFetched | undefined, asOfIn: AsOf, map: (r: Raw) => R | null): MdListPart<R> {
@@ -1036,11 +1052,11 @@ export function assembleMdRecord(args: {
       jurisdiction: 'md', side, key, label, fetchedAt: args.fetchedAt.toISOString(),
       parcel, permits,
       vacantNotices: noticesPart('C6', 'Vacant building', key, jobs.vbn, asOf('C6')),
-      housingNotices: CITY_NOTICE_LAYERS.map((n) => noticesPart(n.layer, n.name, key, jobs[n.job], asOf(n.layer))),
+      housingNotices: MD_UNREAD_NOTICE_NAMES.map((name) => ({ ...unreadPart(MD_UNREAD_SOURCES.notices, MD_CODEMAP_URL), layer: name })),
       zoning: listPart('C8', jobs.zoning, asOf('C8'), zoningCity),
       historic: listPart('C9', jobs.historic, asOf('C9'), area('AREA_NAME', 'CHAPcode', null)),
-      landmarks: listPart('C10', jobs.landmarks, asOf('C10'), area('NAME', 'HistLdmkCode', null)),
-      nationalRegister: listPart('C11', jobs.national_register, asOf('C11'), area('NAME', 'NRREFNO', 'LISTEDDATE')),
+      landmarks: unreadPart(MD_UNREAD_SOURCES.landmarks, OPEN_BALTIMORE_URL),
+      nationalRegister: unreadPart(MD_UNREAD_SOURCES.nationalRegister, OPEN_BALTIMORE_URL),
       flood: listPart('C12', jobs.flood, asOf('C12'), flood),
       notChecked: [...MD_NOT_CHECKED_CITY],
       links: MD_LINKS_CITY.map((l) => ({ ...l })),
@@ -1061,13 +1077,13 @@ export function assembleMdRecord(args: {
   };
 }
 
-/** Every part of a record read 'ok' AND its as-of read answered (the only kind
- *  index.ts caches): a record whose as-of reads were cut off by the deadline
- *  shows "as-of date not read" and must not be kept for the full TTL. */
+/** Every part MAGE READS came back 'ok' AND its as-of read answered (the only
+ *  kind index.ts caches): a record whose as-of reads were cut off by the
+ *  deadline shows "as-of date not read" and must not be kept for the full TTL.
+ *  The never-read wire parts (housingNotices, landmarks, nationalRegister; see
+ *  WIRE COMPATIBILITY) are always 'failed' by design and do not count. */
 export function mdRecordComplete(rec: MdBuildingRecord): boolean {
-  const parts: MdPartMeta[] = [rec.parcel, rec.permits, rec.zoning, rec.historic, rec.flood, ...rec.housingNotices];
+  const parts: MdPartMeta[] = [rec.parcel, rec.permits, rec.zoning, rec.historic, rec.flood];
   if (rec.vacantNotices) parts.push(rec.vacantNotices);
-  if (rec.landmarks) parts.push(rec.landmarks);
-  if (rec.nationalRegister) parts.push(rec.nationalRegister);
   return parts.every((p) => p.status === 'ok' && p.asOfKind !== 'unread');
 }

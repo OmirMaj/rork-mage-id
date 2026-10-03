@@ -80,6 +80,7 @@
 // ============================================================================
 
 import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';
+import { CONSTRUCTION_NEWS_ENABLED, COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 import type { FeatureKey } from '@/utils/featureTiers';
 import type { SubscriptionTier } from '@/types';
 
@@ -425,6 +426,24 @@ export const POPULAR_CLIENT_FEATURE_IDS: readonly string[] = [
   'my-rfps', 'post-rfp', 'notifications', 'settings',
 ];
 
+/**
+ * Destinations switched off for launch by a content-rights flag
+ * (constants/featureFlags.ts; contentfix-specs/RIGHTS-VERDICT.md). Their rows
+ * stay in REGISTRY — the nav-parity guards and `FeatureId` still need them, and
+ * flipping the flag must restore today's behavior exactly — but every rendered
+ * surface asks isFeatureHidden() before showing a door: search below, the
+ * desktop sidebar and the Tools grid.
+ */
+export const HIDDEN_FEATURE_IDS: ReadonlySet<string> = new Set<string>([
+  ...(CONSTRUCTION_NEWS_ENABLED ? [] : ['construction-news']),
+  ...(COMPANIES_DIRECTORY_ENABLED ? [] : ['companies']),
+]);
+
+/** True when a surface must not show a door to this destination. */
+export function isFeatureHidden(id: string | undefined): boolean {
+  return id != null && HIDDEN_FEATURE_IDS.has(id);
+}
+
 export function getFeature(id: string): FeatureEntry | undefined {
   return FEATURE_REGISTRY.find(e => e.id === id);
 }
@@ -487,6 +506,7 @@ export function searchFeatures(
 
   const hits: FeatureHit[] = [];
   for (const entry of FEATURE_REGISTRY) {
+    if (isFeatureHidden(entry.id)) continue;
     const entryPersona = entry.persona ?? 'contractor';
     if (entryPersona !== 'all' && entryPersona !== persona) continue;
 

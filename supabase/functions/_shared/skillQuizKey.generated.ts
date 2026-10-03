@@ -91,14 +91,14 @@ export const SKILL_QUIZ_KEY: SkillQuizKey = {
       total: 5,
     },
     "daily-report-voice": {
-      version: 1,
+      version: 2,
       label: "Daily reports by voice",
       certificateTitle: "MAGE ID skills: Daily reports by voice",
       answers: {
         "q1": "b",
         "q2": "a",
         "q3": "c",
-        "q4": "c",
+        "q4": "a",
         "q5": "b",
       },
       total: 5,

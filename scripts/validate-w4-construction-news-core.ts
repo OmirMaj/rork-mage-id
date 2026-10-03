@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import {
   parseFeed, parseFeedDate, toPlainText, decodeEntities, truncate, cleanSummary,
   cleanLink, linkKey, safeHttpUrl, nearDuplicateTitle, classifyTopic, mergeFeeds,
-  stableId, FEED_SOURCES, NEWS_TOPICS, SUMMARY_MAX, MAX_ITEMS, MAX_PER_SOURCE,
+  stableId, FEED_SOURCES, RETIRED_FEEDS, NEWS_TOPICS, SUMMARY_MAX, MAX_ITEMS, MAX_PER_SOURCE,
   type FeedResult, type FeedSource, type RawFeedItem,
 } from '../supabase/functions/construction-news/core';
 
@@ -319,11 +319,22 @@ ok('merge: ids are unique', new Set(merged.items.map(i => i.id)).size === merged
 }
 
 // ── The feed list ──────────────────────────────────────────────────────────
-ok(`6–10 feeds configured (${FEED_SOURCES.length})`, FEED_SOURCES.length >= 6 && FEED_SOURCES.length <= 10);
+// Content rights (2026-10-03): news is hidden for launch and the server feed
+// list is trimmed to public-domain US-government sources (OSHA) until each
+// publisher grants permission in writing. A re-added publisher comes back
+// from RETIRED_FEEDS one at a time, so the old "6-10 feeds, full topic mix"
+// shape is the target, not a floor: 1-10 configured, and every retired feed
+// is accounted for in RETIRED_FEEDS.
+ok(`1–10 feeds configured (${FEED_SOURCES.length})`, FEED_SOURCES.length >= 1 && FEED_SOURCES.length <= 10);
+ok('every feed is configured or retired (none dropped silently): 9 in all',
+  FEED_SOURCES.length + RETIRED_FEEDS.length === 9
+  && new Set([...FEED_SOURCES, ...RETIRED_FEEDS].map(s => s.id)).size === 9
+  && FEED_SOURCES.every(s => !RETIRED_FEEDS.some(r => r.id === s.id)));
 ok('every feed URL is https', FEED_SOURCES.every(s => s.url.startsWith('https://')));
 ok('feed ids are unique', new Set(FEED_SOURCES.map(s => s.id)).size === FEED_SOURCES.length);
-ok('the mix covers commercial, residential, safety and housing economics',
-  ['Commercial', 'Residential', 'Labor & safety', 'Economy'].every(t => FEED_SOURCES.some(s => s.defaultTopic === t)));
+ok('the configured and retired feeds together still cover commercial, residential, safety and housing economics',
+  ['Commercial', 'Residential', 'Labor & safety', 'Economy'].every(t => [...FEED_SOURCES, ...RETIRED_FEEDS].some(s => s.defaultTopic === t)));
+ok('every default topic of a retired feed is a real topic', RETIRED_FEEDS.every(s => !s.defaultTopic || NEWS_TOPICS.includes(s.defaultTopic)));
 ok('every default topic is a real topic', FEED_SOURCES.every(s => !s.defaultTopic || NEWS_TOPICS.includes(s.defaultTopic)));
 
 // ── core.ts stays Deno-free; index.ts keeps its promises ───────────────────

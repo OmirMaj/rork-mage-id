@@ -95,6 +95,7 @@ import {
   SimulatedWeatherBanner,
   SimulatedDayChip,
   WeatherPlaceLine,
+  WeatherCredit,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { describeForecast, weatherCheckMessage, type WeatherCheckTone } from '@/utils/weatherProvenance';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
@@ -3184,7 +3185,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               )}
               {viewMode === 'gantt' && (
                 <View style={styles.ganttWrapper}>
-                  <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} style={styles.ganttPlaceLine} />
+                  <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} days={ganttForecast} style={styles.ganttPlaceLine} />
                   <View style={styles.ganttControls}>
                     <TouchableOpacity style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(false)}>
                       <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
@@ -3630,6 +3631,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   {weatherAlerts.length > 3 && (
                     <Text style={styles.weatherBannerAlert}>+{weatherAlerts.length - 3} more</Text>
                   )}
+                  {/* The check reads the live OpenWeather days and names the
+                      place OpenStreetMap's geocoder found: both credits ride
+                      along (nothing renders when no day was live). */}
+                  <WeatherCredit days={ganttForecast} place />
                 </View>
                 <TouchableOpacity onPress={() => { setWeatherAlerts([]); setWeatherCheck(null); }} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -3811,7 +3816,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
                 {viewMode === 'gantt' && activeSchedule && (
                   <View style={styles.ganttWrapper}>
-                    <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} style={styles.ganttPlaceLine} />
+                    <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} days={ganttForecast} style={styles.ganttPlaceLine} />
                     <View style={styles.ganttControls}>
                       <TouchableOpacity
                         style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]}
@@ -4420,7 +4425,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                           <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                           <Text style={styles.weatherImpactTitle}>Weather impact</Text>
                         </View>
-                        <WeatherPlaceLine text={ganttWeatherDesc.placeLine} />
+                        <WeatherPlaceLine text={ganttWeatherDesc.placeLine} days={shownDays} />
                         <SimulatedWeatherBanner days={shownDays} cause={ganttWeatherDesc.cause} />
                         <View style={styles.weatherImpactForecastRow}>
                           {shownDays.map(f => {

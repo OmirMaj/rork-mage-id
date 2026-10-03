@@ -66,6 +66,7 @@ import * as Location from 'expo-location';
 import * as Sentry from '@sentry/react-native';
 import { primeWorld, mountRoute, settle } from '@/__tests__/helpers/mountRoute';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
+import { COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 
 // See (2) in the header: the real hook's dynamic import cannot resolve under
 // jest, so the granted path is unreachable without this. Everything else about
@@ -115,7 +116,9 @@ jest.mock('@/utils/location', () => {
  * Every screen that consumes the hook, plus the one the crash landed on, with
  * the testID of the control that is the ONLY way each can reach the OS.
  *
- * Four of the five render no control in this build, and that is correct, not an
+ * Since 2026-10-03 all five render no control in this build (discover/companies
+ * is hidden for content rights, COMPANIES_DIRECTORY_ENABLED), and before that
+ * four of the five did; that is correct, not an
  * oversight: discover/hire is behind HIRE_ENABLED, mage-id-bids' Browse mode
  * and nearby-rfps' whole distance strip are behind RFP_BROWSE_ENABLED, and
  * discover/bids only shows its control once you pick "Near me" or "Nearest".
@@ -124,7 +127,10 @@ jest.mock('@/utils/location', () => {
 const LOCATION_SCREENS: { href: string; control: string | null }[] = [
   { href: '/discover/hire', control: null },
   { href: '/discover/bids', control: null },
-  { href: '/discover/companies', control: 'companies-use-location' },
+  // Content rights (2026-10-03): Discover > Companies is hidden for launch and
+  // the route redirects to Discover, so with the flag off there is no control
+  // to press (and no prompt to raise). Flag on, the old check comes back.
+  { href: '/discover/companies', control: COMPANIES_DIRECTORY_ENABLED ? 'companies-use-location' : null },
   { href: '/mage-id-bids', control: null },
   { href: '/nearby-rfps', control: null },
   // Not a location consumer, but the screen that was on top when the alert was
@@ -257,9 +263,9 @@ describe('granting the location permission', () => {
       await act(async () => { router.navigate(href as never); await Promise.resolve(); });
       await settle();
     }
-    // ONE prompt, from the one press. It used to be five, one per screen
-    // visited, none of them asked for — see the header.
-    expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(1);
+    // ONE prompt per press (one, or none while Companies is hidden). It used to
+    // be five, one per screen visited, none of them asked for — see the header.
+    expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(LOCATION_SCREENS.filter((s) => s.control).length);
 
     (Sentry.captureException as jest.Mock).mockClear();
 

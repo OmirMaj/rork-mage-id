@@ -248,6 +248,16 @@ function buildProjectBriefing(
 }
 
 // ── HTML email composition ──────────────────────────────────────────
+// OpenWeather's licence (free and lower paid plans) requires this credit
+// wherever its data is shown (contentfix 2026-10-03, RIGHTS-VERDICT.md row
+// "OpenWeather forecast"). It goes under the live weather line ONLY: the
+// "isn't available" and "no jobsite address" lines show no OpenWeather data.
+// The forecast is read at the job's stored coordinates, which the app geocoded
+// through Nominatim (utils/geocodeProject.ts), so the OpenStreetMap credit the
+// app shows beside its own forecasts (utils/contentCredits.ts OSM_CREDIT) rides
+// on the same line.
+const OPENWEATHER_CREDIT_HTML = `<p style="margin:0 0 6px;font-size:11px;"><a href="https://openweathermap.org/" style="color:${FOG};text-decoration:underline;">Weather data provided by OpenWeather</a> · <a href="https://www.openstreetmap.org/copyright" style="color:${FOG};text-decoration:underline;">Location © OpenStreetMap contributors</a></p>`;
+
 function renderDigestHtml(opts: {
   /** 'Good morning, Sam.' before noon in his zone, a plain title after. */
   greetingTitle: string;
@@ -266,7 +276,7 @@ function renderDigestHtml(opts: {
           ? `<p style="margin:0 0 6px;color:${b.weather.workable ? STONE : '#B45309'};font-size:13px;">
                ${b.weatherPlace ? `Weather for ${escapeHtml(b.weatherPlace)}: ` : ''}${escapeHtml(b.weather.conditions ?? 'Weather')} · H${b.weather.tempHighF}° / L${b.weather.tempLowF}° · ${b.weather.precipPct}% precip · ${b.weather.windMph} mph wind
                ${b.weather.workable ? '' : ' · <strong>Not workable for weather-sensitive tasks</strong>'}
-             </p>`
+             </p>${OPENWEATHER_CREDIT_HTML}`
           : b.weatherMissing === 'unavailable'
             ? `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">Weather for ${escapeHtml(b.weatherPlace ?? 'this job')} isn't available this morning — check the app later.</p>`
             : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather — this job has no jobsite address. Add it in the app (open the job, tap Edit) to get the site forecast here.</p>`;

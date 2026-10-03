@@ -31,6 +31,8 @@ export const RETIRED_SCREENSHOTS: Record<string, string> = {
     'Quick Estimate step 1 with a red "Maximum update depth exceeded" error toast over the footer — not a priced estimate',
   '25-generating.jpg':
     'the old Quick Estimate overlay reading "Pulling materials, labor, and 2025 pricing for your project" — a lookup the app withdrew as false (components/AIQuickEstimate.tsx)',
+  '28-companies.png':
+    'the retired Discover > Companies directory: Google Places listings of real businesses with their Google star ratings and review counts — content MAGE has no licence to show (contentfix 2026-10-03, RIGHTS-VERDICT.md)',
 };
 
 // Pages that still show a retired capture and belong to another lane. Printed

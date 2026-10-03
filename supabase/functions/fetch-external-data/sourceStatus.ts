@@ -24,6 +24,10 @@ export interface SourceInput {
   name: string;
   /** The provider's API key (or key pair) is configured. */
   keyPresent: boolean;
+  /** The provider was switched off on purpose (content rights, 2026-10-03):
+   *  no call is made. Reported as skipped with RETIRED_REASON, never failed,
+   *  so the run stays green and the response still names the provider. */
+  retired?: boolean;
   /** Not due this run (e.g. the weekly Places refresh ran 3 days ago). */
   notDue?: boolean;
   /** HTTP statuses of the provider's non-OK answers this run (empty when every call was OK). */
@@ -48,8 +52,12 @@ export function isAuthFailure(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+/** Why a retired provider is skipped (see SourceInput.retired). */
+export const RETIRED_REASON = 'retired: switched off for content rights (contentfix 2026-10-03), no call made';
+
 export function sourceVerdict(input: SourceInput): SourceResult {
   const base = { name: input.name, rows: Math.max(0, input.rows | 0) };
+  if (input.retired) return { name: input.name, rows: 0, ok: true, skipped: true, error: RETIRED_REASON };
   if (!input.keyPresent) return { ...base, ok: true, skipped: true, error: 'no API key configured' };
   if (input.notDue) return { ...base, ok: true, skipped: true, error: null };
   const statuses = input.failedStatuses ?? [];

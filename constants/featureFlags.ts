@@ -49,3 +49,54 @@ export const RFP_BROWSE_ENABLED = false;
 // points stay visible meanwhile (productDecision #96 - hiding them is the
 // founder's call).
 export const SERVICE_AREA_SETUP_ENABLED = false;
+
+// APP STORE GUIDELINE 5.2.2 — third-party content rights (2026-10-02).
+//
+// The rights check for MAGE ID's first submission
+// (contentfix-specs/RIGHTS-VERDICT.md, "Construction news") found that no
+// publisher in the news feed has given MAGE permission: ENR's and Fine
+// Homebuilding's terms forbid copying or commercial use, Construction Dive's
+// and ConstructConnect's allow personal or internal use only, and
+// Construction Business Owner already blocks the fetcher. Only OSHA (US
+// government, public domain) is clearly free to use. The founder chose to
+// HIDE Construction News for launch.
+//
+// While this is false: no Tools tile, sidebar row or search hit leads to
+// /construction-news (utils/featureRegistry.ts HIDDEN_FEATURE_IDS), and the
+// route itself redirects to Discover. Nothing is deleted — flip it to true, in
+// the same change that adds back only the publishers whose written permission
+// is on file (supabase/functions/construction-news/core.ts FEED_SOURCES), and
+// today's screen, tile, row and search entry all return exactly as they were.
+export const CONSTRUCTION_NEWS_ENABLED = false;
+
+// APP STORE GUIDELINE 5.2.2 — Google business listings (2026-10-02).
+//
+// Discover > Companies shows business names, addresses and star ratings from
+// Google Places, which the server copied into cached_companies for up to 90
+// days. Google's terms forbid storing that content at all and require Google's
+// logo where it is shown (contentfix-specs/RIGHTS-VERDICT.md, "Google business
+// listings"). The founder chose to HIDE Companies for launch; the server lane
+// stops the fetch and deletes the stored rows.
+//
+// While this is false: no Discover pill, Discover card, sidebar row or search
+// hit leads to /(tabs)/discover/companies, and the route itself redirects to
+// Discover. The screen is kept intact — flip this to true (with a licensed data
+// source behind cached_companies) and every door returns exactly as before.
+export const COMPANIES_DIRECTORY_ENABLED = false;
+
+// APP STORE GUIDELINE 5.2.2 — Selections product photos (2026-10-02).
+//
+// The og-image edge function used to copy a retailer's product photo (og:image
+// from the option's product link) or a Pexels stock photo onto each Selections
+// option. MAGE has no retailer permission to reuse those images, and Pexels
+// requires a credit the app never showed (contentfix-specs/RIGHTS-VERDICT.md,
+// "Selections product photos"). The server now answers imageUrl: null to every
+// call (supabase/functions/og-image/index.ts AUTO_PRODUCT_PHOTOS_ENABLED).
+//
+// While this is false the client matches it: Find options / Regenerate save
+// every option photo-less without calling og-image, and an option card wires
+// no long-press "Set photo from link" (app/selections.tsx), so the GC is never
+// asked for a link that can only end in "No image found". Photos already
+// stored still show. Flip it to true only together with the server flag, once
+// the lawyer's answer and each retailer's permission are in hand.
+export const PRODUCT_PHOTOS_ENABLED = false;

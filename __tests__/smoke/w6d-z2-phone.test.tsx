@@ -337,10 +337,17 @@ describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
     expect(fingerprint('a-contract-draft', tree.toJSON())).toMatchSnapshot();
   });
 
+  // Content rights (2026-10-03): the daily report no longer asks wttr.in (no
+  // license, and it sent the jobsite address), so a jobsite address fetches
+  // nothing and nothing is pre-filled. NAMED DELTA in both goldens below: the
+  // "Auto-fetch" button is gone (3 dump lines; b1 also loses the reading it
+  // used to show). Those two snapshots need one re-record; the W6D_DUMP_DIR
+  // diff against the base daily-report.tsx shows those lines are the only change.
+  // (The test name keeps its old wording: it is the snapshot key.)
   it('(b1) daily-report, new report, jobsite 124 Park Slope (wttr answers)', async () => {
     const tree = await mountDailyReport(PARK_SLOPE);
-    expect(fetchCalls.some((u) => u.includes('wttr.in/124%20Park%20Slope'))).toBe(true);
-    expect(screen.getByTestId('dfr-weather-provenance')).toBeTruthy();
+    expect(fetchCalls.filter((u) => u.includes('wttr.in'))).toEqual([]);
+    expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
     expect(fingerprint('b1-daily-report-park-slope', tree.toJSON())).toMatchSnapshot();
   });
 
@@ -418,11 +425,12 @@ describe('Z2 deltas — the sanctioned copy and the weather place', () => {
     expect(text).not.toContain('Look up building codes, permits, and inspection requirements.');
   });
 
-  it("daily-report: the chip names the place wttr.in read (nearest_area)", async () => {
+  it('daily-report: a jobsite address is never sent to a weather service, and no fetch button is offered (content rights)', async () => {
     await mountDailyReport(PARK_SLOPE);
-    const chip = allText(screen.getByTestId('dfr-weather-provenance')).join('');
-    expect(chip).toMatch(/for Park Slope, New York\.$/);
-    expect(chip).not.toContain(PARK_SLOPE);
+    expect(fetchCalls.filter((u) => /wttr\.in|weather/i.test(u))).toEqual([]);
+    expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
+    expect(screen.queryByText('Auto-fetch')).toBeNull();
+    expect(screen.queryByLabelText('Auto-fetch the weather for today')).toBeNull();
   });
 
   it("daily-report: a country-only location is never sent to wttr.in", async () => {

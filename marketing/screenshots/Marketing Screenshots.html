@@ -52,7 +52,6 @@ const SCREENS = {
   estimateHero: S("24-estimate-hero.png"),
   postJob: S("26-post-job.png"),
   directHire: S("27-direct-hire.png"),
-  companies: S("28-companies.png"),
   postBid: S("29-post-bid.png"),
 };
 
@@ -280,7 +279,7 @@ function App() {
       {/* ============================================================ */}
       {/* SECTION 6 — HIRING & BIDS (mixed formats) */}
       {/* ============================================================ */}
-      <DCSection id="hiring" title="Hiring & bids — mixed formats" subtitle="New screenshots: Direct Hire, Companies, Post a Job, Post a Bid. Same five layout systems applied across App Store, social, and OG card sizes.">
+      <DCSection id="hiring" title="Hiring & bids — mixed formats" subtitle="New screenshots: Direct Hire, Post a Job, Post a Bid. Same five layout systems applied across App Store, social, and OG card sizes.">
 
         <DCArtboard id="hire-1" label="App Store — Direct Hire" width={1290} height={2796}>
           <AppStoreHeroB
@@ -291,15 +290,12 @@ function App() {
           />
         </DCArtboard>
 
-        <DCArtboard id="hire-2" label="App Store — Companies" width={1290} height={2796}>
-          <AppStoreHeroA
-            eyebrow="Companies"
-            title="2,957 vetted"
-            accent=" subs & suppliers."
-            src={SCREENS.companies}
-          />
-        </DCArtboard>
-
+        {/* hire-2 (App Store — Companies) and hire-6 (Square — Companies) were
+            removed 2026-10-03 (contentfix, RIGHTS-VERDICT.md): 28-companies.png was
+            the retired Discover > Companies directory of Google Places listings,
+            real businesses with their Google star ratings, which MAGE has no
+            licence to show. Do not bring a companies frame back without a
+            licensed source. */}
         <DCArtboard id="hire-3" label="App Store — Post a Job" width={1290} height={2796}>
           <AppStoreHeroD
             eyebrow="Post a job"
@@ -330,16 +326,6 @@ function App() {
           />
         </DCArtboard>
 
-        <DCArtboard id="hire-6" label="Square — Companies" width={1080} height={1080}>
-          <SocialSquare
-            title="Find Subs"
-            accent="One directory."
-            tag="Companies"
-            bg="#ECEDE9" fg="#0B0D10" accentColor="#2F6B3A"
-            src={SCREENS.companies}
-          />
-        </DCArtboard>
-
         <DCArtboard id="hire-7" label="Story — Post a Job" width={1080} height={1920}>
           <SocialStory
             title="Post a job"
@@ -354,7 +340,7 @@ function App() {
           <TwitterCard
             title={<>Post a bid.<br/>Get <em style={{ color: "#5DB36E" }}>real</em> contractors.</>}
             sub="Federal, state, municipal, county, private — all in one form. Bond requirements built in."
-            srcs={[SCREENS.postBid, SCREENS.companies]}
+            srcs={[SCREENS.findWork, SCREENS.postBid]}
           />
         </DCArtboard>
 
