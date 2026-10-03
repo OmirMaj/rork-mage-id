@@ -18,17 +18,17 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /managed-property 1`] = `
 {
-  "lines": 328,
+  "lines": 332,
   "modals": 4,
-  "sha256": "1f777e7cefad2804a78a1d69bc16adad68dfbb43b78dfa180053a8aaaa908575",
+  "sha256": "c87411f055c5e4406b6995967459fccceddf6ca2ae8a1f981a9d2d1def8e587b",
 }
 `;
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /oac-meeting 1`] = `
 {
-  "lines": 391,
+  "lines": 395,
   "modals": 5,
-  "sha256": "d1c5090be77eb8663b7f0fcaa35c57fe3f6e45decdd2d408efb22833a182e054",
+  "sha256": "3e7ae0ad901c3360305c5bcd967c06aa7a1c96a9bd81973706c836f4fcd438d4",
 }
 `;
 
@@ -42,9 +42,9 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /work-order 1`] = `
 {
-  "lines": 328,
+  "lines": 332,
   "modals": 4,
-  "sha256": "369b966d3a82eb100885ed30a047331b30d8303012258e7683d91407e62e632d",
+  "sha256": "5cd8b4a09ec453115d1d3d8d5c1c2a65423736e05ca078313b2db4a8e82379ce",
 }
 `;
 

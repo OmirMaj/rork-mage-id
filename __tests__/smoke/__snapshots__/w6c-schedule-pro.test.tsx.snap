@@ -2,29 +2,29 @@
 
 exports[`lane DB — golden (recorded on the untouched base) /copilot?capabilityId=schedule at 390 (CopilotShell, no autoSubmitSeed) 1`] = `
 {
-  "lines": 71,
-  "sha256": "7e5cb5164132652c03447c82abb7b66216a0b1c9cba5bf0c5e998c815957c261",
+  "lines": 75,
+  "sha256": "7afd87d304fa74e658a21a513940205ab562ec1d24f173af980e5e5225a5a5c1",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 with the "Tell me what to change" sheet open (ScheduleEditPanel, modal) 1`] = `
 {
-  "lines": 770,
-  "sha256": "d7a9b26e20328edb25377d5078084cdfca0b7c6a067e9bcad320775e0f752ea3",
+  "lines": 774,
+  "sha256": "46193713317f439dddd9304362f90fd6135004b29bdacc0880306233279d98e9",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro at native 1000 × 700 (the legacy branch) 1`] = `
 {
-  "lines": 400,
-  "sha256": "8099f5a5568597860011068b63406dbf613bd8cf8b09c173b55891940e58ba54",
+  "lines": 404,
+  "sha256": "7235deecc525f672c679136ab63a50ab8cb69a57f5ca55ce889f682b79e99885",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro?projectId at 390 iOS: the narrow gate 1`] = `
 {
-  "lines": 49,
-  "sha256": "79d2b7d948702b2a4e2b30613b43875475574634757abfc753f1840259af1b7f",
+  "lines": 53,
+  "sha256": "c6b58cd5d132df1fbfa7919db12fa6cc17da9cdca6346d14f1a63f4be03ffd1c",
 }
 `;
 

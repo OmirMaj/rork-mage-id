@@ -2,49 +2,49 @@
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports (default tab) 1`] = `
 {
-  "lines": 483,
-  "sha256": "030dc0e1f2b5cb0228692a85ceeca82112f74b220c1a0e2e7b2f15df82fe2a75",
+  "lines": 487,
+  "sha256": "63ce312bb9469a8093b51ee37281b260148c5106e4b43fe51afca236cbae4c69",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging 1`] = `
 {
-  "lines": 394,
-  "sha256": "c7b4a0018acd5c492cc61fd14e9cc21b6d498dfbca148b1a9e865707f0695ef8",
+  "lines": 398,
+  "sha256": "5cb79de21a21b7ee53aa1f130a01cf8e81a7198cd32fe5b5ad89b2b5ef4d74dd",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging with three issued invoices (the aging rows drawn) 1`] = `
 {
-  "lines": 549,
-  "sha256": "edae813aa771535dcccf4d459d399e74a2d6fd9ff2ea134f3acdd100ab703575",
+  "lines": 553,
+  "sha256": "2bbc509b52ef4d8b0981c496e78473963109af2e012703ea580388563160f2ef",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports default tab with three issued invoices (billed figures on the WIP rows) 1`] = `
 {
-  "lines": 483,
-  "sha256": "cd06cb3a687fc977b46d483ca5bf5619783cd76fb220f2ac79adda8c0144c401",
+  "lines": 487,
+  "sha256": "9badf871d44e8fec12b038204d75df912307d44c59ac2d61c812cd46a5cd83f8",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports: Profit pressed 1`] = `
 {
-  "lines": 427,
-  "sha256": "3f244dc4db41189dabb17b134605d13a2bc830ea56772fce19c8a990cac6bf11",
+  "lines": 431,
+  "sha256": "c1f648187841e79df1835a0392f7429c037ed82604d858fa38d1107aca9cb16a",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report (drill sheet + period picker mounted) 1`] = `
 {
-  "lines": 712,
-  "sha256": "3626f2f74aa4283b4f357c3423b4b8f85b21bda59f4e581ea5f3c571a20d5c65",
+  "lines": 716,
+  "sha256": "09af49c95419d197e755153159ed14e430a8eea5ddac1061cda73e7959e69fa7",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report: the first project row pressed (the drill sheet drawn) 1`] = `
 {
-  "lines": 799,
-  "sha256": "869c714b3a73c7c9061fc33d38422980d0f875a1c2d7e1cc313e14816cb674b1",
+  "lines": 803,
+  "sha256": "e0fafa9a2b4865add331e326c5caeed8b0a55258fa314163e6702f02730fff2e",
 }
 `;
