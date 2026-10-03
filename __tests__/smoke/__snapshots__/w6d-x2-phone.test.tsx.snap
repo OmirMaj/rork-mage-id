@@ -188,8 +188,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 435,
-    "sha256": "bfd1b57353d4962c4c39c736ac8da6c38722c06675bb338aab54fc96dd9f7f71",
+    "lines": 439,
+    "sha256": "951e5917e084b9e63d1ad14d036aa180872407dacb74f28ab88c5b0bccdea293",
   },
 }
 `;
@@ -212,8 +212,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 719,
-    "sha256": "d5a5736b4836d44ce63d2be550c2d81944a14637b2404e2137933dad5adc8391",
+    "lines": 723,
+    "sha256": "d98d862d4caf8a7d0a56ea82e3387919741736084d6b43df6f931ba29d3da441",
   },
 }
 `;
@@ -236,8 +236,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 604,
-    "sha256": "abdc5d7007c12f62c65341fa9c35c80a090fe1e7395768ef2d645efebc51fbe5",
+    "lines": 608,
+    "sha256": "929fcd84d5413a260190796468706bf97050f8b9ffe64abe5a3f1333cdca49a5",
   },
 }
 `;
@@ -254,8 +254,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 436,
-    "sha256": "ffccfb30074c1edc14f48bf32a9fa83f830405dca173af1a66127da0172fa958",
+    "lines": 440,
+    "sha256": "f0a8f599d0e1099caf93f6a9af6778cb4b0f820c3e3ba7c838b58cb8f6e12471",
   },
 }
 `;
@@ -270,8 +270,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 315,
-    "sha256": "15f8bca5a1a05c07001d57f5daba996028fa293b1c021c4603c4f08da24530f5",
+    "lines": 319,
+    "sha256": "0ebfe61af7e28639e7f52e74f69b46c95b032ae9ce9b7d96cb4decc7dde60355",
   },
 }
 `;
@@ -288,8 +288,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 543,
-    "sha256": "8cfa4a3dbd5a6977b1ba6028294f2eb33284932eaa32bf8e430f2c7a698cdc54",
+    "lines": 547,
+    "sha256": "bc7c141d4b0cdc4cbbe7aa8f3889816d15ffc267b8579f3420b5d77a87574280",
   },
 }
 `;
@@ -306,8 +306,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 606,
-    "sha256": "60568cc86e01219f219aa51feb2c176cdf0ca99f7f22df75f3135d3f2879b43b",
+    "lines": 610,
+    "sha256": "d46ba9c6e2a9a85d0a3bddf8a2e83282827103c032c59340325134bee1e9ead8",
   },
 }
 `;
@@ -324,8 +324,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 1653,
-    "sha256": "e8b19e1980c65c14dd295126a4959a8ce67f61dbc63aaeec2f7140986b6f711d",
+    "lines": 1657,
+    "sha256": "601e66217da228773289526322a380b0bfe41b2ce828fe8b5d86311fcff31ce4",
   },
 }
 `;
@@ -342,8 +342,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 383,
-    "sha256": "e440496fea0dabab9199547c43dfbc29d268b8a975bafeae87b9b30c38b0a9dc",
+    "lines": 387,
+    "sha256": "cf95c82fdcabfa5b1664782edfc6101cb5f66536d2c5c731cb3fde19e184aa1c",
   },
 }
 `;
@@ -360,8 +360,8 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     },
   ],
   "whole": {
-    "lines": 356,
-    "sha256": "a666cce8c5aad8300ce907fb14dcfe9ec7b37cc76eac9b7de6240f0b02285736",
+    "lines": 360,
+    "sha256": "be6ddf250b5636bfcea0a4beda73d3d208dc451345e15c9f10ed9f67c4091cc4",
   },
 }
 `;

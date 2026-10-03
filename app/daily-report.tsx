@@ -65,7 +65,7 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
-import { nailIt, oops } from '@/components/animations/NailItToast';
+import { nailIt } from '@/components/animations/NailItToast';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -110,11 +110,7 @@ import {
 } from '@/utils/safety/osha';
 import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { useLaborRates } from '@/hooks/useLaborRates';
-import {
-  backfilledWeatherNotice, canReadLiveWeatherFor, weatherProvenanceLine,
-} from '@/utils/weatherService';
-import { usableLocationText } from '@/utils/geocodeProject';
-import { NO_ADDRESS_WEATHER_CAUSE } from '@/utils/weatherProvenance';
+import { canReadLiveWeatherFor, weatherProvenanceLine } from '@/utils/weatherService';
 import { useT } from '@/contexts/LanguageContext';
 import { getLang, t, t as coreT, tn } from '@/i18n/core';
 import { formatDateOptsL, formatTimeL } from '@/i18n/format';
@@ -1367,9 +1363,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    * What the SCREEN filled in by itself, as opposed to what the super typed.
    *
    * DFR-DIRTY-AUTOFILL (review 2026-09-08). Two effects below write fields with
-   * no user action on a brand-new report: the weather auto-fetch (any project
-   * with a location) and the schedule crew prefill (any project with a task
-   * live today). The unsaved-work baseline started out comparing against the
+   * no user action on a brand-new report: the weather auto-fetch (retired
+   * 2026-10-02, content rights — weather is typed by hand now; the weather slot
+   * is still cleared by the backfill effect) and the schedule crew prefill (any
+   * project with a task live today). The unsaved-work baseline started out comparing against the
    * EMPTY report, so within a second of opening a DFR nobody had touched, the
    * screen was "dirty" — the iOS edge-swipe was disabled, the back chevron
    * raised "Leave without saving?", and a draft of the app's own guesses was
@@ -1457,7 +1454,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const [mpCompany, setMpCompany] = useState('');
   const [mpHeadcount, setMpHeadcount] = useState('');
   const [mpHours, setMpHours] = useState('8');
-  const [weatherLoading, setWeatherLoading] = useState(false);
   const [showSendRecipient, setShowSendRecipient] = useState(false);
   // UX A1: the "From today's photos" choice in the Fill-it-for-me door opens
   // the photo-draft card below it (closed until he picks it).
@@ -1789,7 +1785,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleCarryForward = useCallback(() => {
     if (!lastReport) return;
     // Copy the fields most likely to repeat day-to-day. We DON'T copy
-    // weather (auto-fetched today is more accurate) or photos (different
+    // weather (each day's sky is its own; he types today's) or photos (different
     // photos today) or the incident block (must be re-attested per day).
     //
     // `issuesAndDelays` IS copied, deliberately — a delay rarely ends at
@@ -1864,24 +1860,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     () => canReadLiveWeatherFor(calendarDayOf(reportDate), carryLabelDay),
     [reportDate, carryLabelDay],
   );
-  /** "Mon, Sep 14" — the day the notice and the alert name. */
-  const reportDayLabel = useMemo(
-    () => formatCalendarDay(calendarDayOf(reportDate) ?? '', { weekday: 'short', month: 'short', day: 'numeric' })
-      || t('field.dfr.weather.thatDay', 'that day'),
-    [reportDate, t],
-  );
-  /** Live value of reportDate for the in-flight fetch's re-check — state read
-   *  inside an awaited callback is the value from the render that started it. */
-  const reportDateRef = useRef(reportDate);
-  useEffect(() => { reportDateRef.current = reportDate; }, [reportDate]);
-  /** When the reading in the block was taken, if it was taken in this session. */
-  const [weatherReadAt, setWeatherReadAt] = useState<Date | null>(null);
-  /** Where wttr.in says it read that weather (its nearest_area), for the chip. */
-  const [weatherPlace, setWeatherPlace] = useState<string | null>(null);
-  /** The jobsite text worth asking wttr.in about — null when blank, too short,
-   *  or a country on its own ("United States" is the estimate wizard's default,
-   *  and wttr.in answers it with some city's weather). */
-  const weatherQuery = usableLocationText(project?.location);
 
   // Progress meter — "X of 5 sections filled". Five tracked items because
   // five is what a contractor can hold in their head: weather, crew, work
@@ -1901,108 +1879,24 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     return { done, total, isReady: done >= 3 };
   }, [weather, manpower, workPerformed, materialsDelivered, photos]);
 
-  // `opts.auto` marks the on-mount fetch — a forecast the screen went and got
-  // by itself. The "Auto-fetch" button below passes nothing, because a tap IS
-  // the user's work and must read as an edit. Never wire this straight to
-  // onPress: the press event would arrive as `opts` and `opts.auto` would be
-  // undefined by luck rather than by design.
-  const fetchWeather = useCallback(async (opts?: { auto?: boolean }) => {
-    if (!weatherQuery) {
-      if (opts?.auto !== true) showAlert(t('field.dfr.noJobsiteAddress', 'No jobsite address'), NO_ADDRESS_WEATHER_CAUSE);
-      return;
-    }
-    // DFR-WEATHER-DAY. wttr.in answers `current_condition` — the sky RIGHT NOW.
-    // Nothing in this path used to look at the report's date, so a Monday report
-    // filed Tuesday morning carried Tuesday's sky stamped `isManual: false`, the
-    // flag that means "fetched, not typed". Weather is the first thing anyone
-    // checks when a delay is argued and the one field trivially falsifiable
-    // against public records, so a wrong-day reading does not just lose that
-    // day — it invites the other side to question the whole binder.
-    //
-    // The guard lives HERE rather than on the date picker's onChange because the
-    // picker is not the only path to a wrong day: the mount effect below is
-    // gated only on `!existingReport`, so an unsaved draft started Monday and
-    // reopened Wednesday would re-fetch Wednesday's sky with no user action at
-    // all, and the Auto-fetch button takes this same path.
-    //
-    // Calendar days, not instants: reportDate is seeded as an ISO instant and
-    // this file twice annotates that it is not a calendar day. A naive
-    // comparison misclassifies an evening-filed report near midnight, which is
-    // the bug wearing a different hat.
-    const requestedDay = calendarDayOf(reportDate);
-    if (!canReadLiveWeatherFor(requestedDay, todayCalendarDay())) {
-      if (opts?.auto !== true) {
-        showAlert(t('field.dfr.noPastWeather', 'No past weather'), backfilledWeatherNotice(reportDayLabel));
-      }
-      return;
-    }
-    setWeatherLoading(true);
-    try {
-      const location = encodeURIComponent(weatherQuery);
-      const response = await fetch(
-        `https://wttr.in/${location}?format=j1`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const current = data?.current_condition?.[0];
-        // The date can move while the request is in flight — the mount fetch
-        // fires before the super has touched anything, and backfilling is the
-        // first thing he does. Re-check against the day this read was FOR, or
-        // the answer lands on a report it was never asked for.
-        if (current && calendarDayOf(reportDateRef.current) === requestedDay) {
-          const fetched: DFRWeather = {
-            temperature: `${current.temp_F}°F / ${current.temp_C}°C`,
-            conditions: current.weatherDesc?.[0]?.value ?? 'Unknown',
-            wind: `${current.windspeedMiles} mph ${current.winddir16Point}`,
-            isManual: false,
-          };
-          setWeather(fetched);
-          // The clock time of the read, so the provenance chip can say when.
-          // Session-only: DFRWeather has no room for it and inventing a
-          // persisted timestamp for a reading restored from disk would be the
-          // same class of lie this guard exists to stop.
-          setWeatherReadAt(new Date());
-          // The place wttr.in actually read (nearest_area), not the text sent.
-          const area = data?.nearest_area?.[0];
-          setWeatherPlace([area?.areaName?.[0]?.value, area?.region?.[0]?.value].filter(Boolean).join(', ') || weatherQuery);
-          // Fold an unattended fetch into the unsaved-work baseline, or the
-          // screen reports itself as edited before the super has typed a word.
-          if (opts?.auto === true) setAutoFilled(p => ({ ...p, weather: fetched }));
-          console.log('[DFR] Weather fetched successfully');
-        }
-      }
-    } catch (err) {
-      console.log('[DFR] Weather fetch failed:', err);
-      // Only shout about a fetch he ASKED for. The mount effect below fires
-      // fetchWeather({ auto: true }) on every entry to this screen, so an
-      // offline jobsite — the normal condition — greeted the super with a
-      // modal about something he never tapped, before he had typed a word.
-      // The deliberate button keeps the alert; the unattended fetch degrades
-      // to the toast slot. This function already branches on opts?.auto a few
-      // lines above, and utils/location.ts:1-15 is this repo's own written
-      // rule against exactly this.
-      if (opts?.auto === true) {
-        oops(t('field.dfr.weatherUnavailableEnterIt', 'Weather unavailable. Enter it manually.'));
-      } else {
-        showAlert(t('field.dfr.weatherUnavailable', 'Weather unavailable'), t('field.dfr.couldntLoadTheWeather', "Couldn't load the weather. Enter it manually."));
-      }
-    } finally {
-      setWeatherLoading(false);
-    }
-  }, [weatherQuery, reportDate, reportDayLabel, t]);
+  // ─── WEATHER IS TYPED BY HAND (content rights, 2026-10-02) ─────────────
+  // This block used to fill itself on open and on an "Auto-fetch" tap from a
+  // free third-party weather service that publishes no terms, no data license
+  // and no data source, and every call sent it the jobsite address, so MAGE could not honestly tell
+  // Apple it had the right to show that weather (contentfix-specs/
+  // RIGHTS-VERDICT.md). The app's licensed source, OpenWeather, is reached
+  // through a 5-day / 3-hour FORECAST relay (supabase/functions/
+  // weather-forecast) — and a forecast slot is not a reading of the sky, so it
+  // is not written into a field report as one. Until a current-conditions
+  // reading exists, the super types what he saw; nothing is pre-filled, and no
+  // button offers a fetch that does not exist.
 
-  useEffect(() => {
-    if (!existingReport && weatherQuery) {
-      void fetchWeather({ auto: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // DFR-WEATHER-DAY, second half. Backfilling is a DATE CHANGE on a report that
-  // already auto-filled with today's sky, so blocking the fetch is not enough —
-  // the wrong reading is already in the block. Clear it and let the notice below
-  // say why, rather than leaving this morning's 72°F sitting under last Monday's
-  // date with the "fetched" flag on it.
+  // DFR-WEATHER-DAY, second half. The screen no longer fetches weather, but an
+  // unsaved draft restored from before that change can still carry a reading the
+  // screen fetched (`isManual === false`). Backfilling is a DATE CHANGE, so that
+  // reading would be today's sky under an earlier date: clear it and leave the
+  // fields empty for the super to type, rather than leaving this morning's 72°F
+  // sitting under last Monday's date with the "fetched" flag on it.
   //
   // Only ever clears a reading the SCREEN fetched (`isManual === false`) on a
   // report that is not yet saved. Typed weather is the super's own answer about
@@ -2014,8 +1908,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     if (weather.isManual) return;
     if (!weather.temperature && !weather.conditions && !weather.wind) return;
     setWeather(EMPTY_DFR_WEATHER);
-    setWeatherReadAt(null);
-    setWeatherPlace(null);
     // Keep the unsaved-work baseline in step, or clearing the app's own guess
     // reads as the super having edited the report.
     setAutoFilled(p => ({ ...p, weather: EMPTY_DFR_WEATHER }));
@@ -2028,16 +1920,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     isManual: weather.isManual,
     reportIsToday,
     hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
-    // The chip names the place wttr.in actually read (its nearest_area), not
-    // the text we sent: wttr.in resolves a street address to the nearest area
-    // it knows, and that is where the reading is from. A country-only location
-    // ("United States", the estimate wizard's default) is never fetched at all
-    // (weatherQuery is null), so no chip can claim a reading for it.
-    location: weatherPlace ?? weatherQuery ?? '',
-    readAtLabel: weatherReadAt
-      ? weatherReadAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      : undefined,
-  }), [weather, reportIsToday, weatherPlace, weatherQuery, weatherReadAt]);
+    // Nothing is read live any more, so there is no place or clock time to
+    // name: a typed value says "Typed by hand.", and a reading saved by an
+    // older version keeps its saved-reading caveat.
+    location: '',
+  }), [weather, reportIsToday]);
 
   // Pre-fill manpower for the report's day. Two sources, in order of truth:
   //
@@ -3876,7 +3763,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    * what makes the form clean again.
    *
    * `autoFilled` is the second fallback for the two fields the screen writes on
-   * its own (weather auto-fetch, schedule crew prefill) — see DFR-DIRTY-AUTOFILL
+   * its own (weather, whose auto-fetch is retired, and the schedule crew prefill) — see DFR-DIRTY-AUTOFILL
    * above. Without it a brand-new report is dirty a second after it opens, with
    * nobody having touched it.
    */
@@ -4646,36 +4533,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.sectionHeader}>
               <Cloud size={18} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>{t('field.dfr.weather', 'Weather')}</Text>
-              {!isLocked && (
-                <TouchableOpacity
-                  style={[styles.refreshBtn, (weatherLoading || !reportIsToday) && styles.refreshBtnDisabled]}
-                  onPress={() => { void fetchWeather(); }}
-                  activeOpacity={0.7}
-                  disabled={weatherLoading || !reportIsToday}
-                  testID="dfr-weather-fetch"
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: weatherLoading || !reportIsToday, busy: weatherLoading }}
-                  accessibilityLabel={reportIsToday
-                    ? t('field.dfr.autoFetchTheWeather', 'Auto-fetch the weather for today')
-                    : t('field.dfr.autoFetchIsOff', 'Auto-fetch is off — MAGE cannot read the weather for {reportDayLabel}', { reportDayLabel })}
-                >
-                  <Text style={[styles.refreshBtnText, (weatherLoading || !reportIsToday) && styles.refreshBtnTextDisabled]}>
-                    {weatherLoading ? t('field.dfr.loadingWeather', 'Loading weather…') : t('field.dfr.autoFetch', 'Auto-fetch')}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
-            {/* A blocked control says why. There is no historical-weather source
-                in this repo (OpenWeather's free tier is forecast-only, wttr.in
-                answers "now"), so the honest move on a backfilled report is to
-                say so and let him type what he saw — the same line the schedule
-                already holds when it refuses to log a delay day off simulated
-                weather. */}
-            {!isLocked && !reportIsToday && (
-              <Text style={styles.weatherNotice} testID="dfr-weather-backfill-notice">
-                {backfilledWeatherNotice(reportDayLabel)}
-              </Text>
-            )}
             <View style={[styles.weatherGrid, isDesktop && styles.weatherGridDesktop]}>
               <View style={[styles.weatherItem, isDesktop && styles.weatherItemDesktop]}>
                 <Thermometer size={14} color={themeColors.accent} strokeWidth={1.75} />

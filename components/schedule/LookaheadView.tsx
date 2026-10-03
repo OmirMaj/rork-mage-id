@@ -469,7 +469,7 @@ function LookaheadView({
           week strip that shows the invented conditions, so the label and the
           data it disclaims can't be seen apart. Gated on the days actually
           RENDERED, not the raw fetch, and self-hiding for a fully live week. */}
-      <WeatherPlaceLine text={weatherDesc.placeLine} />
+      <WeatherPlaceLine text={weatherDesc.placeLine} days={displayedDays} />
       <SimulatedWeatherBanner days={displayedDays} cause={weatherDesc.cause} />
 
       {isDesktop ? (

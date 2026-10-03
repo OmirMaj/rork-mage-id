@@ -2,42 +2,42 @@
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot (default capability: the gate) 1`] = `
 {
-  "lines": 663,
-  "sha256": "1f88b8e9bb3d522a27660446bf8f9353f76044462ad069d6470b1d98f719c6e3",
+  "lines": 667,
+  "sha256": "2e94fe390d2cd8cf9bfb1d88e33dcd08d61c28f29f2cb3c34f3beead70749a06",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot new_project (project-free: the shell) 1`] = `
 {
-  "lines": 663,
-  "sha256": "9456f94588a19a2ca7b5a91eb5fa6a145063390831ce8e8cf2f8b7ab8450a5c0",
+  "lines": 667,
+  "sha256": "a21a2f7913b7a1045d4c162d60ba4f6af2a41436edec460694a032cfd8757a0c",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot rfi (the shell + the job-picker sheet) 1`] = `
 {
-  "lines": 663,
-  "sha256": "fe633830b14e7e5ea2b408b496ad5cd043e85479a2e4d6eb95f58de468d4cff7",
+  "lines": 667,
+  "sha256": "144edaa1721a1feac2019b714da7bfb03a80d9e4bd255cb81a95db287422c14e",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) delay-events (log, event, evidence, notice-period, notice-form sheets) 1`] = `
 {
-  "lines": 698,
-  "sha256": "8257b50df36e89b71f2cc2aca642f637d2a5929e5742c084168ebc3de4ee9280",
+  "lines": 702,
+  "sha256": "f1fefb8a55c41549bb95216c86dbfbba5fb90e81319b3b147293861085954d6a",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) delay-events: a logged delay, its event sheet and the notice form 1`] = `
 {
-  "lines": 814,
-  "sha256": "d17e0842798fd7e3e7fdefd07b274c8058da8ec102bd908bac6b83d644a33d25",
+  "lines": 818,
+  "sha256": "c6ed9f91f8ea870d9ac0913d1fcd4b4db8ec9b90587a54c541bf6f83f019157f",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) project-detail (the hub with the cost and revision sheets) 1`] = `
 {
-  "lines": 1602,
-  "sha256": "31b9528b129d407084f0ce5121a23a38d93942ee923403b64ee35b90510e96ee",
+  "lines": 1606,
+  "sha256": "9b823baef0cbc0794ef5ed394d58218995502ffcb6e2b3f22204c7f2880f9130",
 }
 `;

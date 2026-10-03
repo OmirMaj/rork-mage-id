@@ -2,91 +2,91 @@
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (a record) 1`] = `
 {
-  "lines": 1407,
-  "sha256": "8939de061a24718741389f8fa73afe195ae4ee568a0a0f44368603d2b47b0b8b",
+  "lines": 1411,
+  "sha256": "ea8e1a03ff796b7b4983e174294b157454609f6315972421f52d3868aea3762d",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (project only) 1`] = `
 {
-  "lines": 1019,
-  "sha256": "622192d21ce0de263b1ad94dcb86db2615350b838b02e1a5cf6f3ca81bf80d26",
+  "lines": 1023,
+  "sha256": "696a2dc33abff0fb898a27d6d8b19e8487e221d147934dc47fd954c26c94105a",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a record) 1`] = `
 {
-  "lines": 1011,
-  "sha256": "ec4e4b658f1dd96fd1a2b46b31eebae208d59498eecb3b1ae967ec2f368a8a8e",
+  "lines": 1015,
+  "sha256": "e4952e437bf82bd9974173c6635ae5f0c7e0ad78bd9e217da775e3f5978d9d27",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (project only) 1`] = `
 {
-  "lines": 1021,
-  "sha256": "0f40d758b2eb37b85a8f954b9bab20df4fabb317ff8b8913a3a8f0978236f065",
+  "lines": 1025,
+  "sha256": "404d13314709011efe8cc472e7ea1a1c42cd1f1e653d2b31650c00a853fb2133",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the tutorial route, type=progress) 1`] = `
 {
-  "lines": 1032,
-  "sha256": "93a32b79951f1863fa235190a613c1a47bb34cdfbbc8291afe4d5ee12c30319b",
+  "lines": 1036,
+  "sha256": "54fcfa51042de08152b5ab21d83dcf405e05b1b3d250f2da8a02cbb29212e29f",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (a record) 1`] = `
 {
-  "lines": 859,
-  "sha256": "3c35e724e8784c8125eb2b32a8c082c054c3409d6aa09f8b99c9da5e9bc8d25d",
+  "lines": 863,
+  "sha256": "03af2ab8f567a037b12db59a8d43f203b452e8fdb06bf1365610335bb66a622c",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (project only: the create form) 1`] = `
 {
-  "lines": 742,
-  "sha256": "f5dd879270edd322629d9afb3be6e3b90fb0f4eb72e3d8cecc12d696ff8cff7e",
+  "lines": 746,
+  "sha256": "224c3e00761b21d3c8e55d059b1ef1aadf29dceb9428662fda09f54b54d80eae",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (a record) 1`] = `
 {
-  "lines": 803,
-  "sha256": "f49bbb3276a7ad4a562151db7610ccde38ef92c716fb4b4d697dbd2665b1144f",
+  "lines": 807,
+  "sha256": "afa170b921cd0fdeb35de2f74242616b5c1aa807531637e7c1fcf923168ff777",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (project only) 1`] = `
 {
-  "lines": 722,
-  "sha256": "d516823423d3c819c9d57a08affc509846e3b7734787c118f6db3f270d279a47",
+  "lines": 726,
+  "sha256": "71b493a9aa2d994e66d38e35b22c730cd9894abe84b4f94e44f574ba59be30a6",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved credit: the bill bar says why) 1`] = `
 {
-  "lines": 996,
-  "sha256": "c7694c6e7ccdec5878670105ceb01470ae3433c311db5393ea0c6ab72252ab36",
+  "lines": 1000,
+  "sha256": "3f2ee9d29fa572d4fb2f33be6b7b6140074741c3f606bf4468b3d78af58de402",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved, billable: the bill bar) 1`] = `
 {
-  "lines": 997,
-  "sha256": "d0883fb57b254846ea79ee35e5832f6d0d4875e3ecc4301e19631df77f01944d",
+  "lines": 1001,
+  "sha256": "c261862663b8560e5052dd4dc63eb3f9328f3a5c51ccbe43c67c9b86c9a8d582",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (rejected: locked, no bar) 1`] = `
 {
-  "lines": 1002,
-  "sha256": "8355c580d725b3cb9160a672704af6c8cf4e2eb7b35c1ee18fbe0d35728ea44d",
+  "lines": 1006,
+  "sha256": "91983c5399facd5e92f68e0cd856ed241e28cf06488b99b10eb4e09bca6ce5a5",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) invoice (sent: reminder and pay link) 1`] = `
 {
-  "lines": 1006,
-  "sha256": "9ad11f4cb75153c3216a341ef7298471f9dd4ada88f7f2e94204afb8c3ed34a0",
+  "lines": 1010,
+  "sha256": "e95fdb4afe271a53cdbc05b315cb7e0fc7439ced197880b867ae9a57e04f2954",
 }
 `;

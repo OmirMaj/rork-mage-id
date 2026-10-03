@@ -27,19 +27,24 @@ export function lowerFirst(label: string): string {
   return label.charAt(0).toLowerCase() + label.slice(1);
 }
 
-function topic(id: SkillTopicId, label: string): SkillTopic {
+/** `quizVersion` moves with the topic's bank version in ./quizBank.ts: a
+ *  question change bumps both, then the server key is regenerated
+ *  (bun run gen:skill-quiz-key) and skill-certificate-award is redeployed
+ *  before the client ships, or every attempt on the new version gets 409. */
+function topic(id: SkillTopicId, label: string, quizVersion = 1): SkillTopic {
   return {
     id,
     label,
     certificateTitle: `MAGE ID skills: ${label}`,
     scope: `Using ${lowerFirst(label)} in the MAGE ID app.`,
-    quizVersion: 1,
+    quizVersion,
   };
 }
 
 /** Hub order (utils/tutorial/defs TUTORIAL_ORDER), the shipped three first. */
 export const SKILL_TOPICS: readonly SkillTopic[] = [
-  topic('daily-report-voice', 'Daily reports by voice'),
+  // v2 (2026-10-02): q4 no longer names the retired weather Auto-fetch.
+  topic('daily-report-voice', 'Daily reports by voice', 2),
   topic('punch-walk', 'Punch walks'),
   topic('invoice-to-self', 'Invoicing'),
   topic('schedule-say-it', 'Schedule changes'),

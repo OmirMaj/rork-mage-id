@@ -28,6 +28,10 @@ import { hasSimulatedDays, SIMULATED_WEATHER_HEADLINE } from '@/utils/weatherPro
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+// OpenWeather's plans require its credit wherever its forecast is shown
+// (contentfix-specs/RIGHTS-VERDICT.md); WeatherCredit renders nothing unless a
+// hit day is a live reading.
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 
 export interface WeatherReschedulePromptProps {
   tasks: ScheduleTask[];
@@ -137,6 +141,7 @@ function WeatherReschedulePromptImpl({
           {historyLine ? (
             <Text style={styles.bannerHistory}>Your history here: {historyLine}</Text>
           ) : null}
+          <WeatherCredit days={conflicts.map(c => c.hitDay)} />
         </View>
         <View style={styles.bannerActions}>
           <TouchableOpacity
@@ -205,6 +210,7 @@ function WeatherReschedulePromptImpl({
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            <WeatherCredit days={conflicts.map(c => c.hitDay)} style={styles.modalCredit} />
 
             <View style={[styles.modalFooter, fWx.footer]}>
               <TouchableOpacity
@@ -253,6 +259,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },
+  modalCredit: { paddingHorizontal: 16, paddingTop: 8 },
   bannerHistory: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14, fontStyle: 'italic' },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bannerSecondaryBtn: {

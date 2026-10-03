@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Animated, ScrollView, Linking, Platform, Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
+import { COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { MapPin, Star, StarHalf, ArrowLeft, Navigation, AlertCircle, ExternalLink } from 'lucide-react-native';
@@ -168,7 +169,19 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
   );
 }
 
-export default function CachedCompaniesScreen() {
+/**
+ * The route. Discover > Companies is switched off for launch
+ * (COMPANIES_DIRECTORY_ENABLED, constants/featureFlags.ts — MAGE may not store
+ * or show Google's listings): a deep link, an old bookmark or a typed URL lands
+ * back on Discover instead of a screen with no doors. The query below never
+ * runs. Flip the flag and the screen returns exactly as it was.
+ */
+export default function CompaniesRoute() {
+  if (!COMPANIES_DIRECTORY_ENABLED) return <Redirect href="/(tabs)/discover" />;
+  return <CachedCompaniesScreen />;
+}
+
+function CachedCompaniesScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

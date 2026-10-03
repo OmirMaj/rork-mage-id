@@ -274,9 +274,9 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet �
 
 exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /(tabs)/schedule?projectId — ScheduleScreen's non-desktop branch 1`] = `
 {
-  "lines": 2193,
+  "lines": 2197,
   "modalCount": 19,
-  "sha256": "6f539686427a888d8ae3183ba8a1df4f1b19e702a007fb49e83df10a477cd295",
+  "sha256": "c07ed643b8e7512adc912aeb3816142ffeec7642cdd7a1db46dea8797f99faeb",
 }
 `;
 

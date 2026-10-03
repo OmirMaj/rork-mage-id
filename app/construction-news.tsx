@@ -23,6 +23,8 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { Redirect } from 'expo-router';
+import { CONSTRUCTION_NEWS_ENABLED } from '@/constants/featureFlags';
 import { Newspaper, WifiOff, CloudOff, ExternalLink, RefreshCw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Button } from '@/components/ui';
@@ -69,7 +71,19 @@ async function openArticle(link: string): Promise<void> {
   }
 }
 
-export default function ConstructionNewsScreen() {
+/**
+ * The route. Construction News is switched off for launch
+ * (CONSTRUCTION_NEWS_ENABLED, constants/featureFlags.ts — no publisher has
+ * given MAGE permission yet): a deep link or typed URL lands back on Discover,
+ * and the feed is never fetched. Flip the flag and the screen returns exactly
+ * as it was.
+ */
+export default function ConstructionNewsRoute() {
+  if (!CONSTRUCTION_NEWS_ENABLED) return <Redirect href="/(tabs)/discover" />;
+  return <ConstructionNewsScreen />;
+}
+
+function ConstructionNewsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

@@ -55,7 +55,7 @@ import { Tokens } from '@/constants/designTokens';
 import { NavRow, type NavRowTone } from '@/components/NavRow';
 import EmptyState from '@/components/EmptyState';
 import { useProjects } from '@/contexts/ProjectContext';
-import { featureFor, type FeatureId } from '@/utils/featureRegistry';
+import { featureFor, isFeatureHidden, type FeatureId } from '@/utils/featureRegistry';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useClaimedCrewProfile } from '@/hooks/useClaimedCrewProfile';
 
@@ -109,7 +109,7 @@ const TOOL_ROWS: ToolRow[] = [
   // ── INDUSTRY — what is happening outside the GC's own jobs. Construction
   // News merges a curated set of publisher feeds (supabase/functions/
   // construction-news); it needs no project and gates on no tier.
-  { route: '/construction-news', Icon: Newspaper, title: 'Construction news', subtitle: 'Latest headlines from ENR, Construction Dive, NAHB, OSHA and more', tone: 'info', testID: 'tools-construction-news', feature: 'construction-news', section: 'INDUSTRY' },
+  { route: '/construction-news', Icon: Newspaper, title: 'Construction news', subtitle: 'Latest construction industry headlines', tone: 'info', testID: 'tools-construction-news', feature: 'construction-news', section: 'INDUSTRY' },
 
   // ── DECISIONS — what is waiting on the GC to act on.
   // PRODUCT-F4 / UX-F16: the marketed chase list was sidebar-only —
@@ -284,7 +284,9 @@ export default function DiscoverToolsScreen() {
   const grouped = useMemo(
     () => SECTIONS.map(section => ({
       section,
-      rows: TOOL_ROWS.filter(r => r.section === section && (hasProjects || !r.needsProjects)),
+      // A row whose destination is switched off by a content-rights flag
+      // (isFeatureHidden) is not shown; a section left empty drops below.
+      rows: TOOL_ROWS.filter(r => r.section === section && (hasProjects || !r.needsProjects) && !isFeatureHidden(r.feature)),
     })).filter(g => g.rows.length > 0),
     [hasProjects],
   );

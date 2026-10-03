@@ -46,21 +46,45 @@ export interface FeedSource {
   defaultTopic?: NewsTopic;
 }
 
-// Every URL below was fetched on 2026-09-22 and returned a live RSS 2.0 feed
-// with items dated that week. Dropped after checking, so nobody re-adds them
-// blind: ENR's /rss (an HTML page — /rss/articles is the feed), For
-// Construction Pros, Equipment World, Construction Equipment Guide (Cloudflare
-// challenge, 403), Builder, JLC, Remodeling (403 to any non-browser client),
-// Pro Remodeler, BD+C, Pro Builder (404), AGC (/rss.xml answers, but its
-// newest item is from December 2024) and HousingWire (mortgage-market news,
-// not construction). Construction Dive's news and safety feeds overlap; the
-// dedupe drops the repeats.
+// CONTENT RIGHTS (contentfix 2026-10-03; contentfix-specs/RIGHTS-VERDICT.md,
+// row "Construction news"): the feed list is OSHA ONLY. OSHA news releases are
+// a U.S. government work (17 U.S.C. 105, no copyright), so the headline, the
+// summary and the link may be shown. No other publisher has given MAGE ID
+// permission: ENR's and Fine Homebuilding's terms forbid copying or commercial
+// use, Construction Dive's and ConstructConnect's allow personal or internal
+// use only, and Construction Business Owner already blocks our fetcher. The app
+// hides the news screen for launch (constants/featureFlags.ts
+// CONSTRUCTION_NEWS_ENABLED); trimming this list means nothing unlicensed is
+// served even to an older app that still shows the screen.
+//
+// RE-ADDING A PUBLISHER, one at a time, only after it says yes IN WRITING
+// (keep the email; Apple can ask for it, guideline 5.2.2):
+//   1. Move its entry from RETIRED_FEEDS below back into FEED_SOURCES,
+//      unchanged (each URL was a live RSS 2.0 feed on 2026-09-22).
+//   2. Re-check the URL still answers a feed, and note the permission date in
+//      a comment on the entry.
+//   3. Update scripts/validate-content-rights-server.ts (it pins this list to
+//      OSHA) and scripts/validate-w4-construction-news-core.ts (feed count and
+//      topic mix).
+//
+// Dropped earlier after checking, so nobody re-adds them blind: ENR's /rss (an
+// HTML page — /rss/articles is the feed), For Construction Pros, Equipment
+// World, Construction Equipment Guide (Cloudflare challenge, 403), Builder,
+// JLC, Remodeling (403 to any non-browser client), Pro Remodeler, BD+C, Pro
+// Builder (404), AGC (/rss.xml answers, but its newest item is from December
+// 2024) and HousingWire (mortgage-market news, not construction).
 export const FEED_SOURCES: readonly FeedSource[] = [
+  { id: 'osha', name: 'OSHA', url: 'https://www.osha.gov/news/newsreleases.xml', defaultTopic: 'Labor & safety' },
+];
+
+/** NOT FETCHED. The publishers removed on 2026-10-03 for want of permission,
+ *  kept here only so one can be moved back into FEED_SOURCES when it grants
+ *  permission in writing (see the steps above). Nothing imports this list. */
+export const RETIRED_FEEDS: readonly FeedSource[] = [
   { id: 'construction-dive', name: 'Construction Dive', url: 'https://www.constructiondive.com/feeds/news/' },
   { id: 'construction-dive-safety', name: 'Construction Dive', url: 'https://www.constructiondive.com/feeds/topic/safety/', defaultTopic: 'Labor & safety' },
   { id: 'enr', name: 'ENR', url: 'https://www.enr.com/rss/articles', defaultTopic: 'Commercial' },
   { id: 'eye-on-housing', name: 'NAHB Eye on Housing', url: 'https://eyeonhousing.org/feed/', defaultTopic: 'Economy' },
-  { id: 'osha', name: 'OSHA', url: 'https://www.osha.gov/news/newsreleases.xml', defaultTopic: 'Labor & safety' },
   { id: 'construction-business-owner', name: 'Construction Business Owner', url: 'https://www.constructionbusinessowner.com/rss.xml' },
   { id: 'constructconnect', name: 'ConstructConnect', url: 'https://www.constructconnect.com/blog/rss.xml', defaultTopic: 'Commercial' },
   { id: 'fine-homebuilding', name: 'Fine Homebuilding', url: 'https://www.finehomebuilding.com/feed', defaultTopic: 'Residential' },

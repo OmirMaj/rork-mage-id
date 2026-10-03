@@ -2,35 +2,35 @@
 
 exports[`ux lane A — phone golden (390 × 844 iOS) attention (Action Required) 1`] = `
 {
-  "lines": 502,
-  "sha256": "a7670c64bcbb5ce26fa8932c482a6190baafb73656def0559ffc4cfabc417f23",
+  "lines": 506,
+  "sha256": "a5b3b46b24e94bd45b5c43a33d0025f5831019b184eb100453df7fbfae793736",
 }
 `;
 
 exports[`ux lane A — phone golden (390 × 844 iOS) attention logs view 1`] = `
 {
-  "lines": 487,
-  "sha256": "358ef123a85d88e1f7eddc0e8e2ab7bb6ddd7fb3081ee2a330001b1cfa3429a8",
+  "lines": 491,
+  "sha256": "9982f435e86ed8518ac556f7d3bad4d1a12cd34262a10c9cc6fc5404897167e6",
 }
 `;
 
 exports[`ux lane A — phone golden (390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
-  "lines": 1153,
-  "sha256": "3e7ced96e62834a29534fa0773a207530e129c53b09df00ad13c8990895681fd",
+  "lines": 1154,
+  "sha256": "9220a7db43dbc7381cfcb83e8e872f322fcd222c2c0f647f019c954fa5dd0066",
 }
 `;
 
 exports[`ux lane A — phone golden (390 × 844 iOS) home (DailyLogCard) 1`] = `
 {
-  "lines": 1977,
-  "sha256": "1a2a7f9f02e872531cd3279076554057dd262d6eafb387ab21f4ba694aee6396",
+  "lines": 1981,
+  "sha256": "8c7226e63e540e4c0161edaa42344e8762808bcce62e05921d45ff0194a52dd0",
 }
 `;
 
 exports[`ux lane A — phone golden (390 × 844 iOS) waiting-on 1`] = `
 {
-  "lines": 403,
-  "sha256": "62c3ad4854c6625e40563a93c9331d40de4abe3cc1defabc44f5cb932879394f",
+  "lines": 407,
+  "sha256": "61d39c72ee1c9fe6f6f8792b89525254219c332c5b4d83c203858ddf82988277",
 }
 `;

@@ -1,9 +1,19 @@
 // fetch-external-data
 //
-// Cron-driven sync that populates three caches:
+// Cron-driven sync that populates ONE cache:
 //   - cached_bids       — SAM.gov public construction opportunities
-//   - cached_jobs       — Adzuna job listings (construction-trade keywords)
-//   - cached_companies  — Google Places contractor / supplier business listings
+//
+// CONTENT RIGHTS (contentfix 2026-10-03; contentfix-specs/RIGHTS-VERDICT.md,
+// rows "Google business listings" and "Adzuna jobs"): the Google Places step
+// (-> cached_companies) and the Adzuna step (-> cached_jobs) are REMOVED. Google
+// Maps Platform terms forbid storing business names, addresses and ratings at
+// all, and Adzuna allows commercial use only after a 14-day trial with written
+// consent. Neither provider is called any more; both still report a 'retired'
+// verdict (sourceStatus.ts) so the run stays green and the response names them.
+// The stored rows are purged by docs/ops/2026-10-03-content-rights-cleanup.sql
+// and the public read is closed by 20261003090000_content_rights.sql. Do not
+// re-add either step without the provider's written permission and the
+// attribution its terms require.
 //
 // Triggered by pg_cron 4×/day (job: fetch-external-data-schedule).
 //
@@ -12,15 +22,13 @@
 //      29 of 1,380 because of national skew). Now limit=200, paginated
 //      5x = up to 1000/run. postedFrom extended from 30 to 90 days so
 //      bids posted earlier in their open period still surface.
-//   2. Geocode backfill — was hardcoded to latitude:null/longitude:null,
-//      so 92% of cached_bids had no coordinates and "Near Me" filtering
-//      worked on 8% of the feed. Now we look up every unique (city,state)
-//      that's missing coords via Google Maps Geocoding API and persist
-//      the result in city_coords (cache-first; never re-pay for the same
-//      pair). Cost stays inside Google's $200/mo free credit at our
-//      volume (~600 unique pairs/mo).
+//   2. Geocode backfill moved to its own function (geocode-bids), which
+//      since 2026-10-03 uses OpenStreetMap Nominatim only (no Google).
 //   3. Removed `latitude:null,longitude:null` hardcode — let upsert pull
-//      coords from city_coords cache when we already know them.
+//      coords from the city_coords cache when we already know them. Only
+//      rows with source 'nominatim' are read: a Google-derived row (any other
+//      source, incl. the column's old 'google_geocoding' default) is never
+//      copied onto a bid, even before the cleanup SQL deletes it.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { isValidCron } from '../_shared/cronAuth.ts'
@@ -54,62 +62,8 @@ function cityKey(city: string, state: string): string {
   return `${city}__${state}`
 }
 
-// Resolve a (city, state) → lat/long.
-//
-// Tries two providers in order:
-//   1. Google Places Text Search — reuses the same API the rest of this
-//      function already calls successfully for cached_companies, so we
-//      know the key is enabled for it. Costs ~$0.032 per call.
-//   2. OpenStreetMap Nominatim — free, no API key, generous rate limits
-//      (1 req/sec politeness). Used as a fallback if Places fails so the
-//      backfill still progresses on misconfigured keys.
-//
-// Both calls capture an `errKey` so the caller can return a sample
-// failure reason in the function response (we can't read console logs
-// from outside the function).
-async function geocodeCity(
-  city: string, state: string, googleKey: string,
-  diag: { lastPlacesStatus?: string; lastPlacesError?: string; lastNominatimStatus?: number },
-): Promise<{ lat: number; lng: number } | null> {
-  // Attempt 1: Google Places Text Search.
-  if (googleKey) {
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${city}, ${state}`)}&key=${googleKey}`
-    try {
-      const r = await fetch(url)
-      if (r.ok) {
-        const data = await r.json()
-        diag.lastPlacesStatus = data.status
-        if (data.error_message) diag.lastPlacesError = String(data.error_message).slice(0, 200)
-        if (data.status === 'OK' && data.results?.length) {
-          const loc = data.results[0]?.geometry?.location
-          if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-            return { lat: loc.lat, lng: loc.lng }
-          }
-        }
-      } else {
-        diag.lastPlacesStatus = `HTTP_${r.status}`
-      }
-    } catch (e) {
-      diag.lastPlacesError = String(e).slice(0, 200)
-    }
-  }
-
-  // Attempt 2: Nominatim. No key required.
-  try {
-    const nUrl = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=USA&format=json&limit=1`
-    const r = await fetch(nUrl, { headers: { 'User-Agent': 'mage-id/1.0 (cron-backfill)' } })
-    diag.lastNominatimStatus = r.status
-    if (r.ok) {
-      const arr = await r.json()
-      if (Array.isArray(arr) && arr[0]?.lat && arr[0]?.lon) {
-        return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) }
-      }
-    }
-  } catch {
-    /* swallow; both providers failed */
-  }
-  return null
-}
+// (The old geocodeCity helper, which called Google Places Text Search first,
+// was unused and is deleted: content rights, 2026-10-03.)
 
 // ─── SAM.gov fetch with pagination ───────────────────────────────────
 //
@@ -164,14 +118,8 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     const SAM_GOV_API_KEY = Deno.env.get('SAM_GOV_API_KEY') ?? ''
-    const ADZUNA_APP_ID = Deno.env.get('ADZUNA_APP_ID') ?? ''
-    const ADZUNA_APP_KEY = Deno.env.get('ADZUNA_APP_KEY') ?? ''
-    const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY') ?? ''
 
-    console.log('keys present →',
-      'sam:', !!SAM_GOV_API_KEY,
-      'adzuna:', !!(ADZUNA_APP_ID && ADZUNA_APP_KEY),
-      'google:', !!GOOGLE_PLACES_API_KEY)
+    console.log('keys present →', 'sam:', !!SAM_GOV_API_KEY)
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -221,9 +169,12 @@ Deno.serve(async (req) => {
 
       // Pre-load the city_coords cache so we hydrate lat/long during
       // upsert without an extra geocoding round-trip per row.
+      // OpenStreetMap rows only (content rights, 2026-10-03): Google-derived
+      // coordinates may not be kept past 30 days, so they are never reused.
       const { data: cityRows } = await supabase
         .from('city_coords')
         .select('city,state,latitude,longitude')
+        .eq('source', 'nominatim')
 
       const cityCache = new Map<string, { lat: number; lng: number }>()
       for (const r of (cityRows ?? [])) {
@@ -290,7 +241,7 @@ Deno.serve(async (req) => {
 
       // Geocoding lives in a separate edge function (geocode-bids) on
       // its own cron. Doing it inline blew past the WORKER_RESOURCE_LIMIT
-      // when paired with SAM.gov + Adzuna + Places work in one run.
+      // when it shared one run with the other providers.
       console.log(`[sam] ${missingPairs.size} cities pending geocode (handled by geocode-bids)`)
      } catch (samErr) {
       console.error('[sam] fetch error:', String(samErr))
@@ -302,204 +253,17 @@ Deno.serve(async (req) => {
     sources.push(sourceVerdict({ name: 'sam', keyPresent: !!SAM_GOV_API_KEY, ...sam }))
 
     // ──────────────────────────────────────────────────────────────────
-    // STEP 2: Adzuna — construction-trade jobs
+    // STEPS 2 + 3 (Adzuna jobs, Google Places companies): RETIRED for content
+    // rights (contentfix 2026-10-03, RIGHTS-VERDICT.md). No call is made and
+    // nothing is written; each reports a skipped 'retired' verdict.
     // ──────────────────────────────────────────────────────────────────
-    console.log('--- Fetching jobs from Adzuna ---')
-
-    const adzuna = { failedStatuses: [] as number[], rows: 0, error: null as string | null, writeError: null as string | null }
-    if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
-      try {
-        const searchTerms = [
-          'construction', 'electrician', 'plumber', 'carpenter', 'HVAC',
-          'foreman', 'welder', 'roofer', 'general contractor',
-        ]
-        const allJobs: Record<string, unknown>[] = []
-
-        for (const term of searchTerms) {
-          try {
-            const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${ADZUNA_APP_ID}&app_key=${ADZUNA_APP_KEY}&results_per_page=10&what=${encodeURIComponent(term)}&content-type=application/json`
-            const adzResponse = await fetch(adzunaUrl)
-            if (!adzResponse.ok) {
-              adzuna.failedStatuses.push(adzResponse.status)
-              continue
-            }
-            const adzData = await adzResponse.json()
-            const results = adzData.results || []
-            for (const job of results) {
-              const titleLower = (job.title || '').toLowerCase()
-              let tradeCategory = 'General Construction'
-              if (titleLower.includes('electric')) tradeCategory = 'Electrical'
-              else if (titleLower.includes('plumb')) tradeCategory = 'Plumbing'
-              else if (titleLower.includes('carpenter') || titleLower.includes('carpentry')) tradeCategory = 'Carpentry'
-              else if (titleLower.includes('hvac') || titleLower.includes('heating') || titleLower.includes('cooling')) tradeCategory = 'HVAC'
-              else if (titleLower.includes('weld')) tradeCategory = 'Welding'
-              else if (titleLower.includes('mason')) tradeCategory = 'Masonry'
-              else if (titleLower.includes('roof')) tradeCategory = 'Roofing'
-              else if (titleLower.includes('foreman') || titleLower.includes('superintendent')) tradeCategory = 'Management'
-              else if (titleLower.includes('laborer') || titleLower.includes('labor')) tradeCategory = 'Labor'
-              allJobs.push({
-                external_id: String(job.id || `adzuna_${Date.now()}_${Math.random()}`),
-                title: job.title || 'Untitled Position',
-                company_name: job.company?.display_name || null,
-                description: (job.description || '').substring(0, 1000),
-                trade_category: tradeCategory,
-                salary_min: job.salary_min || null,
-                salary_max: job.salary_max || null,
-                contract_type: job.contract_time || job.contract_type || null,
-                city: job.location?.area?.[3] || job.location?.area?.[2] || null,
-                state: job.location?.area?.[1] || null,
-                latitude: job.latitude || null,
-                longitude: job.longitude || null,
-                apply_url: job.redirect_url || null,
-                posted_date: job.created || null,
-                fetched_at: new Date().toISOString(),
-              })
-            }
-            await new Promise((resolve) => setTimeout(resolve, 500))
-          } catch (termErr) {
-            console.error('Error fetching jobs for', term, ':', String(termErr))
-          }
-        }
-
-        if (allJobs.length > 0) {
-          const uniqueJobs = Array.from(new Map(allJobs.map((j) => [j.external_id, j])).values())
-          adzuna.rows = uniqueJobs.length
-          const result = await supabase
-            .from('cached_jobs')
-            .upsert(uniqueJobs, { onConflict: 'external_id' })
-          if (result.error) {
-            console.error('Error inserting jobs:', result.error.message)
-            adzuna.writeError = result.error.message
-          } else console.log('Successfully upserted', uniqueJobs.length, 'jobs')
-        }
-      } catch (err) {
-        console.error('Adzuna fetch error:', String(err))
-        adzuna.error = String(err).slice(0, 300)
-      }
-    } else {
-      console.log('Skipping Adzuna - no API keys')
-    }
-    sources.push(sourceVerdict({ name: 'adzuna', keyPresent: !!(ADZUNA_APP_ID && ADZUNA_APP_KEY), ...adzuna }))
+    sources.push(sourceVerdict({ name: 'adzuna', keyPresent: false, retired: true, rows: 0 }))
+    sources.push(sourceVerdict({ name: 'google_places', keyPresent: false, retired: true, rows: 0 }))
 
     // ──────────────────────────────────────────────────────────────────
-    // STEP 3: Google Places — contractor / supplier listings (weekly)
-    // ──────────────────────────────────────────────────────────────────
-    console.log('--- Fetching companies from Google Places ---')
-
-    const places = { notDue: false, failedStatuses: [] as number[], rows: 0, error: null as string | null, writeError: null as string | null }
-    if (GOOGLE_PLACES_API_KEY) {
-      try {
-        // Places data is stable — refresh at most once per week. Single
-        // guard; cuts Google Places spend by ~95%.
-        const { data: lastFetchRow } = await supabase
-          .from('cached_companies')
-          .select('fetched_at')
-          .order('fetched_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
-        const lastFetchMs = lastFetchRow?.fetched_at ? new Date(lastFetchRow.fetched_at).getTime() : 0
-        const ageMs = Date.now() - lastFetchMs
-        const shouldFetchPlaces = ageMs > SEVEN_DAYS_MS
-
-        if (!shouldFetchPlaces) {
-          places.notDue = true
-          const ageDays = Math.round(ageMs / (24 * 60 * 60 * 1000))
-          console.log(`Skipping Google Places — last run ${ageDays}d ago, next refresh in ${Math.max(0, 7 - ageDays)}d`)
-        } else {
-          const metros = [
-            { name: 'New York', lat: 40.7128, lng: -74.006 },
-            { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
-            { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
-            { name: 'Houston', lat: 29.7604, lng: -95.3698 },
-            { name: 'Dallas', lat: 32.7767, lng: -96.797 },
-            { name: 'Phoenix', lat: 33.4484, lng: -112.074 },
-            { name: 'Philadelphia', lat: 39.9526, lng: -75.1652 },
-            { name: 'Atlanta', lat: 33.749, lng: -84.388 },
-            { name: 'Miami', lat: 25.7617, lng: -80.1918 },
-          ]
-          const searchTypes = [
-            'general contractor', 'electrical contractor', 'plumbing contractor',
-            'HVAC contractor', 'roofing contractor', 'building materials store',
-          ]
-          const allCompanies: Record<string, unknown>[] = []
-
-          for (const metro of metros) {
-            for (const searchType of searchTypes) {
-              try {
-                const placesUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchType)}&location=${metro.lat},${metro.lng}&radius=40000&key=${GOOGLE_PLACES_API_KEY}`
-                const placesResponse = await fetch(placesUrl)
-                if (!placesResponse.ok) {
-                  places.failedStatuses.push(placesResponse.status)
-                  continue
-                }
-                const placesData = await placesResponse.json()
-                if (placesData.status !== 'OK' && placesData.status !== 'ZERO_RESULTS') {
-                  // Places answers a bad/disabled key with HTTP 200 and
-                  // status REQUEST_DENIED — that is a refused key.
-                  if (placesData.status === 'REQUEST_DENIED') places.failedStatuses.push(403)
-                  continue
-                }
-                const results = placesData.results || []
-                for (const place of results) {
-                  let tradeSpecialty = searchType.replace(' contractor', '').replace(' store', ' Supply')
-                  tradeSpecialty = tradeSpecialty.charAt(0).toUpperCase() + tradeSpecialty.slice(1)
-                  const addressParts = (place.formatted_address || '').split(',').map((s: string) => s.trim())
-                  const city = addressParts.length >= 3 ? addressParts[addressParts.length - 3] : null
-                  const stateZip = addressParts.length >= 2 ? addressParts[addressParts.length - 2] : ''
-                  const state = stateZip.split(' ')[0] || null
-                  allCompanies.push({
-                    place_id: place.place_id,
-                    name: place.name || 'Unknown Business',
-                    trade_specialty: tradeSpecialty,
-                    address: place.formatted_address || null,
-                    city, state,
-                    // Text Search returns neither; a Place Details call per row
-                    // would. The Companies screen therefore offers "Google Maps"
-                    // (by place_id) instead of Call/Website, and labels every row
-                    // a public Google listing, not a MAGE ID member (audit r2 #11).
-                    phone: null, website: null,
-                    rating: place.rating || null,
-                    total_reviews: place.user_ratings_total || null,
-                    latitude: place.geometry?.location?.lat || null,
-                    longitude: place.geometry?.location?.lng || null,
-                    photo_url: null,
-                    fetched_at: new Date().toISOString(),
-                  })
-                }
-                await new Promise((resolve) => setTimeout(resolve, 300))
-              } catch (placeErr) {
-                console.error('Error fetching', searchType, 'in', metro.name, ':', String(placeErr))
-              }
-            }
-          }
-
-          if (allCompanies.length > 0) {
-            const uniqueCompanies = Array.from(new Map(allCompanies.map((c) => [c.place_id, c])).values())
-            places.rows = uniqueCompanies.length
-            for (let i = 0; i < uniqueCompanies.length; i += 50) {
-              const batch = uniqueCompanies.slice(i, i + 50)
-              const result = await supabase.from('cached_companies').upsert(batch, { onConflict: 'place_id' })
-              if (result.error) {
-                console.error('Error inserting companies batch:', result.error.message)
-                places.writeError = result.error.message
-              }
-            }
-            console.log('Successfully processed', uniqueCompanies.length, 'total companies')
-          }
-        }
-      } catch (err) {
-        console.error('Google Places fetch error:', String(err))
-        places.error = String(err).slice(0, 300)
-      }
-    } else {
-      console.log('Skipping Google Places - no API key')
-    }
-    sources.push(sourceVerdict({ name: 'google_places', keyPresent: !!GOOGLE_PLACES_API_KEY, ...places }))
-
-    // ──────────────────────────────────────────────────────────────────
-    // STEP 4: Cleanup — drop expired bids, stale jobs/companies
+    // STEP 4: Cleanup — drop expired bids, and age out any jobs/companies
+    // rows left from before the retirement (the cleanup SQL empties both
+    // tables right after deploy; these deletes are the backstop).
     // ──────────────────────────────────────────────────────────────────
     console.log('--- Cleaning up old data ---')
     try {

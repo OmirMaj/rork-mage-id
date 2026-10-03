@@ -8,14 +8,25 @@
 // from the bid-sync pace.
 //
 // Strategy:
-//   1. Read the city_coords cache once.
+//   1. Read the city_coords cache once — OpenStreetMap rows only.
 //   2. Find every distinct (city, state) in cached_bids missing geo.
 //   3. For each pair: cache hit → use directly; miss → call provider.
-//   4. Provider is Google Places Text Search (already enabled & paid),
-//      with OpenStreetMap Nominatim as a free fallback. We can drop
-//      Google later if Nominatim is sufficient — Nominatim is free.
-//   5. Upsert resolved coords into city_coords (long-term cache) AND
+//   4. Provider is OpenStreetMap Nominatim ONLY. Google Places Text Search
+//      was removed for content rights (contentfix 2026-10-03,
+//      contentfix-specs/RIGHTS-VERDICT.md "Google coordinates for bid
+//      cities"): Google lets coordinates be cached for 30 days at most and
+//      we kept them forever. OSM data is ODbL: storing it is allowed with
+//      attribution, which the app shows ("© OpenStreetMap contributors").
+//      Nominatim's usage policy is honoured: an identifying User-Agent, at
+//      most 1 request per second (1.1 s pause after EVERY call), results
+//      cached so a pair is never asked for twice.
+//   5. Upsert resolved coords into city_coords (source 'nominatim') AND
 //      stamp every matching cached_bids row with the lat/long.
+//
+// A city_coords row whose source is anything but 'nominatim' (Google's
+// 'google_places_textsearch', or the column's old 'google_geocoding'
+// default) is never read here, so it is never copied onto a bid; the pair is
+// re-geocoded through Nominatim and the upsert overwrites that row.
 //
 // Hard cap: 80 geocodes/run. Two reasons:
 //   - Stays inside the edge-function CPU budget (was 200+/run before).
@@ -31,33 +42,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// 60 × ~1.1s/call ≈ 66s — safely under the edge-function 150s budget
-// even when every call falls through to Nominatim. Total daily reach:
-// 60 × 6 cron runs = 360/day. Catches up our ~500-pair backlog in
-// under 2 days, then keeps pace with new arrivals.
+// 60 × ~1.1s/call ≈ 66s (plus Nominatim's own latency) — safely under the
+// edge-function 150s budget. Total daily reach: 60 × 6 cron runs = 360/day.
+// After the 2026-10-03 cleanup nulls the Google-derived coordinates, only the
+// distinct (city, state) pairs of bids now missing coordinates are re-geocoded
+// (the 1,237 deleted city_coords rows are not refetched unless a bid needs one).
 const MAX_GEOCODES_PER_RUN = 60
 
 interface CityRow { city: string; state: string }
 interface Coords { lat: number; lng: number }
-
-async function geocodeViaPlaces(city: string, state: string, googleKey: string): Promise<{ coords: Coords | null; status: string; err?: string }> {
-  if (!googleKey) return { coords: null, status: 'NO_KEY' }
-  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${city}, ${state}`)}&key=${googleKey}`
-  try {
-    const r = await fetch(url)
-    if (!r.ok) return { coords: null, status: `HTTP_${r.status}` }
-    const data = await r.json()
-    if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
-      const loc = data.results[0].geometry.location
-      if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-        return { coords: { lat: loc.lat, lng: loc.lng }, status: 'OK' }
-      }
-    }
-    return { coords: null, status: data.status ?? 'UNKNOWN', err: data.error_message }
-  } catch (e) {
-    return { coords: null, status: 'EXCEPTION', err: String(e).slice(0, 200) }
-  }
-}
 
 async function geocodeViaNominatim(city: string, state: string): Promise<Coords | null> {
   const url = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=USA&format=json&limit=1`
@@ -83,13 +76,11 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY') ?? ''
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
     // Concurrent-safety: claim the singleton geocode_run_lock row before
     // doing any work. Stress-5 found that 4 parallel runs each pulled
-    // the same 60 cities — 4× wasted Places calls and 4× hammering on
-    // Nominatim. UPDATE ... WHERE last_started_at IS NULL OR < (NOW()-4m)
+    // the same 60 cities — 4× hammering on Nominatim. UPDATE ... WHERE last_started_at IS NULL OR < (NOW()-4m)
     // is atomic at the row level, so only one parallel runner wins. The
     // 4-min staleness lets a stuck/crashed runner be reclaimed (the
     // function's max wall-clock is 150s, so 4 min is generous).
@@ -130,7 +121,8 @@ Deno.serve(async (req) => {
     const allMissing = Array.from(dedupe.values())
 
     // 2. Hit cache first — anything we already know skips the API call.
-    const { data: cacheRows } = await supabase.from('city_coords').select('city,state,latitude,longitude')
+    //    OpenStreetMap rows only: a Google-derived row is never reused.
+    const { data: cacheRows } = await supabase.from('city_coords').select('city,state,latitude,longitude').eq('source', 'nominatim')
     const cache = new Map<string, Coords>()
     for (const r of (cacheRows ?? [])) {
       cache.set(`${r.city}__${r.state}`, { lat: r.latitude, lng: r.longitude })
@@ -161,48 +153,17 @@ Deno.serve(async (req) => {
     const newCacheRows: Record<string, unknown>[] = []
     let fetchedSucceeded = 0
     let fetchedFailed = 0
-    let lastPlacesStatus: string | undefined
-    let lastPlacesErr: string | undefined
-    let placesUsed = 0
     let nominatimUsed = 0
 
-    // Track whether the Places quota is exhausted so we stop wasting
-    // time hitting it — once we've seen OVER_QUERY_LIMIT, every
-    // subsequent call this run will fail the same way.
-    let placesQuotaExhausted = false
-
     for (const p of toFetch) {
-      let coords: Coords | null = null
-      let source: string = 'google_places_textsearch'
-
-      if (!placesQuotaExhausted) {
-        const places = await geocodeViaPlaces(p.city, p.state, GOOGLE_PLACES_API_KEY)
-        lastPlacesStatus = places.status
-        if (places.err) lastPlacesErr = places.err
-        if (places.status === 'OVER_QUERY_LIMIT' || places.status === 'REQUEST_DENIED') {
-          placesQuotaExhausted = true
-        }
-        coords = places.coords
-        if (coords) placesUsed++
-        // Google pace: 50 QPS — we'd rather be polite at 12 QPS.
-        if (!placesQuotaExhausted) await new Promise((r) => setTimeout(r, 80))
-      }
-
-      // Fallback: free, no key. Nominatim asks for 1 req/sec — that's
-      // the BINDING constraint when Places is exhausted.
-      if (!coords) {
-        const nm = await geocodeViaNominatim(p.city, p.state)
-        if (nm) {
-          coords = nm
-          source = 'nominatim'
-          nominatimUsed++
-        }
-        // ALWAYS pause after a Nominatim call (success OR failure),
-        // otherwise back-to-back failures slam them and they rate-
-        // limit / IP-ban us. Empirically: skipping this paused down
-        // Nominatim resolution from 35/run to 1/run.
-        await new Promise((r) => setTimeout(r, 1100))
-      }
+      // Nominatim only (no key). Its usage policy allows 1 request/second.
+      const coords = await geocodeViaNominatim(p.city, p.state)
+      if (coords) nominatimUsed++
+      // ALWAYS pause after a Nominatim call (success OR failure),
+      // otherwise back-to-back failures slam them and they rate-
+      // limit / IP-ban us. Empirically: skipping this paused down
+      // Nominatim resolution from 35/run to 1/run.
+      await new Promise((r) => setTimeout(r, 1100))
 
       if (coords) {
         fetchedSucceeded++
@@ -210,7 +171,7 @@ Deno.serve(async (req) => {
           city: p.city, state: p.state,
           latitude: coords.lat, longitude: coords.lng,
           geocoded_at: new Date().toISOString(),
-          source,
+          source: 'nominatim',
         })
         await supabase
           .from('cached_bids')
@@ -246,11 +207,7 @@ Deno.serve(async (req) => {
         attempted: toFetch.length,
         fetchedSucceeded,
         fetchedFailed,
-        placesUsed,
         nominatimUsed,
-        googleKeyPresent: !!GOOGLE_PLACES_API_KEY,
-        lastPlacesStatus,
-        lastPlacesErr,
         remainingForNextRun: Math.max(0, needFetch.length - toFetch.length),
       },
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
