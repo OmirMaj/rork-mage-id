@@ -180,6 +180,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'extract-submittals': 'dashboard', 'handover': 'dashboard', 'integrations': 'dashboard',
   // Lane FACTS: the job facts link (picker | preview, two panes on desktop).
   'job-facts': 'dashboard',
+  // Lane PPUI: Permit Path (spine | station / questions / checklist, two panes on desktop).
+  'permit-path': 'dashboard',
   'job-detail': 'dashboard', 'lien-waivers': 'dashboard', 'living-estimate': 'dashboard',
   'margin-alerts': 'dashboard', 'margin-risk': 'dashboard', 'my-rfps': 'dashboard',
   'nearby-rfps': 'dashboard', 'notifications-inbox': 'dashboard',

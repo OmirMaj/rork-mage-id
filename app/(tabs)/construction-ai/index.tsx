@@ -145,6 +145,7 @@ import type {
   CodeCheckGroundingSnapshot, CodeCheckRecord, CodeCheckResultSnapshot, CodeThreadAnswer, CodeThreadFollowUp, CodeThreadSource,
 } from '@/utils/codeThread/types';
 import CodeThreadActions from '@/components/codeThread/CodeThreadActions';
+import { PermitPathHeroCard } from '@/components/permitPath/PermitPathHeroCard';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -1703,7 +1704,7 @@ Never invent a section number you are unsure of — leave section empty and desc
         testID="mode-toggle-roadmap"
       >
         <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-        <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project roadmap</Text>
+        <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Permit Path</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'plan' && styles.modeToggleBtnActive]}
@@ -2047,13 +2048,14 @@ Never invent a section number you are unsure of — leave section empty and desc
             contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
             showsVerticalScrollIndicator={false}
           >
+            <PermitPathHeroCard project={roadmapProject} />
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
                 <FileText size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
-              <Text style={styles.heroTitle}>Project roadmap</Text>
+              <Text style={styles.heroTitle}>AI draft list</Text>
               <Text style={styles.heroSubtitle}>
-                AI generates a sequenced permit and inspection roadmap from your project's scope and schedule.
+                Suggested permits and inspections from your scope and schedule. Check each one.
               </Text>
             </View>
 
