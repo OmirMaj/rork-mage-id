@@ -25511,117 +25511,237 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                         {
                                           "children": [
                                             {
+                                              "children": null,
+                                              "props": {
+                                                "colors": [
+                                                  4280236581,
+                                                  4279180051,
+                                                  4278651400,
+                                                ],
+                                                "dither": undefined,
+                                                "endPoint": undefined,
+                                                "locations": [
+                                                  0,
+                                                  0.45,
+                                                  1,
+                                                ],
+                                                "startPoint": undefined,
+                                                "style": {
+                                                  "bottom": 0,
+                                                  "left": 0,
+                                                  "position": "absolute",
+                                                  "right": 0,
+                                                  "top": 0,
+                                                },
+                                              },
+                                              "type": "ViewManagerAdapter_ExpoLinearGradient",
+                                            },
+                                            {
                                               "children": [
                                                 {
-                                                  "children": [
-                                                    {
-                                                      "children": null,
-                                                      "props": {
-                                                        "d": "m15 18-6-6 6-6",
-                                                        "fill": null,
-                                                        "propList": [
-                                                          "fill",
-                                                          "stroke",
-                                                          "strokeWidth",
-                                                          "strokeLinecap",
-                                                          "strokeLinejoin",
-                                                        ],
-                                                        "stroke": {
-                                                          "payload": 4294967295,
-                                                          "type": 0,
-                                                        },
-                                                        "strokeLinecap": 1,
-                                                        "strokeLinejoin": 1,
-                                                        "strokeWidth": 2,
-                                                      },
-                                                      "type": "RNSVGPath",
-                                                    },
-                                                  ],
+                                                  "children": null,
                                                   "props": {
-                                                    "fill": null,
-                                                    "propList": [
-                                                      "fill",
-                                                      "stroke",
-                                                      "strokeWidth",
-                                                      "strokeLinecap",
-                                                      "strokeLinejoin",
-                                                    ],
-                                                    "stroke": {
-                                                      "payload": 4294967295,
-                                                      "type": 0,
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 340,
+                                                      "height": 520,
+                                                      "left": 0,
+                                                      "opacity": 0.044,
+                                                      "position": "absolute",
+                                                      "top": 0,
+                                                      "width": 680,
                                                     },
-                                                    "strokeLinecap": 1,
-                                                    "strokeLinejoin": 1,
-                                                    "strokeWidth": 2,
                                                   },
-                                                  "type": "RNSVGGroup",
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 278.8,
+                                                      "height": 426.4,
+                                                      "left": 61.20000000000002,
+                                                      "opacity": 0.044,
+                                                      "position": "absolute",
+                                                      "top": 46.80000000000001,
+                                                      "width": 557.6,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 217.6,
+                                                      "height": 332.8,
+                                                      "left": 122.39999999999999,
+                                                      "opacity": 0.044,
+                                                      "position": "absolute",
+                                                      "top": 93.6,
+                                                      "width": 435.2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 156.4,
+                                                      "height": 239.20000000000002,
+                                                      "left": 183.60000000000002,
+                                                      "opacity": 0.044,
+                                                      "position": "absolute",
+                                                      "top": 140.4,
+                                                      "width": 312.8,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 102,
+                                                      "height": 156,
+                                                      "left": 237.99999999999997,
+                                                      "opacity": 0.044,
+                                                      "position": "absolute",
+                                                      "top": 182,
+                                                      "width": 204,
+                                                    },
+                                                  },
+                                                  "type": "View",
                                                 },
                                               ],
                                               "props": {
-                                                "align": "xMidYMid",
-                                                "bbHeight": 24,
-                                                "bbWidth": 24,
-                                                "data-testid": undefined,
-                                                "fill": "none",
-                                                "focusable": false,
-                                                "height": 24,
-                                                "meetOrSlice": 0,
-                                                "minX": 0,
-                                                "minY": 0,
-                                                "stroke": "#FFFFFF",
-                                                "strokeLinecap": "round",
-                                                "strokeLinejoin": "round",
-                                                "strokeWidth": 2,
+                                                "pointerEvents": "none",
                                                 "style": {
-                                                  "backgroundColor": "transparent",
-                                                  "borderWidth": 0,
-                                                  "flex": 0,
-                                                  "height": 24,
-                                                  "width": 24,
+                                                  "alignSelf": "center",
+                                                  "height": 520,
+                                                  "left": "50%",
+                                                  "marginLeft": -340,
+                                                  "position": "absolute",
+                                                  "top": -200,
+                                                  "width": 680,
                                                 },
-                                                "vbHeight": 24,
-                                                "vbWidth": 24,
-                                                "width": 24,
-                                                "xmlns": "http://www.w3.org/2000/svg",
                                               },
-                                              "type": "RNSVGSvgView",
+                                              "type": "View",
+                                            },
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderRadius": 360,
+                                                      "height": 360,
+                                                      "left": 0,
+                                                      "opacity": 0.06,
+                                                      "position": "absolute",
+                                                      "top": 0,
+                                                      "width": 720,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderRadius": 295.2,
+                                                      "height": 295.2,
+                                                      "left": 64.80000000000001,
+                                                      "opacity": 0.06,
+                                                      "position": "absolute",
+                                                      "top": 32.400000000000006,
+                                                      "width": 590.4,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderRadius": 230.4,
+                                                      "height": 230.4,
+                                                      "left": 129.6,
+                                                      "opacity": 0.06,
+                                                      "position": "absolute",
+                                                      "top": 64.8,
+                                                      "width": 460.8,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderRadius": 165.6,
+                                                      "height": 165.6,
+                                                      "left": 194.4,
+                                                      "opacity": 0.06,
+                                                      "position": "absolute",
+                                                      "top": 97.2,
+                                                      "width": 331.2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderRadius": 108,
+                                                      "height": 108,
+                                                      "left": 251.99999999999997,
+                                                      "opacity": 0.06,
+                                                      "position": "absolute",
+                                                      "top": 125.99999999999999,
+                                                      "width": 216,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                              ],
+                                              "props": {
+                                                "pointerEvents": "none",
+                                                "style": {
+                                                  "bottom": -200,
+                                                  "height": 360,
+                                                  "left": "50%",
+                                                  "marginLeft": -360,
+                                                  "position": "absolute",
+                                                  "width": 720,
+                                                },
+                                              },
+                                              "type": "View",
                                             },
                                           ],
                                           "props": {
-                                            "accessibilityLabel": "Back",
-                                            "accessibilityRole": "button",
-                                            "accessibilityState": {
-                                              "busy": undefined,
-                                              "checked": undefined,
-                                              "disabled": undefined,
-                                              "expanded": undefined,
-                                              "selected": undefined,
-                                            },
-                                            "accessibilityValue": {
-                                              "max": undefined,
-                                              "min": undefined,
-                                              "now": undefined,
-                                              "text": undefined,
-                                            },
-                                            "accessible": true,
-                                            "collapsable": false,
-                                            "focusable": true,
-                                            "onClick": [Function],
-                                            "onResponderGrant": [Function],
-                                            "onResponderMove": [Function],
-                                            "onResponderRelease": [Function],
-                                            "onResponderTerminate": [Function],
-                                            "onResponderTerminationRequest": [Function],
-                                            "onStartShouldSetResponder": [Function],
+                                            "accessibilityElementsHidden": true,
+                                            "importantForAccessibility": "no-hide-descendants",
+                                            "pointerEvents": "none",
                                             "style": {
-                                              "alignItems": "center",
-                                              "backgroundColor": "rgba(255,255,255,0.15)",
-                                              "borderRadius": 12,
-                                              "height": 40,
-                                              "justifyContent": "center",
-                                              "marginBottom": 16,
-                                              "opacity": 1,
-                                              "width": 40,
+                                              "backgroundColor": "#0F1B13",
+                                              "bottom": 0,
+                                              "left": 0,
+                                              "overflow": "hidden",
+                                              "position": "absolute",
+                                              "right": 0,
+                                              "top": 0,
                                             },
                                           },
                                           "type": "View",
@@ -25637,7 +25757,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                         {
                                                           "children": null,
                                                           "props": {
-                                                            "d": "M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5",
+                                                            "d": "m15 18-6-6 6-6",
                                                             "fill": null,
                                                             "propList": [
                                                               "fill",
@@ -25652,80 +25772,9 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                             },
                                                             "strokeLinecap": 1,
                                                             "strokeLinejoin": 1,
-                                                            "strokeWidth": 1.8,
+                                                            "strokeWidth": 2,
                                                           },
                                                           "type": "RNSVGPath",
-                                                        },
-                                                        {
-                                                          "children": null,
-                                                          "props": {
-                                                            "d": "M14 6a6 6 0 0 1 6 6v3",
-                                                            "fill": null,
-                                                            "propList": [
-                                                              "fill",
-                                                              "stroke",
-                                                              "strokeWidth",
-                                                              "strokeLinecap",
-                                                              "strokeLinejoin",
-                                                            ],
-                                                            "stroke": {
-                                                              "payload": 4294967295,
-                                                              "type": 0,
-                                                            },
-                                                            "strokeLinecap": 1,
-                                                            "strokeLinejoin": 1,
-                                                            "strokeWidth": 1.8,
-                                                          },
-                                                          "type": "RNSVGPath",
-                                                        },
-                                                        {
-                                                          "children": null,
-                                                          "props": {
-                                                            "d": "M4 15v-3a6 6 0 0 1 6-6",
-                                                            "fill": null,
-                                                            "propList": [
-                                                              "fill",
-                                                              "stroke",
-                                                              "strokeWidth",
-                                                              "strokeLinecap",
-                                                              "strokeLinejoin",
-                                                            ],
-                                                            "stroke": {
-                                                              "payload": 4294967295,
-                                                              "type": 0,
-                                                            },
-                                                            "strokeLinecap": 1,
-                                                            "strokeLinejoin": 1,
-                                                            "strokeWidth": 1.8,
-                                                          },
-                                                          "type": "RNSVGPath",
-                                                        },
-                                                        {
-                                                          "children": null,
-                                                          "props": {
-                                                            "fill": null,
-                                                            "height": "4",
-                                                            "propList": [
-                                                              "fill",
-                                                              "stroke",
-                                                              "strokeWidth",
-                                                              "strokeLinecap",
-                                                              "strokeLinejoin",
-                                                            ],
-                                                            "rx": "1",
-                                                            "ry": undefined,
-                                                            "stroke": {
-                                                              "payload": 4294967295,
-                                                              "type": 0,
-                                                            },
-                                                            "strokeLinecap": 1,
-                                                            "strokeLinejoin": 1,
-                                                            "strokeWidth": 1.8,
-                                                            "width": "20",
-                                                            "x": "2",
-                                                            "y": "15",
-                                                          },
-                                                          "type": "RNSVGRect",
                                                         },
                                                       ],
                                                       "props": {
@@ -25743,51 +25792,125 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                         },
                                                         "strokeLinecap": 1,
                                                         "strokeLinejoin": 1,
-                                                        "strokeWidth": 1.8,
+                                                        "strokeWidth": 2,
                                                       },
                                                       "type": "RNSVGGroup",
                                                     },
                                                   ],
                                                   "props": {
                                                     "align": "xMidYMid",
-                                                    "bbHeight": 28,
-                                                    "bbWidth": 28,
+                                                    "bbHeight": 24,
+                                                    "bbWidth": 24,
                                                     "data-testid": undefined,
                                                     "fill": "none",
                                                     "focusable": false,
-                                                    "height": 28,
+                                                    "height": 24,
                                                     "meetOrSlice": 0,
                                                     "minX": 0,
                                                     "minY": 0,
                                                     "stroke": "#FFFFFF",
                                                     "strokeLinecap": "round",
                                                     "strokeLinejoin": "round",
-                                                    "strokeWidth": 1.8,
+                                                    "strokeWidth": 2,
                                                     "style": {
                                                       "backgroundColor": "transparent",
                                                       "borderWidth": 0,
                                                       "flex": 0,
-                                                      "height": 28,
-                                                      "width": 28,
+                                                      "height": 24,
+                                                      "width": 24,
                                                     },
                                                     "vbHeight": 24,
                                                     "vbWidth": 24,
-                                                    "width": 28,
+                                                    "width": 24,
                                                     "xmlns": "http://www.w3.org/2000/svg",
                                                   },
                                                   "type": "RNSVGSvgView",
                                                 },
                                               ],
                                               "props": {
+                                                "accessibilityLabel": "Back",
+                                                "accessibilityRole": "button",
+                                                "accessibilityState": {
+                                                  "busy": undefined,
+                                                  "checked": undefined,
+                                                  "disabled": undefined,
+                                                  "expanded": undefined,
+                                                  "selected": undefined,
+                                                },
+                                                "accessibilityValue": {
+                                                  "max": undefined,
+                                                  "min": undefined,
+                                                  "now": undefined,
+                                                  "text": undefined,
+                                                },
+                                                "accessible": true,
+                                                "collapsable": false,
+                                                "focusable": true,
+                                                "onClick": [Function],
+                                                "onResponderGrant": [Function],
+                                                "onResponderMove": [Function],
+                                                "onResponderRelease": [Function],
+                                                "onResponderTerminate": [Function],
+                                                "onResponderTerminationRequest": [Function],
+                                                "onStartShouldSetResponder": [Function],
                                                 "style": {
                                                   "alignItems": "center",
-                                                  "backgroundColor": "rgba(255,255,255,0.18)",
-                                                  "borderColor": "rgba(255,255,255,0.25)",
-                                                  "borderRadius": 16,
-                                                  "borderWidth": 1,
-                                                  "height": 52,
+                                                  "backgroundColor": "rgba(255,255,255,0.15)",
+                                                  "borderRadius": 12,
+                                                  "height": 40,
                                                   "justifyContent": "center",
-                                                  "width": 52,
+                                                  "opacity": 1,
+                                                  "width": 40,
+                                                },
+                                              },
+                                              "type": "View",
+                                            },
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "accessibilityLabel": "MAGE ID",
+                                                    "accessibilityRole": "image",
+                                                    "resizeMode": "contain",
+                                                    "source": {
+                                                      "testUri": "../../../../../../../private/tmp/claude-501/login-ui/assets/images/brand/mage-mark-on-dark.png",
+                                                    },
+                                                    "style": {
+                                                      "height": "100%",
+                                                      "width": "100%",
+                                                    },
+                                                  },
+                                                  "type": "Image",
+                                                },
+                                              ],
+                                              "props": {
+                                                "style": {
+                                                  "height": 40,
+                                                  "width": 35,
+                                                },
+                                              },
+                                              "type": "View",
+                                            },
+                                            {
+                                              "children": [
+                                                "MAGE ID",
+                                              ],
+                                              "props": {
+                                                "style": {
+                                                  "color": "#FFFFFF",
+                                                  "fontSize": 13,
+                                                  "fontWeight": "800",
+                                                  "letterSpacing": 2,
+                                                },
+                                              },
+                                              "type": "Text",
+                                            },
+                                            {
+                                              "children": null,
+                                              "props": {
+                                                "style": {
+                                                  "flex": 1,
                                                 },
                                               },
                                               "type": "View",
@@ -25796,34 +25919,28 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "MAGE ID",
+                                                    "Sample project",
                                                   ],
                                                   "props": {
                                                     "style": {
-                                                      "color": "#FFFFFF",
-                                                      "fontSize": 24,
-                                                      "fontWeight": "800",
-                                                      "letterSpacing": -0.5,
-                                                    },
-                                                  },
-                                                  "type": "Text",
-                                                },
-                                                {
-                                                  "children": [
-                                                    "Create your account",
-                                                  ],
-                                                  "props": {
-                                                    "style": {
-                                                      "color": "rgba(255,255,255,0.7)",
-                                                      "fontSize": 14,
-                                                      "fontWeight": "500",
-                                                      "marginTop": 2,
+                                                      "color": "rgba(255,255,255,0.8)",
+                                                      "fontFamily": "Barlow_600SemiBold",
+                                                      "fontSize": 11.5,
                                                     },
                                                   },
                                                   "type": "Text",
                                                 },
                                               ],
-                                              "props": {},
+                                              "props": {
+                                                "style": {
+                                                  "backgroundColor": "rgba(255,255,255,0.08)",
+                                                  "borderColor": "rgba(255,255,255,0.12)",
+                                                  "borderRadius": 99,
+                                                  "borderWidth": 1,
+                                                  "paddingHorizontal": 11,
+                                                  "paddingVertical": 7,
+                                                },
+                                              },
                                               "type": "View",
                                             },
                                           ],
@@ -25831,8 +25948,1764 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                             "style": {
                                               "alignItems": "center",
                                               "flexDirection": "row",
-                                              "gap": 14,
+                                              "gap": 10,
+                                              "marginBottom": 14,
+                                              "zIndex": 1,
                                             },
+                                          },
+                                          "type": "View",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "style": {
+                                                          "backgroundColor": "#12806E",
+                                                          "borderRadius": 215,
+                                                          "height": 200,
+                                                          "left": 0,
+                                                          "opacity": 0.11,
+                                                          "position": "absolute",
+                                                          "top": 0,
+                                                          "width": 430,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "style": {
+                                                          "backgroundColor": "#12806E",
+                                                          "borderRadius": 167.70000000000002,
+                                                          "height": 156,
+                                                          "left": 47.3,
+                                                          "opacity": 0.11,
+                                                          "position": "absolute",
+                                                          "top": 21.999999999999996,
+                                                          "width": 335.40000000000003,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "style": {
+                                                          "backgroundColor": "#12806E",
+                                                          "borderRadius": 120.4,
+                                                          "height": 112.00000000000001,
+                                                          "left": 94.6,
+                                                          "opacity": 0.11,
+                                                          "position": "absolute",
+                                                          "top": 43.99999999999999,
+                                                          "width": 240.8,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "style": {
+                                                          "backgroundColor": "#12806E",
+                                                          "borderRadius": 77.39999999999999,
+                                                          "height": 72,
+                                                          "left": 137.6,
+                                                          "opacity": 0.11,
+                                                          "position": "absolute",
+                                                          "top": 64,
+                                                          "width": 154.79999999999998,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "pointerEvents": "none",
+                                                    "style": {
+                                                      "height": 200,
+                                                      "left": -20,
+                                                      "opacity": 1,
+                                                      "position": "absolute",
+                                                      "top": 96,
+                                                      "transform": [
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 430,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "colors": [
+                                                      16777215,
+                                                      620756991,
+                                                    ],
+                                                    "dither": undefined,
+                                                    "endPoint": undefined,
+                                                    "locations": undefined,
+                                                    "startPoint": undefined,
+                                                    "style": {
+                                                      "borderRadius": 1,
+                                                      "height": 21,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 0,
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "ViewManagerAdapter_ExpoLinearGradient",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "rgba(255,255,255,0.14)",
+                                                      "borderRadius": 1,
+                                                      "height": 166,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 21,
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "backgroundColor": "#A4DAAE",
+                                                      "borderRadius": 1,
+                                                      "height": 41,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 21,
+                                                      "transform": [
+                                                        {
+                                                          "scaleY": 1,
+                                                        },
+                                                      ],
+                                                      "transformOrigin": "top",
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 1,
+                                                      "height": 41,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 62,
+                                                      "transform": [
+                                                        {
+                                                          "scaleY": 1,
+                                                        },
+                                                      ],
+                                                      "transformOrigin": "top",
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "backgroundColor": "#B9E4C1",
+                                                      "borderRadius": 1,
+                                                      "height": 41,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 103,
+                                                      "transform": [
+                                                        {
+                                                          "scaleY": 1,
+                                                        },
+                                                      ],
+                                                      "transformOrigin": "top",
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": null,
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "backgroundColor": "#2BA58E",
+                                                      "borderRadius": 1,
+                                                      "height": 43,
+                                                      "left": 34,
+                                                      "position": "absolute",
+                                                      "top": 144,
+                                                      "transform": [
+                                                        {
+                                                          "scaleY": 1,
+                                                        },
+                                                      ],
+                                                      "transformOrigin": "top",
+                                                      "width": 2,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M20 3v4",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M22 5h-4",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M4 17v2",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M5 18H3",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "fill": null,
+                                                            "propList": [
+                                                              "fill",
+                                                              "stroke",
+                                                              "strokeWidth",
+                                                              "strokeLinecap",
+                                                              "strokeLinejoin",
+                                                            ],
+                                                            "stroke": {
+                                                              "payload": 4294967295,
+                                                              "type": 0,
+                                                            },
+                                                            "strokeLinecap": 1,
+                                                            "strokeLinejoin": 1,
+                                                            "strokeWidth": 2,
+                                                          },
+                                                          "type": "RNSVGGroup",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "align": "xMidYMid",
+                                                        "bbHeight": 12,
+                                                        "bbWidth": 12,
+                                                        "data-testid": undefined,
+                                                        "fill": "none",
+                                                        "focusable": false,
+                                                        "height": 12,
+                                                        "meetOrSlice": 0,
+                                                        "minX": 0,
+                                                        "minY": 0,
+                                                        "stroke": "#FFFFFF",
+                                                        "strokeLinecap": "round",
+                                                        "strokeLinejoin": "round",
+                                                        "strokeWidth": 2,
+                                                        "style": {
+                                                          "backgroundColor": "transparent",
+                                                          "borderWidth": 0,
+                                                          "flex": 0,
+                                                          "height": 12,
+                                                          "width": 12,
+                                                        },
+                                                        "vbHeight": 24,
+                                                        "vbWidth": 24,
+                                                        "width": 12,
+                                                        "xmlns": "http://www.w3.org/2000/svg",
+                                                      },
+                                                      "type": "RNSVGSvgView",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#2F6B3A",
+                                                      "borderColor": "rgba(93,179,110,0.45)",
+                                                      "borderRadius": 10,
+                                                      "borderWidth": 3,
+                                                      "height": 20,
+                                                      "justifyContent": "center",
+                                                      "left": 25,
+                                                      "opacity": 1,
+                                                      "position": "absolute",
+                                                      "top": 11,
+                                                      "transform": [
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 20,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "style": {
+                                                          "backgroundColor": "#B9E4C1",
+                                                          "borderRadius": 99,
+                                                          "bottom": 1,
+                                                          "left": 1,
+                                                          "opacity": 1,
+                                                          "position": "absolute",
+                                                          "right": 1,
+                                                          "top": 1,
+                                                          "transform": [
+                                                            {
+                                                              "scale": 1,
+                                                            },
+                                                          ],
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#132419",
+                                                      "borderColor": "rgba(255,255,255,0.36)",
+                                                      "borderRadius": 6,
+                                                      "borderWidth": 1.5,
+                                                      "height": 12,
+                                                      "left": 29,
+                                                      "position": "absolute",
+                                                      "top": 56,
+                                                      "width": 12,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "style": {
+                                                          "backgroundColor": "#B9E4C1",
+                                                          "borderRadius": 99,
+                                                          "bottom": 1,
+                                                          "left": 1,
+                                                          "opacity": 1,
+                                                          "position": "absolute",
+                                                          "right": 1,
+                                                          "top": 1,
+                                                          "transform": [
+                                                            {
+                                                              "scale": 1,
+                                                            },
+                                                          ],
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#132419",
+                                                      "borderColor": "rgba(255,255,255,0.36)",
+                                                      "borderRadius": 6,
+                                                      "borderWidth": 1.5,
+                                                      "height": 12,
+                                                      "left": 29,
+                                                      "position": "absolute",
+                                                      "top": 97,
+                                                      "width": 12,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "style": {
+                                                          "backgroundColor": "#B9E4C1",
+                                                          "borderRadius": 99,
+                                                          "bottom": 1,
+                                                          "left": 1,
+                                                          "opacity": 1,
+                                                          "position": "absolute",
+                                                          "right": 1,
+                                                          "top": 1,
+                                                          "transform": [
+                                                            {
+                                                              "scale": 1,
+                                                            },
+                                                          ],
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "style": {
+                                                      "backgroundColor": "#132419",
+                                                      "borderColor": "rgba(255,255,255,0.36)",
+                                                      "borderRadius": 6,
+                                                      "borderWidth": 1.5,
+                                                      "height": 12,
+                                                      "left": 29,
+                                                      "position": "absolute",
+                                                      "top": 138,
+                                                      "width": 12,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": null,
+                                                              "props": {
+                                                                "d": "M20 6 9 17l-5-5",
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 3,
+                                                              },
+                                                              "type": "RNSVGPath",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "fill": null,
+                                                            "propList": [
+                                                              "fill",
+                                                              "stroke",
+                                                              "strokeWidth",
+                                                              "strokeLinecap",
+                                                              "strokeLinejoin",
+                                                            ],
+                                                            "stroke": {
+                                                              "payload": 4294967295,
+                                                              "type": 0,
+                                                            },
+                                                            "strokeLinecap": 1,
+                                                            "strokeLinejoin": 1,
+                                                            "strokeWidth": 3,
+                                                          },
+                                                          "type": "RNSVGGroup",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "align": "xMidYMid",
+                                                        "bbHeight": 12,
+                                                        "bbWidth": 12,
+                                                        "data-testid": undefined,
+                                                        "fill": "none",
+                                                        "focusable": false,
+                                                        "height": 12,
+                                                        "meetOrSlice": 0,
+                                                        "minX": 0,
+                                                        "minY": 0,
+                                                        "stroke": "#FFFFFF",
+                                                        "strokeLinecap": "round",
+                                                        "strokeLinejoin": "round",
+                                                        "strokeWidth": 3,
+                                                        "style": {
+                                                          "backgroundColor": "transparent",
+                                                          "borderWidth": 0,
+                                                          "flex": 0,
+                                                          "height": 12,
+                                                          "width": 12,
+                                                        },
+                                                        "vbHeight": 24,
+                                                        "vbWidth": 24,
+                                                        "width": 12,
+                                                        "xmlns": "http://www.w3.org/2000/svg",
+                                                      },
+                                                      "type": "RNSVGSvgView",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#12806E",
+                                                      "borderColor": "rgba(43,165,142,0.5)",
+                                                      "borderRadius": 10,
+                                                      "borderWidth": 3,
+                                                      "height": 20,
+                                                      "justifyContent": "center",
+                                                      "left": 25,
+                                                      "opacity": 1,
+                                                      "position": "absolute",
+                                                      "top": 177,
+                                                      "transform": [
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 20,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M20 3v4",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M22 5h-4",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M4 17v2",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M5 18H3",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                              ],
+                                                              "props": {
+                                                                "fill": null,
+                                                                "propList": [
+                                                                  "fill",
+                                                                  "stroke",
+                                                                  "strokeWidth",
+                                                                  "strokeLinecap",
+                                                                  "strokeLinejoin",
+                                                                ],
+                                                                "stroke": {
+                                                                  "payload": 4294967295,
+                                                                  "type": 0,
+                                                                },
+                                                                "strokeLinecap": 1,
+                                                                "strokeLinejoin": 1,
+                                                                "strokeWidth": 2,
+                                                              },
+                                                              "type": "RNSVGGroup",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "align": "xMidYMid",
+                                                            "bbHeight": 12,
+                                                            "bbWidth": 12,
+                                                            "data-testid": undefined,
+                                                            "fill": "none",
+                                                            "focusable": false,
+                                                            "height": 12,
+                                                            "meetOrSlice": 0,
+                                                            "minX": 0,
+                                                            "minY": 0,
+                                                            "stroke": "#FFFFFF",
+                                                            "strokeLinecap": "round",
+                                                            "strokeLinejoin": "round",
+                                                            "strokeWidth": 2,
+                                                            "style": {
+                                                              "backgroundColor": "transparent",
+                                                              "borderWidth": 0,
+                                                              "flex": 0,
+                                                              "height": 12,
+                                                              "width": 12,
+                                                            },
+                                                            "vbHeight": 24,
+                                                            "vbWidth": 24,
+                                                            "width": 12,
+                                                            "xmlns": "http://www.w3.org/2000/svg",
+                                                          },
+                                                          "type": "RNSVGSvgView",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "alignItems": "center",
+                                                          "backgroundColor": "#2F6B3A",
+                                                          "borderRadius": 99,
+                                                          "flexDirection": "row",
+                                                          "gap": 0,
+                                                          "height": 20,
+                                                          "paddingHorizontal": 6,
+                                                          "paddingLeft": 6,
+                                                          "paddingRight": 7,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "Ask",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#2F6B3A",
+                                                          "fontFamily": "Barlow_600SemiBold",
+                                                          "fontSize": 10.5,
+                                                          "letterSpacing": 1.6,
+                                                          "textTransform": "uppercase",
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "418 Atlantic Ave, Brooklyn",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#3C433E",
+                                                          "flex": 1,
+                                                          "fontSize": 13,
+                                                          "minWidth": 0,
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "pointerEvents": "none",
+                                                        "style": {
+                                                          "backgroundColor": "#06100A",
+                                                          "borderRadius": 12,
+                                                          "bottom": 0,
+                                                          "left": 0,
+                                                          "opacity": 0.5,
+                                                          "position": "absolute",
+                                                          "right": 0,
+                                                          "top": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#FFFFFF",
+                                                      "borderRadius": 12,
+                                                      "elevation": 6,
+                                                      "flexDirection": "row",
+                                                      "gap": 9,
+                                                      "height": 38,
+                                                      "left": 56,
+                                                      "opacity": 1,
+                                                      "paddingHorizontal": 12,
+                                                      "position": "absolute",
+                                                      "shadowColor": "#000000",
+                                                      "shadowOffset": {
+                                                        "height": 14,
+                                                        "width": 0,
+                                                      },
+                                                      "shadowOpacity": 0.55,
+                                                      "shadowRadius": 16,
+                                                      "top": 2,
+                                                      "transform": [
+                                                        {
+                                                          "translateX": 0,
+                                                        },
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 300,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        "Estimate",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#2F6B3A",
+                                                          "fontFamily": "Barlow_600SemiBold",
+                                                          "fontSize": 10.5,
+                                                          "letterSpacing": 1.6,
+                                                          "textTransform": "uppercase",
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "Kitchen remodel",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#3C433E",
+                                                          "flex": 1,
+                                                          "fontSize": 13,
+                                                          "minWidth": 0,
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "$31,870",
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "color": "#151816",
+                                                          "fontFamily": "Barlow_700Bold",
+                                                          "fontSize": 14,
+                                                          "fontVariant": [
+                                                            "tabular-nums",
+                                                          ],
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "pointerEvents": "none",
+                                                        "style": {
+                                                          "backgroundColor": "#06100A",
+                                                          "borderRadius": 12,
+                                                          "bottom": 0,
+                                                          "left": 0,
+                                                          "opacity": 0.38,
+                                                          "position": "absolute",
+                                                          "right": 0,
+                                                          "top": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#FFFFFF",
+                                                      "borderRadius": 12,
+                                                      "elevation": 6,
+                                                      "flexDirection": "row",
+                                                      "gap": 9,
+                                                      "height": 38,
+                                                      "left": 56,
+                                                      "opacity": 1,
+                                                      "paddingHorizontal": 12,
+                                                      "position": "absolute",
+                                                      "shadowColor": "#000000",
+                                                      "shadowOffset": {
+                                                        "height": 14,
+                                                        "width": 0,
+                                                      },
+                                                      "shadowOpacity": 0.55,
+                                                      "shadowRadius": 16,
+                                                      "top": 43,
+                                                      "transform": [
+                                                        {
+                                                          "translateX": 0,
+                                                        },
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 300,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        "Contract",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#2F6B3A",
+                                                          "fontFamily": "Barlow_600SemiBold",
+                                                          "fontSize": 10.5,
+                                                          "letterSpacing": 1.6,
+                                                          "textTransform": "uppercase",
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M30 19C29 29 25 41 22 50C21 54 14 55 13 51C12 47 20 46 30 48C47 51 62 41 60 29C58 17 41 12 27 18C20 21 17 25 21 27",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeOpacity",
+                                                                      "strokeDasharray",
+                                                                      "strokeDashoffset",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4279905058,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeDasharray": [
+                                                                      160,
+                                                                      160,
+                                                                    ],
+                                                                    "strokeDashoffset": null,
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeOpacity": 1,
+                                                                    "strokeWidth": 2.3,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M72 38C68 34 62 37 61 44C60 50 65 52 69 48C72 45 74 40 75 36C74 41 72 47 73 50C74 52 77 50 79 47C81 44 82 39 83 36C83 40 81 46 80 50C82 42 87 36 91 37C95 38 94 44 93 50C94 52 97 50 99 47C101 44 107 38 114 37C110 34 104 38 103 44C102 50 107 52 111 48C114 45 116 40 117 36C116 41 114 47 115 50C116 53 121 51 126 45",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeOpacity",
+                                                                      "strokeDasharray",
+                                                                      "strokeDashoffset",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4279905058,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeDasharray": [
+                                                                      223,
+                                                                      223,
+                                                                    ],
+                                                                    "strokeDashoffset": null,
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeOpacity": 1,
+                                                                    "strokeWidth": 2.3,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M152 17C150 28 146 41 142 51",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeOpacity",
+                                                                      "strokeDasharray",
+                                                                      "strokeDashoffset",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4279905058,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeDasharray": [
+                                                                      38,
+                                                                      38,
+                                                                    ],
+                                                                    "strokeDashoffset": null,
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeOpacity": 1,
+                                                                    "strokeWidth": 2.3,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M151 19C161 12 175 17 168 27C164 32 157 33 150 31C157 35 160 44 164 49C166 52 169 50 171 46C172 42 173 39 174 36C173 41 171 47 173 50C175 52 179 48 181 43C182 40 183 38 183 36C182 41 181 47 183 50C184 52 187 50 189 47C190 44 191 40 192 37C191 42 190 47 192 50C193 52 196 50 198 47C201 41 206 37 211 37C215 37 213 43 207 48C205 49 208 48 212 50C217 53 215 62 208 64C202 65 203 58 211 55C221 51 232 45 242 39",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeOpacity",
+                                                                      "strokeDasharray",
+                                                                      "strokeDashoffset",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4279905058,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeDasharray": [
+                                                                      287,
+                                                                      287,
+                                                                    ],
+                                                                    "strokeDashoffset": null,
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeOpacity": 1,
+                                                                    "strokeWidth": 2.3,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                                {
+                                                                  "children": null,
+                                                                  "props": {
+                                                                    "d": "M193 31C194 30.2 195.5 29.5 196.8 29",
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeOpacity",
+                                                                      "strokeDasharray",
+                                                                      "strokeDashoffset",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4279905058,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeDasharray": [
+                                                                      7,
+                                                                      7,
+                                                                    ],
+                                                                    "strokeDashoffset": null,
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeOpacity": 1,
+                                                                    "strokeWidth": 2.3,
+                                                                  },
+                                                                  "type": "RNSVGPath",
+                                                                },
+                                                              ],
+                                                              "props": {
+                                                                "fill": {
+                                                                  "payload": 4278190080,
+                                                                  "type": 0,
+                                                                },
+                                                              },
+                                                              "type": "RNSVGGroup",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "accessible": false,
+                                                            "align": "xMidYMid",
+                                                            "bbHeight": 25,
+                                                            "bbWidth": 104,
+                                                            "focusable": false,
+                                                            "height": 25,
+                                                            "meetOrSlice": 0,
+                                                            "minX": 8,
+                                                            "minY": 10,
+                                                            "pointerEvents": "none",
+                                                            "style": {
+                                                              "backgroundColor": "transparent",
+                                                              "borderWidth": 0,
+                                                              "flex": 0,
+                                                              "height": 25,
+                                                              "width": 104,
+                                                            },
+                                                            "vbHeight": 58,
+                                                            "vbWidth": 238,
+                                                            "width": 104,
+                                                          },
+                                                          "type": "RNSVGSvgView",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "flex": 1,
+                                                          "height": 28,
+                                                          "justifyContent": "center",
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "Sep 4",
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "color": "#151816",
+                                                          "fontFamily": "Barlow_700Bold",
+                                                          "fontSize": 14,
+                                                          "fontVariant": [
+                                                            "tabular-nums",
+                                                          ],
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "pointerEvents": "none",
+                                                        "style": {
+                                                          "backgroundColor": "#06100A",
+                                                          "borderRadius": 12,
+                                                          "bottom": 0,
+                                                          "left": 0,
+                                                          "opacity": 0.26,
+                                                          "position": "absolute",
+                                                          "right": 0,
+                                                          "top": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#FFFFFF",
+                                                      "borderRadius": 12,
+                                                      "elevation": 6,
+                                                      "flexDirection": "row",
+                                                      "gap": 9,
+                                                      "height": 38,
+                                                      "left": 56,
+                                                      "opacity": 1,
+                                                      "paddingHorizontal": 12,
+                                                      "position": "absolute",
+                                                      "shadowColor": "#000000",
+                                                      "shadowOffset": {
+                                                        "height": 14,
+                                                        "width": 0,
+                                                      },
+                                                      "shadowOpacity": 0.55,
+                                                      "shadowRadius": 16,
+                                                      "top": 84,
+                                                      "transform": [
+                                                        {
+                                                          "translateX": 0,
+                                                        },
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 300,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        "Schedule",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#2F6B3A",
+                                                          "fontFamily": "Barlow_600SemiBold",
+                                                          "fontSize": 10.5,
+                                                          "letterSpacing": 1.6,
+                                                          "textTransform": "uppercase",
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        "6 weeks",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#3C433E",
+                                                          "flex": 1,
+                                                          "fontSize": 13,
+                                                          "minWidth": 0,
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": null,
+                                                          "props": {
+                                                            "style": {
+                                                              "backgroundColor": "#12806E",
+                                                              "borderRadius": 3,
+                                                              "height": 6,
+                                                              "width": 6,
+                                                            },
+                                                          },
+                                                          "type": "View",
+                                                        },
+                                                        {
+                                                          "children": [
+                                                            "On track",
+                                                          ],
+                                                          "props": {
+                                                            "style": {
+                                                              "color": "#0E6B5C",
+                                                              "fontFamily": "Barlow_600SemiBold",
+                                                              "fontSize": 11,
+                                                            },
+                                                          },
+                                                          "type": "Text",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "alignItems": "center",
+                                                          "backgroundColor": "#E1F1EC",
+                                                          "borderRadius": 99,
+                                                          "flexDirection": "row",
+                                                          "gap": 4,
+                                                          "height": 20,
+                                                          "paddingLeft": 7,
+                                                          "paddingRight": 8,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "pointerEvents": "none",
+                                                        "style": {
+                                                          "backgroundColor": "#06100A",
+                                                          "borderRadius": 12,
+                                                          "bottom": 0,
+                                                          "left": 0,
+                                                          "opacity": 0.14,
+                                                          "position": "absolute",
+                                                          "right": 0,
+                                                          "top": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#FFFFFF",
+                                                      "borderRadius": 12,
+                                                      "elevation": 6,
+                                                      "flexDirection": "row",
+                                                      "gap": 9,
+                                                      "height": 38,
+                                                      "left": 56,
+                                                      "opacity": 1,
+                                                      "paddingHorizontal": 12,
+                                                      "position": "absolute",
+                                                      "shadowColor": "#000000",
+                                                      "shadowOffset": {
+                                                        "height": 14,
+                                                        "width": 0,
+                                                      },
+                                                      "shadowOpacity": 0.55,
+                                                      "shadowRadius": 16,
+                                                      "top": 125,
+                                                      "transform": [
+                                                        {
+                                                          "translateX": 0,
+                                                        },
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 300,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        "Invoice #12",
+                                                      ],
+                                                      "props": {
+                                                        "numberOfLines": 1,
+                                                        "style": {
+                                                          "color": "#2F6B3A",
+                                                          "fontFamily": "Barlow_600SemiBold",
+                                                          "fontSize": 10.5,
+                                                          "letterSpacing": 1.6,
+                                                          "textTransform": "uppercase",
+                                                        },
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            "$12,400.00",
+                                                          ],
+                                                          "props": {
+                                                            "style": {
+                                                              "color": "#151816",
+                                                              "fontFamily": "Barlow_700Bold",
+                                                              "fontSize": 14,
+                                                              "fontVariant": [
+                                                                "tabular-nums",
+                                                              ],
+                                                            },
+                                                          },
+                                                          "type": "Text",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "flex": 1,
+                                                          "minWidth": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                "Sent",
+                                                              ],
+                                                              "props": {
+                                                                "style": {
+                                                                  "color": "#4A524C",
+                                                                  "fontFamily": "Barlow_600SemiBold",
+                                                                  "fontSize": 11.5,
+                                                                },
+                                                              },
+                                                              "type": "Text",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "collapsable": false,
+                                                            "style": {
+                                                              "alignItems": "center",
+                                                              "backgroundColor": "#ECEDE9",
+                                                              "borderRadius": 99,
+                                                              "flexDirection": "row",
+                                                              "gap": 4,
+                                                              "height": 22,
+                                                              "opacity": 0,
+                                                              "paddingHorizontal": 9,
+                                                              "position": "absolute",
+                                                              "right": 0,
+                                                              "top": 0,
+                                                              "transform": [
+                                                                {
+                                                                  "translateY": -8,
+                                                                },
+                                                              ],
+                                                            },
+                                                          },
+                                                          "type": "View",
+                                                        },
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": [
+                                                                    {
+                                                                      "children": null,
+                                                                      "props": {
+                                                                        "d": "M20 6 9 17l-5-5",
+                                                                        "fill": null,
+                                                                        "propList": [
+                                                                          "fill",
+                                                                          "stroke",
+                                                                          "strokeWidth",
+                                                                          "strokeLinecap",
+                                                                          "strokeLinejoin",
+                                                                        ],
+                                                                        "stroke": {
+                                                                          "payload": 4294967295,
+                                                                          "type": 0,
+                                                                        },
+                                                                        "strokeLinecap": 1,
+                                                                        "strokeLinejoin": 1,
+                                                                        "strokeWidth": 2.6,
+                                                                      },
+                                                                      "type": "RNSVGPath",
+                                                                    },
+                                                                  ],
+                                                                  "props": {
+                                                                    "fill": null,
+                                                                    "propList": [
+                                                                      "fill",
+                                                                      "stroke",
+                                                                      "strokeWidth",
+                                                                      "strokeLinecap",
+                                                                      "strokeLinejoin",
+                                                                    ],
+                                                                    "stroke": {
+                                                                      "payload": 4294967295,
+                                                                      "type": 0,
+                                                                    },
+                                                                    "strokeLinecap": 1,
+                                                                    "strokeLinejoin": 1,
+                                                                    "strokeWidth": 2.6,
+                                                                  },
+                                                                  "type": "RNSVGGroup",
+                                                                },
+                                                              ],
+                                                              "props": {
+                                                                "align": "xMidYMid",
+                                                                "bbHeight": 12,
+                                                                "bbWidth": 12,
+                                                                "data-testid": undefined,
+                                                                "fill": "none",
+                                                                "focusable": false,
+                                                                "height": 12,
+                                                                "meetOrSlice": 0,
+                                                                "minX": 0,
+                                                                "minY": 0,
+                                                                "stroke": "#FFFFFF",
+                                                                "strokeLinecap": "round",
+                                                                "strokeLinejoin": "round",
+                                                                "strokeWidth": 2.6,
+                                                                "style": {
+                                                                  "backgroundColor": "transparent",
+                                                                  "borderWidth": 0,
+                                                                  "flex": 0,
+                                                                  "height": 12,
+                                                                  "width": 12,
+                                                                },
+                                                                "vbHeight": 24,
+                                                                "vbWidth": 24,
+                                                                "width": 12,
+                                                                "xmlns": "http://www.w3.org/2000/svg",
+                                                              },
+                                                              "type": "RNSVGSvgView",
+                                                            },
+                                                            {
+                                                              "children": [
+                                                                "Paid",
+                                                              ],
+                                                              "props": {
+                                                                "style": {
+                                                                  "color": "#FFFFFF",
+                                                                  "fontFamily": "Barlow_600SemiBold",
+                                                                  "fontSize": 11.5,
+                                                                },
+                                                              },
+                                                              "type": "Text",
+                                                            },
+                                                          ],
+                                                          "props": {
+                                                            "collapsable": false,
+                                                            "style": {
+                                                              "alignItems": "center",
+                                                              "backgroundColor": "#12806E",
+                                                              "borderRadius": 99,
+                                                              "flexDirection": "row",
+                                                              "gap": 4,
+                                                              "height": 22,
+                                                              "opacity": 1,
+                                                              "paddingHorizontal": 9,
+                                                              "position": "absolute",
+                                                              "right": 0,
+                                                              "top": 0,
+                                                              "transform": [
+                                                                {
+                                                                  "translateY": 0,
+                                                                },
+                                                                {
+                                                                  "scale": 1,
+                                                                },
+                                                              ],
+                                                            },
+                                                          },
+                                                          "type": "View",
+                                                        },
+                                                      ],
+                                                      "props": {
+                                                        "style": {
+                                                          "height": 22,
+                                                          "width": 62,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                    {
+                                                      "children": null,
+                                                      "props": {
+                                                        "collapsable": false,
+                                                        "pointerEvents": "none",
+                                                        "style": {
+                                                          "borderColor": "#2BA58E",
+                                                          "borderRadius": 12,
+                                                          "borderWidth": 1.5,
+                                                          "bottom": 0,
+                                                          "left": 0,
+                                                          "opacity": 1,
+                                                          "position": "absolute",
+                                                          "right": 0,
+                                                          "shadowColor": "#12806E",
+                                                          "shadowOffset": {
+                                                            "height": 0,
+                                                            "width": 0,
+                                                          },
+                                                          "shadowOpacity": 0.7,
+                                                          "shadowRadius": 16,
+                                                          "top": 0,
+                                                        },
+                                                      },
+                                                      "type": "View",
+                                                    },
+                                                  ],
+                                                  "props": {
+                                                    "collapsable": false,
+                                                    "style": {
+                                                      "alignItems": "center",
+                                                      "backgroundColor": "#FFFFFF",
+                                                      "borderRadius": 12,
+                                                      "elevation": 6,
+                                                      "flexDirection": "row",
+                                                      "gap": 9,
+                                                      "height": 42,
+                                                      "left": 56,
+                                                      "opacity": 1,
+                                                      "paddingHorizontal": 12,
+                                                      "position": "absolute",
+                                                      "shadowColor": "#000000",
+                                                      "shadowOffset": {
+                                                        "height": 14,
+                                                        "width": 0,
+                                                      },
+                                                      "shadowOpacity": 0.55,
+                                                      "shadowRadius": 16,
+                                                      "top": 166,
+                                                      "transform": [
+                                                        {
+                                                          "translateX": 0,
+                                                        },
+                                                        {
+                                                          "translateY": 0,
+                                                        },
+                                                        {
+                                                          "scale": 1,
+                                                        },
+                                                      ],
+                                                      "width": 300,
+                                                    },
+                                                  },
+                                                  "type": "View",
+                                                },
+                                              ],
+                                              "props": {
+                                                "style": {
+                                                  "height": 212,
+                                                  "left": 0,
+                                                  "position": "absolute",
+                                                  "top": 0,
+                                                  "transform": [
+                                                    {
+                                                      "translateX": 0,
+                                                    },
+                                                    {
+                                                      "translateY": 0,
+                                                    },
+                                                    {
+                                                      "scale": 1,
+                                                    },
+                                                  ],
+                                                  "width": 390,
+                                                },
+                                              },
+                                              "type": "View",
+                                            },
+                                          ],
+                                          "props": {
+                                            "accessibilityLabel": "Sample project: ask about 418 Atlantic Ave, Brooklyn; estimate $31,870; contract signed Sep 4; schedule 6 weeks, on track; invoice #12, $12,400.00, paid.",
+                                            "accessibilityRole": "image",
+                                            "accessible": true,
+                                            "pointerEvents": "none",
+                                            "style": {
+                                              "alignSelf": "center",
+                                              "height": 212,
+                                              "width": 390,
+                                            },
+                                            "testID": "signup-mini-spine",
                                           },
                                           "type": "View",
                                         },
@@ -25840,11 +27713,10 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                       "props": {
                                         "style": {
                                           "backgroundColor": "#0B0D10",
-                                          "borderBottomLeftRadius": 32,
-                                          "borderBottomRightRadius": 32,
-                                          "paddingBottom": 28,
+                                          "overflow": "hidden",
+                                          "paddingBottom": 40,
                                           "paddingHorizontal": 20,
-                                          "paddingTop": 16,
+                                          "paddingTop": 12,
                                         },
                                       },
                                       "type": "View",
@@ -25855,6 +27727,39 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                           "children": [
                                             {
                                               "children": [
+                                                {
+                                                  "children": [
+                                                    "Get started",
+                                                  ],
+                                                  "props": {
+                                                    "style": {
+                                                      "color": "#2C6436",
+                                                      "fontSize": 11,
+                                                      "fontWeight": "700",
+                                                      "letterSpacing": 1.8,
+                                                      "textTransform": "uppercase",
+                                                    },
+                                                  },
+                                                  "type": "Text",
+                                                },
+                                                {
+                                                  "children": [
+                                                    "Create your account",
+                                                  ],
+                                                  "props": {
+                                                    "accessibilityRole": "header",
+                                                    "style": {
+                                                      "color": "#2B3038",
+                                                      "fontFamily": "Barlow_700Bold",
+                                                      "fontSize": 30,
+                                                      "letterSpacing": -0.5,
+                                                      "lineHeight": 34,
+                                                      "marginBottom": 18,
+                                                      "marginTop": 6,
+                                                    },
+                                                  },
+                                                  "type": "Text",
+                                                },
                                                 {
                                                   "children": null,
                                                   "props": {},
@@ -27124,7 +29029,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                             "contentContainerStyle": {
                                               "padding": 24,
                                               "paddingBottom": 24,
-                                              "paddingTop": 28,
+                                              "paddingTop": 26,
                                             },
                                             "keyboardShouldPersistTaps": "handled",
                                             "showsVerticalScrollIndicator": false,
@@ -27135,7 +29040,12 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                       "props": {
                                         "onLayout": [Function],
                                         "style": {
+                                          "backgroundColor": "#ECEDE9",
+                                          "borderTopLeftRadius": 30,
+                                          "borderTopRightRadius": 30,
                                           "flex": 1,
+                                          "marginTop": -24,
+                                          "overflow": "hidden",
                                           "paddingBottom": 0,
                                         },
                                       },
@@ -27144,7 +29054,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                   ],
                                   "props": {
                                     "style": {
-                                      "backgroundColor": "#ECEDE9",
+                                      "backgroundColor": "#0F1B13",
                                       "flex": 1,
                                     },
                                   },

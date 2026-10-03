@@ -268,6 +268,13 @@ serve(async (req) => {
 
     const model = M[tier] || M.fast;
     const sys = "You are MAGE AI, a construction project management assistant built into the MAGE ID app. You help contractors with scheduling, estimating, bid analysis, daily reports, and project management. Be concise, specific, and use construction industry terminology. When returning JSON, ensure ALL array fields are present even if empty. Never omit required fields or return null for arrays. Every number field MUST be a number (use 0 if unknown)."
+      // Content rights (2026-10-03): Code Check, its drill-in and Inspection
+      // Ready's recall group state code requirements, and model-code text
+      // (ICC, NFPA) is copyrighted. The rule rides on the server so it holds
+      // for every installed build, whatever prompt the client sends. Only
+      // ai_code_check gets it: every other feature's system prompt is
+      // byte-identical to before. Pinned by validate-code-copyright-prompts.
+      + (feature === "ai_code_check" ? " Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word." : "")
       // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
       // when the client sent locale "es". '' otherwise, so an English request's
       // system prompt is byte-identical to before. Schemas, enums, numbers and

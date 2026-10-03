@@ -397,6 +397,8 @@ function clockFree(node: unknown): unknown {
   return { ...el, children: clockFree(el.children) };
 }
 
+// /signup's snapshot was re-recorded for the Take D auth redesign (login-ui lane);
+// every other snapshot in this block is still the 6065b326 recording.
 describe('phone equality at 390 native (snapshots recorded from 6065b326)', () => {
   it.each(['/signup', '/reset-password', '/accept-invite'])('%s renders exactly as before', async (href) => {
     as('ios', 'phone');

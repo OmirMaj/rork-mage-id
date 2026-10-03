@@ -9,7 +9,7 @@ exports[`slick-3 first run golden (390 × 844 iOS) (a) persona-select, no role y
 
 exports[`slick-3 first run golden (390 × 844 iOS) (b) onboarding, the splash step 1`] = `
 {
-  "lines": 336,
-  "sha256": "670fbbd4b3827f4a6983b96a9604440bd84b31ed064959097589f5cff8767522",
+  "lines": 535,
+  "sha256": "1bf1eb4be25449bc05a3b962dbde0a897ebbbe30ae23defdcb988fee78c117ef",
 }
 `;
