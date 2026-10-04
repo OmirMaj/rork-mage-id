@@ -80,8 +80,7 @@ jest.mock('@/hooks/useProjectRole', () => {
   return { ...actual, useProjectRoleState: () => state, useProjectRole: () => 'owner' };
 });
 
-// Records every alert (title, message) while still showing it, so the
-// behaviour cases can read the ONE confirm "Remind all" asks.
+// Records every alert (title, message) while still showing it.
 const mockAlerts: { title: string; message?: string }[] = [];
 jest.mock('@/utils/alert', () => {
   const actual = jest.requireActual('@/utils/alert');

@@ -1,5 +1,5 @@
 /**
- * Lane PORTALFIX — BEHAVIOUR on the phone (390 x 844 iOS), real app, populated
+ * Lane PORTALFIX — BEHAVIOR on the phone (390 x 844 iOS), real app, populated
  * fixture world. No snapshots: each case drives the screen and reads what it
  * did. The golden in portalfix-phone.test.tsx proves nothing else moved.
  *
@@ -7,10 +7,20 @@
  *       portal_rotate_access_token for this project; the fresh key replaces the
  *       old one on screen and the new link is offered for sending.
  *   (b) Offline, Reset link refuses before the confirm and calls nothing.
- *   (c) A failed rotate changes nothing and says the old link still works.
+ *   (c) RESET LINK NEVER GUESSES. When the rotate call does not come back clean
+ *       the screen reads the server's key and says only what that proves:
+ *       (c1) the server still holds the same key -> "Link not reset", the old
+ *            link still works, nothing on screen changes;
+ *       (c2) the answer was lost but the server holds a NEW key -> the reset
+ *            happened: the new link is on screen and "Send new link" is offered;
+ *       (c3) the answer was lost and the read-back fails too -> "Reset not
+ *            confirmed": no claim that the old link works, the held key leaves
+ *            the screen, Copy and Reset lock, and Retry shows the server's link.
  *   (d) A Sample project: the screen says why at the top, and Save, Copy,
  *       Share, Reset and invites all stop at the same reason.
  *   (e) The passcode field states and enforces the real rule (4 to 20).
+ *   (f) Save stores the passcode trimmed AND the screen holds the same trimmed
+ *       code, so nothing is left "unsaved".
  */
 
 import React from 'react';
@@ -72,12 +82,6 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
     );
   }
   return { __esModule: true, default: Modal };
-});
-
-jest.mock('@/hooks/useProjectRole', () => {
-  const actual = jest.requireActual('@/hooks/useProjectRole');
-  const state = { role: 'owner', isLoading: false, isError: false, isPaused: false, refetch: () => undefined };
-  return { ...actual, useProjectRoleState: () => state, useProjectRole: () => 'owner' };
 });
 
 jest.mock('@/hooks/useProjectRole', () => {
@@ -166,16 +170,34 @@ async function phoneSetup(variant?: (p: Rec) => Rec) {
 
 const withPortal = (extra: Rec) => (p: Rec) => ({ ...p, clientPortal: { ...(p.clientPortal as Rec), ...extra } });
 
+type RpcAnswer = { data: unknown; error: unknown } | 'throws';
 const rpcCalls: { fn: string; args: unknown }[] = [];
-function stubRotate(answer: { data: unknown; error: unknown }) {
+/** Calls of the owner-only key getter (the read-back), in order. */
+const getterCalls: unknown[] = [];
+/**
+ * The two server calls the reset touches. `rotate` answers
+ * portal_rotate_access_token; `getter` answers portal_get_owner_token (the
+ * read-back) — a function, so a case can change the server's answer between
+ * reads. 'throws' is a dropped connection: the promise rejects.
+ */
+function stubServer(rotate: RpcAnswer, getter?: () => RpcAnswer) {
   rpcCalls.length = 0;
+  getterCalls.length = 0;
   const realRpc = supabase.rpc.bind(supabase);
+  const answer = (a: RpcAnswer) => (a === 'throws' ? Promise.reject(new TypeError('Network request failed')) : Promise.resolve(a));
   jest.spyOn(supabase, 'rpc').mockImplementation(((fn: string, args?: unknown) => {
-    if (fn !== 'portal_rotate_access_token') return realRpc(fn as never, args as never);
-    rpcCalls.push({ fn, args });
-    return Promise.resolve(answer);
+    if (fn === 'portal_rotate_access_token') { rpcCalls.push({ fn, args }); return answer(rotate); }
+    if (fn === 'portal_get_owner_token' && getter) { getterCalls.push(args); return answer(getter()); }
+    return realRpc(fn as never, args as never);
   }) as never);
 }
+const stubRotate = (rotate: { data: unknown; error: unknown }) => stubServer(rotate);
+const NEW_KEY = 'fresh0key0abcdef0123456789fresh0key0abcdef01';
+/** The link card masks the key's middle: `?t=` + first 4 + … + last 4. */
+const keyHead = (k: string) => `?t=${k.slice(0, 4)}`;
+const linkShown = () => String(screen.getByTestId('portal-link-display').props.children);
+const hintShown = () => String(screen.getByTestId('portal-link-hint').props.children);
+const allAlertText = () => mockAlerts.map(a => `${a.title} ${a.message ?? ''}`).join(' | ');
 const lastAlert = () => mockAlerts[mockAlerts.length - 1];
 const press = async (testID: string) => { await act(async () => { fireEvent.press(screen.getByTestId(testID)); }); };
 let heldButtons: AlertButton[] | undefined;
@@ -185,7 +207,7 @@ const tapButton = async (label: string) => {
   await act(async () => { b!.onPress?.(); for (let k = 0; k < 20; k++) await Promise.resolve(); });
 };
 
-describe('PORTALFIX behaviour — the phone', () => {
+describe('PORTALFIX behavior — the phone', () => {
   jest.setTimeout(120000);
 
   it('(a) Reset link: confirm first, then the rotate RPC; the new key replaces the old; Send new link is offered', async () => {
@@ -204,7 +226,7 @@ describe('PORTALFIX behaviour — the phone', () => {
     const after = String(screen.getByTestId('portal-link-display').props.children);
     expect(after).not.toBe(before);
     expect(after.startsWith('https://mageid.app/portal/')).toBe(true);
-    expect(after).not.toContain(PORTAL_TOKEN.slice(0, 6));
+    expect(after).not.toContain(keyHead(PORTAL_TOKEN));
     // Send new link runs the existing Share flow with the NEW link: the link is
     // there (no "Finalizing secure link" guard), nothing else is asked.
     heldButtons = lastAlert().buttons;
@@ -226,17 +248,94 @@ describe('PORTALFIX behaviour — the phone', () => {
     expect(rpcCalls.length).toBe(0);
   });
 
-  it('(c) a refused rotate changes nothing and says the old link still works', async () => {
-    stubRotate({ data: null, error: { message: 'portal_rotate_denied', code: '42501' } });
+  it('(c1) the call fails and the server still holds the same key: "Link not reset", the old link still works, nothing changes', async () => {
+    stubServer({ data: null, error: { message: 'portal_rotate_denied', code: '42501' } }, () => ({ data: PORTAL_TOKEN, error: null }));
     await phoneSetup();
-    const before = String(screen.getByTestId('portal-link-display').props.children);
+    const before = linkShown();
     await press('portal-reset-link-btn');
     await tapButton('Reset link');
     await pump(2);
     expect(rpcCalls.length).toBe(1);
+    // Said only after the server was read.
+    expect(getterCalls).toEqual([{ p_project_id: PROJECT_ID }]);
     expect(lastAlert().title).toBe('Link not reset');
+    expect(lastAlert().message).toMatch(/We checked with the server/);
     expect(lastAlert().message).toMatch(/old link still works/);
-    expect(String(screen.getByTestId('portal-link-display').props.children)).toBe(before);
+    expect(linkShown()).toBe(before);
+  });
+
+  it('(c2) the answer is lost but the server holds a NEW key: the reset happened, the new link is shown and offered', async () => {
+    stubServer('throws', () => ({ data: NEW_KEY, error: null }));
+    await phoneSetup();
+    const before = linkShown();
+    await press('portal-reset-link-btn');
+    await tapButton('Reset link');
+    await pump(2);
+    expect(rpcCalls.length).toBe(1);
+    expect(getterCalls.length).toBe(1);
+    expect(allAlertText()).not.toMatch(/still works/);
+    expect(lastAlert().title).toBe('Link reset');
+    expect(lastAlert().buttons?.map(b => b.text)).toEqual(['Later', 'Send new link']);
+    const after = linkShown();
+    expect(after).not.toBe(before);
+    expect(after).not.toContain(keyHead(PORTAL_TOKEN));
+    expect(after).toContain(keyHead(NEW_KEY));
+    // Send new link opens the existing Share flow on the new link, no guard in the way.
+    heldButtons = lastAlert().buttons;
+    mockAlerts.length = 0;
+    await tapButton('Send new link');
+    expect(mockAlerts.map(a => a.title)).toEqual([]);
+  });
+
+  it('(c2b) an empty answer with a NEW key on the server is the same: the reset happened', async () => {
+    stubServer({ data: null, error: null }, () => ({ data: NEW_KEY, error: null }));
+    await phoneSetup();
+    await press('portal-reset-link-btn');
+    await tapButton('Reset link');
+    await pump(2);
+    expect(lastAlert().title).toBe('Link reset');
+    expect(allAlertText()).not.toMatch(/still works/);
+    expect(linkShown()).toContain(keyHead(NEW_KEY));
+  });
+
+  it('(c3) the answer is lost and the read-back fails too: says only what is known, drops the held key, locks Copy and Reset; Retry shows the server\u2019s link', async () => {
+    let server: RpcAnswer = 'throws';
+    stubServer('throws', () => server);
+    await phoneSetup();
+    const before = linkShown();
+    expect(before).toContain(keyHead(PORTAL_TOKEN));
+    await press('portal-reset-link-btn');
+    await tapButton('Reset link');
+    await pump(3);
+    expect(rpcCalls.length).toBe(1);
+    const said = mockAlerts.find(a => a.title === 'Reset not confirmed');
+    expect(said).toBeTruthy();
+    // Never the claim the review caught: nothing here says the old link works.
+    expect(allAlertText()).not.toMatch(/still works/);
+    expect(allAlertText()).not.toMatch(/Link not reset/);
+    expect(said!.message).toMatch(/couldn\u2019t confirm whether the link was reset/);
+    expect(said!.message).toMatch(/may have stopped working/);
+    expect(said!.message).toMatch(/Open this screen again/);
+    expect(said!.buttons).toBeUndefined();
+    // The possibly-dead key is off the screen, and the link says why it is locked.
+    expect(linkShown()).not.toContain(keyHead(PORTAL_TOKEN));
+    expect(linkShown()).not.toContain('?t=');
+    expect(hintShown()).toMatch(/Copy and Share (stay locked|become available)/);
+    // Copy hands out nothing; a second reset is not offered on top of the unknown.
+    mockAlerts.length = 0;
+    await act(async () => { fireEvent.press(screen.getByText('Copy')); });
+    expect(mockAlerts.map(a => a.title)).toEqual([expect.stringMatching(/secure link/)]);
+    mockAlerts.length = 0;
+    await press('portal-reset-link-btn');
+    expect(mockAlerts.some(a => a.title === 'Reset the link?')).toBe(false);
+    expect(rpcCalls.length).toBe(1);
+    // Back online: Retry reads the server and shows the link it holds NOW.
+    server = { data: NEW_KEY, error: null };
+    await press('portal-link-retry-btn');
+    await pump(3);
+    expect(linkShown()).toContain(keyHead(NEW_KEY));
+    expect(linkShown()).not.toContain(keyHead(PORTAL_TOKEN));
+    expect(rpcCalls.length).toBe(1);
   });
 
   it('(d) a Sample project: banner at the top; Save, Copy, Share and Reset stop at the sample reason', async () => {
@@ -262,5 +361,18 @@ describe('PORTALFIX behaviour — the phone', () => {
     const field = screen.getByPlaceholderText('Passcode (4 to 20 characters)');
     expect(field.props.maxLength).toBe(20);
     expect(field.props.autoCapitalize).toBe('none');
+  });
+
+  it('(f) Save stores the passcode trimmed and the screen holds the same code: no "Unsaved changes" afterwards', async () => {
+    await phoneSetup(withPortal({ requirePasscode: true, passcode: 'Harlow4821' }));
+    const field = screen.getByPlaceholderText('Passcode (4 to 20 characters)');
+    // iOS adds a trailing space after a keyboard suggestion.
+    await act(async () => { fireEvent.changeText(field, 'Harlow9000 '); });
+    expect(screen.queryByTestId('portal-setup-unsaved')).toBeTruthy();
+    await press('portal-setup-save');
+    await pump(2);
+    expect(mockAlerts.some(a => a.title === 'Portal saved')).toBe(true);
+    expect(screen.getByPlaceholderText('Passcode (4 to 20 characters)').props.value).toBe('Harlow9000');
+    expect(screen.queryByTestId('portal-setup-unsaved')).toBeNull();
   });
 });

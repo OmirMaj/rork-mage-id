@@ -37,6 +37,7 @@ import {
   PORTAL_PASSCODE_MIN_LENGTH, PORTAL_PASSCODE_MAX_LENGTH,
   portalInviteSectionsSentence, portalInviteFallbackText,
   portalResetOutcome, type PortalKeyReadBack,
+  PORTAL_RESET_NOT_RESET_NOTE, PORTAL_RESET_UNKNOWN_NOTE,
 } from '@/utils/portalSnapshot';
 import { isSampleProject } from '@/utils/sampleGuard';
 import { isOfflineNow } from '@/hooks/useOnline';
@@ -98,19 +99,6 @@ const LEGACY_NO_EXPIRY_PREF = 'none';
  * here with this reason, and the screen says it at the top.
  */
 const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
-
-/**
- * Resets this app session could not confirm either way: project id -> the key
- * this device held BEFORE the rotate call. The rotate commits on the server
- * before its answer travels, so a lost answer leaves the link on screen
- * possibly dead. While a project is in here the screen offers "Check link"
- * (never a second reset) and Copy / Share / invites stop, and the check
- * compares the server's key with the one recorded here, so a project refetch
- * in between cannot make a real reset look like none. Module-level so leaving
- * the screen and coming back keeps it; an app restart does not (handoff note).
- * The key is never logged.
- */
-const UNCONFIRMED_RESETS = new Map<string, string>();
 
 /**
  * Who this account is to the project, for the purpose of the share link.
@@ -894,6 +882,8 @@ function ClientPortalSetupScreenInner() {
   const persistedPortalEnabled = !!project?.clientPortal?.enabled;
   useEffect(() => {
     if (!id || !persistedPortalEnabled || persistedToken || portal.accessToken) return;
+    // PORTALFIX: a sample never gets a server key (utils/sampleGuard.ts).
+    if (sampleJob) return;
     // Not owned: the credential is stripped for collaborators on purpose. Never
     // read it, never write a portal on the owner's behalf.
     if (localOwnership === 'collaborator') return;
@@ -961,7 +951,7 @@ function ClientPortalSetupScreenInner() {
     // project?.clientPortal is read inside only for the write; keying on it
     // would restart the heal on every optimistic update it causes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, persistedPortalEnabled, persistedToken, portal.accessToken, localOwnership, userId, healAttempt]);
+  }, [id, persistedPortalEnabled, persistedToken, portal.accessToken, localOwnership, userId, healAttempt, sampleJob]);
 
   const retryTokenHeal = useCallback(() => {
     setTokenHeal('idle');
@@ -1014,26 +1004,6 @@ function ClientPortalSetupScreenInner() {
     }
     return true;
   }, [linkPending, linkOwnerOnly, linkNeedsSave, linkHealFailed]);
-
-  // PORTALFIX: a reset whose answer never came back. Until the server has been
-  // asked which key it holds, the link on screen may be dead, so the same
-  // three doors stop here too. Returns true when it took over.
-  const [, bumpResetUnconfirmed] = useState(0);
-  const resetUnconfirmed = !!id && UNCONFIRMED_RESETS.has(id);
-  const markResetUnconfirmed = useCallback((heldBefore: string | null) => {
-    if (!id) return;
-    if (heldBefore === null) UNCONFIRMED_RESETS.delete(id);
-    else UNCONFIRMED_RESETS.set(id, heldBefore);
-    bumpResetUnconfirmed(n => n + 1);
-  }, [id]);
-  const warnIfResetUnconfirmed = useCallback((): boolean => {
-    if (!resetUnconfirmed) return false;
-    showAlert(
-      'Check the link first',
-      'We couldn\u2019t confirm whether your last reset went through, so this link may no longer work. Tap Check link under Portal link, then copy or send it.',
-    );
-    return true;
-  }, [resetUnconfirmed]);
 
   // The full base64-hash URL is kept around as a backup for clients
   // whose snapshot cache hasn't propagated yet (e.g., right after
@@ -1400,7 +1370,6 @@ function ClientPortalSetupScreenInner() {
     // over an empty clipboard.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
-    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1410,7 +1379,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink, warnIfLinkPending, warnIfResetUnconfirmed, warnIfExpired, warnIfSample]);
+  }, [portalLink, warnIfLinkPending, warnIfExpired, warnIfSample]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
@@ -1424,11 +1393,10 @@ function ClientPortalSetupScreenInner() {
     // link cannot approve a change order.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
-    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     setShowSendModal(true);
     if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
-  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfResetUnconfirmed, warnIfSample]);
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample]);
   // The reset's "Send new link" runs on a LATER tap, after the fresh key has
   // re-rendered into portalLink — so it calls the newest handleShare, never
   // the one the reset closed over (which still holds the dead link).
@@ -1449,7 +1417,6 @@ function ClientPortalSetupScreenInner() {
     // a change order.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
-    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
     // truncates it. The static portal HTML fetches the snapshot from
@@ -1548,7 +1515,7 @@ function ClientPortalSetupScreenInner() {
       console.warn('[ClientPortal] email fallback failed:', fallback.error);
       showAlert('Email not sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfResetUnconfirmed, warnIfSample, livePortal]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample, livePortal]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -1644,11 +1611,32 @@ function ClientPortalSetupScreenInner() {
     );
   }, []);
 
-  // When the rotate call does not come back clean (an error, an empty answer,
-  // a dropped connection) the screen does NOT know whether the old link died:
-  // the server commits the new key before its answer travels. So it asks the
-  // server which key it holds and says only what that proves
-  // (portalResetOutcome). "Check link" runs the same read later.
+  // Nobody could confirm the reset, so the key this device holds may be dead.
+  // It is dropped here — from the screen AND from the saved copy — so no door
+  // can hand it out. That puts the link in the same "key not here yet" state
+  // a fresh install starts in: Copy / Share / invites lock, the existing fetch
+  // above asks the server for the key it holds NOW (with a Retry when that
+  // fails), and it does so again every time this screen opens, across an app
+  // restart too. Nothing new is queued: the owner's project write never
+  // carries the key (ownerClientPortalForWrite), and the server's credentials
+  // row outranks any copy from a phone.
+  const forgetHeldKey = useCallback(() => {
+    const saved = project?.clientPortal;
+    if (!id || !saved) return;
+    const { accessToken: _held, ...savedWithoutKey } = saved;
+    updateProject(id, { clientPortal: savedWithoutKey });
+    setPortal(p => { const { accessToken: _shown, ...rest } = p; return rest; });
+    retryTokenHeal();
+  }, [id, project?.clientPortal, updateProject, retryTokenHeal]);
+
+  // RESET LINK NEVER GUESSES. When the rotate call does not come back clean
+  // (an error, an empty answer, a dropped connection) the screen does NOT know
+  // whether the old link died: the server commits the new key before its
+  // answer travels. So it asks the server which key it holds and says only
+  // what that read proves (portalResetOutcome, utils/portalSnapshot.ts):
+  //   • a different key  → the reset happened: adopt it, offer "Send new link";
+  //   • the same key     → the reset did not happen: the old link still works;
+  //   • the read failed  → neither is known: say so, and drop the held key.
   const settleResetFromServer = useCallback(async (heldBefore: string) => {
     if (!id) return;
     let readBack: PortalKeyReadBack = { ok: false };
@@ -1660,23 +1648,16 @@ function ClientPortalSetupScreenInner() {
     const outcome = portalResetOutcome(heldBefore, readBack);
     if (outcome.kind === 'reset') {
       adoptRotated(outcome.token);
-      markResetUnconfirmed(null);
       announceLinkReset();
       return;
     }
     if (outcome.kind === 'not-reset') {
-      markResetUnconfirmed(null);
-      showAlert('Link not reset', 'We checked with the server and it still has the same link, so your client’s old link still works. Check your connection and try again.');
+      showAlert('Link not reset', PORTAL_RESET_NOT_RESET_NOTE);
       return;
     }
-    // (No held key means no link on screen that could be dead: the link is
-    // still being fetched and Copy / Share are already locked for that.)
-    if (heldBefore) markResetUnconfirmed(heldBefore);
-    showAlert(
-      'Reset not confirmed',
-      'We couldn’t reach the server to confirm whether the link was reset, so your client’s old link may no longer work. When you have a connection, tap Check link under Portal link before you copy or send it.',
-    );
-  }, [id, adoptRotated, markResetUnconfirmed, announceLinkReset]);
+    forgetHeldKey();
+    showAlert('Reset not confirmed', PORTAL_RESET_UNKNOWN_NOTE);
+  }, [id, adoptRotated, announceLinkReset, forgetHeldKey]);
 
   const performLinkReset = useCallback(async () => {
     if (!id || !project?.clientPortal?.enabled) return;
@@ -1699,7 +1680,6 @@ function ClientPortalSetupScreenInner() {
       }
       if (rotated) {
         adoptRotated(rotated);
-        markResetUnconfirmed(null);
         announceLinkReset();
         return;
       }
@@ -1707,7 +1687,7 @@ function ClientPortalSetupScreenInner() {
     } finally {
       setResettingLink(false);
     }
-  }, [id, project?.clientPortal, portal.accessToken, adoptRotated, markResetUnconfirmed, announceLinkReset, settleResetFromServer]);
+  }, [id, project?.clientPortal, portal.accessToken, adoptRotated, announceLinkReset, settleResetFromServer]);
 
   const handleResetLink = useCallback(() => {
     if (warnIfSample()) return;
@@ -1716,8 +1696,10 @@ function ClientPortalSetupScreenInner() {
       showAlert('Save this portal first', 'There is no client link to reset until the portal is saved.');
       return;
     }
-    // No key on this device yet: there is nothing to compare the server's
-    // answer with, so the link is fetched first (same words as Copy / Share).
+    // No key on this device yet (still being fetched, or dropped after a reset
+    // nobody could confirm): there is nothing to compare the server's answer
+    // with, so the link is fetched first — same words as Copy / Share. This is
+    // also what stops a second reset on top of an unconfirmed one.
     if (warnIfLinkPending()) return;
     if (isOfflineNow()) {
       showAlert('You’re offline', 'Resetting the link needs a connection. It changes who can open your client’s portal, so it happens on the server right away and is never saved to send later. Try again when you’re back online.');
@@ -1728,26 +1710,6 @@ function ClientPortalSetupScreenInner() {
       { text: 'Reset link', style: 'destructive', onPress: () => { void performLinkReset(); } },
     ]);
   }, [warnIfSample, ownerOnlyReason, id, project?.clientPortal?.enabled, warnIfLinkPending, performLinkReset]);
-
-  // "Check link": after a reset nobody could confirm, ask the server again.
-  // It never rotates — a second reset on top of an unconfirmed one would only
-  // add a second unknown.
-  const handleCheckLink = useCallback(async () => {
-    if (warnIfSample()) return;
-    if (!id) return;
-    const heldBefore = UNCONFIRMED_RESETS.get(id);
-    if (heldBefore === undefined) return;
-    if (isOfflineNow()) {
-      showAlert('You’re offline', 'Checking the link needs a connection. Try again when you’re back online, before you copy or send the link.');
-      return;
-    }
-    setResettingLink(true);
-    try {
-      await settleResetFromServer(heldBefore);
-    } finally {
-      setResettingLink(false);
-    }
-  }, [warnIfSample, id, settleResetFromServer]);
 
   const handleDisablePortal = useCallback(() => {
     showAlert('Turn off the portal?', 'Every client loses access to the portal.', [
@@ -1883,7 +1845,9 @@ function ClientPortalSetupScreenInner() {
               owner shares the link); on a never-saved portal the key arrives
               when the GC taps Save; a heal that gave up says so, with Retry. */}
           <Text style={styles.linkHint} testID="portal-link-hint">
-            {linkOwnerOnly
+            {sampleJob && linkPending
+              ? 'Sample job \u2014 a sample never gets a client link.'
+              : linkOwnerOnly
               ? 'Only the project owner can share the client link. It carries the key that lets your client sign change orders, and that key stays with the owner\u2019s account \u2014 ask them to send it.'
               : linkNeedsSave
                 ? 'Tap Save to finish securing this link — that is when the key your client needs to sign change orders is created.'
@@ -2027,22 +1991,20 @@ function ClientPortalSetupScreenInner() {
               <>
                 <TouchableOpacity
                   style={[styles.generateLinkBtn, (isCollaborator || resettingLink) && styles.generateLinkBtnDisabled]}
-                  onPress={resetUnconfirmed ? handleCheckLink : handleResetLink}
+                  onPress={handleResetLink}
                   disabled={isCollaborator || resettingLink}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={resetUnconfirmed ? 'Check link' : 'Reset link'}
+                  accessibilityLabel="Reset link"
                   accessibilityState={{ disabled: isCollaborator || resettingLink, busy: resettingLink }}
                   testID="portal-reset-link-btn"
                 >
                   <Lock size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resetUnconfirmed ? (resettingLink ? 'Checking\u2026' : 'Check link') : (resettingLink ? 'Resetting\u2026' : 'Reset link')}</Text>
+                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resettingLink ? 'Resetting\u2026' : 'Reset link'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.expiryHint} testID="portal-reset-link-hint">
                   {isCollaborator
                     ? 'Only the project owner can reset the client link.'
-                    : resetUnconfirmed
-                      ? 'We couldn\u2019t confirm whether your last reset went through, so the link above may no longer work. Tap Check link before you copy or send it. Needs a connection.'
                     : 'Makes a new link and the old one stops working. Use it if the link reached someone it shouldn\u2019t have, then send the new one to your client. Needs a connection.'}
                 </Text>
               </>

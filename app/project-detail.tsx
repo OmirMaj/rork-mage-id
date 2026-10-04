@@ -105,7 +105,8 @@ import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase } from '@/lib/supabase';
-import { portalShareUrl, maskPortalLinkToken, proposalBlockReason } from '@/utils/portalSnapshot';
+import { portalShareUrl, maskPortalLinkToken, proposalBlockReason, SAMPLE_PORTAL_REASON } from '@/utils/portalSnapshot';
+import { isSampleProject } from '@/utils/sampleGuard';
 import { Button } from '@/components/ui';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
@@ -665,6 +666,7 @@ export default function ProjectDetailScreen() {
   // this morning's photos, would take them off the homeowner's page. It runs
   // again when the flag turns true (it is a dependency).
   useEffect(() => {
+    if (isSampleProject(project)) return; // PORTALFIX: no client-portal post from a sample (utils/sampleGuard)
     if (!project || !portalListsServerRead) return;
     const t = setTimeout(() => {
       void syncPortalSnapshotLite(project.id, {
@@ -4627,6 +4629,8 @@ export default function ProjectDetailScreen() {
                   style={styles.portalEnableBtn}
                   testID="portal-enable-btn"
                   onPress={() => {
+                    // PORTALFIX: a sample never gets a portal — refused before any write, with the reason.
+                    if (isSampleProject(project)) { showAlert('Sample job', SAMPLE_PORTAL_REASON); return; }
                     updateProject(id ?? '', {
                       clientPortal: {
                         enabled: true,

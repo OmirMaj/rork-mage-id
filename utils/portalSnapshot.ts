@@ -2763,6 +2763,23 @@ export function portalResetOutcome(
   return now === held ? { kind: 'not-reset' } : { kind: 'reset', token: now };
 }
 
+/** Said ONLY when the server was read after the call and still holds the very
+ *  key this device held ('not-reset'). The one place "still works" is said. */
+export const PORTAL_RESET_NOT_RESET_NOTE = 'We checked with the server and it still has the same link, so your client\u2019s old link still works. Check your connection and try again.';
+
+/** Said when the read-back failed too ('unknown'): only what is known. The
+ *  screen drops the key it held, so the link shown next is the server's. */
+export const PORTAL_RESET_UNKNOWN_NOTE = 'We couldn\u2019t confirm whether the link was reset, so your client\u2019s old link may have stopped working. Open this screen again when you have a connection (or tap Retry under the link) to see the current link before you send anything.';
+
+/**
+ * PORTALFIX · why a Sample project never gets a client portal, in one place so
+ * every door says the same thing: the Enable button on the project page
+ * (app/project-detail.tsx) and the Client Portal screen's alerts and banner
+ * (which adds what stays off on that screen). utils/sampleGuard.ts promises
+ * "no client-portal post" from a sample.
+ */
+export const SAMPLE_PORTAL_REASON = 'Sample job \u2014 a client portal never goes out from a sample. Create a real project to share a portal with your client.';
+
 /**
  * The customer-facing portal origin. ONE definition on the client, mirroring
  * `PORTAL_BASE` in supabase/functions/_shared/portalLinks.ts.
