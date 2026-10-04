@@ -21,6 +21,32 @@ import { SMOKE_USER, PROJECT_ID, world } from '@/__tests__/fixtures/world';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { __resetTutorialStoreForTest, dispatchTutorial, getTutorialState } from '@/utils/tutorial/store';
 
+// The purchase modal shows its Upgrade button only for a plan the store sells
+// (App Store wave: with no package it says "Plans couldn't load" and has no
+// buy button). The harness world has no RevenueCat key, so the six packages
+// are supplied through useSubscription. The real provider stays mounted and
+// every other field, the Free tier under test included, is the real value.
+// Without this, 'paywall-upgrade-btn' could never render and the "no paywall"
+// assertions below would pass for the wrong reason.
+jest.mock('@/contexts/SubscriptionContext', () => {
+  const actual = jest.requireActual('@/contexts/SubscriptionContext');
+  const pkg = (identifier: string, price: number, priceString: string) => ({
+    identifier,
+    packageType: 'CUSTOM',
+    offeringIdentifier: 'default',
+    product: { identifier: `com.mageid.${identifier.replace('_', '.')}`, price, priceString, title: identifier, description: '', currencyCode: 'USD' },
+  });
+  const packages = {
+    proPackage: pkg('pro_monthly', 29.99, '$29.99'),
+    proAnnualPackage: pkg('pro_annual', 289.99, '$289.99'),
+    businessPackage: pkg('business_monthly', 79.99, '$79.99'),
+    businessAnnualPackage: pkg('business_annual', 769.99, '$769.99'),
+    enterprisePackage: pkg('enterprise_monthly', 149.99, '$149.99'),
+    enterpriseAnnualPackage: pkg('enterprise_annual', 1439.99, '$1,439.99'),
+  };
+  return { ...actual, useSubscription: () => ({ ...actual.useSubscription(), ...packages }) };
+});
+
 const SAMPLE_ID = '66666666-6666-4666-8666-666666666666';
 const REAL_CO_ID = '88888888-8888-4888-8888-888888888888';
 const REAL_INV_ID = '99999999-9999-4999-8999-999999999999';
