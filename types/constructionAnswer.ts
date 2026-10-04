@@ -48,4 +48,9 @@ export interface ConstructionAnswerResult {
   verified: boolean;
   disclaimer?: string | null;
   usedAI: boolean;
+  /** Code cards (construction-answer with `codeCards: true`): the answer's
+   *  requirements as RAW rows. Absent on an older function, [] when none was
+   *  usable. Never render these directly: utils/codeCard/parse.ts
+   *  parseCodeCardItems re-checks every row on the device. */
+  requirements?: unknown[];
 }

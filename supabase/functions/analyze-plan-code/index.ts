@@ -28,6 +28,23 @@
 // against the pre-sweep base). Tiering, caps, the hourly bucket, CORS and the
 // error bodies are unchanged; `evidence` stays server-stamped.
 //
+// Code cards (lane CCSERVER, 2026-10-03): a sweep request may also carry
+// `sweep.codeCards: true`. Only then does the prompt ask for a `status`
+// ('fix' | 'ask' | 'ok') and a guessed inspection `stage` on every row, and
+// only then does the result carry them: each finding gains `status` ('fix' or
+// 'ask', never 'ok'), `stage` (or null) and `stageIsGuess: true`, and the rows
+// the model says look right as drawn come back in a SEPARATE `lookRight` list
+// (status 'ok'), so no consumer can turn one into an architect question or an
+// RFI draft by accident (an ok row's question is null and its severity low,
+// and there are at most 10 of them). An 'ok' row with nothing observed is
+// dropped, and a status the model left out or garbled reads 'ask', never 'ok'. Without the
+// flag the result is byte-identical to what it was, and the prompt is the
+// earlier prompt plus ONE line (2026-10-04, sent on every Plan Review and
+// sweep, flag or not): write short plain sentences, no quotation marks, inches
+// as in. and feet as ft. scripts/validate-code-card-server.ts pins both: the
+// result against the untouched file, each prompt as "the untouched prompt plus
+// exactly that line".
+//
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -94,8 +111,24 @@ interface PlanCodeRequest {
    *  utils/codeJurisdiction.groundingFactsFor. Exactly the text the prompt
    *  carries and the chip shows, so the two can never disagree. */
   jurisdictionBlock?: string;
-  /** Plan Set Code Sweep only. Absent on every Plan Review call. */
-  sweep?: { scopeTargets?: unknown };
+  /** Plan Set Code Sweep only. Absent on every Plan Review call.
+   *  `codeCards: true` (code cards) adds status + stage + lookRight. */
+  sweep?: { scopeTargets?: unknown; codeCards?: unknown };
+}
+
+/** The inspection a row's item is checked at — the client's CodeStage. */
+const CODE_CARD_STAGES = ["footing", "foundation", "framing", "rough", "insulation", "final", "other"] as const;
+/** The row fields a code-card sweep adds to the JSON shape, spliced in before
+ *  the closing of each finding. */
+const CODE_CARD_ROW_FIELDS = `,"status":"fix|ask|ok","stage":"${CODE_CARD_STAGES.join("|")}"`;
+
+/**
+ * True only for a sweep object whose `codeCards` is exactly `true`. Anything
+ * else (absent, "true", 1, a Plan Review call with no sweep) is the old path.
+ */
+function sweepCodeCardsOf(sweep: unknown): boolean {
+  if (!sweep || typeof sweep !== "object" || Array.isArray(sweep)) return false;
+  return (sweep as { codeCards?: unknown }).codeCards === true;
 }
 
 /**
@@ -131,6 +164,10 @@ function buildPrompt(req: PlanCodeRequest): string {
   // below is '' there and filter(Boolean) drops it — the Plan Review prompt is
   // byte-identical to what it was before the sweep existed.
   const sweep = sweepTargetsOf(req.sweep);
+  // Code cards: false on every Plan Review call and on every sweep without the
+  // flag, so each entry below that reads it is '' there (dropped by the filter).
+  const cards = sweep !== null && sweepCodeCardsOf(req.sweep);
+  const sweepShape = '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires, paraphrased in your own words","observed":"what the drawing shows","severity":"high|med|low","confidence":"high|med|low","question":"one plain question the contractor can send the architect about this item, phrased as a question","location":{"x":0.0-1.0,"y":0.0-1.0}}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}';
   return [
     "You are a meticulous building-code plan reviewer. Review THIS construction drawing for LIKELY code issues a plan examiner would flag.",
     `Project location: ${loc}. Project type: ${ptype}.`,
@@ -144,15 +181,25 @@ function buildPrompt(req: PlanCodeRequest): string {
     sweep
       ? "Write every field as a question or an observation for the architect. Never use the words 'violation', 'violates', 'non-compliant', 'fails code' or 'illegal'."
       : "",
+    cards
+      ? "Give every row a status. fix: the sheet shows something that looks like it misses the requirement. ask: the sheet does not show enough to tell, so it is a question for the architect. ok: an item in the contractor's scope that you can see drawn and that looks right as drawn. Add ok rows too, but only for items you can actually see on this sheet, and say in observed what you saw. At most 10 ok rows. If you are unsure, use ask."
+      : "",
+    cards
+      ? `stage is your best guess at which inspection checks the item: ${CODE_CARD_STAGES.join(", ")}. It is a guess the contractor can change.`
+      : "",
     "Only flag what you can ACTUALLY SEE in the drawing. Prefer fewer high-confidence findings over speculation. This is a PRE-CHECK the GC will verify against their AHJ — it is not a substitute for plan review.",
     "You cannot look anything up: every section number is your own recall. Give a section only when you are certain of it; otherwise leave section empty and describe the requirement.",
     "Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.",
+    // The app shows a line only when it reads as plain words (its own-words
+    // gate: no quotation marks, no sentence over 25 words). An inch written
+    // as a mark, or a drawing note copied in quotes, costs the contractor the line.
+    `Write ${sweep ? "requirement, observed and question" : "requirement and observed"} as short plain sentences of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`,
     juris
       ? "For each finding, citedEdition is the code family and edition you are citing, exactly as named in the jurisdiction block above when that block covers it, and section is the section number alone."
       : "For each finding, citedEdition is the model-code family and the edition year you are recalling (the family alone if you are unsure of the year), and section is the section number alone.",
     "Return STRICT JSON of this exact shape and nothing else:",
     sweep
-      ? '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires, paraphrased in your own words","observed":"what the drawing shows","severity":"high|med|low","confidence":"high|med|low","question":"one plain question the contractor can send the architect about this item, phrased as a question","location":{"x":0.0-1.0,"y":0.0-1.0}}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}'
+      ? (cards ? sweepShape.replace('}}],"disclaimer"', `}${CODE_CARD_ROW_FIELDS}}],"disclaimer"`) : sweepShape)
       : '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires, paraphrased in your own words","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
     sweep
       ? "location is the approximate centre of the item on the sheet as a fraction of width/height, or null if you cannot place it."
@@ -170,6 +217,11 @@ function buildPrompt(req: PlanCodeRequest): string {
  * "evidence": "verified" is ignored, and so is any other field it invents.
  */
 const PLAN_FINDING_EVIDENCE = "model_recall" as const;
+/** The same seven stages the prompt offers (CODE_CARD_STAGES above), repeated
+ *  so this block runs on its own; validate-code-card-server keeps them equal. */
+const PLAN_CARD_STAGES = ["footing", "foundation", "framing", "rough", "insulation", "final", "other"] as const;
+/** The prompt asks for at most 10 ok rows; the server holds it to that. */
+const PLAN_LOOK_RIGHT_MAX = 10;
 interface PlanFindingOut {
   category: string;
   codeRef: string;
@@ -183,8 +235,17 @@ interface PlanFindingOut {
   /** Sweep only — never a key on a Plan Review finding. */
   question?: string | null;
   location?: { x: number; y: number } | null;
+  /** Code-card sweep only (`sweep.codeCards: true`). A finding is 'fix' or
+   *  'ask'; 'ok' rows live in `lookRight`, never in `findings`. */
+  status?: "fix" | "ask" | "ok";
+  stage?: string | null;
+  stageIsGuess?: true;
 }
-function normalizePlanResult(raw: unknown, sweep = false): { findings: PlanFindingOut[]; disclaimer: string } {
+function normalizePlanResult(
+  raw: unknown,
+  sweep = false,
+  cards = false,
+): { findings: PlanFindingOut[]; disclaimer: string; lookRight?: PlanFindingOut[] } {
   // One line, bounded: a model string never carries a newline or a wall of text
   // into a card, and never an empty-looking value that is only whitespace.
   const clip = (v: unknown, max: number): string =>
@@ -205,12 +266,19 @@ function normalizePlanResult(raw: unknown, sweep = false): { findings: PlanFindi
   };
   const list = Array.isArray(obj.findings) ? obj.findings.slice(0, 40) : [];
   const findings: PlanFindingOut[] = [];
+  // Code cards only. The stage is the model's guess and is labelled one; a
+  // stage outside the client's list is null, never coerced to a near match.
+  const lookRight: PlanFindingOut[] = [];
+  const cardStage = (v: unknown): string | null => {
+    const s = clip(v, 20).toLowerCase();
+    return (PLAN_CARD_STAGES as readonly string[]).includes(s) ? s : null;
+  };
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const f = item as Record<string, unknown>;
     const citedEdition = clip(f.citedEdition, 80);
     const section = clip(f.section, 40);
-    findings.push({
+    const row: PlanFindingOut = {
       category: clip(f.category, 20),
       codeRef: clip(f.codeRef, 120),
       citedEdition: citedEdition || null,
@@ -224,9 +292,29 @@ function normalizePlanResult(raw: unknown, sweep = false): { findings: PlanFindi
       // the approximate centre on the sheet, both clamped or null. A Plan
       // Review call never gets these keys, whatever the model wrote.
       ...(sweep ? { question: sweepQuestion(f.question), location: sweepLocation(f.location) } : {}),
-    });
+    };
+    if (!(sweep && cards)) {
+      findings.push(row);
+      continue;
+    }
+    // 'ok' only when the model said exactly that AND said what it saw; an ok
+    // with nothing observed is dropped (an unsupported "looks right" is worse
+    // than no row). Anything that is not 'fix' or 'ok' is a question: 'ask'.
+    const said = clip(f.status, 8).toLowerCase();
+    const stage = cardStage(f.stage);
+    // An ok row carries no architect question and no alarm: question null,
+    // severity low, so a renderer that reuses the findings row can never offer
+    // "Ask architect" on something that looks right.
+    if (said === "ok") {
+      if (row.observed && lookRight.length < PLAN_LOOK_RIGHT_MAX) {
+        lookRight.push({ ...row, severity: "low", question: null, status: "ok", stage, stageIsGuess: true });
+      }
+      continue;
+    }
+    findings.push({ ...row, status: said === "fix" ? "fix" : "ask", stage, stageIsGuess: true });
   }
-  return { findings, disclaimer: clip(obj.disclaimer, 300) };
+  const disclaimer = clip(obj.disclaimer, 300);
+  return sweep && cards ? { findings, disclaimer, lookRight } : { findings, disclaimer };
 }
 // </pure:normalizePlanResult>
 
@@ -322,6 +410,13 @@ serve(async (req) => {
       }, 429);
     }
 
+    // Code cards: a sweep that opted in gets status, stage and lookRight. Same
+    // call, same charge; without the flag the sweep branch below runs as before.
+    if (sweepCodeCardsOf(body.sweep)) {
+      const carded = normalizePlanResult(await callGemini(body), true, true);
+      const cardsUsed = await aiUsageIncrement(auth.userId, "plan_code_review");
+      return jsonResponse({ success: true, data: carded, usage: { used: cardsUsed, cap } });
+    }
     // Plan Set Code Sweep: the same call, charged the same way, normalized with
     // the sweep fields. The Plan Review path below is untouched.
     if (sweepTargetsOf(body.sweep) !== null) {

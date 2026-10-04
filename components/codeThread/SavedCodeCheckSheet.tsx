@@ -28,6 +28,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCodeChecks, useCodeCheckSyncState } from '@/hooks/useCodeChecks';
 import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
+import { isStandInLine, passesEchoCheck } from '@/utils/codeCard/echoCheck';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
 import type { CodeCheckRecord, CodeThreadSection, CodeThreadSourceKind } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
@@ -49,6 +50,23 @@ const SOURCE_LABEL: Record<CodeThreadSourceKind, string> = {
 
 export const BUILDING_RECORD_NOT_CHECKED_TEXT = 'The building record was not checked for this check.';
 
+/** Why a saved code row offers no actions (the result screen's own words). */
+export const SAVED_ROW_NO_ACTIONS = 'No actions for this line: it has no requirement in words to put in a permit, a punch item or an RFI.';
+
+/**
+ * THE WITHHOLD RULE, on a saved check. A check saved before the own-words gate
+ * holds the AI's raw line, and one saved since may hold MAGE's stand-in notice
+ * for a line it withheld. The line is shown and filed only when it is a
+ * requirement in words: it passes the same gate as a code card
+ * (utils/codeCard/echoCheck, the card's cap of 400) and is not a stand-in.
+ * Otherwise '': the bullet shows the citation alone and the row offers no
+ * actions. The stored record is never changed.
+ */
+export function savedRequirementWords(requirement: string | null | undefined): string {
+  const line = requirement ?? '';
+  return line.trim() && !isStandInLine(line.trim()) && passesEchoCheck(line, 400) ? line : '';
+}
+
 /**
  * The frozen record's four item lists. `items` is the displayed bullet;
  * `actionTexts[i]` is what an action (punch item / RFI / permit) carries. For
@@ -69,10 +87,11 @@ export function recordSections(
     {
       section: 'codes',
       title: 'Applicable codes',
-      items: codes.map((c) =>
-        [c.code, c.section].filter(Boolean).join(' ') + (c.requirement ? `: ${c.requirement}` : ''),
-      ),
-      actionTexts: codes.map((c) => c.requirement ?? ''),
+      items: codes.map((c) => {
+        const words = savedRequirementWords(c.requirement);
+        return [c.code, c.section].filter(Boolean).join(' ') + (words ? `: ${words}` : '');
+      }),
+      actionTexts: codes.map((c) => c.requirement ?? '').map(savedRequirementWords),
     },
     plain('permits', 'Permits', r?.permitsRequired),
     plain('inspections', 'Inspections', r?.inspections),
@@ -153,15 +172,21 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
                   {s.items.map((text, i) => (
                     <View key={`${s.section}-${i}`} style={styles.item}>
                       <Text style={styles.body}>{`• ${text}`}</Text>
-                      <CodeThreadActions
-                        record={record}
-                        project={project}
-                        section={s.section}
-                        index={i}
-                        text={s.actionTexts[i] ?? text}
-                        onBeforeNavigate={onClose}
-                        key={`${s.section}-${i}-${s.actionTexts[i] ?? ''}`}
-                      />
+                      {/* A code row with no requirement in words has nothing to
+                          put in a permit, a punch item or an RFI: it says why. */}
+                      {s.section === 'codes' && !s.actionTexts[i] ? (
+                        <Text style={styles.fine} testID={`codethread-saved-no-actions-${i}`}>{SAVED_ROW_NO_ACTIONS}</Text>
+                      ) : (
+                        <CodeThreadActions
+                          record={record}
+                          project={project}
+                          section={s.section}
+                          index={i}
+                          text={s.actionTexts[i] ?? text}
+                          onBeforeNavigate={onClose}
+                          key={`${s.section}-${i}-${s.actionTexts[i] ?? ''}`}
+                        />
+                      )}
                     </View>
                   ))}
                 </View>
