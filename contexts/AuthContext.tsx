@@ -3,15 +3,17 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase, onSessionExpired } from '@/lib/supabase';
+import { supabase, onSessionExpired, markLogoutUnreachable } from '@/lib/supabase';
 import { edgeFunctionError } from '@/utils/edgeError';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
 import { OWNER_STAMPED_PENDING_KEYS, selectTenantKeysToWipe } from '@/utils/localCacheKeys';
-import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
+import { processOfflineQueue, getOfflineQueue, getOwnOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
 import { runPreSignOutFlushes } from '@/utils/preSignOutFlush';
-import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
+import { processPhotoUploadQueue, clearPhotoUploadQueue, getOwnPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
+import { planSignOut, signOutPhaseAtStart, type SignOutPhase } from '@/utils/signOutTiming';
+import { isOfflineNow } from '@/hooks/useOnline';
 import { clearAudioTranscribeQueue, retainAudioTranscribeQueueForUser } from '@/utils/audioTranscribeQueue';
 import { clearSyncFailures, retainSyncFailuresForUser } from '@/utils/syncLedger';
 import { track, AnalyticsEvents } from '@/utils/analytics';
@@ -146,6 +148,13 @@ function decodeJwtClaims(token: string | null | undefined): { sub?: string; emai
 // refusal. Same order OfflineSyncManager (app/_layout.tsx) drains in. The
 // ceiling still covers the pair, so the sign-out button cannot hang; a leg
 // that throws does not skip the other.
+//
+// NOTHING PENDING COSTS NOTHING. Every leg answers from the device when it has
+// no work: the registered flushes hold no debounced edit and no unsent AI "no",
+// and both queue drains return on an empty read before they touch the session
+// or the network. The 20 s ceiling is only ever reached with real work queued
+// on a connection that is not answering. Keep it that way — a leg that makes a
+// round trip "just to check" puts that round trip on every sign-out.
 const SIGN_OUT_FLUSH_CEILING_MS = 20_000;
 async function flushQueuesBeforeSignOut(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -657,6 +666,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // second tap while the bounded flush is still running joins the first
   // sign-out instead of starting another flush + signOut + wipe underneath it.
   const [signingOut, setSigningOut] = useState(false);
+  // What the busy button says: 'saving' while queued work is being flushed,
+  // 'signing-out' after (utils/signOutTiming). null when no sign-out is running.
+  const [signOutPhase, setSignOutPhase] = useState<SignOutPhase | null>(null);
   const logoutInFlight = useRef<Promise<void> | null>(null);
   // Auth events held back from React while a handoff runs (utils/authEventHold):
   // the mount's marker check and signup() hold them, so no provider hydrates
@@ -1281,7 +1293,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // cleared, and a flush that outlives the ceiling stops dispatching on its
       // own the moment the session below is gone (utils/offlineQueue.ts B1) —
       // it cannot send anything anonymously or under the next user.
-      await flushQueuesBeforeSignOut();
+      //
+      // FAST SIGN-OUT (utils/signOutTiming). The flush and the push-token
+      // release both need the live session and nothing from each other, so they
+      // run side by side — and BOTH settle, or hit their own ceiling, before
+      // the session is touched. One after the other they cost 20 s + 3 s on a
+      // connection that answers nothing; together, the longer of the two.
+      const plan = planSignOut({ offline: isOfflineNow() });
+      const pendingCount = await Promise.all([
+        getOwnOfflineQueue().then((q) => q.length).catch(() => 0),
+        getOwnPhotoUploadQueue().then((q) => q.length).catch(() => 0),
+      ]).then(([queued, photos]) => queued + photos);
+      setSignOutPhase(signOutPhaseAtStart(pendingCount));
       // #44 (wave 5): release this phone's push token WHILE the session still
       // lives — only when the profile still holds THIS phone's token (web and
       // a second device leave the phone that owns it alone). Left on the profile, every push to this account (notify,
@@ -1291,9 +1314,20 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // the wipe below empties it. Best-effort and bounded — a failure or an
       // offline sign-out never holds sign-out up; the token left behind is
       // cleared server-side when the next account on this phone registers it
-      // (profiles_claim_push_token, 20260923240000).
-      await releasePushTokenBeforeSignOut();
-      const { error } = await supabase.auth.signOut();
+      // (profiles_claim_push_token, 20260923240000). Offline it is not started
+      // at all: it is two requests that cannot be answered.
+      await Promise.all([
+        flushQueuesBeforeSignOut(),
+        plan.releasePushToken ? releasePushTokenBeforeSignOut() : Promise.resolve(),
+      ]);
+      setSignOutPhase('signing-out');
+      // The session dies here. Online: revoke it everywhere first — one request,
+      // aborted after SIGN_OUT_NETWORK_CEILING_MS by lib/supabase.ts so it can
+      // neither hang the button nor hold the auth lock. Offline: no request that
+      // cannot be answered; straight to the local sign-out.
+      // (The typeof: the jest Supabase mock has no such export.)
+      if (!plan.tryGlobal && typeof markLogoutUnreachable === 'function') markLogoutUnreachable();
+      const { error } = plan.tryGlobal ? await supabase.auth.signOut() : { error: new Error('the device is offline') };
       if (error) {
         // A FAILED signOut LEAVES THE SESSION ON THE DEVICE. The default scope is
         // 'global', which needs the network; when that call fails the token is
@@ -1303,8 +1337,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         // the next launch. On a shared office machine that is the wrong person's
         // jobs, costs and client data.
         //
-        // scope:'local' does no network round-trip, so it cannot fail the same
-        // way. Whatever happened upstream, the local session dies here.
+        // scope:'local' is what removes it. auth-js posts /logout for a local
+        // sign-out too and, left alone, keeps the session when that request
+        // gets no reply — so lib/supabase.ts answers an unreachable local
+        // /logout itself (boundedLogoutFetch). Whatever happened upstream, the
+        // local session dies here.
         console.log('[Auth] Logout error, forcing local sign-out:', error.message);
         const { error: localErr } = await supabase.auth.signOut({ scope: 'local' });
         if (localErr) console.warn('[Auth] Local sign-out ALSO failed:', localErr.message);
@@ -1332,6 +1369,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     logoutInFlight.current = run.finally(() => {
       logoutInFlight.current = null;
       setSigningOut(false);
+      setSignOutPhase(null);
     });
     return logoutInFlight.current;
   }, [queryClient]);
@@ -1388,8 +1426,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     // origin — and a page reload rehydrated a zombie session that 401s on every
     // request. The user sees a broken app rather than a clean signed-out one.
     //
-    // scope:'local' does no network round-trip, which matters here precisely
-    // because there is no longer a server-side user to sign out.
+    // scope:'local' removes the session on this device whether or not the
+    // server answers (lib/supabase.ts boundedLogoutFetch), which matters here
+    // precisely because there is no longer a server-side user to sign out.
     try {
       const { error: soErr } = await supabase.auth.signOut({ scope: 'local' });
       if (soErr) console.log('[Auth] deleteAccount: local sign-out failed:', soErr.message);
@@ -1869,6 +1908,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     hasStoredCredentials,
     sessionExpiredReason,
     signingOut,
+    signOutPhase,
     login,
     signup,
     logout,
@@ -1883,5 +1923,5 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     beginSessionFromToken,
     onNewSessionEstablished,
     clearInviteToken,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, sessionExpiredReason, signingOut, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, beginSessionFromToken, onNewSessionEstablished, clearInviteToken]);
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, sessionExpiredReason, signingOut, signOutPhase, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, beginSessionFromToken, onNewSessionEstablished, clearInviteToken]);
 });

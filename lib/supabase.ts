@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { SIGN_OUT_NETWORK_CEILING_MS, isLogoutUrl, logoutFailurePlan, logoutReplyPlan, logoutRequestPlan, logoutScopeOf } from '@/utils/signOutTiming';
 
 // Single source of truth for the project's Supabase URL + anon key.
 // Falls back to hardcoded production credentials so the app works even
@@ -46,7 +47,8 @@ let _supabase: SupabaseClient | null = null;
 // or refreshed tokens keep being rejected — it notifies AuthContext, which
 // signs out locally and shows "session expired". GoTrue's own requests
 // (`/auth/v1/…`, the refresh included) are passed through untouched so the
-// guard can never recurse into itself.
+// guard can never recurse into itself — with one exception that has nothing
+// to do with the guard: /auth/v1/logout is bounded (boundedLogoutFetch below).
 type SessionExpiredListener = () => void;
 const sessionExpiredListeners = new Set<SessionExpiredListener>();
 
@@ -190,10 +192,60 @@ async function currentAccessToken(): Promise<{ token: string | null; dead: boole
 // token within seconds anyway.
 const VERDICT_PATHS = ['/rest/v1/', '/storage/v1/'] as const;
 
+// ── Sign-out: a bounded /logout, and a local sign-out that cannot fail ──────
+// Rules and reasons: utils/signOutTiming.ts. Two facts about auth-js 2.103
+// make this the only place they can be enforced:
+//   • `signOut()` awaits its POST /logout INSIDE the auth lock. A request the
+//     network never answers held that lock until the OS gave up (about a
+//     minute), and every other auth call — the local fallback included —
+//     queued behind it. Racing a timer in the caller would not have freed it;
+//     aborting the request does.
+//   • `signOut({ scope: 'local' })` ALSO posts /logout, and on a network
+//     failure returns the error without removing the session. Offline, the
+//     token stayed on the device under a logged-out UI. A local sign-out that
+//     cannot reach the server (or that the server answers with an error) is
+//     therefore answered here with GoTrue's own "session not found" reply,
+//     which auth-js reads as "remove the session".
+let logoutUnreachableAt: number | null = null;
+
+/** The device is offline, or a /logout just went unanswered: the local
+ *  sign-out that follows must not wait on the network. */
+export function markLogoutUnreachable(): void {
+  logoutUnreachableAt = Date.now();
+}
+
+function localLogoutAnswer(): Response {
+  const body = JSON.stringify({ code: 403, error_code: 'session_not_found', msg: 'Signed out on this device; the server was not reached.' });
+  return new Response(body, { status: 403, headers: { 'Content-Type': 'application/json' } });
+}
+
+async function boundedLogoutFetch(input: RequestInfo | URL, init: RequestInit | undefined, url: string): Promise<Response> {
+  const scope = logoutScopeOf(url);
+  const msSinceUnreachable = logoutUnreachableAt === null ? null : Date.now() - logoutUnreachableAt;
+  if (logoutRequestPlan({ scope, msSinceUnreachable }) === 'answer-locally') return localLogoutAnswer();
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), SIGN_OUT_NETWORK_CEILING_MS) : undefined;
+  try {
+    const response = await fetch(input, controller ? { ...init, signal: controller.signal } : init);
+    return logoutReplyPlan({ scope, ok: response.ok }) === 'answer-locally' ? localLogoutAnswer() : response;
+  } catch (err) {
+    // No reply at all (offline, or the ceiling aborted it).
+    markLogoutUnreachable();
+    if (logoutFailurePlan(scope) === 'answer-locally') return localLogoutAnswer();
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // Exported for __tests__/sync/session-guard.test.ts, which drives this wrapper
 // directly: the concurrency it has to survive (N requests leaving with the same
 // token, all 401ing, ONE refresh) cannot be reproduced through the client.
 export const sessionGuardedFetch: typeof fetch = async (input, init) => {
+  // GoTrue's sign-out is the one /auth/v1/ request this wrapper shapes: bounded,
+  // and never able to leave the session on the device (see above).
+  const requestUrl = urlOf(input);
+  if (isLogoutUrl(requestUrl)) return boundedLogoutFetch(input, init, requestUrl);
   const response = await fetch(input, init);
   const token = bearerOf(input, init);
   const url = urlOf(input);
