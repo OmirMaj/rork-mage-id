@@ -309,7 +309,7 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     expect(screen.getByTestId('reports-wip')).toBeTruthy();
     expect(screen.getByTestId('reports-toolbar')).toBeTruthy();
     // The hero repeated the title; on desktop web only the header says it.
-    expect(screen.getAllByText('Bank-ready reports')).toHaveLength(1);
+    expect(screen.getAllByText('Reports for your bank')).toHaveLength(1);
     const table = textsOf('reports-wip');
     const [fContract] = after(table, 'Total', 1);
     expect(fContract).toBe(valueAfterLabel('Revised contract'));

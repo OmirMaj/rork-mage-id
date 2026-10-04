@@ -38,6 +38,12 @@
 //      every exit and every approve pinned to the one hold). A locked change
 //      order shows the rows its PDF prints, from the record alone
 //      (changeOrderRecordRows, pinned to utils/pdfGenerator's own branch).
+//   9. LANE SWEEP. "Bank-ready" is gone from every line a user reads (the
+//      reports screen, the WIP PDF): the "-ready" promise list is EMPTY and
+//      exact, and it reads surety-ready too. The pay-app screen's empty states
+//      say "AIA-style", and its glossary lines say what a pay app is, not what
+//      a lender requires. The project page's "Approve CO #n" asks the same
+//      hold as the change-order screen, through the same helper.
 //
 // Run: bun run scripts/validate-payfix.ts
 import { readFileSync, readdirSync, statSync } from 'fs';
@@ -117,6 +123,7 @@ const src = {
   fin: read('utils/projectFinancials.ts'),
   pay: read('app/aia-pay-app.tsx'),
   co: read('app/change-order.tsx'),
+  hub: read('app/project-detail.tsx'),
   cap: read('utils/copilot/changeOrder/coCapability.ts'),
 };
 
@@ -178,7 +185,7 @@ console.log('\n2. Labels never imply an official AIA document');
   const UNHEDGED = /AIA (G70[23]|[Pp][Aa][Yy][\s-]?[Aa][Pp][Pp][Ss]?\b|[Pp]ay [Aa]pplications?|[Bb]illing|[Dd]ocuments?\b|[Pp]rogress\b|[Ff]orms?\b|[Cc]adence\b)/;
   // A PROMISE about what somebody else accepts (fix round 3): tree-wide, in
   // any file, whatever the document.
-  const READY = /lender[- ]ready|bank[- ]ready|architect[- ]ready|official AIA (form|document)s?/i;
+  const READY = /(?:lender|bank|banker|architect|surety)s?[- ]ready|official AIA (form|document)s?/i;
   // Fix round 4 — THE SAME PROMISE WITHOUT THE WORD "ready": "Accepted by
   // lenders and architects", "the layout your architect will accept". One
   // pattern, the same one scripts/validate-marketing-claims.ts runs on the
@@ -221,6 +228,8 @@ console.log('\n2. Labels never imply an official AIA document');
     .filter(l => !/console\.(log|info|warn|error)\(/.test(l));
   const userFacingHits = (text: string): string[] => userFacing(text).filter(l => UNHEDGED.test(unhedge(l)));
   const promiseHits = (text: string): string[] => userFacing(text).filter(l => PROMISE.test(unhedge(l)));
+  /** The "-ready" promise alone (and "official AIA form"): no verb, no hedge that excuses it. */
+  const readyHits = (text: string): string[] => userFacing(text).filter(l => READY.test(unhedge(l)));
   const docTakeHits = (text: string): string[] => userFacing(text).filter(l => TAKES_DOC.test(unhedge(l)));
   // [line, is an unhedged label, is a promise]
   const SELF_TEST: [string, boolean, boolean][] = [
@@ -239,6 +248,10 @@ console.log('\n2. Labels never imply an official AIA document');
     ["label: 'AIA® forms'", true, false], ["label: '6 invoices on AIA cadence'", true, false],
     ["label: 'Lender-ready pay application'", false, true], ["label: 'lender ready'", false, true],
     ["label: 'Bank-ready pay app'", false, true], ["label: 'Architect-ready G702'", false, true],
+    // Lane SWEEP — the reports screen's own words, the PDF's, and the surety.
+    ["<Text style={styles.title}>Bank-ready reports</Text>", false, true], ["subtitle: 'Bank-ready WIP across active projects.',", false, true],
+    ["label: 'Surety-ready WIP'", false, true], ["label: 'bank ready'", false, true], ["label: 'Banker-ready PDFs'", false, true],
+    ["<Text style={styles.title}>Reports for your bank</Text>", false, false], ["subtitle: 'WIP across active projects.',", false, false],
     ["label: 'Official AIA forms your bank accepts'", true, true], ["label: 'An official AIA document'", true, true],
     // The hedges pass — and ONLY as written.
     ["Some lenders and architects require their own or the official AIA forms.", false, false],
@@ -262,8 +275,19 @@ console.log('\n2. Labels never imply an official AIA document');
   ];
   const wrong = SELF_TEST.filter(([line, label, promise]) =>
     (userFacingHits(line).length === 1) !== label || (promiseHits(line).length === 1) !== promise).map(([line]) => line);
-  ok('the label check sees every spelling of an unhedged AIA label and every promise (lender- / bank- / architect-ready, official AIA form, accepted / expected by a lender, bank, architect or surety), and passes the hedges only as written',
+  ok('the label check sees every spelling of an unhedged AIA label and every promise (lender- / bank- / architect- / surety-ready, official AIA form, accepted / expected by a lender, bank, architect or surety), and passes the hedges only as written',
     wrong.length === 0, wrong.join(' | '));
+  const READY_SELF_TEST: [string, boolean][] = [
+    ["<Text style={styles.title}>Bank-ready reports</Text>", true], ["subtitle: 'Bank-ready WIP across active projects.',", true],
+    ["label: 'Lender-ready'", true], ["label: 'architect ready'", true], ["label: 'Surety-ready WIP'", true], ["label: 'BANK-READY'", true],
+    ["label: 'An official AIA form'", true],
+    ["<Text style={styles.title}>Reports for your bank</Text>", false], ["label: 'Connect your bank to accept invoice payments in-app.'", false],
+    ["// the bank-ready Business deliverable", false], ["{/* A screen may not call itself bank-ready */}", false],
+    ["label: 'Already paid'", false], ["label: 'Ready to send to your bank'", false],
+  ];
+  const readyWrong = READY_SELF_TEST.filter(([line, hit]) => (readyHits(line).length === 1) !== hit).map(([line]) => line);
+  ok('…and the "-ready" check alone sees bank- / banker- / lender- / architect- / surety-ready in any casing, with a hyphen or a space, and leaves comments and plain words alone',
+    readyWrong.length === 0, readyWrong.join(' | '));
   // [line, is a hit in a document file]
   const DOC_SELF_TEST: [string, boolean][] = [
     ["label: 'The G702 your lender requires'", true], ["label: 'Approved by architects'", true], ["label: 'Your bank will approve this draw'", true],
@@ -318,6 +342,22 @@ console.log('\n2. Labels never imply an official AIA document');
     !/lender expects/.test(src.pay) && !/lender-ready|lender ready|bank-ready|architect-ready/i.test(src.pay));
   ok('…its glossary term is "AIA-style pay app", and says it is not the official AIA document',
     /term: 'AIA-style pay app',/.test(src.pay) && /It is not the official AIA document, and some lenders and architects require their own or the official forms\./.test(src.pay));
+  // Lane SWEEP — the screen's two empty states stand ABOVE that header (no
+  // project picked, no progress invoice yet), so they name the form with the
+  // hedge themselves; and neither glossary line leans on what a lender
+  // requires or on how widely the AIA forms are used.
+  ok('the pay-app screen’s empty states say "AIA-style G702 / G703", all three sentences',
+    /message="An AIA-style G702 \/ G703 certifies one billing period against one project's schedule of values\."/.test(src.pay)
+    && /to fill the AIA-style G702\/G703 and route it for sign-off\.'/.test(src.pay)
+    && /MAGE fills the AIA-style G702\/G703 from that invoice's schedule of values\."/.test(src.pay)
+    && !/"A G702 \/ G703 certifies/.test(src.pay) && !/(fill|fills) the G702\/G703/.test(src.pay));
+  ok('…its glossary definition says what a pay app is (a bill for one period, in the G702 / G703 layout), not where the AIA forms are standard',
+    /definition: 'A pay app \(pay application\) bills for the work completed in one period\. This one follows the layout of the G702 and G703 forms published by the American Institute of Architects \(AIA\): /.test(src.pay)
+    && !/industry-standard|bank-financed/.test(src.pay));
+  const glossarySrc = read('constants/glossary.ts');
+  ok('the shared glossary says why a pay app matters without saying what owners and lenders require',
+    /why: 'It is how one period of work gets billed, so the contractor and the owner can check the amount line by line before it is paid\.',/.test(glossarySrc)
+    && !/lenders? require|getting paid on time/i.test(glossarySrc));
   // What is left in that file is the paywall feature KEY — a lookup key, never
   // shown: components/Paywall.tsx maps it to the words on screen.
   const payHits = userFacingHits(src.pay);
@@ -340,14 +380,17 @@ console.log('\n2. Labels never imply an official AIA document');
     'app/dev-seeder.tsx': 1, // dev-only screen
     'app/dev-flagship-seeder.tsx': 1, // dev-only screen
   };
-  // The promise ratchet, the same way. Three are the WIP report calling itself
-  // "Bank-ready" — not a pay application and not this lane's files; reported
-  // in the lane handoff for a founder decision. The other two match the
-  // accept / expect pattern and promise nothing: each is pinned by its text
-  // below, so the count cannot hide a new line.
-  const KNOWN_PROMISES: Record<string, number> = {
-    'app/reports.tsx': 2,
-    'utils/financialReportPdf.ts': 1,
+  // THE "-READY" PROMISE: AN EMPTY LIST (lane SWEEP). Three lines used to be
+  // on it — the reports screen's title and hero ("Bank-ready reports") and
+  // the WIP PDF's subtitle ("Bank-ready WIP across active projects.") — held
+  // for a founder decision. He made it: the words went. Nothing may be added
+  // here; a line that says what a bank, a lender, an architect or a surety
+  // will find "ready" is a promise MAGE ID cannot keep.
+  const KNOWN_PROMISES: Record<string, number> = {};
+  // The accept / expect pattern, the same way. Two lines match it and promise
+  // nothing: each is pinned by its text below, so the count cannot hide a new
+  // line.
+  const KNOWN_ACCEPT_WORDING: Record<string, number> = {
     'app/(tabs)/settings/index.tsx': 1, // "Connect your bank to accept invoice payments in-app." — the contractor accepting a payment
     'utils/aiaForms.ts': 1, // "Architect (acceptance of substantial completion) — date" — a signature line on the G704-style form
   };
@@ -378,10 +421,22 @@ console.log('\n2. Labels never imply an official AIA document');
   const labels = ratchet(userFacingHits, KNOWN_NOT_SWEPT);
   ok('no NEW unhedged AIA label anywhere in the app (ratchet over the named list)', labels.over.length === 0, labels.over.join(', '));
   eq('…and the named list is exact (a fixed file comes off it)', byName(labels.seen), byName(KNOWN_NOT_SWEPT));
-  const promises = ratchet(promiseHits, KNOWN_PROMISES);
-  ok('no NEW promise about what a lender, bank or architect accepts, and no "official AIA form", anywhere in the app',
+  const ready = ratchet(readyHits, KNOWN_PROMISES);
+  ok('no line a user reads says bank-ready, lender-ready, architect-ready or surety-ready, and none says "official AIA form", anywhere in the app',
+    ready.over.length === 0, ready.over.join(', '));
+  eq('…that list is EMPTY, and exact (nothing is excused)', [byName(ready.seen), Object.keys(KNOWN_PROMISES).length], [[], 0]);
+  const promises = ratchet(promiseHits, KNOWN_ACCEPT_WORDING);
+  ok('no NEW promise about what a lender, bank, architect or surety accepts or expects anywhere in the app',
     promises.over.length === 0, promises.over.join(', '));
-  eq('…and that named list is exact too', byName(promises.seen), byName(KNOWN_PROMISES));
+  eq('…and that named list is exact too', byName(promises.seen), byName(KNOWN_ACCEPT_WORDING));
+  // What the three lines say now: what the thing is.
+  const reportsSrc = read('app/reports.tsx');
+  ok('the reports screen is titled "Reports for your bank", in its header and in its phone hero',
+    count(reportsSrc, /<Text style=\{styles\.title\}>Reports for your bank<\/Text>/g) === 1
+    && count(reportsSrc, /<Text style=\{styles\.reportsHeroTitle\}>Reports for your bank<\/Text>/g) === 1
+    && count(userFacing(reportsSrc).join('\n'), /Reports for your bank/g) === 2);
+  ok('the WIP PDF’s subtitle says what it is: "WIP across active projects."',
+    /\n      subtitle: 'WIP across active projects\.',\n/.test(read('utils/financialReportPdf.ts')));
   ok('…the two that promise nothing are exactly these lines',
     promiseHits(read('app/(tabs)/settings/index.tsx')).every(l => /Connect your bank to accept invoice payments in-app\./.test(l))
     && promiseHits(read('utils/aiaForms.ts')).every(l => l.trim() === '`Architect (acceptance of substantial completion) — date`,'));
@@ -1209,6 +1264,89 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
     /\n  const approveOpen = approveSheetCO !== null \|\| reflowPreviewCO !== null;\n  useEffect\(\(\) => \{\n    if \(!savedBaseHold \|\| !approveOpen\) return;\n    setApproveUnsigned\(null\);\n    setApproveSheetCO\(null\);\n    setReflowPreviewCO\(null\);\n    showAlert\('Not yet', savedBaseHold\);\n  \}, \[savedBaseHold, approveOpen\]\);\n/.test(src.co));
   ok('…`savedBaseHold` is used exactly there: its declaration, numberHold (2), the two refusals (2 each), one dependency list, and the effect (3)',
     count(coCode, /\bsavedBaseHold\b/g) === 11);
+
+  // 8h. THE PROJECT PAGE'S APPROVE (lane SWEEP). A submitted change order's
+  // row on app/project-detail.tsx has its own "Approve CO #n". It used to open
+  // the approve sheet (or the schedule preview's slide) with no question
+  // asked, so a change order held on its own screen could be approved one
+  // screen away, stale stamp and all. It asks the same hold now, through the
+  // same helper, on the same base.
+  const hubCode = codeOf(src.hub);
+  ok('HUB: the hold is utils/projectFinancials’ own (imported, not rewritten): no second copy of the sentence, no second comparison of the stamp',
+    /import \{ getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold \} from '@\/utils\/projectFinancials';/.test(src.hub)
+    && !/was built on a contract sum of/.test(src.hub) && !/coSavedBaseDiffers|originalContractValue/.test(hubCode));
+  // The page may not import the change-order route (validate-w4-co-workflow-
+  // screen), so the "approved change orders numbered below this one" sum is
+  // written out on the page — and held, here, to the screen's own function:
+  // the same filter and the same sum once `co.id` / `co.number` are read as
+  // the screen's `thisId` / `thisNumber`, under the same rounding.
+  const hubHoldFn = src.hub.slice(src.hub.indexOf('const coApproveHold = useCallback('), src.hub.indexOf('}, [changeOrders, project, approvalContract, coApproveRowContract]);'));
+  const hubPrior = /const prior = roundCents\(changeOrders\n\s+(\.filter\([^\n]+\))\n\s+(\.reduce\([^\n]+\))\);\n/.exec(hubHoldFn);
+  const screenPriorFn = src.co.slice(src.co.indexOf('export function coPriorApprovedChanges('), src.co.indexOf('\n}\n', src.co.indexOf('export function coPriorApprovedChanges(')));
+  ok('HUB: its prior approved changes are app/change-order.tsx’s coPriorApprovedChanges, filter for filter and sum for sum',
+    !!hubPrior
+    && screenPriorFn.includes(`return coRoundCents(cos\n    ${hubPrior[1].replace('c.id !== co.id', 'c.id !== thisId').replace('< co.number)', '< thisNumber)')}\n    ${hubPrior[2]});`)
+    && /import \{ invoiceOutstanding, invoiceIsSettled, roundCents \} from '@\/utils\/invoiceBilling';/.test(src.hub)
+    && /export function roundCents\(n: number\): number \{\n  if \(!Number\.isFinite\(n\)\) return 0;\n  return Math\.round\(n \* 100\) \/ 100;\n\}/.test(read('utils/invoiceBilling.ts'))
+    && /export function coRoundCents\(n: number\): number \{\n  if \(!Number\.isFinite\(n\)\) return 0;\n  return Math\.round\(n \* 100\) \/ 100;\n\}/.test(src.co),
+    hubPrior ? `${hubPrior[1]} ${hubPrior[2]}` : 'not found');
+  ok('HUB: one hold, worked out from the pieces the change-order screen uses — the contract sum the rule gives (the saved figure until a read answers) plus those prior changes',
+    /\n    const contract = project && isSampleProject\(project\) \? null : \(approvalContract !== undefined \? approvalContract : coApproveRowContract\);\n    const sum = contractSumBasis\(project, contract, savedChangeOrderOriginalSum\(co, prior\)\)\.value;\n    return coSavedBaseHold\(co, roundCents\(sum \+ prior\), \(n\) => formatMoney\(n, 2\)\);\n  $/.test(hubHoldFn)
+    && /^const coApproveHold = useCallback\(\(co: ChangeOrder\): string \| null => \{\n/.test(hubHoldFn)
+    && count(hubCode, /coSavedBaseHold\(/g) === 1 && count(hubCode, /\b(const|let|var)\s+coApproveHold\b/g) === 1
+    && !/from '@\/app\/change-order'/.test(src.hub));
+  ok('…the contract is read as soon as the page lists a change order that can be approved, and again whenever an approve opens; an unanswered read is `undefined`, never "none on file"',
+    /\n  const approvalContract = useApprovalContract\(project\?\.id, approveSheetCO !== null \|\| \(coReflowPreview !== null && coReflowPreview\.status !== 'approved'\)\);\n/.test(src.hub)
+    && /\n  const coApproveRowContract = useApprovalContract\(project\?\.id, changeOrders\.some\(c => c\.status === 'submitted'\)\);\n/.test(src.hub)
+    && /const \[contract, setContract\] = useState<SignedContractLike \| null \| undefined>\(undefined\);/.test(read('components/moments-sites/COApproveSheet.tsx'))
+    && /setContract\(r\.ok \? r\.contract : undefined\);/.test(read('components/moments-sites/COApproveSheet.tsx')));
+  const HUB_REFUSE = 'const hold = coApproveHold(co);\n                          if (hold) { refuseCoApprove(co, hold); return; }';
+  const rowAt = src.hub.indexOf("<View style={styles.coApproveRow} testID={`co-approve-row-${co.id}`}>");
+  const rowTap = rowAt > 0 ? src.hub.slice(src.hub.indexOf('onPress={() => {', rowAt), src.hub.indexOf('<Text style={styles.coApproveBtnText}>Approve CO #{co.number}</Text>', rowAt)) : '';
+  eq('HUB: the row’s "Approve CO #n" refuses on the hold as its FIRST statements — before the schedule preview’s slide and before the approve sheet',
+    [codeOf(rowTap).split('\n').slice(1, 3).map(l => l.trim()).join(' '),
+      rowTap.indexOf(HUB_REFUSE) > 0 && rowTap.indexOf(HUB_REFUSE) < rowTap.indexOf('setCoReflowPreview(co);') && rowTap.indexOf(HUB_REFUSE) < rowTap.indexOf('setApproveSheetCO(co);')],
+    ['const hold = coApproveHold(co); if (hold) { refuseCoApprove(co, hold); return; }', true]);
+  ok('…the refusal says the helper’s reason under "Not yet", and offers the screen where Save to Project is',
+    /\n  const refuseCoApprove = useCallback\(\(co: ChangeOrder, hold: string\) => \{\n    showAlert\('Not yet', hold, \[\n      \{ text: 'Cancel', style: 'cancel' \},\n      \{ text: `Open CO #\$\{co\.number\}`, onPress: \(\) => navigateFromTile\(\{ pathname: '\/change-order', params: \{ projectId: id, coId: co\.id \} \}\) \},\n    \]\);\n  \}, \[navigateFromTile, id\]\);\n/.test(src.hub));
+  ok('…that tap is the ONLY way an approve opens on the page: one sheet open, and the one other preview open is for a change order ALREADY approved (placing its days)',
+    count(hubCode, /setApproveSheetCO\((?!null\))/g) === 1 && count(hubCode, /setCoReflowPreview\((?!null\))/g) === 2
+    && count(rowTap, /setApproveSheetCO\(co\);/g) === 1 && count(rowTap, /setCoReflowPreview\(co\);/g) === 1
+    && /\.filter\(co => co\.status === 'approved' && \(co\.scheduleImpactDays \?\? 0\) > 0 && !co\.scheduleImpactApplied\)\n\s+\.map\(co => \(\n\s+<TouchableOpacity\n\s+key=\{`place-\$\{co\.id\}`\}\n\s+style=\{styles\.coAddBtn\}\n\s+onPress=\{\(\) => setCoReflowPreview\(co\)\}/.test(src.hub)
+    // The page never approves by a direct write: every approve is a sheet's slide.
+    && count(hubCode, /\bapproveChangeOrder\b/g) === 0 && !/status: 'approved'/.test(hubCode));
+  ok('HUB: an approve ALREADY OPEN when the hold appears is closed, with the reason (the contract read answered after he tapped); placing days is never held',
+    /\n  const coApproveOpen = approveSheetCO \?\? \(coReflowPreview !== null && coReflowPreview\.status !== 'approved' \? coReflowPreview : null\);\n  const coApproveOpenHold = useMemo\(\(\) => \(coApproveOpen \? coApproveHold\(coApproveOpen\) : null\), \[coApproveOpen, coApproveHold\]\);\n  useEffect\(\(\) => \{\n    if \(!coApproveOpenHold \|\| !coApproveOpen\) return;\n    setApproveSheetCO\(null\);\n    setCoReflowPreview\(null\);\n    refuseCoApprove\(coApproveOpen, coApproveOpenHold\);\n  \}, \[coApproveOpenHold, coApproveOpen, refuseCoApprove\]\);\n/.test(src.hub)
+    && count(hubCode, /coApproveHold\(/g) === 2 && count(hubCode, /refuseCoApprove\(/g) === 2);
+  // …and the page's arithmetic IS the change-order screen's. The page hands
+  // contractSumBasis the contract its read answered (a row, `null`, or
+  // `undefined`); the screen goes through contractSumView over its read state.
+  // For every read and every saved stamp below, the two bases — and so the
+  // two holds — are the same, to the cent.
+  const hubBase = (contract: Parameters<typeof contractSumBasis>[1], saved: Saved, livePrior: number) =>
+    Math.round((contractSumBasis(project, contract, savedChangeOrderOriginalSum(saved, livePrior)).value + livePrior) * 100) / 100;
+  const HUB_READS: [Parameters<typeof contractSumView>[1], Parameters<typeof contractSumBasis>[1]][] = [
+    [READS.loading, undefined], [READS.unread, undefined], [READS.none, null], [READS.signed, signed],
+  ];
+  const hubCases: [Saved, number][] = [
+    [micDraft, 0], [resaved, 0], [drift, 6_000], [priorMoved, 5_000], [priorMoved, 0],
+    ...stamps.map((sv): [Saved, number] => [sv, sv.priorApprovedChangesTotal ?? 0]),
+  ];
+  const hubDiffers = hubCases.flatMap(([sv, prior]) => HUB_READS
+    .filter(([rd, contract]) => {
+      const screen = liveBase(rd, sv, prior).base;
+      const page = hubBase(contract, sv, prior);
+      return screen !== page || coSavedBaseHold(sv, screen, usd) !== coSavedBaseHold(sv, page, usd);
+    })
+    .map(([, contract]) => `${JSON.stringify(sv)} prior ${prior} contract ${contract === undefined ? 'unread' : contract === null ? 'none' : 'signed'}`));
+  ok(`the page’s base and hold equal the change-order screen’s for every read state and every saved stamp (${hubCases.length * HUB_READS.length} cases)`,
+    hubDiffers.length === 0, hubDiffers.join(' | '));
+  eq('…the reviewer’s case from the page: a mic draft stamped 100,000 under a signed 92,500 is refused with both figures; unread, or none on file, it is not',
+    [coSavedBaseHold(micDraft, hubBase(signed, micDraft, 0), usd), coSavedBaseHold(micDraft, hubBase(undefined, micDraft, 0), usd), coSavedBaseHold(micDraft, hubBase(null, micDraft, 0), usd)],
+    [HOLD('$100,000', '$92,500'), null, null]);
+  eq('…and a prior change order approved since the save is refused whether or not the contract read answered',
+    [coSavedBaseHold(priorMoved, hubBase(undefined, priorMoved, 5_000), usd), coSavedBaseHold(priorMoved, hubBase(null, priorMoved, 5_000), usd)],
+    [HOLD('$100,000', '$105,000'), HOLD('$100,000', '$105,000')]);
 
   ok('the rule and why the other draft writers need no edit are written where the predicate lives',
     /ONE RULE: the figure on screen and the figure a document prints agree, or\n\/\/ the document does not leave\./.test(src.fin)

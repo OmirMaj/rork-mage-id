@@ -293,6 +293,6 @@ describe('lane B2 — android 1100 (isDesktop true, desktopWeb false)', () => {
 
   it('reports renders on the tablet (its DataTables follow isDesktop, accepted since 6b)', async () => {
     await tablet('/reports');
-    expect(screen.getAllByText('Bank-ready reports').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reports for your bank').length).toBeGreaterThan(0);
   });
 });

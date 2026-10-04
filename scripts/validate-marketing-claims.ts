@@ -1063,6 +1063,84 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       + 'a GC or an owner they are getting an official AIA form. The last one (portal/index.html) was '
       + 'closed on 2026-09-11; it does not get reopened.');
 
+    // THE APP'S OWN PATTERN, ON THE SITE (lane SWEEP). The check above reads
+    // "AIA pay app" and "AIA G702". "AIA pay-app" — one hyphen — passed it, and
+    // houzz-pro-alternative.html was live with exactly that in its footnote.
+    // This is the UNHEDGED rule of scripts/validate-payfix.ts, the same
+    // regular expression (pinned to that file below), on every public page and
+    // on the App Store screenshot captions. What is taken out first: the hedge
+    // itself, and the trademark notice, which names the mark in quotation
+    // marks in order to disclaim it (cut before "registered": the portal page
+    // builds the sentence in two strings).
+    const UNHEDGED_AIA = /AIA (G70[23]|[Pp][Aa][Yy][\s-]?[Aa][Pp][Pp][Ss]?\b|[Pp]ay [Aa]pplications?|[Bb]illing|[Dd]ocuments?\b|[Pp]rogress\b|[Ff]orms?\b|[Cc]adence\b)/;
+    const AIA_MARK_NAMED = /(?:&ldquo;|&quot;|"|“)AIA Document G702\/G703(?:&rdquo;|&quot;|"|”) are/g;
+    const plain = (raw: string) => flat(raw
+      .replace(/<sup>&reg;<\/sup>|&reg;|®|&trade;|™/g, '')
+      .replace(/&nbsp;|&#160;| /g, ' ')
+      .replace(/&#8209;|&#x2011;|‑|&ndash;|–/g, '-'));
+    const unhedgedAia = (raw: string): string | null => {
+      const t = plain(raw).replace(/AIA-style/gi, '·').replace(AIA_MARK_NAMED, '·');
+      const m = UNHEDGED_AIA.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 20) : null;
+    };
+    const everyPage = [...pages, STORE_SCREENSHOTS];
+    const unhedgedPages = everyPage.map(p => ({ p, m: unhedgedAia(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) names an AIA pay app, form, document, G702 / G703 or billing without "AIA-style", in any spelling',
+      unhedgedPages.length === 0, unhedgedPages.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    ok('…that pattern is the one scripts/validate-payfix.ts runs on the app, character for character',
+      readFileSync('scripts/validate-payfix.ts', 'utf8').includes(`const UNHEDGED = ${UNHEDGED_AIA.toString()};`));
+    const UNHEDGED_MUST_MATCH = [
+      '<p>Cost-learning, margin-alert, and AIA pay-app capabilities describe MAGE ID features.</p>',
+      '<li>AIA pay apps</li>', '<li>AIA payapp</li>', '<h4>AIA Pay Application</h4>', '<td>AIA G702</td>', '<td>AIA&reg; G702 / G703</td>',
+      '<p>AIA&nbsp;billing, built in.</p>', '<p>Official AIA forms, filled in for you.</p>', '<p>AIA Document G702 is what this prints.</p>',
+      '<p>AIA progress billing on your phone.</p>',
+    ];
+    ok('…and it sees the label with a hyphen, a space, a non-breaking space, the registered mark, or any of the other nouns',
+      UNHEDGED_MUST_MATCH.every(t => unhedgedAia(t) != null), UNHEDGED_MUST_MATCH.filter(t => unhedgedAia(t) == null).join(' | '));
+    const UNHEDGED_TRUE_COPY = [
+      '<p>Cost-learning, margin-alert, and AIA-style pay-app capabilities describe MAGE ID features.</p>',
+      '<td>AIA-style G702 / G703 pay apps</td>',
+      'MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are\n registered trademarks of The American Institute of Architects',
+      '<p>Some lenders and architects require the official AIA Contract Documents.</p>',
+    ];
+    ok('…and leaves the hedge, the trademark notice and the standing notice alone',
+      UNHEDGED_TRUE_COPY.every(t => unhedgedAia(t) == null), UNHEDGED_TRUE_COPY.filter(t => unhedgedAia(t) != null).join(' | '));
+    ok('the Houzz Pro page’s footnote says "AIA-style pay-app capabilities"',
+      /Cost-learning, margin-alert, and AIA-style pay-app capabilities describe MAGE ID features\./.test(prose('marketing/houzz-pro-alternative.html')));
+
+    // "-READY" IS A PROMISE (lane SWEEP, the founder's call of 2026-10-04).
+    // "Bank-ready WIP", "Bank-ready PDFs in three taps": MAGE ID builds the
+    // report; whether a bank, a lender, an architect or a surety finds it
+    // ready is theirs to say. The pages say what the thing is — a WIP report,
+    // a PDF, for your bank — and no page may say "-ready" of any of the four.
+    const READY_FOR_WHOM = /\b(?:bank|banker|lender|architect|suret(?:y|ies))s?[\s-]+ready\b/i;
+    const readyClaim = (raw: string): string | null => {
+      const t = plain(raw);
+      const m = READY_FOR_WHOM.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30) : null;
+    };
+    const readyPages = everyPage.map(p => ({ p, m: readyClaim(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) says bank-ready, lender-ready, architect-ready or surety-ready',
+      readyPages.length === 0, readyPages.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    const READY_MUST_MATCH = [
+      '<h2>Bank-ready PDFs in three taps.</h2>', '<td class="compare-row-feature">Bank-ready WIP report</td>', '<p>\n        Bank-ready WIP. Live profit margin.</p>',
+      '<p>lender ready draws</p>', '<li>Architect-ready pay apps</li>', '<li>Surety-ready financials</li>', '<li>BANK&#8209;READY</li>',
+      '<li>bank&nbsp;ready reports</li>', '<p>Banker-ready, every month.</p>', '<p>bank-\n ready</p>',
+    ];
+    ok('…that check sees it in any casing, with a hyphen, a space, a line break or a non-breaking one',
+      READY_MUST_MATCH.every(t => readyClaim(t) != null), READY_MUST_MATCH.filter(t => readyClaim(t) == null).join(' | '));
+    const READY_TRUE_COPY = [
+      '<h2>PDFs for your bank in three taps.</h2>', '<td class="compare-row-feature">WIP report for your bank</td>',
+      '<p>WIP report for your bank. Live profit margin.</p>', '<p>Send it to your bank. Ready in three taps.</p>', '<p>Already built.</p>',
+    ];
+    ok('…and leaves alone the copy that says what the thing is',
+      READY_TRUE_COPY.every(t => readyClaim(t) == null), READY_TRUE_COPY.filter(t => readyClaim(t) != null).join(' | '));
+    ok('the three pages that said "Bank-ready" say what the report is: a WIP report, and PDFs, for your bank',
+      /<td class="compare-row-feature">WIP report for your bank<\/td>/.test(prose('marketing/features/vs-competitors.html'))
+      && /<h2>PDFs for your bank in three taps\.<\/h2>/.test(prose('marketing/features/financials.html'))
+      && /\n\s+WIP report for your bank\. Live profit margin\. AIA-style pay apps\./.test(prose('marketing/features/financials.html'))
+      && /A\/R aging, cash flow projection\. PDFs for your bank in three taps\.<\/p>/.test(prose('marketing/features/index.html')));
+
     // Hedging the noun is half of it. The generated PDF carries a
     // non-affiliation notice (utils/aiaBilling.ts:937) and app/aia-pay-app.tsx
     // shows one on first use; a page that sells the feature has to carry it

@@ -96,8 +96,8 @@ import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters
 import { canViewFinancials, isFinancialsBlinded, ROLE_LABELS } from '@/utils/roleBlinding';
 import { pricingRoleFor } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
-import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
-import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
+import { getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold } from '@/utils/projectFinancials';
+import { invoiceOutstanding, invoiceIsSettled, roundCents } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
 import { loadActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
@@ -948,6 +948,10 @@ export default function ProjectDetailScreen() {
   // The active contract for the approved title ("contract $52,400.00" is the
   // SIGNED contract plus approved COs), read only while an approve is open.
   const approvalContract = useApprovalContract(project?.id, approveSheetCO !== null || (coReflowPreview !== null && coReflowPreview.status !== 'approved'));
+  // The same read, made as soon as this page lists a change order that can be
+  // approved from it, so the hold below usually knows the signed contract
+  // BEFORE the tap. The read above still runs again each time an approve opens.
+  const coApproveRowContract = useApprovalContract(project?.id, changeOrders.some(c => c.status === 'submitted'));
   // Estimate revision detail modal — stores the revision being inspected, or null when closed.
   const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
   const fRev = useSheetFrame('panel', { visible: selectedRevision !== null, animationType: 'slide' });
@@ -1046,6 +1050,47 @@ export default function ProjectDetailScreen() {
       else router.push(route as any);
     }, delay);
   }, [router, isDesktop]);
+
+  // THE CHANGE-ORDER SCREEN'S HOLD, ON THIS PAGE'S APPROVE (lane SWEEP;
+  // utils/projectFinancials coSavedBaseDiffers / coSavedBaseHold). Approving
+  // does not restamp a change order's base and locks the record, so a saved
+  // change order whose stamped base differs from the live contract base may
+  // not be approved from the row here either: he opens it and saves it first.
+  // The live base is worked out from the same pieces the change-order screen
+  // uses: the contract sum (the signed contract once a read has answered;
+  // until then the figure the change order was saved on, so an unanswered
+  // read holds nothing by itself) plus the approved change orders numbered
+  // below this one. A sample job has no server contract ("none on file").
+  // The reason is coSavedBaseHold's own, word for word.
+  const coApproveHold = useCallback((co: ChangeOrder): string | null => {
+    // app/change-order.tsx's coPriorApprovedChanges, filter for filter. This
+    // page may not import that route (scripts/validate-w4-co-workflow-screen.ts),
+    // so scripts/validate-payfix.ts pins the two to each other.
+    const prior = roundCents(changeOrders
+      .filter(c => c.status === 'approved' && c.id !== co.id && (c.number || 0) < co.number)
+      .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
+    const contract = project && isSampleProject(project) ? null : (approvalContract !== undefined ? approvalContract : coApproveRowContract);
+    const sum = contractSumBasis(project, contract, savedChangeOrderOriginalSum(co, prior)).value;
+    return coSavedBaseHold(co, roundCents(sum + prior), (n) => formatMoney(n, 2));
+  }, [changeOrders, project, approvalContract, coApproveRowContract]);
+  /** Says why, and offers the screen where "Save to Project" is. */
+  const refuseCoApprove = useCallback((co: ChangeOrder, hold: string) => {
+    showAlert('Not yet', hold, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: `Open CO #${co.number}`, onPress: () => navigateFromTile({ pathname: '/change-order', params: { projectId: id, coId: co.id } }) },
+    ]);
+  }, [navigateFromTile, id]);
+  // An approve ALREADY OPEN when the hold appears (the contract read answered
+  // after he tapped) is closed, with the reason. Placing an approved change
+  // order's days is not an approve and is never held.
+  const coApproveOpen = approveSheetCO ?? (coReflowPreview !== null && coReflowPreview.status !== 'approved' ? coReflowPreview : null);
+  const coApproveOpenHold = useMemo(() => (coApproveOpen ? coApproveHold(coApproveOpen) : null), [coApproveOpen, coApproveHold]);
+  useEffect(() => {
+    if (!coApproveOpenHold || !coApproveOpen) return;
+    setApproveSheetCO(null);
+    setCoReflowPreview(null);
+    refuseCoApprove(coApproveOpen, coApproveOpenHold);
+  }, [coApproveOpenHold, coApproveOpen, refuseCoApprove]);
 
   const openEditModal = useCallback(() => {
     if (!project) return;
@@ -3287,6 +3332,8 @@ export default function ProjectDetailScreen() {
                       <TouchableOpacity
                         style={styles.coApproveBtn}
                         onPress={() => {
+                          const hold = coApproveHold(co);
+                          if (hold) { refuseCoApprove(co, hold); return; }
                           const impactDays = co.scheduleImpactDays ?? 0;
                           // A CO with schedule days now genuinely reflows the Gantt
                           // (anchor task extended → CPM re-run → successors shift →

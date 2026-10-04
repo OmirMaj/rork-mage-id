@@ -366,7 +366,7 @@ export default function ReportsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Financial reports</Text>
-          <Text style={styles.title}>Bank-ready reports</Text>
+          <Text style={styles.title}>Reports for your bank</Text>
         </View>
         {isDesktop && <ToolbarActions actions={toolbar} testID="reports-toolbar" />}
       </View>
@@ -388,7 +388,7 @@ export default function ReportsScreen() {
           <View style={styles.reportsHeroIcon}>
             <TrendingUp size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.reportsHeroTitle}>Bank-ready reports</Text>
+          <Text style={styles.reportsHeroTitle}>Reports for your bank</Text>
           <Text style={styles.reportsHeroSub}>
             WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
           </Text>

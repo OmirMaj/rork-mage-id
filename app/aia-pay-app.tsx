@@ -1759,7 +1759,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         <Stack.Screen options={{ title: 'Pay apps' }} />
         <ToolProjectPicker
           toolName="Pay apps"
-          message="A G702 / G703 certifies one billing period against one project's schedule of values."
+          message="An AIA-style G702 / G703 certifies one billing period against one project's schedule of values."
           projects={projects}
           onPick={pickProject}
           staleProjectId={staleProjectId}
@@ -1767,7 +1767,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           steps={[
             'Open or create a project from the Projects tab.',
             'Inside that project, create a progress invoice from your estimate or schedule of values.',
-            'Come back here, or open the pay app from the invoice, to fill the G702/G703 and route it for sign-off.',
+            'Come back here, or open the pay app from the invoice, to fill the AIA-style G702/G703 and route it for sign-off.',
           ]}
         />
       </View>
@@ -1788,7 +1788,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             <EmptyState
               icon={<MagePayApp size={36} color={themeColors.accent} />}
               title={`${project.name} has no progress invoice yet`}
-              message="A pay app certifies one billing period, and each period is a progress invoice. MAGE fills the G702/G703 from that invoice's schedule of values."
+              message="A pay app certifies one billing period, and each period is a progress invoice. MAGE fills the AIA-style G702/G703 from that invoice's schedule of values."
               actionLabel="Create a progress invoice"
               onAction={() => router.push({
                 pathname: '/bill-from-estimate' as never,
@@ -1944,7 +1944,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           subtitle="Turn your % complete into a draft AIA-style pay application. Fills in the contract sum, retainage and schedule of values."
           explainer={{
             term: 'AIA-style pay app',
-            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay app format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up. MAGE ID builds a draft in that style. It is not the official AIA document, and some lenders and architects require their own or the official forms.',
+            definition: 'A pay app (pay application) bills for the work completed in one period. This one follows the layout of the G702 and G703 forms published by the American Institute of Architects (AIA): the G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up. MAGE ID builds a draft in that style. It is not the official AIA document, and some lenders and architects require their own or the official forms.',
             whenToUse: [
               'Your client or their lender asks for G702/G703-style billing',
               'You need to bill in stages tied to actual completion percentage',
