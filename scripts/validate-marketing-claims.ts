@@ -819,6 +819,11 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       // the official forms. The layout is one they are used to — that is all.
       { pattern: /what (?:the|your|an?|every|most) (?:architect|lender|bank|banker|surety)s? (?:expects?|accepts?|wants?|requires?|needs?)/i, why: 'a promise about what an architect or lender accepts — say what the document is, not what they will take' },
       { pattern: /(?:lender|architect)[- ](?:ready|approved|accepted)/i, why: 'same — nobody at MAGE ID can promise a lender or an architect accepts a document' },
+      // 2026-10-04: features/vs-competitors.html was live with "every correction
+      // trains the model". terms.html says the opposite ("We do not use Your
+      // Content (including AI inputs and outputs) to train AI models"), and a
+      // takeoff correction changes that takeoff only.
+      { pattern: /\btrain(?:s|ed|ing)? (?:the|our|a|your|its) (?:model|AI)\b|\b(?:model|AI) (?:learns|improves|gets (?:smarter|better)) (?:from|with) (?:every|each|your) (?:correction|edit|fix)/i, why: 'the Terms say Your Content is not used to train AI models; a correction changes that takeoff only' },
     ];
     for (const { pattern, why } of FALSE_CLAIMS) {
       const hits = pages.filter(p => pattern.test(prose(p)));
