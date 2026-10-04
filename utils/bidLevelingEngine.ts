@@ -31,6 +31,7 @@
 
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
@@ -282,7 +283,7 @@ YOUR JOB
   if (!r.success) {
     return {
       adjustments: bids.map(b => ({
-        bidId: b.id, adjustment: 0, reason: 'AI unavailable — review manually.',
+        bidId: b.id, adjustment: 0, reason: aiConsentReason(r) ?? 'AI unavailable — review manually.',
         confidence: 0, adjustmentBasis: 'market_guess' as const,
       })),
       summary: '',

@@ -71,6 +71,14 @@
       "expo-secure-store",
       "expo-apple-authentication",
       [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationWhenInUsePermission": "MAGE ID uses your location only in response to something you tap, and never in the background. It reads a position when you add a jobsite photo or field-verify a takeoff row, so the record carries GPS proof; when you sign a field ticket, so the signature is stamped where it was signed; and when you tap \"Use my location\" or \"Near me\" to sort nearby projects, jobs and companies by distance. It also asks for this permission when you tap \"Verify\" on a project address you are posting, which looks the address up rather than reading where you are."
+        }
+      ],
+      [
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt"

@@ -39,6 +39,7 @@ import {
 } from '@/utils/voiceNoteFiling';
 import { useT } from '@/contexts/LanguageContext';
 import { t } from '@/i18n/core';
+import { AI_CONSENT_OFF_MESSAGE, getAiConsentState, loadAiConsent, subscribeAiConsent } from '@/utils/aiConsent';
 
 interface BacklogState {
   tasks: AudioTranscribeTask[];
@@ -80,7 +81,10 @@ export function useVoiceBacklog(enabled: boolean): BacklogState & { backlog: Voi
 }
 
 /** Where one clip stands, as a whole sentence (t from i18n/core: read at call time). */
-function stateLine(row: VoiceClipRow, projectsLoaded: boolean): string {
+function stateLine(row: VoiceClipRow, projectsLoaded: boolean, aiOff: boolean): string {
+  // AI features turned off (utils/aiConsent): the queue keeps the clip on
+  // purpose (audioTranscribeQueue), so say that — not "waiting for signal".
+  if (aiOff && (row.state === 'waiting' || row.state === 'failed')) return AI_CONSENT_OFF_MESSAGE;
   if (row.state === 'waiting') return t('field.chrome.clipWaiting', 'Waiting for signal. It will be transcribed when you have a connection.');
   if (row.state === 'failed') return t('field.chrome.clipFailed', "Couldn't be transcribed yet. MAGE will try again, or tap Retry.");
   if (!row.projectId) {
@@ -121,6 +125,11 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
   useEffect(() => { if (visible) void runNow(); }, [visible, runNow]);
 
   const projectsLoaded = projects.length > 0;
+  const [aiOff, setAiOff] = useState(() => getAiConsentState() === 'declined');
+  useEffect(() => {
+    void loadAiConsent().then((s) => setAiOff(s === 'declined')).catch(() => {});
+    return subscribeAiConsent((s) => setAiOff(s === 'declined'));
+  }, []);
   const rows = useMemo(
     () => planVoiceNoteFilings({ tasks, ownUserId: userId, projects, projectsLoaded }).rows,
     [tasks, userId, projects, projectsLoaded],
@@ -149,7 +158,7 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
                   {t('field.chrome.recordedWhen', 'Recorded {when} · {length}', { when: voiceNoteWhen(recordedAtMs(row.task), now), length: formatClipLength(row.task.durationMs) })}
                 </Text>
                 <Text style={[styles.rowState, (row.state === 'failed' || row.hold) ? styles.rowStateFailed : null]}>
-                  {stateLine(row, projectsLoaded)}
+                  {stateLine(row, projectsLoaded, aiOff)}
                 </Text>
                 {row.state === 'failed' ? (
                   <View style={styles.rowActions}>

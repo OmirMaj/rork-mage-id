@@ -49,6 +49,7 @@ import { resolvePhotoUrls } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { aiLimitAlertTitle, safetyAiBlockedReason, safetyAiServerRefusal } from '@/utils/safety/safetyRefresh';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
 import { useT } from '@/contexts/LanguageContext';
@@ -473,6 +474,9 @@ function SafetyIncidentsInner() {
     if (draftBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), draftBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.incident.dailyLimitReachedTry', 'Daily limit reached. Try again tomorrow.')); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     setDrafting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

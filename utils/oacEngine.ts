@@ -15,6 +15,7 @@
 
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import type {
   Project, ProjectSchedule, ScheduleTask, RFI, Submittal, ChangeOrder,
   DailyFieldReport, OACAgendaItem, OACAgendaSection, OACMeeting, OACActionItem,
@@ -613,7 +614,7 @@ Tone: factual, third-person, professional. No filler. No "It was discussed that.
   });
 
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Could not generate minutes.');
+    throw aiFailureError(aiResult, 'Could not generate minutes.');
   }
   return aiResult.data as AIMinutesResult;
 }

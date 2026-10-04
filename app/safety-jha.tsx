@@ -30,6 +30,7 @@ import { generateUUID } from '@/utils/generateId';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { savedCrewLine } from '@/utils/timeClockPayroll';
 import {
   aiLimitAlertTitle, crewCardCheck, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
@@ -202,6 +203,9 @@ function SafetyJhaInner() {
     if (generateBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), generateBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.jha.dailyAiLimitReached', 'Daily AI limit reached.')); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     setGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

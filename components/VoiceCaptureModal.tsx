@@ -51,6 +51,7 @@ import {
   type AudioTranscribeTask,
 } from '@/utils/audioTranscribeCore';
 import { useT } from '@/contexts/LanguageContext';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, aiConsentErrorText } from '@/utils/aiConsent';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'error' | 'saved';
 
@@ -280,6 +281,13 @@ export default function VoiceCaptureModal({
       setStep('error');
       return;
     }
+    // App Store 5.1.2(i): asked BEFORE he talks, so he never records something
+    // that cannot be sent to the speech-to-text service (utils/aiConsent).
+    if (!(await ensureAiConsent())) {
+      setErrorMsg(AI_CONSENT_OFF_MESSAGE);
+      setStep('error');
+      return;
+    }
     try {
       const { Audio } = require('expo-av');
       const { granted } = await Audio.requestPermissionsAsync();
@@ -398,6 +406,9 @@ export default function VoiceCaptureModal({
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
     } catch (err) {
+      // AI features turned off: nothing to queue for — say so.
+      const off = aiConsentErrorText(err);
+      if (off) { setErrorMsg(off); setStep('error'); return; }
       const msg = (err as Error)?.message || String(err);
       // stopAndUnloadAsync and setAudioModeAsync run BEFORE the assignment
       // above, and both can throw — a phone call that interrupted the session

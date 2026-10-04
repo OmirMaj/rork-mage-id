@@ -21,6 +21,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { parseRFIFromTranscript } from '@/utils/voiceFormParsers';
 import { nailIt } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { humanizeEnum } from '@/utils/statusLabels';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { Type } from '@/constants/typography';
@@ -62,6 +63,9 @@ export default function RFITriageModal({ visible, onClose }: Props) {
 
   const extract = async () => {
     if (!email.trim()) return;
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     setBusy(true);
     try {
       const proj = projects.find(p => p.id === projectId) ?? null;

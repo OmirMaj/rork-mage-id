@@ -55,6 +55,15 @@ export interface HelpFabProps {
   openSignal?: number;
 }
 
+/** Which build the support email came from. The iPhone app never names
+ *  Android (App Store 2.3.10); scripts/validate-ios-store-copy.ts runs this
+ *  with Platform.OS 'ios'. */
+function helpEmailPlatformTag(): string {
+  if (Platform.OS === 'ios') return 'iOS';
+  if (Platform.OS === 'android') return 'Android';
+  return 'Web';
+}
+
 function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openSignal }: HelpFabProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -93,7 +102,7 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
     setOpen(false);
     const subject = encodeURIComponent('MAGE ID — need help with…');
     const body = encodeURIComponent(
-      'What screen are you on?\n\nWhat were you trying to do?\n\nWhat happened instead?\n\n— sent from MAGE ID iOS / Android / Web',
+      `What screen are you on?\n\nWhat were you trying to do?\n\nWhat happened instead?\n\n— sent from MAGE ID ${helpEmailPlatformTag()}`,
     );
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {/* ignore */});
   }, []);

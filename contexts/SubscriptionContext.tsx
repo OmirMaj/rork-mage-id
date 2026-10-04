@@ -317,6 +317,18 @@ export function restoreOutcome(
 }
 // --- END subscriptionResolve ---
 
+/**
+ * The one sentence a failed purchase may show a customer verbatim (App Review
+ * 2.1). Every purchase function below throws it when the store has no package
+ * for the plan and period asked for. It used to be three strings, one of them a
+ * developer setup instruction that a screen printed to the customer; build 17
+ * still carries that one. The screens never print an error's message: they
+ * classify the failure and answer with their own copy (components/Paywall.tsx
+ * purchaseFailureKind), so this text is safe even if a future screen does.
+ * scripts/validate-appstore-paywall.ts pins it.
+ */
+export const PLAN_UNAVAILABLE_MESSAGE = 'This plan isn’t available right now. Try again later.';
+
 // NOTE: as of migration 20260608120000 the `subscriptions.tier` column is
 // server-authoritative — a DB trigger pins tier for non-service-role writers, so
 // the `tier` we send here is IGNORED by the server (it can't grant or downgrade).
@@ -683,7 +695,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     if (pkg) {
       await purchaseMutation.mutateAsync(pkg);
     } else {
-      throw new Error('Plans couldn’t load from the store. Try again later.');
+      throw new Error(PLAN_UNAVAILABLE_MESSAGE);
     }
   }, [proPackage, proAnnualPackage, purchaseMutation]);
 
@@ -692,7 +704,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     if (pkg) {
       await purchaseMutation.mutateAsync(pkg);
     } else {
-      throw new Error('Plans couldn’t load from the store. Try again later.');
+      throw new Error(PLAN_UNAVAILABLE_MESSAGE);
     }
   }, [businessPackage, businessAnnualPackage, purchaseMutation]);
 
@@ -702,10 +714,9 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       await purchaseMutation.mutateAsync(pkg);
     } else {
       // Customer-safe on purpose (#129): this message used to be a setup
-      // instruction ("Set up the product in App Store Connect…") and a screen
-      // showed it to the customer verbatim. "not available" is also what
-      // components/Paywall.tsx matches to explain the plan honestly.
-      throw new Error('Enterprise is not available for purchase in the app yet.');
+      // instruction and a screen showed it to the customer verbatim. See
+      // PLAN_UNAVAILABLE_MESSAGE.
+      throw new Error(PLAN_UNAVAILABLE_MESSAGE);
     }
   }, [enterprisePackage, enterpriseAnnualPackage, purchaseMutation]);
 

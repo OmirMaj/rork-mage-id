@@ -171,13 +171,17 @@ ok('support: plans MAGE ID turned on → email help@mageid.app', /help@mageid\.a
 ok('support: the one-route promise is gone', !/From Settings → Subscription, you can cancel or change plans anytime/.test(support));
 
 // ── #129 per-package gate ───────────────────────────────────────────────────
-console.log('\n#129 — a plan the store cannot sell leads to an email:');
+// App Store wave (2026-10, audit #3, spec APPPAY item 3): on the phone a plan
+// the store cannot sell has NO card — "Contact us" + mailto was an off-store
+// purchase path inside the iOS app (3.1.1). The web tile keeps its email link.
+// scripts/validate-appstore-paywall.ts pins the native side in full.
+console.log('\n#129 — a plan the store cannot sell: no card on the phone, an email on the web:');
 {
   const screen = code(read('app/paywall.tsx'));
   ok('each card is gated on its own package', /enterprise: packagesLoaded && !enterprisePackage/.test(screen)
     && /pro: packagesLoaded && !proPackage/.test(screen) && /business: packagesLoaded && !businessPackage/.test(screen));
-  ok('the unavailable Enterprise card says "Contact us for Enterprise"', /\{unavailable\.enterprise \? \([\s\S]{0,200}label="Contact us for Enterprise"/.test(screen));
-  ok('…and opens mailto:support@mageid.app with an Enterprise subject', /mailto:support@mageid\.app\?subject=\$\{encodeURIComponent\(`MAGE ID \$\{plan\}`\)\}/.test(screen));
+  ok('the unavailable Enterprise card is not rendered on the phone', /\{!unavailable\.enterprise && \(/.test(screen) && !/label="Contact us for Enterprise"/.test(screen));
+  ok('…the web tile still opens mailto:support@mageid.app with the plan subject', /mailto:support@mageid\.app\?subject=\$\{encodeURIComponent\(`MAGE ID \$\{plan\.name\}`\)\}/.test(screen));
   ok('no purchase error text reaches showAlert', !/showAlert\([^)]*\bmsg\b/.test(screen) && !/showAlert\([^)]*err\.message/.test(screen));
 }
 

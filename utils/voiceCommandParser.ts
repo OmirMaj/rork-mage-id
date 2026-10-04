@@ -1,4 +1,5 @@
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import { z } from 'zod';
 import type { ScheduleTask } from '@/types';
 
@@ -146,7 +147,7 @@ Set confidence 0-100. Below 60 means you should include a clarification.`,
       return {
         action: 'unknown',
         confidence: 0,
-        clarification: 'Voice processing unavailable. Try typing your update instead.',
+        clarification: aiConsentReason(aiResult) ?? 'Voice processing unavailable. Try typing your update instead.',
       };
     }
 

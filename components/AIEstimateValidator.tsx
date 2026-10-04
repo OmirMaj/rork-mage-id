@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError, ownSentence } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 interface Props {
   projectType: string;
@@ -94,7 +95,8 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       // 2026-09-07, ai-features).
       console.error('[AI Estimate] Validation failed:', err);
       const own = ownSentence(err);
-      setError(own ? `Couldn't review this estimate. ${own}` : describeError(err, { action: 'review this estimate' }).body);
+      // AI turned off is not a failed review: say only that (utils/aiConsent).
+      setError(aiConsentErrorText(err) ?? (own ? `Couldn't review this estimate. ${own}` : describeError(err, { action: 'review this estimate' }).body));
     } finally {
       setIsLoading(false);
     }

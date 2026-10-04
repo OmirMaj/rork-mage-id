@@ -20,6 +20,7 @@
 // model made up in front of a contractor.
 
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import { z } from 'zod';
 
 /**
@@ -93,7 +94,7 @@ If the search is vague, return the most common variants. For example, if someone
 
   if (!aiResult.success) {
     console.log('[MaterialFinder] AI failed:', aiResult.error);
-    throw new Error(aiResult.error || 'Material search unavailable');
+    throw aiFailureError(aiResult, 'Material search unavailable');
   }
 
   const result: z.infer<typeof materialSearchSchema> = aiResult.data;

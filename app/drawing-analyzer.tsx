@@ -36,6 +36,7 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { projectTypeLabel } from '@/utils/projectTypes';
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
@@ -125,6 +126,10 @@ function DrawingAnalyzerInner() {
       setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
       return;
     }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
 
     const requestTier: 'fast' | 'smart' = pickedModel === 'gemini-2.5-pro' ? 'smart' : 'fast';
     const limit = await checkAILimit(tier, requestTier, 'drawingAnalysis');

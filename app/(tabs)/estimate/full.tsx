@@ -64,6 +64,7 @@ import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, formatNumber, parseLenientNumber, displayText } from '@/utils/formatters';
 import { describeError, ownSentence } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import { Type } from '@/constants/typography';
 import { Motion, Tokens } from '@/constants/designTokens';
 import { nativeDriver } from '@/components/ui/motion';
@@ -437,7 +438,7 @@ export default function EstimateScreen() {
       console.log('[Estimate] AI search returned', result.materials.length, 'results');
     } catch (err) {
       console.error('[Estimate] AI search error:', err);
-      setAiSearchError('AI search unavailable right now. Try again in a moment.');
+      setAiSearchError(aiConsentErrorText(err) ?? 'AI search unavailable right now. Try again in a moment.');
     } finally {
       setIsAiSearching(false);
     }

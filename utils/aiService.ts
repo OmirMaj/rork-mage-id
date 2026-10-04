@@ -1,5 +1,6 @@
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason, aiFailureError } from '@/utils/aiConsentCore';
 import type { CalibrationReport } from '@/utils/estimateCalibration';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -175,7 +176,7 @@ Analyze and predict risks. For each at-risk task, explain WHY based on the data 
     maxTokens: 3000,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Schedule risk analysis unavailable');
+    throw aiFailureError(aiResult, 'Schedule risk analysis unavailable');
   }
   console.log('[AI Risk] Analysis complete');
   return aiResult.data;
@@ -239,7 +240,7 @@ Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence
     maxTokens: 2000,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Bid scoring unavailable');
+    throw aiFailureError(aiResult, 'Bid scoring unavailable');
   }
   // Scale normalization: the facts show "44%", the prompt asks for 0–1, and
   // the UI renders value*100 — a model echoing the percentage scale (44)
@@ -324,7 +325,7 @@ Generate a professional daily report. Be specific based on the task data.`,
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Daily report generation unavailable');
+    throw aiFailureError(aiResult, 'Daily report generation unavailable');
   }
   console.log('[AI DFR] Report generated');
   return aiResult.data;
@@ -432,7 +433,7 @@ Tone: a contractor texting their client a friendly progress note. Not a corporat
     maxTokens: 600,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Homeowner summary generation unavailable');
+    throw aiFailureError(aiResult, 'Homeowner summary generation unavailable');
   }
   console.log('[AI Homeowner] Summary generated');
   return aiResult.data;
@@ -534,7 +535,7 @@ ${grounding
     maxTokens: 5000,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Estimate validation unavailable');
+    throw aiFailureError(aiResult, 'Estimate validation unavailable');
   }
   console.log('[AI Estimate] Validation complete, score:', aiResult.data.overallScore);
   return aiResult.data;
@@ -602,7 +603,7 @@ Be specific with task names. Include inspections and mobilization/demobilization
     maxTokens: 8000,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'AI schedule builder unavailable');
+    throw aiFailureError(aiResult, 'AI schedule builder unavailable');
   }
 
   let parsed: any = aiResult.data;
@@ -811,7 +812,7 @@ ${paceBlock ? paceBlock + '\n\n' : ''}${costBlock ? costBlock + '\n\n' : ''}Pred
     maxTokens: 3500,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Change order analysis unavailable');
+    throw aiFailureError(aiResult, 'Change order analysis unavailable');
   }
   // Stamp the grounding sources we computed so the UI always shows what was used,
   // even if the model forgets to fill groundedOn.
@@ -932,7 +933,7 @@ Return ONLY JSON matching the schema. Be specific with project names so the GC k
     feature: 'weeklyAnalysis',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Weekly summary unavailable');
+    throw aiFailureError(aiResult, 'Weekly summary unavailable');
   }
   console.log('[AI Weekly] Summary generated, issues:', (aiResult.data as WeeklySummaryResult).criticalIssues?.length ?? 0);
   return aiResult.data;
@@ -1031,7 +1032,7 @@ DATE: ${now.toLocaleDateString()}`,
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Home briefing unavailable');
+    throw aiFailureError(aiResult, 'Home briefing unavailable');
   }
   console.log('[AI Briefing] Generated');
   return aiResult.data;
@@ -1075,7 +1076,7 @@ Predict the actual payment date, confidence level, and give a tip for getting pa
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Invoice prediction unavailable');
+    throw aiFailureError(aiResult, 'Invoice prediction unavailable');
   }
   console.log('[AI Invoice] Prediction complete');
   return aiResult.data;
@@ -1134,7 +1135,7 @@ Do NOT state wage rates, unit prices or any other dollar figure — you have no 
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Subcontractor evaluation unavailable');
+    throw aiFailureError(aiResult, 'Subcontractor evaluation unavailable');
   }
   console.log('[AI Sub] Evaluation complete');
   return aiResult.data;
@@ -1190,7 +1191,7 @@ Analyze rent vs buy. Include annual rental cost estimate, typical purchase price
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Equipment analysis unavailable');
+    throw aiFailureError(aiResult, 'Equipment analysis unavailable');
   }
   console.log('[AI Equipment] Analysis complete');
   return aiResult.data;
@@ -1351,9 +1352,13 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // the user just saw "AI estimate unavailable" with no clue why — could be
   // a token cutoff, a safety block, a network issue, or just a flaky model
   // moment. Now we tell them what happened + suggest a fix.
+  // AI turned off (utils/aiConsent): say so, not "couldn't generate".
+  const consentOff = aiConsentReason(aiResult);
   const stubWithReason = (reasonCode: string | undefined, errMsg: string | undefined): AIQuickEstimateResult => {
     let why = 'Couldn’t generate the estimate. These are placeholder rows.';
-    if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
+    if (consentOff) {
+      why = consentOff;
+    } else if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
       why = 'The estimate stopped before it finished. Try a shorter scope description or fewer line items.';
     } else if (reasonCode === 'SAFETY') {
       why = 'A safety filter blocked this description. Try rephrasing it.';
@@ -1472,7 +1477,7 @@ Generate a professional project status report suitable for sharing with clients.
     maxTokens: 2200,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Project report generation unavailable');
+    throw aiFailureError(aiResult, 'Project report generation unavailable');
   }
   console.log('[AI Report] Generated');
   return aiResult.data;

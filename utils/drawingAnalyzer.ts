@@ -7,6 +7,7 @@
 
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { edgeFunctionError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 
 export interface DrawingSeen {
   page: number;
@@ -180,6 +181,9 @@ export interface AnalyzeResponse {
 }
 
 export async function analyzeDrawings(opts: AnalyzeOpts): Promise<AnalyzeResponse> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No drawing pages to analyze.');
   }

@@ -65,6 +65,7 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { ActionBar, ActionBarReadout, ChipRail, TileGrid, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { describeError } from '@/utils/errorCopy';
@@ -278,6 +279,9 @@ export default function CostXrayScreen() {
     setPending(false);
     setReviews([]);
     try {
+      // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+      // has allowed AI features (utils/aiConsent; always allowed on the web app).
+      if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
       // Encode locally to inline base64 — mirrors utils/photoAnalyzer. allSettled
       // so one unreadable URI doesn't sink the batch; originalIndex remaps the
       // model's photoIndex back to the local photos array.

@@ -46,6 +46,7 @@ import QuickUpdateClarifier, {
   type ClarifierResult,
 } from '@/components/QuickUpdateClarifier';
 import { useT } from '@/contexts/LanguageContext';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 
 /**
  * "{count} tasks" as the three children the pre-i18n JSX rendered
@@ -433,6 +434,9 @@ export default function QuickFieldUpdate() {
       setFeedback({ kind: 'error', message: t('field.home.qfu.pickProject', 'Pick a project with a schedule first.') });
       return;
     }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { setFeedback({ kind: 'error', message: AI_CONSENT_OFF_MESSAGE }); return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setParsing(true);
     setFeedback(null);

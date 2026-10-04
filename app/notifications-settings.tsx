@@ -223,6 +223,14 @@ type Prefs = Record<string, { push?: boolean; email?: boolean }>;
 // Format a 24-hour integer (0..23) as "5 AM" / "12 PM" / "8 PM" — what
 // the user reads in the digest card. Construction users tend to think
 // in 12-hour clock, even when they're up at 4 AM.
+/** "How push works", per platform. The iPhone app never names Android
+ *  (App Store 2.3.10); scripts/validate-ios-store-copy.ts runs this with
+ *  Platform.OS 'ios'. */
+function pushHowItWorks(): string {
+  const device = Platform.OS === 'ios' ? 'Your iPhone' : Platform.OS === 'android' ? 'Your Android phone' : 'Your iPhone or Android device';
+  return `${device} registers when you sign in. If you miss notifications, sign out and back in to register it again. Push isn't supported on the web app, but every category still sends emails there.`;
+}
+
 function formatHour(h: number): string {
   const hour = ((h % 24) + 24) % 24;
   if (hour === 0) return '12 AM';
@@ -1087,7 +1095,7 @@ export default function NotificationsSettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.tableHeadLabel}>How push works</Text>
           <Text style={styles.helperBody}>
-            Your iPhone or Android device registers when you sign in. If you miss notifications, sign out and back in to register it again. Push isn&apos;t supported on the web app, but every category still sends emails there.
+            {pushHowItWorks()}
           </Text>
         </View>
       </ScrollView>

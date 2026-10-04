@@ -45,6 +45,7 @@ import { captureBaseline } from '@/utils/scheduleOps';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { nailIt, oops } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
+import { requireAiConsent } from '@/utils/aiConsent';
 import { edgeFunctionError, aiRefusalKind } from '@/utils/edgeError';
 import { showAiRefusal } from '@/utils/quotaPrecheck';
 import { describeError, ownSentence } from '@/utils/errorCopy';
@@ -124,6 +125,10 @@ export default function ScheduleImportScreen() {
     try {
       setBusy(true);
       setResult(null);
+      // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+      // has allowed AI features (utils/aiConsent; always allowed on the web app).
+      // A refusal throws AiConsentDeclinedError; the catch shows its own sentence.
+      await requireAiConsent();
       const picked = await DocumentPicker.getDocumentAsync({
         type: [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

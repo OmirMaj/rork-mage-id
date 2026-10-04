@@ -3,6 +3,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { withLocalMonthlyReset } from '@/utils/aiRateLimiterCore';
 import { getLang } from '@/i18n/core';
 import type { Lang } from '@/i18n/types';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_DECLINED_CODE } from '@/utils/aiConsent';
 
 // AI endpoint URL — derived from the single-source-of-truth constants
 // in lib/supabase.ts. Critical: this used to read process.env directly
@@ -110,6 +111,14 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
   // existing English cache entry still hits.
   const cacheKey = baseCacheKey && lang === 'es' ? `${baseCacheKey}::es` : baseCacheKey;
   if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
+
+  // App Store 5.1.2(i): nothing the contractor typed or said leaves for the
+  // model until he has allowed AI features (utils/aiConsent — asks once on a
+  // phone, always yes on the web app). A refusal is the honest failure shape,
+  // never a silent no-op. A cached answer above sent nothing, so it is served.
+  if (!(await ensureAiConsent())) {
+    return { success: false, data: null, error: AI_CONSENT_OFF_MESSAGE, errorKind: 'unknown', errorCode: AI_CONSENT_DECLINED_CODE };
+  }
 
   // AbortController-based timeout. Without this, a hung edge function (or a
   // laptop that went to sleep mid-request) leaves the UI spinner going forever.

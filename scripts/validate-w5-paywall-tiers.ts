@@ -129,7 +129,10 @@ ok('restore with no store throws RestoreUnavailableError instead of echoing the 
   /if \(!rcConfigured\) throw new RestoreUnavailableError\(\);/.test(ctx) && !/const stored = await AsyncStorage\.getItem\(SUBSCRIPTION_KEY\);\s*return stored/.test(ctx));
 ok('restorePurchases returns the restored tier (CONTRACT 2)', /const restorePurchases = useCallback\(async \(\): Promise<SubscriptionTier> =>/.test(ctx));
 ok('planSource is on the context value (CONTRACT 1)', /return useMemo\(\(\) => \(\{\s*tier,\s*planSource,/.test(ctx));
-ok('the Enterprise-missing error is customer-safe', !/Set up the product in App Store Connect/.test(ctx) && /Enterprise is not available for purchase in the app yet/.test(ctx));
+// App Store wave (2026-10, spec APPPAY item 4): the three purchase throws are
+// one plain sentence, PLAN_UNAVAILABLE_MESSAGE (was "Enterprise is not
+// available for purchase in the app yet." and two others).
+ok('the Enterprise-missing error is customer-safe', !/Set up the product in App Store Connect/.test(ctx) && /export const PLAN_UNAVAILABLE_MESSAGE = 'This plan isn’t available right now\. Try again later\.';/.test(ctx) && /throw new Error\(PLAN_UNAVAILABLE_MESSAGE\);/.test(ctx));
 
 for (const f of ['app/paywall.tsx', 'app/onboarding-paywall.tsx']) {
   const s = code(read(f));

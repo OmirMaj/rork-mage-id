@@ -22,6 +22,7 @@ import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import { useStagger } from '@/components/motion/kit';
 import { Skeleton } from '@/components/Skeleton';
 
@@ -113,7 +114,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       // Say what failed, in the card. A briefing that silently doesn't appear
       // is indistinguishable from "nothing needs your attention".
       console.log('[AI Briefing] Failed:', err);
-      setError(describeError(err, { action: "build today's briefing" }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: "build today's briefing" }).body);
     } finally {
       setIsLoading(false);
     }

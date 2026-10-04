@@ -25,6 +25,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 
 interface Props {
   sub: Subcontractor;
@@ -84,8 +85,9 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Sub] Evaluation failed:', err);
+      const off = aiConsentErrorText(err);
       const copy = describeError(err, { action: 'evaluate this sub' });
-      showAlert(copy.title, copy.body);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : copy.title, off ?? copy.body);
     } finally {
       setIsLoading(false);
     }

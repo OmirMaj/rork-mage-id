@@ -2,8 +2,8 @@
 
 exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today view 1`] = `
 {
-  "lines": 2182,
-  "sha256": "2354ba701434b0b854f54b00ecb88a57aa7e54b0d60df5305f0530ecd5a9ba77",
+  "lines": 2179,
+  "sha256": "fb253463b8e0fb21e52e387ea7602da88adc0c11661308d762e7d4afa34d1de9",
 }
 `;
 
@@ -30,8 +30,8 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) deliveries 1`] = `
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code checks card) 1`] = `
 {
-  "lines": 1606,
-  "sha256": "9b823baef0cbc0794ef5ed394d58218995502ffcb6e2b3f22204c7f2880f9130",
+  "lines": 1603,
+  "sha256": "9c579259da0441029544609cbe7b9eeccd439be037aca3917b072065f13769cf",
 }
 `;
 
