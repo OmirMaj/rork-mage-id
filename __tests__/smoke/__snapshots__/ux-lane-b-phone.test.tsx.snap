@@ -10,14 +10,14 @@ exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today vi
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (Tools entry) 1`] = `
 {
   "lines": 831,
-  "sha256": "ba8a192dc135d8cf752d1a5ccc6b623da925abaef5b09386d9d901412be02cae",
+  "sha256": "d053903192b83fe9f3d7b7de4c0b7d57bf9f3f1d7a976cbe23077dd475dfd8aa",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (from the job) 1`] = `
 {
   "lines": 839,
-  "sha256": "9cf45027a286530234770ce91397230509995c9f1cff0db9610a78f26091b83d",
+  "sha256": "894b2d9baeb5d4fdbb8360fb1319fa961639fca10ea4a9568b026426cbc44263",
 }
 `;
 

@@ -1466,6 +1466,8 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="job-facts" options={{ headerShown: false }} />
+      {/* Lane PPUI: Permit Path — the job's permit route; the screen draws its own header. */}
+      <Stack.Screen name="permit-path" options={{ title: 'Permit Path', headerShown: false }} />
       <Stack.Screen
         name="photo-annotator"
         options={{ headerShown: false, presentation: 'modal' }}

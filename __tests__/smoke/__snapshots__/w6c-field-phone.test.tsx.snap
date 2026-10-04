@@ -17,7 +17,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) area-takeoff
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction-ai 1`] = `
 {
   "lines": 831,
-  "sha256": "ba8a192dc135d8cf752d1a5ccc6b623da925abaef5b09386d9d901412be02cae",
+  "sha256": "d053903192b83fe9f3d7b7de4c0b7d57bf9f3f1d7a976cbe23077dd475dfd8aa",
 }
 `;
 
@@ -149,8 +149,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) payments (ta
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) permits 1`] = `
 {
-  "lines": 817,
-  "sha256": "8ac1f39578b61e0ed16f45894da84e4f5ea7424f7502dba3905a90a2e721d8b6",
+  "lines": 834,
+  "sha256": "5a9510c0bca879045b2d527207465c12fde665b188f0483e1a9ab423809c0bb6",
 }
 `;
 

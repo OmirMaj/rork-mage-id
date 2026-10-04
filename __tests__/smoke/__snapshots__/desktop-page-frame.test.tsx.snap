@@ -25874,7 +25874,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                     "accessibilityRole": "image",
                                                     "resizeMode": "contain",
                                                     "source": {
-                                                      "testUri": "../../../../../../../private/tmp/claude-501/login-ui/assets/images/brand/mage-mark-on-dark.png",
+                                                      "testUri": "<rootDir>/assets/images/brand/mage-mark-on-dark.png",
                                                     },
                                                     "style": {
                                                       "height": "100%",
