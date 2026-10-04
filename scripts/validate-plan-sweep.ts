@@ -185,10 +185,16 @@ ok(`${FN} marks the prompt and normalizePlanResult as pure blocks`, !!promptBloc
 // Recorded on base 4a5f6eb7 (the untouched file) with these exact inputs,
 // BEFORE this lane edited anything: sha256 of the two prompts and of the
 // normalized JSON. Plan Review's request carries no `sweep`, so these must
-// never move.
+// never move because of the sweep.
+// Moved ONCE on purpose (content rights, 2026-10-03): every prompt now asks for
+// the requirement in the model's own words and forbids quoting model-code text
+// (ICC, NFPA) — one added line and the "paraphrased in your own words" schema
+// hint. Re-recorded after proving each new prompt equals the 4a5f6eb7 prompt
+// (4b32b603… / 633bd733…) with exactly those two edits and nothing else.
+// scripts/validate-code-copyright-prompts.ts pins the rule itself.
 const BASE_PROMPT_SHA = [
-  '4b32b603ae72226e96db2a48faa006983e6cc38d9090179be317bcd21927db45',
-  '633bd733d6c0bdfc4becfc5d8fac54883f72aa1becff3db3f1e728d3aad82500',
+  'ca7cdf2f908b5373b3bbfa73ba861bea1657d96e1cb2b76928eddaf48c273968',
+  'a8f9948d8d6742596f5e253ab6bc9b2d513a6481587bf18c2cba20f0d1ea118a',
 ];
 const BASE_NORM_SHA = 'babbc66c341c2d9978e465a890d99573eeb2caea063dd391d922aaab0a3a338c';
 const REQS = [

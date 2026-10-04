@@ -543,7 +543,7 @@ function TodayView({
   // `container` already supplies the gap, so no extra spacing needed.
   const weatherNotesEl = (
     <>
-      <WeatherPlaceLine text={weatherDesc.placeLine} />
+      <WeatherPlaceLine text={weatherDesc.placeLine} days={forecast} />
       <SimulatedWeatherBanner days={forecast} cause={weatherDesc.cause} />
     </>
   );

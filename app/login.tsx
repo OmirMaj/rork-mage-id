@@ -1,21 +1,25 @@
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Animated, ActivityIndicator, Switch,
-  Easing, type ViewStyle,
+  Easing, useWindowDimensions, type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
-import { Colors, BRAND_ACCENT_ON_DARK } from '@/constants/colors';
+import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
-import { Type } from '@/constants/typography';
-import { neutralInk, cardSurface } from '@/components/ui';
+import { Type, DISPLAY_FONT } from '@/constants/typography';
+import { cardSurface } from '@/components/ui';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { AuthGround, MonogramMark, SamplePill, SpineHeadline, NIGHT } from '@/components/auth/AuthGround';
+import MiniSpine from '@/components/auth/MiniSpine';
+import SpineHero from '@/components/auth/SpineHero';
 import { Motion, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { classifyError, describeError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
@@ -74,6 +78,11 @@ export default function LoginScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // The spine ("Take D"): phone = a mini spine over the sign-in sheet; desktop
+  // web = the full spine on a night panel, the form on the right.
+  const isDeskWeb = useIsDesktopWeb();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const miniWidth = Math.min(winW, 390 * Math.min(1, Math.max(0.7, (winH - 560) / 212)));
   // Cold-start hand-off from BrandSplash (components/auth/authMotion). Unarmed
   // (and the tree unchanged) on every mount but the one under the splash.
   const entrance = useLaunchEntrance(9);
@@ -437,57 +446,54 @@ export default function LoginScreen() {
   }, [email, sendMagicLink, setError]);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.topSection, { paddingTop: insets.top + 36 }]}>
-        {/* Decorative amber glow only. The four hairline "concrete grid" rules
-            that used to sit behind this hero were the same faint-rules-behind-
-            content artifact removed from components/EmptyState.tsx — on device
-            they read as a chart grid bleeding through, not as texture. Do not
-            reintroduce; scripts/validate-visual-regressions.ts pins this. */}
-        <View pointerEvents="none" style={styles.heroGlow} />
-
-        <View style={styles.brandRow}>
+    <View style={[styles.container, isDeskWeb && styles.containerDesk]}>
+      {/* The night hero: the monogram (no hard-hat mark), the "Sample project"
+          pill, and the spine. Decorative only; every control is in the sheet.
+          No concrete-grid hairlines behind it (validate-visual-regressions). */}
+      <View style={isDeskWeb ? styles.deskLeft : [styles.topSection, { paddingTop: insets.top + 16 }]}>
+        <AuthGround />
+        <View style={[styles.brandRow, isDeskWeb && styles.brandRowDesk]}>
           <Slot style={entrance.slot(0)}>
-            <View style={styles.logoChip}>
-              <HardHat size={16} color={BRAND_ACCENT_ON_DARK} strokeWidth={2} />
-            </View>
+            <MonogramMark height={isDeskWeb ? 48 : 40} />
           </Slot>
           <Text
             ref={launchTarget.ref}
             {...launchTarget.layoutProps}
             style={entrance.showWordmark ? styles.brandWordmark : [styles.brandWordmark, HIDDEN]}
           >MAGE ID</Text>
+          <View style={styles.brandSpacer} />
+          <Slot style={entrance.slot(1)}>
+            <SamplePill />
+          </Slot>
         </View>
 
-        <Slot style={entrance.slot(1)}>
-          <Text style={styles.heroEyebrow}>Welcome back</Text>
-        </Slot>
         <Slot style={entrance.slot(2)}>
-          <Text style={styles.heroLine}>
-            Build it. <Text style={styles.heroLineAccent}>Bill it.</Text>
-          </Text>
+          {isDeskWeb ? (
+            <View style={styles.deskSpine}>
+              <SpineHero width={Math.max(320, winW - 556 - 96)} height={Math.max(300, winH - 330)} maxScale={1.04} testID="login-spine" />
+            </View>
+          ) : (
+            <MiniSpine width={miniWidth} style={styles.miniSpine} testID="login-mini-spine" />
+          )}
         </Slot>
-        <Slot style={entrance.slot(3)}>
-          <Text style={styles.heroLine}>
-            Track every dollar.
-          </Text>
-        </Slot>
-        <Slot style={entrance.slot(4)}>
-          <Text style={styles.heroSub}>
-            The operating system for general contractors.
-          </Text>
-        </Slot>
+        {isDeskWeb ? <SpineHeadline size={40} style={styles.deskCopy} lede={styles.deskLede} /> : null}
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.formWrapper}
+        style={isDeskWeb ? styles.deskRight : styles.formWrapper}
       >
         <ScrollView
-          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }, isDeskWeb && styles.formDesk]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <Slot style={entrance.slot(3)}>
+            <Text style={styles.sheetEyebrow}>Welcome back</Text>
+          </Slot>
+          <Slot style={entrance.slot(4)}>
+            <Text style={styles.sheetHeading} accessibilityRole="header">{isDeskWeb ? 'Sign in to MAGE ID' : 'Sign in'}</Text>
+          </Slot>
           <View>
             {errorMessage ? (
               <Slot style={bannerFade}>
@@ -764,103 +770,109 @@ export default function LoginScreen() {
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  // The night ground (components/auth/AuthGround) shows behind the sheet's
+  // rounded top corners, so the screen itself is night, not t.bg.
   container: {
     flex: 1,
-    backgroundColor: t.bg,
+    backgroundColor: NIGHT.mid,
   },
-  // Premium dark hero — matches the marketing site at https://mageid.app
-  // Palette (rebrand 2026-09-16): the dark ground #151816 + equipment green on
-  // dark (BRAND_ACCENT_ON_DARK #5DB36E) + cream type. The hero is dark in BOTH
-  // themes, so its green is the dark-UI brand — #2F6B3A would be 2.80:1 here —
-  // and never the themed accent, which is the light brand in light mode.
-  // A single soft green glow gives the "industrial concrete × tech" feel
-  // without an image asset — and without ruled lines behind the copy.
+  containerDesk: {
+    flexDirection: 'row' as const,
+  },
+  // The hero: the same night field in both themes. Its type is light-on-night.
   topSection: {
     backgroundColor: '#151816',
-    paddingHorizontal: 28,
+    paddingHorizontal: 22,
     paddingBottom: 40,
-    alignItems: 'flex-start' as const,
     overflow: 'hidden' as const,
-  },
-  heroGlow: {
-    position: 'absolute' as const,
-    top: -100,
-    right: -100,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: 'rgba(93,179,110,0.18)', // BRAND_ACCENT_ON_DARK at 18%
   },
   brandRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    marginBottom: 32,
+    gap: 10,
+    marginBottom: 18,
     zIndex: 1,
   },
-  logoChip: {
-    width: 32,
-    height: 32,
-    borderRadius: Tokens.radius.sm,
-    backgroundColor: 'rgba(93,179,110,0.12)',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    borderWidth: 1,
-    borderColor: 'rgba(93,179,110,0.24)',
+  brandRowDesk: {
+    marginBottom: 0,
   },
+  brandSpacer: {
+    flex: 1,
+  },
+  // Kept for the splash hand-off: BrandSplash's "MAGE ID" lands on this word.
   brandWordmark: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
     color: '#F4EFE6',
     letterSpacing: 2,
   },
-  heroEyebrow: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '700' as const,
-    color: BRAND_ACCENT_ON_DARK,
-    letterSpacing: 2.5,
-    marginBottom: 12,
-    zIndex: 1,
-    textTransform: 'uppercase' as const,
+  miniSpine: {
+    alignSelf: 'center' as const,
   },
-  heroLine: {
-    fontSize: 36,
-    fontWeight: '700' as const,
-    color: '#F4EFE6',
-    letterSpacing: -1,
-    lineHeight: 42,
-    fontStyle: Platform.OS === 'ios' ? 'normal' : 'normal',
-    zIndex: 1,
+  // Desktop web: the spine on a night panel on the left, the form on the right.
+  deskLeft: {
+    flex: 1,
+    paddingHorizontal: 48,
+    paddingTop: 44,
+    paddingBottom: 52,
+    overflow: 'hidden' as const,
+    justifyContent: 'space-between' as const,
   },
-  heroLineAccent: {
-    color: BRAND_ACCENT_ON_DARK,
-    fontStyle: 'italic' as const,
-    fontWeight: '700' as const,
+  deskSpine: {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 20,
   },
-  heroSub: {
-    fontSize: Type.footnote.fontSize,
-    fontWeight: '500' as const,
-    // Was the literal '#9AA3AD' — the DARK theme's textSecondary — sitting on
-    // `t.bg`, which is near-white in light mode. 2.55:1 on a 13pt line, on the
-    // FIRST screen anyone sees. neutralInk picks the same grey family by the
-    // background's luminance, so it clears AA in both themes and keeps the
-    // colour the design intended in dark (audit 2026-09-07, worth-doing #4).
-    color: neutralInk(t),
-    letterSpacing: 0.2,
-    marginTop: 14,
-    zIndex: 1,
+  deskCopy: {
+    maxWidth: 628,
   },
+  deskLede: {
+    fontSize: 16,
+  },
+  deskRight: {
+    width: 556,
+    backgroundColor: t.bg,
+  },
+  formDesk: {
+    flexGrow: 1,
+    justifyContent: 'center' as const,
+    maxWidth: 372,
+    paddingTop: 48,
+  },
+  // The sheet: the light (themed) page rising over the night hero.
   formWrapper: {
     flex: 1,
+    marginTop: -24,
+    backgroundColor: t.bg,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden' as const,
   },
   formContainer: {
     padding: 24,
-    paddingTop: 32,
+    paddingTop: 26,
     // Auth form: a cap is correct. No-op on phone (< 480 content width), stops
     // the inputs stretching edge-to-edge across a desktop browser.
     width: '100%',
     maxWidth: 480,
     alignSelf: 'center' as const,
+  },
+  sheetEyebrow: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: t.accentLabel,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase' as const,
+  },
+  sheetHeading: {
+    fontFamily: DISPLAY_FONT.bold,
+    fontSize: 30,
+    lineHeight: 34,
+    letterSpacing: -0.5,
+    color: t.text,
+    marginTop: 6,
+    marginBottom: 18,
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,

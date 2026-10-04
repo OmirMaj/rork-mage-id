@@ -21,7 +21,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 // Single source of truth for whether the homeowner-RFP feed is readable.
 // app/nearby-rfps.tsx imports it from the same place.
-import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+// Discover > Companies (Google business listings) is switched off for launch:
+// MAGE has no right to store or show them (contentfix-specs/RIGHTS-VERDICT.md).
+// Every door below is gated on COMPANIES_DIRECTORY_ENABLED; the route itself
+// redirects to Discover.
+import { RFP_BROWSE_ENABLED, COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
@@ -197,7 +201,7 @@ export default function DiscoverScreen() {
     const routes: Record<string, string> = {
       tools: '/(tabs)/discover/tools',
       bids: '/(tabs)/discover/bids',
-      companies: '/(tabs)/discover/companies',
+      ...(COMPANIES_DIRECTORY_ENABLED ? { companies: '/(tabs)/discover/companies' } : {}),
       ...(HIRE_ENABLED ? { hire: '/(tabs)/discover/hire' } : {}),
       estimate: '/(tabs)/discover/estimate',
       schedule: '/(tabs)/discover/schedule',
@@ -219,7 +223,7 @@ export default function DiscoverScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <View style={[styles.headerArea, { paddingTop: insets.top }]}>
         <Text style={styles.largeTitle}>Discover</Text>
-        <Text style={styles.headerSubtitle}>Tools · bids · companies · AI · marketplace</Text>
+        <Text style={styles.headerSubtitle}>{COMPANIES_DIRECTORY_ENABLED ? 'Tools · bids · companies · AI · marketplace' : 'Tools · bids · AI · marketplace'}</Text>
 
         <ScrollView
           ref={tabScrollRef}
@@ -228,7 +232,7 @@ export default function DiscoverScreen() {
           contentContainerStyle={styles.tabBar}
           style={styles.tabBarScroll}
         >
-          {TABS.filter((tab) => HIRE_ENABLED || tab.id !== 'hire').map((tab) => {
+          {TABS.filter((tab) => (HIRE_ENABLED || tab.id !== 'hire') && (COMPANIES_DIRECTORY_ENABLED || tab.id !== 'companies')).map((tab) => {
             const isActive = tab.id === 'overview';
             const TabIcon = tab.icon;
             return (
@@ -420,7 +424,7 @@ export default function DiscoverScreen() {
           <View style={[styles.sectionAccent, { backgroundColor: Colors.info }]} />
           <View>
             <Text style={styles.sectionLabel}>Online jobs and bids</Text>
-            <Text style={styles.sectionHint}>Government contracts, private bids and company listings</Text>
+            <Text style={styles.sectionHint}>{COMPANIES_DIRECTORY_ENABLED ? 'Government contracts, private bids and company listings' : 'Government contracts and private bids'}</Text>
           </View>
         </View>
 
@@ -437,14 +441,16 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/discover/bids')}
         />
 
-        <NavigationCard
-          icon={Building2}
-          iconColor={Colors.infoLabel}
-          iconBg={Colors.info + '15'}
-          title="Companies"
-          subtitle="Public Google business listings, 9 metros"
-          onPress={() => navigateTo('/(tabs)/discover/companies')}
-        />
+        {COMPANIES_DIRECTORY_ENABLED && (
+          <NavigationCard
+            icon={Building2}
+            iconColor={Colors.infoLabel}
+            iconBg={Colors.info + '15'}
+            title="Companies"
+            subtitle="Public Google business listings, 9 metros"
+            onPress={() => navigateTo('/(tabs)/discover/companies')}
+          />
+        )}
 
         {HIRE_ENABLED && (
           <NavigationCard

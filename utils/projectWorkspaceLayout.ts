@@ -138,6 +138,7 @@ export const LEGACY_TILE_ROUTES = {
   closeoutBinder: { pathname: '/closeout-binder', param: 'projectId' },
   handover: { pathname: '/handover', param: 'projectId' },
   jobFacts: { pathname: '/job-facts', param: 'projectId' },
+  permitPath: { pathname: '/permit-path', param: 'projectId' },
   oacMeetings: { pathname: '/oac-meeting', param: 'projectId' },
   safety: { pathname: '/safety', param: 'projectId' },
   timeTracking: { pathname: '/time-tracking', param: 'projectId' },

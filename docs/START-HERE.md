@@ -394,6 +394,10 @@ enforced in the engine, in every AI prompt, and now visibly on the estimate row
    and inline `fontSize`. **Verify against `constants/colors.ts` — do not guess.**
 5. **Agent worktrees have no `node_modules`.** Node resolves upward so tsc/jest/
    eslint work, but Metro cannot bundle. Symlink from the main checkout.
+   (A symlinked `node_modules` once baked the worktree's absolute path into six
+   goldens through an image's `testUri` — red CI on 0890777b. Images now go
+   through `__tests__/setup/asset-transformer.js` as `<rootDir>/…`, and
+   `test:snapshot-paths` fails the gate if a machine path reaches any `.snap`.)
 6. **Two test systems, deliberately.** ~140 `bun` scripts in `scripts/validate-*.ts`
    (pure logic + source assertions) AND a jest smoke suite (~404 tests, mounts
    every route in empty + populated states). Neither replaces the other.

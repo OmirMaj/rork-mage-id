@@ -227,8 +227,14 @@ const MAIN_SYSTEM_ARRAY = [
   '          ...(jurisdictionBlock ? [{ type: "text", text: jurisdictionBlock }] : []),',
   '        ],',
 ].join('\n');
-// sha256 of the `const SYSTEM = \`…\`;` statement (through the closing line) at 64d397af.
-const MAIN_SYSTEM_SHA = 'd19af37427aee6169a88f06c8de2e9f46d1af5f311398ca4125b5fa7278bcd8f';
+// sha256 of the `const SYSTEM = \`…\`;` statement (through the closing line) at 64d397af
+// was d19af374…. Moved ONCE on purpose (content rights, 2026-10-03): the HONESTY
+// CONTRACT gained rule 7 (COPYRIGHT — no long verbatim quotes from retrieved
+// pages). Re-recorded after proving the new statement equals the 64d397af one
+// with exactly that line added after rule 6. The Baltimore record still rides
+// in the first user message, never in SYSTEM; scripts/validate-code-copyright-
+// prompts.ts pins the rule's text.
+const MAIN_SYSTEM_SHA = 'dba73046c49c1cce61ef01b87e91862c63cb6ddebf5fca584f03ebeddfaea9b5';
 {
   const at = askFn.indexOf('        system: [');
   const end = at < 0 ? -1 : askFn.indexOf('\n        ],', at);

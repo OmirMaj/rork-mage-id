@@ -1,0 +1,22 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`content rights golden — hidden doors (390 x 844 iOS) (a) discover overview 1`] = `
+{
+  "lines": 918,
+  "sha256": "43f7600577aaeeb3b237f9e6d2aca392e18b6a8ead988c5e272d040e70d3aade",
+}
+`;
+
+exports[`content rights golden — hidden doors (390 x 844 iOS) (b) discover/tools 1`] = `
+{
+  "lines": 1427,
+  "sha256": "7ff8044045c30aa9c8410ecf7462aa2ff9f0fc2417359b5a91c4427094f3e6cc",
+}
+`;
+
+exports[`content rights golden — hidden doors (390 x 844 iOS) (c) construction-news 1`] = `
+{
+  "lines": 918,
+  "sha256": "43f7600577aaeeb3b237f9e6d2aca392e18b6a8ead988c5e272d040e70d3aade",
+}
+`;

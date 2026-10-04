@@ -306,6 +306,13 @@ export function cityClaimProblems(html: string, city: City, facts: CityCodeFacts
       if (all.length !== 1) say(`expected one element with data-pin="${pin}", found ${all.length}`);
       else p.push(...linkProblems(all[0], links, `${rel} [${pin}]`, from));
     }
+    // contentfix 2026-10-03 (RIGHTS-VERDICT.md): md.ts no longer reads the City's
+    // unpublished housing-notices feed, CHAP landmarks or National Register
+    // districts (no licence). The page may send the reader to CoDeMap for notices,
+    // but must not say the record reads any of the three.
+    const readClaim = prose.split(/(?<=\.)\s+/).filter(sn => !/codemap/i.test(sn)).join(' ');
+    const unread = /housing[- ]code notices|landmarks?\b|national register/i.exec(readClaim);
+    if (unread) say(`the page says the record reads "${unread[0]}", a City layer md.ts no longer reads (contentfix 2026-10-03)`);
   }
   return p;
 }
@@ -356,6 +363,8 @@ export const FIXTURES: { name: string; expect: RegExp; run: () => string[] }[] =
   { name: '"every plan" while building-record drops free', expect: /accepts only pro, business, enterprise/, run: () => cityClaimProblems(page('nyc'), 'nyc', { ...realFacts(), buildingRecordSrc: "await requireTier(req, ['pro', 'business', 'enterprise'], 'building_record');" }) },
   { name: 'a pinned element dropped by a reskin', expect: /expected one element with data-pin="md-county-not-checked", found 0/, run: () => cityClaimProblems(mutate(page('baltimore'), ' data-pin="md-county-not-checked"', ''), 'baltimore') },
   { name: '"the only … app" absolute', expect: /banned claim "the only/, run: () => cityClaimProblems(mutate(page('baltimore'), 'which one your jobsite is in.', 'which one your jobsite is in. It is the only Baltimore app that does.'), 'baltimore') },
+  { name: 'Baltimore page claiming CHAP landmarks again', expect: /record reads "landmarks", a City layer md\.ts no longer reads/, run: () => cityClaimProblems(mutate(page('baltimore'), 'CHAP historic districts and the flood zone', 'CHAP historic districts and landmarks, and the flood zone'), 'baltimore') },
+  { name: 'Baltimore page claiming housing code notices again', expect: /record reads "housing code notices"/, run: () => cityClaimProblems(mutate(page('baltimore'), 'open vacant building notices,', 'open vacant building and housing code notices,'), 'baltimore') },
   { name: 'sitemap without the city pages', expect: /cities\/baltimore\.html is not listed/, run: () => citySitemapProblems('<urlset><url><loc>https://mageid.app/</loc></url></urlset>') },
 ];
 export const CLEAN_FIXTURES: { name: string; run: () => string[] }[] = [

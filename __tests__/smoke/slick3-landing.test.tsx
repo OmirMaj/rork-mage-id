@@ -26,6 +26,7 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
+import { COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
 
 // ── The layout gate (phone) ────────────────────────────────────────────────
 let mockWidth = 390;
@@ -189,9 +190,21 @@ describe('slick3 landing golden — at rest nothing changes (390 × 844 iOS)', (
     expect(fingerprint('a-discover-bids', tree.toJSON())).toMatchSnapshot();
   });
 
-  it('(b) discover/companies', async () => {
+  // Content rights (2026-10-03): Discover > Companies is hidden for launch
+  // (COMPANIES_DIRECTORY_ENABLED = false) and its route redirects to Discover.
+  // The golden is kept for the day the flag comes back on; while it is off, the
+  // route must render exactly the Discover overview and nothing of Companies.
+  (COMPANIES_DIRECTORY_ENABLED ? it : it.skip)('(b) discover/companies', async () => {
     const tree = await phoneRoute('/discover/companies');
     expect(fingerprint('b-discover-companies', tree.toJSON())).toMatchSnapshot();
+  });
+
+  (COMPANIES_DIRECTORY_ENABLED ? it.skip : it)('(b2) discover/companies while hidden: the Discover overview, nothing of Companies', async () => {
+    const tree = await phoneRoute('/discover/companies');
+    expect(tree.getPathname()).toBe('/discover');
+    expect(tree.queryByTestId('companies-use-location')).toBeNull();
+    expect(tree.queryByTestId('companies-location-notice')).toBeNull();
+    expect(tree.getByTestId('discover-equipment-cta')).toBeTruthy();
   });
 
   it('(c) discover/hire', async () => {

@@ -296,18 +296,22 @@ ok('...and the baseline actually recomputes when they land',
   /\bexistingReport\b/.test(savedSignatureDeps) && /\bautoFilled\b/.test(savedSignatureDeps),
   'a memo that never re-runs holds the empty baseline and the screen stays dirty forever; ' +
   `savedSignature deps are [${savedSignatureDeps}]`);
-ok('the on-mount weather fetch is marked as the app acting, not the user',
-  /void fetchWeather\(\{ auto: true \}\)/.test(dfrCode));
+// The on-mount weather fetch was retired (content rights, 2026-10-02): nothing
+// fills the weather on open any more, so there is no app-acting fetch to mark.
+// What must hold instead: the screen never fetches weather on its own, and the
+// legacy-reading clear moves the baseline with it (or the clear reads as an edit).
+ok('the report fills no weather on its own (no mount fetch to mistake for the user)',
+  !/\bfetchWeather\b/.test(dfrCode) && !/wttr\.in/.test(dfrCode));
+ok('clearing a legacy reading moves the unsaved-work baseline with it',
+  /setWeather\(EMPTY_DFR_WEATHER\);[\s\S]{0,200}setAutoFilled\(p => \(\{ \.\.\.p, weather: EMPTY_DFR_WEATHER \}\)\)/.test(dfrCode));
 ok('the schedule crew prefill records what it seeded',
   /setManpower\(seeded\);\s*setAutoFilled\(/.test(dfrCode),
   'the seed has to reach the baseline or it reads as the GC typing a roster');
-// The manual "Auto-fetch" button IS the user's work and must read as an edit.
-// Wired straight to onPress, the press event arrives as the options argument
-// and `opts.auto` is undefined by luck rather than by design — one refactor
-// away from a tap that silently stops counting.
-ok('the manual weather button is not wired straight through to fetchWeather',
-  !/onPress=\{fetchWeather\}/.test(dfrCode),
-  'a tap on Auto-fetch is an edit; only the unattended mount fetch is not');
+// The manual "Auto-fetch" button is gone with the read (content rights): typed
+// weather is the user's own work, and each typed field must read as an edit.
+ok('typed weather counts as the user\'s edit (isManual: true on every field)',
+  (dfrCode.match(/setWeather\(prev => \(\{ \.\.\.prev, (temperature|conditions|wind): v, isManual: true \}\)\)/g) ?? []).length === 3,
+  'a typed value that does not mark itself as typed reads as an app reading on the provenance chip');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. The permit inspection history (audit #14)

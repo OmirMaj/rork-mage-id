@@ -702,7 +702,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     && normalizeCityBlockLot('3172042') === '3172 042' && normalizeCityBlockLot('5213 047A') === '5213 047A' && normalizeCityBlockLot('NOT LOCATED') === null && normalizeCityBlockLot("1' OR 1") === null);
   ok('31. the permits/notices IN list carries BOTH spellings (the block-lot trap)',
     deepEqual(cityBlockLotVariants('4074C009').sort(), ['4074C 009', '4074C009']) && deepEqual(cityBlockLotVariants('3950 022').sort(), ['3950 022', '3950022'])
-    && mdWhere('C4', 'baltimore_city', '4074C009') === "BLOCKLOT IN ('4074C009','4074C 009')" && mdWhere('C7_4', 'baltimore_city', '4074C009') === "BlockLot IN ('4074C009','4074C 009')");
+    && mdWhere('C4', 'baltimore_city', '4074C009') === "BLOCKLOT IN ('4074C009','4074C 009')" && mdWhere('C6', 'baltimore_city', '4074C009') === "BLOCKLOT IN ('4074C009','4074C 009')");
   ok('31. isAllowedMdUrl refuses a foreign host, a look-alike prefix and a raw quote',
     !isAllowedMdUrl('https://evil.example/arcgis/rest/services/x') && !isAllowedMdUrl('https://baltegis.baltimorecity.gov.evil.example/mapping/rest/services/x')
     && !isAllowedMdUrl("https://baltegis.baltimorecity.gov/mapping/rest/services/x?where='1'") && !isAllowedMdUrl(null) && isAllowedMdUrl('https://bcgisdata.baltimorecountymd.gov/arcgis/rest/services/x'));
@@ -714,8 +714,15 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     parcelPointUrl('baltimore_city', 39.3, -76.6), parcelPointUrl('baltimore_county', 39.4, -76.7),
     ...cityPlan.map((j) => j.url), ...countyPlan.map((j) => j.url),
   ];
-  ok('31. every MD builder URL is on the allow-list (and the record plans are complete: 24 City jobs, 11 County jobs)',
-    cityPlan.length === 24 && countyPlan.length === 11 && mdBuilt.every((u) => !!u && isAllowedMdUrl(u)), mdBuilt.filter((u) => !u || !isAllowedMdUrl(u)).join(', '));
+  // Content rights (2026-10-03): the City plan no longer reads the unpublished
+  // housing-notices feed (4 layers), CHAP landmarks or National Register
+  // districts, nor their as-of probes: 24 → 12 City jobs.
+  ok('31. every MD builder URL is on the allow-list (and the record plans are complete: 12 City jobs, 11 County jobs)',
+    cityPlan.length === 12 && countyPlan.length === 11 && mdBuilt.every((u) => !!u && isAllowedMdUrl(u)), mdBuilt.filter((u) => !u || !isAllowedMdUrl(u)).join(', '));
+  ok('31. no MD plan or layer reads the three unlicensed City layers (housing notices feed, CHAP landmarks, National Register)',
+    mdBuilt.every((u) => !/NoticesInspections|CHAPLandmarks|Planning\/Boundaries\/MapServer\/11/.test(u ?? ''))
+    && Object.values(MD_LAYERS).every((l) => !/NoticesInspections|CHAPLandmarks|Planning\/Boundaries\/MapServer\/11/.test(l.layer + l.page)),
+    mdBuilt.filter((u) => /NoticesInspections|CHAPLandmarks|Boundaries/.test(u ?? '')).join(', '));
   ok('31. the postal city is dropped from the geocoder text; ZIP and house number are kept as guards',
     !!mdInput && mdInput.query === '620 E 31st St, MD 21218' && mdInput.zip === '21218' && mdInput.houseNumber === '620'
     && mdAddressInput('9616 Reisterstown Rd, Baltimore, MD')?.query === '9616 Reisterstown Rd, MD');
@@ -730,14 +737,8 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     C3: ['PIN', 'BLOCKLOT', 'BLOCK', 'LOT', 'FULLADDR', 'ZIP_CODE', 'YEAR_BUILD', 'STRUCTAREA', 'ZONECODE', 'USEGROUP', 'DWELUNIT', 'VACIND', 'NEIGHBOR', 'LDATE'],
     C4: ['CaseNumber', 'Description', 'IssuedDate', 'ExpirationDate', 'Address', 'BLOCKLOT', 'prc_block_no', 'prc_lot', 'ExistingUse', 'ProposedUse', 'Cost', 'IsPermitModification'],
     C6: ['NoticeNum', 'DateNotice', 'DateCancel', 'DateAbate', 'NT', 'BLOCKLOT', 'Address', 'Neighborhood'],
-    C7_1: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-    C7_2: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-    C7_3: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
-    C7_4: ['NoticeNum', 'DateNotice', 'NoticeType', 'Status', 'Address', 'Block', 'Lot', 'BlockLot'],
     C8: ['Zoning', 'overlay', 'Label', 'URL'],
     C9: ['AREA_NAME', 'CHAPcode'],
-    C10: ['NAME', 'Address', 'BLOCKLOT', 'HistLdmkCode'],
-    C11: ['NAME', 'LISTEDDATE', 'NRREFNO'],
     C12: ['FLD_ZONE', 'ZONE_SUBTY', 'SFHA_TF', 'STATIC_BFE', 'DFIRM_ID'],
     K3: ['TAXPIN', 'DISTRICT', 'PREMISE_ADDRESS', 'ZIP_CODE', 'YEAR_BUILT', 'STRCT_SQFT', 'LU_CODE', 'MAP', 'GRID', 'PARCEL', 'LOT'],
     K4: ['PERMITNO', 'APPL_DATE', 'ISSDATE', 'OCCDATE', 'P_ADDRESS', 'TYPEDESCRIPTION', 'SUBTYPE_DESCRIPTION', 'DESC_WORK', 'STATUS', 'ZONING', 'EST_COST'],
@@ -747,14 +748,14 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
   };
   const sameSet = (a: string[], b: string[]) => a.length === b.length && new Set(a).size === a.length && a.every((x) => b.includes(x));
   const layerIds = Object.keys(MD_LAYERS) as (keyof typeof MD_LAYERS)[];
-  ok('32. every MD layer outFields constant EQUALS its SAFE list as a set (17 layers)',
-    layerIds.length === 17 && layerIds.every((id) => sameSet(MD_LAYERS[id].outFields.split(','), SAFE[id] ?? []) && sameSet([...MD_SAFE_FIELDS[id]], SAFE[id] ?? [])),
+  ok('32. every MD layer outFields constant EQUALS its SAFE list as a set (11 layers; C7_1-4, C10, C11 retired for content rights)',
+    layerIds.length === 11 && layerIds.every((id) => sameSet(MD_LAYERS[id].outFields.split(','), SAFE[id] ?? []) && sameSet([...MD_SAFE_FIELDS[id]], SAFE[id] ?? [])),
     layerIds.filter((id) => !sameSet(MD_LAYERS[id].outFields.split(','), SAFE[id] ?? [])).join(','));
   const BACKSTOP = /OWN|MAIL|DEED|SALE|TENANT|CONTRACT|ENGINEER|ARCHITECT|_USER|INITIATED|CNTCT|SCAN|PERMHOME|PROPDESC|NAME_FIRST|NAME_LAST|PermitName|projname/i;
   const outFieldsOf = (u: string | null | undefined) => { const m = /[?&]outFields=([^&]*)/.exec(u ?? ''); return m ? decodeURIComponent(m[1]) : null; };
   const builtOut = mdBuilt.map(outFieldsOf).filter((x): x is string => x !== null);
   ok('32. the backstop regex matches no MD outFields constant and no outFields= value of any built URL',
-    layerIds.every((id) => !BACKSTOP.test(MD_LAYERS[id].outFields)) && builtOut.length >= 20 && builtOut.every((v) => !BACKSTOP.test(v) && v !== '*'),
+    layerIds.every((id) => !BACKSTOP.test(MD_LAYERS[id].outFields)) && builtOut.length >= 15 && builtOut.every((v) => !BACKSTOP.test(v) && v !== '*'),
     builtOut.filter((v) => BACKSTOP.test(v)).join(' | '));
   const mdSrcText = read('supabase/functions/building-record/md.ts');
   const idxText = read('supabase/functions/building-record/index.ts');
@@ -836,12 +837,23 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
   ok('35. a skipped task never runs', skipped[1].status === 'skipped' && skipped[0].status === 'ok');
 
   // ── 36. the record ──
-  ok('36. the live City record (620 E 31st St): 1920, R-6, Better Waverly CHAP district, 9 permits (5 kept), one open exterior notice, no flood polygon',
+  ok('36. the live City record (620 E 31st St): 1920, R-6, Better Waverly CHAP district, 9 permits (5 kept), no flood polygon',
     cityRec.parcel.yearBuilt === 1920 && cityRec.parcel.zoning === 'R-6' && cityRec.parcel.asOf === '2026-09-27' && cityRec.zoning.rows[0]?.code === 'R-6'
     && cityRec.historic.rows[0]?.name === 'Better Waverly' && cityRec.historic.asOf === '2023-06-05' && cityRec.historic.asOfKind === 'edited'
     && cityRec.permits.total === 9 && cityRec.permits.rows.length === 5 && !cityRec.permits.truncated && cityRec.permits.asOf === '2026-09-25'
-    && cityRec.permits.rows.every((r) => r.status === null) && cityRec.housingNotices[3].rows[0]?.number === '2607703A' && cityRec.housingNotices[3].rows[0]?.statusCode === 'NOTICE MAILED'
+    && cityRec.permits.rows.every((r) => r.status === null)
     && cityRec.flood.rows.length === 0 && cityRec.flood.asOf === '2025-06-09' && mdRecordComplete(cityRec), JSON.stringify({ p: cityRec.parcel, n: cityRec.housingNotices.map((x) => x.rows.length) }));
+  // WIRE COMPATIBILITY (md.ts): installed apps refuse a City record without four
+  // housingNotices parts and non-null landmarks / nationalRegister parts, so the
+  // unread layers still ride the wire as 'failed' parts with no rows, which
+  // every client renders as "Couldn't read <source> — not checked".
+  ok('36. the unlicensed City layers ride the wire as unread parts: failed, no rows, no as-of, a source that says MAGE no longer checks it; the CoDeMap link is offered',
+    cityRec.housingNotices.length === 4
+    && cityRec.housingNotices.every((p) => p.status === 'failed' && p.rows.length === 0 && p.asOf === null && p.asOfKind === 'unread' && /no longer checks it/.test(p.source))
+    && deepEqual(cityRec.housingNotices.map((p) => p.layer), ['Interior', 'Interior/exterior', 'Vacant', 'Exterior'])
+    && [cityRec.landmarks, cityRec.nationalRegister].every((p) => !!p && p.status === 'failed' && p.rows.length === 0 && /no longer checks it/.test(p.source))
+    && cityRec.links.some((l) => l.url.startsWith('https://cels.baltimorehousing.org/') && /CoDeMap/.test(l.label)),
+    JSON.stringify({ n: cityRec.housingNotices.map((p) => [p.status, p.rows.length]), l: cityRec.landmarks?.status, nr: cityRec.nationalRegister?.status }));
   ok("36. the block-lot trap: permits stored as '4074C 009' and '4074C009' are all matched to the parcel",
     cityRec.permits.rows.some((r) => r.number === 'BUSE-26-005160') && cityRec.permits.rows.some((r) => r.number === 'BRCM-26-009216'));
   ok('36. the live County record (9616 Reisterstown Rd): YEAR_BUILT 0000 → null, BR IM, flood X, 7 permits with STATUS verbatim, as of 2026-09-27',
@@ -871,28 +883,50 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
 
   // ── 37. summary kinds + honesty ──
   const NYC_KINDS = ['none', 'attention', 'no_active_in_checked', 'incomplete'];
-  const noNotice = withJobs(FX.city, { notice_4: { status: 'ok', body: { features: [] } } });
-  const sNo = sumOf(noNotice);
-  ok("37. the live City record is 'attention' (open exterior notice) and a notice-free twin is 'no_active_in_checked' with the spec headline",
-    sCity.kind === 'attention' && sCity.headline === "Baltimore City records list open notices for this parcel: 1 exterior notice (as of 2026-09-27)."
-    && sNo.kind === 'no_active_in_checked' && sNo.headline === 'No open notices listed in the City datasets MAGE checked (as of 2026-09-27)', `${sCity.kind} ${sCity.headline} | ${sNo.kind} ${sNo.headline}`);
-  const failedNotice = withJobs(FX.city, { notice_4: { status: 'ok', body: { features: [] } }, notice_2: { status: 'timeout' } });
-  const truncNotice = withJobs(FX.city, { notice_4: { status: 'ok', body: { features: Array.from({ length: 50 }, () => ({ attributes: { NoticeNum: 'Z1', BlockLot: '9999 001' } })) } } });
-  const failedVbn = withJobs(FX.city, { notice_4: { status: 'ok', body: { features: [] } }, vbn: { status: 'failed' } });
-  const failedOverlay = withJobs(FX.city, { notice_4: { status: 'ok', body: { features: [] } }, flood: { status: 'failed' } });
+  // A record SAVED before the content-rights change (a phone's cached copy) can
+  // still carry read housing notices, landmarks and National Register parts.
+  // The client renders whatever it is given, so its notice rules are proven on
+  // such records, built from this record's own read parts.
+  const LEGACY_FEED = 'City inspections map feed (not a published dataset)';
+  const legacyCity = (notice: (i: number, base: Record<string, unknown>) => Record<string, unknown> = (_i, b) => b): ClientMdRecord => {
+    const r = JSON.parse(JSON.stringify(cityRec));
+    const okNotice = (layer: string) => ({ ...r.vacantNotices, layer, source: LEGACY_FEED, truncated: false, rows: [] });
+    const okArea = (source: string) => ({ ...r.historic, source, rows: [] });
+    return {
+      ...r,
+      housingNotices: ['Interior', 'Interior/exterior', 'Vacant', 'Exterior'].map((layer, i) => notice(i, okNotice(layer))),
+      landmarks: okArea("the City's CHAP landmark layer"),
+      nationalRegister: okArea("the City's National Register district layer"),
+    } as unknown as ClientMdRecord;
+  };
+  const sNo = summarizeMdBuildingRecord(legacyCity());
+  const sLegacyExt = summarizeMdBuildingRecord(legacyCity((i, b) => (i === 3 ? { ...b, rows: [{ number: '2607703A', date: '2026-01-21', type: 'Exterior', statusCode: 'NOTICE MAILED' }] } : b)));
+  const sFailedNotice = summarizeMdBuildingRecord(legacyCity((i, b) => (i === 1 ? { ...b, status: 'timeout', asOf: null, asOfKind: 'unread' } : b)));
+  const sTruncNotice = summarizeMdBuildingRecord(legacyCity((i, b) => (i === 3 ? { ...b, truncated: true } : b)));
+  ok("37. a City record read today is 'incomplete' (the housing notices are not checked), never 'no_active_in_checked'; an open vacant building notice still makes it 'attention'",
+    sCity.kind === 'incomplete' && sCity.headline === 'Some Baltimore City datasets could not be fully checked for this parcel; see below.'
+    && sCity.lines.includes("Couldn't read the exterior notices in the unpublished City inspections feed (MAGE no longer checks it; see the CoDeMap link) — not checked")
+    && sCity.lines.every((l) => !/^No open (interior|exterior|vacant notices)/i.test(l) || l.startsWith('No open vacant building notice in City vacant building notices')),
+    `${sCity.kind} ${sCity.headline}`);
+  ok("37. a saved pre-change record is still rendered by the rules: open exterior notice → 'attention'; a notice-free one → 'no_active_in_checked' with the spec headline",
+    sLegacyExt.kind === 'attention' && sLegacyExt.headline === "Baltimore City records list open notices for this parcel: 1 exterior notice (as of 2026-09-27)."
+    && sLegacyExt.lines.some((l) => l.startsWith('Open exterior notice 2607703A, dated 2026-01-21, DHCD status code: NOTICE MAILED'))
+    && sNo.kind === 'no_active_in_checked' && sNo.headline === 'No open notices listed in the City datasets MAGE checked (as of 2026-09-27)', `${sLegacyExt.kind} ${sLegacyExt.headline} | ${sNo.kind} ${sNo.headline}`);
+  const failedVbn = withJobs(FX.city, { vbn: { status: 'failed' } });
+  const failedOverlay = withJobs(FX.city, { flood: { status: 'failed' } });
   ok("37. 'no_active_in_checked' is impossible when any notice part failed, timed out or was truncated, or any other part failed",
-    [failedNotice, truncNotice, failedVbn, failedOverlay].every((r) => sumOf(r).kind === 'incomplete'), [failedNotice, truncNotice, failedVbn, failedOverlay].map((r) => sumOf(r).kind).join(','));
+    [sFailedNotice, sTruncNotice, sumOf(failedVbn), sumOf(failedOverlay), sCity].every((x) => x.kind === 'incomplete'), [sFailedNotice, sTruncNotice, sumOf(failedVbn), sumOf(failedOverlay)].map((x) => x.kind).join(','));
   ok('37. a failed part reads "Couldn\'t read <source> — not checked", never 0 / none / "No open"',
-    sumOf(failedNotice).lines.includes("Couldn't read the interior/exterior notices in the City inspections map feed (not a published dataset) — not checked")
+    sFailedNotice.lines.includes(`Couldn't read the interior/exterior notices in the ${LEGACY_FEED} — not checked`)
     && sumOf(failedVbn).lines.includes("Couldn't read City vacant building notices — not checked")
-    && sumOf(failedVbn).lines.every((l) => !/^No open vacant building notice/.test(l)) && sumOf(failedNotice).lines.every((l) => !/No open interior\/exterior/.test(l) && !/^0 /.test(l)));
+    && sumOf(failedVbn).lines.every((l) => !/^No open vacant building notice/.test(l)) && sFailedNotice.lines.every((l) => !/No open interior\/exterior/.test(l) && !/^0 /.test(l)));
   const failedPermits = withJobs(FX.city, { permits_rows: { status: 'timeout' } });
   ok('37. failed permits: total null, "Couldn\'t read City permits (2019 to present) — not checked", no "0 permits"',
     failedPermits.permits.total === null && sumOf(failedPermits).lines.includes("Couldn't read City permits (2019 to present) — not checked") && sumOf(failedPermits).lines.every((l) => !/\b0 City permits|No City permits/.test(l)));
   ok("37. a County record is ALWAYS 'incomplete' and says code enforcement was not checked",
     sCounty.kind === 'incomplete' && sCounty.headline === 'Baltimore County parcel, permits, zoning, flood map and historic districts read (as of 2026-09-27). Code enforcement not checked.'
     && sumOf(withJobs(FX.county, { flood: { status: 'failed' } }, 'baltimore_county', '2200002965')).headline === 'Baltimore County parcel, permits, zoning and historic districts read (as of 2026-09-27); flood map could not be read. Code enforcement not checked.', sCounty.headline);
-  const everyMd = [sCity, sCounty, sNo, sumOf(failedNotice), sumOf(truncNotice), sumOf(failedVbn), sumOf(failedPermits), sumOf(X2), sumOf(woodland), sumOf(countyAE)];
+  const everyMd = [sCity, sCounty, sNo, sLegacyExt, sFailedNotice, sTruncNotice, sumOf(failedVbn), sumOf(failedPermits), sumOf(X2), sumOf(woodland), sumOf(countyAE)];
   ok('37. every MD summary kind stays inside the NYC union', everyMd.every((x) => NYC_KINDS.includes(x.kind)) && summarizeMdBuildingRecord(null).kind === 'none' && summarizeMdBuildingRecord(undefined).lines.length === 0);
   ok('37. no MD summary says clean / all clear / no violations / compliant / not vacant / not historic / no flood risk',
     everyMd.every((x) => [x.headline, x.chipLabel, x.promptBlock, ...x.lines].every((l) => !MD_SLOP.test(l))), everyMd.flatMap((x) => [x.headline, ...x.lines]).filter((l) => MD_SLOP.test(l)).join(' | '));
@@ -924,7 +958,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     sCity.promptBlock.includes('The City does not publish permit status, so never say a permit is finaled, active or expired.')
     && sCounty.promptBlock.startsWith('BUILDING RECORD (Baltimore County open data, fetched by MAGE 2026-09-28)') && sCounty.promptBlock.includes('Baltimore County publishes no code-enforcement dataset'));
   ok("38. chipLabel and cacheKey", sCity.chipLabel === 'Baltimore City record, as of 2026-09-27' && sCounty.chipLabel === 'Baltimore County record, as of 2026-09-27'
-    && sCity.cacheKey.startsWith('brmd:baltimore_city:4074C009:') && sumOf(failedPermits).cacheKey !== sCity.cacheKey && sumOf(truncNotice).cacheKey !== sNo.cacheKey);
+    && sCity.cacheKey.startsWith('brmd:baltimore_city:4074C009:') && sumOf(failedPermits).cacheKey !== sCity.cacheKey && sTruncNotice.cacheKey !== sNo.cacheKey);
 
   // ── 39. wire round trip, client parity, keys ──
   const trip = (x: unknown) => JSON.parse(JSON.stringify(x));
@@ -1077,7 +1111,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     && [sumOf(zeroPermits), sumOf(zeroCounty)].every((x) => x.lines.every((l) => !/^No (City|County) permits/.test(l))), sumOf(zeroCounty).lines.join(' | '));
 
   // The attention headline is neutral (the housing notices come from a feed that is not a published dataset).
-  ok("41. the attention headline never says the notices are in the City's open data", !/open data lists/.test(sCity.headline) && sCity.headline.startsWith('Baltimore City records list open notices'));
+  ok("41. the attention headline never says the notices are in the City's open data", !/open data lists/.test(sLegacyExt.headline) && sLegacyExt.headline.startsWith('Baltimore City records list open notices'));
 
   // Housing notices are City-only: a County record carrying them is refused,
   // and the attention headline names the record's OWN government.
@@ -1085,10 +1119,10 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     parseMdBuildingRecordResponse({ status: 'md_record', record: { ...trip(countyRec), housingNotices: trip(cityRec).housingNotices } }).status === 'error'
     && parseMdBuildingRecordResponse({ status: 'md_record', record: { ...trip(countyRec), housingNotices: [trip(cityRec).housingNotices[0]] } }).status === 'error'
     && parseMdBuildingRecordResponse(trip({ status: 'md_record', record: countyRec })).status === 'md_record');
-  const countyWithNotices = { ...trip(countyRec), housingNotices: trip(cityRec).housingNotices } as unknown as ClientMdRecord;
+  const countyWithNotices = { ...trip(countyRec), housingNotices: trip(legacyCity((i, b) => (i === 3 ? { ...b, rows: [{ number: '2607703A', date: '2026-01-21', type: 'Exterior', statusCode: 'NOTICE MAILED' }] } : b))).housingNotices } as unknown as ClientMdRecord;
   const sCountyNotices = summarizeMdBuildingRecord(countyWithNotices);
   ok("42. the 'attention' headline uses the record's own government: City → 'Baltimore City records…', County → 'Baltimore County records…'",
-    sCity.headline.startsWith('Baltimore City records list open notices for this parcel: ')
+    sLegacyExt.headline.startsWith('Baltimore City records list open notices for this parcel: ')
     && sCountyNotices.kind === 'attention' && sCountyNotices.headline.startsWith('Baltimore County records list open notices for this parcel: ')
     && !sCountyNotices.headline.includes('Baltimore City'), sCountyNotices.headline);
 

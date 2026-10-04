@@ -10,13 +10,24 @@
 // Geometry mirrors the old AICopilot FAB (56pt circle, bottom-right, lifted
 // above the tab bar) so it lands where users already reach for it.
 //
-// Look & motion: a warm two-tone gradient (accentHot → accent) on the app's
-// neutral floating elevation (Shadow.medium — the accent glow and the idle
-// "breathing" pulse were retired in the smoothness pass: no glows, nothing that
-// moves on its own), a critically-damped spring on press that matches the app's
-// Button physics, a spring on hide/show, and a glide (not a one-frame jump)
-// when a screen's sticky footer lifts it. All on the native driver
-// (transform/opacity), no new dependency.
+// Look ("Struck Spark", the founder's pick — option E in
+// design-previews/ai-button-options.html): a FLAT brand-green disc
+// (accentFill — white carries on it in both themes) with the flat-tipped
+// spark and a small mint one (components/brain/StruckSparkMark). It sits on
+// the design's deeper green-black drop (a shadow, never an accent glow) and
+// is still at rest: nothing moves on its own (the smoothness-pass rule).
+// States, all from what the button already does:
+//   press    the disc sinks to 0.94 (the critically-damped Button spring).
+//   hold     on a phone, once the long-press fires (it opens the voice note)
+//            a teal voice ring opens round the disc and the spark throbs,
+//            until the finger lifts.
+//   thinking the spark ratchets a quarter turn, the mini blinks. Nothing in
+//            the app exposes "Ask is working" outside the Ask screen (and
+//            the FAB is hidden there), so it is the optional `thinking` prop,
+//            false by default — no plumbing across screens.
+// Plus a spring on hide/show and a glide (not a one-frame jump) when a
+// screen's sticky footer lifts it. All on the native driver
+// (transform/opacity); Reduce Motion shows still states. No new dependency.
 //
 // Desktop web (wave 6d restore, d6r lane K1): the tap opens Ask in the shell's
 // right DOCK beside the page (hooks/useAskDock) instead of a full-window page,
@@ -26,16 +37,15 @@
 // useAskDock's page fallback. Cmd+P leaves it off the paper (data-print).
 // The phone path — the router.push below — is unchanged.
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, Platform, Animated } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Platform, Animated, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments, useRouter, useGlobalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Tokens, Motion, Shadow } from '@/constants/designTokens';
 import { nativeDriver, reducedMotion } from '@/components/ui';
-import { MageAIMark } from '@/components/icons';
+import { StruckSparkFace, StruckSparkRings } from '@/components/brain/StruckSparkMark';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
 import { useTutorialCoachVisible } from '@/utils/tutorial/store';
 import { anchorProjectIdFor } from '@/utils/resolveStarters';
@@ -56,9 +66,12 @@ const HIDDEN_ROOTS: ReadonlySet<string> = new Set([
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function BrainFab() {
+const FAB_SIZE = 56;
+
+export function BrainFab({ thinking = false }: { thinking?: boolean } = {}) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, resolved } = useTheme();
+  const dark = resolved === 'dark';
   const router = useRouter();
   const segments = useSegments();
   const globalParams = useGlobalSearchParams();
@@ -78,6 +91,10 @@ export function BrainFab() {
   // mid-step, pausing the run (spec §16).
   const coachUp = useTutorialCoachVisible();
   const hidden = fabStateHidden || coachUp;
+  // The hold look (teal voice ring): on from the long-press firing until the
+  // finger lifts. Visual only — what the long-press does is unchanged.
+  const [holding, setHolding] = useState(false);
+  useEffect(() => { if (hidden) setHolding(false); }, [hidden]);
 
   // A screen that scrolled the FAB away stays mounted under whatever is pushed
   // on top of it, so its own cleanup never runs. Reset on every route change.
@@ -128,6 +145,7 @@ export function BrainFab() {
     Animated.spring(press, { toValue: 0.94, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   }, [press]);
   const onPressOut = useCallback(() => {
+    setHolding(false);
     if (reducedMotion()) { press.setValue(1); return; }
     Animated.spring(press, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   }, [press]);
@@ -154,6 +172,7 @@ export function BrainFab() {
   // records nothing, so the web keeps just the tap.
   const handleLongPress = useCallback(() => {
     if (Platform.OS === 'web' || !openVoice) return;
+    setHolding(true);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     openVoice({ autoStart: true });
   }, [openVoice]);
@@ -179,6 +198,7 @@ export function BrainFab() {
       {...(isDesktopWeb ? ({ dataSet: { print: 'hide' } } as object) : null)}
       style={[
         styles.fabWrap,
+        dark ? styles.dropDark : styles.dropLight,
         {
           bottom: insets.bottom + 70 + lift + (Platform.OS === 'web' ? 48 : 0),
           opacity: anim,
@@ -189,6 +209,7 @@ export function BrainFab() {
         },
       ]}
     >
+      <StruckSparkRings holding={holding} color={colors.success} diameter={FAB_SIZE} />
       <AnimatedPressable
         onPress={handlePress}
         onLongPress={canHoldForVoice ? handleLongPress : undefined}
@@ -198,18 +219,11 @@ export function BrainFab() {
         accessibilityLabel="Ask MAGE"
         accessibilityHint={canHoldForVoice ? 'Hold to record a voice note' : undefined}
         testID="brain-fab"
-        style={[styles.fab, { transform: [{ scale: pulseScale }] }]}
+        style={[styles.fab, { backgroundColor: colors.accentFill, transform: [{ scale: pulseScale }] }]}
       >
-        <LinearGradient
-          // Bright warm orange (top-left) → deep burnt orange (bottom-right): a
-          // real, visible gradient with depth, not a near-flat one, so the mark
-          // reads as premium rather than a plain disc.
-          colors={[colors.accentHot, colors.accentFill]}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <MageAIMark size={26} color="#FFFFFF" accentColor="#FFFFFF" />
+        {/* Night: the design's faint mint hairline keeps the disc's edge on a dark page. */}
+        {dark ? <View pointerEvents="none" style={styles.darkRim} /> : null}
+        <StruckSparkFace holding={holding} thinking={thinking} />
       </AnimatedPressable>
     </Animated.View>
   );
@@ -217,7 +231,7 @@ export function BrainFab() {
 
 const styles = StyleSheet.create({
   // Positioning + the neutral floating elevation + hide/lift live on the
-  // wrapper. The button (gradient circle) springs inside it.
+  // wrapper. The button (flat green disc) springs inside it.
   fabWrap: {
     position: 'absolute',
     right: 20,
@@ -231,6 +245,17 @@ const styles = StyleSheet.create({
     elevation: 12,
     zIndex: 40,
   },
+  // The design's drop: a green-black shadow under the disc (day) / a black one
+  // with a hairline edge (night). Overrides Shadow.medium's softer 8% black;
+  // still a neutral shadow, never the accent.
+  dropLight: Platform.select({
+    web: { boxShadow: '0 10px 22px -8px rgba(14,30,18,0.55), 0 2px 5px rgba(14,30,18,0.22)' } as ViewStyle,
+    default: { shadowColor: '#0E1E12', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.34, shadowRadius: 10 },
+  }) as ViewStyle,
+  dropDark: Platform.select({
+    web: { boxShadow: '0 0 0 1px rgba(0,0,0,0.45), 0 12px 24px -6px rgba(0,0,0,0.7)' } as ViewStyle,
+    default: { shadowColor: '#000000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.6, shadowRadius: 12 },
+  }) as ViewStyle,
   fab: {
     width: 56,
     height: 56,
@@ -238,5 +263,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  darkRim: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: Tokens.radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(185,228,193,0.2)',
   },
 });

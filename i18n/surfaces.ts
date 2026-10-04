@@ -230,6 +230,10 @@ export const SURFACES: Surface[] = [
   // are legal paraphrase and stay English data in utils/nyHomeImprovement.ts.
   { id: 'office.ny-contract', phase: 2, state: 'pending', keyPrefixes: ['office.nyContract.'], lane: 'NYCHECK', files: ['components/contract/NyContractChecklist.tsx'] },
   { id: 'office.job-facts', phase: 2, state: 'pending', keyPrefixes: ['office.jobFacts.'], files: ['app/job-facts.tsx'], lane: 'FACTS' },
+  // Permit Path — the job's permit route, the interview, the ready-to-file list
+  // and the ask-the-department / save-the-answer sheets. One surface for both
+  // lanes: the t() key type only allows real areas, so both use office.permitPath.*.
+  { id: 'office.permit-path', phase: 2, state: 'pending', keyPrefixes: ['office.permitPath.'], lane: 'PPUI+PPASK', files: ['app/permit-path.tsx', 'components/permitPath/RouteSpine.tsx', 'components/permitPath/StationDetail.tsx', 'components/permitPath/InterviewPanel.tsx', 'components/permitPath/ReadinessPanel.tsx', 'components/permitPath/PermitPathHeroCard.tsx', 'components/permitPath/AskDepartmentSheet.tsx', 'components/permitPath/SaveAnswerSheet.tsx', 'hooks/useJurisdictionAnswers.ts'] },
   { id: 'schedule.lateness', phase: 2, state: 'pending', keyPrefixes: ['schedule.lateness.'], lane: 'W7 LATE', files: ['components/schedule/LatenessPadChip.tsx'], partialFiles: ['app/(tabs)/schedule/index.tsx'] },
 ];
 

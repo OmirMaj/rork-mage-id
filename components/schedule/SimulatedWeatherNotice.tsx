@@ -16,9 +16,15 @@
 // every day, so any renderer can ask "is any of what I'm showing invented?"
 // without new plumbing. Both components render NOTHING for a fully live
 // window, so they are safe to mount unconditionally.
+//
+// The other half (2026-10-02, content rights): REAL weather carries its
+// source's credit. WeatherCredit prints "Weather data provided by OpenWeather"
+// (plus "© OpenStreetMap contributors" beside a geocoded place name) only when
+// a live day is on screen — never over simulated days, which are the app's
+// invention and keep the SIMULATED marking instead.
 
 import React from 'react';
-import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, Linking, type StyleProp, type ViewStyle } from 'react-native';
 import { CloudOff, MapPin } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -33,6 +39,13 @@ import {
   SIMULATED_DAY_LABEL,
   type ForecastSource,
 } from '@/utils/weatherProvenance';
+import {
+  OPENWEATHER_CREDIT,
+  OPENWEATHER_URL,
+  OSM_CREDIT,
+  OSM_COPYRIGHT_URL,
+  showsOpenWeatherCredit,
+} from '@/utils/contentCredits';
 
 /** Structural — takes anything carrying provenance, not just DayForecast, so
  *  this module never has to import weatherService. */
@@ -91,6 +104,11 @@ export interface WeatherPlaceLineProps {
   /** "Weather for Park Slope, Brooklyn" — describeForecast().placeLine (or,
    *  over the Gantt, its `cause` when there is no place to name). */
   text: string | null;
+  /** The forecast days this line describes. Required, so no surface can name
+   *  a place for live weather without the credit coming with it: when any of
+   *  them is a live OpenWeather reading the OpenWeather and OpenStreetMap
+   *  credits render under the place (see WeatherCredit). */
+  days: readonly SourcedDay[];
   style?: StyleProp<ViewStyle>;
 }
 
@@ -100,14 +118,77 @@ export interface WeatherPlaceLineProps {
  * was from (2026-09-24); a named place is checkable at a glance. Renders
  * nothing when there is no live reading to attribute.
  */
-export function WeatherPlaceLine({ text, style }: WeatherPlaceLineProps) {
+export function WeatherPlaceLine({ text, days, style }: WeatherPlaceLineProps) {
   const { colors: t } = useTheme();
   const s = useThemedStyles(makeStyles);
   if (!text) return null;
-  return (
-    <View style={[s.placeLine, style]}>
+  const place = (
+    <>
       <MapPin size={11} color={t.textSecondary} strokeWidth={1.75} />
       <Text style={s.placeLineText} numberOfLines={2}>{text}</Text>
+    </>
+  );
+  // No live day (the line is a cause, over simulated weather): exactly the
+  // line it always was — no credit, because none of it is OpenWeather's data.
+  if (!showsOpenWeatherCredit(days)) return <View style={[s.placeLine, style]}>{place}</View>;
+  return (
+    <View style={[s.placeBlock, style]}>
+      <View style={s.placeLine}>{place}</View>
+      <WeatherCredit days={days} place />
+    </View>
+  );
+}
+
+function openLink(url: string): void {
+  void Linking.openURL(url).catch(() => {});
+}
+
+export interface WeatherCreditProps {
+  /** The forecast days on screen. The credit renders only when at least one
+   *  is a live OpenWeather reading — simulated days are invented by the app,
+   *  are not OpenWeather's data, and keep their SIMULATED marking instead. */
+  days: readonly SourcedDay[];
+  /** True when a place name sits next to the weather: that name (and the map
+   *  pin behind the forecast) comes from OpenStreetMap's geocoder
+   *  (utils/geocodeProject.ts), whose license asks for its own credit. */
+  place?: boolean;
+  style?: StyleProp<ViewStyle>;
+}
+
+/**
+ * "Weather data provided by OpenWeather" (linked to openweathermap.org), plus
+ * "© OpenStreetMap contributors" (linked to its copyright page) beside a place
+ * name. OpenWeather's plans require the first line wherever its forecast is
+ * shown; OpenStreetMap's license requires the second wherever its geocoder
+ * named the place (contentfix-specs/RIGHTS-VERDICT.md). Renders nothing for a
+ * window with no live day, so it is safe to mount unconditionally.
+ */
+export function WeatherCredit({ days, place = false, style }: WeatherCreditProps) {
+  const s = useThemedStyles(makeStyles);
+  if (!showsOpenWeatherCredit(days)) return null;
+  return (
+    <View style={[s.creditLine, style]} testID="weather-credit">
+      <Text
+        style={s.creditLink}
+        onPress={() => openLink(OPENWEATHER_URL)}
+        accessibilityRole="link"
+        accessibilityLabel={`${OPENWEATHER_CREDIT}. Opens openweathermap.org.`}
+      >
+        {OPENWEATHER_CREDIT}
+      </Text>
+      {place ? (
+        <>
+          <Text style={s.creditSep}>·</Text>
+          <Text
+            style={s.creditLink}
+            onPress={() => openLink(OSM_COPYRIGHT_URL)}
+            accessibilityRole="link"
+            accessibilityLabel={`${OSM_CREDIT}. Opens openstreetmap.org.`}
+          >
+            {OSM_CREDIT}
+          </Text>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -173,6 +254,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     lineHeight: 15,
   },
+  placeBlock: { gap: 2 },
   placeLine: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -180,6 +262,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   placeLineText: {
     flexShrink: 1,
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+  },
+  // The credit is small print: caption2 in the secondary ink, underlined so it
+  // reads as a link without a second accent competing with the forecast.
+  creditLine: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    alignItems: 'center' as const,
+    columnGap: 4,
+  },
+  creditLink: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+    textDecorationLine: 'underline' as const,
+  },
+  creditSep: {
     fontSize: Type.caption2.fontSize,
     color: t.textSecondary,
   },

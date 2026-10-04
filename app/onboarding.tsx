@@ -37,6 +37,7 @@ import {
   Pressable,
   Dimensions,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { continuousCorners, Motion, Tokens } from '@/constants/designTokens';
 import { nativeDriver, useReducedMotion } from '@/components/ui/motion';
@@ -47,6 +48,8 @@ import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { AuthGround, MonogramMark, SamplePill, SpineHeadline, authGroundStyles } from '@/components/auth/AuthGround';
+import SpineHero from '@/components/auth/SpineHero';
 import { BRAND_ACCENT, BRAND_ACCENT_ON_DARK, deriveAccentPalette } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { mergedBidBranding } from '@/utils/bidDocumentIdentity';
@@ -163,6 +166,11 @@ const PREVIEW_CARDS: PreviewCard[] = [
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  // The welcome spine's room: the screen less the top bar, the step dots, the
+  // headline and the two buttons (it scales down to fit, never past 1).
+  const { width: winW, height: winH } = useWindowDimensions();
+  const splashSpineW = winW - 8;
+  const splashSpineH = winH - insets.top - insets.bottom - 330;
   const router = useRouter();
   const {
     completeOnboarding, settings, updateSettings, hasSeenOnboarding, userRole,
@@ -550,6 +558,8 @@ export default function OnboardingScreen() {
           The large field is ink; accent green lives only in the
           corner-glow layers (doctrine: accent is never the background). */}
       <BrandBackdrop />
+      {/* The welcome step sits on the spine's night ground ("Take D"). */}
+      {step === 'splash' ? <AuthGround /> : null}
 
       {/* Subtle grain texture — a single transparent layer with a
           repeating-radial-gradient on web; on native, expressed as a
@@ -562,7 +572,14 @@ export default function OnboardingScreen() {
           everything else (off-white at 62%) keeps it discoverable
           without competing with the CTA. */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.wordmark}>MAGE&nbsp;ID</Text>
+        {step === 'splash' ? (
+          <View style={styles.splashBrand}>
+            <MonogramMark height={36} />
+            <SamplePill />
+          </View>
+        ) : (
+          <Text style={styles.wordmark}>MAGE&nbsp;ID</Text>
+        )}
         <TouchableOpacity onPress={handleSkip} hitSlop={10} style={styles.skipBtn} testID="onboarding-skip">
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
@@ -593,47 +610,29 @@ export default function OnboardingScreen() {
             { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }, { translateX: slideX }] },
           ]}
         >
-          <View style={{ flex: 1 }} />
+          {/* The spine: one sample job, Ask → Estimate → Contract → Schedule →
+              Paid, every card marked Sample. Decoration; plays once per mount
+              and shows its final state under Reduce Motion. */}
+          <Animated.View style={[styles.splashSpine, { opacity: eyebrowOpacity }]}>
+            <SpineHero width={splashSpineW} height={splashSpineH} testID="onboarding-spine" />
+          </Animated.View>
 
-          <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-            <Text style={styles.eyebrowDot}>●</Text>  the operating system for builders
-          </Animated.Text>
-
-          {/* Display headline. The middle phrase is set in the italic
-              Barlow display (Barlow_700Bold_Italic, loaded in _layout.tsx)
-              for emphasis; it falls back to the system face if the font
-              has not loaded. */}
-          <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
-            <Text style={styles.headlineRoman}>Build it.{' '}</Text>
-            <Text style={styles.headlineItalic}>Bill it.{' '}</Text>
-            <Text style={styles.headlineRoman}>Track every dollar.</Text>
-          </Animated.Text>
-
-          <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
-            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps and
-            a live client portal. One app you carry on the jobsite instead of a dozen tools.
-          </Animated.Text>
-
-          {/* Trust line — sets pricing expectations upfront so users
-              tapping "Get started" know the deal. Sized small (caption,
-              cream@78%, uppercase tracking) so it doesn't compete with
-              the display headline. */}
-          <Animated.Text style={[styles.trustLine, { opacity: bodyOpacity }]}>
-            Free to try  ·  $29/mo  ·  Cancel anytime
-          </Animated.Text>
+          <Animated.View style={{ opacity: headlineOpacity }}>
+            <SpineHeadline size={28} style={styles.splashCopy} />
+          </Animated.View>
 
           <Animated.View style={{ opacity: ctaOpacity, transform: [{ scale: ctaScale }] }}>
             <Pressable
               onPress={handleStarted}
               style={({ pressed }) => [
-                styles.ctaPrimary,
+                authGroundStyles.cta,
                 pressed && { opacity: 0.92 },
               ]}
               accessibilityLabel="Get started with MAGE ID"
               accessibilityRole="button"
               testID="onboarding-cta"
             >
-              <Text style={styles.ctaPrimaryText}>Get started</Text>
+              <Text style={authGroundStyles.ctaText}>Get started</Text>
               <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
             </Pressable>
           </Animated.View>
@@ -1005,16 +1004,22 @@ const styles = StyleSheet.create({
     maxWidth: 520,
   },
 
-  // Trust line — small mono-ish row between lede and CTA. Sets pricing
-  // expectations upfront. Cream@78% so it reads without competing with
-  // the headline.
-  trustLine: {
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '600' as const,
-    color: 'rgba(244,239,230,0.78)',
-    letterSpacing: 0.4,
-    marginBottom: 24,
-    textTransform: 'uppercase' as const,
+  // The welcome step ("Take D"): the monogram and the Sample pill in the top
+  // bar, the spine centered in the room left, the headline above the buttons.
+  splashBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  splashSpine: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: -20,
+  },
+  splashCopy: {
+    marginTop: 8,
+    marginBottom: 22,
   },
 
   ctaPrimary: {

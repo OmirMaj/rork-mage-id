@@ -33,6 +33,7 @@ import {
 import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { resolveSelectionImage } from '@/utils/ogImage';
+import { PRODUCT_PHOTOS_ENABLED } from '@/constants/featureFlags';
 import { formatMoney } from '@/utils/formatters';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { SelectionCategory, SelectionOption, ProjectSchedule } from '@/types';
@@ -163,11 +164,16 @@ export default function SelectionsScreen() {
         showAlert('No options found', 'No options came back. Try a more specific style brief.');
         return;
       }
-      // Resolve a product photo for each option (og:image from the AI's product
-      // link, Pexels keyword fallback). Non-fatal — null just leaves it photo-less.
+      // Product photos are OFF for content rights (constants/featureFlags.ts
+      // PRODUCT_PHOTOS_ENABLED): MAGE has no retailer permission to reuse their
+      // images, so no og-image call is made and every option saves photo-less.
+      // When the flag is on, each option asks og-image for its product link's
+      // photo. Non-fatal — null just leaves it photo-less.
       const withImages = await Promise.all(options.map(async (o) => ({
         ...o,
-        imageUrl: await resolveSelectionImage({ url: o.productUrl, query: `${o.brand} ${o.productName} ${cat.category}`.trim() }),
+        imageUrl: PRODUCT_PHOTOS_ENABLED
+          ? await resolveSelectionImage({ url: o.productUrl, query: `${o.brand} ${o.productName} ${cat.category}`.trim() })
+          : null,
       })));
       const ok = await saveCuratedOptions(cat.id, withImages);
       if (!ok) {
@@ -187,10 +193,14 @@ export default function SelectionsScreen() {
   }, [refresh, publishPortal]);
 
   // Manual override: GC pastes a product URL and we pull its og:image.
-  // iOS-only (Alert.prompt is iOS-only); other platforms re-curate to refresh.
+  // iOS-only (Alert.prompt is iOS-only). Only reachable while
+  // PRODUCT_PHOTOS_ENABLED is true: with it off the option card wires no
+  // long-press at all (OptionRow below), so nobody is asked for a link that
+  // can never produce a photo.
   const onSetOptionPhoto = useCallback((option: SelectionOption, category: string) => {
+    if (!PRODUCT_PHOTOS_ENABLED) return;
     if (Platform.OS !== 'ios') {
-      showAlert('Paste a link on iPhone', 'Setting a photo from a link works on iPhone. On other devices, regenerate the options to refresh photos.');
+      showAlert('Paste a link on iPhone', 'Setting a photo from a link works on iPhone. Open this project on your iPhone to set one.');
       return;
     }
     showPrompt('Set photo from link', 'Paste the product page link. MAGE pulls its photo.', async (url?: string) => {
@@ -558,7 +568,7 @@ function CategoryCard({
               option={o}
               budget={category.budget}
               onPress={() => onChoose(o)}
-              onSetPhoto={() => onSetOptionPhoto(o, category.category)}
+              onSetPhoto={PRODUCT_PHOTOS_ENABLED ? () => onSetOptionPhoto(o, category.category) : undefined}
             />
           ))}
           {!isChosen && !isExceeded && (
@@ -756,7 +766,7 @@ function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, o
 /** Price band of an option against its allowance, as the pill reads it. */
 const OPTION_TIER_LABEL = { budget: 'Budget', target: 'On target', premium: 'Premium' } as const;
 
-function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionOption; budget: number; onPress: () => void; onSetPhoto: () => void }) {
+function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionOption; budget: number; onPress: () => void; onSetPhoto?: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const overBudget = budget > 0 && option.total > budget;

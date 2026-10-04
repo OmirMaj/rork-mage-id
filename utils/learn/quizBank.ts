@@ -73,7 +73,7 @@ const CONTRACT = 'app/contract.tsx';
 const BINDER = 'app/closeout-binder.tsx';
 
 export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
-  'daily-report-voice': bank('daily-report-voice', 1, [
+  'daily-report-voice': bank('daily-report-voice', 2, [
     {
       id: 'q1',
       en: 'On a sample job, where does a submitted daily report go?',
@@ -101,10 +101,10 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
     {
       id: 'q4',
       en: 'How does the weather get onto a daily report?',
-      choices: [['a', 'You can only type it in by hand'], ['b', 'It is copied from the last report'], ['c', 'Auto-fetch fills in today’s weather']],
-      correctId: 'c',
-      why: 'Auto-fetch fills in the weather for today. Copy from does not carry old weather forward.',
-      source: { file: DFR, mustContain: 'Auto-fetch the weather for today' },
+      choices: [['a', 'You type it, or say it in your voice note'], ['b', 'It is copied from the last report'], ['c', 'The app looks it up from a weather service']],
+      correctId: 'a',
+      why: 'You type what you saw, or say it in your voice note and it fills in. Copy from does not carry old weather forward.',
+      source: { file: DFR, mustContain: "t('field.dfr.topic.weather', 'Weather on site')" },
     },
     {
       id: 'q5',

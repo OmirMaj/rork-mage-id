@@ -1,0 +1,67 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`content rights golden — credited surfaces (a) weather reschedule modal, live forecast 1`] = `
+[
+  "Weather reschedule",
+  "Forecast vs. your weather-sensitive tasks.",
+  "+1",
+  "day",
+  "Project finish slips 1 day",
+  "1 weather-sensitive task rained out",
+  "Pour footings",
+  "🌧️ Rain",
+  "Foundation · rained out Fri, Sep 25",
+  "Sep 24",
+  "Sep 25",
+  "+1d lost",
+  "Weather data provided by OpenWeather",
+  "Not now",
+  "Apply reschedule",
+]
+`;
+
+exports[`content rights golden — credited surfaces (b) weather reschedule modal, simulated forecast 1`] = `
+[
+  "Weather reschedule",
+  "Forecast vs. your weather-sensitive tasks.",
+  "Simulated weather. Not a forecast.",
+  "Simulated forecast. This reschedule won't be recorded in the weather delay log. Live weather isn't available for this project right now.",
+  "+1",
+  "day",
+  "Project finish slips 1 day",
+  "1 weather-sensitive task rained out",
+  "Pour footings",
+  "🌧️ Rain",
+  "Foundation · rained out Fri, Sep 25",
+  "Sep 24",
+  "Sep 25",
+  "+1d lost",
+  "Not now",
+  "Apply reschedule",
+]
+`;
+
+exports[`content rights golden — credited surfaces (c) Baltimore City record 1`] = `
+[
+  "Building record",
+  "Baltimore City",
+  "Building record headline",
+  "Line one · Source, as of Sep 28, 2026",
+  "Real Property data: City of Baltimore, CC BY 3.0",
+  "Checked — date unknown",
+  "Change building",
+]
+`;
+
+exports[`content rights golden — credited surfaces (d) Baltimore County record 1`] = `
+[
+  "Building record",
+  "Baltimore County",
+  "Building record headline",
+  "Line one · Source, as of Sep 28, 2026",
+  "Baltimore County data disclaimer",
+  "This data is only for general information purposes only. This data may be inaccurate or contain errors or omissions. Baltimore County, Maryland does not warrant the accuracy or reliability of the data and disclaims all warranties with regard to the data, including but not limited to, all warranties, express or implied, of merchantability and fitness for any particular purpose. Baltimore County, Maryland disclaims all obligation and liability for damages, including but not limited to, actual, special, indirect, and consequential damages, attorneys' and experts' fees, and court costs incurred as a result of, arising from or in connection with the use of or reliance upon this data.",
+  "Checked — date unknown",
+  "Change building",
+]
+`;
