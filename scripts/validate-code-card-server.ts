@@ -22,6 +22,10 @@
 //   B. construction-answer — `requirements[]` on an Ask answer with
 //      `codeCards: true`:
 //      5. summaryEchoCheck: caps, quotes, "shall"-style phrasing, 25-word runs;
+//      5b. THE PHONE GATE IS THE SERVER GATE (utils/codeCard/echoCheck.ts): the
+//         phrase list, the quote rule (single-quote span included) and the
+//         inch-mark rule are read from BOTH files and must be equal, and both
+//         gates give the same answer on every probe line at every cap;
 //      6. normalizeRequirements: a section is required and only when the
 //         answer prints it, edition only when printed, a trigger / job value
 //         only when printed next to its unit, evidence null, stageIsGuess
@@ -278,6 +282,128 @@ console.log('\n5. summaryEchoCheck');
   ];
   const leaks = corpus.filter(t => e(t) && !CLIENT.passesEchoCheck(t));
   ok('every line the server accepts also passes the client echo check', leaks.length === 0, JSON.stringify(leaks));
+}
+
+// THE PHONE GATE IS THE SERVER GATE (lane CARDS2, 2026-10-04). On Code Check,
+// Plan Review and the plan set sweep the phone's gate is the ONLY wording gate
+// (analyze-plan-code has none on the server), so it may never be the looser
+// of the two. This section READS BOTH FILES and fails when a code phrase or a
+// quote rule is on one side only, then runs both gates over the same lines.
+console.log('\n5b. the phone gate is the server gate: the same phrases, the same quote rules, the same answers');
+{
+  const SERVER_FILE = 'supabase/functions/construction-answer/codeCardRequirements.ts';
+  const PHONE_FILE = 'utils/codeCard/echoCheck.ts';
+  /** A regex source cut at its top-level `|` (not inside a group, a class or an escape). */
+  const alternatives = (source: string): string[] => {
+    const out: string[] = [];
+    let depth = 0, inClass = false, cur = '';
+    for (let i = 0; i < source.length; i++) {
+      const ch = source[i];
+      if (ch === '\\') { cur += ch + (source[i + 1] ?? ''); i++; continue; }
+      if (inClass) { if (ch === ']') inClass = false; cur += ch; continue; }
+      if (ch === '[') inClass = true;
+      else if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      if (ch === '|' && depth === 0) { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out;
+  };
+  /** The body and the flags of `const NAME = /body/flags;` in `src`, or null. */
+  const literal = (src: string, name: string): { body: string; flags: string } | null => {
+    const m = src.match(new RegExp(`^const ${name}(?::[^=\\n]+)? = /(.+)/([a-z]*);$`, 'm'));
+    return m ? { body: m[1], flags: m[2] } : null;
+  };
+  /** The server's phrases: the alternatives of its one CODE_PHRASING regex. */
+  const serverPhrases = (src: string): string[] | null => {
+    const lit = literal(src, 'CODE_PHRASING');
+    return lit && lit.flags === 'i' ? alternatives(lit.body) : null;
+  };
+  /** The phone's phrases: one `/…/i,` line per entry of its CODE_PHRASES list. */
+  const phonePhrases = (src: string): string[] | null => {
+    const m = src.match(/^const CODE_PHRASES: readonly RegExp\[\] = \[\n([\s\S]*?)^\];$/m);
+    if (!m) return null;
+    const lines = m[1].split('\n').map((l) => l.trim()).filter(Boolean);
+    const out: string[] = [];
+    for (const l of lines) {
+      const one = l.match(/^\/(.+)\/i,$/);
+      if (!one) return null; // anything that is not a plain /…/i entry is not comparable: fail closed
+      out.push(one[1]);
+    }
+    return out;
+  };
+  /** What is on one side only: [only on the server, only on the phone], or null when either list cannot be read. */
+  const oneSided = (serverSrc: string, phoneSrc: string): [string[], string[]] | null => {
+    const sv = serverPhrases(serverSrc), ph = phonePhrases(phoneSrc);
+    if (!sv || !ph || sv.length === 0 || ph.length === 0) return null;
+    return [sv.filter((x) => !ph.includes(x)), ph.filter((x) => !sv.includes(x))];
+  };
+  const serverSrc = read(SERVER_FILE), phoneSrc = read(PHONE_FILE);
+  const diff = oneSided(serverSrc, phoneSrc);
+  ok('both phrase lists are readable (the server\u2019s one regex, the phone\u2019s list of /…/i entries)', !!diff, 'CODE_PHRASING or CODE_PHRASES is no longer in the shape this check reads');
+  ok('no code phrase is on the server only', !!diff && diff[0].length === 0, diff ? diff[0].join('  ') : '');
+  ok('no code phrase is on the phone only', !!diff && diff[1].length === 0, diff ? diff[1].join('  ') : '');
+  const sv = serverPhrases(serverSrc) ?? [], ph = phonePhrases(phoneSrc) ?? [];
+  ok(`the two lists are EQUAL, entry for entry, in the same order (${sv.length} phrases each, none twice)`,
+    sv.length >= 11 && sv.length === ph.length && sv.every((x, i) => x === ph[i]) && new Set(sv).size === sv.length, `${sv.length} vs ${ph.length}`);
+  // Fixture: the comparer sees a phrase taken off either side, an added one,
+  // and refuses a list it cannot read.
+  {
+    const dropPhone = phoneSrc.replace('  /\\bnot less than\\b/i,\n', '');
+    const dropServer = serverSrc.replace('\\bwhere required by\\b|', '');
+    const addPhone = phoneSrc.replace('  /\\bshall\\b/i,\n', '  /\\bshall\\b/i,\n  /\\bpursuant to\\b/i,\n');
+    const a = oneSided(serverSrc, dropPhone), b = oneSided(dropServer, phoneSrc), c = oneSided(serverSrc, addPhone);
+    ok('fixture: a phrase taken off the phone, one taken off the server and one added on the phone only are each reported; an unreadable list is refused',
+      dropPhone !== phoneSrc && dropServer !== serverSrc && addPhone !== phoneSrc
+        && !!a && a[0].join() === '\\bnot less than\\b' && a[1].length === 0
+        && !!b && b[0].length === 0 && b[1].join() === '\\bwhere required by\\b'
+        && !!c && c[0].length === 0 && c[1].join() === '\\bpursuant to\\b'
+        && oneSided(serverSrc, phoneSrc.replace('/\\bshall\\b/i,', 'SHALL_RE,')) === null
+        && oneSided(serverSrc.replace('const CODE_PHRASING = ', 'const CODE_PHRASING_2 = '), phoneSrc) === null
+        && alternatives('a|b(?:c|d)|[|]e|f\\|g').join(' ') === 'a b(?:c|d) [|]e f\\|g');
+  }
+  // The quote rule (double quotes, guillemets, a left single curly quote, a
+  // span in paired straight single quotes) and the inch-mark rule: the same
+  // regex on both sides, character for character.
+  const sq = literal(serverSrc, 'QUOTED'), pq = literal(phoneSrc, 'QUOTE_RE');
+  ok('the quote rule is the same regex on both sides, single-quote span included', !!sq && !!pq && sq.body === pq.body && sq.flags === pq.flags && sq.body.includes("'[^']+'"), `${sq?.body} vs ${pq?.body}`);
+  const si = literal(serverSrc, 'INCH_MARK'), pi = literal(phoneSrc, 'INCH_MARK_RE');
+  ok('the inch-mark rule is the same regex on both sides', !!si && !!pi && si.body === pi.body && si.flags === 'g' && pi.flags === 'g', `${si?.body} vs ${pi?.body}`);
+  ok('the caps and the word run are the same numbers', CC.SUMMARY_CAP === CLIENT.SUMMARY_MAX && CC.WHY_CAP === CLIENT.WHY_MAX && CC.STEP_CAP === CLIENT.BUILD_LINE_MAX && CC.MAX_WORD_RUN === CLIENT.MAX_RUN_WORDS);
+
+  // The same answers. One sample line per phrase (a phrase with no sample
+  // fails here, so a new phrase brings its line), then every other shape.
+  const SAMPLES = [
+    'Guards shall be provided.', 'Height not less than 36 in.', 'Gaps not more than 4 in.', 'Install in accordance with the plans.',
+    'Guards where required by the town.', 'Exception: decks under 30 in.', 'Exceptions : none here.', 'As set out herein.', 'Hereinafter the deck.',
+    'Use the width thereof.', 'Notwithstanding the above.', 'Comply with Section R312.', 'Complying with Table R602.3(1).', 'It complies with Chapter 3.',
+    'Follow the provisions of the code.',
+  ];
+  ok('every phrase on the list has a sample line here that it catches', sv.length > 0 && sv.every((src) => SAMPLES.some((t) => new RegExp(src, 'i').test(t))), sv.filter((src) => !SAMPLES.some((t) => new RegExp(src, 'i').test(t))).join('  '));
+  const words = (n: number, w = 'go') => Array.from({ length: n }, () => w).join(' ');
+  const LINES = [
+    ...SAMPLES, ...SAMPLES.map((t) => t.toUpperCase()), ...SAMPLES.map((t) => `Add a guard. ${t} Then check it.`),
+    'Add a guard: the deck is more than 30 in. above grade.', "You don't need a guard below 30 in.", 'You don\u2019t need a guard below 30 in.', 'Keep baluster gaps under 4 in.',
+    'Guards "required" here', 'Guards \u201crequired\u201d here', 'Guards \u00abrequired\u00bb', 'The \u2018guard rule', 'Guards are \u2018required\u2019 here', 'A lone \u201e mark',
+    "Guards are 'required' here", "Use ('approved') fasteners", "'Guards' go on open sides", "It says 'guards on open sides'", "the '90s deck and the '80s stair",
+    "Door 2'-8\" wide.", "A 6' x 8' landing.", "The contractors' crew and the owners' rep.", "Rock 'n' roll", "4' wide, 'more or less', 8' long",
+    'Guard 36" high.', 'Riser at most 7-7/8".', 'Balusters 4\u00bd" apart at most.', 'Footing 12"x12" under each post.', 'Guard 36\u2033 high.', 'Riser \u2264 7-3/4", tread \u2265 10".',
+    '"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'A 36"high guard.', 'Note says "36" minimum.', 'Guard 36 " high.',
+    words(25), words(26), `${words(20)}. ${words(20)}`, `${words(13)}\n${words(13)}`, `${words(13)}\t${words(13)}`, `${words(12)} \u2014 \u2014 ${words(12)}`, `${words(24)} \u2265`,
+    '- - - - - - - - - - - - - - - - - - - - - - - - - - - -', `${words(20)}; ${words(20)}`, `${words(20)}: ${words(20)}`, `${words(20)}? ${words(20)}! ${words(26)}`,
+    'a'.repeat(100), 'a'.repeat(101), 'a'.repeat(140), 'a'.repeat(141), 'a'.repeat(160), 'a'.repeat(161), 'a'.repeat(400), 'a'.repeat(401),
+    `${'a'.repeat(70)}   \n  ${'a'.repeat(67)}`, `  ${'a'.repeat(140)}  `, 'Guard\u0007 36 in. high', '', '   ', '\n',
+  ];
+  const CAPS = [CC.STEP_CAP, CC.SUMMARY_CAP, CC.WHY_CAP, 400];
+  const e2 = (t: string, cap: number): boolean => CC.summaryEchoCheck(t, cap);
+  const disagree: string[] = [];
+  for (const t of LINES) for (const cap of CAPS) {
+    if (e2(t, cap) !== CLIENT.passesEchoCheck(t, cap)) disagree.push(`${JSON.stringify(t.slice(0, 60))} @${cap}: server ${e2(t, cap)}, phone ${CLIENT.passesEchoCheck(t, cap)}`);
+  }
+  ok(`both gates give the same answer on every line, at every cap (${LINES.length * CAPS.length} probes, both directions)`, disagree.length === 0, disagree.slice(0, 6).join(' | '));
+  ok('…and the probes are not all one answer (both gates pass some and refuse some)',
+    LINES.some((t) => e2(t, 400)) && LINES.some((t) => !e2(t, 400)) && SAMPLES.every((t) => !CLIENT.passesEchoCheck(t, 400)));
 }
 
 console.log('\n6. numbersIn and normalizeRequirements');

@@ -48,7 +48,7 @@
 import React from 'react';
 import { Dimensions, Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
@@ -111,16 +111,26 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
 // ── The AI, answered locally (SAMPLE answers; no network) ──────────────────
 const mockAiPrompts: string[] = [];
 let mockCodeCheckData: unknown = null;
+// Lane CARDS2: the drill-in's own answer and Inspection Ready's recall answer,
+// only when a test gives one (otherwise both behave exactly as before).
+let mockCodeDetailData: unknown = null;
+let mockRecallData: unknown = null;
 jest.mock('@/utils/mageAI', () => {
   const actual = jest.requireActual('@/utils/mageAI');
   return {
     ...actual,
     mageAISmart: async (prompt: string) => {
       mockAiPrompts.push(prompt);
-      return mockCodeCheckData
-        ? { success: true, data: mockCodeCheckData, cached: true }
+      const data = mockCodeDetailData && prompt.includes('wants to understand ONE specific code citation in depth') ? mockCodeDetailData : mockCodeCheckData;
+      return data
+        ? { success: true, data, cached: true }
         : { success: false, error: 'not in this test' };
     },
+    mageAI: async (opts: { prompt?: string }) => (
+      mockRecallData && String(opts?.prompt ?? '').includes('List what an inspector commonly checks at this inspection')
+        ? { success: true, data: mockRecallData, cached: true }
+        : actual.mageAI(opts)
+    ),
   };
 });
 
@@ -163,6 +173,8 @@ beforeEach(() => {
   outerNowSpy = OuterDate === Date ? null : jest.spyOn(OuterDate, 'now').mockReturnValue(GOLDEN_CLOCK);
   mockAiPrompts.length = 0;
   mockCodeCheckData = null;
+  mockCodeDetailData = null;
+  mockRecallData = null;
   mockAskAnswer = null;
   // The pin and saved stores are module singletons that hold their state in
   // memory; primeWorld empties the storage under them. A fresh store per test
@@ -1047,5 +1059,123 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     expect(screen.queryByText('On Final checklist')).toBeNull();
     const pins = await pinsStored();
     expect(pins[PROJECT_ID]?.map((p) => p.item.summary)).toEqual(['Sample: guards on every open side of the deck.']);
+  });
+});
+
+// ── 3. CARDS2 — AI prose passes the own-words gate ─────────────────────────
+//
+// Three places printed AI text about a model code with only the prompt's rule
+// in the way: the Code Check summary, the drill-in answer and Inspection
+// Ready's recall list. Each now goes through the kit's gate in prose mode:
+// a sentence that reads like code text never prints, the rest stays, and the
+// surface says so once with the cards' own notice and the section number.
+// Every line here is a SAMPLE; the code-shaped ones are made up for the test.
+describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2019s own words only', () => {
+  jest.setTimeout(150000);
+  const NOTICE = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
+
+  it('Code Check summary: a code-shaped sentence is replaced by the notice with its section, once; the rest of the paragraph stays', async () => {
+    await runCodeCheck({
+      ...SAMPLE_CODE_CHECK,
+      summary: 'Sample summary: a raised deck needs guards. R312.1 "Sample title" says sample guards shall be provided. Sample again: sample height not less than a sample figure. Sample: plan on a final inspection.',
+    });
+    expect(screen.getAllByText(`Sample summary: a raised deck needs guards. ${NOTICE} Section: R312.1. Sample: plan on a final inspection.`)).toHaveLength(1);
+    expect(screen.queryAllByText(/shall be provided|not less than|Sample title/)).toHaveLength(0);
+    // The cards under it are untouched.
+    expect(screen.getByTestId('code-check-card-0')).toBeTruthy();
+  });
+
+  it('Code Check summary: a long paragraph in plain words prints whole (prose has no word cap)', async () => {
+    const long = `Sample summary: ${'this is an ordinary long sample sentence about the job that keeps going in plain words '.repeat(5)}and then it ends. Sample: plan on a final inspection.`;
+    await runCodeCheck({ ...SAMPLE_CODE_CHECK, summary: long });
+    expect(screen.getAllByText(long)).toHaveLength(1);
+    expect(screen.queryAllByText(new RegExp(NOTICE.slice(0, 40)))).toHaveLength(0);
+  });
+
+  it('Code Check drill-in: code-shaped sentences and bullets never print; the notice shows once with the row\u2019s section', async () => {
+    mockCodeDetailData = {
+      plainEnglish: 'Sample: a guard goes on every open side. Sample guards shall be not less than a sample height. Sample: keep the gaps tight.',
+      appliesBecause: 'Sample: the deck is 34 in. above grade.',
+      inspectorChecks: ['Sample: guard height at the low side', 'R312.1 "Sample title" on every open side'],
+      commonFailures: ['Exception: sample decks under a sample height.'],
+      ruleOfThumb: 'Sample: measure from the walking surface.',
+    };
+    await runCodeCheck();
+    await act(async () => { fireEvent.press(screen.getByTestId('code-detail-toggle-0')); });
+    await pump(6);
+    expect(screen.getAllByText('Sample: a guard goes on every open side. Sample: keep the gaps tight.')).toHaveLength(1);
+    expect(screen.getAllByText('Sample: the deck is 34 in. above grade.')).toHaveLength(1);
+    expect(screen.getAllByText('\u2022 Sample: guard height at the low side')).toHaveLength(1);
+    expect(screen.getAllByText('Sample: measure from the walking surface.')).toHaveLength(1);
+    expect(screen.queryAllByText(/shall be not less than|Sample title|Exception:/)).toHaveLength(0);
+    // The only failure bullet was withheld, so its heading has nothing under it and is not shown.
+    expect(screen.queryAllByText('How jobs fail it')).toHaveLength(0);
+    expect(screen.getByTestId('code-detail-withheld-0').props.children).toBe(`${NOTICE} Section: 2025 RCNYS R312.1.`);
+    expect(screen.getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`))).toHaveLength(1);
+  });
+
+  it('Code Check drill-in: an answer in plain words prints as written, with no notice', async () => {
+    mockCodeDetailData = {
+      plainEnglish: 'Sample: a guard goes on every open side of the deck.',
+      appliesBecause: 'Sample: the deck is 34 in. above grade.',
+      inspectorChecks: ['Sample: guard height at the low side'],
+      commonFailures: ['Sample: guard left off the stair side'],
+      ruleOfThumb: '',
+    };
+    await runCodeCheck();
+    await act(async () => { fireEvent.press(screen.getByTestId('code-detail-toggle-0')); });
+    await pump(6);
+    expect(screen.getAllByText('Sample: a guard goes on every open side of the deck.')).toHaveLength(1);
+    expect(screen.getAllByText('\u2022 Sample: guard left off the stair side')).toHaveLength(1);
+    expect(screen.getAllByText('How jobs fail it')).toHaveLength(1);
+    expect(screen.queryByTestId('code-detail-withheld-0')).toBeNull();
+  });
+
+  it('Inspection Ready recall: a code-shaped line is never a checklist row; the group says so once, and plain lines stay', async () => {
+    mockRecallData = {
+      items: [
+        { text: 'Sample: guard on every open side', codeRef: '', confidence: 'high', why: 'Sample: the deck is raised' },
+        { text: 'Sample guards shall be provided on sample open sides.', codeRef: 'R312.1.1', confidence: 'high', why: 'Sample reason' },
+        { text: 'Sample: check the baluster spacing. Sample openings shall not pass a sample sphere.', codeRef: '', confidence: 'med', why: 'Sample: balusters are in scope' },
+        { text: 'Sample: handrail on the stair', codeRef: '', confidence: 'low', why: 'The label reads "sample".' },
+      ],
+      followUps: [
+        { question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No', 'Not sure'] },
+        { question: 'Sample: is it installed in accordance with the listing?', options: ['Yes', 'No'] },
+      ],
+    };
+    await phoneRoute(`/project-detail?id=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+      await seedInspection();
+    });
+    const rows = screen.getAllByText('Get ready for Final inspection');
+    await act(async () => { fireEvent.press(rows[0]); });
+    await pump(8);
+    expect(screen.getAllByText('Sample: guard on every open side')).toHaveLength(1);
+    expect(screen.getAllByText('Sample: check the baluster spacing.')).toHaveLength(1);
+    expect(screen.getAllByText('Sample: handrail on the stair')).toHaveLength(1);
+    expect(screen.getAllByText('Sample: any stairs with four or more risers?')).toHaveLength(1);
+    expect(screen.queryAllByText(/shall be provided|shall not pass|in accordance with|The label reads/)).toHaveLength(0);
+    const box = screen.getByTestId('inspection-prep-recall-withheld');
+    const said = within(box).getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`));
+    expect(said).toHaveLength(1);
+    expect(screen.getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`))).toHaveLength(1);
+    expect(screen.queryAllByText('Nothing to add beyond the lists above.')).toHaveLength(0);
+  });
+
+  it('Inspection Ready recall: a list in plain words shows no notice', async () => {
+    mockRecallData = {
+      items: [{ text: 'Sample: guard on every open side', codeRef: '', confidence: 'high', why: 'Sample: the deck is raised' }],
+      followUps: [],
+    };
+    await phoneRoute(`/project-detail?id=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+      await seedInspection();
+    });
+    const rows = screen.getAllByText('Get ready for Final inspection');
+    await act(async () => { fireEvent.press(rows[0]); });
+    await pump(8);
+    expect(screen.getAllByText('Sample: guard on every open side')).toHaveLength(1);
+    expect(screen.queryByTestId('inspection-prep-recall-withheld')).toBeNull();
   });
 });

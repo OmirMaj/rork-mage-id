@@ -10,7 +10,13 @@
 //   A  verdict.ts      re-check, close-to-the-line band, verdict flip, formatting
 //   B  echoCheck.ts    our words only: caps, long runs, quotes, code phrasing;
 //                      AN INCH MARK IS NOT A QUOTE (B9 to B11); the two
-//                      stand-in lines (B12)
+//                      stand-in lines (B12); CARD MODE carries the server's
+//                      whole list and measures a line its way (B13 to B15);
+//                      PROSE MODE, for a paragraph: sentence by sentence, no
+//                      length cap, the notice once with the section numbers,
+//                      quotations tracked across sentences (B16 to B28). Both
+//                      modes are pinned apart: a long plain sentence fails as
+//                      a card line and passes as prose (B16).
 //   C  officialText.ts copy THEN open, volume-level URLs only, blocked says why
 //   D  shareText.ts    sample tail, recall notes (a PARENT match is recall; the
 //                      trigger number is recall on every rung), confirm line;
@@ -59,7 +65,10 @@ import {
   canRecheck, effectiveVerdict, formatJobNumber, recheck, recheckEquation, stepJobValue, stageInspectionLabel,
   CODE_STAGES,
 } from '../utils/codeCard/verdict';
-import { isStandInLine, longestRun, passesEchoCheck, summaryEchoCheck, withoutInchMarks, LINE_NO_TEXT, LINE_WITHHELD, SUMMARY_MAX } from '../utils/codeCard/echoCheck';
+import {
+  isStandInLine, longestRun, ownWordsBlock, ownWordsProse, passesEchoCheck, passesProseCheck, proseSentences, sectionsIn, summaryEchoCheck, withheldNotice, withoutInchMarks,
+  LINE_NO_TEXT, LINE_WITHHELD, SUMMARY_MAX,
+} from '../utils/codeCard/echoCheck';
 import {
   officialTextPlan, officialTextSteps, officialTextToast, runOfficialText, OFFICIAL_TEXT_BLOCKED, NO_SECTION_TO_COPY, NO_SECTION_TOAST, viewerShortLabel,
 } from '../utils/codeCard/officialText';
@@ -255,6 +264,86 @@ async function main(): Promise<void> {
     isStandInLine(LINE_WITHHELD) && isStandInLine(LINE_NO_TEXT) && !isStandInLine('Guard 36 in. high.') && !isStandInLine('') && !isStandInLine(null) && !isStandInLine(undefined)
     && LINE_WITHHELD === 'MAGE hid this line because it read like code text. Use Official text to read the section.'
     && LINE_NO_TEXT === 'The AI gave no plain-English line for this one. Use Official text to read the section.');
+
+  // CARD MODE carries the server's whole list (lane CARDS2): the phone is the
+  // only gate on Code Check, Plan Review and the sweep, so it is never looser.
+  ok('B13 card mode: the server’s extra phrases are code phrasing here too (not less than, not more than, where required by, the provisions of)',
+    ['Height not less than 36 in.', 'Gaps not more than 4 in.', 'Guards where required by the town.', 'Follow the provisions of the code.', 'NOT LESS THAN 36 in.']
+      .every((t) => summaryEchoCheck(t).reasons.join() === 'code_phrasing'));
+  ok('B14 card mode: a span in paired straight single quotes is a quotation; an apostrophe, a possessive and a foot mark are not',
+    ["Guards are 'required' here", "'Guards' go on open sides", "Use ('approved') fasteners", "It says 'guards on open sides'"].every((t) => summaryEchoCheck(t).reasons.join() === 'quotation')
+    && ["You don't need a guard below 30 in.", "The contractors' crew and the owners' rep.", "A 6' x 8' landing.", "Door 2'-8\" wide.", "the '90s deck and the '80s stair"].every((t) => passesEchoCheck(t)));
+  ok('B15 card mode measures the line the way the server does: one line, whitespace collapsed, every token a word',
+    longestRun(`${run25}\n${run25}`) === 50 && longestRun(`${run25}  \t ${run25}`) === 50 && longestRun('a — b') === 3
+    && passesEchoCheck(`${'a'.repeat(70)}   \n  ${'a'.repeat(69)}`) && !passesEchoCheck(`${'a'.repeat(70)}   \n  ${'a'.repeat(70)}`));
+
+  // ── PROSE MODE: a paragraph, sentence by sentence, no length cap ─────────
+  // The Code Check summary, the drill-in answer and Inspection Ready's recall
+  // list are prose. An ordinary long sentence is not code text.
+  const long60 = `This deck sits more than 30 in. above the yard, so plan on a guard along every open side, and make it ${Array.from({ length: 45 }, (_, i) => `word${i}`).join(' ')}.`;
+  ok('B16 the two modes are pinned apart: a long ordinary sentence is refused as a card line (too long, long run) and kept whole as prose',
+    long60.length > 400 && summaryEchoCheck(long60, 400).reasons.join() === 'too_long,long_run'
+    && ownWordsProse(long60).withheld === 0 && ownWordsProse(long60).text === long60 && passesProseCheck(long60)
+    && passesProseCheck(`${run26} and more ${run26}`) && !passesEchoCheck(`${run26} and more ${run26}`, 4000));
+  const para = 'The deck needs a guard. Section R312.1 "Guards" says guards shall be provided. Keep gaps under 4 in. Height not less than 36 in. per R312.1.2. Check the stairs.';
+  const gated = ownWordsProse(para);
+  ok('B17 prose: a sentence that reads like code text is replaced by the card’s notice ONCE, later ones are taken out, the rest stays as written',
+    gated.text === `The deck needs a guard. ${LINE_WITHHELD} Sections: R312.1, R312.1.2. Keep gaps under 4 in. Check the stairs.`
+    && gated.withheld === 2 && gated.text.split(LINE_WITHHELD).length === 2, JSON.stringify(gated));
+  ok('B18 prose: the section numbers the hidden sentences named are still shown, each once, in order',
+    gated.sections.join() === 'R312.1,R312.1.2' && ownWordsProse('Guards shall be there per R312.1. And R312.1 shall apply.').sections.join() === 'R312.1'
+    && ownWordsProse('Guards shall be there.').text === LINE_WITHHELD);
+  ok('B19 prose: each code-text signal withholds its sentence and names its reason: a quotation, a code phrase, a section then a quoted title',
+    ownWordsProse('Fine. The note reads "X". Fine too.').reasons.join() === 'quotation'
+    && ownWordsProse('Fine. Build it in accordance with the plans. Fine too.').reasons.join() === 'code_phrasing'
+    && ownWordsProse("Fine. See R312.1 'Guards and rails. Fine too.").reasons.join() === 'section_title'
+    && ownWordsProse('Fine. See 1015.2: “Where required” first. Fine too.').reasons.includes('section_title')
+    && ['Use «this» here.', "Use 'approved' fasteners.", 'Exception: decks under 30 in.', 'Guards where required by the town.', 'Follow the provisions of the code.', 'Gaps not more than 4 in.']
+      .every((t) => ownWordsProse(`Fine. ${t} Fine too.`).text === `Fine. ${LINE_WITHHELD} Fine too.`));
+  ok('B20 prose: a possessive after a section number is not a quoted title, and a plain section number is fine',
+    passesProseCheck("R312.1's rule covers the open side.") && passesProseCheck('See R312.1 for guards and 1015.2 for the commercial rule.'));
+  ok('B21 prose: a quotation that runs over several sentences hides every sentence it touches; one that never closes hides the rest of the block',
+    ownWordsProse('He said "Guards. Required at 30 in. Above grade" and left. Then this. And that.').text === `${LINE_WITHHELD} Then this. And that.`
+    && ownWordsProse('He said "Guards. Required at 30 in. Above grade" and left. Then this. And that.').withheld === 3
+    && ownWordsProse('First. Opening "quote never closes. Second sentence. Third.').text === `First. ${LINE_WITHHELD}`
+    && ownWordsProse('First. A “curly one. Still inside. Closed” here. Last.').text === `First. ${LINE_WITHHELD} Last.`
+    && ownWordsProse('First. A ‘single curly. Still inside. Closed’ here. Last.').text === `First. ${LINE_WITHHELD} Last.`
+    && ownWordsProse("First. It says 'guards. On open sides' here. Last.").text === `First. ${LINE_WITHHELD} Last.`
+    && ownWordsProse('First. The ‘guard rule. Second. Third.').text === `First. ${LINE_WITHHELD}`);
+  ok('B22 prose: an inch mark and a foot mark are not quotes; the paragraph is kept exactly as written',
+    ['Door 2\'-8" wide and 6\'-8" high. Riser at most 7-3/4". Fine here.', 'Guard 36" high. Balusters 4½" apart. Footing 12"x12".', "A 6' x 8' landing. The contractors' crew don't mind."]
+      .every((t) => ownWordsProse(t).withheld === 0 && ownWordsProse(t).text === t));
+  ok('B23 prose: a clean block comes back as written (trimmed, line breaks kept), and a line break is a sentence break',
+    ownWordsProse('  Line one.\n\nLine two is fine.  ').text === 'Line one.\n\nLine two is fine.'
+    && ownWordsProse('Line one\nLine two shall fail\nLine three').text === `Line one\n${LINE_WITHHELD}\nLine three`
+    && ownWordsProse('').text === '' && ownWordsProse(null).text === '' && ownWordsProse(42).withheld === 0 && !passesProseCheck('   '));
+  ok('B24 prose: sentences split after . ! ? before anything but a lower-case letter, so "36 in. high" stays whole; joined, they are the block',
+    proseSentences('A 36 in. high guard. No. 4 rebar e.g. Here? Yes! done').join('|') === 'A 36 in. high guard. |No. |4 rebar e.g. |Here? |Yes! done'
+    && [para, long60, 'a\nb\n\nc'].every((t) => proseSentences(t).join('') === t));
+  ok('B25 sectionsIn reads section numbers and nothing that is a measurement, a price, a year or an R-value',
+    sectionsIn('Per 1015.2 in the IBC, R312.1.2, 101.5 psf, R19, E3902.16, Table R602.3(1), 210.8(A), $1500.00, 36.5 in., IRC 2021, N1102.4.1.1, 406.4"').join()
+      === '1015.2,R312.1.2,E3902.16,R602.3(1),210.8(A),N1102.4.1.1');
+  ok('B26 the notice is the card’s own line, with the section numbers after it; it passes both modes, so gating a gated block changes nothing and never adds a second notice',
+    withheldNotice() === LINE_WITHHELD && withheldNotice(['', null, undefined]) === LINE_WITHHELD
+    && withheldNotice(['IRC R312.1']) === `${LINE_WITHHELD} Section: IRC R312.1.` && withheldNotice(['R312.1', 'R311.7', 'R312.1']) === `${LINE_WITHHELD} Sections: R312.1, R311.7.`
+    && passesEchoCheck(withheldNotice(['IRC R312.1', 'R311.7']), 400) && passesProseCheck(withheldNotice(['IRC R312.1', 'R311.7']))
+    && [para, 'Guards shall be there.', 'He said "Guards. Required" and left. Then this.', 'Line one\nLine two shall fail\nLine three']
+      .every((t) => { const once = ownWordsProse(t); const twice = ownWordsProse(once.text); return twice.text === once.text && twice.withheld === 0; })
+    && ownWordsProse(`Fine. ${LINE_WITHHELD} Guards shall be there. End.`).text === `Fine. ${LINE_WITHHELD} End.`);
+  const block = ownWordsBlock({
+    plainEnglish: 'Guards go on open sides. Guards shall be 36 in. per R312.1.', appliesBecause: 'The deck is 31 in. up.',
+    inspectorChecks: ['Guard height', 'Exception: none', 'The label reads "X"'], commonFailures: [] as string[], ruleOfThumb: 'Guards "always".', n: 3,
+  });
+  ok('B27 a block of several fields: every string and every list is gated with no notice inside, an emptied bullet is dropped, the count and the sections ride along, anything that is not text is untouched',
+    block.value.plainEnglish === 'Guards go on open sides.' && block.value.appliesBecause === 'The deck is 31 in. up.' && block.value.inspectorChecks.join() === 'Guard height'
+    && block.value.commonFailures.length === 0 && block.value.ruleOfThumb === '' && block.value.n === 3 && block.withheld === 4 && block.sections.join() === 'R312.1'
+    && !JSON.stringify(block.value).includes(LINE_WITHHELD) && ownWordsBlock({ a: 'Fine.', b: ['Also fine.'] }).withheld === 0);
+  // One sentence, both modes: prose refuses exactly what the card refuses for
+  // its wording (a quotation or code phrasing), and never for its length.
+  const oneSentence = [...ours, ...inchLines.filter((t) => !/[.?] [A-Z]/.test(t)), ...quoteLines.filter((t) => !/[.?] [A-Z]/.test(t)),
+    'Guards shall be provided', 'Height not less than 36 in', 'Install in accordance with the code', 'Exception: decks under 30 in', "Guards are 'required' here", 'As set out herein', run26, long60];
+  const modeDiff = oneSentence.filter((t) => passesProseCheck(t) !== !summaryEchoCheck(t, 100000).reasons.some((r) => r === 'quotation' || r === 'code_phrasing'));
+  ok(`B28 on a single sentence prose mode refuses exactly what card mode refuses for its WORDING (${oneSentence.length} lines)`, oneSentence.length > 20 && modeDiff.length === 0, modeDiff.join(' | '));
 
   // ── C ────────────────────────────────────────────────────────────────
   section('C officialText');
