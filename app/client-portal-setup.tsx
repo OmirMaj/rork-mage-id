@@ -64,7 +64,10 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
+import { ensureAiConsent, AI_ACCOUNT_COPY, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
+import { settleAiConsentSync } from '@/utils/aiConsentAccount';
+import { usePortalAccountNote } from '@/hooks/useAccountAi';
+import { AiAccountNote } from '@/components/AiAccountNote';
 import { describeError } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -504,6 +507,9 @@ function ClientPortalSetupScreenInner() {
   // "unknown" means only "no session yet" — not a Save that never unlocks.
   const isOwner = ownership === 'owner'
     || (ownership === 'unknown' && !!project && isPortalOwner(project, userId));
+  // What the ACCOUNT says about AI (the server obeys it for the weekly recap and
+  // Ask Your Home). Owner only: a collaborator's phone knows only its own answer.
+  const accountAi = usePortalAccountNote(isOwner);
   const ownerOnlyReason = isCollaborator
     ? 'Only the project owner can change what the client sees on the portal.'
     : !isOwner ? 'Checking who owns this project — Save is available once that is confirmed.' : null;
@@ -2198,9 +2204,17 @@ function ClientPortalSetupScreenInner() {
             Defaults off — opt in here. */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Weekly recap email</Text>
+          {/* The sentence that says AI rewrites the recap is shown only while the
+              ACCOUNT's own answer is yes (the server uses AI on nothing else). An
+              account that could not be read, a collaborator's screen and a first
+              yes still on its way all get the plain subtitle. */}
+          {!accountAi.accountAllows
+            ? <Text style={styles.sectionSubtitle}>{AI_ACCOUNT_COPY.recapSubtitlePlain}</Text>
+            : (
           <Text style={styles.sectionSubtitle}>
             We email your client a plain-English recap every Friday — what got done this week, what&apos;s coming next. AI strips the contractor jargon. Off until you toggle it on.
           </Text>
+            )}
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
@@ -2214,10 +2228,13 @@ function ClientPortalSetupScreenInner() {
                 disabled={!!ownerOnlyReason}
                 value={!!portal.weeklyDigest?.enabled}
                 onValueChange={async val => {
-                  // The recap is written by Google Gemini from this job's
-                  // records (homeowner-weekly-digest), so turning it on is an
-                  // AI share: ask first (utils/aiConsent; always yes on web).
-                  if (val && !(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
+                  // Turning the recap on asks the one AI question if this person
+                  // has not answered (always yes, no question, on the web app).
+                  // Either answer turns the recap on: without a yes on the
+                  // account the server sends the plain summary and nothing goes
+                  // to Gemini (supabase/functions/_shared/aiConsent). The note
+                  // below says which one his client will get.
+                  if (val) await ensureAiConsent();
                   handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never);
                 }}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -2225,16 +2242,22 @@ function ClientPortalSetupScreenInner() {
               />
             </View>
           </View>
+          <AiAccountNote owner={isOwner} />
 
           <TouchableOpacity
             style={[styles.previewWeeklyBtn, !id && { opacity: 0.5 }]}
             onPress={async () => {
               if (!id) return;
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
-              // App Store 5.1.2(i): the preview has Google Gemini write the
-              // recap from this job's records — an AI share, so it waits for
-              // the person's yes (utils/aiConsent; always yes on the web app).
+              // App Store 5.1.2(i): the phone's own answer still rules this
+              // app's requests, so the preview waits for the person's yes
+              // (utils/aiConsent; always yes on the web app). Whether Google
+              // Gemini then writes the recap is the SERVER's call, from the
+              // answer saved on the account: the response says which kind went
+              // out (`recap`), and the alert below repeats it.
               if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
+              // A yes he just gave reaches the account before the server reads it (bounded at 4 s).
+              await settleAiConsentSync();
               try {
                 const { data, error } = await supabase.functions.invoke('homeowner-weekly-digest', {
                   body: { projectId: id, preview: true },
@@ -2242,6 +2265,7 @@ function ClientPortalSetupScreenInner() {
                 if (error) throw error;
                 const sent = (data as { sent?: number } | null)?.sent ?? 0;
                 const errs = (data as { errors?: string[] } | null)?.errors ?? [];
+                const recap = (data as { recap?: string } | null)?.recap;
                 // A preview that sent nothing says WHY: the function now skips
                 // a closed job and an ended portal link, and a per-invite send
                 // failure is not "no invites" either.
@@ -2249,7 +2273,11 @@ function ClientPortalSetupScreenInner() {
                   // #134: the function refuses a disabled portal outright.
                   showAlert('Portal is off', 'Nothing was emailed. Turn the portal on to email your client.');
                 } else if (sent > 0) {
-                  showAlert('Preview sent', `Sent the recap to ${sent} portal ${sent === 1 ? 'invite' : 'invites'}. Check your inbox or your client's.`);
+                  showAlert('Preview sent', recap === 'plain_ai_off'
+                    ? AI_ACCOUNT_COPY.previewSentPlain(sent)
+                    : recap === 'plain_ai_unknown'
+                      ? AI_ACCOUNT_COPY.previewSentUnchecked(sent)
+                      : `Sent the recap to ${sent} portal ${sent === 1 ? 'invite' : 'invites'}. Check your inbox or your client's.`);
                 } else if (errs.includes('project_closed')) {
                   // The closing email only goes out through the weekly recap's
                   // Friday run, which skips portals with the recap off — so

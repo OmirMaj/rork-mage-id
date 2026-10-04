@@ -24,6 +24,10 @@
 //   - Never an anchor invented for an undated schedule (scheduleOps: THERE IS
 //     NO FALLBACK ANCHOR). An undated schedule contributes no inspection.
 //   - A codeRef survives only when the model actually gave one.
+//   - The recall list never shows a model code's wording. Every recall line
+//     goes through the code cards' own-words gate (recallOwnWords) before the
+//     checklist is built; what was taken out is counted, and the sheet says
+//     so once, with the section numbers still shown.
 //   - Recording a result never erases an earlier called inspection or its
 //     notes: the old called head is folded into the history BEFORE the head
 //     moves (foldCurrentInspection already skips a row that matches it).
@@ -41,6 +45,7 @@ import { inspectionHistoryFactsFor, type InspectionHistoryGrounding } from '@/ut
 import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import { ROADMAP_FEATURE } from '@/utils/automation/roadmapToScheduleWork';
 import type { CodePin, CodeStage } from '@/utils/codeCard/types';
+import { ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';
 import {
   issuingAuthorityForAddress,
   jurisdictionQueryForProject,
@@ -310,6 +315,66 @@ function qtyText(q: number): string {
   return String(Math.round(q * 100) / 100);
 }
 
+// ─── The recall list, in MAGE's own words only ───────────────────────────────
+//
+// COPYRIGHT. The recall list is AI text about a model code, so it passes the
+// same own-words gate as a code card (utils/codeCard/echoCheck.ts, prose
+// mode: sentence by sentence, no length cap) BEFORE the checklist reads it.
+//   - text      a sentence that reads like code text is taken out; a line
+//               with nothing left is dropped (it is never a checklist row, a
+//               punch item or a photo check).
+//   - why       its words, or nothing.
+//   - codeRef   a short reference as the model gave it; when it carries
+//               anything else (a quoted title, a sentence), only the section
+//               numbers in it are kept.
+//   - a follow-up question is asked whole or not at all.
+// What was taken out is COUNTED, with the references of the lines it came
+// from, so the sheet can say it once and still show the section numbers.
+
+/** What the gate took out of one recall answer. */
+export interface RecallWithheld {
+  /** Sentences, references and questions taken out. 0 = nothing was hidden. */
+  count: number;
+  /** The references of the lines something was taken out of, each once. */
+  codeRefs: string[];
+}
+
+/** A code reference is short: an edition and a section number. */
+const CODE_REF_MAX = 60;
+
+/** A recall answer with every line through the own-words gate. Pure. */
+export function recallOwnWords(recall: RecallAnswer | null | undefined): {
+  items: RecallAnswer['items'];
+  followUps: RecallAnswer['followUps'];
+  withheld: RecallWithheld;
+} {
+  const items: RecallAnswer['items'] = [];
+  const followUps: RecallAnswer['followUps'] = [];
+  const codeRefs: string[] = [];
+  let count = 0;
+  for (const it of recall?.items ?? []) {
+    const text = ownWordsProse(it.text, { notice: false });
+    const why = ownWordsProse(it.why, { notice: false });
+    const ref = ownWordsProse(it.codeRef, { notice: false });
+    const refOk = ref.withheld === 0 && ref.text.length <= CODE_REF_MAX;
+    const codeRef = refOk ? ref.text : sectionsIn(typeof it.codeRef === 'string' ? it.codeRef : '').join(', ');
+    const hidden = text.withheld + why.withheld + (refOk ? 0 : 1);
+    if (hidden > 0) {
+      count += hidden;
+      if (codeRef && !codeRefs.includes(codeRef)) codeRefs.push(codeRef);
+    }
+    if (!text.text) continue;
+    items.push({ text: text.text, codeRef, confidence: it.confidence, why: why.text });
+  }
+  for (const f of recall?.followUps ?? []) {
+    const question = ownWordsProse(f.question, { notice: false });
+    const options = (f.options ?? []).map((o) => ownWordsProse(String(o), { notice: false }));
+    if (question.withheld > 0 || options.some((o) => o.withheld > 0)) { count += 1; continue; }
+    followUps.push({ question: question.text, options: options.map((o) => o.text) });
+  }
+  return { items, followUps, withheld: { count, codeRefs } };
+}
+
 // ─── The checklist ────────────────────────────────────────────────────────────
 
 export function buildChecklist(a: {
@@ -317,8 +382,16 @@ export function buildChecklist(a: {
   project: Project;
   permits: readonly Permit[];
   recall?: RecallAnswer | null;
-}): { items: PrepItem[]; history: InspectionHistoryGrounding; followUps: RecallAnswer['followUps'] } {
-  const { inspection, project, permits, recall } = a;
+}): {
+  items: PrepItem[];
+  history: InspectionHistoryGrounding;
+  followUps: RecallAnswer['followUps'];
+  /** What the own-words gate took out of the recall answer (count 0 = nothing). */
+  recallWithheld: RecallWithheld;
+} {
+  const { inspection, project, permits } = a;
+  // The AI's answer is read HERE, through the gate, and nowhere else.
+  const recall = recallOwnWords(a.recall);
   const items: PrepItem[] = [];
   const ids = new Set<string>();
   const add = (it: PrepItem) => {
@@ -354,7 +427,7 @@ export function buildChecklist(a: {
 
   // 3. Model recall — high/med first, then the low-confidence ones to verify.
   const covered = new Set(items.map((i) => i.text.trim().toLowerCase()));
-  const recallItems = (recall?.items ?? []).filter((r) => (r.text ?? '').trim() && !covered.has(r.text.trim().toLowerCase()));
+  const recallItems = recall.items.filter((r) => !covered.has(r.text.toLowerCase()));
   const ordered = [
     ...recallItems.filter((r) => r.confidence === 'high' || r.confidence === 'med'),
     ...recallItems.filter((r) => r.confidence !== 'high' && r.confidence !== 'med'),
@@ -364,25 +437,23 @@ export function buildChecklist(a: {
     if (r >= RECALL_CAP) break;
     const confident = it.confidence === 'high' || it.confidence === 'med';
     const group: PrepGroup = confident ? 'recall' : 'verify';
-    const text = it.text.trim();
-    const codeRef = (it.codeRef ?? '').trim();
     const item: PrepItem = {
-      id: itemId(group, text),
+      id: itemId(group, it.text),
       group,
-      text,
-      why: (it.why ?? '').trim(),
+      text: it.text,
+      why: it.why,
       confidence: confident ? it.confidence : 'low',
     };
-    if (codeRef) item.codeRef = codeRef;
+    if (it.codeRef) item.codeRef = it.codeRef;
     if (add(item)) r += 1;
   }
 
-  const followUps = (recall?.followUps ?? [])
-    .map((f) => ({ question: (f.question ?? '').trim(), options: (f.options ?? []).map((o) => String(o).trim()).filter(Boolean).slice(0, 4) }))
+  const followUps = recall.followUps
+    .map((f) => ({ question: f.question, options: f.options.filter(Boolean).slice(0, 4) }))
     .filter((f) => f.question && f.options.length >= 2)
     .slice(0, FOLLOW_UP_CAP);
 
-  return { items, history, followUps };
+  return { items, history, followUps, recallWithheld: recall.withheld };
 }
 
 // ─── The recall prompt ────────────────────────────────────────────────────────

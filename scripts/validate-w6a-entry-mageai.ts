@@ -21,6 +21,10 @@
 //
 // Run via: bun run scripts/validate-w6a-entry-mageai.ts
 
+// A headless run: nothing here stores an AI consent answer and there is no consent sheet to ask,
+// so the gate would refuse every AI util (utils/aiConsentCore, "NO HOST = NO"). No app file sets this.
+(globalThis as unknown as Record<string, unknown>).__MAGEID_AI_CONSENT_HEADLESS__ = true;
+
 const BUN_TEST = 'bun:test';
 const { mock } = (await import(BUN_TEST)) as {
   mock: { module: (specifier: string, factory: () => Record<string, unknown>) => void };

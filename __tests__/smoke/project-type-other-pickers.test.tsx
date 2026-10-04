@@ -13,7 +13,9 @@
 
 import React from 'react';
 import { render, fireEvent, act, screen } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
+import { AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
 
 jest.mock('@/contexts/ThemeContext', () => {
   const actual = jest.requireActual('@/constants/colors');
@@ -50,6 +52,10 @@ describe('Q6 — AI Quick Estimate: Other needs words, and the AI gets them', ()
   });
 
   async function mount() {
+    // The contractor has allowed AI features (the seed __tests__/helpers/mountRoute uses). This
+    // suite mounts the modal alone, with no consent host to ask, and the gate refuses an
+    // unanswered request when nobody can be asked (utils/aiConsentCore, "NO HOST = NO").
+    await AsyncStorage.setItem(AI_CONSENT_STORAGE_KEY, 'granted');
     render(<AIQuickEstimate {...props} />);
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
   }

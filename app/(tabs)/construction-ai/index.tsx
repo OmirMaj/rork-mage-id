@@ -86,7 +86,7 @@ import { blockedAction, readyAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
 import { parseCodeCardItem } from '@/utils/codeCard/parse';
 import { saysNumberWithUnit } from '@/utils/codeCard/saysWithUnit';
-import { passesEchoCheck } from '@/utils/codeCard/echoCheck';
+import { ownWordsBlock, ownWordsProse, passesEchoCheck, withheldNotice, type ProseBlock } from '@/utils/codeCard/echoCheck';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
 import { architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
@@ -293,11 +293,28 @@ const codeDetailSchema = z.object({
 });
 
 type CodeDetail = z.infer<typeof codeDetailSchema>;
+/**
+ * The drill-in answer as the screen may hold it: EVERY field through the
+ * own-words gate's prose mode (utils/codeCard/echoCheck ownWordsBlock), where
+ * the AI's answer comes in. A sentence that reads like code text is taken
+ * out, a bullet with nothing left is dropped, and `withheld` says how many
+ * went, so the drill-in prints the card's notice once, next to the section.
+ */
+type CodeDetailOwnWords = ProseBlock<CodeDetail>;
+/**
+ * The drill-in's notice when something was taken out: the card's own words,
+ * with the row's section (and any section the hidden sentences named) still
+ * shown, so he can read it in the publisher's free viewer.
+ */
+function detailWithheldNotice(c: { code: string; section: string }, sections: readonly string[]): string {
+  const label = c.section.trim() ? [c.code, c.section].filter(Boolean).join(' ') : '';
+  return withheldNotice([label, ...sections.filter((s) => !label.includes(s))]);
+}
 
 /** Per-code fetch state, keyed by `${code}::${section}`. */
 type CodeDetailState = {
   loading: boolean;
-  data: CodeDetail | null;
+  data: CodeDetailOwnWords | null;
   error: string | null;
 };
 
@@ -1522,7 +1539,11 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
       // saved to the job and every permit, punch item or RFI drafted from a
       // row then hold only the gated line (a line that reads like code text is
       // the withheld notice everywhere, not just on the card).
-      const data = codeCheckOwnWords(res.data as CodeCheckResult, passesEchoCheck);
+      // THE SUMMARY PARAGRAPH is prose, so it goes through the gate's prose
+      // mode here too: sentence by sentence, a sentence that reads like code
+      // text is replaced by the card's notice (once), the rest stays.
+      const aiResult = res.data as CodeCheckResult;
+      const data = { ...codeCheckOwnWords(aiResult, passesEchoCheck), summary: ownWordsProse(aiResult.summary).text };
       setResult(data);
       // Snapshot the grounding that went WITH this prompt.
       setResultGrounding(grounding);
@@ -3336,7 +3357,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
         setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: res.error ?? 'Could not load detail.' } }));
         return;
       }
-      setDetails(prev => ({ ...prev, [key]: { loading: false, data: res.data as CodeDetail, error: null } }));
+      setDetails(prev => ({ ...prev, [key]: { loading: false, data: ownWordsBlock(res.data as CodeDetail), error: null } }));
     } catch {
       setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: 'Could not load detail.' } }));
     }
@@ -3438,7 +3459,9 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                 <BookOpen size={16} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={styles.resultCardTitle}>Summary</Text>
               </View>
-              <Text style={styles.resultBody}>{result.summary}</Text>
+              {/* Gated at the door; gated again where it prints, so no
+                  summary reaches the screen by any other road. */}
+              <Text style={styles.resultBody}>{ownWordsProse(result.summary).text}</Text>
             </View>
           ) : null}
 
@@ -3553,35 +3576,43 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                         )}
                         {st?.data && (
                           <>
-                            {!!st.data.plainEnglish && (
-                              <Text style={styles.codeDetailBody}>{st.data.plainEnglish}</Text>
+                            {!!st.data.value.plainEnglish && (
+                              <Text style={styles.codeDetailBody}>{st.data.value.plainEnglish}</Text>
                             )}
-                            {!!st.data.appliesBecause && (
+                            {!!st.data.value.appliesBecause && (
                               <>
                                 <Text style={styles.codeDetailHeading}>Why it applies here</Text>
-                                <Text style={styles.codeDetailBody}>{st.data.appliesBecause}</Text>
+                                <Text style={styles.codeDetailBody}>{st.data.value.appliesBecause}</Text>
                               </>
                             )}
-                            {st.data.inspectorChecks.length > 0 && (
+                            {st.data.value.inspectorChecks.length > 0 && (
                               <>
                                 <Text style={styles.codeDetailHeading}>What the inspector checks</Text>
-                                {st.data.inspectorChecks.map((x, k) => (
+                                {st.data.value.inspectorChecks.map((x, k) => (
                                   <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
                                 ))}
                               </>
                             )}
-                            {st.data.commonFailures.length > 0 && (
+                            {st.data.value.commonFailures.length > 0 && (
                               <>
                                 <Text style={styles.codeDetailHeading}>How jobs fail it</Text>
-                                {st.data.commonFailures.map((x, k) => (
+                                {st.data.value.commonFailures.map((x, k) => (
                                   <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
                                 ))}
                               </>
                             )}
-                            {!!st.data.ruleOfThumb && (
+                            {!!st.data.value.ruleOfThumb && (
                               <View style={styles.codeRuleCard}>
-                                <Text style={styles.codeRuleText}>{st.data.ruleOfThumb}</Text>
+                                <Text style={styles.codeRuleText}>{st.data.value.ruleOfThumb}</Text>
                               </View>
+                            )}
+                            {/* Something in this answer read like code text and
+                                was taken out: said once, with the section still
+                                shown so he can read it in the free viewer. */}
+                            {st.data.withheld > 0 && (
+                              <Text style={styles.codeTapHint} testID={`code-detail-withheld-${i}`}>
+                                {detailWithheldNotice(c, st.data.sections)}
+                              </Text>
                             )}
                           </>
                         )}

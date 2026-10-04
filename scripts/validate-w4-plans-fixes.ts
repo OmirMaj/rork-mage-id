@@ -23,6 +23,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
+// A headless run: nothing here stores an AI consent answer and there is no consent sheet to ask,
+// so the gate would refuse every AI util (utils/aiConsentCore, "NO HOST = NO"). No app file sets this.
+(globalThis as unknown as Record<string, unknown>).__MAGEID_AI_CONSENT_HEADLESS__ = true;
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 /** Source with comments stripped — a rule about CODE is not satisfied by prose. */

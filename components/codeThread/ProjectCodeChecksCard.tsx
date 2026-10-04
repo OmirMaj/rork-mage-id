@@ -26,6 +26,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useCodeChecks } from '@/hooks/useCodeChecks';
 import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
+import { ownWordsProse } from '@/utils/codeCard/echoCheck';
 import type { CodeCheckRecord } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
 import { codeCheckDateLabel } from './CodeThreadActions';
@@ -126,8 +127,8 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
               >
                 <View style={styles.rowBody}>
                   <Text style={styles.rowMeta} numberOfLines={2}>{codeCheckRowLabel(c)}</Text>
-                  {firstLine(c.result?.summary) ? (
-                    <Text style={styles.rowSummary} numberOfLines={2}>{firstLine(c.result?.summary)}</Text>
+                  {firstLine(ownWordsProse(c.result?.summary).text) ? (
+                    <Text style={styles.rowSummary} numberOfLines={2}>{firstLine(ownWordsProse(c.result?.summary).text)}</Text>
                   ) : null}
                 </View>
                 <ChevronRight size={16} color={colors.textMuted} />

@@ -31,6 +31,10 @@ import { fileURLToPath } from 'node:url';
 // Type-only (erased at runtime), so the bun stubs below still load first.
 import type { Subcontractor, COICoverage } from '../types';
 
+// A headless run: nothing here stores an AI consent answer and there is no consent sheet to ask,
+// so the gate would refuse every AI util (utils/aiConsentCore, "NO HOST = NO"). No app file sets this.
+(globalThis as unknown as Record<string, unknown>).__MAGEID_AI_CONSENT_HEADLESS__ = true;
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail?: string) {

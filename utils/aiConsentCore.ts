@@ -19,20 +19,74 @@
 // The web app (app.mageid.app) is not an App Store surface: there the gate
 // always answers true, shows nothing and stores nothing.
 //
+// THE ACCOUNT HEARS THE ANSWER. Two server paths use AI with no tap in the app
+// (the Friday client recap and Ask Your Home), so the answer is also sent to
+// the account (public.profiles.ai_consent, through utils/aiConsentAccount) and
+// the server reads it there (supabase/functions/_shared/aiConsent.ts). This
+// module only says WHEN the person answered (onAnswer); it never talks to the
+// network, and a yes stored on the account is never copied onto a phone.
+//
 // WHERE THE GUARANTEE LIVES. components/AiConsentSheet is the "host": mounted once at the app
 // root (app/_layout.tsx, pinned by scripts/validate-ai-consent.ts), it tells
 // the gate how to ask and whether this is the web build. A stored "no" is
-// honored everywhere. A runtime with NO host at all is not the app — a bun
-// validator or a unit test that imports an AI util on its own — and there an
-// unanswered gate lets the call through, so those suites keep exercising the
-// util instead of every one of them stubbing this module.
+// honored everywhere, and so is a "no" the phone could not store: after a
+// write that failed, the older stored yes is not read back over it while the
+// app stays open (createAiConsentGate, writeFailed).
+//
+// NO HOST = NO. With no stored answer and no host registered there is nobody
+// to ask, so the request is REFUSED: on a phone, in the web app and under jest
+// alike. (The host is mounted at the root, so the app does not get here; if it
+// ever did, the App Store control must fail closed, not open.) The one
+// exception is a HEADLESS run: a bun validator that imports an AI util on its
+// own, with no app around it. There an unanswered gate lets the call through,
+// so those suites keep exercising the util instead of every one of them
+// stubbing this module. Headless is decided by aiConsentHeadless() below: a
+// named switch that such a validator sets itself and that no app file sets.
 
 export type AiConsentState = 'unknown' | 'granted' | 'declined';
 
 /** Under an existing app prefix (utils/localCacheKeys APP_STORAGE_PREFIXES), so
  *  the tenant-switch sweep wipes it with the rest of the signed-in person's
- *  data: consent belongs to a person, not to the phone. */
-export const AI_CONSENT_STORAGE_KEY = 'mageid_ai_consent_v1';
+ *  data: consent belongs to a person, not to the phone.
+ *
+ *  _v2 on purpose. The earlier key (the same name ending in _v1) is no longer
+ *  read: an answer under it was given to a question that covered this app only,
+ *  so everyone is asked once more, by the question that names the weekly client
+ *  recap and Ask Your Home. No code reads or removes the old key; the tenant
+ *  sweep removes it (it sits under the same prefix). */
+export const AI_CONSENT_STORAGE_KEY = 'mageid_ai_consent_v2';
+
+/** Who answered, when, and whether the account has heard it (utils/aiConsentAccount). Same
+ *  prefix, so the tenant sweep wipes it with the answer. JSON: AiConsentMeta in
+ *  utils/aiConsentSyncCore. */
+export const AI_CONSENT_META_KEY = 'mageid_ai_consent_meta_v2';
+
+/** The version of the question an answer under AI_CONSENT_STORAGE_KEY was given to. 2 = the
+ *  first question that names the weekly client recap and Ask Your Home. The server refuses a
+ *  yes below 2 (migration 20261004090000). Bump BOTH this and the key suffix together. */
+export const AI_CONSENT_QUESTION_VERSION = 2;
+
+/** THE HEADLESS SWITCH: the name of a global. Exactly `true` = this run is
+ *  headless (a validator), so an unanswered gate with no host lets the call
+ *  through; anything else, or not set = behave like the app. NO APP FILE SETS
+ *  IT: scripts/validate-ai-consent.ts fails if any file under app/,
+ *  components/, hooks/, contexts/, lib/ or utils/ names it (this file, which
+ *  only reads it, is the one exception). A validator that calls an AI util
+ *  with no stored answer sets it on its first line after the imports. */
+export const AI_CONSENT_HEADLESS_SWITCH = '__MAGEID_AI_CONSENT_HEADLESS__';
+
+/** True only in a headless run: the switch is exactly `true`. Nothing else
+ *  opens the path, on any runtime. Never throws; anything it cannot read is
+ *  false. */
+export function aiConsentHeadless(): boolean {
+  try {
+    const g = globalThis as unknown as Record<string, unknown>;
+    const flag = g[AI_CONSENT_HEADLESS_SWITCH];
+    return flag === true;
+  } catch {
+    return false;
+  }
+}
 
 /** The honest blocked message every refused AI request carries. */
 export const AI_CONSENT_OFF_MESSAGE = 'AI features are off. Turn them on in Settings → AI features.';
@@ -114,9 +168,13 @@ export interface AiConsentHost {
 
 export interface AiConsentGate {
   getState(): AiConsentState;
-  /** Re-read the stored answer (storage is the truth when it can be read). */
+  /** Re-read the stored answer (storage is the truth when it can be read; after a write that
+   *  failed, a stored yes is not taken: this session's answer stands). */
   load(): Promise<AiConsentState>;
   subscribe(fn: (s: AiConsentState) => void): () => void;
+  /** Fires only when the PERSON answers: the question, grant() or decline(). Never on a storage
+   *  re-read, never on reset(). components/AiConsentAccountSync tells the account. */
+  onAnswer(fn: (answer: 'granted' | 'declined') => void): () => void;
   grant(): Promise<void>;
   decline(): Promise<void>;
   reset(): Promise<void>;
@@ -133,6 +191,11 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
   // Two AI calls racing on first use share ONE question and one answer.
   let pending: Promise<boolean> | null = null;
   const listeners = new Set<(s: AiConsentState) => void>();
+  const answerListeners = new Set<(a: 'granted' | 'declined') => void>();
+  // True while the LAST write of an answer did not reach storage. Storage is
+  // then known to be out of date, and a yes read back from it is not this
+  // person's current answer: load() does not take it.
+  let writeFailed = false;
 
   const set = (s: AiConsentState) => {
     if (s === state) return;
@@ -142,7 +205,13 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
 
   const load = async (): Promise<AiConsentState> => {
     try {
-      set(parseAiConsent(await deps.storage.getItem(AI_CONSENT_STORAGE_KEY)));
+      const stored = parseAiConsent(await deps.storage.getItem(AI_CONSENT_STORAGE_KEY));
+      // Storage is the truth when it can be read, with ONE exception: after a
+      // write that failed, a stored yes is the answer from BEFORE that write.
+      // Taking it would turn a "no" given this session (AI switched off, the
+      // write refused) back into a yes on the very next AI request. A stored
+      // no, or no stored answer, is still taken: neither can open the gate.
+      if (!(writeFailed && stored === 'granted')) set(stored);
     } catch {
       // Unreadable storage: keep this session's answer (or 'unknown').
     }
@@ -154,9 +223,18 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
     try {
       if (s === 'unknown') await deps.storage.removeItem(AI_CONSENT_STORAGE_KEY);
       else await deps.storage.setItem(AI_CONSENT_STORAGE_KEY, s);
+      writeFailed = false;
     } catch {
-      // The answer still holds for this session; it is asked again next launch.
+      // Storage did not take it. A no (or a reset) stands for as long as the
+      // app stays open: load() above no longer takes the older stored yes. A
+      // yes that could not be stored is not kept this way: the next request
+      // reads what storage holds (a no refuses, no answer asks again). After a
+      // restart nothing in memory is left and storage is read as it is.
+      writeFailed = true;
     }
+    // The person answered (never reset()). After the storage write, and not awaited: the gate
+    // is never blocked by whoever listens (the account sync talks to the network).
+    if (s !== 'unknown') answerListeners.forEach((fn) => { try { fn(s); } catch { /* a listener never breaks the gate */ } });
   };
 
   const ensure = async (): Promise<boolean> => {
@@ -169,8 +247,10 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
     if (s === 'granted') return true;
     if (s === 'declined') return false;
     if (pending) return pending;
-    // No host: not the app (see the header). The app always has one.
-    if (!host) return true;
+    // No host and no stored answer: nobody to ask, so the answer is NO (fail
+    // closed). Nothing is stored and no answer event fires: the person was not
+    // asked. Only a headless run (a bun validator) is let through.
+    if (!host) return aiConsentHeadless();
     const ask = host.prompt;
     pending = (async () => {
       let yes = false;
@@ -191,6 +271,10 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
     subscribe(fn) {
       listeners.add(fn);
       return () => { listeners.delete(fn); };
+    },
+    onAnswer(fn) {
+      answerListeners.add(fn);
+      return () => { answerListeners.delete(fn); };
     },
     grant: () => store('granted'),
     decline: () => store('declined'),
@@ -229,12 +313,24 @@ export const AI_CONSENT_COPY = {
     'Photos, plan pages and documents you choose to analyze',
     'Voice recordings you make for transcription',
   ],
-  // "from this app" on purpose: the answer is stored on this phone and gates
-  // the app's own AI requests. It is not known to the server, where a weekly
-  // client recap or Ask Your Home that was switched on for a job keeps running
-  // (see AI_CONSENT_OFF_ROW). A bare "Nothing is sent" would claim more than
-  // the gate controls.
-  use: 'It is used only to answer that request. Nothing is sent from this app until you allow it, and you can turn AI features off any time in Settings → AI features.',
+  // The two server paths that use AI with no tap in the app. What each line
+  // rests on: the recap prompt carries the job's name and location, up to seven
+  // client-visible daily report texts and the completed task names
+  // (supabase/functions/homeowner-weekly-digest buildAISummary); Ask Your Home
+  // embeds the typed question and sends the matched Home Passport records
+  // (supabase/functions/portal-ask-home).
+  autoHeading: 'Sent automatically, with no tap from you, to Google Gemini',
+  auto: [
+    'For a weekly client recap you switch on for a job: that job’s name and location, the week’s daily report text and completed task names',
+    'For Ask Your Home in the client portal: your client’s typed questions and the Home Passport records that match them',
+  ],
+  // The answer gates this app's own AI requests at once. It is also sent to the
+  // account, where the server reads it before the weekly client recap and Ask
+  // Your Home use AI (supabase/functions/_shared/aiConsent.ts). "from this app"
+  // stays on purpose: the account hears the answer only when the phone is
+  // online, so a bare "Nothing is sent" would claim more than this phone can
+  // know at the moment of the answer.
+  use: 'It is used only to answer that request or write that recap. Nothing is sent from this app until you allow it, and you can turn AI features off any time in Settings → AI features.',
   privacyLink: 'Privacy policy',
   allow: 'Allow AI features',
   notNow: 'Not now',
@@ -243,24 +339,90 @@ export const AI_CONSENT_COPY = {
 /** Title for a blocked AI button's alert (the body is AI_CONSENT_OFF_MESSAGE). */
 export const AI_CONSENT_OFF_TITLE = 'AI features are off';
 
-/** Settings → AI features, with the switch Off. It claims ONLY what the gate
- *  controls: the AI requests this app makes. The answer lives on the phone
- *  (AI_CONSENT_STORAGE_KEY) and the server never sees it, so two client-portal
- *  features a contractor switched on for a job keep sending that job's records
- *  to Google Gemini from our server: the Friday recap
- *  (supabase/functions/homeowner-weekly-digest, per-job switch "Send weekly
- *  recap" on the job's Client portal screen, app/client-portal-setup.tsx) and Ask Your Home
- *  (supabase/functions/portal-ask-home, when the client asks a question in the
- *  portal). "Nothing is sent to an AI provider" would be untrue for him. */
+/** Settings → AI features, with the switch Off. Every clause is a RULE, true in
+ *  every state: (1) this app's own AI buttons send nothing while the switch is
+ *  off (the gate above); (2) the two server features, the Friday recap
+ *  (supabase/functions/homeowner-weekly-digest) and Ask Your Home
+ *  (supabase/functions/portal-ask-home), follow the answer SAVED ON THE ACCOUNT
+ *  (supabase/functions/_shared/aiConsent.ts), which this phone sends but which
+ *  may not have arrived yet; (3) a personal Claude connection (Settings →
+ *  Connect Claude, supabase/functions/mcp) is not gated by this answer. The row
+ *  does not say the account was told, and must not: the line beneath it
+ *  (components/AiAccountNote AiAccountSettingsLine) states what the account
+ *  says whenever it could be read. */
 export const AI_CONSENT_OFF_ROW =
   'AI buttons in this app send nothing to an AI provider until you turn this on. '
-  + 'A weekly client recap or Ask Your Home you set up for a job still uses AI on our server. '
-  + 'Turn the recap off on that job’s Client portal screen.';
+  + 'The weekly client recap and Ask Your Home run on our server and follow the answer saved on your account. '
+  + 'A Claude connection you set up keeps working until you revoke it in Settings → Connect Claude.';
+
+/** What the ACCOUNT says about AI, in words: the Client portal screen's note,
+ *  the line under Settings → AI features, and the preview alert. The account's
+ *  answer is what the server obeys for the weekly client recap and Ask Your
+ *  Home; each sentence here is shown only in the state it describes
+ *  (utils/aiConsentSyncCore portalAccountNote / settingsAccountLine). */
+/** What the phone does about an answer the account has not heard, as far as the
+ *  code goes (utils/aiConsentAccount): it sends again at every app start and
+ *  foreground; while the app stays open a timer also sends again, waiting
+ *  longer each time, but only when no answer came back (a send the server
+ *  answered and did not take waits for the next open). The app cannot tell
+ *  whether the phone has signal, and does not say so. */
+const AI_ACCOUNT_TRIES_AGAIN =
+  'This phone tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.';
+
+export const AI_ACCOUNT_COPY = {
+  recapNote: 'Your account has not allowed AI for the weekly client recap and Ask Your Home. With the recap switched on, your client gets a plain summary: days on site, trades on site, milestones reached, and photo and change order counts. Ask Your Home does not answer questions your client types in the portal.',
+  recapSubtitlePlain: 'We email your client a recap every Friday with what got done this week. Off until you toggle it on.',
+  allow: 'Allow AI features',
+  webOn: 'Your account allows AI for the weekly client recap and Ask Your Home, on every job you own.',
+  turnOff: 'Turn off',
+  settingsAlso: 'Your account also allows AI on our server for the weekly client recap and Ask Your Home, on jobs where you set them up.',
+  settingsAllowed: 'Your account allows AI on our server for the weekly client recap and Ask Your Home.',
+  settingsNotToldYet: `Your account has not been told yet, so the weekly client recap and Ask Your Home still use AI. ${AI_ACCOUNT_TRIES_AGAIN}`,
+  yesNotTold: `You allowed AI on this phone, but your account has not been told yet. Until it has, a weekly client recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer questions your client types in the portal. ${AI_ACCOUNT_TRIES_AGAIN}`,
+  settingsNotAllowed: 'Your account has not allowed AI for the weekly client recap and Ask Your Home: a recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer client questions.',
+  turnOffForAccount: 'Turn off for my account',
+  allowForAccount: 'Allow for my account',
+  saveFailedTitle: 'Not saved',
+  saveFailed: 'We could not reach your account, so nothing changed. Check your connection and try again.',
+  previewSentPlain: (sent: number) => `Sent the recap to ${sent} portal ${sent === 1 ? 'invite' : 'invites'} as a plain summary with no AI, because your account has not allowed AI for the weekly client recap. Check your inbox or your client’s.`,
+  previewSentUnchecked: (sent: number) => `Sent the recap to ${sent} portal ${sent === 1 ? 'invite' : 'invites'} as a plain summary with no AI, because we could not check your account’s AI setting just now. Check your inbox or your client’s.`,
+} as const;
+
+/** The WEB app's question, shown only by "Allow AI features" on a job's Client
+ *  portal screen. Account-scoped: it covers the two server features and nothing
+ *  else. It must contain neither "Nothing is sent from this app" nor "Settings →
+ *  AI features": on the web the app's own AI buttons send regardless (the web
+ *  gate always answers yes) and that Settings row does not exist there. */
+export const AI_ACCOUNT_CONSENT_COPY = {
+  title: 'Use AI for the weekly recap and Ask Your Home?',
+  intro: 'Two client portal features run on our server and use an outside AI service, with no tap from you each time.',
+  providersHeading: 'Who receives it',
+  providers: ['Google Gemini'],
+  sentHeading: 'What is sent',
+  sent: AI_CONSENT_COPY.auto,
+  use: 'It is used only to write that recap or answer that question. This answer covers the weekly client recap and Ask Your Home on every job you own. AI buttons in the web app are not changed by it. You can turn it off any time on a job’s Client portal screen.',
+  privacyLink: 'Privacy policy',
+  allow: 'Allow',
+  notNow: 'Not now',
+} as const;
 
 /** The question's full text (components/AiConsentSheet shows it as the system
  *  alert's message; the Privacy policy button opens AI_CONSENT_PRIVACY_URL). */
 export function aiConsentAlertMessage(): string {
   const c = AI_CONSENT_COPY;
+  const list = (items: readonly string[]) => items.map((s) => `• ${s}`).join('\n');
+  return [
+    c.intro,
+    `${c.providersHeading}:\n${list(c.providers)}`,
+    `${c.sentHeading}:\n${list(c.sent)}`,
+    `${c.autoHeading}:\n${list(c.auto)}`,
+    c.use,
+  ].join('\n\n');
+}
+
+/** The web question's full text: intro, who receives it, what is sent, use. */
+export function aiAccountConsentAlertMessage(): string {
+  const c = AI_ACCOUNT_CONSENT_COPY;
   const list = (items: readonly string[]) => items.map((s) => `• ${s}`).join('\n');
   return [
     c.intro,
@@ -290,11 +452,20 @@ export type AiConsentShowAlert = (
   options: { cancelable: boolean; onDismiss: () => void },
 ) => void;
 
-/** Shows the question and resolves with the answer: true only for "Allow AI
- *  features". "Privacy policy" opens the policy and asks again (reading it is
+/** What one question shows: its title, its full text and its three answers. */
+interface AiQuestionCopy {
+  title: string;
+  message: string;
+  privacyLink: string;
+  allow: string;
+  notNow: string;
+}
+
+/** Shows a question and resolves with the answer: true only for its allow
+ *  button. The policy button opens the policy and asks again (reading it is
  *  not an answer). Android has no tap-outside dismissal (cancelable: false);
  *  if the system dismisses the alert anyway, that is "not now". */
-export function askAiConsentOnce(show: AiConsentShowAlert, openPolicy: () => void): Promise<boolean> {
+function askOnce(show: AiConsentShowAlert, openPolicy: () => void, copy: AiQuestionCopy): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     const ask = (): void => {
       let settled = false;
@@ -304,11 +475,11 @@ export function askAiConsentOnce(show: AiConsentShowAlert, openPolicy: () => voi
         resolve(yes);
       };
       show(
-        AI_CONSENT_COPY.title,
-        aiConsentAlertMessage(),
+        copy.title,
+        copy.message,
         [
           {
-            text: AI_CONSENT_COPY.privacyLink,
+            text: copy.privacyLink,
             onPress: () => {
               if (settled) return;
               settled = true; // this alert is spent; the next one carries the answer
@@ -316,12 +487,37 @@ export function askAiConsentOnce(show: AiConsentShowAlert, openPolicy: () => voi
               ask();
             },
           },
-          { text: AI_CONSENT_COPY.notNow, style: 'cancel', onPress: () => done(false) },
-          { text: AI_CONSENT_COPY.allow, onPress: () => done(true) },
+          { text: copy.notNow, style: 'cancel', onPress: () => done(false) },
+          { text: copy.allow, onPress: () => done(true) },
         ],
         { cancelable: false, onDismiss: () => done(false) },
       );
     };
     ask();
+  });
+}
+
+/** Shows the phone's question and resolves with the answer: true only for
+ *  "Allow AI features". "Privacy policy" opens the policy and asks again
+ *  (reading it is not an answer); "Not now" and a dismissed alert are no. */
+export function askAiConsentOnce(show: AiConsentShowAlert, openPolicy: () => void): Promise<boolean> {
+  return askOnce(show, openPolicy, {
+    title: AI_CONSENT_COPY.title,
+    message: aiConsentAlertMessage(),
+    privacyLink: AI_CONSENT_COPY.privacyLink,
+    allow: AI_CONSENT_COPY.allow,
+    notNow: AI_CONSENT_COPY.notNow,
+  });
+}
+
+/** The web app's account question (AI_ACCOUNT_CONSENT_COPY), same three
+ *  answers: only "Allow" is a yes. */
+export function askAiAccountConsentOnce(show: AiConsentShowAlert, openPolicy: () => void): Promise<boolean> {
+  return askOnce(show, openPolicy, {
+    title: AI_ACCOUNT_CONSENT_COPY.title,
+    message: aiAccountConsentAlertMessage(),
+    privacyLink: AI_ACCOUNT_CONSENT_COPY.privacyLink,
+    allow: AI_ACCOUNT_CONSENT_COPY.allow,
+    notNow: AI_ACCOUNT_CONSENT_COPY.notNow,
   });
 }

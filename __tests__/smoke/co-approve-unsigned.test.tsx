@@ -199,7 +199,7 @@ describe('"Client approved without signing" is the approve slide', () => {
     expect(alertSpy).toHaveBeenCalledTimes(1);
     expect(alertSpy.mock.calls[0][0]).toBe('Not yet');
     expect(alertSpy.mock.calls[0][1]).toBe(
-      'The saved copy of this change order was built on a contract sum of $48,000.00. This screen now shows $155,172.00. Tap Save to Project to update the saved copy, then share, send or approve it.',
+      'The saved copy of this change order was built on a contract sum of $48,000.00. The contract sum is now $155,172.00. Open the change order and tap Save to Project to update the saved copy, then share, send or approve it.',
     );
     expect(screen.queryByText(/there is no client signature on this path/)).toBeNull();
     expect(screen.queryByTestId('co-approve-slide-track')).toBeNull();

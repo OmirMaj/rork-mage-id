@@ -28,7 +28,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCodeChecks, useCodeCheckSyncState } from '@/hooks/useCodeChecks';
 import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
-import { isStandInLine, passesEchoCheck } from '@/utils/codeCard/echoCheck';
+import { isStandInLine, ownWordsProse, passesEchoCheck } from '@/utils/codeCard/echoCheck';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
 import type { CodeCheckRecord, CodeThreadSection, CodeThreadSourceKind } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
@@ -161,7 +161,9 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
             {record.result?.summary ? (
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>Summary</Text>
-                <Text style={styles.body}>{record.result.summary}</Text>
+                {/* A check saved before the summary was gated (or synced from an
+                    older build) holds the AI's raw paragraph: same gate at print. */}
+                <Text style={styles.body}>{ownWordsProse(record.result.summary).text}</Text>
               </View>
             ) : null}
 

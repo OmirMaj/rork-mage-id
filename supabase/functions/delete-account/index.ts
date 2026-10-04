@@ -733,6 +733,22 @@ serve(async (req) => {
     const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver } = collected;
     writesStarted = true;
 
+    // ── 2-00. AI off for this account before a single row is deleted (lane AICONSENT).
+    //    If this run stops partway the login and some jobs remain; the Friday recap and
+    //    Ask Your Home must not keep using AI for someone who asked to be erased. Service
+    //    role, so the profiles_keep_ai_consent trigger lets it through. Best effort:
+    //    a failure (the columns not there yet) is logged and never stops the deletion.
+    try {
+      const aiOffAt = new Date().toISOString();
+      const { error: aiOffErr } = await sb
+        .from('profiles')
+        .update({ ai_consent: 'declined', ai_consent_at: aiOffAt, ai_consent_recorded_at: aiOffAt })
+        .eq('id', userId);
+      if (aiOffErr) console.warn('[delete-account] could not switch AI off on the profile (continuing):', aiOffErr.message);
+    } catch (e) {
+      console.warn('[delete-account] could not switch AI off on the profile (continuing):', String(e));
+    }
+
     // ── 2-0. Hand the caller's field work on OTHER owners' jobs to those
     //    owners, before a single row is deleted (audit round 2 #26).
     //

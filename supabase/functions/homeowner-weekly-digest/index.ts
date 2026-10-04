@@ -42,6 +42,7 @@ import { verifyUser } from '../_shared/verifyUser.ts';
 import { portalUrlFor } from '../_shared/portalLinks.ts';
 import { GEMINI_TEXT_MODEL } from '../_shared/models.ts';
 import { rateLimitCount } from '../_shared/auth.ts';
+import { aiConsentAllows, readOwnerAiConsent } from '../_shared/aiConsent.ts';
 // Only what the portal already shows, and nothing after handover — see the
 // header of clientVisible.ts (audit 2026-09-18 #18 and #23).
 import {
@@ -505,13 +506,18 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
  *  "id: message" prefix) so client-portal-setup can tell it from a refusal. */
 const DIGEST_RECIPIENT_UNSUBSCRIBED = 'unsubscribed';
 
+/** Which body went out: Gemini's; the template because Gemini gave nothing; the template
+ *  because the owner's account has not allowed AI; the template because that could not be
+ *  checked; or the handover note. */
+type RecapKind = 'ai' | 'plain' | 'plain_ai_off' | 'plain_ai_unknown' | 'final';
+
 // ── Compose + send for one (project, recipient) pair ───────────────
 async function sendForProject(
   client: SupabaseClient,
   project: ProjectRow,
   ownerProfile: ProfileRow | null,
   isPreview: boolean,
-): Promise<{ sent: number; errors: string[] }> {
+): Promise<{ sent: number; errors: string[]; recap?: RecapKind }> {
   const portal = project.client_portal;
   // #134: Disable Portal revoked client access — nothing goes out, cron or
   // preview, before any read or AI call.
@@ -551,6 +557,7 @@ async function sendForProject(
   let bullets: string[];
   let paragraph: string | undefined;
   let subject = `Week in review · ${project.name}`;
+  let recap: RecapKind;
   if (plan.kind === 'final') {
     // Deterministic, never AI: a finished job has no "this week" to invent.
     const binderRes = await client
@@ -570,6 +577,7 @@ async function sendForProject(
       `The portal link stops working after ${closesLabel}.`,
     ];
     subject = `Project complete · ${project.name}`;
+    recap = 'final';
   } else {
     // Gate at the data: neither the AI nor the template ever sees a draft CO,
     // a hidden photo or an unsent daily report.
@@ -579,12 +587,17 @@ async function sendForProject(
       { ...week, tasks: (project.schedule?.tasks ?? []) as SchedTask[] },
       Date.now() - 7 * 24 * 60 * 60 * 1000,
     );
-    // Try the AI path first; deterministic template as fallback.
-    const ai = await buildAISummary(project, dfrs, photos, cos, tasks);
+    // AI only when the project OWNER's stored answer is yes (_shared/aiConsent), read here,
+    // right before the call. Otherwise the template below writes the recap and nothing from
+    // this job goes to Gemini. A read that failed is not a yes.
+    const consent = await readOwnerAiConsent(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, project.user_id);
+    const aiAllowed = aiConsentAllows(consent);
+    const ai = aiAllowed ? await buildAISummary(project, dfrs, photos, cos, tasks) : null;
     const template = buildTemplateSummary(project, dfrs, photos, cos, tasks);
     headline = ai?.headline ?? template.headline;
     bullets = (ai?.bullets && ai.bullets.length > 0) ? ai.bullets : template.bullets;
     paragraph = ai?.paragraph;
+    recap = ai ? 'ai' : aiAllowed ? 'plain' : consent === 'unavailable' ? 'plain_ai_unknown' : 'plain_ai_off';
   }
 
   // Built by the shared helper (portal id + access token); null when the portal
@@ -665,7 +678,7 @@ async function sendForProject(
       .eq('id', project.id);
   }
 
-  return { sent, errors };
+  return { sent, errors, recap };
 }
 
 // ── Entry point ────────────────────────────────────────────────────
@@ -730,6 +743,8 @@ Deno.serve(async (req: Request) => {
       mode: 'preview',
       sent: result.sent,
       errors: result.errors,
+      // Which body went out (see RecapKind). Its own field, never a code in errors[].
+      recap: result.recap,
     });
   }
 
@@ -770,6 +785,8 @@ Deno.serve(async (req: Request) => {
     }
 
     let totalSent = 0;
+    let recapsWithoutAi = 0;
+    let recapsAiUnknown = 0;
     const projectErrors: Array<{ projectId: string; errors: string[] }> = [];
     for (const project of projects) {
       // A closed job after its one handover note: nothing, ever again (unless
@@ -787,14 +804,20 @@ Deno.serve(async (req: Request) => {
       const owner = profilesById.get(project.user_id ?? '') ?? null;
       const result = await sendForProject(client, project, owner, false);
       totalSent += result.sent;
+      if (result.sent > 0 && result.recap === 'plain_ai_off') recapsWithoutAi += 1;
+      if (result.sent > 0 && result.recap === 'plain_ai_unknown') recapsAiUnknown += 1;
       if (result.errors.length > 0) projectErrors.push({ projectId: project.id, errors: result.errors });
     }
 
+    // Counts only: no project id, no owner id.
+    console.log('[homeowner-weekly-digest] recaps without AI:', recapsWithoutAi, 'AI setting not readable:', recapsAiUnknown);
     return jsonResponse({
       success: true,
       mode: 'cron',
       projectsConsidered: projects.length,
       totalSent,
+      recapsWithoutAi,
+      recapsAiUnknown,
       projectErrors,
     });
   }

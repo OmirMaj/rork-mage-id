@@ -24,15 +24,22 @@
 // "Pinned from code cards" group, last, with its fixed note, and each pinned
 // item has an Unpin action. No pins, no group: the sheet is byte-identical to
 // before.
+//
+// Own words only (lane CARDS2): the recall list comes out of buildChecklist
+// already through the code cards' own-words gate. When the gate took anything
+// out, the recall group says so ONCE with the cards' own notice and the
+// section numbers of the hidden lines, and offers the publisher's free viewer
+// for the editions this job is under (volume links, through viewerUrlToOpen).
+// Nothing withheld: the sheet is byte-identical to before.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, ActivityIndicator,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw, ScanSearch, Pin } from 'lucide-react-native';
+import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw, ScanSearch, Pin, ExternalLink } from 'lucide-react-native';
 import type { Permit, Project } from '@/types';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -50,10 +57,11 @@ import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
+  groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction, viewerUrlToOpen,
 } from '@/utils/codeJurisdiction';
 import { editionMismatchFor } from '@/utils/codeAmendments';
 import { codePinStore, pinsFor } from '@/utils/codeCard/pins';
+import { withheldNotice } from '@/utils/codeCard/echoCheck';
 import {
   PINNED_NOTE,
   PREP_DISCLAIMER,
@@ -71,6 +79,8 @@ import { permitTypeLabel } from '@/utils/statusLabels';
 
 export const RECALL_CHIP = 'From model recall — verify with your AHJ';
 export const RECALL_NEEDS_PRO = 'Commonly checked items are on the Pro plan.';
+/** Said once, next to the viewer buttons it explains (the Code Check screen's own words). */
+export const RECALL_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";
 
 /** The app's code-card pin store, loaded on first use (device-local). */
 function useCodePinsState() {
@@ -417,9 +427,36 @@ export default function InspectionReadySheet({
                   ) : null}
                   {recallError ? <Text style={s.empty}>{recallError}</Text> : null}
                   {byGroup.recall.map(renderItem)}
-                  {!recallBusy && !recallError && entry.recall && byGroup.recall.length === 0
+                  {!recallBusy && !recallError && entry.recall && byGroup.recall.length === 0 && full.recallWithheld.count === 0
                     ? <Text style={s.empty}>Nothing to add beyond the lists above.</Text>
                     : null}
+                  {/* The own-words gate took something out of the recall
+                      answer: said once, with the section numbers still shown
+                      and the free viewer one tap away. */}
+                  {full.recallWithheld.count > 0 ? (
+                    <View style={s.proBox} testID="inspection-prep-recall-withheld">
+                      <Text style={s.empty}>{withheldNotice(jurisdictionKnown ? full.recallWithheld.codeRefs : [])}</Text>
+                      {grounding.viewerLinks.map((l) => (
+                        <TouchableOpacity
+                          key={l.url}
+                          style={s.action}
+                          accessibilityRole="link"
+                          accessibilityLabel={`Open ${l.label} in the free ICC code viewer`}
+                          onPress={() => {
+                            // The volume link only: viewerUrlToOpen rebuilds it
+                            // from the volume id, so no section rides on it.
+                            const href = viewerUrlToOpen(l.url);
+                            if (!href) { showAlert('Cannot open', 'This code link could not be opened.'); return; }
+                            void Linking.openURL(href).catch(() => showAlert('Cannot open', 'This code link could not be opened.'));
+                          }}
+                        >
+                          <ExternalLink size={13} color={t.textSecondary} strokeWidth={1.75} />
+                          <Text style={s.actionText} numberOfLines={2}>{`Open ${l.label}`}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {grounding.viewerLinks.length > 0 ? <Text style={s.groundingChip}>{RECALL_VIEWER_NOTE}</Text> : null}
+                    </View>
+                  ) : null}
                   {full.followUps.map((q) => (
                     <View key={q.question} style={s.followUp}>
                       <Text style={s.followUpQ}>{q.question}</Text>

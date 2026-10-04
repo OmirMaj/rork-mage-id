@@ -9,7 +9,7 @@
 
 import type { Project, ChangeOrder, Invoice, InvoiceStatus, BidPackage, BidPackageBid, Commitment } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld, roundCents } from '@/utils/invoiceBilling';
 
 /**
  * Total contract value = base estimate + approved change orders.
@@ -342,6 +342,30 @@ export function savedChangeOrderOriginalSum(
   return sum > 0 ? sum : null;
 }
 
+/**
+ * #129 — "Net change by previously authorized change orders" (the G701 row):
+ * the approved change orders numbered BELOW this one, in whole cents. Not
+ * "every other approved CO": reopening CO #1 after CO #2 was approved pulled
+ * CO #2 into CO #1's base.
+ *
+ * ONE COPY (lane WORDS2). The change-order screen and the project page's
+ * "Approve CO #n" both work the live base out from this sum, and both import
+ * it from here. The project page used to carry a hand copy of the three
+ * lines, because it may not import the change-order route
+ * (scripts/validate-w4-co-workflow-screen.ts) — and two copies of a money sum
+ * are two places for it to drift. Rounded with utils/invoiceBilling's
+ * roundCents, the rule both copies already used.
+ */
+export function coPriorApprovedChanges(
+  cos: { id: string; number: number; status: string; changeAmount: number }[],
+  thisNumber: number,
+  thisId: string | null | undefined,
+): number {
+  return roundCents(cos
+    .filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)
+    .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SAVED BASE AND THE SCREEN (lane PAYFIX, fix rounds 3 and 4).
 //
@@ -381,8 +405,11 @@ export function savedChangeOrderOriginalSum(
 // run, and every draft they write is reconciled on the change-order screen
 // before a document can leave it or an approve can be made on it. So is any
 // draft saved before this build, and any draft saved while the contract read
-// had not answered. (An approval made somewhere else — the project screen, or
-// the client in the portal — does not pass through this rule.)
+// had not answered. The project page's own "Approve CO #n" passes through this
+// rule too: it asks coSavedBaseHold on the same base, worked out from the same
+// pieces (contractSumBasis, savedChangeOrderOriginalSum and
+// coPriorApprovedChanges), and refuses with the same sentence. (The client
+// approving in the portal does not pass through this rule.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const wholeCents = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) : 0);
@@ -403,9 +430,16 @@ export function coSavedBaseDiffers(
 /**
  * Why a change-order document may not leave yet — and why the change order may
  * not be approved yet — in the contractor's words: both figures, and what to
- * do. Null when the saved stamp and the screen agree. States no cause — the
+ * do. Null when the saved stamp and the live base agree. States no cause — the
  * difference can be a contract signed since the save, or another change order
  * approved since — only the two figures, which are known.
+ *
+ * ONE SENTENCE, TRUE ON BOTH SCREENS THAT SHOW IT (lane WORDS2). It is said on
+ * the change-order screen and on the project page ("Approve CO #n"), where
+ * the live figure and the Save to Project button are not on screen. So it
+ * names the figure for what it is ("The contract sum is now…", not "This
+ * screen now shows…") and says where the button is ("Open the change order
+ * and tap Save to Project").
  */
 export function coSavedBaseHold(
   saved: { originalContractValue?: number } | null | undefined,
@@ -415,7 +449,7 @@ export function coSavedBaseHold(
   if (!coSavedBaseDiffers(saved, liveOriginalContractValue)) return null;
   const savedBase = wholeCents(saved!.originalContractValue) / 100;
   const liveBase = wholeCents(liveOriginalContractValue) / 100;
-  return `The saved copy of this change order was built on a contract sum of ${money(savedBase)}. This screen now shows ${money(liveBase)}. Tap Save to Project to update the saved copy, then share, send or approve it.`;
+  return `The saved copy of this change order was built on a contract sum of ${money(savedBase)}. The contract sum is now ${money(liveBase)}. Open the change order and tap Save to Project to update the saved copy, then share, send or approve it.`;
 }
 
 /** A change order nobody can edit any more — approved, declined or void — is a

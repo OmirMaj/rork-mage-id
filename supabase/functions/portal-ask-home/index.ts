@@ -6,6 +6,10 @@
 //   1. Authorise through portal_project_for_token — the SECURITY DEFINER
 //      choke point every portal RPC uses (token + enabled, and expiry once
 //      20260904100800 is applied). Not an in-file token compare: see below.
+//   1b. AI consent: the project OWNER's stored answer to "Use AI features?"
+//      is read from the account (_shared/aiConsent.ts). Anything but a yes
+//      returns ASK_AI_OFF_LINE as a normal answer BEFORE the per-portal counter
+//      and before any AI call; a read that failed returns 502 "try again".
 //   2. Rate limit via rate_limit_counters: 20 questions/day per portal
 //      (sum of today's hourly buckets) + a per-IP hourly cap.
 //   3. Embed the question (geminiEmbed) → match_project_memory with the
@@ -25,6 +29,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
+import { aiConsentAllows, readOwnerAiConsent } from "../_shared/aiConsent.ts";
 import { applyOwnerSharing, ownerSwitchesFromPortal } from "./sharingFilter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -72,6 +77,10 @@ const ASK_HOME_NOT_FOUND = "That's not in your home's records — ask your contr
 const ASK_BUILDING_NOT_FOUND = "That's not in this building's records — ask your contractor.";
 const askNotFoundLine = (commercial: boolean) =>
   commercial ? ASK_BUILDING_NOT_FOUND : ASK_HOME_NOT_FOUND;
+// Returned VERBATIM, as a normal 200 answer, when the project owner's account has not allowed
+// AI features. Nothing is sent to Gemini on that path. No "home"/"building" noun, so one line
+// serves both kinds of property.
+const ASK_AI_OFF_LINE = "Typed questions are not turned on for this project. The binder above has what is on file, or ask your contractor.";
 
 /**
  * `commercial` switches the nouns and nothing else. The refusal rule, the
@@ -238,6 +247,23 @@ serve(async (req: Request) => {
   if (!proj?.user_id) {
     console.error("[portal-ask-home] project vanished between gate and lookup");
     return json({ success: false, error: "Lookup failed" }, 500);
+  }
+
+  // AI consent (App Store 5.1.2(i)). This path sends the visitor's question and the owner's Home
+  // Passport records to Google Gemini with no tap in the app, so it runs only while the project
+  // OWNER's stored answer is yes. Checked HERE: before the per-portal counter (a refused question
+  // does not spend the client's 20 a day) and before the embedding call (the question itself is
+  // not sent). Its own read, never the client_portal select above.
+  const consent = await readOwnerAiConsent(SUPABASE_URL, SERVICE_ROLE_KEY, proj.user_id);
+  if (consent === "unavailable") {
+    // The server could not tell. That is not "off": say try again.
+    console.error("[portal-ask-home] ai consent read failed");
+    return json({ success: false, error: "No answer right now — try again in a moment." }, 502);
+  }
+  if (!aiConsentAllows(consent)) {
+    // The machine code is neutral on purpose: the reader is a portal visitor, and it must not
+    // tell him WHY the question box is off (that is the contractor's own AI setting).
+    return json({ success: true, answer: ASK_AI_OFF_LINE, refs: [], code: "typed_off" });
   }
 
   // Per-portal daily cap: increment this hour's bucket, then sum today.

@@ -21,6 +21,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// A headless run: nothing here stores an AI consent answer and there is no consent sheet to ask,
+// so the gate would refuse every AI util (utils/aiConsentCore, "NO HOST = NO"). No app file sets this.
+(globalThis as unknown as Record<string, unknown>).__MAGEID_AI_CONSENT_HEADLESS__ = true;
+
 // tsc type-checks scripts/ with the app's lib set, which has no Bun global.
 // The three APIs used here are declared (same as validate-code-check-honesty).
 declare const Bun: {

@@ -14,6 +14,10 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+// Lane WORDS2: the prior-approved-changes sum moved out of the screen's marker
+// block into utils/projectFinancials (one copy, imported by the change-order
+// screen and the project page), so it is imported here and executed directly.
+import { coPriorApprovedChanges } from '../utils/projectFinancials';
 
 // Bun's transpiler, reached through globalThis so tsc (which has no bun types
 // in this repo) still type-checks this file — same as validate-notification-routes.
@@ -65,7 +69,6 @@ const B = evalBlock<{
   coParseLineDraft: (s: string) => number | null;
   coCommitLineItems: (items: Line[]) => Line[];
   coEstimatePickBasis: (i: { unitCost: number; unitSell: number | null; markupPct: number | null }, seed: number | null, m: (n: number) => string) => string;
-  coPriorApprovedChanges: (cos: { id: string; number: number; status: string; changeAmount: number }[], n: number, id: string | null) => number;
   coTaxFreeze: (amt: number, rate: number) => { taxRatePct: number; taxAmount: number; totalWithTax: number };
   coParseImpactDays: (s: string) => number | undefined;
   coImpactDaysNeedsConfirm: (o: { source: string | null; value: string }) => number | null;
@@ -74,7 +77,7 @@ const B = evalBlock<{
 }>('app/change-order.tsx', 'co-wave3', [
   'coRoundCents', 'coRoleGate', 'coRoleBlockedCopy', 'coPlainSaveStatus', 'coIsOutForApproval', 'coPricedEditChanged',
   'coSaveMessage', 'coDeclineLine', 'coLineDraftAccepts', 'coParseLineDraft', 'coCommitLineItems', 'coEstimatePickBasis',
-  'coPriorApprovedChanges', 'coTaxFreeze', 'coParseImpactDays', 'coImpactDaysNeedsConfirm', 'coImpactDaysHelper', 'coPortalShare',
+  'coTaxFreeze', 'coParseImpactDays', 'coImpactDaysNeedsConfirm', 'coImpactDaysHelper', 'coPortalShare',
   'coOwnedLocally', 'coEmptyLineDraftBlocker',
 ]);
 
@@ -237,15 +240,17 @@ if (B) {
 
 // ── #129 the contract rows are the AIA G701 rows ───────────────────────────
 console.log('\n#129 Original contract sum / prior approved COs / contract prior to this CO');
-if (B) {
+{
   const cos = [
     { id: 'a', number: 1, status: 'approved', changeAmount: 5000 },
     { id: 'b', number: 2, status: 'approved', changeAmount: 3000 },
     { id: 'c', number: 3, status: 'submitted', changeAmount: 900 },
   ];
-  ok('CO #3 counts the approved COs below it', B.coPriorApprovedChanges(cos, 3, 'c') === 8000);
-  ok('reopening CO #1 does NOT pull in the later CO #2', B.coPriorApprovedChanges(cos, 1, 'a') === 0);
-  ok('a new CO (next number) counts all approved', B.coPriorApprovedChanges(cos, 4, null) === 8000);
+  ok('CO #3 counts the approved COs below it', coPriorApprovedChanges(cos, 3, 'c') === 8000);
+  ok('reopening CO #1 does NOT pull in the later CO #2', coPriorApprovedChanges(cos, 1, 'a') === 0);
+  ok('a new CO (next number) counts all approved', coPriorApprovedChanges(cos, 4, null) === 8000);
+  ok('the screen calls the ONE function in utils/projectFinancials (imported, not declared in the screen)',
+    /\bcoPriorApprovedChanges,\n\} from '@\/utils\/projectFinancials';/.test(SRC) && !/function coPriorApprovedChanges\b/.test(SRC));
 }
 {
   ok('the card labels are the G701 rows, not "Original Contract"',

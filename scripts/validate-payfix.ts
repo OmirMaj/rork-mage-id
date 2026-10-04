@@ -44,6 +44,14 @@
 //      say "AIA-style", and its glossary lines say what a pay app is, not what
 //      a lender requires. The project page's "Approve CO #n" asks the same
 //      hold as the change-order screen, through the same helper.
+//  10. LANE WORDS2. The label and promise checks read every line through one
+//      normalizer (the wording-normalize block, the same text as in
+//      scripts/validate-marketing-claims.ts): a non-breaking space, a
+//      non-breaking hyphen, an en dash or a tag between two words hides
+//      nothing. The hold sentence names no screen, so it is true on the
+//      project page too. The prior-approved-changes sum is ONE function
+//      (utils/projectFinancials coPriorApprovedChanges), imported by the
+//      change-order screen and the project page.
 //
 // Run: bun run scripts/validate-payfix.ts
 import { readFileSync, readdirSync, statSync } from 'fs';
@@ -65,7 +73,7 @@ import {
 import {
   contractSumBasis, contractSumView, contractReadOutcome, nextContractRead, watchContractRead,
   contractOfRead, uncheckedContractSumSendNotice,
-  coSavedBaseDiffers, coSavedBaseHold, changeOrderIsRecord, changeOrderRecordRows, CO_RECORD_SUM_CAPTION,
+  coSavedBaseDiffers, coSavedBaseHold, changeOrderIsRecord, changeOrderRecordRows, CO_RECORD_SUM_CAPTION, coPriorApprovedChanges,
   savedChangeOrderOriginalSum, resolveContractSum,
   CONTRACT_SUM_BASIS_LABEL, CONTRACT_READ_TIMEOUT_MS, CONTRACT_READ_PENDING_REASON,
   type ContractSumBasis,
@@ -92,6 +100,29 @@ function eq<T>(name: string, got: T, want: T) {
 const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8');
 const count = (text: string, re: RegExp) => (text.match(re) ?? []).length;
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+// >>> wording-normalize
+// THE SAME BLOCK, character for character, in scripts/validate-marketing-claims.ts
+// and scripts/validate-payfix.ts (the marketing validator pins the two to each
+// other). A wording guard reads text the way a person does: a non-breaking
+// space is a space, a non-breaking hyphen or an en dash is a hyphen, a
+// registered mark is nothing — however the file writes them (the character
+// itself, the HTML entity, or the \u escape in source) — and a tag between two
+// words does not part them.
+const WORDING_MARKS = /<sup>\s*(?:&reg;|&#0*174;|&#x0*ae;|®|&trade;|&#0*8482;|&#x0*2122;|™)\s*<\/sup>|&reg;|&#0*174;|&#x0*ae;|\\u00ae|\\xae|®|&trade;|&#0*8482;|&#x0*2122;|\\u2122|™/gi;
+const WORDING_SPACES = /&nbsp;|&#0*160;|&#x0*a0;|&#0*8239;|&#x0*202f;|&#0*8199;|&#x0*2007;|\\u00a0|\\xa0|\\u202f|\\u2007|[   ]/gi;
+const WORDING_HYPHENS = /&#0*820[89];|&#x0*201[01];|&#0*8210;|&#x0*2012;|&ndash;|&#0*8211;|&#x0*2013;|\\u201[0-3]|[‐-–]/gi;
+const normalizeWording = (s: string): string => s.replace(WORDING_MARKS, '').replace(WORDING_SPACES, ' ').replace(WORDING_HYPHENS, '-');
+const stripTags = (s: string): string => s.replace(/<[^>]+>/g, ' ');
+/** Every way a guard reads one piece of text: as written, and with its tags
+ *  taken out. BOTH, because taking tags out of code can take a claim out with
+ *  them (whatever stands between the "<" and the ">" of two comparisons), so a
+ *  guard hits when EITHER reading does. Runs of white space are one space. */
+const wordingReadings = (s: string): string[] => {
+  const n = normalizeWording(s);
+  return [n, stripTags(n)].map(t => t.replace(/\s+/g, ' '));
+};
+// <<< wording-normalize
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 const project = {
@@ -219,18 +250,24 @@ console.log('\n2. Labels never imply an official AIA document');
     'Some lenders and architects require the official AIA Contract Documents.',
     'Some lenders, sureties, and architects require the official AIA Contract Documents — verify acceptance with your owner / architect / surety before submitting.',
   ];
-  const unhedge = (line: string) => HEDGES.reduce<string>(
-    (l, h) => (typeof h === 'string' ? l.split(h).join(' ') : l.replace(h, ' ')),
-    line.replace(/<sup>&reg;<\/sup>|&reg;|®|™/g, ''));
+  // Lane WORDS2 — what a line is read as. Every reading of it (wordingReadings,
+  // above: non-breaking spaces and hyphens, en dashes and the registered mark
+  // normalized; as written, and with its tags taken out), each with the hedges
+  // removed. A check hits a line when ANY reading of it does, so neither
+  // "AIA&nbsp;pay app", "AIA pay\u2011app" nor "AIA <Text>pay app</Text>" hides
+  // a label, and "AIA\u2011style" is the hedge it reads as.
+  const unhedge = (line: string): string[] => wordingReadings(line).map(reading => HEDGES.reduce<string>(
+    (l, h) => (typeof h === 'string' ? l.split(h).join(' ') : l.replace(h, ' ')), reading));
+  const reads = (re: { test: (l: string) => boolean }) => (line: string): boolean => unhedge(line).some(l => re.test(l));
   // User-facing lines: not a comment (JS or JSX), not a console log.
   const userFacing = (text: string): string[] => text.split('\n')
     .filter(l => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l))
     .filter(l => !/console\.(log|info|warn|error)\(/.test(l));
-  const userFacingHits = (text: string): string[] => userFacing(text).filter(l => UNHEDGED.test(unhedge(l)));
-  const promiseHits = (text: string): string[] => userFacing(text).filter(l => PROMISE.test(unhedge(l)));
+  const userFacingHits = (text: string): string[] => userFacing(text).filter(reads(UNHEDGED));
+  const promiseHits = (text: string): string[] => userFacing(text).filter(reads(PROMISE));
   /** The "-ready" promise alone (and "official AIA form"): no verb, no hedge that excuses it. */
-  const readyHits = (text: string): string[] => userFacing(text).filter(l => READY.test(unhedge(l)));
-  const docTakeHits = (text: string): string[] => userFacing(text).filter(l => TAKES_DOC.test(unhedge(l)));
+  const readyHits = (text: string): string[] => userFacing(text).filter(reads(READY));
+  const docTakeHits = (text: string): string[] => userFacing(text).filter(reads(TAKES_DOC));
   // [line, is an unhedged label, is a promise]
   const SELF_TEST: [string, boolean, boolean][] = [
     ["label: 'AIA pay app'", true, false], ["label: 'AIA pay apps'", true, false], ["label: 'AIA payapp'", true, false],
@@ -272,11 +309,33 @@ console.log('\n2. Labels never imply an official AIA document');
     ["Some lenders or architects accept these in place of the official AIA Contract Documents.", false, true],
     // …and a sentence about someone else, or a full stop in between, is not one.
     ["label: 'Accepted. Send it to your lender.'", false, false], ["label: 'Architect comments'", false, false],
+    // Lane WORDS2 — a space or a hyphen that is not one, in every way a file
+    // can write it, and a tag between the two words.
+    ["label: 'AIA\u00A0pay app'", true, false], ["label: 'AIA&nbsp;pay app'", true, false], ["label: 'AIA&#160;G702'", true, false],
+    ["label: 'AIA\\u00A0billing'", true, false], ["label: 'AIA\u202Fforms'", true, false],
+    ["label: 'AIA pay\u2011app'", true, false], ["label: 'AIA pay\u2013app'", true, false], ["label: 'AIA pay&#8209;apps'", true, false],
+    ["label: 'AIA pay\\u2011app'", true, false], ["label: 'AIA&reg;&nbsp;G702'", true, false], ["label: 'AIA\\u00AE G702'", true, false],
+    ["<Text>AIA <Text style={styles.b}>pay app</Text></Text>", true, false], ["<Text>AIA</Text><Text>Billing</Text>", true, false],
+    ["<p>AIA<br/>pay applications</p>", true, false], ["<b>Official</b> <i>AIA</i> <b>forms</b>", true, true],
+    // …taking the tags out never takes the label out with them.
+    ["const t = a < 3 ? 'AIA pay app' : b > 2;", true, false],
+    // …the hedge is still the hedge in those spellings.
+    ["label: 'AIA\u2011style pay app'", false, false], ["label: 'AIA&#8209;style G702'", false, false], ["label: 'AIA\u2013style billing'", false, false],
+    ["label: 'AIA\\u2011style pay-app cadence'", false, false], ["<Text>AIA-style <Text style={styles.b}>pay app</Text></Text>", false, false],
+    // …and the promise is still the promise.
+    ["label: 'Bank\u2011ready WIP'", false, true], ["label: 'lender\u00A0ready'", false, true], ["label: 'Surety&#8209;ready'", false, true],
+    ["<Text>Lender</Text> <Text>ready</Text>", false, true], ["<Text>Accepted by <Text style={styles.b}>lenders</Text></Text>", false, true],
   ];
   const wrong = SELF_TEST.filter(([line, label, promise]) =>
     (userFacingHits(line).length === 1) !== label || (promiseHits(line).length === 1) !== promise).map(([line]) => line);
   ok('the label check sees every spelling of an unhedged AIA label and every promise (lender- / bank- / architect- / surety-ready, official AIA form, accepted / expected by a lender, bank, architect or surety), and passes the hedges only as written',
     wrong.length === 0, wrong.join(' | '));
+  ok('…that self-test carries the lane WORDS2 spellings (a non-breaking space, a non-breaking hyphen, an en dash, their entities and escapes, a tag between two words)',
+    SELF_TEST.length === 84 && SELF_TEST.filter(([line]) => /[\u00A0\u202F\u2011\u2013]|&nbsp;|&#160;|&#8209;|\\u00A0|\\u2011|<Text|<br|<b>/.test(line)).length >= 24,
+    `${SELF_TEST.length} lines`);
+  eq('the normalizer itself: a space, a hyphen, nothing',
+    [normalizeWording('AIA\u00A0pay\u2011app \u2013 AIA&reg; G702&nbsp;/&#160;G703 &ndash; AIA<sup>&reg;</sup>'), wordingReadings('AIA <b>pay\n  app</b>')],
+    ['AIA pay-app - AIA G702 / G703 - AIA', ['AIA <b>pay app</b>', 'AIA pay app ']]);
   const READY_SELF_TEST: [string, boolean][] = [
     ["<Text style={styles.title}>Bank-ready reports</Text>", true], ["subtitle: 'Bank-ready WIP across active projects.',", true],
     ["label: 'Lender-ready'", true], ["label: 'architect ready'", true], ["label: 'Surety-ready WIP'", true], ["label: 'BANK-READY'", true],
@@ -990,7 +1049,11 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
   const codeOf = (text: string) => text.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l)).join('\n');
   const coCode = codeOf(src.co);
-  const HOLD = (a: string, b: string) => `The saved copy of this change order was built on a contract sum of ${a}. This screen now shows ${b}. Tap Save to Project to update the saved copy, then share, send or approve it.`;
+  // Lane WORDS2 — ONE sentence, true on both screens that show it. It is said
+  // on the project page too ("Approve CO #n"), where neither the live figure
+  // nor Save to Project is on screen: so it names the figure ("The contract
+  // sum is now…") and says where the button is ("Open the change order and…").
+  const HOLD = (a: string, b: string) => `The saved copy of this change order was built on a contract sum of ${a}. The contract sum is now ${b}. Open the change order and tap Save to Project to update the saved copy, then share, send or approve it.`;
 
   // 8a. THE PREDICATE: whole cents, and nothing else.
   eq('a saved base of 100,000 under a screen showing 92,500 → differs', coSavedBaseDiffers({ originalContractValue: 100_000 }, 92_500), true);
@@ -1006,6 +1069,15 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
 
   // 8b. THE REASON names both figures and says what to do.
   eq('the hold, word for word', coSavedBaseHold({ originalContractValue: 100_000 }, 92_500, usd), HOLD('$100,000', '$92,500'));
+  ok('…the sentence points at no screen: not "This screen now shows", not a bare "Tap Save to Project" — in the helper, on the change-order screen and on the project page',
+    !/This screen now shows/.test(src.fin) && !/This screen now shows/.test(src.co) && !/This screen now shows/.test(src.hub)
+    && count(src.fin, /\. The contract sum is now \$\{money\(liveBase\)\}\. Open the change order and tap Save to Project to update the saved copy, then share, send or approve it\.`;/g) === 1
+    && !/\. Tap Save to Project to update the saved copy/.test(src.fin));
+  eq('…the helper still takes the saved record, the live base and the money formatter — one helper, no "where" switch', coSavedBaseHold.length, 3);
+  ok('…and the note beside the rule says the project page’s approve DOES pass through it now; only the client approving in the portal does not',
+    /The project page's own "Approve CO #n" passes through this\n\/\/ rule too/.test(src.fin)
+    && /\(The client\n\/\/ approving in the portal does not pass through this rule\.\)/.test(src.fin)
+    && !/An approval made somewhere else — the project screen/.test(src.fin));
   eq('no hold when nothing differs, or when nothing is saved',
     [coSavedBaseHold({ originalContractValue: 92_500 }, 92_500, usd), coSavedBaseHold(null, 92_500, usd)], [null, null]);
   ok('the hold exists exactly when the predicate is true',
@@ -1273,23 +1345,66 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   // same helper, on the same base.
   const hubCode = codeOf(src.hub);
   ok('HUB: the hold is utils/projectFinancials’ own (imported, not rewritten): no second copy of the sentence, no second comparison of the stamp',
-    /import \{ getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold \} from '@\/utils\/projectFinancials';/.test(src.hub)
+    /import \{ getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold, coPriorApprovedChanges \} from '@\/utils\/projectFinancials';/.test(src.hub)
     && !/was built on a contract sum of/.test(src.hub) && !/coSavedBaseDiffers|originalContractValue/.test(hubCode));
-  // The page may not import the change-order route (validate-w4-co-workflow-
-  // screen), so the "approved change orders numbered below this one" sum is
-  // written out on the page — and held, here, to the screen's own function:
-  // the same filter and the same sum once `co.id` / `co.number` are read as
-  // the screen's `thisId` / `thisNumber`, under the same rounding.
+  // ONE COPY OF THE SUM (lane WORDS2). The page may not import the
+  // change-order route (validate-w4-co-workflow-screen), so it used to write
+  // the "approved change orders numbered below this one" sum out by hand, and
+  // a pin here held the copy to the screen's function. There is one function
+  // now — utils/projectFinancials coPriorApprovedChanges — and both screens
+  // import it. Neither declares its own, and neither writes the filter out.
   const hubHoldFn = src.hub.slice(src.hub.indexOf('const coApproveHold = useCallback('), src.hub.indexOf('}, [changeOrders, project, approvalContract, coApproveRowContract]);'));
-  const hubPrior = /const prior = roundCents\(changeOrders\n\s+(\.filter\([^\n]+\))\n\s+(\.reduce\([^\n]+\))\);\n/.exec(hubHoldFn);
-  const screenPriorFn = src.co.slice(src.co.indexOf('export function coPriorApprovedChanges('), src.co.indexOf('\n}\n', src.co.indexOf('export function coPriorApprovedChanges(')));
-  ok('HUB: its prior approved changes are app/change-order.tsx’s coPriorApprovedChanges, filter for filter and sum for sum',
-    !!hubPrior
-    && screenPriorFn.includes(`return coRoundCents(cos\n    ${hubPrior[1].replace('c.id !== co.id', 'c.id !== thisId').replace('< co.number)', '< thisNumber)')}\n    ${hubPrior[2]});`)
-    && /import \{ invoiceOutstanding, invoiceIsSettled, roundCents \} from '@\/utils\/invoiceBilling';/.test(src.hub)
-    && /export function roundCents\(n: number\): number \{\n  if \(!Number\.isFinite\(n\)\) return 0;\n  return Math\.round\(n \* 100\) \/ 100;\n\}/.test(read('utils/invoiceBilling.ts'))
-    && /export function coRoundCents\(n: number\): number \{\n  if \(!Number\.isFinite\(n\)\) return 0;\n  return Math\.round\(n \* 100\) \/ 100;\n\}/.test(src.co),
-    hubPrior ? `${hubPrior[1]} ${hubPrior[2]}` : 'not found');
+  const PRIOR_FN = `export function coPriorApprovedChanges(
+  cos: { id: string; number: number; status: string; changeAmount: number }[],
+  thisNumber: number,
+  thisId: string | null | undefined,
+): number {
+  return roundCents(cos
+    .filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)
+    .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
+}
+`;
+  const PRIOR_FILTER = /status === 'approved' && \w+\.id !== [\w.]+ && \(\w+\.number \|\| 0\) </g;
+  ok('ONE COPY: coPriorApprovedChanges is declared once, in utils/projectFinancials, with the filter and the sum it always had, rounded by utils/invoiceBilling’s roundCents',
+    count(src.fin, /export function coPriorApprovedChanges\(/g) === 1 && src.fin.includes(PRIOR_FN)
+    && /import \{ invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld, roundCents \} from '@\/utils\/invoiceBilling';/.test(src.fin)
+    && /export function roundCents\(n: number\): number \{\n  if \(!Number\.isFinite\(n\)\) return 0;\n  return Math\.round\(n \* 100\) \/ 100;\n\}/.test(read('utils/invoiceBilling.ts')));
+  ok('ONE COPY: the change-order screen imports it from utils/projectFinancials and calls it on the confirmed number — no declaration of its own',
+    /\n {2}coSavedBaseHold, changeOrderRecordRows, CO_RECORD_SUM_CAPTION, coPriorApprovedChanges,\n\} from '@\/utils\/projectFinancials';/.test(src.co)
+    && !/function coPriorApprovedChanges\b/.test(src.co) && !/const coPriorApprovedChanges\b/.test(src.co)
+    && /\n {4}\(\) => coPriorApprovedChanges\(existingCOs, baseNumber, coId\),\n {4}\[existingCOs, baseNumber, coId\],\n/.test(src.co)
+    && count(coCode, /coPriorApprovedChanges\(/g) === 1);
+  ok('ONE COPY: the project page imports the same function and calls it with the row’s own number and id — no declaration of its own',
+    /\n    const prior = coPriorApprovedChanges\(changeOrders, co\.number, co\.id\);\n/.test(hubHoldFn)
+    && !/function coPriorApprovedChanges\b/.test(src.hub) && !/const coPriorApprovedChanges\b/.test(src.hub)
+    && count(hubCode, /coPriorApprovedChanges\(/g) === 1);
+  ok('ONE COPY: the filter is written out in ONE place — not on the change-order screen, not on the project page',
+    count(src.fin, PRIOR_FILTER) === 1 && count(coCode, PRIOR_FILTER) === 0 && count(hubCode, PRIOR_FILTER) === 0
+    && !/const prior = roundCents\(changeOrders/.test(src.hub),
+    `fin ${count(src.fin, PRIOR_FILTER)}, co ${count(coCode, PRIOR_FILTER)}, hub ${count(hubCode, PRIOR_FILTER)}`);
+  // …and it is the sum it was: executed.
+  {
+    const cos = [
+      { id: 'a', number: 1, status: 'approved', changeAmount: 5_000 },
+      { id: 'b', number: 2, status: 'approved', changeAmount: 3_000.105 },
+      { id: 'c', number: 3, status: 'submitted', changeAmount: 900 },
+      { id: 'd', number: 4, status: 'approved', changeAmount: Number.NaN },
+      { id: 'e', number: 5, status: 'approved', changeAmount: -1_250.5 },
+      { id: 'f', number: 0, status: 'approved', changeAmount: 10 },
+      { id: 'g', number: 6, status: 'rejected', changeAmount: 70_000 },
+    ];
+    eq('ONE COPY: the approved change orders numbered BELOW this one, never this one, never a later one, never one that is not approved; a figure that is not a number counts as 0; whole cents',
+      [coPriorApprovedChanges(cos, 3, 'c'), coPriorApprovedChanges(cos, 1, 'a'), coPriorApprovedChanges(cos, 2, 'b'), coPriorApprovedChanges(cos, 7, null),
+        coPriorApprovedChanges(cos, 6, 'g'), coPriorApprovedChanges(cos, 5, 'e'), coPriorApprovedChanges(cos, 5, 'a'), coPriorApprovedChanges([], 3, 'c'),
+        coPriorApprovedChanges(cos, 5, undefined)],
+      [8_010.11, 10, 5_010, 6_759.61, 6_759.61, 8_010.11, 3_010.11, 0, 8_010.11]);
+    // The three lines the project page used to carry, run beside it.
+    const handCopy = (list: typeof cos, co: { id: string; number: number }) => Math.round(list
+      .filter(c => c.status === 'approved' && c.id !== co.id && (c.number || 0) < co.number)
+      .reduce((sum, c) => sum + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0) * 100) / 100;
+    const moved = cos.flatMap(co => (coPriorApprovedChanges(cos, co.number, co.id) === handCopy(cos, co) ? [] : [co.id]));
+    eq('ONE COPY: for every row, the function gives what the page’s removed hand copy gave', moved, []);
+  }
   ok('HUB: one hold, worked out from the pieces the change-order screen uses — the contract sum the rule gives (the saved figure until a read answers) plus those prior changes',
     /\n    const contract = project && isSampleProject\(project\) \? null : \(approvalContract !== undefined \? approvalContract : coApproveRowContract\);\n    const sum = contractSumBasis\(project, contract, savedChangeOrderOriginalSum\(co, prior\)\)\.value;\n    return coSavedBaseHold\(co, roundCents\(sum \+ prior\), \(n\) => formatMoney\(n, 2\)\);\n  $/.test(hubHoldFn)
     && /^const coApproveHold = useCallback\(\(co: ChangeOrder\): string \| null => \{\n/.test(hubHoldFn)
@@ -1371,12 +1486,11 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   console.log('\n9. Sample jobs: every seeded change order opens with nothing held');
   const D = await import('../utils/demoSeed');
   // The screen's "prior approved changes": approved, not this one, numbered
-  // below it. Pinned to the screen's own filter so this copy cannot drift.
+  // below it. Lane WORDS2: no copy of the sum here either — this is the one
+  // function the screen calls (utils/projectFinancials), run on the seed.
   ok('the screen counts as prior the APPROVED change orders numbered below this one (the rule the seed must match)',
-    src.co.includes(".filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)"));
-  const priorBelow = (cos: ChangeOrder[], co: ChangeOrder) => cos
-    .filter(c => c.status === 'approved' && c.id !== co.id && (c.number || 0) < co.number)
-    .reduce((sum, c) => sum + c.changeAmount, 0);
+    src.fin.includes(".filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)"));
+  const priorBelow = (cos: ChangeOrder[], co: ChangeOrder) => coPriorApprovedChanges(cos, co.number, co.id);
   const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const noop = () => {};
   for (const flavor of ['small', 'medium', 'large'] as const) {
