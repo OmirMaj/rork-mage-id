@@ -41,7 +41,15 @@
  *     whose model our code does not name: "provided through Rork", never
  *     "operated by Rork" (matches utils/aiConsentCore.ts). The App Privacy
  *     table declares the company-profile Phone Number and Physical Address
- *     (CompanyBranding.phone / .address).
+ *     (CompanyBranding.phone / .address). The account-ID sentence is exact:
+ *     Sentry.setUser is never called, but a breadcrumb's request address can
+ *     carry a user id, so the page says "not deliberately … though it can appear".
+ *  F. The third-party list in marketing/privacy.html matches the hosts the
+ *     code calls, BOTH ways: a host our code sends user content to (plan PDFs
+ *     to CloudConvert; a project's location to OpenStreetMap Nominatim, the
+ *     Census geocoder and OpenWeather) is named, and a service the code no
+ *     longer calls (Google Maps / Places and Adzuna were removed by the
+ *     content-rights wave) is not. --functions / --src point the scan elsewhere.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -187,6 +195,51 @@ if (process.argv.includes('--introspect')) {
   for (const t of ['Phone Number', 'Physical Address']) {
     check(`E. the App Privacy table declares Contact Info → ${t} (company profile)`,
       new RegExp(`^\\| Contact Info → ${t} \\| Yes \\| Yes \\|`, 'm').test(meta));
+  }
+}
+
+// ── F. The third-party list matches the hosts the code calls ────────────────
+{
+  const privacy = readFileSync(argv('--privacy') ?? join(ROOT, 'marketing/privacy.html'), 'utf8');
+  const setsUser = /Sentry\.setUser\s*\(/.test(readFileSync(argv('--layout') ?? join(ROOT, 'app/_layout.tsx'), 'utf8'));
+  if (!setsUser) {
+    check('F. the account-ID sentence is exact: not deliberately attached, but it can appear in a recorded request address',
+      /do not deliberately attach your account ID to these reports, though it can appear inside the address of a recorded network request/.test(privacy)
+      && !/we do not attach your account ID/i.test(privacy));
+  }
+  const li = /<h2>Third-Party Services<\/h2>[\s\S]*?<ul>([\s\S]*?)<\/ul>/.exec(privacy)?.[1] ?? '';
+  check('F. the Third-Party Services list was found', li.includes('<li>'), String(li.length));
+  // What the code really calls: comments removed, so a "RETIRED: Google Places" note is not a call.
+  const fnRoot = argv('--functions') ?? join(srcRoot, 'supabase', 'functions');
+  let called = '';
+  let hostFiles = 0;
+  const gather = (dir: string): void => {
+    for (const n of readdirSync(dir)) {
+      if (SKIP.has(n)) continue;
+      const p = join(dir, n);
+      const st = statSync(p);
+      if (st.isDirectory()) { gather(p); continue; }
+      if (!/\.(tsx?|jsx?)$/.test(n)) continue;
+      hostFiles++;
+      called += '\n' + readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    }
+  };
+  if (existsSync(fnRoot)) gather(fnRoot);
+  for (const d of SRC_DIRS) if (existsSync(join(srcRoot, d))) gather(join(srcRoot, d));
+  check('F. the host scan read the edge functions and the app (it is not silently empty)', hostFiles >= (argv('--src') || argv('--functions') ? 1 : 600), String(hostFiles));
+  const PROCESSORS: { name: string; listed: RegExp; host: RegExp }[] = [
+    { name: 'CloudConvert', listed: /CloudConvert/, host: /api\.cloudconvert\.com/ },
+    { name: 'OpenStreetMap (Nominatim)', listed: /OpenStreetMap/, host: /nominatim\.openstreetmap\.org/ },
+    { name: 'OpenWeather', listed: /OpenWeather/, host: /api\.openweathermap\.org/ },
+    { name: 'U.S. Census Bureau geocoder', listed: /Census/, host: /geocoding\.geo\.census\.gov/ },
+    { name: 'Google Maps / Places', listed: /Google (Maps|Places)/, host: /(maps|places)\.googleapis\.com/ },
+    { name: 'Adzuna', listed: /Adzuna/, host: /api\.adzuna\.com/ },
+  ];
+  for (const p of PROCESSORS) {
+    const isCalled = p.host.test(called);
+    const isListed = p.listed.test(li);
+    check(`F. ${p.name}: ${isCalled ? 'the code calls it, so the list names it' : 'the code does not call it, so the list does not name it'}`,
+      isCalled === isListed, `called=${isCalled} listed=${isListed}`);
   }
 }
 
