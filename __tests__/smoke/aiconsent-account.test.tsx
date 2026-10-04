@@ -31,10 +31,18 @@
  *       phone: "Network request failed"): Settings says the account has not
  *       been told and offers "Turn off for my account". With the app left open
  *       and nothing touched (no tap, no foreground, and no "back online"
- *       event: a phone has none) the app's own 30 s clock tries again, and the
- *       first try after the signal returns delivers the no.
- *   T9  AI switched Off and the server refuses the write: the record stays
- *       undelivered; coming back to the FOREGROUND sends it again.
+ *       event: a phone has none) the app's own clock tries again after 30 s,
+ *       then waits LONGER (60 s) before the next try, and the first try after
+ *       the signal returns delivers the no.
+ *   T9  AI switched Off and the server ANSWERS with a refusal: the record stays
+ *       undelivered and the clock STOPS (five and a half minutes left open
+ *       send nothing); coming back to the FOREGROUND sends it again.
+ *   T11 A YES that could not be delivered does not look saved: the Client
+ *       portal note stays, says the account has not been told and that the
+ *       recap stays plain, and goes away only when the account has heard it.
+ *   T12 The stored answer is WIPED with no sign-in run (what a same-user
+ *       magic-link or password-reset sign-in does): Settings still says what
+ *       the account says, with "Turn off for my account".
  * THE WEB WRITE PATH (the only way the web app changes the account), with the
  * web host injected:
  *   T10 "Not now" sends a no (never a yes) and only after the question; "Allow"
@@ -50,6 +58,7 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
 import { supabase } from '@/lib/supabase';
+import { loadAiConsent } from '@/utils/aiConsent';
 import { AI_ACCOUNT_COPY, AI_CONSENT_COPY, AI_CONSENT_META_KEY, AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
 import { AI_CONSENT_RETRY_MS, askAiConsentForAccount, getAccountAiSnapshot, resetAccountAi, setAccountAiHost } from '@/utils/aiConsentAccount';
 
@@ -163,7 +172,8 @@ function installAccountRead(): void {
 const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
 /** What happened, in order: 'question' (the injected web question) and 'rpc'. */
 const events: string[] = [];
-/** While true the server refuses set_my_ai_consent: the account does not hear the answer. */
+/** While true the server ANSWERS set_my_ai_consent with a refusal (403, permission denied): the
+ *  account does not hear the answer. Not a 502/503/504: the app treats those as "no answer". */
 let rpcRefuses = false;
 /** While true there is no signal: the request fails in transit, as fetch does on a phone. */
 let noSignal = false;
@@ -176,7 +186,7 @@ function stubSetConsent(): void {
     events.push('rpc');
     if (noSignal) return Promise.reject(new TypeError('Network request failed'));
     if (rpcRefuses) {
-      return Promise.resolve({ data: null, error: { message: 'upstream connect error', code: '503' }, status: 503, statusText: 'Service Unavailable', count: null });
+      return Promise.resolve({ data: null, error: { message: 'permission denied for function set_my_ai_consent', code: '42501' }, status: 403, statusText: 'Forbidden', count: null });
     }
     const answer = args?.p_answer === 'granted' ? 'granted' : 'declined';
     accountRow = { ai_consent: answer };
@@ -396,7 +406,7 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(mockAlerts.some((a) => a.title === AI_ACCOUNT_COPY.saveFailedTitle)).toBe(false);
   });
 
-  it('T8 AI switched Off with no signal: Settings says the account was not told; left open, the app tries again on its own 30 s clock and delivers it', async () => {
+  it('T8 AI switched Off with no signal: Settings says the account was not told; left open, the app tries again on its own clock (30 s, then 60 s) and delivers it', async () => {
     accountRow = { ai_consent: 'granted' };
     stubSetConsent();
     await openSettings();
@@ -417,7 +427,7 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotToldYet)).not.toBeNull();
     expect(screen.queryByText(AI_ACCOUNT_COPY.turnOffForAccount)).not.toBeNull();
     // The sentence promises only what the app does.
-    expect(AI_ACCOUNT_COPY.settingsNotToldYet).toContain('tries again while the app is open and each time you open it');
+    expect(AI_ACCOUNT_COPY.settingsNotToldYet).toContain('tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.');
     expect(AI_ACCOUNT_COPY.settingsNotToldYet).not.toMatch(/online/i);
 
     // Well inside the 30 s nothing is re-sent: it is a clock, not a loop.
@@ -432,24 +442,28 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(await storedMeta()).toMatchObject({ answer: 'declined', delivered: false });
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotToldYet)).not.toBeNull();
 
-    // The signal returns. Nothing is touched: the next tick of the clock delivers the no.
+    // The signal returns. Nothing is touched. The second wait is LONGER (60 s, not 30 s): the
+    // phone does not hammer the server, so half a minute later nothing more has been sent…
     noSignal = false;
     await leaveTheAppOpen(31_000);
+    expect(rpcCalls).toHaveLength(2);
+    // …and the next tick of the clock, 60 s after the second try, delivers the no.
+    await leaveTheAppOpen(30_000);
     expect(rpcCalls).toHaveLength(3);
-    // …and the one that lands says the answer is about a minute old, so the server orders it correctly.
-    expectAnswerSent(rpcCalls[2].args, 'declined', { atLeast: 60_000, under: 80_000 });
+    // The one that lands says the answer is about a minute and a half old, so the server orders it correctly.
+    expectAnswerSent(rpcCalls[2].args, 'declined', { atLeast: 90_000, under: 110_000 });
     expect(await storedMeta()).toMatchObject({ answer: 'declined', delivered: true });
     expect(accountRow).toEqual({ ai_consent: 'declined' });
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotToldYet)).toBeNull();
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotAllowed)).not.toBeNull();
     expect(screen.queryByText(AI_ACCOUNT_COPY.turnOffForAccount)).toBeNull();
 
-    // Heard: the clock has stopped. Two more minutes send nothing.
-    await leaveTheAppOpen(120_000);
+    // Heard: the clock has stopped. Six more minutes (past the longest wait) send nothing.
+    await leaveTheAppOpen(360_000);
     expect(rpcCalls).toHaveLength(3);
   });
 
-  it('T9 AI switched Off and the server refuses the write: it stays undelivered; the foreground sends it again', async () => {
+  it('T9 AI switched Off and the server refuses the write: it stays undelivered and the clock stops; the foreground sends it again', async () => {
     accountRow = { ai_consent: 'granted' };
     stubSetConsent();
     installAppStateTee();
@@ -466,6 +480,12 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(accountRow).toEqual({ ai_consent: 'granted' });
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotToldYet)).not.toBeNull();
 
+    // The server ANSWERED: asking again in 30 s would get the same answer, so no timer is armed.
+    // Left open past every wait (30 s, 60 s, 120 s, 5 minutes), nothing more is sent.
+    await leaveTheAppOpen(330_000);
+    expect(rpcCalls).toHaveLength(1);
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotToldYet)).not.toBeNull();
+
     // Still refusing: a foreground tries again and it is still undelivered.
     await comeToForeground();
     await pump();
@@ -478,7 +498,8 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     await comeToForeground();
     await pump();
     expect(rpcCalls).toHaveLength(3);
-    expectAnswerSent(rpcCalls[2].args, 'declined');
+    // Built fresh: it says the answer is five and a half minutes old.
+    expectAnswerSent(rpcCalls[2].args, 'declined', { atLeast: 330_000, under: 400_000 });
     expect(await storedMeta()).toMatchObject({ answer: 'declined', delivered: true });
     expect(accountRow).toEqual({ ai_consent: 'declined' });
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsNotAllowed)).not.toBeNull();
@@ -487,6 +508,96 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     await comeToForeground();
     await pump();
     expect(rpcCalls).toHaveLength(3);
+  });
+
+  it('T11 a YES that could not be delivered does not look saved: the Client portal note stays and says the account has not been told', async () => {
+    accountRow = { ai_consent: null };
+    stubSetConsent();
+    await openPortalScreen();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.recapNote)).not.toBeNull();
+    fireEvent.press(screen.getByTestId('ai-account-allow'));
+    await pump();
+    expect(question()).toBeDefined();
+
+    // He says yes, and the request fails in transit.
+    noSignal = true;
+    press(question(), AI_CONSENT_COPY.allow);
+    await pump();
+    expect(rpcCalls).toHaveLength(1);
+    expectAnswerSent(rpcCalls[0].args, 'granted');
+    expect(await AsyncStorage.getItem(AI_CONSENT_STORAGE_KEY)).toBe('granted');
+    expect(await storedMeta()).toMatchObject({ answer: 'granted', delivered: false });
+    // The account was NOT told, and what is on screen about the account is still the account's own answer.
+    expect(accountRow).toEqual({ ai_consent: null });
+    expect(getAccountAiSnapshot().account).toBeNull();
+    // The note is still there and says so plainly; the recap subtitle stays the plain one.
+    expect(screen.queryByTestId('ai-account-note')).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.yesNotTold)).not.toBeNull();
+    expect(AI_ACCOUNT_COPY.yesNotTold).toContain('your account has not been told yet');
+    expect(AI_ACCOUNT_COPY.yesNotTold).toContain('goes out as a plain summary with no AI');
+    expect(screen.queryByText(AI_ACCOUNT_COPY.recapNote)).toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.recapSubtitlePlain)).not.toBeNull();
+    expect(screen.queryByText(JARGON)).toBeNull();
+    // He already said yes: no second "Allow AI features" button. The phone sends it again by itself.
+    expect(screen.queryByTestId('ai-account-allow')).toBeNull();
+
+    // The signal returns; nothing is touched. The 30 s clock delivers the yes.
+    noSignal = false;
+    await leaveTheAppOpen(31_000);
+    expect(rpcCalls).toHaveLength(2);
+    expectAnswerSent(rpcCalls[1].args, 'granted', { atLeast: 30_000, under: 45_000 });
+    expect(await storedMeta()).toMatchObject({ answer: 'granted', delivered: true });
+    expect(accountRow).toEqual({ ai_consent: 'granted' });
+    // Only now, from the account's own reply, does the screen read as AI on.
+    expect(getAccountAiSnapshot().account).toBe('granted');
+    expect(screen.queryByTestId('ai-account-note')).toBeNull();
+    expect(screen.queryByText(JARGON)).not.toBeNull();
+  });
+
+  it('T12 the stored answer is wiped with no sign-in run: Settings still says what the account says', async () => {
+    accountRow = { ai_consent: 'granted' };
+    stubSetConsent();
+    installAppStateTee();
+    await openSettings();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).not.toBeNull();
+    const uid = getAccountAiSnapshot().userId;
+
+    // What a same-user magic-link or password-reset sign-in does: the answer and its record are
+    // swept off the phone; the signed-in person is the same, so there is no sign-in run.
+    await act(async () => {
+      await AsyncStorage.multiRemove([AI_CONSENT_STORAGE_KEY, AI_CONSENT_META_KEY]);
+    });
+    // The app comes back to the foreground (the link was opened from Mail): the gate re-reads
+    // its stored answer, finds it gone, and the account is looked at again.
+    await comeToForeground();
+    await pump();
+    expect(getAccountAiSnapshot().userId).toBe(uid);
+    expect(getAccountAiSnapshot().seen).toBe('unknown');
+    // The account still allows AI on the server: Settings says so and offers the one-tap off.
+    expect(screen.queryByTestId('ai-account-settings-line')).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAllowed)).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.turnOffForAccount)).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).toBeNull();
+    // Nothing was sent by that run: the phone holds no answer.
+    expect(rpcCalls).toHaveLength(0);
+
+    // The same wipe noticed WITHOUT a foreground: he answers the question again (yes), the answer
+    // is swept once more, and the gate's next read (an AI tap, a screen mounting) finds it gone.
+    fireEvent(screen.getByTestId('ai-features-switch'), 'valueChange', true);
+    await pump();
+    press(question(), AI_CONSENT_COPY.allow);
+    await pump();
+    expect(rpcCalls).toHaveLength(1);
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).not.toBeNull();
+    await act(async () => {
+      await AsyncStorage.multiRemove([AI_CONSENT_STORAGE_KEY, AI_CONSENT_META_KEY]);
+      await loadAiConsent();
+    });
+    await pump();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAllowed)).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.turnOffForAccount)).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).toBeNull();
+    expect(rpcCalls).toHaveLength(1);
   });
 
   it('T10 the web write path: "Not now" sends a no after the question, "Allow" a yes, a failed write changes nothing', async () => {

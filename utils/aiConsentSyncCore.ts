@@ -106,6 +106,45 @@ export function parseSetConsentResult(
   return { ok: false, reason: 'bad_response' };
 }
 
+/** The waits between timed re-sends while the app stays open, in order: 30 s,
+ *  60 s, 120 s, then 5 minutes. The last one repeats. */
+export const AI_CONSENT_RETRY_STEPS_MS: readonly number[] = [30_000, 60_000, 120_000, 300_000];
+
+/** How long the timer waits after the `failures`-th failed send in a row
+ *  (1 = the first). Anything that is not a count of at least 1 is the first wait. */
+export function aiConsentRetryDelayMs(failures: number): number {
+  const steps = AI_CONSENT_RETRY_STEPS_MS;
+  const i = Number.isFinite(failures) ? Math.floor(failures) - 1 : 0;
+  return steps[Math.min(Math.max(i, 0), steps.length - 1)];
+}
+
+/** May the TIMER try a failed send again? Only when NO ANSWER came back: there
+ *  was no signal at the call (refused 'offline'), or the request failed in
+ *  transit and may or may not have left ('unknown'), or nothing came back at
+ *  all. utils/offlineQueue reports a transport error and a 502 / 503 / 504 as
+ *  'unknown', so a gateway that is briefly down is retried. When the server
+ *  ANSWERED and did not take it (permission denied, not signed in, a
+ *  constraint: 'refused' with the code 'server'; or the function's own ok:false
+ *  such as no_profile) asking again in 30 seconds gets the same answer, so the
+ *  timer stops for this session. The next app start, the next foreground and
+ *  the next answer send again. */
+export function aiConsentSendMayRetry(res: { status?: unknown; code?: unknown } | null | undefined): boolean {
+  if (!res) return true;
+  if (res.status === 'unknown') return true;
+  return res.status === 'refused' && res.code === 'offline';
+}
+
+/** The phone's stored answer went away with no answer event. True when it was
+ *  WIPED: the record is gone too. A same-user magic-link or password-reset
+ *  sign-in sweeps both keys and the user id does not change, so no sign-in run
+ *  follows; the caller then does that run itself, so Settings still says what
+ *  the account says. False while the record is still there: Settings → AI
+ *  features On cleared only the answer and the question is on screen; the
+ *  answer event does the run. */
+export function aiConsentAnswerWasWiped(device: AiConsentState, meta: AiConsentMeta | null): boolean {
+  return device === 'unknown' && meta === null;
+}
+
 export type ReconcileDecision =
   | { push: { answer: AiAnswer; ageMs: number | null } }
   | {
@@ -152,7 +191,8 @@ export function decideReconcile(input: {
 
 /** The note on a job's Client portal screen. OWNER ONLY: the server gates on
  *  the project OWNER's answer and a phone knows only its own user's, so a
- *  collaborator's screen says nothing about it. */
+ *  collaborator's screen says nothing about it. yesNotTold: the note is the
+ *  "you allowed AI on this phone, but your account has not been told yet" one. */
 export function portalAccountNote(input: {
   owner: boolean;
   isWeb: boolean;
@@ -160,18 +200,28 @@ export function portalAccountNote(input: {
   device: AiConsentState;
   account: AccountAiConsent | 'unread';
   pending: AiAnswer | null;
-}): { note: 'none' | 'not_allowed' | 'web_allowed'; action: 'allow' | 'turn_off' | null } {
-  const { owner, isWeb, ready, device, account, pending } = input;
-  if (!owner || !ready) return { note: 'none', action: null };
+  sendFailed: boolean;
+}): { note: 'none' | 'not_allowed' | 'web_allowed'; action: 'allow' | 'turn_off' | null; yesNotTold: boolean } {
+  const { owner, isWeb, ready, device, account, pending, sendFailed } = input;
+  const none = { note: 'none', action: null, yesNotTold: false } as const;
+  if (!owner || !ready) return none;
+  // "The account allows AI" is said ONLY from the account's own answer (a read
+  // of it, or what it answered to a write). A yes on this phone never says it.
   if (account === 'granted') {
-    return isWeb ? { note: 'web_allowed', action: 'turn_off' } : { note: 'none', action: null };
+    return isWeb ? { note: 'web_allowed', action: 'turn_off', yesNotTold: false } : none;
   }
   if (account === 'declined' || account === null) {
-    // That yes is on its way: say nothing until the account has answered it.
-    if (device === 'granted' && pending === 'granted') return { note: 'none', action: null };
-    return { note: 'not_allowed', action: 'allow' };
+    if (device === 'granted' && pending === 'granted') {
+      // That yes is on its first way out: say nothing until the account has
+      // answered it. Once a send has FAILED the note stays and says the account
+      // has not been told: a yes that did not arrive must not look saved. No
+      // button: he already said yes, and the phone sends it again by itself.
+      // Only the exact value true counts: a missing flag says nothing.
+      return sendFailed === true ? { note: 'not_allowed', action: null, yesNotTold: true } : none;
+    }
+    return { note: 'not_allowed', action: 'allow', yesNotTold: false };
   }
-  return { note: 'none', action: null };
+  return none;
 }
 
 /** The line under Settings → AI features (phones): what the account says.
@@ -180,10 +230,11 @@ export function portalAccountNote(input: {
  *  moment ago that the sync has not weighed yet, or the question on screen) it
  *  says nothing, so no sentence or button appears for a few frames and goes.
  *  sendFailed: an attempt to deliver `pending` to the account has FAILED (and
- *  none has succeeded since). While this phone's no is still on its first way
- *  out the line says nothing: "has not been told yet … tries again" is shown
- *  only once a send really failed, so it never flashes during a send that is
- *  about to land. */
+ *  none has succeeded since). While this phone's answer is still on its first
+ *  way out the line says nothing: "has not been told yet … tries again" is
+ *  shown only once a send really failed, so it never flashes during a send
+ *  that is about to land. That holds for a no (the account still says yes) and
+ *  for a yes (the account has not said yes): neither looks saved. */
 export function settingsAccountLine(input: {
   ready: boolean;
   device: AiConsentState;
@@ -191,7 +242,7 @@ export function settingsAccountLine(input: {
   account: AccountAiConsent | 'unread';
   pending: AiAnswer | null;
   sendFailed: boolean;
-}): { line: 'none' | 'also_allowed' | 'allowed' | 'not_told_yet' | 'not_allowed'; action: 'allow' | 'turn_off' | null } {
+}): { line: 'none' | 'also_allowed' | 'allowed' | 'not_told_yet' | 'yes_not_told' | 'not_allowed'; action: 'allow' | 'turn_off' | null } {
   const { ready, device, seen, account, pending, sendFailed } = input;
   if (!ready) return { line: 'none', action: null };
   // Only the exact same answer counts: a missing `seen` says nothing.
@@ -206,7 +257,11 @@ export function settingsAccountLine(input: {
   }
   if (account === 'declined' || account === null) {
     if (device === 'granted') {
-      return pending === 'granted' ? { line: 'none', action: null } : { line: 'not_allowed', action: 'allow' };
+      if (pending !== 'granted') return { line: 'not_allowed', action: 'allow' };
+      // This phone's yes is waiting. On its first way out: nothing. Once a send
+      // has FAILED: say the account has not been told (the same rule as the
+      // Client portal note), so a yes that did not arrive never looks saved.
+      return sendFailed === true ? { line: 'yes_not_told', action: null } : { line: 'none', action: null };
     }
     if (device === 'declined') return { line: 'not_allowed', action: null };
     return { line: 'none', action: null };

@@ -310,6 +310,15 @@ export const AI_CONSENT_OFF_ROW =
  *  answer is what the server obeys for the weekly client recap and Ask Your
  *  Home; each sentence here is shown only in the state it describes
  *  (utils/aiConsentSyncCore portalAccountNote / settingsAccountLine). */
+/** What the phone does about an answer the account has not heard, as far as the
+ *  code goes (utils/aiConsentAccount): it sends again at every app start and
+ *  foreground; while the app stays open a timer also sends again, waiting
+ *  longer each time, but only when no answer came back (a send the server
+ *  answered and did not take waits for the next open). The app cannot tell
+ *  whether the phone has signal, and does not say so. */
+const AI_ACCOUNT_TRIES_AGAIN =
+  'This phone tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.';
+
 export const AI_ACCOUNT_COPY = {
   recapNote: 'Your account has not allowed AI for the weekly client recap and Ask Your Home. With the recap switched on, your client gets a plain summary: days on site, trades on site, milestones reached, and photo and change order counts. Ask Your Home does not answer questions your client types in the portal.',
   recapSubtitlePlain: 'We email your client a recap every Friday with what got done this week. Off until you toggle it on.',
@@ -318,7 +327,8 @@ export const AI_ACCOUNT_COPY = {
   turnOff: 'Turn off',
   settingsAlso: 'Your account also allows AI on our server for the weekly client recap and Ask Your Home, on jobs where you set them up.',
   settingsAllowed: 'Your account allows AI on our server for the weekly client recap and Ask Your Home.',
-  settingsNotToldYet: 'Your account has not been told yet, so the weekly client recap and Ask Your Home still use AI. This phone tries again while the app is open and each time you open it.',
+  settingsNotToldYet: `Your account has not been told yet, so the weekly client recap and Ask Your Home still use AI. ${AI_ACCOUNT_TRIES_AGAIN}`,
+  yesNotTold: `You allowed AI on this phone, but your account has not been told yet. Until it has, a weekly client recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer questions your client types in the portal. ${AI_ACCOUNT_TRIES_AGAIN}`,
   settingsNotAllowed: 'Your account has not allowed AI for the weekly client recap and Ask Your Home: a recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer client questions.',
   turnOffForAccount: 'Turn off for my account',
   allowForAccount: 'Allow for my account',

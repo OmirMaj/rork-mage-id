@@ -20,14 +20,20 @@
 // write. The server keeps answers in order (a no always lands; a yes must be
 // newer than the last no). This module never writes public.profiles directly.
 //
-// KEEP TRYING. A send that fails (no signal, the server refused it) leaves the
-// record undelivered and arms ONE timer: AI_CONSENT_RETRY_MS later the same run
-// happens again, and again after that, until a send lands, nothing is waiting,
-// or someone else signs in. The phone has no "back online" signal to wait for
-// (the app has no NetInfo; react-query's onlineManager only hears the browser's
+// KEEP TRYING, WITHOUT HAMMERING. A send that fails leaves the record
+// undelivered. When NO ANSWER came back (no signal, or the request failed in
+// transit) it arms ONE timer and the same run happens again, waiting longer
+// each time: 30 s, 60 s, 120 s, then every 5 minutes, until a send lands,
+// nothing is waiting, or someone else signs in. When the server ANSWERED and
+// did not take it (permission denied, not signed in, or the function's own
+// ok:false such as no_profile) the timer STOPS for this session: asking again
+// in 30 seconds gets the same answer. The next app start, the next foreground and the next answer
+// send again (components/AiConsentAccountSync), and start the waits over. The
+// rule is pure: utils/aiConsentSyncCore aiConsentRetryDelayMs and
+// aiConsentSendMayRetry. The phone has no "back online" signal to wait for (the
+// app has no NetInfo; react-query's onlineManager only hears the browser's
 // online/offline events), so a clock is the only trigger that is real on an
-// iPhone while the app stays open. components/AiConsentAccountSync adds app
-// start, the foreground and sign-out.
+// iPhone while the app stays open.
 //
 // A YES ON THE ACCOUNT IS NEVER COPIED ONTO A PHONE. This module never grants
 // on the phone's gate and never writes the phone's answer key; the device
@@ -47,6 +53,9 @@ import {
 import { parseAiConsent, type AiConsentState } from '@/utils/aiConsentCore';
 import {
   accountAiConsentFromRead,
+  aiConsentAnswerWasWiped,
+  aiConsentRetryDelayMs,
+  aiConsentSendMayRetry,
   decideReconcile,
   isMissingAiConsentFunction,
   metaForAnswer,
@@ -82,7 +91,9 @@ export interface AccountAiHost {
   askAccount: () => Promise<boolean>;
 }
 
-type SendResult = { ok: true; account: 'granted' | 'declined' | null; applied: boolean } | { ok: false };
+/** again: no answer came back, so the timer may try once more (false = the
+ *  server answered and did not take it: the timer stops for this session). */
+type SendResult = { ok: true; account: 'granted' | 'declined' | null; applied: boolean } | { ok: false; again: boolean };
 
 let snap: AccountAiSnapshot = { userId: null, account: 'unread', pending: null, ready: false, seen: null, sendFailed: false };
 const listeners = new Set<() => void>();
@@ -97,9 +108,13 @@ let host: AccountAiHost | null = null;
  *  that started earlier cannot overwrite it with what the account said before. */
 let accountSeq = 0;
 
-/** A send that failed is tried again this long after, while the app stays open. */
-export const AI_CONSENT_RETRY_MS = 30_000;
-let retryMs = AI_CONSENT_RETRY_MS;
+/** The FIRST wait before a failed send is tried again while the app stays open.
+ *  The waits after it grow: utils/aiConsentSyncCore AI_CONSENT_RETRY_STEPS_MS. */
+export const AI_CONSENT_RETRY_MS = aiConsentRetryDelayMs(1);
+/** TESTS ONLY: what the first wait is shortened to (null = the app's own waits). */
+let retryFirstMs: number | null = null;
+/** Timed sends that have failed in a row since the last run nobody timed. */
+let retryFailures = 0;
 /** The one armed retry (null = none). */
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -116,20 +131,31 @@ function clearRetry(): void {
   retryTimer = null;
 }
 
-/** One more run for `userId` after the retry delay. Only ever one timer: arming
- *  replaces the one before. The run it starts arms the next one if it fails too. */
+/** No timer, and the waits start over: a send landed, nothing is waiting, the
+ *  server answered and did not take it, or someone else signed in. */
+function stopRetry(): void {
+  clearRetry();
+  retryFailures = 0;
+}
+
+/** One more run for `userId` after the next wait (30 s, 60 s, 120 s, then 5
+ *  minutes). Only ever one timer: arming replaces the one before. The run it
+ *  starts arms the next, longer one if it gets no answer either. */
 function armRetry(userId: string): void {
   clearRetry();
+  retryFailures += 1;
+  const wait = aiConsentRetryDelayMs(retryFailures);
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    void reconcileAiConsent(userId);
-  }, retryMs);
+    void enqueue(() => runReconcile(userId, { fromTimer: true }), undefined);
+  }, retryFirstMs === null ? wait : (wait / AI_CONSENT_RETRY_MS) * retryFirstMs);
 }
 
 /** TESTS ONLY (scripts/validate-ai-consent-server.ts and the jest suite): a
- *  short retry delay so the timed retry can be watched. No app file calls it. */
+ *  short FIRST wait so the timed retry can be watched; the later waits keep
+ *  their proportions (x2, x4, x10). No app file calls it. */
 export function setAiConsentRetryMsForTests(ms: number | null): void {
-  retryMs = ms === null ? AI_CONSENT_RETRY_MS : ms;
+  retryFirstMs = ms;
 }
 
 // ── Local reads and the meta write ─────────────────────────────────────────
@@ -175,7 +201,7 @@ export function subscribeAccountAi(fn: () => void): () => void {
 export function resetAccountAi(userId: string | null): void {
   functionMissing = false;
   accountSeq += 1;
-  clearRetry();
+  stopRetry();
   setSnap({ userId, account: 'unread', pending: null, ready: false, seen: null, sendFailed: false });
 }
 
@@ -211,9 +237,9 @@ export async function refreshAccountAiConsent(userId: string): Promise<AccountAi
  *  never ride on someone else's session. */
 async function sendAnswer(userId: string, answer: AiAnswer, ageMs: number | null): Promise<SendResult> {
   try {
-    if (snap.userId !== userId) return { ok: false };
+    if (snap.userId !== userId) return { ok: false, again: false };
     const { data } = await supabase.auth.getSession();
-    if (data?.session?.user?.id !== userId) return { ok: false };
+    if (data?.session?.user?.id !== userId) return { ok: false, again: true };
     const res = await supabaseRpcOnline<unknown>('set_my_ai_consent', {
       p_answer: answer,
       p_age_ms: ageMs,
@@ -221,12 +247,14 @@ async function sendAnswer(userId: string, answer: AiAnswer, ageMs: number | null
     });
     if (res.status !== 'synced') {
       if (isMissingAiConsentFunction(res.error)) functionMissing = true;
-      return { ok: false };
+      return { ok: false, again: aiConsentSendMayRetry(res) };
     }
+    // The server answered. ok:false (no_profile) or a reply this app does not
+    // understand is an answer too: the timer does not ask again.
     const parsed = parseSetConsentResult(res.data);
-    return parsed.ok ? parsed : { ok: false };
+    return parsed.ok ? parsed : { ok: false, again: false };
   } catch {
-    return { ok: false };
+    return { ok: false, again: true };
   }
 }
 
@@ -253,7 +281,10 @@ function noteSendFailed(userId: string, answer: AiAnswer): void {
   if (snap.userId === userId && snap.pending === answer) setSnap({ sendFailed: true });
 }
 
-async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boolean }): Promise<void> {
+async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boolean; fromTimer?: boolean }): Promise<void> {
+  // A run the timer did not start (an answer, app start, the foreground, before
+  // sign-out) starts the waits over: its own failure waits 30 s again.
+  if (!opts?.fromTimer && snap.userId === userId) retryFailures = 0;
   const device = await readDeviceAnswer();
   const meta = await readMeta();
   const d = decideReconcile({
@@ -269,19 +300,22 @@ async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boole
   // (or nothing waiting) starts clean.
   if (snap.userId === userId) setSnap({ pending, ready: true, seen: device, sendFailed: pending !== null && pending === snap.pending && snap.sendFailed });
   // Nothing is waiting: nothing to try again.
-  if (!d.push || !userId) { if (snap.userId === userId) clearRetry(); return; }
+  if (!d.push || !userId) { if (snap.userId === userId) stopRetry(); return; }
   if (opts?.onlyDeclined && d.push.answer !== 'declined') return;
   const { answer } = d.push;
   if (functionMissing) { noteSendFailed(userId, answer); return; }
   const r = await sendAnswer(userId, answer, d.push.ageMs);
-  // Not heard: the record stays undelivered, and this same run happens again
-  // after the retry delay (and at the next foreground or app start).
+  // Not heard: the record stays undelivered. No answer came back: this same run
+  // happens again after the next wait. The server answered and did not take it:
+  // the timer stops. Either way the next foreground or app start sends again.
   if (!r.ok) {
     noteSendFailed(userId, answer);
-    if (snap.userId === userId) armRetry(userId);
+    if (snap.userId === userId) {
+      if (r.again) armRetry(userId); else stopRetry();
+    }
     return;
   }
-  if (snap.userId === userId) clearRetry();
+  if (snap.userId === userId) stopRetry();
   // The account heard it (applied, or refused as stale: both are "heard"). Mark
   // the record delivered ONLY IF it still describes the answer just pushed.
   const after = await readMeta();
@@ -322,7 +356,21 @@ export function noteAiAnswer(userId: string | null, answer: AiAnswer): Promise<v
 
 /** One reconcile run: send what the account has not heard. Never throws. */
 export function reconcileAiConsent(userId: string | null, opts?: { onlyDeclined?: boolean }): Promise<void> {
-  return enqueue(() => runReconcile(userId, opts), undefined);
+  return enqueue(() => runReconcile(userId, { onlyDeclined: opts?.onlyDeclined }), undefined);
+}
+
+/** The phone's answer went away with no answer event. When it was WIPED (the
+ *  record is gone too: a same-user magic-link or password-reset sign-in clears
+ *  both keys, and the user id does not change, so no sign-in run follows) do
+ *  that run now, so Settings still says what the account says. When only the
+ *  answer was cleared (the question is on screen) nothing happens here: the
+ *  answer event does the run. Never throws. */
+export function reconcileIfAiAnswerWiped(userId: string | null): Promise<void> {
+  return enqueue(async () => {
+    if (!userId || snap.userId !== userId) return;
+    if (!aiConsentAnswerWasWiped(await readDeviceAnswer(), await readMeta())) return;
+    await runReconcile(userId);
+  }, undefined);
 }
 
 /** Resolves when every answer / reconcile run so far has settled, or after
@@ -350,7 +398,7 @@ export async function askAiConsentForAccount(userId: string | null): Promise<'al
     }
     const yes = await h.askAccount();
     const answer: AiAnswer = yes ? 'granted' : 'declined';
-    const r = await enqueue<SendResult>(() => sendAnswer(userId, answer, 0), { ok: false });
+    const r = await enqueue<SendResult>(() => sendAnswer(userId, answer, 0), { ok: false, again: false });
     if (!r.ok) return 'failed';
     await noteAccountAnswered(userId, r.account);
     if (!yes) return 'not_allowed';
@@ -365,7 +413,7 @@ export async function askAiConsentForAccount(userId: string | null): Promise<'al
 export async function turnOffAiForAccount(userId: string | null): Promise<boolean> {
   if (!userId) return false;
   try {
-    const r = await enqueue<SendResult>(() => sendAnswer(userId, 'declined', 0), { ok: false });
+    const r = await enqueue<SendResult>(() => sendAnswer(userId, 'declined', 0), { ok: false, again: false });
     if (!r.ok) return false;
     const meta = await readMeta();
     if (meta && meta.uid === userId && meta.answer === 'declined' && !meta.delivered) {

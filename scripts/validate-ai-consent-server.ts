@@ -30,14 +30,18 @@
 //       and what the screens say.
 //   C3  The wiring, static: one read, one rpc write, no direct profiles write,
 //       no grant on the phone, the mount, the screens, a reconcile run at
-//       sign-in, in the foreground handler and before sign-out, and the retry
-//       delay (30 s, changed by no app file).
+//       sign-in, in the foreground handler, before sign-out and after a wipe
+//       of the stored answer, and the retry waits (30 s, 60 s, 120 s, then 5
+//       minutes; changed by no app file).
 //   C4  The copy: every sentence exact; the web question pressed on a fake alert.
 //   C5  utils/aiConsentAccount, EXECUTED with a fake storage, a fake profiles
 //       read and a fake rpc: an answer the account did not hear stays
 //       undelivered and is sent again, ON A TIMER, with no tap and no other
-//       event; the web buttons send exactly what was answered, after asking;
-//       "Allow" on a phone always asks.
+//       event, waiting longer each time, and the timer STOPS when the server
+//       answered and did not take it; a yes that was not delivered never looks
+//       saved; a wiped answer brings the account's line back; the web buttons
+//       send exactly what was answered, after asking; "Allow" on a phone
+//       always asks.
 //
 // MUTATION PROOF: set AI_CONSENT_SERVER_MUT_DIR to a directory that mirrors
 // repo-relative paths; any file present there is read (and executed) instead of
@@ -769,7 +773,11 @@ interface SyncModule {
   parseSetConsentResult(d: unknown): { ok: true; account: Answer | null; applied: boolean } | { ok: false; reason: string };
   decideReconcile(i: { userId: string | null | undefined; supabaseConfigured: boolean; account: Account; device: GateState; meta: Meta | null; nowMs: number }):
     { push: { answer: Answer; ageMs: number | null } | null; reason?: string };
-  portalAccountNote(i: { owner: boolean; isWeb: boolean; ready: boolean; device: GateState; account: Account; pending: Answer | null }): { note: string; action: string | null };
+  portalAccountNote(i: { owner: boolean; isWeb: boolean; ready: boolean; device: GateState; account: Account; pending: Answer | null; sendFailed: boolean }): { note: string; action: string | null; yesNotTold: boolean };
+  AI_CONSENT_RETRY_STEPS_MS: readonly number[];
+  aiConsentRetryDelayMs(failures: number): number;
+  aiConsentSendMayRetry(res: { status?: unknown; code?: unknown } | null | undefined): boolean;
+  aiConsentAnswerWasWiped(device: GateState, meta: Meta | null): boolean;
   settingsAccountLine(i: { ready: boolean; device: GateState; seen: GateState | null; account: Account; pending: Answer | null; sendFailed: boolean }): { line: string; action: string | null };
 }
 
@@ -816,8 +824,8 @@ async function partC2(): Promise<void> {
   row('…and when the account could not be read', dec({ device: 'granted', account: 'unavailable', meta: meta({ answer: 'granted', at: NOW }) }), 'push granted 0');
 
   const note = (over: Partial<Parameters<SyncModule['portalAccountNote']>[0]>) => {
-    const r = m.portalAccountNote({ owner: true, isWeb: false, ready: true, device: 'declined', account: null, pending: null, ...over });
-    return `${r.note}/${r.action}`;
+    const r = m.portalAccountNote({ owner: true, isWeb: false, ready: true, device: 'declined', account: null, pending: null, sendFailed: false, ...over });
+    return `${r.note}/${r.action}${r.yesNotTold === true ? '/yes_not_told' : r.yesNotTold === false ? '' : '/?'}`;
   };
   const noteRow = (name: string, got: string, want: string) => ok(`portalAccountNote: ${name}`, got === want, `got ${got}, want ${want}`);
   noteRow('a collaborator (not the owner) sees nothing', note({ owner: false }), 'none/null');
@@ -828,7 +836,32 @@ async function partC2(): Promise<void> {
   noteRow('account never told (NULL) → the note with Allow', note({ account: null }), 'not_allowed/allow');
   noteRow('account declined → the note with Allow', note({ account: 'declined', device: 'unknown' }), 'not_allowed/allow');
   noteRow('account not yes, web → the note with Allow', note({ account: null, isWeb: true, device: 'unknown' }), 'not_allowed/allow');
-  noteRow('account not yes, this phone’s yes is on its way → nothing', note({ account: null, device: 'granted', pending: 'granted' }), 'none/null');
+  noteRow('account not yes, this phone’s yes is on its first way out (no send has failed) → nothing', note({ account: null, device: 'granted', pending: 'granted' }), 'none/null');
+  // 4b — a yes that could not be delivered must not look saved.
+  noteRow('account never told, a send of this phone’s yes FAILED → the note stays and says "not told yet", no button', note({ account: null, device: 'granted', pending: 'granted', sendFailed: true }), 'not_allowed/null/yes_not_told');
+  noteRow('account declined, a send of this phone’s yes FAILED → the same', note({ account: 'declined', device: 'granted', pending: 'granted', sendFailed: true }), 'not_allowed/null/yes_not_told');
+  ok('portalAccountNote: a missing sendFailed flag is not a failure (nothing is said)',
+    (() => { const r = m.portalAccountNote({ owner: true, isWeb: false, ready: true, device: 'granted', account: null, pending: 'granted' } as never); return `${r.note}/${r.action}` === 'none/null'; })());
+  noteRow('sendFailed alone never changes another row: a waiting NO, account not yes → the usual note with Allow', note({ account: null, device: 'declined', pending: 'declined', sendFailed: true }), 'not_allowed/allow');
+  noteRow('sendFailed alone never changes another row: account yes, phone → nothing', note({ account: 'granted', device: 'granted', pending: 'granted', sendFailed: true }), 'none/null');
+  noteRow('sendFailed alone never changes another row: a collaborator → nothing', note({ owner: false, account: null, device: 'granted', pending: 'granted', sendFailed: true }), 'none/null');
+  for (const a of ['unread', 'unavailable', 'missing_column', 'no_profile'] as const) {
+    noteRow(`an undelivered yes while the account is ${a} → nothing (the account could not be read: nothing is claimed about it)`, note({ account: a, device: 'granted', pending: 'granted', sendFailed: true }), 'none/null');
+  }
+  // "The account allows AI" comes ONLY from the account's own answer: no state of
+  // this phone (its answer, what is waiting, a failed send) ever produces it.
+  {
+    const accounts: Account[] = ['declined', null, 'no_profile', 'missing_column', 'unavailable', 'unread'];
+    const devices: GateState[] = ['granted', 'declined', 'unknown'];
+    const pendings: (Answer | null)[] = ['granted', 'declined', null];
+    const saysAllowed: string[] = [];
+    for (const account of accounts) for (const device of devices) for (const pending of pendings) for (const sendFailed of [true, false]) for (const isWeb of [true, false]) {
+      const n = m.portalAccountNote({ owner: true, isWeb, ready: true, device, account, pending, sendFailed });
+      const l = m.settingsAccountLine({ ready: true, device, seen: device, account, pending, sendFailed });
+      if (n.note === 'web_allowed' || l.line === 'also_allowed' || l.line === 'allowed') saysAllowed.push(`${String(account)}/${device}/${String(pending)}/${sendFailed}/${isWeb}`);
+    }
+    ok('no screen says "your account allows AI" unless the ACCOUNT\'s own answer is yes (216 states of the phone, none does)', saysAllowed.length === 0, saysAllowed.slice(0, 5).join(' '));
+  }
   noteRow('account not yes, this phone says yes but nothing is pending (a refused or unrecorded yes) → the note with Allow', note({ account: 'declined', device: 'granted', pending: null }), 'not_allowed/allow');
   for (const a of ['unread', 'unavailable', 'missing_column', 'no_profile'] as const) noteRow(`account ${a} → nothing`, note({ account: a }), 'none/null');
 
@@ -860,7 +893,10 @@ async function partC2(): Promise<void> {
     (() => { const r = m.settingsAccountLine({ ready: true, device: 'granted', account: 'granted', pending: null, sendFailed: false } as never); return `${r.line}/${r.action}` === 'none/null'; })());
   lineRow('sendFailed alone never changes another row: Off and told earlier → "allows" + Turn off', line({ device: 'declined', account: 'granted', pending: null, sendFailed: true }), 'allowed/turn_off');
   lineRow('sendFailed alone never changes another row: On, account yes → "also allows"', line({ device: 'granted', account: 'granted', pending: 'granted', sendFailed: true }), 'also_allowed/null');
-  lineRow('sendFailed alone never changes another row: On, account not yes, the yes waiting → nothing', line({ device: 'granted', account: null, pending: 'granted', sendFailed: true }), 'none/null');
+  lineRow('On, account not yes, a send of this yes FAILED → "you allowed AI on this phone, but your account has not been told yet", no button', line({ device: 'granted', account: null, pending: 'granted', sendFailed: true }), 'yes_not_told/null');
+  lineRow('…the same when the account says no', line({ device: 'granted', account: 'declined', pending: 'granted', sendFailed: true }), 'yes_not_told/null');
+  ok('settingsAccountLine: a missing sendFailed flag is not a failure for a waiting yes either',
+    (() => { const r = m.settingsAccountLine({ ready: true, device: 'granted', seen: 'granted', account: null, pending: 'granted' } as never); return `${r.line}/${r.action}` === 'none/null'; })());
   lineRow('Off, account yes, told earlier → "allows" + Turn off', line({ device: 'declined', account: 'granted', pending: null }), 'allowed/turn_off');
   lineRow('unanswered, account yes → "allows" + Turn off', line({ device: 'unknown', account: 'granted' }), 'allowed/turn_off');
   lineRow('On, account not yes, the yes is on its way → nothing', line({ device: 'granted', account: null, pending: 'granted' }), 'none/null');
@@ -889,6 +925,34 @@ async function partC2(): Promise<void> {
   ok('metaForAnswer: this user, this time, not yet delivered; a missing user is null',
     JSON.stringify(m.metaForAnswer('declined', UID_A, 99)) === JSON.stringify({ uid: UID_A, answer: 'declined', at: 99, delivered: false })
     && m.metaForAnswer('granted', undefined, 1).uid === null && m.metaForAnswer('granted', '', 1).uid === null);
+
+  // 4a — the timed re-send backs off and stops (the rule; C5 watches the clock).
+  ok('the waits between timed re-sends are 30 s, 60 s, 120 s, then 5 minutes',
+    JSON.stringify(m.AI_CONSENT_RETRY_STEPS_MS) === JSON.stringify([30_000, 60_000, 120_000, 300_000]), JSON.stringify(m.AI_CONSENT_RETRY_STEPS_MS));
+  ok('aiConsentRetryDelayMs: the 1st, 2nd, 3rd, 4th failed send in a row wait 30 s, 60 s, 120 s, 5 min; every later one 5 min (never shorter, never longer)',
+    [1, 2, 3, 4, 5, 6, 50, 100_000].map((n) => m.aiConsentRetryDelayMs(n)).join(',') === '30000,60000,120000,300000,300000,300000,300000,300000',
+    [1, 2, 3, 4, 5, 6, 50, 100_000].map((n) => m.aiConsentRetryDelayMs(n)).join(','));
+  ok('aiConsentRetryDelayMs: 0, a negative count, NaN and Infinity are the first wait (never 0 ms, never undefined)',
+    [0, -3, Number.NaN, Number.POSITIVE_INFINITY, 1.9].map((n) => m.aiConsentRetryDelayMs(n)).join(',') === '30000,30000,30000,30000,30000');
+  const again = (r: unknown) => m.aiConsentSendMayRetry(r as never);
+  ok('aiConsentSendMayRetry: NO ANSWER came back → the timer may try again (no signal at the call; failed in transit or a 502/503/504, which utils/offlineQueue reports as unknown; nothing at all)',
+    again({ status: 'refused', code: 'offline' }) === true && again({ status: 'unknown', error: 'Network request failed' }) === true && again(null) === true && again(undefined) === true);
+  ok('aiConsentSendMayRetry: the server ANSWERED with an error → the timer stops (permission denied, not signed in, the function missing)',
+    again({ status: 'refused', code: 'server', error: 'permission denied for function set_my_ai_consent' }) === false
+    && again({ status: 'refused', code: 'server', error: 'set_my_ai_consent: not signed in' }) === false
+    && again({ status: 'refused', code: 'server' }) === false && again({ status: 'refused' }) === false);
+  ok('aiConsentSendMayRetry: every other refusal that sent nothing stops it too (not configured, the session changed, invalid)',
+    ['not_configured', 'session_changed', 'invalid', 'no_row', 'earlier_change_pending'].every((code) => again({ status: 'refused', code }) === false));
+  ok('aiConsentSendMayRetry: a reply the server gave (synced) is never "try again" (ok:false such as no_profile is an answer)',
+    again({ status: 'synced', data: { ok: false, reason: 'no_profile' } }) === false && again({ status: 'synced' }) === false && again({}) === false);
+  // 4c — a wipe of the stored answer, told apart from the question on screen.
+  ok('aiConsentAnswerWasWiped: no answer AND no record → wiped (a same-user magic-link or password-reset sign-in sweeps both)',
+    m.aiConsentAnswerWasWiped('unknown', null) === true);
+  ok('aiConsentAnswerWasWiped: no answer but the record is still there → not a wipe (Settings → On cleared only the answer; the question is on screen)',
+    m.aiConsentAnswerWasWiped('unknown', { uid: UID_A, answer: 'declined', at: 1, delivered: true }) === false
+    && m.aiConsentAnswerWasWiped('unknown', { uid: null, answer: 'granted', at: 1, delivered: false }) === false);
+  ok('aiConsentAnswerWasWiped: the phone still holds an answer → not a wipe, record or no record',
+    (['granted', 'declined'] as const).every((d) => m.aiConsentAnswerWasWiped(d, null) === false && m.aiConsentAnswerWasWiped(d, { uid: UID_A, answer: d, at: 1, delivered: false }) === false));
 
   const fromRead = (r: unknown) => String(m.accountAiConsentFromRead(r));
   ok('accountAiConsentFromRead: no result → unavailable', fromRead(null) === 'unavailable' && fromRead(undefined) === 'unavailable');
@@ -933,8 +997,8 @@ function partC3(): void {
     (acct.match(/\bsupabaseRpcOnline\b/g) ?? []).length === 2 && rpcAt > 0 && !/\.rpc\(/.test(acct)
     && /p_answer: answer,\s*p_age_ms: ageMs,\s*p_version: AI_CONSENT_QUESTION_VERSION,\s*\}\);/.test(acct) && !/\brecord\s*:/.test(acct));
   ok('…sent only while the person it is for is the one signed in (the function writes the CALLER’s row)',
-    acct.indexOf('if (snap.userId !== userId) return { ok: false };') > 0 && acct.indexOf('if (snap.userId !== userId) return { ok: false };') < rpcAt
-    && acct.indexOf('if (data?.session?.user?.id !== userId) return { ok: false };') > 0 && acct.indexOf('if (data?.session?.user?.id !== userId) return { ok: false };') < rpcAt);
+    acct.indexOf('if (snap.userId !== userId) return { ok: false, again: false };') > 0 && acct.indexOf('if (snap.userId !== userId) return { ok: false, again: false };') < rpcAt
+    && acct.indexOf('if (data?.session?.user?.id !== userId) return { ok: false, again: true };') > 0 && acct.indexOf('if (data?.session?.user?.id !== userId) return { ok: false, again: true };') < rpcAt);
   const forbidden = ['supabaseWrite', '.update(', '.upsert(', '.insert(', 'grantAiConsent', 'setItem(AI_CONSENT_STORAGE_KEY', 'removeItem(', 'loadAiConsent(', 'getAiConsentState(']
     .filter((w) => acct.includes(w));
   ok('it never queues or writes profiles directly, never grants on the phone, never writes the phone’s answer, and reads storage directly (not the gate’s memory)',
@@ -990,16 +1054,46 @@ function partC3(): void {
   // is real on a phone is the timer in utils/aiConsentAccount (executed in C5).
   ok('AiConsentAccountSync: no "back online" listener (onlineManager never fires on an iPhone; the timed retry in utils/aiConsentAccount is the real one)',
     sync.length > 0 && !/onlineManager|NetInfo|addEventListener\('online'/.test(sync));
+  ok('AiConsentAccountSync: the foreground handler first has the phone’s gate re-read its stored answer (a wipe while the app was away is noticed there), before the reconcile',
+    /void \(async \(\) => \{\s*await loadAiConsent\(\);\s*const now = Date\.now\(\);/.test(foreground) && count(sync, 'loadAiConsent(') === 1
+    && foreground.indexOf('await loadAiConsent();') < foreground.indexOf('await reconcileAiConsent(uid);'));
   ok('AiConsentAccountSync: reconcileAiConsent( is called in three places (sign-in, foreground, before sign-out)', count(sync, 'reconcileAiConsent(') === 3, `found ${count(sync, 'reconcileAiConsent(')}`);
+  // 4c — the stored answer was wiped with no sign-in run (the user id did not
+  // change): the gate's state goes to 'unknown' on its next read, and that is
+  // the trigger. Without it Settings says nothing about the account.
+  ok('AiConsentAccountSync: when the phone’s answer goes away with no answer event it asks utils/aiConsentAccount to look again (once, for the signed-in person)',
+    /useEffect\(\(\) => subscribeAiConsent\(\(state\) => \{\s*if \(state !== 'unknown' \|\| !isSupabaseConfigured\) return;\s*void reconcileIfAiAnswerWiped\(userIdRef\.current\);\s*\}\), \[\]\);/.test(sync)
+    && count(sync, 'reconcileIfAiAnswerWiped(') === 1 && count(sync, 'subscribeAiConsent(') === 1);
+  ok('…and that run happens only for a WIPE (aiConsentAnswerWasWiped on the stored answer and record, read from storage), for the signed-in person',
+    /export function reconcileIfAiAnswerWiped\(userId: string \| null\): Promise<void> \{\s*return enqueue\(async \(\) => \{\s*if \(!userId \|\| snap\.userId !== userId\) return;\s*if \(!aiConsentAnswerWasWiped\(await readDeviceAnswer\(\), await readMeta\(\)\)\) return;\s*await runReconcile\(userId\);\s*\}, undefined\);\s*\}/.test(acct));
   ok('AiConsentAccountSync: registerPreSignOutFlush( sends with onlyDeclined: true, bounded by a timer',
     /registerPreSignOutFlush\(\(\) => \{[\s\S]{0,300}reconcileAiConsent\(userIdRef\.current, \{ onlyDeclined: true \}\)/.test(sync) && /Promise\.race\(/.test(sync));
   ok('AiConsentAccountSync: the web asks through askAiAccountConsentOnce (pressed in C4), with the app’s own alert',
     /askAccount: \(\) => askAiAccountConsentOnce\(showAlert, openPrivacyPolicy\)/.test(sync) && /isWeb: Platform\.OS === 'web'/.test(sync) && /setAccountAiHost\(null\)/.test(sync));
 
-  ok('the timed retry: a failed send is tried again every 30 s (AI_CONSENT_RETRY_MS), one timer at a time',
-    acct.includes('export const AI_CONSENT_RETRY_MS = 30_000;') && acct.includes('let retryMs = AI_CONSENT_RETRY_MS;')
-    && count(acct, 'setTimeout(') === 2 && /retryTimer = setTimeout\(\(\) => \{\s*retryTimer = null;\s*void reconcileAiConsent\(userId\);\s*\}, retryMs\);/.test(acct)
-    && /function armRetry\(userId: string\): void \{\s*clearRetry\(\);/.test(acct));
+  ok('the timed retry: one timer at a time, and each wait comes from aiConsentRetryDelayMs(failed sends in a row) (30 s first: AI_CONSENT_RETRY_MS)',
+    acct.includes('export const AI_CONSENT_RETRY_MS = aiConsentRetryDelayMs(1);')
+    && count(acct, 'setTimeout(') === 2
+    && /function armRetry\(userId: string\): void \{\s*clearRetry\(\);\s*retryFailures \+= 1;\s*const wait = aiConsentRetryDelayMs\(retryFailures\);\s*retryTimer = setTimeout\(\(\) => \{\s*retryTimer = null;\s*void enqueue\(\(\) => runReconcile\(userId, \{ fromTimer: true \}\), undefined\);\s*\}, retryFirstMs === null \? wait : \(wait \/ AI_CONSENT_RETRY_MS\) \* retryFirstMs\);\s*\}/.test(acct)
+    && count(acct, 'retryFailures += 1;') === 1 && count(acct, 'fromTimer: true') === 1);
+  ok('the timed retry: armed ONLY when no answer came back; a send the server answered and did not take stops the timer (armRetry( has one caller)',
+    /if \(!r\.ok\) \{\s*noteSendFailed\(userId, answer\);\s*if \(snap\.userId === userId\) \{\s*if \(r\.again\) armRetry\(userId\); else stopRetry\(\);\s*\}\s*return;\s*\}/.test(acct)
+    && count(acct, 'armRetry(') === 2
+    && acct.includes('return { ok: false, again: aiConsentSendMayRetry(res) };')
+    && /const parsed = parseSetConsentResult\(res\.data\);\s*return parsed\.ok \? parsed : \{ ok: false, again: false \};/.test(acct));
+  // "No answer" includes a gateway that is briefly down: the online-write layer
+  // reports 502 / 503 / 504 as 'unknown' (so those are retried), and an error
+  // the server answered with as 'refused' + 'server' (so those stop).
+  {
+    const queue = strip(readOr('utils/offlineQueue.ts'));
+    ok('utils/offlineQueue still reports a transport error and a 502/503/504 as "unknown", and an error the server answered with as refused/server (what the retry rule rests on)',
+      queue.includes('const TRANSIENT_HTTP_STATUSES = new Set([0, 502, 503, 504]);')
+      && /if \(isNetworkError\(err\)\) return \{ status: 'unknown', error: msg \};[\s\S]{0,200}return \{ status: 'refused', code: 'server', error: msg \};/.test(queue)
+      && queue.includes("if (offlineAtCall()) return { status: 'refused', code: 'offline' };"));
+  }
+  ok('the timed retry: only a run the TIMER started keeps counting; every other run (an answer, app start, the foreground) starts the waits over',
+    acct.includes('if (!opts?.fromTimer && snap.userId === userId) retryFailures = 0;')
+    && /export function reconcileAiConsent\(userId: string \| null, opts\?: \{ onlyDeclined\?: boolean \}\): Promise<void> \{\s*return enqueue\(\(\) => runReconcile\(userId, \{ onlyDeclined: opts\?\.onlyDeclined \}\), undefined\);\s*\}/.test(acct));
   {
     const SETTER = 'setAiConsentRetryMsForTests(';
     const callers: string[] = [];
@@ -1024,12 +1118,12 @@ function partC3(): void {
   // isWeb: false) changes what a screen says with every executed check green.
   ok('useAccountAi: passes the snapshot through as it is (pending, sendFailed, seen), never a constant',
     hook.includes('account: snap.account,') && hook.includes('pending: snap.pending,') && hook.includes('sendFailed: snap.sendFailed,') && hook.includes('seen: snap.seen,')
-    && count(hook, 'sendFailed:') === 3 && count(hook, 'seen:') === 3 && count(hook, 'pending:') === 4,
+    && count(hook, 'sendFailed:') === 4 && count(hook, 'seen:') === 3 && count(hook, 'pending:') === 4,
     `sendFailed: x${count(hook, 'sendFailed:')}, seen: x${count(hook, 'seen:')}, pending: x${count(hook, 'pending:')} (the type, the pass-through, and one per screen rule)`);
   const portalHook = topLevelBlock(hook, 'export function usePortalAccountNote(');
   const settingsHook = topLevelBlock(hook, 'export function useSettingsAccountLine(');
-  ok('usePortalAccountNote: the web flag is the platform (isWeb: Platform.OS === \'web\'), and the note is fed the real owner, ready, device, account, pending',
-    /portalAccountNote\(\{\s*owner,\s*isWeb: Platform\.OS === 'web',\s*ready: ai\.ready,\s*device: ai\.device,\s*account: ai\.account,\s*pending: ai\.pending,\s*\}\)/.test(portalHook)
+  ok('usePortalAccountNote: the web flag is the platform (isWeb: Platform.OS === \'web\'), and the note is fed the real owner, ready, device, account, pending, sendFailed',
+    /portalAccountNote\(\{\s*owner,\s*isWeb: Platform\.OS === 'web',\s*ready: ai\.ready,\s*device: ai\.device,\s*account: ai\.account,\s*pending: ai\.pending,\s*sendFailed: ai\.sendFailed,\s*\}\)/.test(portalHook)
     && count(hook, 'isWeb') === 1 && /import \{ Platform \} from 'react-native';/.test(hook));
   ok('useSettingsAccountLine: the line is fed the real ready, device, seen, account, pending, sendFailed',
     /settingsAccountLine\(\{\s*ready: ai\.ready,\s*device: ai\.device,\s*seen: ai\.seen,\s*account: ai\.account,\s*pending: ai\.pending,\s*sendFailed: ai\.sendFailed,\s*\}\)/.test(settingsHook));
@@ -1038,6 +1132,21 @@ function partC3(): void {
     noteFile.includes("if (note === 'none') return null;") && noteFile.includes("if (line === 'none') return null;")
     && noteFile.includes('askAiConsentForAccount(userId)') && noteFile.includes('turnOffAiForAccount(userId)')
     && ['ai-account-note', 'ai-account-allow', 'ai-account-turn-off', 'ai-account-settings-line', 'ai-account-settings-action'].every((id) => noteFile.includes(`testID="${id}"`)));
+  // 4b — the words follow the rule: "your account allows" only for web_allowed,
+  // "has not been told yet" only when the rule says so.
+  ok('AiAccountNote: the "on" sentence only for web_allowed, the "not told yet" sentence only when the rule says yesNotTold, otherwise "has not allowed"',
+    noteFile.includes("{note === 'web_allowed' ? AI_ACCOUNT_COPY.webOn : yesNotTold ? AI_ACCOUNT_COPY.yesNotTold : AI_ACCOUNT_COPY.recapNote}")
+    && noteFile.includes('const { note, action, yesNotTold, userId } = usePortalAccountNote(owner);')
+    && count(noteFile, 'AI_ACCOUNT_COPY.webOn') === 1 && count(noteFile, 'AI_ACCOUNT_COPY.yesNotTold') === 2);
+  ok('AiAccountSettingsLine: each line has its own sentence (also_allowed, allowed, not_told_yet, yes_not_told, not_allowed)',
+    /const SETTINGS_LINE_TEXT = \{\s*also_allowed: AI_ACCOUNT_COPY\.settingsAlso,\s*allowed: AI_ACCOUNT_COPY\.settingsAllowed,\s*not_told_yet: AI_ACCOUNT_COPY\.settingsNotToldYet,\s*yes_not_told: AI_ACCOUNT_COPY\.yesNotTold,\s*not_allowed: AI_ACCOUNT_COPY\.settingsNotAllowed,\s*\} as const;/.test(noteFile));
+  // The account's value on screen is set in three places only: forgotten at
+  // sign-in, a read of the account, and what the account answered to a write.
+  ok('utils/aiConsentAccount: the account’s value is only ever "unread", a read of the account, or the account’s own reply to a write (never this phone’s answer)',
+    (acct.match(/setSnap\(\{[^}]*\baccount\b[^}]*\}\)/g) ?? []).length === 3 && acct.includes("setSnap({ userId, account: 'unread', pending: null, ready: false, seen: null, sendFailed: false });")
+    && acct.includes('setSnap({ account: got });') && acct.includes("setSnap({ account, pending: d.push ? d.push.answer : null, seen: device, sendFailed: false });")
+    && count(acct, 'await noteAccountAnswered(userId, r.account);') === 3,
+    `setSnap with account x${(acct.match(/setSnap\(\{[^}]*\baccount\b[^}]*\}\)/g) ?? []).length}, noteAccountAnswered(userId, r.account) x${count(acct, 'await noteAccountAnswered(userId, r.account);')}`);
 
   const setup = strip(readOr('app/client-portal-setup.tsx'));
   ok('client-portal-setup: turning the recap on asks, and either answer turns it on',
@@ -1108,7 +1217,8 @@ const WANT = {
     turnOff: 'Turn off',
     settingsAlso: 'Your account also allows AI on our server for the weekly client recap and Ask Your Home, on jobs where you set them up.',
     settingsAllowed: 'Your account allows AI on our server for the weekly client recap and Ask Your Home.',
-    settingsNotToldYet: 'Your account has not been told yet, so the weekly client recap and Ask Your Home still use AI. This phone tries again while the app is open and each time you open it.',
+    settingsNotToldYet: 'Your account has not been told yet, so the weekly client recap and Ask Your Home still use AI. This phone tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.',
+    yesNotTold: 'You allowed AI on this phone, but your account has not been told yet. Until it has, a weekly client recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer questions your client types in the portal. This phone tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.',
     settingsNotAllowed: 'Your account has not allowed AI for the weekly client recap and Ask Your Home: a recap you switch on goes out as a plain summary with no AI, and Ask Your Home does not answer client questions.',
     turnOffForAccount: 'Turn off for my account',
     allowForAccount: 'Allow for my account',
@@ -1203,8 +1313,20 @@ async function partC4(core: CoreModule): Promise<void> {
   ok('AI_ACCOUNT_COPY: the two preview sentences are exact (singular and plural)',
     typeof plain === 'function' && typeof unchecked === 'function'
     && plain(1) === WANT.previewPlain1 && plain(3) === WANT.previewPlain3 && unchecked(2) === WANT.previewUnchecked2);
-  ok('the "not told yet" line promises only what the phone does: it tries again while the app is open (the timer) and each time it is opened; it never claims to know when the phone is online',
-    !/online|connection|signal/i.test(String(acc.settingsNotToldYet)) && String(acc.settingsNotToldYet).includes('while the app is open and each time you open it'));
+  // What the code does (C5 watches it): every app start and foreground sends
+  // again; while the app stays open the timer sends again ONLY when no answer
+  // came back, waiting longer each time. So the sentence must not promise a
+  // retry "while the app is open" without that condition, and must not claim to
+  // know when the phone is online.
+  const TRIES = 'This phone tries again each time you open the app. While the app stays open it also tries again when it got no answer, waiting longer each time.';
+  for (const k of ['settingsNotToldYet', 'yesNotTold'] as const) {
+    const t = String(acc[k]);
+    ok(`the "${k}" sentence promises only what the phone does: again each time the app is opened; while it stays open, only after no answer, with longer waits; nothing about being online`,
+      t.endsWith(` ${TRIES}`) && count(t, 'tries again') === 2 && !/online|connection|signal/i.test(t) && !t.includes('while the app is open and each time you open it') && !/every 30|30 s|seconds|minute/i.test(t), t);
+  }
+  ok('the undelivered-yes sentence says the account has NOT been told and the recap stays plain; it never says the account allows AI',
+    String(acc.yesNotTold).startsWith('You allowed AI on this phone, but your account has not been told yet. Until it has, a weekly client recap you switch on goes out as a plain summary with no AI')
+    && !/account (also )?allows/i.test(String(acc.yesNotTold)));
   ok('the web "on" line says neither "Nothing is sent from this app" nor "Settings → AI features"',
     !String(acc.webOn).includes('Nothing is sent from this app') && !String(acc.webOn).includes('Settings → AI features'));
 
@@ -1244,6 +1366,7 @@ interface AcctModule {
   refreshAccountAiConsent(userId: string): Promise<Account>;
   noteAiAnswer(userId: string | null, answer: Answer): Promise<void>;
   reconcileAiConsent(userId: string | null, opts?: { onlyDeclined?: boolean }): Promise<void>;
+  reconcileIfAiAnswerWiped(userId: string | null): Promise<void>;
   settleAiConsentSync(timeoutMs?: number): Promise<void>;
   askAiConsentForAccount(userId: string | null): Promise<'allowed' | 'not_allowed' | 'failed'>;
   turnOffAiForAccount(userId: string | null): Promise<boolean>;
@@ -1296,9 +1419,11 @@ async function partC5(core: CoreModule): Promise<void> {
   let acct: AcctModule;
   let wrapper: WrapperModule;
   let lineOf: SyncModule['settingsAccountLine'];
+  let noteOf: SyncModule['portalAccountNote'];
   try {
     const syncCore = await import(srcPath('utils/aiConsentSyncCore.ts')) as Record<string, unknown>;
     lineOf = (syncCore as unknown as SyncModule).settingsAccountLine;
+    noteOf = (syncCore as unknown as SyncModule).portalAccountNote;
     Bun.plugin({
       name: 'ai-consent-account-fakes',
       setup(build) {
@@ -1559,15 +1684,15 @@ async function partC5(core: CoreModule): Promise<void> {
     ok('with the app’s own delay nothing is re-sent within a moment (the retry is a clock, not a loop)', rpc.length === 1 && meta()?.delivered === false, `${rpc.length} send(s)`);
 
     await fresh();
-    acct.setAiConsentRetryMsForTests(40);
+    acct.setAiConsentRetryMsForTests(30); // the app's waits, scaled: 30 ms, 60 ms, 120 ms
     store.set(KEY, 'declined');
     rpcImpl = NETWORK_DOWN;
     await acct.noteAiAnswer(U, 'declined'); // no signal: the request may or may not have left
     ok('a no that could not be sent: one try, undelivered, the screen says the send failed', rpc.length === 1 && meta()?.delivered === false && snap().pending === 'declined' && snap().sendFailed === true, `${rpc.length} ${JSON.stringify(snap())}`);
-    await tick(220);
+    await tick(150); // the 2nd send at about 30 ms, the 3rd at about 90 ms, the 4th not before 210 ms
     const whileDown = rpc.length;
     ok('…with NOTHING else happening (no tap, no foreground, no reconcile call) the phone tries again on its own, and again while it keeps failing',
-      whileDown >= 3 && rpc.every((c) => c.args.p_answer === 'declined') && meta()?.delivered === false && snap().sendFailed === true, `${whileDown} send(s) in 220 ms at a 40 ms delay`);
+      whileDown === 3 && rpc.every((c) => c.args.p_answer === 'declined') && meta()?.delivered === false && snap().sendFailed === true, `${whileDown} send(s) in 150 ms at a 30 ms first wait`);
     ok('…each retry is built fresh: it carries the answer’s age at the moment it is sent',
       rpc.slice(1).every((c, i) => typeof c.args.p_age_ms === 'number' && (c.args.p_age_ms as number) > (i === 0 ? ((rpc[0].args.p_age_ms as number) ?? -1) : (rpc[i].args.p_age_ms as number))),
       rpc.map((c) => c.args.p_age_ms).join(','));
@@ -1642,6 +1767,153 @@ async function partC5(core: CoreModule): Promise<void> {
     const readsAfter = gets;
     await tick(160);
     ok('a run for someone who is no longer signed in arms no retry', rpc.length === 0 && gets === readsAfter, `${rpc.length} send(s), ${gets - readsAfter} storage read(s) after`);
+  }
+
+  // ── 4a: the timed re-send does not hammer the server ─────────────────────
+  // The waits the module ASKS setTimeout for are recorded (not wall-clock gaps:
+  // this machine is busy), with the first wait shortened to 7 ms so the app's
+  // 30 s, 60 s, 120 s, 5 min read here as 7, 14, 28, 70.
+  const realSetTimeout = globalThis.setTimeout;
+  const askedWaits: number[] = [];
+  const RETRY_WAITS = new Set([7, 14, 28, 70]);
+  const retryWaits = () => askedWaits.filter((ms) => RETRY_WAITS.has(ms));
+  const until = async (cond: () => boolean) => { for (let i = 0; i < 400 && !cond(); i++) await tick(11); return cond(); };
+  (globalThis as unknown as { setTimeout: unknown }).setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...rest: unknown[]) => {
+    askedWaits.push(Number(ms));
+    return realSetTimeout(fn, ms, ...rest);
+  }) as unknown as typeof setTimeout;
+  try {
+    {
+      await fresh();
+      acct.setAiConsentRetryMsForTests(7);
+      askedWaits.length = 0;
+      store.set(KEY, 'declined');
+      rpcImpl = NETWORK_DOWN;
+      await acct.noteAiAnswer(U, 'declined');
+      const six = await until(() => rpc.length >= 6 && retryWaits().length >= 6);
+      ok('no signal for a long while: the waits grow 30 s, 60 s, 120 s, then 5 minutes, and STAY at 5 minutes (here 7, 14, 28, 70, 70, 70 ms)',
+        six && retryWaits().slice(0, 6).join(',') === '7,14,28,70,70,70', retryWaits().join(','));
+      ok('…one send per wait, never two (six sends, six waits asked for)', rpc.length === 6 && retryWaits().length === 6 && rpc.every((c) => c.args.p_answer === 'declined'), `${rpc.length} sends, waits ${retryWaits().join(',')}`);
+      rpcImpl = HEARD;
+      const landed = await until(() => meta()?.delivered === true);
+      const waitsAtLanding = retryWaits().length;
+      await tick(120);
+      ok('…the send that lands stops the clock: no further wait is asked for', landed && rpc.length === 7 && retryWaits().length === waitsAtLanding && waitsAtLanding === 6, `${rpc.length} sends, waits ${retryWaits().join(',')}`);
+    }
+    const STOPS: [string, (a: RpcArgs) => Promise<unknown>][] = [
+      ['the function answers ok:false (no_profile)', async () => ({ status: 'synced', data: { ok: false, reason: 'no_profile' } })],
+      ['the server answers with an error (permission denied)', async () => ({ status: 'refused', code: 'server', error: 'permission denied for function set_my_ai_consent' })],
+      ['the server answers with a reply this app does not understand', async () => ({ status: 'synced', data: 'yes' })],
+    ];
+    for (const [name, impl] of STOPS) {
+      await fresh();
+      acct.setAiConsentRetryMsForTests(7);
+      askedWaits.length = 0;
+      store.set(KEY, 'declined');
+      rpcImpl = impl;
+      await acct.noteAiAnswer(U, 'declined');
+      await tick(150);
+      ok(`${name}: ONE send, still undelivered, the screen says the send failed, and NO timer is armed (the phone does not ask again while the app stays open)`,
+        rpc.length === 1 && meta()?.delivered === false && snap().pending === 'declined' && snap().sendFailed === true && retryWaits().length === 0,
+        `${rpc.length} send(s), waits ${retryWaits().join(',')} ${JSON.stringify(snap())}`);
+      await acct.reconcileAiConsent(U); // the next foreground or app start
+      await tick(60);
+      ok('…the next foreground or app start sends it again: one more send, still no timer', rpc.length === 2 && retryWaits().length === 0 && meta()?.delivered === false, `${rpc.length} send(s), waits ${retryWaits().join(',')}`);
+      rpcImpl = HEARD;
+      await acct.reconcileAiConsent(U);
+      ok('…and delivers it once the server takes it', rpc.length === 3 && meta()?.delivered === true && snap().sendFailed === false && snap().account === 'declined');
+    }
+    {
+      await fresh();
+      acct.setAiConsentRetryMsForTests(7);
+      askedWaits.length = 0;
+      store.set(KEY, 'declined');
+      rpcImpl = NETWORK_DOWN;
+      await acct.noteAiAnswer(U, 'declined');
+      await until(() => rpc.length >= 3 && retryWaits().length >= 3); // the 28 ms wait is armed
+      await acct.reconcileAiConsent(U); // the foreground, still no signal
+      ok('a run the timer did not start (the foreground) starts the waits over: after it fails the next wait is the first one again',
+        retryWaits().join(',') === '7,14,28,7' && rpc.length === 4, `${rpc.length} sends, waits ${retryWaits().join(',')}`);
+      rpcImpl = STOPS[1][1]; // the signal is back and the server answers with an error
+      await until(() => rpc.length >= 5);
+      await tick(120);
+      ok('a send the TIMER made that the server answers and does not take stops the timer as well', rpc.length === 5 && retryWaits().join(',') === '7,14,28,7' && snap().sendFailed === true && meta()?.delivered === false,
+        `${rpc.length} sends, waits ${retryWaits().join(',')}`);
+    }
+  } finally {
+    (globalThis as unknown as { setTimeout: unknown }).setTimeout = realSetTimeout;
+  }
+
+  // ── 4b: a yes that could not be delivered never looks saved ──────────────
+  {
+    const portal = () => { const sn = snap(); const r = noteOf({ owner: true, isWeb: false, ready: sn.ready, device: wrapper.getAiConsentState(), account: sn.account, pending: sn.pending, sendFailed: sn.sendFailed === true }); return `${r.note}/${r.action}${r.yesNotTold ? '/yes_not_told' : ''}`; };
+    const settings = () => { const sn = snap(); const r = lineOf({ ready: sn.ready, device: wrapper.getAiConsentState(), seen: sn.seen ?? null, account: sn.account, pending: sn.pending, sendFailed: sn.sendFailed === true }); return `${r.line}/${r.action}`; };
+    await fresh();
+    await acct.refreshAccountAiConsent(U); // the account was never told
+    await acct.reconcileAiConsent(U);
+    ok('before: the account has not allowed AI → the Client portal note with Allow', portal() === 'not_allowed/allow', portal());
+    const d = deferred();
+    rpcImpl = async () => { await d.gate; return NETWORK_DOWN(); };
+    promptAnswer = true;
+    const answered = (async () => { await wrapper.resetAiConsent(); await (wrapper as unknown as { ensureAiConsent(): Promise<boolean> }).ensureAiConsent(); })();
+    await tick(30);
+    ok('he says yes on the question; while that yes is on its first way out the note says nothing, and the account is NOT shown as allowing',
+      rpc.length === 1 && rpc[0].args.p_answer === 'granted' && snap().account === null && snap().pending === 'granted' && portal() === 'none/null' && settings() === 'none/null', `${portal()} ${settings()} ${JSON.stringify(snap())}`);
+    d.release();
+    await answered;
+    await acct.settleAiConsentSync(500);
+    ok('the send FAILED: the account on screen is still the account’s own answer (never told), never this phone’s yes; the record is undelivered',
+      snap().account === null && snap().pending === 'granted' && snap().sendFailed === true && meta()?.answer === 'granted' && meta()?.delivered === false && wrapper.getAiConsentState() === 'granted', JSON.stringify(snap()));
+    ok('…the Client portal note STAYS and says the account has not been told (no button), and Settings says the same', portal() === 'not_allowed/null/yes_not_told' && settings() === 'yes_not_told/null', `${portal()} ${settings()}`);
+    rpcImpl = HEARD;
+    await acct.reconcileAiConsent(U); // the next foreground / the timer
+    ok('…once the account has heard it, "allows" comes from the account’s own reply: the note goes, Settings says "also allows"',
+      snap().account === 'granted' && snap().pending === null && meta()?.delivered === true && portal() === 'none/null' && settings() === 'also_allowed/null', `${portal()} ${settings()} ${JSON.stringify(snap())}`);
+
+    await fresh();
+    profileRead = async () => ({ data: { ai_consent: 'declined' }, error: null });
+    await acct.refreshAccountAiConsent(U);
+    store.set(KEY, 'granted'); await wrapper.loadAiConsent();
+    rpcImpl = async () => ({ status: 'synced', data: { ok: true, applied: false, reason: 'stale', ai_consent: 'declined' } });
+    await acct.noteAiAnswer(U, 'granted');
+    ok('a yes the account HEARD and refused (stale) is not "not told": the usual note with Allow comes back', snap().account === 'declined' && snap().pending === null && portal() === 'not_allowed/allow' && settings() === 'not_allowed/allow', `${portal()} ${settings()}`);
+  }
+
+  // ── 4c: the stored answer is wiped with no sign-in run ───────────────────
+  // What components/AiConsentAccountSync does (pinned as text in C3): the gate
+  // says 'unknown' → reconcileIfAiAnswerWiped for the signed-in person.
+  {
+    await fresh();
+    const offWipe = wrapper.subscribeAiConsent((st) => { if (st === 'unknown') void acct.reconcileIfAiAnswerWiped(eventUser); });
+    const shown = () => { const sn = snap(); const r = lineOf({ ready: sn.ready, device: wrapper.getAiConsentState(), seen: sn.seen ?? null, account: sn.account, pending: sn.pending, sendFailed: sn.sendFailed === true }); return `${r.line}/${r.action}`; };
+    profileRead = async () => ({ data: { ai_consent: 'granted' }, error: null });
+    await acct.refreshAccountAiConsent(U);
+    store.set(KEY, 'granted'); putMeta({ answer: 'granted', delivered: true });
+    await wrapper.loadAiConsent();
+    await acct.reconcileAiConsent(U);
+    ok('before: the phone and the account both say yes → "also allows"', shown() === 'also_allowed/null');
+    // Settings → On clears only the answer and asks: the record is still there.
+    await wrapper.resetAiConsent();
+    await acct.settleAiConsentSync(500);
+    await tick(20);
+    ok('the question is on screen (only the answer was cleared, its record is still on the phone): no run, and the line says nothing',
+      snap().seen === 'granted' && shown() === 'none/null' && rpc.length === 0, `${shown()} ${JSON.stringify(snap())}`);
+    store.set(KEY, 'granted');
+    await wrapper.loadAiConsent();
+    await acct.reconcileAiConsent(U);
+    // The wipe: a same-user magic-link or password-reset sign-in sweeps both
+    // keys; the user id does not change, so there is no sign-in run.
+    store.delete(KEY); store.delete(META);
+    await wrapper.loadAiConsent(); // the gate's next read (a screen mounting, an AI tap)
+    await acct.settleAiConsentSync(500);
+    await tick(20);
+    ok('the stored answer and its record were WIPED with no sign-in run: the same run happens, and Settings says what the account says ("allows" + Turn off for my account), not nothing',
+      snap().seen === 'unknown' && snap().ready === true && snap().account === 'granted' && shown() === 'allowed/turn_off', `${shown()} ${JSON.stringify(snap())}`);
+    ok('…nothing is sent by that run (the phone holds no answer), and nothing is written on the phone', rpc.length === 0 && !store.has(KEY) && !store.has(META));
+    await acct.reconcileIfAiAnswerWiped(UID_B);
+    await acct.reconcileIfAiAnswerWiped(null);
+    ok('…a wipe signal for someone who is not the signed-in person (or nobody) changes nothing', snap().userId === U && snap().seen === 'unknown' && rpc.length === 0);
+    offWipe();
   }
 
   // ── a wait on the sync is always bounded ─────────────────────────────────

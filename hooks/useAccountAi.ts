@@ -85,6 +85,7 @@ export function usePortalAccountNote(owner: boolean): ReturnType<typeof portalAc
       device: ai.device,
       account: ai.account,
       pending: ai.pending,
+      sendFailed: ai.sendFailed,
     }),
     userId: ai.userId,
   };

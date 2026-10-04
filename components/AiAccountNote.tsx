@@ -7,8 +7,10 @@
 // only in the state it describes and only when the account could be read:
 //   AiAccountNote          a job's Client portal screen, under "Send weekly
 //                          recap": the account has not allowed AI (with "Allow
-//                          AI features"), or, on the web app, it has (with
-//                          "Turn off"). Owner only.
+//                          AI features"; or, when this phone's yes could not
+//                          be delivered, "your account has not been told yet",
+//                          no button), or, on the web app, it has (with "Turn
+//                          off"). Owner only.
 //   AiAccountSettingsLine  Settings → AI features (phones), the line beneath
 //                          the row's own sentence.
 // WHICH sentence shows is pure logic (utils/aiConsentSyncCore, run under bun by
@@ -63,14 +65,14 @@ function useAccountAction(userId: string | null): { busy: boolean; allow: () => 
 
 /** A job's Client portal screen: the note under "Send weekly recap". */
 export function AiAccountNote({ owner }: { owner: boolean }) {
-  const { note, action, userId } = usePortalAccountNote(owner);
+  const { note, action, yesNotTold, userId } = usePortalAccountNote(owner);
   const { busy, allow, turnOff } = useAccountAction(userId);
   const styles = useThemedStyles(makeStyles);
   if (note === 'none') return null;
   return (
     <View style={styles.note} testID="ai-account-note">
       <Text style={styles.text}>
-        {note === 'not_allowed' ? AI_ACCOUNT_COPY.recapNote : AI_ACCOUNT_COPY.webOn}
+        {note === 'web_allowed' ? AI_ACCOUNT_COPY.webOn : yesNotTold ? AI_ACCOUNT_COPY.yesNotTold : AI_ACCOUNT_COPY.recapNote}
       </Text>
       {action === 'allow' ? (
         <Button
@@ -101,6 +103,7 @@ const SETTINGS_LINE_TEXT = {
   also_allowed: AI_ACCOUNT_COPY.settingsAlso,
   allowed: AI_ACCOUNT_COPY.settingsAllowed,
   not_told_yet: AI_ACCOUNT_COPY.settingsNotToldYet,
+  yes_not_told: AI_ACCOUNT_COPY.yesNotTold,
   not_allowed: AI_ACCOUNT_COPY.settingsNotAllowed,
 } as const;
 
