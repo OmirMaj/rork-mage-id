@@ -17,7 +17,15 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Loaded by a path built at run time: core.ts imports the storage-path rule
+// with a Deno `.ts` specifier, which the app's tsc program must not pull in
+// (supabase/functions is outside tsconfig). What is used is typed here.
+type MediaRequest =
+  | { kind: 'portal_photos'; portalId: string; token: string; photoIds: string[] }
+  | { kind: 'rfi_sheets'; shareToken: string; paths: string[] };
+const {
   MAX_ITEMS,
   SIGNED_URL_TTL_SECONDS,
   parseMediaRequest,
@@ -25,9 +33,15 @@ import {
   portalStateIsShared,
   publishedPhotoIds,
   rfiSheetKey,
-} from '../supabase/functions/signed-media-urls/core';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+} = (await import(join(ROOT, 'supabase/functions/signed-media-urls/core.ts'))) as {
+  MAX_ITEMS: number;
+  SIGNED_URL_TTL_SECONDS: number;
+  parseMediaRequest: (body: unknown) => MediaRequest | null;
+  photoSource: (uri: unknown, projectId: string) => { sign: string } | { pass: string } | null;
+  portalStateIsShared: (ps: unknown) => boolean;
+  publishedPhotoIds: (snapshot: unknown) => Set<string>;
+  rfiSheetKey: (uriOrPath: string, projectId: string) => string;
+};
 const read = (p: string) => { try { return readFileSync(join(ROOT, p), 'utf8'); } catch { return ''; } };
 const INDEX = read('supabase/functions/signed-media-urls/index.ts');
 const CONFIG = read('supabase/config.toml');
@@ -81,6 +95,20 @@ console.log('\nhow a live photos row is served:');
   ok('a Supabase URL for another tenant\'s key is refused', photoSource(`https://ref.supabase.co/storage/v1/object/sign/project-photos/${U}/${OTHER}/x.jpg?t=1`, P) === null);
   ok('a legacy public http link passes through', JSON.stringify(photoSource('https://picsum.photos/seed/x/800', P)) === JSON.stringify({ pass: 'https://picsum.photos/seed/x/800' }));
   ok('a Storage URL on another bucket is not passed through', photoSource('https://ref.supabase.co/storage/v1/object/public/plan-sheets/x/y.png', P) === null);
+  // Lane SEC3: the key is decided by the one storage-path rule, not by "segment 2 is my project".
+  ok('an ENCODED dot segment is refused (it passed the old exact-".." test)',
+    photoSource(`${U}/${P}/%2e%2e`, P) === null && photoSource(`${U}/${P}/%2e%2e/${OTHER}/${PH1}.jpg`, P) === null
+    && photoSource(`${U}/${P}/.%2E/${PH1}.jpg`, P) === null && photoSource(`${U}/${P}\\..\\${OTHER}\\${PH1}.jpg`, P) === null);
+  ok('…also when it arrives inside a Supabase URL of the bucket (single or double encoded)',
+    photoSource(`https://ref.supabase.co/storage/v1/object/sign/project-photos/${U}/${P}/%2e%2e/${OTHER}/${PH1}.jpg?token=old`, P) === null
+    && photoSource(`https://ref.supabase.co/storage/v1/object/sign/project-photos/${U}/${P}/%252e%252e/${OTHER}/${PH1}.jpg?token=old`, P) === null);
+  ok('a deeper key than the writer makes, or a file with no image extension, is refused',
+    photoSource(`${U}/${P}/sub/${PH1}.jpg`, P) === null && photoSource(`${U}/${P}/${PH1}`, P) === null && photoSource(`${U}/${P}/${PH1}.exe`, P) === null);
+  ok('a key is never repaired: a padded or slash-led spelling is refused, not trimmed',
+    photoSource(` ${key}`, P) === null && photoSource(`${key}\n`, P) === null && photoSource(`/${key}`, P) === null);
+  ok('an upper-case folder is another folder to Storage, so it is not this project\'s key',
+    photoSource(`${U}/${P.toUpperCase()}/${PH1}.jpg`, P) === null && photoSource(`${OTHER.toUpperCase()}/${P}/${PH1}.jpg`, P) === null
+    && JSON.stringify(photoSource(`${OTHER}/${P}/${PH1}.jpg`, P)) === JSON.stringify({ sign: `${OTHER}/${P}/${PH1}.jpg` }));
 }
 
 console.log('\nRFI plan sheets (share token):');
@@ -91,6 +119,14 @@ console.log('\nRFI plan sheets (share token):');
   ok('another project\'s sheet is refused', rfiSheetKey(`${OTHER}/s.png`, P) === '');
   ok('traversal out of the folder is refused', rfiSheetKey(`${P}/../${OTHER}/s.png`, P) === '');
   ok('a device-local URI is refused', rfiSheetKey('file:///x.png', P) === '');
+  // Lane SEC3: the one storage-path rule, pinned to the RFI's project.
+  ok('an encoded dot segment is refused, bare or inside a URL',
+    rfiSheetKey(`${P}/%2e%2e/${OTHER}/s.png`, P) === '' && rfiSheetKey(`${P}/.%2E/s.png`, P) === ''
+    && rfiSheetKey(`https://r.supabase.co/storage/v1/object/public/plan-sheets/${P}/%2e%2e/${OTHER}/s.png`, P) === ''
+    && rfiSheetKey(`https://r.supabase.co/storage/v1/object/public/plan-sheets/${P}/%252e%252e/${OTHER}/s.png`, P) === '');
+  ok('a deeper key, the legacy shared tmp/ folder and a non-image file are refused',
+    rfiSheetKey(`${P}/sheets/s.png`, P) === '' && rfiSheetKey('tmp/s.png', P) === '' && rfiSheetKey(`${P}/s.pdf`, P) === '');
+  ok('a key is never repaired: a slash-led or padded spelling is refused', rfiSheetKey(`/${P}/s.png`, P) === '' && rfiSheetKey(` ${P}/s.png`, P) === '' && rfiSheetKey(`${P}/s.png `, P) === '');
 }
 
 console.log('\npasscode is never an oracle:');
@@ -107,6 +143,11 @@ console.log('\npasscode is never an oracle:');
 
 console.log('\nindex.ts wiring:');
 ok('TTL is one hour', SIGNED_URL_TTL_SECONDS === 3600 && /createSignedUrls\(unique, SIGNED_URL_TTL_SECONDS\)/.test(INDEX));
+ok('what is signed is the storage-path rule\'s answer for each key, pinned to the checked project (never the string passed in)',
+  /const unique: string\[\] = \[\];\s*for \(const candidate of new Set\(keys\)\) \{\s*const key = requestStoragePath\(candidate, shape, pinned\);\s*if \(key\) unique\.push\(key\);\s*\}/.test(INDEX)
+  && /signKeys\(svc, PHOTO_BUCKET, PROJECT_PHOTO_PATH, \{ 1: projectId\.toLowerCase\(\) \}, /.test(INDEX)
+  && /signKeys\(svc, PLAN_SHEET_BUCKET, PLAN_SHEET_PATH, \{ 0: projectId\.toLowerCase\(\) \}, /.test(INDEX)
+  && /if \(shape\.bucket !== bucket\) return out;/.test(INDEX) && (INDEX.match(/unique\.push\(/g) ?? []).length === 1);
 ok('portal photos authorise through portal_project_for_token with the access token', /svc\.rpc\("portal_project_for_token", \{\s*p_portal_id: req\.portalId,\s*p_access_token: req\.token,/.test(INDEX));
 ok('every authentication failure is 401 {error:"denied"}', /const DENIED = \(\) => json\(\{ error: "denied" \}, 401\);/.test(INDEX) && (INDEX.match(/return DENIED\(\);/g) ?? []).length >= 2);
 ok('only ids published in the stored snapshot are looked up', /publishedPhotoIds\(/.test(INDEX) && /req\.photoIds\.filter\(\(id\) => published\.has\(id\)\)/.test(INDEX));

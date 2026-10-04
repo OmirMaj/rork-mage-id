@@ -24,9 +24,15 @@
 //   • no leading or trailing slash, no empty / '.' / '..' segment;
 //   • exactly as many segments as the shape names, EACH matched against its own
 //     pattern — an id as Postgres / crypto.randomUUID() / GoTrue print one
-//     (lowercase canonical uuid), or a file name `[A-Za-z0-9][A-Za-z0-9._-]*`
-//     ending in an extension the bucket's writers use;
-//   • any segment the caller pins (the user id, the project id) equals it;
+//     (lowercase canonical uuid), a file name `[A-Za-z0-9][A-Za-z0-9._-]*`
+//     ending in an extension the bucket's writers use, or (one bucket, whose
+//     writer keeps the picked file's own name) `<digits>_<[A-Za-z0-9._-]*>`;
+//   • any segment the caller pins (the user id, the project id) equals it, and
+//     a pin that names no segment of the path ('project', '01', an index past
+//     the end) is a refusal — a pin that binds nothing is never "no pin". The
+//     pin is a plain object and every own key of it counts: a Map, an array, an
+//     object that inherits its keys or a symbol key is a refusal, and a hidden
+//     (non-enumerable) key is read like any other;
 //   • and `new URL('https://h/' + path).pathname === '/' + path` — the parser
 //     that will see the path must not change one byte of it.
 // The answer is the SAME string or null. Refuse, never repair: a "cleaned"
@@ -43,12 +49,20 @@
 export const STORAGE_PATH_MAX_LENGTH = 256;
 /** Longest file name any writer produces is ~101 characters (pdf-uploads). */
 export const STORAGE_FILE_NAME_MAX_LENGTH = 128;
+/**
+ * Longest `<stamp>_<name>` segment: what STORAGE_PATH_MAX_LENGTH leaves after the
+ * two id folders in front of it (2 x 37 characters). The writer of that segment
+ * puts no cap on the name, so the path cap is the only one there is.
+ */
+export const STORAGE_STAMPED_NAME_MAX_LENGTH = 182;
 
 /** A lowercase canonical uuid — how gen_random_uuid(), crypto.randomUUID() and
  *  GoTrue's `sub` print one. Uppercase / braced / hyphenless spellings parse as
  *  the same uuid in Postgres but are a DIFFERENT storage folder, so they are not ids here. */
 const STORAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STORAGE_FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** `Date.now()` as it prints (digits), one underscore, then a name already reduced to [A-Za-z0-9._-]. */
+const STORAGE_STAMPED_NAME_RE = /^[0-9]{1,16}_[A-Za-z0-9._-]*$/;
 /** '%', backslash, '?', '#', any whitespace, any control character, anything outside ASCII. */
 // deno-lint-ignore no-control-regex
 const STORAGE_FORBIDDEN_CHAR_RE = /[%\\?#\s\u0000-\u001f\u007f-\uffff]/;
@@ -62,6 +76,12 @@ export type StorageSegmentRule =
   | { readonly kind: 'file'; readonly extensions: readonly string[] }
   /** `<id>.<ext>`: a file whose whole name is an id, then one dot, then an extension the writers use. */
   | { readonly kind: 'idFile'; readonly extensions: readonly string[] }
+  /**
+   * `<digits>_<name>`: a millisecond stamp, one underscore, then a picked file's OWN name with every
+   * character outside [A-Za-z0-9._-] already replaced. No extension list: the writer keeps whatever
+   * the device called the file. It starts with a digit, so it is never a dot segment or a hidden file.
+   */
+  | { readonly kind: 'stampedName' }
   | { readonly kind: 'literal'; readonly value: string };
 
 export interface StoragePathShape {
@@ -131,6 +151,41 @@ export const MESSAGE_ATTACHMENT_PATH: StoragePathShape = {
   segments: [ID, ID, idFile('jpg', 'png', 'webp', 'pdf')],
 };
 
+/**
+ * project-photos, any jobsite photo: `<user id>/<project id>/<file>.<image ext>`.
+ *   app     utils/photoUploadCore.ts buildPhotoStoragePath — the one key builder for the bucket. Its
+ *           callers name the file after the record: a photo / report / ticket photo id, `punch-<id>`,
+ *           `punch-<id>-after`, `punch-<id>-r<stamp>`, `hazard-<uuid>`, `incident-<uuid>`, `permit-<uuid>`
+ *           (contexts/ProjectContext.tsx stagePhotoUpload, app/daily-report.tsx, app/deliveries.tsx,
+ *           app/permits.tsx, app/safety-hazards.tsx, app/safety-incidents.tsx, utils/punchEditLayout.ts);
+ *           the extension is photoExtFromUri's, one of the six below, always lower case.
+ *   The uploader's id is the first folder (the bucket's insert policy), the job's id the second.
+ * The readers that sign a `photos.uri` for someone with no account (signed-media-urls,
+ * shared-photos-sign, job-facts-view) take it only in this shape, pinned to the job they checked.
+ */
+export const PROJECT_PHOTO_PATH: StoragePathShape = {
+  bucket: 'project-photos',
+  segments: [ID, ID, file('jpg', 'jpeg', 'png', 'heic', 'heif', 'webp')],
+};
+
+/**
+ * rfp-attachments: `<user id>/<rfp id>/<stamp>_<name>`.
+ *   app     utils/storage.ts uploadRfpAttachment (`${Date.now()}_` + the picked file's own name with
+ *           every character outside [a-zA-Z0-9._-] replaced; app/post-rfp.tsx picks photos from the
+ *           library and PDFs / images from Files — on iOS "an image" is every type the system knows
+ *           (.jfif, .svg, .dng, …), and on the web the type list is only a hint, so any file can arrive)
+ * The writer keeps the name as it is: any extension in any case (`IMG_0012.JPG`, `Drawing.Pdf`,
+ * `notes.docx`), none at all (`README`), a trailing dot. So the last segment is matched by PATTERN,
+ * not by an extension list: digits, one underscore, then only the characters the writer lets through.
+ * The one thing still refused is a name so long that the whole key passes STORAGE_PATH_MAX_LENGTH
+ * (more than 168 characters behind a 13-digit stamp); delete-account, the one reader of this shape,
+ * removes such an object through its walk of the user's own folder.
+ */
+export const RFP_ATTACHMENT_PATH: StoragePathShape = {
+  bucket: 'rfp-attachments',
+  segments: [ID, ID, { kind: 'stampedName' }],
+};
+
 // ── The layers. Each is exported so the guard can test it ALONE: with two
 //    layers refusing the same input, a behaviour test of the whole rule cannot
 //    see one of them being removed. ─────────────────────────────────────────
@@ -159,6 +214,9 @@ export function storageSegmentMatches(segment: string, rule: StorageSegmentRule)
     const stem = segment.slice(0, 36);
     return STORAGE_ID_RE.test(stem) && segment.charAt(36) === '.' && rule.extensions.includes(segment.slice(37));
   }
+  if (rule.kind === 'stampedName') {
+    return segment.length <= STORAGE_STAMPED_NAME_MAX_LENGTH && STORAGE_STAMPED_NAME_RE.test(segment);
+  }
   if (segment.length > STORAGE_FILE_NAME_MAX_LENGTH) return false;
   if (!STORAGE_FILE_NAME_RE.test(segment)) return false;
   const dot = segment.lastIndexOf('.');
@@ -177,9 +235,24 @@ export function storagePathSurvivesUrlParser(path: string): boolean {
 }
 
 /**
+ * True when a pinned key names one of the path's segments: '0', '1', … below
+ * `count`, written the one way a number prints. 'project', '01', '1.5', '-1',
+ * ' 1', '' and an index past the last segment do not.
+ */
+export function storagePinIndexIsSegment(index: string, count: number): boolean {
+  return /^(0|[1-9][0-9]*)$/.test(index) && Number(index) < count;
+}
+
+/**
  * THE RULE. `raw` is returned unchanged when it is exactly `shape`, and null
  * otherwise. `pinned` maps a segment index to the value it must equal (the
- * caller's user id, the project the caller was checked against).
+ * caller's user id, the project the caller was checked against). A pinned key
+ * that is not a segment index refuses: `{ project: id }` used to be read as no
+ * pin at all, and the path was accepted for any project. For the same reason
+ * the pin must be a plain object and EVERY own key of it is read (Reflect.ownKeys):
+ * a Map, an array and an object whose keys are inherited show Object.keys nothing
+ * and are refused; a symbol key is refused; a non-enumerable key is checked like
+ * any other key instead of being skipped.
  *
  * The string this returns is the string to check access on AND the string to
  * hand to storage. Never the input again.
@@ -190,6 +263,9 @@ export function requestStoragePath(
   pinned: Readonly<Record<number, string>> = {},
 ): string | null {
   if (typeof raw !== 'string') return null;
+  if (pinned === null || typeof pinned !== 'object') return null;
+  const pinKind = Object.getPrototypeOf(pinned);
+  if (pinKind !== Object.prototype && pinKind !== null) return null;
   if (raw.length === 0 || raw.length > STORAGE_PATH_MAX_LENGTH) return null;
   if (storagePathHasForbiddenChar(raw)) return null;
   const segments = storagePathSegments(raw);
@@ -197,7 +273,8 @@ export function requestStoragePath(
   for (let i = 0; i < segments.length; i++) {
     if (!storageSegmentMatches(segments[i], shape.segments[i])) return null;
   }
-  for (const index of Object.keys(pinned)) {
+  for (const index of Reflect.ownKeys(pinned)) {
+    if (typeof index !== 'string' || !storagePinIndexIsSegment(index, segments.length)) return null;
     if (segments[Number(index)] !== pinned[Number(index)]) return null;
   }
   if (!storagePathSurvivesUrlParser(raw)) return null;

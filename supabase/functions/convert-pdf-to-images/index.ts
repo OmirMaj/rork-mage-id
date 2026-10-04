@@ -74,7 +74,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from '../_shared/auth.ts';
 import { mintLegacyViewUrl } from '../_shared/planSheetBytes.ts';
-import { PDF_UPLOAD_PATH, planSheetPagePath, requestStoragePath } from '../_shared/storagePath.ts';
+import { PDF_UPLOAD_PATH, isStorageId, planSheetPagePath, requestStoragePath } from '../_shared/storagePath.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -241,7 +241,14 @@ serve(async (req) => {
       .eq('user_id', auth.userId)
       .maybeSingle();
     if (ownErr || !ownedProject) {
-      log('idor_blocked_project', { projectId, userId: auth.userId });
+      // The project id is request text that matched no row of the caller's, so
+      // it is not written to the log either: whether it is an id at all, and
+      // its length, are enough to debug with.
+      log('idor_blocked_project', {
+        projectIdIsId: isStorageId(projectId),
+        projectIdLength: typeof projectId === 'string' ? projectId.length : -1,
+        userId: auth.userId,
+      });
       return json({ success: false, error: 'forbidden: project not owned by caller' }, 403);
     }
 

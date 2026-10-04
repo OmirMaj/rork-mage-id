@@ -26,7 +26,12 @@
 //   • its stored value is a project-photos storage path of the canonical shape
 //     `<row.user_id>/<projectId>/<file>`. That last check matters: an editor
 //     can write any string into photos.uri, and without it a crafted row could
-//     make this service-role signer hand out ANOTHER job's photo.
+//     make this service-role signer hand out ANOTHER job's photo. The check is
+//     the one storage-path rule (_shared/storagePath.ts requestStoragePath with
+//     PROJECT_PHOTO_PATH, pinned to the row's user and the requested project),
+//     run when the rows are filtered and again on the keys handed to Storage.
+//     It used to be this function's own "three segments, the middle one is the
+//     project" test, which `<user>/<project>/%2e%2e` passed.
 // One answer for every refusal (unknown project, foreign ids, nothing stored)
 // — 401 'denied' — so the endpoint is no oracle for which projects exist.
 // `d` (the local day) is null: the server has no time zone for the job; the
@@ -36,6 +41,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { clientIpFrom } from "../_shared/notifyGuards.ts";
+import { PROJECT_PHOTO_PATH, requestStoragePath } from "../_shared/storagePath.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -60,7 +66,10 @@ const SIGNED_URL_TTL_SECONDS = 60 * 60;
 const PHOTO_BUCKET = "project-photos";
 
 // ── pure:begin ── (scripts/validate-w5-scan-files-share.ts transpiles and
-// runs this block under bun — keep it free of Deno / network references)
+// runs this block under bun — keep it free of Deno / network references. Its
+// one outside dependency is the storage-path rule imported above,
+// requestStoragePath and PROJECT_PHOTO_PATH; the scripts that run the block
+// import those two names from the same module.)
 export const SHARE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Above the client's PHOTO_SHARE_MAX (30) with headroom; bounds the query. */
 export const SHARE_MAX_IDS = 60;
@@ -84,27 +93,31 @@ export function parseShareSignRequest(body: unknown): ShareSignRequest | null {
   return { projectId: b.projectId.toLowerCase(), photoIds: ids };
 }
 
-/** A photos.uri value → its project-photos storage key, or '' (a device-local
- *  file:// capture, a seed/demo URL, another bucket). */
+/** A photos.uri value → the string to judge as a project-photos storage key,
+ *  or '' (a device-local file:// capture, a seed/demo URL, another bucket).
+ *  A Supabase object URL of the bucket is reduced to the key it names; a bare
+ *  value is returned EXACTLY as it is stored — never trimmed, never stripped of
+ *  a leading slash. The answer is a candidate, not a key: only what
+ *  requestStoragePath returns for it is one. */
 export function shareStoragePathOf(uri: unknown): string {
   if (typeof uri !== "string") return "";
-  const raw = uri.trim();
-  if (!raw) return "";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-    if (!/^https?:\/\//i.test(raw)) return "";
+  const kind = uri.trim();
+  if (!kind) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(kind)) {
+    if (!/^https?:\/\//i.test(kind)) return "";
     for (const marker of [
       `/storage/v1/object/public/${"project-photos"}/`,
       `/storage/v1/object/sign/${"project-photos"}/`,
       `/storage/v1/object/${"project-photos"}/`,
     ]) {
-      const at = raw.indexOf(marker);
+      const at = kind.indexOf(marker);
       if (at < 0) continue;
-      const tail = raw.slice(at + marker.length).split("?")[0];
+      const tail = kind.slice(at + marker.length).split("?")[0];
       try { return decodeURIComponent(tail); } catch { return tail; }
     }
     return "";
   }
-  return raw.replace(/^\/+/, "");
+  return uri;
 }
 
 export interface SharePhotoRow {
@@ -117,7 +130,9 @@ export interface SharePhotoRow {
   portal_state: { status?: unknown } | null;
 }
 
-export interface SignablePhoto { id: string; path: string; ts: string | null; tag: string | null }
+/** `path` is the storage-path rule's answer; `owner` is the row's user, the
+ *  first folder that answer was pinned to (never sent to the caller). */
+export interface SignablePhoto { id: string; path: string; owner: string; ts: string | null; tag: string | null }
 
 /** The rows this link may show, in the order the link asked for them. */
 export function signableSharePhotos(rows: readonly SharePhotoRow[], req: ShareSignRequest): SignablePhoto[] {
@@ -129,12 +144,12 @@ export function signableSharePhotos(rows: readonly SharePhotoRow[], req: ShareSi
     if (String(r.project_id ?? "").toLowerCase() !== req.projectId) continue;
     const status = r.portal_state && typeof r.portal_state === "object" ? r.portal_state.status : undefined;
     if (r.portal_state && status !== "sent") continue; // drafted / recalled
-    const path = shareStoragePathOf(r.uri);
-    const segs = path.split("/");
-    if (segs.length !== 3 || !segs[2]) continue;
-    if (segs[1].toLowerCase() !== req.projectId) continue;
-    if (!r.user_id || segs[0].toLowerCase() !== String(r.user_id).toLowerCase()) continue;
-    byId.set(id, { id: r.id, path, ts: r.timestamp ?? null, tag: r.tag ?? null });
+    if (!r.user_id) continue;
+    const owner = String(r.user_id).toLowerCase();
+    // The one rule: exactly `<the row's user>/<the requested project>/<file>.<image ext>`.
+    const path = requestStoragePath(shareStoragePathOf(r.uri), PROJECT_PHOTO_PATH, { 0: owner, 1: req.projectId });
+    if (!path) continue;
+    byId.set(id, { id: r.id, path, owner, ts: r.timestamp ?? null, tag: r.tag ?? null });
   }
   return req.photoIds.map((id) => byId.get(id)).filter((p): p is SignablePhoto => !!p);
 }
@@ -168,9 +183,18 @@ serve(async (req) => {
   const ok = signableSharePhotos((rows ?? []) as SharePhotoRow[], parsed);
   if (ok.length === 0) return DENIED();
 
+  // Storage is handed the rule's answer for each key (same shape, same pins),
+  // never a string of the row's own.
+  const keys: string[] = [];
+  for (const p of ok) {
+    const key = requestStoragePath(p.path, PROJECT_PHOTO_PATH, { 0: p.owner, 1: parsed.projectId });
+    if (key) keys.push(key);
+  }
+  if (keys.length === 0) return DENIED();
+
   const { data: signed, error: signErr } = await svc.storage
     .from(PHOTO_BUCKET)
-    .createSignedUrls(ok.map((p) => p.path), SIGNED_URL_TTL_SECONDS);
+    .createSignedUrls(keys, SIGNED_URL_TTL_SECONDS);
   if (signErr || !signed) return json({ error: "signing failed" }, 500);
 
   // A photo whose row synced before its bytes did has no object yet — it is

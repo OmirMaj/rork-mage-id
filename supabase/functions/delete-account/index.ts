@@ -89,6 +89,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { requireTier } from '../_shared/auth.ts';
+import { PLAN_SHEET_PATH, RFP_ATTACHMENT_PATH, requestStoragePath } from '../_shared/storagePath.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -367,7 +368,10 @@ const IN_CHUNK = 100;
 const SAFE_DELETE_KEY = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /**
- * Turn a stored URL into a bucket-relative storage path.
+ * Turn a stored value into the string to judge as a bucket-relative storage
+ * path. The answer is a CANDIDATE, never a key: step 1 hands it to the one
+ * storage-path rule (_shared/storagePath.ts requestStoragePath), and only what
+ * the rule returns is ever removed.
  *
  * Rows persist a mix of shapes: public_bids.photo_urls / drawing_urls hold
  * full public URLs (utils/storage.ts uploadRfpAttachment returns
@@ -377,6 +381,11 @@ const SAFE_DELETE_KEY = /^[A-Za-z0-9._:-]{1,128}$/;
  * null for anything that is not ours (an http URL pointing at some other host,
  * or a file:// URI that never uploaded). The bare-path arm below is what keeps
  * post-DB-F11 plan_sheets rows deletable — do not "tighten" it to URLs only.
+ *
+ * A bare value is returned EXACTLY as the row holds it. It used to be cut at a
+ * '?' or '#' and stripped of leading slashes, which made a second string that
+ * nothing had checked; a value that needs repairing is not a writer's key, and
+ * the rule refuses it.
  */
 function storagePathFromUrl(raw: unknown, bucket: string): string | null {
   if (typeof raw !== 'string' || raw.length === 0) return null;
@@ -387,8 +396,7 @@ function storagePathFromUrl(raw: unknown, bucket: string): string | null {
     // Not a Storage URL. A bare relative path is a valid stored shape; an
     // absolute URL to anywhere else is not.
     if (/^[a-z][a-z0-9+.-]*:/i.test(clean)) return null;
-    const bare = clean.replace(/^\/+/, '');
-    return bare.length > 0 ? bare : null;
+    return raw;
   }
   // .../object/public/<bucket>/<path>, .../object/sign/<bucket>/<path>
   // and .../object/authenticated/<bucket>/<path> all appear in the wild.
@@ -398,6 +406,47 @@ function storagePathFromUrl(raw: unknown, bucket: string): string | null {
   const path = rest.slice(prefix.length);
   if (path.length === 0) return null;
   try { return decodeURIComponent(path); } catch { return path; }
+}
+
+// ── THE LEGACY SHARED FOLDER IS NEVER DELETED FROM (security review 2026-10-04) ──
+//
+// Before audit DB-F11, a plan render made before a project was picked landed
+// in plan-sheets under ONE folder every account shared: `tmp/`. Nothing has
+// been written there since, and no client can read it (the bucket's policies
+// need a project id as the first folder), but the objects remain.
+//
+// This function used to remove a `tmp/…` object when one of the caller's
+// plan_sheets rows pointed at it — "we cannot prove ownership inside it, only
+// that the row claiming the object is ours". That is the hole: image_uri is a
+// column the app writes, so anyone who learned a stranger's tmp key could point
+// a row of their own at it and delete their account to destroy it.
+//
+// So: account deletion never removes an object under `tmp/`. A row that points
+// there is COUNTED (legacyTmpPlanSheetsKept, in the log and the response) and
+// the object stays. What is left behind is unreadable by every client; clearing
+// the folder is a one-off the operator runs by hand, not something a request
+// can trigger.
+const LEGACY_SHARED_PLAN_FOLDER = 'tmp';
+
+/**
+ * What one of the caller's plan_sheets rows may make this function do, read
+ * from its image_uri (a column the app writes — never proof of ownership):
+ *   'legacy-shared'  it points into the shared tmp/ folder: counted, never removed;
+ *   'owned'          its first folder is a project the caller owns. `candidate`
+ *                    is still only a candidate — the caller hands it to the
+ *                    storage-path rule pinned to `folder`, and removes what the
+ *                    rule returns;
+ *   null             anything else (another account's project, a device-local
+ *                    URI, another bucket): not ours to touch.
+ * Pure; scripts/validate-storage-paths.ts runs it against the attack corpus.
+ */
+type PlanSheetRowTarget = { kind: 'legacy-shared' } | { kind: 'owned'; candidate: string; folder: string } | null;
+function planSheetRowTarget(imageUri: unknown, ownedProjectIds: ReadonlySet<string>): PlanSheetRowTarget {
+  const candidate = storagePathFromUrl(imageUri, 'plan-sheets');
+  if (!candidate) return null;
+  const folder = candidate.split('/')[0];
+  if (folder === LEGACY_SHARED_PLAN_FOLDER) return { kind: 'legacy-shared' };
+  return ownedProjectIds.has(folder) ? { kind: 'owned', candidate, folder } : null;
 }
 
 /** Everything step 1 reads and steps 2–3 consume. */
@@ -411,7 +460,12 @@ interface Collected {
   subPortalIds: string[];
   /** Ids that failed SAFE_DELETE_KEY and were dropped before becoming a key — dropped, counted. */
   malformedIds: number;
-  explicitObjects: Array<{ bucket: string; path: string }>;
+  /**
+   * plan_sheets rows of the caller whose image points into the legacy shared
+   * `tmp/` folder of plan-sheets. Those objects are LEFT IN PLACE — counted,
+   * never removed (see LEGACY_SHARED_PLAN_FOLDER).
+   */
+  legacyTmpPlanSheetsKept: number;
   /**
    * Projects the caller was invited onto (a project_collaborators row with
    * his uid) that someone ELSE owns, with that owner. His field rows on these
@@ -567,6 +621,16 @@ serve(async (req) => {
     //    be skipped silently. So the whole pass is one unit: any failure is
     //    answered with a 500 while nothing has been deleted, and the user
     //    simply retries.
+    // Storage keys named by the caller's ROWS rather than found by walking a
+    // folder (step 3 removes them after the walks). Filled in step 1, and each
+    // one is an answer of the storage-path rule — `<an owned project>/<file>`
+    // in plan-sheets, `<the caller>/<rfp>/<file>` in rfp-attachments — never a
+    // string read out of a row. They live out here, not in `Collected`, so the
+    // array a storage call receives is visibly the array the rule filled
+    // (scripts/validate-storage-paths.ts proves that from the syntax tree).
+    const explicitObjectsPlanSheets: string[] = [];
+    const explicitObjectsRfp: string[] = [];
+
     const collectTenantKeys = async (): Promise<Collected> => {
       // Every id list passes through this before it is used for ANYTHING —
       // a PostgREST filter value or a storage prefix. See SAFE_DELETE_KEY.
@@ -641,53 +705,57 @@ serve(async (req) => {
       const subPortalIds: string[] = gate('sub-portal', (await selectAllByUser('sub_portal_links', 'id'))
         .map(r => String(r.id ?? '')).filter(Boolean));
 
-      // Objects whose path does NOT start with a prefix we can walk:
-      //  - plan-sheets renders made before a project was picked landed under the
-      //    SHARED `tmp/` folder (app/takeoff.tsx used to pass projectId ?? 'tmp'
-      //    — DB-F11 removed that, but the objects already written there remain),
-      //    so a prefix walk would either miss them or delete other users'
-      //    sheets. plan_sheets.image_uri is the only record of which ones are
-      //    ours.
+      // Objects the caller's ROWS name, on top of what the prefix walks find:
+      //  - plan_sheets.image_uri: a sheet image under one of the caller's
+      //    projects. (Renders made before a project was picked landed under the
+      //    SHARED `tmp/` folder — app/takeoff.tsx used to pass
+      //    projectId ?? 'tmp'; DB-F11 removed that. Those are counted and left
+      //    alone: see LEGACY_SHARED_PLAN_FOLDER.)
       //  - RFP attachments are under <uid>/, but reading photo_urls/drawing_urls
-      //    also catches any row whose attachments were uploaded under a
-      //    different prefix, which is the exact data (interior photos of a home)
-      //    the audit found surviving deletion.
+      //    also names them one by one, which is the exact data (interior photos
+      //    of a home) the audit found surviving deletion.
       //
       // BOTH columns are client-writable (app/post-rfp.tsx inserts photo_urls
-      // verbatim; plan_sheets.image_uri likewise), so a URL read out of a row is
-      // NOT proof of ownership. Someone could point their own row at a stranger's
-      // object and then delete their account to destroy it. Every derived path is
-      // therefore re-checked against a prefix this caller could legitimately own
-      // before it is queued for removal.
-      const firstSegment = (p: string) => p.split('/')[0];
-      const ownedPlanPrefixes = new Set<string>([
-        ...projectIds,
-        // Renders made before a project was picked share this folder. We cannot
-        // prove ownership inside it, only that the row claiming the object is
-        // ours — accepted because the alternative is leaving the departing
-        // user's drawings in the bucket permanently. HISTORICAL ONLY since
-        // DB-F11: nothing new is written under tmp/, but the objects that are
-        // already there still have to be deletable.
-        'tmp',
-      ]);
-      const explicitObjects: Array<{ bucket: string; path: string }> = [];
+      // verbatim; plan_sheets.image_uri likewise), so a value read out of a row
+      // is NOT proof of ownership. Someone could point their own row at a
+      // stranger's object and then delete their account to destroy it.
+      //
+      // The check used to be this function's own: "the first segment is a
+      // prefix I own". `<my project>/%2e%2e/<your project>/a.png` passes that.
+      // It is now the one storage-path rule: the value must be EXACTLY the
+      // shape the bucket's writer produces, pinned to a project the caller owns
+      // (plan-sheets) or to the caller (rfp-attachments). What the rule
+      // refuses is not queued; if it really is the caller's, the walk of their
+      // own folder in step 3 still removes it.
+      const ownedPlanFolders = new Set<string>(projectIds);
+      const queued = new Set<string>();
+      let legacyTmpPlanSheetsKept = 0;
       for (const row of await selectAllByUser('plan_sheets', 'image_uri')) {
-        const path = storagePathFromUrl(row.image_uri, 'plan-sheets');
-        if (path && ownedPlanPrefixes.has(firstSegment(path))) {
-          explicitObjects.push({ bucket: 'plan-sheets', path });
+        const target = planSheetRowTarget(row.image_uri, ownedPlanFolders);
+        if (!target) continue;
+        if (target.kind === 'legacy-shared') {
+          // Counted, never removed, whatever follows the first segment.
+          legacyTmpPlanSheetsKept++;
+          continue;
+        }
+        const key = requestStoragePath(target.candidate, PLAN_SHEET_PATH, { 0: target.folder });
+        if (key && !queued.has(`plan-sheets/${key}`)) {
+          queued.add(`plan-sheets/${key}`);
+          explicitObjectsPlanSheets.push(key);
         }
       }
       for (const row of await selectAllByUser('public_bids', 'photo_urls,drawing_urls')) {
-        for (const key of ['photo_urls', 'drawing_urls'] as const) {
-          const urls = row[key];
+        for (const column of ['photo_urls', 'drawing_urls'] as const) {
+          const urls = row[column];
           if (!Array.isArray(urls)) continue;
           for (const url of urls) {
-            const path = storagePathFromUrl(url, 'rfp-attachments');
-            // uploadRfpAttachment always writes <uid>/<rfpId>/<file>, and the
-            // bucket's RLS requires folder[1] = auth.uid(), so anything else in
-            // this column was hand-written and is not ours to delete.
-            if (path && firstSegment(path) === userId) {
-              explicitObjects.push({ bucket: 'rfp-attachments', path });
+            // uploadRfpAttachment always writes <uid>/<rfpId>/<stamp>_<name>, and
+            // the bucket's RLS requires folder[1] = auth.uid(), so anything else
+            // in this column was hand-written and is not ours to delete.
+            const key = requestStoragePath(storagePathFromUrl(url, 'rfp-attachments'), RFP_ATTACHMENT_PATH, { 0: userId });
+            if (key && !queued.has(`rfp-attachments/${key}`)) {
+              queued.add(`rfp-attachments/${key}`);
+              explicitObjectsRfp.push(key);
             }
           }
         }
@@ -719,7 +787,7 @@ serve(async (req) => {
           if (projectId && ownerId && ownerId !== userId) handedOver.push({ projectId, ownerId });
         }
       }
-      return { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver };
+      return { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, legacyTmpPlanSheetsKept, handedOver };
     };
 
     let collected: Collected | null = null;
@@ -737,7 +805,11 @@ serve(async (req) => {
         error: `Could not read your data (${reason}). Nothing was deleted — please try again in a moment.`,
       }, 500);
     }
-    const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver } = collected;
+    const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, legacyTmpPlanSheetsKept, handedOver } = collected;
+    if (legacyTmpPlanSheetsKept > 0) {
+      // Count only: the key names a folder every account once shared.
+      console.warn(`[delete-account] ${legacyTmpPlanSheetsKept} plan sheet row(s) point into the legacy shared tmp/ folder of plan-sheets; those objects are left in place (account deletion never removes from a shared folder)`);
+    }
     writesStarted = true;
 
     // ── 2-00. AI off for this account before a single row is deleted (lane AICONSENT).
@@ -1092,17 +1164,37 @@ serve(async (req) => {
     for (const bucket of SUBCONTRACTOR_KEYED_BUCKETS) {
       for (const subId of subcontractorIds) await removePrefix(bucket, `${subId}/`);
     }
-    // Anything the deleted rows pointed at that no prefix walk would reach.
-    const byBucket = new Map<string, string[]>();
-    for (const { bucket, path } of explicitObjects) {
-      const acc = byBucket.get(bucket);
-      if (acc) acc.push(path); else byBucket.set(bucket, [path]);
-    }
-    for (const [bucket, paths] of byBucket) {
+    // Anything the deleted rows named one by one (step 1). Every key here is
+    // an answer of the storage-path rule, pinned to a project the caller owns
+    // or to the caller; the walks above have normally removed these objects
+    // already, and this pass is the second chance when a list() failed. An
+    // object under the legacy shared tmp/ folder is never in either list.
+    for (let i = 0; i < explicitObjectsPlanSheets.length; i += PAGE) {
+      const chunk = explicitObjectsPlanSheets.slice(i, i + PAGE);
       try {
-        await removePaths(bucket, paths);
+        const { data, error } = await sb.storage.from('plan-sheets').remove(chunk);
+        if (error) {
+          console.error(`[delete-account] storage remove plan-sheets (by row) failed; ${chunk.length} object(s) may remain:`, error.message);
+          storageRemoveErrors++;
+          continue;
+        }
+        storageObjectsRemoved += Array.isArray(data) ? data.length : 0;
       } catch (err) {
-        console.error(`[delete-account] storage cleanup ${bucket} (by url) failed:`, err);
+        console.error('[delete-account] storage cleanup plan-sheets (by row) failed:', err);
+      }
+    }
+    for (let i = 0; i < explicitObjectsRfp.length; i += PAGE) {
+      const chunk = explicitObjectsRfp.slice(i, i + PAGE);
+      try {
+        const { data, error } = await sb.storage.from('rfp-attachments').remove(chunk);
+        if (error) {
+          console.error(`[delete-account] storage remove rfp-attachments (by row) failed; ${chunk.length} object(s) may remain:`, error.message);
+          storageRemoveErrors++;
+          continue;
+        }
+        storageObjectsRemoved += Array.isArray(data) ? data.length : 0;
+      } catch (err) {
+        console.error('[delete-account] storage cleanup rfp-attachments (by row) failed:', err);
       }
     }
 
@@ -1131,6 +1223,11 @@ serve(async (req) => {
       storageListErrors,
       // remove() batches that failed (their objects are still there).
       storageRemoveErrors,
+      // The caller's plan sheet rows that pointed into the legacy shared tmp/
+      // folder of plan-sheets. Those objects were NOT removed — nothing under
+      // a folder every account once shared is ever deleted by a request. Count
+      // only; the operator clears that folder by hand.
+      legacyTmpPlanSheetsKept,
       // Claimed portal ids that also resolved to another tenant's project and
       // were therefore NOT used as delete keys. Non-zero means someone wrote a
       // foreign portal id into this account's client_portal.

@@ -111,7 +111,11 @@ console.log('\n#62 shared-photos-sign refuses everything it should:');
   ok('the function has its pure block', a > 0 && b > a);
   const dir = mkdtempSync(join(tmpdir(), 'w5-share-'));
   const file = join(dir, 'pure.ts');
-  writeFileSync(file, src.slice(a, b));
+  // The block's one outside dependency is the storage-path rule (lane SEC3):
+  // the sliced file imports the same two names index.ts imports, from the same module.
+  const ruleModule = join(process.cwd(), 'supabase/functions/_shared/storagePath.ts');
+  ok('index.ts takes its key rule from _shared/storagePath.ts', src.includes('import { PROJECT_PHOTO_PATH, requestStoragePath } from "../_shared/storagePath.ts";'));
+  writeFileSync(file, `import { PROJECT_PHOTO_PATH, requestStoragePath } from ${JSON.stringify(ruleModule)};\n${src.slice(a, b)}`);
   // Typed by hand: importing the Deno module's types would drag its https
   // imports into tsc (supabase/functions is outside the app's tsconfig).
   type Req = { projectId: string; photoIds: string[] };
@@ -142,6 +146,21 @@ console.log('\n#62 shared-photos-sign refuses everything it should:');
   eq('only stored, sent-or-plain, same-project, owner-folder, asked photos are signed', out.map(p => p.id), [id(1), id(2), id(8)]);
   eq('a legacy object URL is reduced to its path', out[2]?.path, `${UID}/${PID}/${id(8)}.jpg`);
   eq('a seed / demo URL is not a storage path', fn.shareStoragePathOf('https://picsum.photos/seed/x/640/480'), '');
+  // Lane SEC3: the path check is the one storage-path rule, pinned to the row's user and the requested project.
+  const crafted = fn.signableSharePhotos([
+    row(1, { uri: `${UID}/${PID}/%2e%2e` }),                           // passed the old "three segments" test
+    row(2, { uri: `${UID}/${PID}/.%2E` }),
+    row(3, { uri: ` ${UID}/${PID}/${id(3)}.jpg` }),                    // padded: refused, never trimmed
+    row(4, { uri: `/${UID}/${PID}/${id(4)}.jpg` }),                    // slash-led: refused, never stripped
+    row(5, { uri: `${UID}/${PID}/${id(5)}.exe` }),
+    row(6, { uri: `https://x.supabase.co/storage/v1/object/sign/project-photos/${UID}/${PID}/%2e%2e/${id(6)}.jpg?token=t` }),
+    row(7, { uri: `${UID.toUpperCase()}/${PID}/${id(7)}.jpg` }),       // another folder to Storage
+  ], all);
+  eq('an encoded dot segment, a padded, slash-led, non-image or upper-case-folder path is refused', crafted.map(p => p.id), []);
+  ok('a signable photo carries the rule\'s answer and the owner it was pinned to', out.every(p => p.path === `${UID}/${PID}/${p.id}.jpg` && (p as { owner?: string }).owner === UID));
+  ok('Storage is handed the rule\'s answers, re-checked with the same pins',
+    /const key = requestStoragePath\(p\.path, PROJECT_PHOTO_PATH, \{ 0: p\.owner, 1: parsed\.projectId \}\);\s*if \(key\) keys\.push\(key\);/.test(src)
+    && /\.createSignedUrls\(keys, SIGNED_URL_TTL_SECONDS\)/.test(src) && !/createSignedUrls\(ok\.map/.test(src));
   ok('refusals are one 401 "denied" (no oracle)', /const DENIED = \(\) => json\(\{ error: "denied", code: "denied" \}, 401\)/.test(src));
   ok('signed URLs live 1 hour', /SIGNED_URL_TTL_SECONDS = 60 \* 60;/.test(src));
 }

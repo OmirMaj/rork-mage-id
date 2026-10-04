@@ -18,9 +18,15 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { rfiReferencedSheetKeys, rfiSheetKeysToSign } from '../supabase/functions/signed-media-urls/core';
 
 const ROOT = join(__dirname, '..');
+// Loaded by a path built at run time: core.ts imports the storage-path rule
+// with a Deno `.ts` specifier, which the app's tsc program must not pull in
+// (supabase/functions is outside tsconfig). The two functions are typed here.
+const { rfiReferencedSheetKeys, rfiSheetKeysToSign } = (await import(join(ROOT, 'supabase/functions/signed-media-urls/core.ts'))) as {
+  rfiReferencedSheetKeys: (attachments: unknown, pinSheetPaths: unknown[], projectId: string) => Set<string>;
+  rfiSheetKeysToSign: (paths: string[], projectId: string, referenced: Set<string>) => Map<string, string[]>;
+};
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
 let pass = 0;
@@ -37,36 +43,47 @@ const HOST = 'https://ref.supabase.co';
 // ── A. rfi_sheets: only what the RFI references ─────────────────────────────
 console.log('\nA. rfi_sheets signs only the sheets the RFI references');
 {
+  // Keys are the shape the bucket's writers produce — `<project>/<file>.png|jpg`
+  // (utils/planSheetImageCore, convert-pdf-to-images) — and the one storage-path
+  // rule decides them (lane SEC3): no other depth is a plan-sheets key.
   const attachments = [
-    `${P}/sheets/A-101.png`,                                               // the app's durable key (#93)
-    `${HOST}/storage/v1/object/public/plan-sheets/${P}/sheets/A-102.png`,  // a legacy public link
-    `${OTHER}/sheets/X-1.png`,                                             // another tenant's key written into the row
-    { uri: `${P}/sheets/obj.png` },                                        // not a string: ignored, like the page does
-    `${HOST}/storage/v1/object/public/project-photos/${P}/p.jpg`,          // a photo link, not a sheet
+    `${P}/A-101.png`,                                               // the app's durable key (#93)
+    `${HOST}/storage/v1/object/public/plan-sheets/${P}/A-102.png`,  // a legacy public link
+    `${OTHER}/X-1.png`,                                             // another tenant's key written into the row
+    { uri: `${P}/obj.png` },                                        // not a string: ignored, like the page does
+    `${HOST}/storage/v1/object/public/project-photos/${P}/p.jpg`,   // a photo link, not a sheet
+    `${P}/sheets/A-103.png`,                                        // a deeper key than any writer makes
+    `${P}/%2e%2e/${OTHER}/X-1.png`,                                 // an encoded dot segment
   ];
-  const pinSheets = [`${P}/sheets/S-201.png`, null, 7];
+  const pinSheets = [`${P}/S-201.png`, null, 7];
   const ref = rfiReferencedSheetKeys(attachments, pinSheets, P);
-  check('attachment key is referenced', ref.has(`${P}/sheets/A-101.png`));
-  check('legacy public attachment link reduces to its key', ref.has(`${P}/sheets/A-102.png`));
-  check('a linked pin\'s sheet is referenced', ref.has(`${P}/sheets/S-201.png`));
-  check('another project\'s key in attachments is never referenced', !ref.has(`${OTHER}/sheets/X-1.png`));
-  check('non-string entries and photo links add nothing', ref.size === 3, JSON.stringify([...ref]));
+  check('attachment key is referenced', ref.has(`${P}/A-101.png`));
+  check('legacy public attachment link reduces to its key', ref.has(`${P}/A-102.png`));
+  check('a linked pin\'s sheet is referenced', ref.has(`${P}/S-201.png`));
+  check('another project\'s key in attachments is never referenced', !ref.has(`${OTHER}/X-1.png`));
+  check('non-string entries, photo links, deeper keys and encoded dot segments add nothing', ref.size === 3, JSON.stringify([...ref]));
 
   // The critic's probe: a reply-link holder names an unreferenced sheet in the
   // same project folder. It must not be signed.
+  const A101_URL = `${HOST}/storage/v1/object/public/plan-sheets/${P}/A-101.png`;
   const asked = [
-    `${P}/sheets/A-101.png`,
-    `/${P}/sheets/A-101.png`,           // same key, the caller's own spelling
-    `${P}/sheets/SECRET-900.png`,       // in the folder, NOT referenced by this RFI
-    `${P}/sheets/S-201.png`,
-    `${OTHER}/sheets/X-1.png`,
-    `${P}/../${OTHER}/sheets/X-1.png`,
+    `${P}/A-101.png`,
+    A101_URL,                    // same key, the caller's own spelling (a legacy public link)
+    `/${P}/A-101.png`,           // a leading slash is not a key: refused, never stripped
+    ` ${P}/A-101.png`,           // nor is a padded one: refused, never trimmed
+    `${P}/SECRET-900.png`,       // in the folder, NOT referenced by this RFI
+    `${P}/S-201.png`,
+    `${OTHER}/X-1.png`,
+    `${P}/../${OTHER}/X-1.png`,
+    `${P}/%2e%2e/${OTHER}/X-1.png`,
   ];
   const plan = rfiSheetKeysToSign(asked, P, ref);
-  check('an unreferenced key in the RFI\'s project folder is refused (the probe)', !plan.has(`${P}/sheets/SECRET-900.png`), JSON.stringify([...plan.keys()]));
+  check('an unreferenced key in the RFI\'s project folder is refused (the probe)', !plan.has(`${P}/SECRET-900.png`), JSON.stringify([...plan.keys()]));
   check('referenced keys are signed, grouped by key with every asked spelling',
-    JSON.stringify(plan.get(`${P}/sheets/A-101.png`)) === JSON.stringify([`${P}/sheets/A-101.png`, `/${P}/sheets/A-101.png`]) && plan.has(`${P}/sheets/S-201.png`));
-  check('other-project and traversal keys stay refused', !plan.has(`${OTHER}/sheets/X-1.png`) && plan.size === 2, JSON.stringify([...plan.keys()]));
+    JSON.stringify(plan.get(`${P}/A-101.png`)) === JSON.stringify([`${P}/A-101.png`, A101_URL]) && plan.has(`${P}/S-201.png`));
+  check('a spelling that would need repairing (a leading slash, padding) is answered under no key',
+    ![...plan.values()].flat().some((spelling) => spelling.startsWith('/') || spelling.startsWith(' ')));
+  check('other-project and traversal keys stay refused', !plan.has(`${OTHER}/X-1.png`) && plan.size === 2, JSON.stringify([...plan.keys()]));
   check('an RFI with no attachments and no pins signs nothing', rfiSheetKeysToSign(asked, P, rfiReferencedSheetKeys([], [], P)).size === 0);
   check('a non-array attachments value is treated as none', rfiReferencedSheetKeys(null, [], P).size === 0 && rfiReferencedSheetKeys('x', [], P).size === 0);
 

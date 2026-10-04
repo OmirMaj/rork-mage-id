@@ -25,7 +25,10 @@
 // is re-checked against `photos` with the SAME rules as shared-photos-sign
 // (row on this job, not drafted / recalled in the portal, a canonical
 // `<row.user_id>/<projectId>/<file>` storage path) and signed for 1 h. A
-// revoked link signs nothing: the 404 returns before the photo query.
+// revoked link signs nothing: the 404 returns before the photo query. The path
+// check is the one storage-path rule (_shared/storagePath.ts requestStoragePath
+// with PROJECT_PHOTO_PATH, pinned to the row's user and the link's project),
+// run when the rows are filtered and again on the keys handed to Storage.
 //
 // WHAT IT RETURNS. Only the payload's allowlisted facts (built on the GC's
 // phone by utils/jobFacts/buildJobFacts.ts) and the publish day. Never
@@ -41,6 +44,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { clientIpFrom } from "../_shared/notifyGuards.ts";
+import { PROJECT_PHOTO_PATH, requestStoragePath } from "../_shared/storagePath.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -67,7 +71,10 @@ function json(body: unknown, status = 200): Response {
 }
 
 // ── pure:begin ── (scripts/validate-job-facts-view.ts transpiles and runs this
-// block under bun — keep it free of Deno / network references)
+// block under bun — keep it free of Deno / network references. Its one outside
+// dependency is the storage-path rule imported above, requestStoragePath and
+// PROJECT_PHOTO_PATH; the scripts that run the block import those two names
+// from the same module.)
 
 /** Same alphabet and length as the table check and public.job_fact_code(). */
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{12}$/;
@@ -122,27 +129,29 @@ export function payloadPhotoIds(payload: Record<string, unknown>): string[] {
   return ids;
 }
 
-/** A photos.uri value → its project-photos storage key, or ''. Verbatim the
- *  rule shared-photos-sign's shareStoragePathOf applies. */
+/** A photos.uri value → the string to judge as a project-photos storage key,
+ *  or ''. Verbatim what shared-photos-sign's shareStoragePathOf does: an object
+ *  URL of the bucket is reduced to the key it names, a bare value is returned
+ *  exactly as it is stored (never trimmed or stripped). A candidate, not a key. */
 export function factsStoragePathOf(uri: unknown): string {
   if (typeof uri !== "string") return "";
-  const raw = uri.trim();
-  if (!raw) return "";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-    if (!/^https?:\/\//i.test(raw)) return "";
+  const kind = uri.trim();
+  if (!kind) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(kind)) {
+    if (!/^https?:\/\//i.test(kind)) return "";
     for (const marker of [
       `/storage/v1/object/public/${"project-photos"}/`,
       `/storage/v1/object/sign/${"project-photos"}/`,
       `/storage/v1/object/${"project-photos"}/`,
     ]) {
-      const at = raw.indexOf(marker);
+      const at = kind.indexOf(marker);
       if (at < 0) continue;
-      const tail = raw.slice(at + marker.length).split("?")[0];
+      const tail = kind.slice(at + marker.length).split("?")[0];
       try { return decodeURIComponent(tail); } catch { return tail; }
     }
     return "";
   }
-  return raw.replace(/^\/+/, "");
+  return uri;
 }
 
 export interface FactsPhotoRow {
@@ -155,7 +164,9 @@ export interface FactsPhotoRow {
   portal_state: { status?: unknown } | null;
 }
 
-export interface FactsSignable { id: string; path: string; ts: string | null; tag: string | null }
+/** `path` is the storage-path rule's answer; `owner` is the row's user, the
+ *  first folder that answer was pinned to (never returned to the caller). */
+export interface FactsSignable { id: string; path: string; owner: string; ts: string | null; tag: string | null }
 
 /** The rows this link may show, in the order the payload lists them. The same
  *  decision as shared-photos-sign's signableSharePhotos (validated side by side). */
@@ -169,12 +180,12 @@ export function signableFactsPhotos(rows: readonly FactsPhotoRow[], projectId: s
     if (String(r.project_id ?? "").toLowerCase() !== pid) continue;
     const status = r.portal_state && typeof r.portal_state === "object" ? r.portal_state.status : undefined;
     if (r.portal_state && status !== "sent") continue; // drafted / recalled
-    const path = factsStoragePathOf(r.uri);
-    const segs = path.split("/");
-    if (segs.length !== 3 || !segs[2]) continue;
-    if (segs[1].toLowerCase() !== pid) continue;
-    if (!r.user_id || segs[0].toLowerCase() !== String(r.user_id).toLowerCase()) continue;
-    byId.set(id, { id: r.id, path, ts: r.timestamp ?? null, tag: r.tag ?? null });
+    if (!r.user_id) continue;
+    const owner = String(r.user_id).toLowerCase();
+    // The one rule: exactly `<the row's user>/<the link's project>/<file>.<image ext>`.
+    const path = requestStoragePath(factsStoragePathOf(r.uri), PROJECT_PHOTO_PATH, { 0: owner, 1: pid });
+    if (!path) continue;
+    byId.set(id, { id: r.id, path, owner, ts: r.timestamp ?? null, tag: r.tag ?? null });
   }
   return photoIds.map((id) => byId.get(id.toLowerCase())).filter((p): p is FactsSignable => !!p);
 }
@@ -237,10 +248,17 @@ serve(async (req) => {
         .in("id", ids);
       if (!pErr) {
         const ok = signableFactsPhotos((rows ?? []) as FactsPhotoRow[], link.projectId, ids);
-        if (ok.length > 0) {
+        // Storage is handed the rule's answer for each key (same shape, same
+        // pins), never a string of the row's own.
+        const keys: string[] = [];
+        for (const p of ok) {
+          const key = requestStoragePath(p.path, PROJECT_PHOTO_PATH, { 0: p.owner, 1: link.projectId });
+          if (key) keys.push(key);
+        }
+        if (keys.length > 0) {
           const { data: signed, error: sErr } = await svc.storage
             .from(PHOTO_BUCKET)
-            .createSignedUrls(ok.map((p) => p.path), SIGNED_URL_TTL_SECONDS);
+            .createSignedUrls(keys, SIGNED_URL_TTL_SECONDS);
           if (!sErr && signed) {
             const urlByPath = new Map<string, string>();
             for (const s of signed as { path?: string | null; signedUrl?: string | null; error?: string | null }[]) {

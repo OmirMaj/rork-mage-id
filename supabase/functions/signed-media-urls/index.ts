@@ -14,7 +14,8 @@
 //       stored snapshot (sections.photos / project.heroPhotoId), (2) a live
 //       row in the portal's project, (3) still shared (portal_state null or
 //       'sent' — a recall from any device takes effect on the next read), and
-//       (4) stored under that project's folder.
+//       (4) stored under that project's folder, as exactly the key shape the
+//       photo writer produces (_shared/storagePath.ts PROJECT_PHOTO_PATH).
 //       ← {urls: {photoId: url}} (project-photos, TTL 3600)
 //
 //   POST {kind:'rfi_sheets', shareToken, paths}
@@ -30,11 +31,17 @@
 // portal, disabled, wrong token, expired, unknown share token
 // look the same. An item that may not be signed is simply absent from `urls`.
 // Nothing about a failure (PostgREST / Storage text) is echoed to the caller.
+//
+// THE ONLY STORAGE CALL (signKeys) is handed keys the one storage-path rule
+// returned, for the shape of the bucket it signs in, pinned to the project the
+// token was checked against. A key the rule refuses is absent from `urls`,
+// exactly as an object that does not exist is.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { clientIpFrom } from "../_shared/notifyGuards.ts";
+import { PLAN_SHEET_PATH, PROJECT_PHOTO_PATH, requestStoragePath, type StoragePathShape } from "../_shared/storagePath.ts";
 import {
   MAX_ITEMS,
   PHOTO_BUCKET,
@@ -69,10 +76,26 @@ const DENIED = () => json({ error: "denied" }, 401);
 // deno-lint-ignore no-explicit-any
 type Svc = SupabaseClient<any, "public", any>;
 
-/** keys → signed URLs, batched; a key Storage refuses is just absent. */
-async function signKeys(svc: Svc, bucket: string, keys: string[]): Promise<Map<string, string>> {
+/**
+ * keys → signed URLs, batched; a key Storage refuses is just absent. What is
+ * signed is the storage-path rule's answer for each key (`shape` is the
+ * bucket's, `pinned` the project the caller's token was checked against) —
+ * never the string that was passed in. A key the rule refuses is absent too.
+ */
+async function signKeys(
+  svc: Svc,
+  bucket: string,
+  shape: StoragePathShape,
+  pinned: Readonly<Record<number, string>>,
+  keys: string[],
+): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  const unique = [...new Set(keys)];
+  if (shape.bucket !== bucket) return out;
+  const unique: string[] = [];
+  for (const candidate of new Set(keys)) {
+    const key = requestStoragePath(candidate, shape, pinned);
+    if (key) unique.push(key);
+  }
   if (unique.length === 0) return out;
   const { data, error } = await svc.storage.from(bucket).createSignedUrls(unique, SIGNED_URL_TTL_SECONDS);
   if (error || !Array.isArray(data)) {
@@ -130,7 +153,7 @@ async function portalPhotos(
     if ("pass" in src) urls[String(r.id).toLowerCase()] = src.pass;
     else toSign.push({ id: String(r.id).toLowerCase(), key: src.sign });
   }
-  const signed = await signKeys(svc, PHOTO_BUCKET, toSign.map((t) => t.key));
+  const signed = await signKeys(svc, PHOTO_BUCKET, PROJECT_PHOTO_PATH, { 1: projectId.toLowerCase() }, toSign.map((t) => t.key));
   for (const t of toSign) {
     const u = signed.get(t.key);
     if (u) urls[t.id] = u;
@@ -185,7 +208,7 @@ async function rfiSheets(svc: Svc, req: { shareToken: string; paths: string[] })
   const referenced = rfiReferencedSheetKeys(row?.attachments, pinSheetPaths, projectId);
 
   const byKey = rfiSheetKeysToSign(req.paths, projectId, referenced);
-  const signed = await signKeys(svc, PLAN_SHEET_BUCKET, [...byKey.keys()]);
+  const signed = await signKeys(svc, PLAN_SHEET_BUCKET, PLAN_SHEET_PATH, { 0: projectId.toLowerCase() }, [...byKey.keys()]);
   const urls: Record<string, string> = {};
   for (const [key, asked] of byKey) {
     const u = signed.get(key);

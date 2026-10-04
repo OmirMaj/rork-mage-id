@@ -47,8 +47,11 @@ function pureBlock(text: string, name: string): string {
   return text.slice(a, b);
 }
 const dir = mkdtempSync(join(tmpdir(), 'job-facts-view-'));
-writeFileSync(join(dir, 'view.ts'), pureBlock(src, 'job-facts-view'));
-writeFileSync(join(dir, 'sign.ts'), pureBlock(signSrc, 'shared-photos-sign'));
+// Each block's one outside dependency is the storage-path rule (lane SEC3): the
+// sliced files import the same two names the functions import, from the same module.
+const RULE_IMPORT = `import { PROJECT_PHOTO_PATH, requestStoragePath } from ${JSON.stringify(join(ROOT, 'supabase/functions/_shared/storagePath.ts'))};\n`;
+writeFileSync(join(dir, 'view.ts'), RULE_IMPORT + pureBlock(src, 'job-facts-view'));
+writeFileSync(join(dir, 'sign.ts'), RULE_IMPORT + pureBlock(signSrc, 'shared-photos-sign'));
 
 type Row = Record<string, unknown>;
 type Signable = { id: string; path: string; ts: string | null; tag: string | null };
@@ -129,6 +132,22 @@ const mine = v.signableFactsPhotos(FIXTURE, PID, asked);
 const theirs = s.signableSharePhotos(FIXTURE, s.parseShareSignRequest({ projectId: PID, photoIds: asked })!);
 eq('both pure blocks sign exactly the same rows, in the same order', mine, theirs);
 eq('… which are the stored, plain-or-sent, same-job, owner-folder, asked ones', mine.map((p) => p.id), [id(1), id(2), id(9)]);
+// Lane SEC3: both blocks decide the path with the one storage-path rule.
+const CRAFTED: Row[] = [
+  row(1, { uri: `${UID}/${PID}/%2e%2e` }),                           // passed the old "three segments" test
+  row(2, { uri: `${UID}/${PID}/.%2E` }),
+  row(3, { uri: ` ${UID}/${PID}/${id(3)}.jpg` }),                    // padded: refused, never trimmed
+  row(4, { uri: `/${UID}/${PID}/${id(4)}.jpg` }),                    // slash-led: refused, never stripped
+  row(5, { uri: `${UID}/${PID}/${id(5)}.exe` }),
+  row(6, { uri: `https://x.supabase.co/storage/v1/object/sign/project-photos/${UID}/${PID}/%2e%2e/${id(6)}.jpg?token=t` }),
+  row(7, { uri: `${UID.toUpperCase()}/${PID}/${id(7)}.jpg` }),       // another folder to Storage
+];
+eq('an encoded dot segment, a padded, slash-led, non-image or upper-case-folder path is refused by both',
+  [v.signableFactsPhotos(CRAFTED, PID, asked).map((p) => p.id), s.signableSharePhotos(CRAFTED, s.parseShareSignRequest({ projectId: PID, photoIds: asked })!).map((p) => p.id)], [[], []]);
+ok('the function takes its key rule from _shared/storagePath.ts, and Storage is handed the rule\'s answers re-checked with the same pins',
+  src.includes('import { PROJECT_PHOTO_PATH, requestStoragePath } from "../_shared/storagePath.ts";')
+  && /const key = requestStoragePath\(p\.path, PROJECT_PHOTO_PATH, \{ 0: p\.owner, 1: link\.projectId \}\);\s*if \(key\) keys\.push\(key\);/.test(src)
+  && /\.createSignedUrls\(keys, SIGNED_URL_TTL_SECONDS\)/.test(src) && !/createSignedUrls\(ok\.map/.test(src));
 eq('a reversed ask order is kept by both', v.signableFactsPhotos(FIXTURE, PID, [...asked].reverse()).map((p) => p.id),
   s.signableSharePhotos(FIXTURE, s.parseShareSignRequest({ projectId: PID, photoIds: [...asked].reverse() })!).map((p) => p.id));
 

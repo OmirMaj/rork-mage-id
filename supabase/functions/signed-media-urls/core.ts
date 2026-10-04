@@ -10,6 +10,16 @@
 //     sheet a pin sits on, signed per read instead of a URL that dies.
 // A minted URL is an unrevocable bearer token, so every rule below decides
 // what may be signed from the LIVE rows, never from what the caller sends.
+//
+// A KEY IS A KEY ONLY BY THE ONE RULE (_shared/storagePath.ts). photoSource and
+// rfiSheetKey used to check a key themselves — "segment N is my project and no
+// segment is exactly '..'" — which let `<project>/%2e%2e/<other>/x.png` through.
+// Both now hand the candidate to requestStoragePath with the bucket's shape,
+// pinned to the project that was checked, and return its answer or nothing.
+// Nothing is trimmed or stripped on the way: a bare value is judged as it is
+// stored; only a Supabase object URL is reduced to the key it names.
+
+import { PLAN_SHEET_PATH, PROJECT_PHOTO_PATH, requestStoragePath } from "../_shared/storagePath.ts";
 
 export const SIGNED_URL_TTL_SECONDS = 3600;
 export const PHOTO_BUCKET = 'project-photos';
@@ -85,7 +95,6 @@ export function publishedPhotoIds(snapshot: unknown): Set<string> {
 }
 
 const DEVICE_LOCAL = /^(file|blob|data|content|ph|assets-library):/i;
-const hasTraversal = (key: string): boolean => key.split('/').some((seg) => seg === '..' || seg === '.' || seg === '');
 
 /** A Supabase Storage object URL for `bucket` reduced to its key, else ''. */
 function keyFromStorageUrl(url: string, bucket: string): string {
@@ -105,51 +114,40 @@ export type PhotoSource = { sign: string } | { pass: string } | null;
 /**
  * What a live photos row can be served as. `photos.uri` holds the bucket key
  * `<userId>/<projectId>/<photoId>.<ext>` (utils/photoUploadCore
- * buildPhotoStoragePath). The key's PROJECT folder must be the row's own
- * project: an editor on this job could otherwise write another tenant's key
- * into a row here and have the service role sign it. A Supabase URL for the
- * bucket (a legacy signed link that has since expired) is re-signed by its
- * key under the same rule; any other http(s) link passes through as it is
- * (the old public rows); a file:// / blob: / data: URI never left the device
- * that took it — there is nothing to sign.
+ * buildPhotoStoragePath). The key must be EXACTLY that shape and its project
+ * folder must be the row's own project (the pin): an editor on this job could
+ * otherwise write another tenant's key into a row here and have the service
+ * role sign it. A Supabase URL for the bucket (a legacy signed link that has
+ * since expired) is re-signed by the key it names, under the same rule; any
+ * other http(s) link passes through as it is (the old public rows); a file://
+ * / blob: / data: URI never left the device that took it — there is nothing to
+ * sign. Whatever the rule refuses is simply not served, like a missing object.
  */
 export function photoSource(uri: unknown, projectId: string): PhotoSource {
-  if (typeof uri !== 'string') return null;
-  const v = uri.trim();
-  if (!v || DEVICE_LOCAL.test(v)) return null;
-  let key = v;
-  if (/^https?:\/\//i.test(v)) {
-    key = keyFromStorageUrl(v, PHOTO_BUCKET);
-    if (!key) return /\/storage\/v1\/object\//.test(v) ? null : { pass: v };
-  } else if (v.includes('://') || v.startsWith('/')) {
-    return null;
+  if (typeof uri !== 'string' || typeof projectId !== 'string') return null;
+  // Trimmed ONLY to tell what kind of value this is; a key is never the trimmed string.
+  const kind = uri.trim();
+  if (!kind || DEVICE_LOCAL.test(kind)) return null;
+  let candidate = uri;
+  if (/^https?:\/\//i.test(kind)) {
+    candidate = keyFromStorageUrl(kind, PHOTO_BUCKET);
+    if (!candidate) return /\/storage\/v1\/object\//.test(kind) ? null : { pass: kind };
   }
-  if (hasTraversal(key)) return null;
-  const segs = key.split('/');
-  if (segs.length < 3 || segs[1].toLowerCase() !== projectId.toLowerCase()) return null;
-  return { sign: key };
+  const key = requestStoragePath(candidate, PROJECT_PHOTO_PATH, { 1: projectId.toLowerCase() });
+  return key ? { sign: key } : null;
 }
 
 /**
  * A plan-sheets key the architect's share token may have signed: reduced from
- * whatever the page holds (a key, or a public / signed URL — the three shapes
- * utils/planSheetUrls.planSheetStoragePath recovers) and inside the RFI's own
- * project folder (`<projectId>/…`, the bucket's tenant boundary). '' = refuse.
+ * what the page holds when that is a public / signed URL (the shapes
+ * utils/planSheetUrls.planSheetStoragePath recovers), otherwise taken as it is,
+ * and then EXACTLY `<projectId>/<file>.png|jpg` in the RFI's own project folder
+ * (the bucket's tenant boundary) by the one rule. '' = refuse.
  */
 export function rfiSheetKey(uriOrPath: string, projectId: string): string {
-  const raw = String(uriOrPath ?? '').trim();
-  if (!raw || DEVICE_LOCAL.test(raw)) return '';
-  let key: string;
-  if (/^https?:\/\//i.test(raw)) {
-    key = keyFromStorageUrl(raw, PLAN_SHEET_BUCKET);
-  } else {
-    if (raw.includes('://')) return '';
-    key = raw.replace(/^\/+/, '');
-  }
-  if (!key || hasTraversal(key)) return '';
-  const segs = key.split('/');
-  if (segs.length < 2 || segs[0].toLowerCase() !== projectId.toLowerCase()) return '';
-  return key;
+  if (typeof uriOrPath !== 'string' || typeof projectId !== 'string') return '';
+  const candidate = /^https?:\/\//i.test(uriOrPath) ? keyFromStorageUrl(uriOrPath, PLAN_SHEET_BUCKET) : uriOrPath;
+  return requestStoragePath(candidate, PLAN_SHEET_PATH, { 0: projectId.toLowerCase() }) ?? '';
 }
 
 /**
@@ -175,9 +173,10 @@ export function rfiReferencedSheetKeys(attachments: unknown, pinSheetPaths: unkn
 
 /**
  * rfi_sheets' signing plan: each key the caller may have signed → the paths
- * it asked under (the answer is keyed by the caller's own spelling). A path
- * is dropped when it does not reduce to a key in the RFI's project folder, or
- * when that key is not one the RFI references (rfiReferencedSheetKeys).
+ * it asked under (the answer is keyed by the caller's own spelling: the key,
+ * or a public / signed URL of it). A path is dropped when it is not a key in
+ * the RFI's project folder by the rule, or when that key is not one the RFI
+ * references (rfiReferencedSheetKeys).
  */
 export function rfiSheetKeysToSign(paths: string[], projectId: string, referenced: Set<string>): Map<string, string[]> {
   const byKey = new Map<string, string[]>();

@@ -551,15 +551,24 @@ ok('the error-body sweep is live (planted shapes are flagged, legit ones are not
 // verify_jwt = false and the service role key: every URL it mints is an
 // unrevocable bearer token for a homeowner photo or a plan sheet. Its rules run
 // in scripts/validate-w4-portal-server-media.ts; these pin the controls.
+// Lane SEC3: "in the project folder" is decided by the one storage-path rule
+// (_shared/storagePath.ts), pinned to the checked project — the function's own
+// `segs[N] === project` tests are gone (scripts/validate-storage-paths.ts runs
+// the rule and sweeps the storage call).
 {
   const sm = read('supabase/functions/signed-media-urls/index.ts');
   const smCore = read('supabase/functions/signed-media-urls/core.ts');
   ok('signed-media-urls authorises the portal through portal_project_for_token (never its own token compare)',
     /svc\.rpc\("portal_project_for_token"/.test(sm) && !/client_portal->>'accessToken'|accessToken ===/.test(sm));
   ok('signed-media-urls signs only snapshot-published, live, shared photos in the project folder',
-    /published\.has\(id\)/.test(sm) && /portalStateIsShared\(r\.portal_state\)/.test(sm) && /segs\[1\]\.toLowerCase\(\) !== projectId\.toLowerCase\(\)/.test(smCore));
+    /published\.has\(id\)/.test(sm) && /portalStateIsShared\(r\.portal_state\)/.test(sm)
+    && /const key = requestStoragePath\(candidate, PROJECT_PHOTO_PATH, \{ 1: projectId\.toLowerCase\(\) \}\);\s*return key \? \{ sign: key \} : null;/.test(smCore));
   ok('signed-media-urls scopes plan sheets to the share-token RFI\'s project folder',
-    /\.eq\("share_token", req\.shareToken\)/.test(sm) && /segs\[0\]\.toLowerCase\(\) !== projectId\.toLowerCase\(\)/.test(smCore));
+    /\.eq\("share_token", req\.shareToken\)/.test(sm)
+    && /return requestStoragePath\(candidate, PLAN_SHEET_PATH, \{ 0: projectId\.toLowerCase\(\) \}\) \?\? '';/.test(smCore));
+  ok('signed-media-urls has no key test of its own left (no segment compare, no ".." test, no trim of a key)',
+    !/hasTraversal|segs\[|\.split\('\/'\)|replace\(\/\^\\\/\+\//.test(smCore)
+    && /import \{ PLAN_SHEET_PATH, PROJECT_PHOTO_PATH, requestStoragePath \} from "\.\.\/_shared\/storagePath\.ts";/.test(smCore));
   ok('signed-media-urls mints for one hour, never the 24 h app TTL', /export const SIGNED_URL_TTL_SECONDS = 3600;/.test(smCore));
   ok('signed-media-urls: one 401 {error:"denied"} for every auth failure; no error text echoed',
     /json\(\{ error: "denied" \}, 401\)/.test(sm) && leakyErrorBodies(sm).length === 0);
