@@ -96,9 +96,15 @@ import { cardSurface } from '@/components/ui';
 import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
 import { CO_SAMPLE, toCents } from '@/utils/tutorial/learn/fixturesA';
-import { isOfflineNow } from '@/hooks/useOnline';
-// Lane PAYFIX: "Original contract sum" is the SIGNED contract's figure.
-import { contractSumBasis, CONTRACT_SUM_BASIS_LABEL } from '@/utils/projectFinancials';
+import { isOfflineNow, useOffline } from '@/hooks/useOnline';
+// Lane PAYFIX: "Original contract sum" is the SIGNED contract's figure. The
+// read (offline, failed, timed out, sample) and what the row may say about it
+// are the shared, tested rule the pay app uses too: this screen only hands it
+// the loader and the figure a saved change order already carries.
+import {
+  watchContractRead, nextContractRead, contractSumView, savedChangeOrderOriginalSum,
+  CONTRACT_READ_PENDING_REASON, uncheckedContractSumSendNotice, type ContractReadState, type SignedContractLike,
+} from '@/utils/projectFinancials';
 import { loadActiveContract } from '@/utils/contractEngine';
 
 /**
@@ -1243,38 +1249,56 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // the estimate's grand total — on the document the homeowner signs, beside a
   // contract he signed at a negotiated figure. It is resolveContractSum now:
   // the signed contract, else the estimate ONLY when nothing is signed, and the
-  // caption under the row says which ("Estimate (no signed contract yet)", or
-  // "…not checked" when the read failed — never "none" over a read that did
-  // not answer). A sample job has no server contract: null, at once.
-  const [coContractRead, setCoContractRead] = useState<{ projectId: string; contract: { status?: string; contractValue?: number } | null | undefined } | null>(null);
+  // caption under the row says which. A sample job has no server contract.
+  //
+  // A READ THAT HAS NOT ANSWERED (offline, failed, no answer in 6 seconds,
+  // still loading) never moves the figure a saved change order was built on
+  // and is never called "no signed contract": contractSumView /
+  // contractSumBasis, the same rule the pay app's line 1 follows. Until the
+  // read settles there is no caption, and Save / Send wait (contractSumHold).
+  const [coContractRead, setCoContractRead] = useState<ContractReadState<SignedContractLike> | null>(null);
   const coContractProjectId = project?.id;
   const coContractSample = !!project && isSampleProject(project);
+  // A dependency, so a device that opened this screen offline reads the
+  // contract when it comes back; an answer already held is never replaced by
+  // "not read" (nextContractRead).
+  const coOffline = useOffline();
   useEffect(() => {
     if (!coContractProjectId) return;
-    if (coContractSample || isOfflineNow()) {
-      setCoContractRead({ projectId: coContractProjectId, contract: coContractSample ? null : undefined });
-      return;
-    }
-    let live = true;
-    void loadActiveContract(coContractProjectId)
-      .then(r => { if (live) setCoContractRead({ projectId: coContractProjectId, contract: r.ok ? r.contract : undefined }); })
-      .catch(() => { if (live) setCoContractRead({ projectId: coContractProjectId, contract: undefined }); });
-    return () => { live = false; };
-  }, [coContractProjectId, coContractSample]);
-  const coContractSettled = !!coContractProjectId && coContractRead?.projectId === coContractProjectId;
-  const contractSum = useMemo(
-    () => contractSumBasis(project, coContractSettled ? coContractRead?.contract : undefined),
-    [project, coContractSettled, coContractRead],
-  );
-  const originalContractSum = project ? contractSum.value : 0;
-  /** The caption under "Original contract sum"; nothing until the read settles. */
-  const contractSumCaption = project && coContractSettled ? CONTRACT_SUM_BASIS_LABEL[contractSum.basis] : null;
+    return watchContractRead<SignedContractLike>({
+      sample: coContractSample,
+      offline: coOffline,
+      load: () => loadActiveContract(coContractProjectId),
+      onSettle: contract => setCoContractRead(prev => nextContractRead(prev, coContractProjectId, contract)),
+    });
+  }, [coContractProjectId, coContractSample, coOffline]);
   const priorApprovedChanges = useMemo(
     // Against the CONFIRMED number once known (#141): a CO the server moved
     // from #4 to #5 counts the approved #4 as prior. The send waits for it.
     () => coPriorApprovedChanges(existingCOs, baseNumber, coId),
     [existingCOs, baseNumber, coId],
   );
+  const contractSum = useMemo(
+    () => contractSumView(project, coContractRead, coContractProjectId,
+      savedChangeOrderOriginalSum(existingCO, priorApprovedChanges)),
+    [project, coContractRead, coContractProjectId, existingCO, priorApprovedChanges],
+  );
+  const originalContractSum = project ? contractSum.value : 0;
+  /** The caption under "Original contract sum"; nothing until the read settles. */
+  const contractSumCaption = project ? contractSum.caption : null;
+  /** Why Save / Send wait: the contract read has not settled, so the figure on
+   *  the row has no caption yet and must not be stamped onto the document. */
+  const contractSumHold = project && !contractSum.settled ? CONTRACT_READ_PENDING_REASON : null;
+  /** The read settled WITHOUT an answer: he sees "…(signed contract not
+   *  checked)" under the row, but the email prints the figure plain, as
+   *  "Original contract sum". The send asks him first (handleConfirmSend), once
+   *  per figure. Null when the read answered. */
+  const uncheckedSumNotice = useMemo(
+    () => (project ? uncheckedContractSumSendNotice(contractSum.basis, originalContractSum, formatCurrency) : null),
+    [project, contractSum.basis, originalContractSum],
+  );
+  const uncheckedSumAcceptedRef = useRef<number | null>(null);
+  const confirmSendRef = useRef<() => void>(() => {});
   const originalContractValue = useMemo(
     () => coRoundCents(originalContractSum + priorApprovedChanges),
     [originalContractSum, priorApprovedChanges],
@@ -1931,6 +1955,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       showAlert(blocked.title, blocked.message);
       return null;
     }
+    // Lane PAYFIX: no figure is stamped as the contract sum before the row
+    // can say where it came from.
+    if (contractSumHold) {
+      showAlert('Checking the signed contract', contractSumHold);
+      return null;
+    }
 
     const now = new Date().toISOString();
 
@@ -2070,7 +2100,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     };
     const write = addChangeOrder(co);
     return { id: co.id, number: nextCoNumber, isUpdate: false, status: nextStatus, pricedEditOnSentCO: false, write };
-  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, confirmedNumber, addChangeOrder, updateChangeOrder]);
+  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, contractSumHold, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, confirmedNumber, addChangeOrder, updateChangeOrder]);
 
   /**
    * #76 — run `proceed` only once no line is unpriced and every AI-estimated
@@ -2182,8 +2212,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // the email would carry a number another device may already have used.
     const hold = numberHold('email');
     if (hold) { showAlert('Not yet', hold); return; }
+    // Lane PAYFIX: the email prints the original contract sum, so the send
+    // waits for the contract read to settle too.
+    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
     withConfirmedPrices(() => withConfirmedImpactDays(() => setShowSendRecipient(true)));
-  }, [withConfirmedImpactDays, withConfirmedPrices, numberHold]);
+  }, [withConfirmedImpactDays, withConfirmedPrices, numberHold, contractSumHold]);
 
   // #77/#141 — a NEW CO saved from Send & Save reopens here (sendNext=1) and
   // the send sheet comes back, recipient prefilled, once its number is
@@ -2356,6 +2389,16 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (!existingCO) { saveNewForSend(); return; }
     const hold = numberHold('email');
     if (hold) { showAlert('Not yet', hold); return; }
+    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
+    // Lane PAYFIX: a figure MAGE could not check goes to the client only after
+    // he has been asked, with the figure named. Nothing is sent on Cancel.
+    if (uncheckedSumNotice && uncheckedSumAcceptedRef.current !== originalContractSum) {
+      showAlert(uncheckedSumNotice.title, uncheckedSumNotice.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send anyway', onPress: () => { uncheckedSumAcceptedRef.current = originalContractSum; confirmSendRef.current(); } },
+      ]);
+      return;
+    }
     if (sendingRef.current) return;
     sendingRef.current = true;
     setSendInFlight(true);
@@ -2507,7 +2550,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     } else {
       releaseSending();
     }
-  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, confirmedNumber, numberHold, router, description, reason, originalContractValue, originalContractSum, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
+  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, confirmedNumber, numberHold, router, description, reason, originalContractValue, originalContractSum, contractSumHold, uncheckedSumNotice, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
+  confirmSendRef.current = () => { void handleConfirmSend(); };
 
   // A locked CO hides the EDIT action bar — an approved one gets the billing
   // bar below instead, which lifts the FAB the same way.

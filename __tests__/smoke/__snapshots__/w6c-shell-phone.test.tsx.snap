@@ -3598,7 +3598,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — the AIA G702/G703 pay app",
+                                    "Bill the next draw — AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -14773,7 +14773,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — the AIA G702/G703 pay app",
+                                    "Bill the next draw — AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -25998,7 +25998,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — the AIA G702/G703 pay app",
+                                    "Bill the next draw — AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,

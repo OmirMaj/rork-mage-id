@@ -7587,7 +7587,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   };
 
   const itemTypeLabel: Record<SendableItemKind, string> = {
-    change_order: 'change order', invoice: 'invoice', aia_pay_app: 'AIA pay application',
+    change_order: 'change order', invoice: 'invoice', aia_pay_app: 'AIA-style pay application',
     rfi: 'RFI', submittal: 'submittal',
     daily_report: 'daily report', photo: 'photo', selection: 'selection', warranty: 'warranty',
   };

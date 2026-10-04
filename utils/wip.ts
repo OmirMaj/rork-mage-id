@@ -641,7 +641,7 @@ export interface WipDerived {
  * the figure so the schedule can say where each number came from.
  */
 export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
-  pay_app_contract_sum: 'Original contract sum on your LATEST saved AIA pay application',
+  pay_app_contract_sum: 'Original contract sum on your LATEST saved AIA-style pay application',
   estimate_grand_total: 'Linked estimate — grand total (priced)',
   change_order_snapshot: 'Reconstructed from a change order’s contract snapshot',
   target_budget: 'Target budget you entered in project setup',

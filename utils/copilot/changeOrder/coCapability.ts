@@ -69,8 +69,9 @@ export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
       'You are MAGE Copilot capturing a construction change order from a contractor.',
       'Extract ONLY what they stated: description (the changed scope in a short',
       'phrase), reason (client_request | field_condition | allowance_overage |',
-      'other), changeAmount (dollars, number, null if not stated), scheduleImpactDays',
-      '(number, null if not stated). Never invent an amount.',
+      'other; "" when they gave no reason), changeAmount (dollars, number, null if',
+      'not stated), scheduleImpactDays (number, null if not stated). Never invent an',
+      'amount or a reason.',
       '',
       ...grounding.facts,
       '',
@@ -79,12 +80,17 @@ export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
       'WHAT THEY SAID: ' + transcript,
       'Return ONLY the updated draft JSON.',
     ].filter(Boolean).join('\n'),
-    schemaHint: { description: 'Add heat-pump upgrade', reason: 'client_request', changeAmount: null, scheduleImpactDays: null },
+    // The relay shows this literal to the model as the example to match. The
+    // reason is EMPTY here on purpose: it used to read 'client_request', which
+    // offered the model a reason the contractor never gave (lane PAYFIX).
+    schemaHint: { description: 'Add heat-pump upgrade', reason: '', changeAmount: null, scheduleImpactDays: null },
   }),
 
   mergeDraft: (draft, aiJson, meta): CODraft => ({
     description: (typeof aiJson?.description === 'string' && aiJson.description.trim() ? aiJson.description : draft.description) ?? meta?.transcript ?? null,
-    reason: typeof aiJson?.reason === 'string' ? aiJson.reason : draft.reason ?? null,
+    // An empty reason from the model means "none given this turn": it never
+    // erases a reason the contractor gave on an earlier turn.
+    reason: (typeof aiJson?.reason === 'string' && aiJson.reason.trim() ? aiJson.reason : draft.reason) ?? null,
     changeAmount: typeof aiJson?.changeAmount === 'number' ? aiJson.changeAmount : draft.changeAmount ?? null,
     scheduleImpactDays: typeof aiJson?.scheduleImpactDays === 'number' ? aiJson.scheduleImpactDays : draft.scheduleImpactDays ?? null,
   }),

@@ -18,10 +18,10 @@ import { roundCents, retainageOnWorkValue, billedAmountForLine } from '@/utils/i
 // G702 line 1 reads the SIGNED contract (lane PAYFIX) through the one resolver
 // the portal and the change-order screen use.
 import {
-  resolveContractSum, contractSumBasis, CONTRACT_SUM_BASIS_LABEL,
+  resolveContractSum, contractSumBasis, contractOfRead, CONTRACT_SUM_BASIS_LABEL,
   type ContractSumBasis, type SignedContractLike, type ContractReadState,
 } from '@/utils/projectFinancials';
-import { calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
+import { calendarDayOf } from '@/utils/calendarDate';
 // The namespaced key an approved change order rides on an invoice line, so a
 // CO billed through either entry point lands on the right G703 row.
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
@@ -233,12 +233,22 @@ export interface AIAPayApplication {
   sovBasis?: AIASovBasis;
 
   /**
-   * Where G702 line 1 came from — see payAppContractSumSource. It rides on a
-   * freshly seeded application so a refresh can tell "the contract was not
-   * read" from an answer (mergeRefreshedContract). It is not persisted and
-   * never printed: the screen derives its caption live (payAppLineOneView).
+   * Where G702 line 1 came from when the application was SEEDED — see
+   * payAppContractSumSource. It is not persisted and never printed: the screen
+   * derives its caption live (payAppLineOneView).
    */
   originalContractSumSource?: PayAppContractSumSource;
+
+  /**
+   * Set ONLY by the seeder, and only when the contract read had not answered:
+   * the line-1 figure it put down while waiting. It is how the two halves of
+   * the unanswered-read rule are told apart from an answer —
+   * mergeRefreshedContract leaves a saved line 1 alone when the refresh seed
+   * carries it, and applyContractAnswerToLineOne corrects line 1 once the
+   * answer arrives, but only while line 1 still equals this figure. Not
+   * persisted, never printed.
+   */
+  lineOneAwaitingContract?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,10 +262,17 @@ export interface AIAPayApplication {
 // contract could not be read at all (offline), it says that instead of
 // claiming there is none.
 //
-// AN UNREAD CONTRACT NEVER CHANGES LINE 1 (fix round 1). "Not read" is not an
-// answer, so it can neither put the estimate over a signed figure on refresh
-// (mergeRefreshedContract) nor stand once the answer arrives late
-// (applyContractAnswerToLineOne).
+// A READ THAT HAS NOT ANSWERED NEVER CHANGES A FIGURE ALREADY ON THE DOCUMENT
+// AND IS NEVER DESCRIBED AS "NO SIGNED CONTRACT" (fix round 1). The rule is one
+// function, utils/projectFinancials `contractSumBasis`, shared with the
+// change-order screen. Here it means:
+//   • Refresh on a saved draft keeps the saved line 1 (mergeRefreshedContract),
+//     and the confirmation says so (refreshLineOneNotice).
+//   • A new period seeded without an answer takes line 1 from the PREVIOUS
+//     period when there is one, else the estimate, captioned "…(signed
+//     contract not checked)"; and when the answer arrives it is corrected, but
+//     only if line 1 is still the figure the seed put there
+//     (applyContractAnswerToLineOne).
 //
 // THE PDF PRINTS NO SOURCE NOTE. The caption is for the GC, on the screen. On
 // the certificate it would tell an owner and a lender "no signed contract"
@@ -265,29 +282,43 @@ export interface AIAPayApplication {
 
 /**
  * `signed_contract` / `estimate` are resolveContractSum's own answers.
- * `estimate_unread`: the contract read failed, so the estimate stands in and
- * nobody knows whether a signed figure exists. `estimate_not_contract`: a
+ * `estimate_unread`: the contract read has not answered, so the estimate
+ * stands in and nobody knows whether a signed figure exists. `saved_unread`:
+ * the read has not answered and line 1 is the figure a SAVED record carries.
+ * `carried_unread`: the read has not answered and line 1 is the previous
+ * period's figure on a period that has never been saved — the same rule as
+ * `saved_unread`, with words that are true of it ("As saved" would not be:
+ * nothing on that period has been saved). `estimate_not_contract`: a
  * saved certificate whose line 1 is the estimate while a signed contract with
  * a different figure now exists (a record frozen before this fix, or before
  * the contract was signed) — the refresh button is how it gets corrected.
  */
-export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract';
+export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract' | 'carried_unread';
 
 /** The words under line 1 on the screen — the change-order screen's captions
  *  plus the reopened-record case. */
 export const PAY_APP_CONTRACT_SUM_LABEL: Record<PayAppContractSumSource, string> = {
   ...CONTRACT_SUM_BASIS_LABEL,
   estimate_not_contract: 'Estimate (differs from the signed contract)',
+  carried_unread: 'Carried forward (signed contract not checked)',
 };
 
-/** The same, for a KPI cell too narrow for the full caption (seven cells in a
- *  row on a laptop cut it mid-hedge). The full caption sits on the G702 card. */
+/**
+ * The same, for the desktop KPI cell. KpiStrip prints `sub` on ONE line, and
+ * eight cells across leave 120 px of text at a 1512 px window and 78 px at
+ * the narrowest eight-across layout (a 900 px strip), where the full caption
+ * was cut off mid-hedge. Twelve characters of 12 px text is the most that
+ * fits; scripts/validate-payfix.ts does the arithmetic and holds every entry
+ * to it. The full caption sits on the G702 card just below.
+ */
 export const PAY_APP_CONTRACT_SUM_SHORT: Record<PayAppContractSumSource, string> = {
-  signed_contract: 'Signed contract',
+  signed_contract: 'Signed',
   estimate: 'Estimate',
-  estimate_unread: 'Estimate',
+  estimate_unread: 'Not checked',
+  saved_unread: 'Not checked',
   estimate_signed_no_amount: 'Estimate',
   estimate_not_contract: 'Estimate',
+  carried_unread: 'Not checked',
 };
 
 /** Everything the pay app reads off the project's active contract. Structural,
@@ -305,7 +336,9 @@ const sameCents = (a: number, b: number) => Math.abs(roundCents(a) - roundCents(
  * the figure resolveContractSum answers today or a frozen earlier answer.
  *
  * `contract`: the active contract row, `null` when the project has none on
- * file, `undefined` when it has not been (or could not be) read.
+ * file, `undefined` when the read has not answered. Until it answers, line 1
+ * is the figure on the document and the source says "not checked" — never
+ * "no signed contract" (contractSumBasis, the unanswered-read rule).
  * Undefined result = no provable source; print no label rather than a guess.
  */
 export function payAppContractSumSource(
@@ -313,7 +346,7 @@ export function payAppContractSumSource(
   project: Project | null | undefined,
   contract: SignedContractLike | null | undefined,
 ): PayAppContractSumSource | undefined {
-  const r = contractSumBasis(project, contract);
+  const r = contractSumBasis(project, contract, lineOne);
   if (sameCents(lineOne, r.value)) return r.basis;
   if (r.basis === 'signed_contract' && sameCents(lineOne, r.estimateTotal)) return 'estimate_not_contract';
   return undefined;
@@ -324,17 +357,25 @@ export function payAppContractSumSource(
  * claimed until the read for this project has settled: `caption` and `short`
  * are null before that, and when the figure has no provable source. The screen
  * renders these two strings and derives nothing itself.
+ *
+ * `awaitingContract` is the application's `lineOneAwaitingContract` — set only
+ * on a never-saved period the seeder built without an answer. There, a figure
+ * that is not the estimate was carried from the previous period, and the
+ * caption says "Carried forward", not "As saved".
  */
 export function payAppLineOneView(
   lineOne: number | null | undefined,
   project: Project | null | undefined,
   read: ContractReadState<SignedContractLike> | null | undefined,
   projectId: string | null | undefined,
+  awaitingContract?: number | null,
 ): { source: PayAppContractSumSource | undefined; caption: string | null; short: string | null } {
-  const settled = !!projectId && !!read && read.projectId === projectId;
-  const source = settled && typeof lineOne === 'number'
-    ? payAppContractSumSource(lineOne, project, read!.contract)
+  const { settled, contract } = contractOfRead(read, projectId);
+  const proven = settled && typeof lineOne === 'number'
+    ? payAppContractSumSource(lineOne, project, contract)
     : undefined;
+  const source: PayAppContractSumSource | undefined =
+    proven === 'saved_unread' && awaitingContract != null ? 'carried_unread' : proven;
   return {
     source,
     caption: source ? PAY_APP_CONTRACT_SUM_LABEL[source] : null,
@@ -343,26 +384,35 @@ export function payAppLineOneView(
 }
 
 /**
- * A contract ANSWER that arrives after a new, never-saved period was seeded
- * without one (the read timed out, or the device was offline): put line 1 on
- * the figure resolveContractSum gives now, with its source and the contract
- * sum to date that follows from it. Line 1 is not editable, so nothing the GC
- * typed is lost. `undefined` (still not read) returns the application
- * untouched — the same object, so a caller's state does not churn.
+ * A contract ANSWER that arrives after a new period was seeded without one
+ * (the read timed out, or the device was offline): put line 1 on the figure
+ * resolveContractSum gives now, with its source and the contract sum to date
+ * that follows from it.
+ *
+ * It acts ONLY on an application that is still waiting (the seeder's
+ * `lineOneAwaitingContract`) and ONLY while line 1 is still the figure the
+ * seed put there. A saved certificate, a period seeded on an answer, and a
+ * line 1 that has been changed since the seed are all returned untouched: the
+ * figure on the document stands. `undefined` (still no answer) changes
+ * nothing either — the same object comes back, so a caller's state does not
+ * churn.
  */
 export function applyContractAnswerToLineOne(
   app: AIAPayApplication,
   project: Project | null | undefined,
   contract: SignedContractLike | null | undefined,
 ): AIAPayApplication {
-  if (contract === undefined) return app;
+  if (contract === undefined || app.lineOneAwaitingContract == null) return app;
+  // Changed since the seed: his figure stands, and the wait is over.
+  if (!sameCents(app.originalContractSum, app.lineOneAwaitingContract)) {
+    return { ...app, lineOneAwaitingContract: undefined };
+  }
   const originalContractSum = roundCents(resolveContractSum(project, contract).value);
-  const originalContractSumSource = payAppContractSumSource(originalContractSum, project, contract);
-  if (sameCents(app.originalContractSum, originalContractSum) && app.originalContractSumSource === originalContractSumSource) return app;
   return {
     ...app,
     originalContractSum,
-    originalContractSumSource,
+    originalContractSumSource: payAppContractSumSource(originalContractSum, project, contract),
+    lineOneAwaitingContract: undefined,
     contractSumToDate: roundCents(originalContractSum + app.netChangeByCO),
   };
 }
@@ -377,18 +427,15 @@ export function refreshLineOneNotice(
   fresh: AIAPayApplication,
   money: (n: number) => string,
 ): string {
-  if (fresh.originalContractSumSource === 'estimate_unread') {
-    return 'The original contract sum stays as it is, because the signed contract could not be checked just now. Refresh again when you are back online.';
+  if (fresh.lineOneAwaitingContract != null) {
+    return 'The signed contract could not be checked just now, so the original contract sum is left as it is. Tap Refresh again later to check it.';
   }
   if (sameCents(prev.originalContractSum, fresh.originalContractSum)) return '';
-  const why = fresh.originalContractSumSource ? ` (${PAY_APP_CONTRACT_SUM_LABEL[fresh.originalContractSumSource].toLowerCase()})` : '';
+  const why = fresh.originalContractSumSource === 'signed_contract' ? ', the figure on the signed contract'
+    : fresh.originalContractSumSource === 'estimate' ? ', the estimate, because MAGE ID has no signed contract on file for this job'
+    : fresh.originalContractSumSource === 'estimate_signed_no_amount' ? ', the estimate, because the signed contract on file has no amount'
+    : '';
   return `The original contract sum changes from ${money(prev.originalContractSum)} to ${money(fresh.originalContractSum)}${why}.`;
-}
-
-/** A bare, real 'YYYY-MM-DD' — and nothing else. */
-function bareCalendarDay(value: string | null | undefined): string | null {
-  const v = value?.trim();
-  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) && parseCalendarDay(v) ? v : null;
 }
 
 /** The header fields a G702 repeats every period. */
@@ -408,9 +455,11 @@ export interface PayAppHeaderSeed {
  * else the project's primary contact for the owner. A draft or sent contract
  * is not a contract — it supplies no date and no owner name.
  *
- * The contract date field is free text on the screen. A previous period's
- * value is carried only when it is a bare, real YYYY-MM-DD; anything else
- * ("March 28") is skipped rather than parsed into an invented year.
+ * The contract date field is free text on the screen, so the previous
+ * period's value is carried forward VERBATIM — exactly what the GC last
+ * certified. It is never parsed: "March 28" used to come back as 2001-03-28,
+ * a date nobody typed. The screen already marks a value it cannot read as a
+ * date, so he sees it and can fix it.
  */
 export function seedPayAppHeader(
   prior: { ownerName?: string; contractDate?: string; architectName?: string } | null | undefined,
@@ -422,9 +471,9 @@ export function seedPayAppHeader(
     || signed?.homeownerSignature?.name?.trim()
     || project?.primaryContact?.name?.trim()
     || '';
-  const contractDate = bareCalendarDay(prior?.contractDate)
-    ?? calendarDayOf(signed?.signedAt ?? signed?.homeownerSignature?.signedAt)
-    ?? undefined;
+  const contractDate = prior?.contractDate?.trim()
+    || calendarDayOf(signed?.signedAt ?? signed?.homeownerSignature?.signedAt)
+    || undefined;
   const architectName = prior?.architectName?.trim() || undefined;
   return { ownerName, contractDate, architectName };
 }
@@ -2069,12 +2118,13 @@ export function mergeRefreshedContract(
   // the GC ordered moves.
   const appended = fresh.lines.filter(l => !claimed.has(l.id) && !prev.lines.some(p => p.id === l.id));
 
-  // AN UNREAD CONTRACT NEVER CHANGES LINE 1 (lane PAYFIX, fix round 1). A
-  // refresh seeded while the contract could not be read carries the ESTIMATE
-  // as its line 1; taking it would put the estimate over a signed figure on a
-  // saved certificate. Line 1 and its source stay, and the contract sum to
-  // date is that line plus the refreshed change orders.
-  const contractUnread = fresh.originalContractSumSource === 'estimate_unread';
+  // A READ THAT HAS NOT ANSWERED NEVER CHANGES LINE 1 (lane PAYFIX, fix round
+  // 1). A refresh seeded while the contract could not be read carries a
+  // stand-in on line 1 (the previous period's figure, or the estimate); taking
+  // it would put that over a signed figure on a saved certificate. Line 1 and
+  // its source stay, and the contract sum to date is that line plus the
+  // refreshed change orders.
+  const contractUnread = fresh.lineOneAwaitingContract != null;
   const originalContractSum = contractUnread ? prev.originalContractSum : fresh.originalContractSum;
 
   return {
@@ -2130,9 +2180,11 @@ export function seedAIAPayApplicationFromInvoice(
      * contract also seeds the header on a first period (seedPayAppHeader).
      */
     contract?: PayAppContractLike | null;
-    /** The previous period's header, carried forward (seedPayAppHeader). An
-     *  explicit `ownerName` / `architectName` / `contractDate` above wins. */
-    priorHeader?: { ownerName?: string; contractDate?: string; architectName?: string } | null;
+    /** The previous period, carried forward: its header (seedPayAppHeader; an
+     *  explicit `ownerName` / `architectName` / `contractDate` wins), and its
+     *  line 1, which a new period keeps while the contract read has not
+     *  answered (contractSumBasis, the unanswered-read rule). */
+    priorHeader?: { ownerName?: string; contractDate?: string; architectName?: string; originalContractSum?: number } | null;
     contractDate?: string;
   },
 ): AIAPayApplication {
@@ -2141,9 +2193,17 @@ export function seedAIAPayApplicationFromInvoice(
   // fallback any more.
   const retainagePercent = opts?.retainagePercent ?? retainagePercentForInvoice(invoice);
   // Line 1: the signed contract, else the estimate — and the source rides on
-  // the application so the line can say which (payAppContractSumSource).
-  const originalContractSum = roundCents(resolveContractSum(project, opts?.contract ?? null).value);
-  const originalContractSumSource = payAppContractSumSource(originalContractSum, project, opts?.contract);
+  // the application so the line can say which (payAppContractSumSource). When
+  // the contract read has not answered, the previous period's line 1 stays
+  // (else the estimate), and the application is marked as waiting for it.
+  const contractAnswered = opts?.contract !== undefined;
+  const originalContractSum = roundCents(
+    contractSumBasis(project, opts?.contract, opts?.priorHeader?.originalContractSum).value);
+  // A seed is never a saved record: a figure it kept without an answer was
+  // carried from the previous period.
+  const provenSource = payAppContractSumSource(originalContractSum, project, opts?.contract);
+  const originalContractSumSource: PayAppContractSumSource | undefined =
+    provenSource === 'saved_unread' ? 'carried_unread' : provenSource;
   const header = seedPayAppHeader(opts?.priorHeader, opts?.contract, project);
   const netChangeByCO = roundCents(approvedCOs.reduce((s, co) => s + co.changeAmount, 0));
   const contractSumToDate = roundCents(originalContractSum + netChangeByCO);
@@ -2177,6 +2237,7 @@ export function seedAIAPayApplicationFromInvoice(
     contractForDescription: project.description,
     originalContractSum,
     originalContractSumSource,
+    lineOneAwaitingContract: contractAnswered ? undefined : originalContractSum,
     netChangeByCO,
     contractSumToDate,
     retainagePercent,

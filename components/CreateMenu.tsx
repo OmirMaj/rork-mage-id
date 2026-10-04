@@ -126,7 +126,7 @@ const OPTIONS: CreateOption[] = [
   { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: MageChangeOrder, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
   // "Progress draw", not "Progress Billing, AIA G702/G703" — the GC's word
   // (UX wave D3). The AIA words stay searchable.
-  { label: 'Progress draw', subtitle: 'Bill the next draw — the AIA G702/G703 pay app', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703', 'progress billing', 'draw'], scoped: true, extraParams: { type: 'progress' } },
+  { label: 'Progress draw', subtitle: 'Bill the next draw — AIA-style G702/G703', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703', 'progress billing', 'draw'], scoped: true, extraParams: { type: 'progress' } },
   { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
   { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
   { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },

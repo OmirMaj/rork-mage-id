@@ -397,7 +397,7 @@ export default function DataExportScreen() {
           <SummaryLine label="Punch items" value={totals.punchItems} />
           <SummaryLine label="RFIs" value={totals.rfis} />
           <SummaryLine label="Submittals" value={totals.submittals} />
-          <SummaryLine label="AIA pay apps" value={totals.aiaPayApps} />
+          <SummaryLine label="AIA-style pay apps" value={totals.aiaPayApps} />
           <SummaryLine label="Commitments / POs" value={totals.commitments} />
           <SummaryLine label="T&M tickets" value={totals.fieldTickets} />
           <SummaryLine label="Time entries" value={totals.timeEntries} />

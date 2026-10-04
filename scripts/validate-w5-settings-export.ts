@@ -147,7 +147,7 @@ console.log('\n── README says what is in it, and what is not ──');
 const readme = ex.buildReadmeText(base, { format: 'both' }, { photoLinksExpireAt: EXP_ISO, photoOnDeviceOnlyCount: 2, includeLinks: true });
 ok('README lists exactly the CSV files written (line built from payloadToCsvs keys)',
   readme.includes(`One file per record type: ${ex.csvEntityLine(ex.payloadToCsvs(base))}.`));
-ok('…and that line names submittals and pay apps', /submittals/.test(ex.csvEntityLine(csvs)) && /AIA pay apps/.test(ex.csvEntityLine(csvs)));
+ok('…and that line names submittals and pay apps (AIA-style, never a bare "AIA pay apps")', /submittals/.test(ex.csvEntityLine(csvs)) && /AIA-style pay apps/.test(ex.csvEntityLine(csvs)) && !/(^|[^-\w])AIA pay apps/.test(ex.csvEntityLine(csvs).replace(/AIA-style pay apps/g, '')));
 ok('README says the photo files are NOT included', /photo image files are NOT in this bundle/.test(readme));
 ok('README states when the links stop working', readme.includes(EXP_ISO));
 ok('README counts the photos still only on the phone', /2 photos are still only on the phone/.test(readme));

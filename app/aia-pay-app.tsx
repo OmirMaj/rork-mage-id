@@ -139,7 +139,7 @@ import { todayCalendarDay } from '@/utils/calendarDate';
 // The read itself (offline, failed, timed out, sample) is ONE shared, tested
 // rule: watchContractRead. This screen only hands it the loader.
 import { loadActiveContract } from '@/utils/contractEngine';
-import { watchContractRead, nextContractRead, type ContractReadState } from '@/utils/projectFinancials';
+import { watchContractRead, nextContractRead, contractOfRead, type ContractReadState } from '@/utils/projectFinancials';
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
 function fmtG703(n: number): string {
@@ -290,8 +290,12 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       onSettle: contract => setContractRead(prev => nextContractRead(prev, contractProjectId, contract)),
     });
   }, [contractProjectId, sampleJob, offline]);
-  const contractSettled = !!contractProjectId && contractRead?.projectId === contractProjectId;
-  const activeContract = contractSettled ? contractRead?.contract : undefined;
+  // What that read says, through the one helper every contract-sum reader
+  // uses (contractOfRead). `activeContract` is `undefined` — NOT READ — until
+  // there is an answer for this project, and stays `undefined` when the read
+  // settled without one; it is never turned into `null` on this screen, which
+  // would tell the seeder "no contract on file" for a dead network.
+  const { settled: contractSettled, contract: activeContract } = contractOfRead(contractRead, contractProjectId);
   /** The line his last edit wrote "This period" on (updateLine /
    *  applyPercentToLine — the card, the % chips and the grid all go through
    *  them). The line-set signal reads it; a re-seed never sets it. */
@@ -480,7 +484,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       applicationNumber: resolvedApplicationNumber,
       // Lane PAYFIX: line 1 from the signed contract (estimate only when none
       // is signed, and labelled), and the header carried from the period
-      // before — or from the contract / project on a first period.
+      // before — or from the contract / project on a first period. While the
+      // contract read has not answered, line 1 is the previous period's.
       contract: activeContract,
       priorHeader: priorAIA,
       periodTo: app?.periodTo || undefined,
@@ -570,11 +575,13 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   }, [invoice, project, settings?.branding, savedForThisInvoice, applicationFromSaved, seedFreshApplication, priorAIA, contractSettled]);
 
   // A CONTRACT ANSWER THAT ARRIVES AFTER THE SEED (lane PAYFIX, fix round 1).
-  // A new period seeded on the timeout (or offline) carries the estimate on
-  // line 1, and a never-saved period has no Refresh chip to correct it. When
-  // the answer does arrive, line 1, its source and the contract sum to date
-  // follow it — line 1 is not editable, so nothing typed is lost. A SAVED
-  // certificate is the record and is never touched here (its caption says the
+  // A new period seeded on the timeout (or offline) carries a stand-in on
+  // line 1 — the previous period's figure, else the estimate — and a
+  // never-saved period has no Refresh chip to correct it. When the answer does
+  // arrive, applyContractAnswerToLineOne moves line 1, its source and the
+  // contract sum to date onto it, but ONLY on an application the seeder marked
+  // as waiting and only while line 1 is still the seeded figure. A SAVED
+  // certificate is the record and is never touched (its caption says the
   // figure differs, and Refresh is the explicit tap). Keyed on the read alone:
   // the project is read through a ref so a background project write cannot
   // re-run this over a period the GC is editing.
@@ -590,7 +597,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   // rule for a fresh seed and a reopened record, and nothing is claimed until
   // the contract read has settled — both inside payAppLineOneView. The PDF
   // prints no source note.
-  const lineOne = payAppLineOneView(app?.originalContractSum, project, contractRead, contractProjectId);
+  const lineOne = payAppLineOneView(app?.originalContractSum, project, contractRead, contractProjectId, app?.lineOneAwaitingContract);
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
 

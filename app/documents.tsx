@@ -17,6 +17,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import EmptyState from '@/components/EmptyState';
 import { documentTypeInfo } from '@/mocks/documents';
+import { PAY_APP_TYPE_TAG } from '@/utils/registers/documentRows';
 import type { DocumentType } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
@@ -124,6 +125,9 @@ function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfoMap = documentTypeInfo(themeColors);
   const typeInfo = typeInfoMap[doc.type] ?? typeInfoMap.other;
+  // Lane PAYFIX: a pay app's tag is "Pay app", not the mock table's "AIA
+  // Billing" — the document is AIA-style, never an official AIA form.
+  const typeLabel = doc.type === 'aia_billing' ? PAY_APP_TYPE_TAG : typeInfo.label;
   const statusInfo = toneConfig(themeColors)[doc.status.tone];
   const StatusIcon = BUCKET_ICON[doc.status.bucket];
 
@@ -139,7 +143,7 @@ function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
         style={styles.docCardInner}
       >
         <View style={[styles.docTypeTag, { backgroundColor: typeInfo.bgColor }]}>
-          <Text style={[styles.docTypeTagText, { color: typeInfo.color }]}>{typeInfo.label}</Text>
+          <Text style={[styles.docTypeTagText, { color: typeInfo.color }]}>{typeLabel}</Text>
         </View>
 
         <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>

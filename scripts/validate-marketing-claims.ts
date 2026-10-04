@@ -796,6 +796,80 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       ok(`no page claims /${pattern.source.slice(0, 32)}/`, hits.length === 0,
         hits.length ? `${why} — found in: ${hits.join(', ')}` : undefined);
     }
+
+    // THE CLAIM ITSELF, NOT TWO SENTENCES OF IT (lane PAYFIX, fix round 1).
+    // The two patterns above match only the exact strings features/
+    // financials.html used. The same false claim was live in two table cells
+    // of features/vs-competitors.html ("owner e-sign via portal", "e-sign
+    // export") and in the App Store screenshot source, and both patterns
+    // passed. So: a pay application (or a G702 / G703) may not sit in the same
+    // block as an e-signature. Nothing in the product e-signs a pay
+    // application: the portal offers Pay, and the PDF prints blank signature
+    // lines for a pen. "Same block" = no closing tr / li / div / section in
+    // between, within 240 characters of whitespace-collapsed text, in either
+    // order — close enough to be one claim (a heading and the paragraph under
+    // it; two cells of one table row), and it leaves a page free to sell
+    // contract and change-order e-signature in its own block. A printed
+    // "signature line" or "signature block" is true and is not matched.
+    const PAY_APP_NOUN = String.raw`(?:pay[\s-]*app(?:lication)?s?\b|G70[23]\b)`;
+    // Fix round 2: the claim in plain words too. "signed by the owner", "your
+    // owner signs each pay app", "digital signature" all passed while only the
+    // "e-sign…" spellings were matched. So: the verb (sign / signs / signed /
+    // signing) and a digital or electronic signature count as well. The noun
+    // "signature" on its own does not ("signature line", "signature block" —
+    // a blank line for a pen is what the PDF really prints), and neither does
+    // signing IN or UP, or a signed CONTRACT, which is not a signature on the
+    // pay application.
+    const E_SIGN = String.raw`(?:\be-?sign(?:ature|atures|ed|ing|s)?\b|owner(?:[’']s)? signature|for (?:owner |client )?signature|(?:digital|electronic)(?:ally)?[\s-]+sign(?:ature|atures|ed|s)?\b|\bsign(?:s|ing)?\b(?![\s-]+(?:in|up|off)\b)|\bsigned\b(?![\s-]+(?:in\b|up\b|contract))|\bcounter-?sign(?:s|ed|ing|ature)?\b)`;
+    const SAME_BLOCK = String.raw`(?:(?!<\/(?:tr|li|div|section)>)[\s\S]){0,240}?`;
+    const PAY_APP_E_SIGN = new RegExp(`${PAY_APP_NOUN}${SAME_BLOCK}${E_SIGN}|${E_SIGN}${SAME_BLOCK}${PAY_APP_NOUN}`, 'i');
+    // The App Store screenshot source is not a public page (publicPages skips
+    // the folder), but its captions become the store listing's images.
+    const STORE_SCREENSHOTS = 'marketing/app-store-screenshots/builder.html';
+    const eSignPages = [...pages, STORE_SCREENSHOTS];
+    const oneLine = (t: string) => t.replace(/\s+/g, ' ');
+    const eSignHits = eSignPages
+      .map(p => ({ p, m: PAY_APP_E_SIGN.exec(oneLine(prose(p))) }))
+      .filter(x => x.m);
+    ok('no page (or App Store screenshot caption) puts an e-signature on a pay application',
+      eSignHits.length === 0,
+      eSignHits.map(x => `${x.p}: "${x.m![0].slice(0, 140)}"`).join(' | '));
+    // The guard has to be able to see the claim it guards: the three live
+    // strings it was written against, and the two financials.html sentences.
+    const WAS_LIVE = [
+      '<td>AIA-style G702 / G703 pay apps</td><td>Native — full SOV editing, retainage, prior-billings, owner e-sign via portal</td>',
+      '<td>AIA-style G702/G703 pay app generator</td>\n<td>One screen — schedule of values, retainage math, change-order roll-up, e-sign export</td>',
+      `eyebrow: 'AIA PAY APP', title: "G702 / G703.", subtitle: "Schedule of values, retainage math, change orders, e-sign export."`,
+      '<h2>G702 & G703, one tap away.</h2> <p> Progress billing that actually looks like what the architect expects. Retainage, stored materials, prior billings — all calculate correctly. Export as PDF or push straight to the client portal for owner signature. </p>',
+      '<li>AIA-style G702 pay app with owner e-signature via client portal</li>',
+      // Fix round 2 — the same claim without the word "e-sign".
+      '<li>Pay applications signed by the owner in the client portal</li>',
+      '<p>Your owner signs each pay app right in the portal.</p>',
+      '<li>Pay apps with digital signature from the owner</li>',
+      '<li>G703 continuation sheet, e-signed by the owner</li>',
+      '<p>Send the G702 and the owner can sign it from a phone.</p>',
+      '<li>Pay apps, electronically signed</li>',
+      '<p>Architects countersign your pay app in the portal.</p>',
+    ];
+    ok('…and that check matches every form the claim was live in',
+      WAS_LIVE.every(t => PAY_APP_E_SIGN.test(t)),
+      WAS_LIVE.filter(t => !PAY_APP_E_SIGN.test(t)).join(' | '));
+    const TRUE_COPY = [
+      '<li>G702 cover sheet with signature lines for the contractor and the architect</li>',
+      '<div><p>Pay apps go to the portal with a Pay button.</p></div><div><p>Change orders are approved with an e-signature.</p></div>',
+      '<li>AIA-style G702 summary</li><li>Change orders approved with an e-signature</li>',
+      '<tr><td>AIA-style pay apps</td><td>PDF export</td></tr><tr><td>Contract e-signature</td><td>Yes</td></tr>',
+      '<li>AIA-style G702 with a signature block for the architect</li>',
+      '<p>Line 1 of the pay app comes from your signed contract.</p>',
+      '<p>Sign in to build an AIA-style pay app.</p>',
+      '<p>Sign up free and send your first pay application this week.</p>',
+    ];
+    ok('…and leaves true copy alone (printed signature lines; e-signature in its own block)',
+      TRUE_COPY.every(t => !PAY_APP_E_SIGN.test(t)),
+      TRUE_COPY.filter(t => PAY_APP_E_SIGN.test(t)).join(' | '));
+    ok('the App Store screenshot caption says AIA-style',
+      !/AIA\s+(G70[23]|pay\s*app)/i.test(prose(STORE_SCREENSHOTS).replace(/AIA-style/gi, '')),
+      'an App Store image that says "AIA PAY APP" tells a buyer the document is an official AIA form');
     // AIA appears on 11 pages. Wherever it appears it must be hedged, because
     // the generated document itself is (utils/aiaBilling.ts:937) and the
     // largest published-price competitor uses the same hedge on its own
