@@ -18,10 +18,16 @@
 //   * A sample says "(Sample)" as its last word.
 //   * MAGE sends nothing: these functions build text and sms:/mailto: links;
 //     the user's own app does the sending.
+//   * A STAND-IN IS NOT A REQUIREMENT. A card whose line MAGE withheld (or the
+//     AI never gave) has no requirement in words, so it is never sent as one:
+//     `shareBlockedReason` blocks the text to a sub with the reason, and the
+//     architect email lists such a row by its section and place only ("See
+//     R312.1.1 (A-2)"), or leaves it out and says how many were left out.
 
 import type { CitationEvidence } from '../codeAmendments';
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeTrigger } from './types';
 import { sectionIsBacked } from './evidence';
+import { isStandInLine } from './echoCheck';
 import { AS_CITED_MARK, editionViewFor } from './jurisdiction';
 import { canRecheck, formatJobNumber, recheckEquation } from './verdict';
 
@@ -93,6 +99,21 @@ export function confirmLine(info: CodeJurisdictionInfo | null | undefined): stri
   return office ? `Confirm with ${office}.` : 'Confirm with your building department.';
 }
 
+/** Why a card with no requirement in words cannot be texted to a sub. */
+export const NO_WORDS_SEND = 'This card has no requirement in words, so there is nothing to text. Use Official text to read the section.';
+
+/** Why this card cannot be texted to a sub, or null when it can: a stand-in line is not a requirement. */
+export function shareBlockedReason(item: Pick<CodeCardItem, 'summary'>): string | null {
+  return isStandInLine(item.summary) || !(item.summary ?? '').trim() ? NO_WORDS_SEND : null;
+}
+
+/** The architect email's closing count of rows that had nothing to list. */
+export function leftOutLine(n: number): string {
+  return n === 1
+    ? '1 more item has no requirement in words and no section, so it is not listed here.'
+    : `${n} more items have no requirement in words and no section, so they are not listed here.`;
+}
+
 /**
  * The one-message text for a sub (or anyone) about one card.
  *
@@ -127,14 +148,27 @@ export function shareTextFor(item: CodeCardItem, opts: ShareTextOptions = {}): s
 }
 
 /**
+ * The "fix" rows the architect email can list: a row with its requirement in
+ * words, or a stand-in row that at least has a section to point at. The button
+ * label (./summary.ts architectButtonLabel) counts these same rows.
+ */
+export function architectFixRows(items: readonly CodeCardItem[]): CodeCardItem[] {
+  return items.filter((i) => i.status === 'fix' && (shareBlockedReason(i) === null || !!(i.section ?? '').trim()));
+}
+
+/**
  * One email to the architect for the plan-check rows that need one: every
  * "fix" row and every "ask" row that carries a question.
  */
 export function architectMessageFor(
   items: readonly CodeCardItem[],
   opts: { jobLabel?: string | null; sheetLabel?: string | null; info?: CodeJurisdictionInfo | null; sample?: boolean } = {},
-): { subject: string; body: string; fixes: number; questions: number } {
-  const fixes = items.filter((i) => i.status === 'fix');
+): { subject: string; body: string; fixes: number; questions: number; leftOut: number } {
+  // A fix row with no requirement in words is listed by its section and place
+  // only; with no section either there is nothing to list, and it is counted.
+  const noWords = (i: CodeCardItem) => shareBlockedReason(i) !== null;
+  const fixes = architectFixRows(items);
+  const leftOut = items.filter((i) => i.status === 'fix').length - fixes.length;
   const asks = items.filter((i) => i.status === 'ask' && (i.question ?? '').trim());
   const job = (opts.jobLabel ?? '').trim();
   const sheet = (opts.sheetLabel ?? '').trim();
@@ -146,7 +180,9 @@ export function architectMessageFor(
     lines.push('To fix:');
     for (const f of fixes) {
       const where = [f.observed, f.location].map((s) => (s ?? '').trim()).filter(Boolean).join(', ');
-      lines.push(`- ${sentence(f.summary)}${where ? ` (${where})` : ''} ${sentence(`Ref: ${architectRef(f)}`)}`);
+      lines.push(noWords(f)
+        ? `- ${sentence(`See ${architectRef(f)}${where ? ` (${where})` : ''}`)}`
+        : `- ${sentence(f.summary)}${where ? ` (${where})` : ''} ${sentence(`Ref: ${architectRef(f)}`)}`);
     }
   }
   if (asks.length) {
@@ -156,11 +192,15 @@ export function architectMessageFor(
       lines.push(`- ${sentence(a.question ?? '')} ${sentence(`Ref: ${architectRef(a)}`)}`);
     }
   }
+  if (leftOut > 0) {
+    lines.push('');
+    lines.push(leftOutLine(leftOut));
+  }
   lines.push('');
   lines.push('This is an AI read of the drawing, not plan review.');
   lines.push(confirmLine(opts.info));
   if (opts.sample) lines.push(SAMPLE_TAIL);
-  return { subject, body: lines.join('\n'), fixes: fixes.length, questions: asks.length };
+  return { subject, body: lines.join('\n'), fixes: fixes.length, questions: asks.length, leftOut };
 }
 
 // ── Opening HIS app ──────────────────────────────────────────────────────

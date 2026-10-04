@@ -4,7 +4,9 @@
 //
 // BLOCKED BUTTONS SAY WHY. An action is ready, done (it says where the thing
 // landed) or blocked (it says why, in plain words, when tapped). A blocked
-// button is never a silent grey rectangle.
+// button is never a silent grey rectangle. A done action may carry an undo
+// (`onPress`): the opened card's Checklist row uses it to take a pin off again,
+// and its label then says so.
 
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,14 +18,14 @@ import { useCodeCardPalette, useSunlight, type CodeCardPalette } from './palette
 /** What a code-card button does. */
 export type CodeCardAction =
   | { kind: 'ready'; onPress: () => void; label?: string }
-  | { kind: 'done'; label: string }
+  | { kind: 'done'; label: string; onPress?: () => void }
   | { kind: 'blocked'; reason: string };
 
 export function readyAction(onPress: () => void, label?: string): CodeCardAction {
   return { kind: 'ready', onPress, label };
 }
-export function doneAction(label: string): CodeCardAction {
-  return { kind: 'done', label };
+export function doneAction(label: string, onPress?: () => void): CodeCardAction {
+  return onPress ? { kind: 'done', label, onPress } : { kind: 'done', label };
 }
 export function blockedAction(reason: string): CodeCardAction {
   return { kind: 'blocked', reason };

@@ -17,5 +17,6 @@ export * from './summary';
 export * from './store';
 export * from './pins';
 export * from './saved';
+export * from './remeasure';
 export * from './sunlight';
 export * from './reset';

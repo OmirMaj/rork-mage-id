@@ -29,6 +29,7 @@ import {
   tallySquares,
 } from '@/utils/codeCard/summary';
 import { editionForItem, sourceLine } from '@/utils/codeCard/jurisdiction';
+import { withChosenStage } from '@/utils/codeCard/pins';
 import type { OfficialTextDeps } from '@/utils/codeCard/officialText';
 import { useCodeCardPalette, type CodeCardPalette } from './palette';
 import { CodeCard } from './CodeCard';
@@ -132,7 +133,7 @@ export function CodeCardList(props: CodeCardListProps) {
       {list.map((item, i) => (
         <CodeCardRow
           key={item.id}
-          item={stageOf ? { ...item, stage: stageOf(item) } : item}
+          item={stageOf ? withChosenStage(item, stageOf(item)) : item}
           onPress={onOpen}
           showStage={showStage}
           edition={mode === 'answer' ? editionForItem(item, info) : null}
@@ -185,7 +186,7 @@ export function CodeCardList(props: CodeCardListProps) {
         {items.map((item) => (
           <CodeCard
             key={item.id}
-            item={stageOf ? { ...item, stage: stageOf(item) } : item}
+            item={stageOf ? withChosenStage(item, stageOf(item)) : item}
             info={info}
             sample={sample}
             sunlight={sunlight}

@@ -73,7 +73,8 @@ import { describeError, ownSentence } from '@/utils/errorCopy';
 import { permitTypeLabel } from '@/utils/statusLabels';
 import AskConstructionMode, {
   useCodeCardWiring, usePermitOfficeAnswer,
-  codeCheckCards, codeCheckJobText, codeCheckPlainLine, planFindingCardItem, withContentIds,
+  codeCheckCards, codeCheckJobText, codeCheckOwnWords, codeCheckPlainLine, isCardPlaceholder,
+  planFindingCardItem, planFindingOwnWords, withContentIds,
 } from '@/components/construction/AskConstructionMode';
 // Code cards (lane CCWIRE): every Code Check citation and every Plan Review
 // finding is a code card (components/codeCard, lane CCKIT). The ladder, the
@@ -301,6 +302,8 @@ type CodeDetailState = {
 };
 
 const codeDetailKey = (c: { code: string; section: string }) => `${c.code}::${c.section}`;
+/** Why a Code Check row offers no Permits / Punch / RFI buttons: its line is MAGE's stand-in, not a requirement in words. */
+const CODE_ROW_NO_ACTIONS = 'No actions for this line: it has no requirement in words to put in a permit, a punch item or an RFI.';
 
 // Server-side daily counter. Replaces an earlier AsyncStorage-based
 // implementation that audit found was trivially bypassed: reinstall,
@@ -1310,8 +1313,10 @@ function ConstructionAIScreenInner() {
           id: `${reviewId}-${i}`,
           category: normalizeCategory(f.category),
           codeRef,
-          requirement: (f.requirement ?? '').trim(),
-          observed: (f.observed ?? '').trim(),
+          // The withhold rule: both AI lines are saved through the own-words
+          // gate (the requirement, or the withheld notice; what the drawing
+          // shows, or nothing).
+          ...planFindingOwnWords(f, passesEchoCheck),
           severity: normalizeLevel(f.severity),
           confidence: normalizeLevel(f.confidence),
           status: priorStatusByRef.get(codeRef) ?? 'open',
@@ -1495,7 +1500,8 @@ ${followUpInstruction(answered)}
 
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
 Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.
-Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.`;
+Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
+Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
@@ -1511,7 +1517,12 @@ Write every requirement in your own words. Never quote or reproduce the text of 
         showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
         return;
       }
-      const data = res.data as CodeCheckResult;
+      // THE WITHHOLD RULE, AT THE DOOR: every row's requirement line goes
+      // through the own-words gate here, once. The result on screen, the check
+      // saved to the job and every permit, punch item or RFI drafted from a
+      // row then hold only the gated line (a line that reads like code text is
+      // the withheld notice everywhere, not just on the card).
+      const data = codeCheckOwnWords(res.data as CodeCheckResult, passesEchoCheck);
       setResult(data);
       // Snapshot the grounding that went WITH this prompt.
       setResultGrounding(grounding);
@@ -2627,17 +2638,23 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                                 <View style={[styles.severityDot, { backgroundColor: SEVERITY_COLORS[sev] }]} />
                                 <Text style={styles.severityHeaderText}>{`${SEVERITY_LABEL[sev]} · ${group.length}`}</Text>
                               </View>
-                              {group.map((f) => (
+                              {group.map((f) => {
+                                // The same own-words gate as the card above, here
+                                // too (a review saved before the gate holds the
+                                // AI's raw lines): a line the card withholds is
+                                // withheld in this list as well.
+                                const ownWords = planFindingOwnWords(f, passesEchoCheck);
+                                return (
                                 <View key={f.id} style={[styles.findingCard, f.status !== 'open' && styles.findingCardMuted]}>
                                   <View style={styles.findingTopRow}>
                                     <Text style={styles.findingCodeRef}>{f.codeRef}</Text>
                                     <Text style={styles.findingConfidence}>{CONFIDENCE_LABEL[f.confidence]}</Text>
                                   </View>
-                                  {f.requirement ? (
-                                    <Text style={styles.findingRequirement}>{f.requirement}</Text>
+                                  {ownWords.requirement ? (
+                                    <Text style={styles.findingRequirement}>{ownWords.requirement}</Text>
                                   ) : null}
-                                  {f.observed ? (
-                                    <Text style={styles.findingObserved}>{`Observed: ${f.observed}`}</Text>
+                                  {ownWords.observed ? (
+                                    <Text style={styles.findingObserved}>{`Observed: ${ownWords.observed}`}</Text>
                                   ) : null}
                                   {planEvidence.get(f.id) ? (
                                     <RungBadge ev={planEvidence.get(f.id)!.ev} testID={`plan-review-rung-${f.id}`} />
@@ -2660,7 +2677,8 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                                     <ChevronRight size={10} color={Colors.primary} strokeWidth={1.75} />
                                   </TouchableOpacity>
                                 </View>
-                              ))}
+                                );
+                              })}
                             </View>
                           );
                         })}
@@ -3298,7 +3316,7 @@ function ResultModal({
 Address: ${location.trim()}
 ${jurisdictionBlock}Work being done: ${scenario.trim()}
 Code cited: ${label}
-Summary requirement given: ${c.requirement}
+Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}
 
 Return a JSON object with:
 - plainEnglish: what this code section actually requires, in plain contractor English (2-4 sentences). Include the specific numbers/dimensions/ratings it specifies when you are confident of them.
@@ -3450,7 +3468,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
               {rungSummary ? (
                 <Text style={styles.rungSummary} testID="code-check-rung-summary">{rungSummary}</Text>
               ) : null}
-              <Text style={styles.codeTapHint}>{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap a code for what it requires and what the inspector checks.'}</Text>
+              <Text style={styles.codeTapHint}>{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the inspector checks under a code for what it requires.'}</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
                 const isOpen = openCode === key;
@@ -3466,7 +3484,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                         citation line, through the same own-words gate. */}
                     {card ? (
                       <CodeCard
-                        item={{ ...card, stage: wiring.stageOf(card) }}
+                        item={wiring.cardOf(card)}
                         info={cardInfo}
                         jobValue={wiring.jobValueOf(card)}
                         onOpen={() => toggleCode(c)}
@@ -3509,8 +3527,14 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                         </View>
                       </View>
                     ) : null}
+                    {/* A withheld line has no words to put in a permit, a punch
+                        item or an RFI: no actions for it, and the row says why. */}
                     {savedRecord && project ? (
-                      <CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={c.requirement} onBeforeNavigate={onClose} />
+                      isCardPlaceholder(codeCheckPlainLine(c.requirement, passesEchoCheck)) ? (
+                        <Text style={styles.codeTapHint} testID={`code-check-no-actions-${i}`}>{CODE_ROW_NO_ACTIONS}</Text>
+                      ) : (
+                      <CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={codeCheckPlainLine(c.requirement, passesEchoCheck)} onBeforeNavigate={onClose} />
+                      )
                     ) : null}
 
                     {isOpen && (

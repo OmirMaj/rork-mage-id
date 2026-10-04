@@ -425,6 +425,8 @@ export function buildRecallPrompt(a: {
     '- Mark confidence low when unsure.',
     '- Ask at most 3 follow-up questions, each with 2-4 short tap options, only when the answer changes the list (e.g. "Any basement bedrooms?" Yes / No / Not sure).',
     '- Each item: text (what the inspector checks, one short line), codeRef, confidence (high, med or low), why (one short line).',
+    // Copyright: the same sentence every code prompt carries.
+    '- Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.',
   ];
   const prompt = lines.join('\n');
   const cacheKey = `inspection_prep::${inspection.key}::${jurisdiction.cacheKey}::${digest(covered.map((c) => c.text).join('\n'))}::${JSON.stringify(sortedAnswers)}`;

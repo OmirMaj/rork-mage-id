@@ -41,6 +41,28 @@
 //      project, a stand-in card, a card the store would refuse); the cards of
 //      an answer are wired to the project that was ASKED for; the Plan Review
 //      details toggle exists only while there are cards.
+//   4b. THE WITHHOLD RULE COVERS EVERY PLACE THE LINE CAN APPEAR: a sweep
+//      over every surface file. A line that reads an AI result's `.requirement`
+//      or `.observed` (or the sweep view's `.title`) must run the own-words
+//      gate on that line, read it from an object the gate made (`ownWords`, `row`),
+//      or be one of the listed lines that print nothing. Code Check's result
+//      is gated once where it comes in; Plan Review's findings where they are
+//      saved and again where they print; the sweep's rows before the list, the
+//      RFI draft and the punch item read them.
+//      A bracket read or a destructured read of those keys is never accepted.
+//      AN INCH MARK IS NOT A QUOTE: the same gates keep an honest drawing line
+//      (36", 2'-8", 7-7/8") as written, on all three screens (section 3).
+//      The saved check sheet (outside this lane) joins the sweep once its
+//      patch is in; until then it is said out loud (a failure under
+//      --require-optin).
+//   4c. THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN: every read of a
+//      re-measure in the hook goes through the kit's remeasureFor, with the
+//      hook's own project; nothing is keyed on the card id alone.
+//   4d. THE "SAVED" AND "ON … CHECKLIST" MARKS BELONG TO THE CARD AS SHOWN:
+//      both go through the kit's keptIsShown (same verdict, trigger and shown
+//      number), never the card id alone; a stage he picked is kept per job
+//      and is never labelled "AI guess"; the saved lists' sheet stays mounted
+//      while one of their cards is open; a stand-in card is never texted.
 //   5. The client opt-in: both functions send the code-card rows only when the
 //      request asks (`codeCards: true`), and the two request helpers are
 //      outside this lane. None of it applied = a loud notice (a failure under
@@ -62,9 +84,11 @@ import {
 } from '../utils/inspectionPrep';
 import { z } from 'zod';
 import { codeCardStoreBlockedReason, parseCodeCardItem, parseCodeCardItems, STORED_TEXT_MAX } from '../utils/codeCard/parse';
-import { effectiveVerdict, recheckOutcome } from '../utils/codeCard/verdict';
-import { shareTextFor } from '../utils/codeCard/shareText';
-import { passesEchoCheck } from '../utils/codeCard/echoCheck';
+import { EMPTY_REMEASURES, keptIsShown, recordRemeasure, remeasureFor } from '../utils/codeCard/remeasure';
+import { rfiFromSweepFinding, punchFromSweepFinding, sweepFindingView } from '../utils/plans/planSweep';
+import { canRecheck, effectiveVerdict, recheckOutcome, stepJobValue } from '../utils/codeCard/verdict';
+import { architectMessageFor, shareBlockedReason, shareTextFor, NO_WORDS_SEND } from '../utils/codeCard/shareText';
+import { isStandInLine, passesEchoCheck, LINE_NO_TEXT, LINE_WITHHELD } from '../utils/codeCard/echoCheck';
 import { saysNumberWithUnit } from '../utils/codeCard/saysWithUnit';
 import { evidenceView, sectionIsBacked } from '../utils/codeCard/evidence';
 import { EMPTY_PINS, makePin, parsePinsState, pinnedStage, pinsReducer } from '../utils/codeCard/pins';
@@ -293,6 +317,7 @@ ok(`${ASK} is readable`, askSrc.length > 0);
   const block = loadPure(askSrc, 'codeCardItems', [
     'codeCheckCardItem', 'codeCheckCards', 'codeCheckPlainLine', 'cardVerdictOf', 'planFindingCardItem', 'sweepCardItem', 'withContentIds', 'isCardPlaceholder',
     'cardWithChosenStage', 'codeCheckJobText',
+    'ownWordsLine', 'ownWordsObserved', 'codeCheckOwnWords', 'planFindingOwnWords', 'sweepRowOwnWords', 'SWEEP_ROW_WITHHELD',
     'CARD_WITHHELD', 'CARD_NO_TEXT', 'CARD_TEXT_MAX',
   ]);
   ok('the wiring marks codeCardItems as a pure block', !!block);
@@ -435,15 +460,15 @@ ok(`${ASK} is readable`, askSrc.length > 0);
       const riserScene = 'Sample: stair risers are 8 in. tall.';
       const p1 = probe(guardScene, { ...guardRow, triggerComparison: '<' });
       ok('PROBE 1: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard he typed: no job number, so no tape and no "within the limit" anywhere',
-        p1.verdict === 'limit' && effectiveVerdict(p1) === 'limit' && p1.jobValue === undefined && JSON.stringify(p1.trigger) === '{"value":36,"unit":"in","comparison":"<"}'
+        p1.verdict === 'limit' && effectiveVerdict(p1) === 'limit' && p1.jobValue === undefined && p1.trigger === undefined
           && !/Job: |Result:|within the limit/.test(text(p1)) && text(p1).includes('Guard has to be at least 36 in. high.'), text(p1));
       const p2 = probe(riserScene, { ...riserRow, triggerComparison: '>' });
       ok('PROBE 2: "at most 7.75 in." with the sign the wrong way (>) and an 8 in. riser he typed: no job number, no "within the limit"',
-        p2.verdict === 'limit' && p2.jobValue === undefined && p2.trigger?.value === 7.75 && !/Job: |Result:|within the limit/.test(text(p2)), text(p2));
+        p2.verdict === 'limit' && p2.jobValue === undefined && p2.trigger === undefined && !/Job: |Result:|within the limit/.test(text(p2)), text(p2));
       const [p3] = parseCodeCardItems([{ id: 'req-1', verdict: 'limit', summary: 'Risers can be at most 7.75 in. tall.', section: 'R311.7.5.1', citedEdition: '2025 RCNYS',
         trigger: { value: 7.75, unit: 'in', comparison: '>' }, jobValue: { value: 8, unit: 'in', source: 'job', sourceLabel: 'riser height from your question' } }]);
       ok('PROBE 3: the same riser row as an Ask card off the wire: the phone drops the job number whatever the server sent',
-        !!p3 && p3.verdict === 'limit' && p3.jobValue === undefined && p3.trigger?.comparison === '>' && !/Job: |Result:|within the limit/.test(text(p3)), p3 ? text(p3) : 'no card');
+        !!p3 && p3.verdict === 'limit' && p3.jobValue === undefined && p3.trigger === undefined && !/Job: |Result:|within the limit/.test(text(p3)), p3 ? text(p3) : 'no card');
       const g = probe(guardScene, { ...guardRow, triggerComparison: '>=' });
       const r = probe(riserScene, { ...riserRow, triggerComparison: '<=' });
       ok('with the sign its own words mean, the typed number is kept and reads the right way: 34 in. against "at least 36 in." and 8 in. against "at most 7.75 in." are both OUTSIDE the limit',
@@ -473,6 +498,139 @@ ok(`${ASK} is readable`, askSrc.length > 0);
       const jobTextOf = block.codeCheckJobText as (scenario: string, answers: { answer: string }[]) => string;
       ok('the words a run’s job number is checked against are the scenario and every answer, as sent',
         jobTextOf('A deck.', [{ answer: 'About 34 in.' }, { answer: 'Yes' }]) === 'A deck.\nAbout 34 in.\nYes' && jobTextOf('A deck.', []) === 'A deck.');
+
+      // ── THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN (integration
+      // round 3). The card id is made from the words only, so two Code Check
+      // runs give the same id to the same line. The critic's two cases, through
+      // the real codeCheckCards, the real parser and the kit's remeasureFor.
+      const deckRow = { section: 'R312.1.1', requirement: 'Sample: a guard is needed once the deck is more than 30 in. up.', triggerValue: 30, triggerUnit: 'in', triggerComparison: '>', jobNumberUnit: 'in', jobNumberLabel: 'deck height from the scenario' };
+      const run1 = probe('Sample: a deck 34 in. above grade.', { ...deckRow, verdict: 'required', jobNumber: 34 });
+      const run2 = probe('Sample: a deck 40 in. above grade.', { ...deckRow, verdict: 'required', jobNumber: 40 });
+      const stepped = recordRemeasure(EMPTY_REMEASURES, run1, 'p1', stepJobValue(run1.jobValue!, -5));
+      ok('CASE A, fixture: two runs give the same line the same card id, with their own numbers (34 in. and 40 in.); he steps run 1 down to 29 in., which reads NOT REQUIRED',
+        run1.id === run2.id && run1.jobValue?.value === 34 && run2.jobValue?.value === 40 && remeasureFor(run1, 'p1', stepped)?.value === 29
+          && effectiveVerdict(run1, remeasureFor(run1, 'p1', stepped)) === 'not_required');
+      ok('CASE A: the later run’s card does NOT inherit that re-measure: it shows its own 40 in., stays REQUIRED, and the text to a sub and Save carry 40 in., never 29',
+        remeasureFor(run2, 'p1', stepped) === undefined && effectiveVerdict(run2, remeasureFor(run2, 'p1', stepped)) === 'required'
+          && shareTextFor(run2, { jobValue: remeasureFor(run2, 'p1', stepped) }).includes('Job: 40 in. (deck height from the scenario).')
+          && !/29 in\.|not required/.test(shareTextFor(run2, { jobValue: remeasureFor(run2, 'p1', stepped) }))
+          && makeSaved('p1', run2, '2026-10-04T10:00:00.000Z', remeasureFor(run2, 'p1', stepped) ?? null).jobValue === undefined);
+      ok('…nor does the same card on another project, or with no project linked',
+        remeasureFor(run1, 'p2', stepped) === undefined && remeasureFor(run1, null, stepped) === undefined);
+      const good = probe(guardScene, { ...guardRow, triggerComparison: '>=' });
+      const steppedLimit = recordRemeasure(EMPTY_REMEASURES, good, 'p1', stepJobValue(good.jobValue!, -1));
+      const wrong = probe(guardScene, { ...guardRow, triggerComparison: '<' });
+      const savedWrong = makeSaved('p1', wrong, '2026-10-04T10:00:00.000Z', remeasureFor(wrong, 'p1', steppedLimit) ?? null);
+      ok('CASE B: a limit with the sign the wrong way, on a run AFTER he re-measured the same line: no trigger, no number, the old re-measure is not used, so no tape and no "within the limit" on the card, in the text or in the saved card',
+        good.id === wrong.id && remeasureFor(good, 'p1', steppedLimit)?.value === 33 && wrong.trigger === undefined && wrong.jobValue === undefined
+          && remeasureFor(wrong, 'p1', steppedLimit) === undefined && !canRecheck({ jobValue: remeasureFor(wrong, 'p1', steppedLimit), trigger: wrong.trigger })
+          && !/Job: |Result:|within the limit|Limit below/.test(shareTextFor(wrong, { jobValue: remeasureFor(wrong, 'p1', steppedLimit) }))
+          && savedWrong.jobValue === undefined && savedWrong.item.trigger === undefined
+          && parseSavedState(JSON.stringify(savedReducer(EMPTY_SAVED, { type: 'save', card: savedWrong }))).p1?.[0]?.jobValue === undefined);
+      ok('a trigger of ZERO (the relay tells the model "use 0 if unknown") or less is "did not say": no trigger, no tape',
+        cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 0, triggerUnit: 'in', triggerComparison: '>', jobNumber: 0, jobNumberUnit: 'in', jobNumberLabel: 'x' }, 6, null, parseCodeCardItem, passesEchoCheck, said('Sample: 0 in. of clearance.')).trigger === undefined
+          && !canRecheck(cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 0, triggerUnit: 'in', triggerComparison: '>', jobNumber: 0, jobNumberUnit: 'in', jobNumberLabel: 'x' }, 6, null, parseCodeCardItem, passesEchoCheck, said('Sample: 0 in. of clearance.')))
+          && cc({ code: 'IRC', requirement: 'Guards.', triggerValue: -3, triggerUnit: 'in', triggerComparison: '>' }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined
+          && cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 0.5, triggerUnit: 'in', triggerComparison: '>' }, 6, null, parseCodeCardItem, passesEchoCheck).trigger?.value === 0.5);
+    }
+    {
+      // ── THE WITHHOLD RULE COVERS EVERY PLACE THE LINE CAN APPEAR ──
+      const SHALL = 'Guards shall be provided where the walking surface is more than 30 inches above grade.';
+      const QUOTED = 'Drawn "4 in." apart';
+      const ownLine = block.ownWordsLine as (t: unknown, echo: typeof passesEchoCheck) => string;
+      const ownObserved = block.ownWordsObserved as (t: unknown, echo: typeof passesEchoCheck) => string;
+      ok('ownWordsLine: own words pass as written, code-shaped or quoted words become the withheld notice (never trimmed), no words stay empty',
+        ownLine('  Sample: guards on  open sides. ', passesEchoCheck) === 'Sample: guards on open sides.' && ownLine(SHALL, passesEchoCheck) === WITHHELD
+          && ownLine('The code says "guards are required".', passesEchoCheck) === WITHHELD && ownLine(`${'Short plain words here. '.repeat(20)}`, passesEchoCheck) === WITHHELD
+          && ownLine('', passesEchoCheck) === '' && ownLine(undefined, passesEchoCheck) === '' && ownLine(7, passesEchoCheck) === ''
+          && ownLine(WITHHELD, passesEchoCheck) === WITHHELD);
+      ok('ownWordsObserved: what the drawing shows passes as written; a quoted or code-shaped one is dropped (nothing shown)',
+        ownObserved('Sample: drawn 4½ in. apart', passesEchoCheck) === 'Sample: drawn 4½ in. apart' && ownObserved(QUOTED, passesEchoCheck) === ''
+          && ownObserved(SHALL, passesEchoCheck) === '' && ownObserved('', passesEchoCheck) === '' && ownObserved(null, passesEchoCheck) === '');
+      const gateResult = block.codeCheckOwnWords as <R extends { applicableCodes: Record<string, unknown>[] }>(r: R, echo: typeof passesEchoCheck) => R;
+      const raw = { summary: 'Sample summary.', permitsRequired: ['Sample permit'], applicableCodes: [
+        { code: 'IRC', section: 'R312.1', requirement: SHALL, verdict: 'required', triggerValue: 30 },
+        { code: 'IRC', section: 'R311.7.8', requirement: 'Sample: a handrail on the deck stair.', verdict: '' },
+        { code: 'IRC', section: '', requirement: '' },
+      ] };
+      const gated = gateResult(raw, passesEchoCheck);
+      ok('Code Check, AT THE DOOR: codeCheckOwnWords gates every row’s requirement once; nothing else in the result changes, and the input is not mutated',
+        gated.applicableCodes[0].requirement === WITHHELD && gated.applicableCodes[1].requirement === 'Sample: a handrail on the deck stair.' && gated.applicableCodes[2].requirement === ''
+          && gated.applicableCodes[0].section === 'R312.1' && gated.applicableCodes[0].triggerValue === 30 && gated.summary === raw.summary && gated.permitsRequired === raw.permitsRequired
+          && raw.applicableCodes[0].requirement === SHALL && !JSON.stringify(gated).includes('shall be provided'));
+      const gatedCards = ccs(gated.applicableCodes, [null, null, null], parseCodeCardItem, passesEchoCheck);
+      ok('…so the card, the plain row, the saved check and every action built from the gated result carry the notice, never the line',
+        gatedCards[0]?.summary === WITHHELD && isPlaceholder(gatedCards[0]?.summary) && plainLine(gated.applicableCodes[0].requirement, passesEchoCheck) === WITHHELD
+          && plainLine(gated.applicableCodes[2].requirement, passesEchoCheck) === NO_TEXT);
+      const planOwn = block.planFindingOwnWords as (f: Record<string, unknown>, echo: typeof passesEchoCheck) => { requirement: string; observed: string };
+      ok('Plan Review: a finding’s two AI lines, as saved and as the list prints them: the requirement or the withheld notice, what the drawing shows or nothing',
+        JSON.stringify(planOwn({ requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart' }, passesEchoCheck)) === JSON.stringify({ requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart' })
+          && JSON.stringify(planOwn({ requirement: SHALL, observed: QUOTED }, passesEchoCheck)) === JSON.stringify({ requirement: WITHHELD, observed: '' })
+          && JSON.stringify(planOwn({}, passesEchoCheck)) === JSON.stringify({ requirement: '', observed: '' }));
+      const quotedFinding = pf({ id: 'fq', requirement: SHALL, observed: QUOTED, confidence: 'high', status: 'open', stage: 'final', stageIsGuess: false }, { citedCode: 'IRC', section: 'R312.1.3' }, null, parseCodeCardItem, passesEchoCheck);
+      ok('…and its card agrees: the same line withheld, the quoted observed dropped, and the stage a GUESS whatever the finding claims',
+        quotedFinding.summary === WITHHELD && quotedFinding.observed === undefined && quotedFinding.stage === 'final' && quotedFinding.stageIsGuess === true
+          && pf({ id: 'fq2', requirement: 'Sample.', observed: 'Sample: drawn 4½ in. apart', confidence: 'high', stageIsGuess: false }, { citedCode: 'IRC', section: '' }, null, parseCodeCardItem, passesEchoCheck).stageIsGuess === true);
+      const rowOwn = block.sweepRowOwnWords as <V extends { title: string; requirement: string; observed: string }>(v: V, echo: typeof passesEchoCheck) => V & { withheld: boolean };
+      const BLOCKED = block.SWEEP_ROW_WITHHELD as string;
+      const sheetP = { id: 'sh1', projectId: 'p1', name: 'Deck plan', sheetNumber: 'A-201' };
+      const view = (f: Record<string, unknown>) => sweepFindingView(f as never, sheetP, ny);
+      const clean = rowOwn(view({ question: 'Sample: what is the baluster spacing?', requirement: 'Sample: baluster spacing on the guard.', observed: 'Sample: drawn 4½ in. apart' }), passesEchoCheck);
+      const reqHidden = rowOwn(view({ question: 'Sample: what is the guard height?', requirement: SHALL, observed: QUOTED }), passesEchoCheck);
+      const allHidden = rowOwn(view({ question: '', requirement: SHALL, observed: 'Sample: drawn 34 in.' }), passesEchoCheck);
+      ok('the sweep row: own words ride as written, and nothing else in the view changes (rung, where, severity)',
+        clean.title === 'Sample: what is the baluster spacing?' && clean.requirement === 'Sample: baluster spacing on the guard.' && clean.observed === 'Sample: drawn 4½ in. apart' && clean.withheld === false
+          && JSON.stringify({ ...clean, withheld: undefined }) === JSON.stringify({ ...view({ question: 'Sample: what is the baluster spacing?', requirement: 'Sample: baluster spacing on the guard.', observed: 'Sample: drawn 4½ in. apart' }), withheld: undefined }));
+      ok('the sweep row: a code-shaped requirement is the withheld notice and a quoted observed is dropped, while its own question still stands (RFI and punch stay on offer)',
+        reqHidden.requirement === WITHHELD && reqHidden.observed === '' && reqHidden.title === 'Sample: what is the guard height?' && reqHidden.withheld === false);
+      ok('the sweep row: when the TITLE itself is the code-shaped line ("Confirm: <requirement>"), the row is withheld: the notice as its title, and a reason in place of Draft RFI and Add punch item',
+        allHidden.withheld === true && allHidden.title === WITHHELD && allHidden.requirement === WITHHELD && !JSON.stringify(allHidden).includes('shall be provided')
+          && BLOCKED.startsWith('No RFI draft or punch item for this row:') && BLOCKED.includes('read like code text'));
+      const rfi = rfiFromSweepFinding(sheetP, reqHidden, new Date('2026-10-04T10:00:00.000Z'));
+      const punch = punchFromSweepFinding(sheetP, reqHidden, 'punch-1', '2026-10-04T10:00:00.000Z');
+      const rawRfi = rfiFromSweepFinding(sheetP, view({ question: 'Sample: what is the guard height?', requirement: SHALL, observed: QUOTED }), new Date('2026-10-04T10:00:00.000Z'));
+      ok('…and an RFI draft or a punch item built from the GATED row carries no withheld words (fixture: the ungated view would have put the quoted line in the RFI)',
+        !rfi.question.includes('"4 in."') && rfi.question.includes('Observed on the drawing: not described.') && !punch.description.includes('shall') && rawRfi.question.includes('4 in.')
+          && rfi.question.includes('Sample: what is the guard height?'));
+    }
+    {
+      // ── AN INCH MARK IS NOT A QUOTE: the gate must not hide an honest drawing line ──
+      // Plan Review and the sweep read drawings, and drawings are dimensioned
+      // 3'-0". The repo's own demo findings and one feet-and-inches line, on
+      // the same functions the three screens call.
+      const ownLine = block.ownWordsLine as (t: unknown, echo: typeof passesEchoCheck) => string;
+      const planOwn = block.planFindingOwnWords as (f: Record<string, unknown>, echo: typeof passesEchoCheck) => { requirement: string; observed: string };
+      const rowOwn = block.sweepRowOwnWords as <V extends { title: string; requirement: string; observed: string }>(v: V, echo: typeof passesEchoCheck) => V & { withheld: boolean };
+      const gateResult = block.codeCheckOwnWords as <R extends { applicableCodes: Record<string, unknown>[] }>(r: R, echo: typeof passesEchoCheck) => R;
+      const RISER = 'Riser ≤ 7-3/4", tread ≥ 10".';
+      const DOOR = "Egress door drawn 2'-8\" wide; the path needs 3'-0\" clear.";
+      const NOTE = 'The note on the sheet reads "PROVIDE 36" GUARD".';
+      ok('Plan Review: a requirement and an observed line with inch marks are saved and printed as written (no notice, nothing dropped)',
+        JSON.stringify(planOwn({ requirement: RISER, observed: 'Riser scales 8" on the section.' }, passesEchoCheck)) === JSON.stringify({ requirement: RISER, observed: 'Riser scales 8" on the section.' })
+          && JSON.stringify(planOwn({ requirement: DOOR, observed: 'Drawn 4½" apart' }, passesEchoCheck)) === JSON.stringify({ requirement: DOOR, observed: 'Drawn 4½" apart' })
+          && ownLine('Footing 12"x12" under each post.', passesEchoCheck) === 'Footing 12"x12" under each post.');
+      ok('…and its card shows the same words (summary and observed), not the stand-in',
+        pf({ id: 'fi', requirement: RISER, observed: 'Riser scales 8" on the section.', confidence: 'high', status: 'open' }, { citedCode: 'IRC', section: 'R311.7.5' }, null, parseCodeCardItem, passesEchoCheck).summary === RISER
+          && pf({ id: 'fi', requirement: RISER, observed: 'Riser scales 8" on the section.', confidence: 'high', status: 'open' }, { citedCode: 'IRC', section: 'R311.7.5' }, null, parseCodeCardItem, passesEchoCheck).observed === 'Riser scales 8" on the section.');
+      ok('…while a line that QUOTES (a drawing note in quotation marks, a section in quotes) is still withheld, and a quoted observed still dropped',
+        planOwn({ requirement: 'R312.1 "Guards on open sides', observed: NOTE }, passesEchoCheck).requirement === WITHHELD && planOwn({ requirement: 'x', observed: NOTE }, passesEchoCheck).observed === ''
+          && ownLine('"Guards at least 36" high."', passesEchoCheck) === WITHHELD && ownLine('Guards shall be 36" high.', passesEchoCheck) === WITHHELD);
+      const sheetI = { id: 'sh1', projectId: 'p1', name: 'Deck plan', sheetNumber: 'A-201' };
+      const inchRow = rowOwn(sweepFindingView({ question: 'The guard at the deck scales 34" high. Is it meant to be 36"?', requirement: 'Guard at least 36" high.', observed: 'Scales 34" on the elevation.' } as never, sheetI, ny), passesEchoCheck);
+      ok('the sweep row: a question with inch marks keeps its words, so Draft RFI and Add punch item stay on offer',
+        inchRow.withheld === false && inchRow.title === 'The guard at the deck scales 34" high. Is it meant to be 36"?' && inchRow.requirement === 'Guard at least 36" high.' && inchRow.observed === 'Scales 34" on the elevation.');
+      ok('Code Check, at the door: a requirement with an inch mark is kept as written',
+        gateResult({ applicableCodes: [{ code: 'IRC', section: 'R312.1.2', requirement: 'Guard has to be at least 36" high.' }] }, passesEchoCheck).applicableCodes[0].requirement === 'Guard has to be at least 36" high.');
+      ok('the wiring’s two stand-in lines ARE the kit’s (the kit blocks a stand-in from a text, an email and a saved check by these exact words)',
+        block.CARD_WITHHELD === LINE_WITHHELD && block.CARD_NO_TEXT === LINE_NO_TEXT && isStandInLine(block.CARD_WITHHELD as string) && isStandInLine(block.CARD_NO_TEXT as string)
+          && isPlaceholder(LINE_WITHHELD) && isPlaceholder(LINE_NO_TEXT));
+      // A stand-in card is not texted to a sub and is never the "To fix" line of the architect email.
+      const hiddenFix = pf({ id: 'fh', requirement: 'Guards shall be provided where the walking surface is more than 30 inches above grade.', observed: 'Sample: drawn 34 in.', confidence: 'high', status: 'open' }, { citedCode: 'IRC', section: 'R312.1.1' }, null, parseCodeCardItem, passesEchoCheck);
+      const mail = architectMessageFor([hiddenFix], { jobLabel: 'Sample job', sheetLabel: 'A-2' });
+      ok('a card whose line is withheld cannot be texted to a sub (blocked, with the reason), and the architect email lists it by its section and place only',
+        hiddenFix.summary === WITHHELD && shareBlockedReason(hiddenFix) === NO_WORDS_SEND && !mail.body.includes('MAGE hid') && !mail.body.includes('shall be provided')
+          && mail.body.includes('- See R312.1.1, section from AI recall, confirm (Sample: drawn 34 in.).') && mail.fixes === 1 && mail.leftOut === 0
+          && architectMessageFor([{ ...hiddenFix, section: '' }], {}).leftOut === 1 && !architectMessageFor([{ ...hiddenFix, section: '' }], {}).body.includes('MAGE hid'));
     }
     ok('a NESTED trigger / jobValue object off the wire is ignored (the wire is flat)',
       cc({ code: 'IRC', requirement: 'Guards.', trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: 34, unit: 'in', source: 'measured', sourceLabel: 'x' } }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined
@@ -688,6 +846,10 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('the Code Check prompt says which way a comparison points, and that a minimum or a maximum is a "limit" whose sign is the side the job has to stay on (the Ask prompt’s sentence)',
     main.includes('how the job\'s number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30.')
       && main.includes('A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4'));
+  ok('the Code Check prompt asks for plain sentences with no quotation marks and inches as in. (the gate withholds a quoted line), straight after the no-verbatim sentence, as its last line',
+    main.includes(`\n${NO_VERBATIM}\nWrite each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.\`;\n`));
+  ok('Inspection Ready’s recall prompt carries the no-verbatim sentence too, as one of its RULES',
+    read('utils/inspectionPrep.ts').includes(`'- ${NO_VERBATIM}',\n  ];\n  const prompt = lines.join('\\n');`));
   ok('an answer cached before the limit rule is not replayed (the cache key moved to cards2)',
     /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !index.includes('::cards1'));
   const drill = between(index, 'A contractor ran a code check and wants to understand ONE specific code citation in depth.', 'const cacheKey = `code_detail::');
@@ -723,7 +885,7 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('a citation with NO verdict renders the plain line through the own-words gate, never a card',
     /\) : \(\s*<View testID=\{`code-check-plain-\$\{i\}`\}>/.test(rm) && rm.includes('<Text style={styles.codeReq}>{codeCheckPlainLine(c.requirement, passesEchoCheck)}</Text>'));
   ok('the Code Check card carries its stage, Checklist, Ask town and More',
-    /<CodeCard\s+item=\{\{ \.\.\.card, stage: wiring\.stageOf\(card\) \}\}\s+info=\{cardInfo\}\s+jobValue=\{wiring\.jobValueOf\(card\)\}\s+onOpen=\{\(\) => toggleCode\(c\)\}\s+checklist=\{wiring\.checklistFor\(card\)\}\s+askTown=\{wiring\.askTownFor\(card\)\}\s+onMore=\{wiring\.onOpen\}/.test(rm));
+    /<CodeCard\s+item=\{wiring\.cardOf\(card\)\}\s+info=\{cardInfo\}\s+jobValue=\{wiring\.jobValueOf\(card\)\}\s+onOpen=\{\(\) => toggleCode\(c\)\}\s+checklist=\{wiring\.checklistFor\(card\)\}\s+askTown=\{wiring\.askTownFor\(card\)\}\s+onMore=\{wiring\.onOpen\}/.test(rm));
   ok('the drill-in toggle and the rung badge stay with each citation', rm.includes('testID={`code-detail-toggle-${i}`}') && rm.includes('{ev ? <RungBadge ev={ev} testID={`code-check-rung-${i}`} /> : null}'));
   ok("the card's overlay renders inside the result sheet's tree", rm.includes('{anyCard ? wiring.overlay : null}') && rm.includes('const anyCard = cards.some((c) => !!c);'));
   ok('Code Check pins and saves go to the project the run was saved to', rm.includes("const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'code-check-cards' });"));
@@ -762,21 +924,85 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   const fn = (name: string) => between(hook, `const ${name} = useCallback(`, '\n  }, [');
   ok('the hook is found', hook.length > 0 && hook.includes('const projectId = project?.id ?? null;'));
   ok("Ask's cards are wired to the project that was ASKED for, not the one linked now",
-    ask.includes("const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, testID: 'construction-ask-cards' });")
+    ask.includes("const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, infoFor: cardInfoFor, testID: 'construction-ask-cards' });")
       && ask.includes("const savedWiring = useCodeCardWiring({ project: linkedProject, info: savedInfo, testID: 'construction-ask-saved-cards' });"));
   ok("Ask's list carries the stage, the opened card, Checklist and Ask town",
     /stageOf=\{wiring\.stageOf\}\s+jobValueOf=\{wiring\.jobValueOf\}\s+onOpen=\{wiring\.onOpen\}\s+checklistFor=\{wiring\.checklistFor\}\s+askTownFor=\{wiring\.askTownFor\}/.test(ask));
-  ok('a re-measure he made this session is the number the card reopens on and the number its list card shows, so Save and Save all never keep a number that is not on screen',
-    /jobValue=\{openItem \? jobValues\[openItem\.id\] : undefined\}\s+onJobValueChange=\{\(item, jv\) => setJobValues\(\(m\) => \(\{ \.\.\.m, \[item\.id\]: jv \}\)\)\}/.test(hook)
-      && /const jobValueOf = useCallback\(\(item: CodeCardItem\): CodeJobValue \| undefined => jobValues\[item\.id\], \[jobValues\]\);/.test(hook)
+  // ── 4c. THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN ──
+  ok('the hook keeps re-measures in the kit’s map and reads EVERY one through remeasureFor with its own project: the list card, the reopened card, Save and Save all',
+    /const \[remeasures, setRemeasures\] = useState<RemeasureMap>\(EMPTY_REMEASURES\);/.test(hook)
+      && /const jobValueOf = useCallback\(\s+\(item: CodeCardItem\): CodeJobValue \| undefined => remeasureFor\(item, projectId, remeasures\),\s+\[projectId, remeasures\],\s+\);/.test(hook)
+      && /jobValue=\{openItem \? jobValueOf\(openItem\) : undefined\}\s+onJobValueChange=\{\(item, jv\) => setRemeasures\(\(m\) => recordRemeasure\(m, item, projectId, jv\)\)\}/.test(hook)
       && /jobValue=\{jobValueOf\?\.\(item\)\}/.test(read('components/codeCard/CodeCardList.tsx')));
+  ok('…and nothing in the hook is keyed on the card id alone: remeasureFor and recordRemeasure are each called once, the map is read nowhere else, and the old id-keyed state is gone',
+    (hook.match(/remeasureFor\(/g) ?? []).length === 1 && (hook.match(/recordRemeasure\(/g) ?? []).length === 1
+      && (hook.match(/\bremeasures\b/g) ?? []).length === 3 && !/jobValues|setJobValues/.test(ask) && !/remeasures\[/.test(ask)
+      && ask.includes("import { EMPTY_REMEASURES, keptIsShown, recordRemeasure, remeasureFor, type RemeasureMap } from '@/utils/codeCard/remeasure';"));
+  // ── 4d. THE "SAVED" AND "ON … CHECKLIST" MARKS BELONG TO THE CARD AS SHOWN ──
+  ok('the hook reads BOTH marks through the kit’s keptIsShown: a pin with this id counts only for this card as shown, and a saved card only with the number now on screen',
+    /const pinnedStageOf = useCallback\(\(item: CodeCardItem\): CodeStage \| null => \{\s+const pin = pinsFor\(pins, projectId\)\.find\(\(p\) => p\.item\.id === item\.id\);\s+return pin && keptIsShown\(pin, item\) \? pin\.stage : null;\s+\}, \[pins, projectId\]\);/.test(hook)
+      && /const savedShown = useCallback\(\(item: CodeCardItem\): boolean =>\s+keptIsShown\(savedFor\(saved, projectId\)\.find\(\(c\) => c\.item\.id === item\.id\), item, jobValueOf\(item\)\),\s+\[saved, projectId, jobValueOf\]\);/.test(hook)
+      && (hook.match(/keptIsShown\(/g) ?? []).length === 2);
+  ok('…and nothing in the hook asks the stores by card id alone any more (no pinnedStage(…), isPinned(…) or isSaved(…) anywhere in Ask)',
+    !/\bpinnedStage\(|\bisPinned\(|\bisSaved\(/.test(ask) && ask.includes("import { codePinStore, makePin, pinsFor } from '@/utils/codeCard/pins';")
+      && ask.includes("import { codeSavedStore, makeSaved, savedFor } from '@/utils/codeCard/saved';"));
+  {
+    // The critic's case, on the same kit functions the two helpers above call:
+    // answer 1 is REQUIRED at 34 in., saved and pinned; answer 2 is the same
+    // line (same content id) but NOT REQUIRED at 28 in.
+    const mk = (verdict: 'required' | 'not_required', n: number): CodeCardItem => ({
+      id: 'ask-same', verdict, summary: 'Sample: a guard is needed once the deck is more than 30 in. up.', section: 'R312.1.1', evidence: null, stage: 'final', stageIsGuess: true,
+      trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: n, unit: 'in', source: 'job', sourceLabel: 'deck height from the question' },
+    });
+    const a1 = mk('required', 34), a2 = mk('not_required', 28);
+    const savedState = savedReducer(EMPTY_SAVED, { type: 'save', card: makeSaved('p1', a1, '2026-10-04T10:00:00.000Z', null) });
+    const pinState = pinsReducer(EMPTY_PINS, { type: 'pin', pin: makePin('p1', a1, '2026-10-04T10:00:00.000Z') });
+    const savedOf = (item: CodeCardItem, shown?: CodeCardItem['jobValue']) => keptIsShown((savedState.p1 ?? []).find((c) => c.item.id === item.id), item, shown);
+    const pinOf = (item: CodeCardItem) => keptIsShown((pinState.p1 ?? []).find((x) => x.item.id === item.id), item);
+    ok('a LATER answer with the same line but another verdict or number is neither "Saved" nor "On … checklist" (the id-only lookups say it is: that was the defect)',
+      a1.id === a2.id && savedOf(a1) && pinOf(a1) && !savedOf(a2) && !pinOf(a2) && isSaved(savedState, 'p1', a2.id) && pinnedStage(pinState, 'p1', a2.id) === 'final'
+        && !savedOf(mk('required', 40)) && !pinOf(mk('required', 40)));
+    ok('a − / + step after a save turns the Saved mark off (Save is ready again and keeps the number on screen); the pin, which holds no re-measure, stays',
+      !savedOf(a1, { value: 29, unit: 'in', source: 'measured', sourceLabel: 'measured on site' }) && pinOf(a1));
+  }
+  ok('a stage he picked is kept per JOB and card, never by the card id alone',
+    hook.includes("const stageKey = useCallback((item: CodeCardItem) => `${projectId ?? ''}|${item.id}`, [projectId]);")
+      && /stageEdits\[stageKey\(item\)\] \?\? pinnedStageOf\(item\) \?\? item\.stage, \[stageEdits, stageKey, pinnedStageOf\]\);/.test(hook)
+      && !/stageEdits\[item\.id\]|\[item\.id\]: stage/.test(hook));
+  ok('every surface shows the card through cardOf / withChosenStage, so a stage HE chose is never labelled "AI guess": the opened card, the saved rows, the Code Check card and the kit’s list',
+    hook.includes('const cardOf = useCallback((item: CodeCardItem): CodeCardItem => cardWithChosenStage(item, stageOf(item)), [stageOf]);')
+      && hook.includes('item={openItem ? cardOf(openItem) : null}') && !/\{ \.\.\.openItem, stage:/.test(hook)
+      && !/\{ \.\.\.(?:item|card), stage: \w+\.stageOf\(/.test(ask) && !/\{ \.\.\.(?:item|card), stage: \w+\.stageOf\(/.test(index)
+      && (read('components/codeCard/CodeCardList.tsx').match(/item=\{stageOf \? withChosenStage\(item, stageOf\(item\)\) : item\}/g) ?? []).length === 2
+      && !/\{ \.\.\.item, stage: stageOf\(item\) \}/.test(read('components/codeCard/CodeCardList.tsx')));
+  ok('the saved lists’ sheet stays mounted while one of their cards is open: unpinning the LAST card from its own sheet must not unmount it open (the next pin would reopen it)',
+    ask.includes('{keptOpen || savedWiring.busy ? savedWiring.overlay : null}') && !ask.includes('{keptOpen ? savedWiring.overlay : null}')
+      && hook.includes('overlay, busy: !!openItem || !!ask };'));
+  {
+    const sheetSrc = read('components/codeCard/CodeCardSheet.tsx');
+    ok('the opened card never texts a stand-in line to a sub: Send is blocked with the reason, the preview is not shown, and the press does nothing while blocked',
+      sheetSrc.includes('const noWords = shareBlockedReason(item);') && /const sendBlocked = noWords \?\? \(!recipients \|\| recipients\.length === 0/.test(sheetSrc)
+        && /\{noWords \? null : \(\s+<View style=\{styles\.msg\}>\s+<Text style=\{styles\.msgText\} testID=\{`\$\{tid\}-share-text`\}>\{text\}<\/Text>/.test(sheetSrc)
+        && sheetSrc.includes('onPress={() => { if (!sendBlocked && recipient && onSendToSub) onSendToSub(recipient, text); }}')
+        && sheetSrc.includes('disabled={!!sendBlocked}') && sheetSrc.includes('<BlockedNote text={sendBlocked} sunlight={sunlight} testID={`${tid}-send-blocked`} />'));
+  }
+  ok('the opened card gets the facts for ITS OWN edition (Ask passes infoFor; a surface with one edition passes none)',
+    hook.includes('info={openItem && infoFor ? infoFor(openItem) : info}')
+      && /const cardInfoFor = useCallback\(\s+\(item: CodeCardItem\) => codeJurisdictionInfoFor\(askedFor\.resolved, permitAnswer, item\.citedEdition \?\? null\),/.test(ask));
+  ok('a stage edit on a pinned card is written to the pin (setStage), for THIS project',
+    /onStageChange=\{\(item, stage\) => \{\s+setStageEdits\(\(m\) => \(\{ \.\.\.m, \[stageKey\(item\)\]: stage \}\)\);\s+if \(projectId && pinnedStageOf\(item\)\) pinStore\.dispatch\(\{ type: 'setStage', projectId, itemId: item\.id, stage \}\);/.test(hook));
+  ok('the permit-office lookup runs only while a surface is active and the job has no verified department row',
+    /const query = useMemo\(\(\) => \(project && active && !hasDepartment \? placeQueryForProject\(project\) : null\), \[project, active, hasDepartment\]\);/.test(ask)
+      && /const permitAnswer = usePermitOfficeAnswer\(project, visible && anyCard\);/.test(between(index, 'function ResultModal(', 'function AccordionSection('))
+      && /usePermitOfficeAnswer\(askedFor\.project, cards\.length > 0\)/.test(ask) && /usePermitOfficeAnswer\(linkedProject, keptOpen\)/.test(ask)
+      && /usePermitOfficeAnswer\(planProject, mode === 'plan' && planCards\.length > 0\)/.test(index));
   ok("Ask's opened card and town draft render whenever there are cards", ask.includes('{cards.length > 0 ? wiring.overlay : null}'));
   const checklist = fn('checklistFor');
   ok('Checklist, in order: no project says why; pinned says where; a card that cannot be kept says why; else it pins to THIS project',
-    /^const checklistFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId\) return blockedAction\(NO_JOB_CHECKLIST\);\s+const pinned = pinnedStage\(pins, projectId, item\.id\);\s+if \(pinned\) return doneAction\(`On \$\{stageLabel\(pinned\)\} checklist`\);\s+const cannot = cardKeepBlockedReason\(item, 'checklist'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, new Date\(\), stageOf\(item\)\) \}\);/.test(checklist), checklist.slice(0, 300));
+    /^const checklistFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId\) return blockedAction\(NO_JOB_CHECKLIST\);\s+const pinned = pinnedStageOf\(item\);\s+if \(pinned\) return doneAction\(`On \$\{stageLabel\(pinned\)\} checklist`\);\s+const cannot = cardKeepBlockedReason\(item, 'checklist'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, new Date\(\), stageOf\(item\)\) \}\);/.test(checklist), checklist.slice(0, 300));
   const save = fn('saveFor');
   ok('Save, in order: no project says why; saved says where; a card that cannot be kept says why; else it saves to THIS project',
-    /^const saveFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+if \(isSaved\(saved, projectId, item\.id\)\) return doneAction\(savedWhere\(project\.name\)\);\s+const cannot = cardKeepBlockedReason\(item, 'save'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, /.test(save), save.slice(0, 300));
+    /^const saveFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+if \(savedShown\(item\)\) return doneAction\(savedWhere\(project\.name\)\);\s+const cannot = cardKeepBlockedReason\(item, 'save'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, /.test(save), save.slice(0, 300));
   ok('a stand-in card (no requirement in words) is never pinned or saved, and says so; anything else the store would refuse gives the store\u2019s reason',
     /export function cardKeepBlockedReason\(item: CodeCardItem, kind: 'checklist' \| 'save'\): string \| null \{\s+if \(isCardPlaceholder\(item\.summary\)\) return kind === 'checklist' \? NO_WORDS_CHECKLIST : NO_WORDS_SAVE;\s+return codeCardStoreBlockedReason\(item\);\s+\}/.test(ask)
       && /NO_WORDS_CHECKLIST = 'This card has no requirement in words, so there is nothing to put on a checklist\. Use Official text to read the section\.'/.test(ask)
@@ -785,28 +1011,30 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   const saveAll = fn('saveAll');
   ok('Add all pins each keepable card to THIS project on its own stage, skipping what is already pinned',
     /if \(!projectId\) return;/.test(addAll) && /if \(cardKeepBlockedReason\(item, 'checklist'\)\) continue;/.test(addAll)
-      && /if \(!pinnedStage\(pins, projectId, item\.id\)\) pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, now, stageOf\(item\)\) \}\);/.test(addAll));
+      && /if \(!pinnedStageOf\(item\)\) pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, now, stageOf\(item\)\) \}\);/.test(addAll));
   ok('Save all keeps each keepable card on THIS project',
     /if \(!projectId\) return;/.test(saveAll) && /if \(cardKeepBlockedReason\(item, 'save'\)\) continue;/.test(saveAll)
-      && /savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), now, jobValues\[item\.id\] \?\? null\) \}\);/.test(saveAll));
+      && /if \(!savedShown\(item\)\) savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), now, jobValueOf\(item\) \?\? null\) \}\);/.test(saveAll));
   ok('Save and Save all keep a stage HE chose as his (never re-labelled "AI guess"), and never spread the stage alone',
-    /makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), new Date\(\), jobValues\[item\.id\] \?\? null\)/.test(save)
+    /makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), new Date\(\), jobValueOf\(item\) \?\? null\)/.test(save)
       && !/makeSaved\(projectId, \{ \.\.\.item, stage: stageOf\(item\) \}/.test(hook));
   const bulkPin = fn('checklistAll');
   ok('the bulk Checklist button: no project says why; nothing keepable says why; done only when every KEEPABLE card is pinned',
     /const can = items\.filter\(\(c\) => !cardKeepBlockedReason\(c, 'checklist'\)\);/.test(bulkPin)
-      && /if \(!projectId\) return \{ label, action: blockedAction\(NO_JOB_CHECKLIST\) \};\s+if \(can\.length === 0\) return \{ label, action: blockedAction\(NO_WORDS_CHECKLIST\) \};\s+if \(can\.every\(\(c\) => !!pinnedStage\(pins, projectId, c\.id\)\)\) return \{ label, action: doneAction\('On the inspection checklists'\) \};\s+return \{ label, action: readyAction\(\(\) => addAll\(can\)\) \};/.test(bulkPin), bulkPin);
+      && /if \(!projectId\) return \{ label, action: blockedAction\(NO_JOB_CHECKLIST\) \};\s+if \(can\.length === 0\) return \{ label, action: blockedAction\(NO_WORDS_CHECKLIST\) \};\s+if \(can\.every\(\(c\) => !!pinnedStageOf\(c\)\)\) return \{ label, action: doneAction\('On the inspection checklists'\) \};\s+return \{ label, action: readyAction\(\(\) => addAll\(can\)\) \};/.test(bulkPin), bulkPin);
   const bulkSave = fn('saveAllAction');
   ok('the bulk Save button: the same four answers',
-    /if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+const can = items\.filter\(\(c\) => !cardKeepBlockedReason\(c, 'save'\)\);\s+if \(can\.length === 0\) return blockedAction\(NO_WORDS_SAVE\);\s+if \(can\.every\(\(c\) => isSaved\(saved, projectId, c\.id\)\)\) return doneAction\(`Saved to \$\{project\.name\}`\);\s+return readyAction\(\(\) => saveAll\(can\)\);/.test(bulkSave), bulkSave);
+    /if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+const can = items\.filter\(\(c\) => !cardKeepBlockedReason\(c, 'save'\)\);\s+if \(can\.length === 0\) return blockedAction\(NO_WORDS_SAVE\);\s+if \(can\.every\(\(c\) => savedShown\(c\)\)\) return doneAction\(`Saved to \$\{project\.name\}`\);\s+return readyAction\(\(\) => saveAll\(can\)\);/.test(bulkSave), bulkSave);
   ok("Ask's two bulk buttons are the shared ones",
     ask.includes("primary={{ key: 'add-all', icon: 'clip', ...wiring.checklistAll(cards) }}") && ask.includes("secondary={[{ key: 'save-all', label: 'Save', icon: 'save', action: wiring.saveAllAction(cards) }]}"));
   // A pin can be seen and taken off at any time (Inspection Ready shows it only 3 days out).
   ok('a pin comes off through the pins store, for THIS project', /if \(projectId\) pinStore\.dispatch\(\{ type: 'unpin', projectId, itemId: item\.id \}\);/.test(fn('unpin')));
-  ok('the opened card says where a pin can be taken off again',
-    /return projectId && pinned \? doneAction\(pinnedWhere\(pinned\)\) : checklistFor\(item\);/.test(fn('checklistFromSheet'))
+  ok('a pinned card is unpinned FROM THE CARD ITSELF: the opened card’s Checklist row, once pinned, says so and a tap takes the pin off (on every surface, not only Ask)',
+    /return projectId && pinned \? doneAction\(pinnedWhere\(pinned\), \(\) => unpin\(item\)\) : checklistFor\(item\);/.test(fn('checklistFromSheet'))
       && hook.includes('checklist={openItem ? checklistFromSheet(openItem) : undefined}')
-      && ask.includes('return `On ${stageLabel(stage)} checklist. To take it off: Ask, under On inspection checklists, with this project linked.`;'));
+      && ask.includes('return `On ${stageLabel(stage)} checklist. Tap to take it off.`;')
+      && /export function doneAction\(label: string, onPress\?: \(\) => void\): CodeCardAction \{/.test(read('components/codeCard/parts.tsx'))
+      && /else if \(action\.kind === 'done' && action\.onPress\) \{ setNote\(null\); action\.onPress\(\); \}/.test(read('components/codeCard/CodeCardSheet.tsx')));
   ok('Ask lists the linked project\u2019s pinned cards (only when it has any), each with Unpin',
     /\{linkedProject && pinnedCards\.length > 0 \? \(\s*<View style=\{styles\.savedWrap\} testID="construction-ask-pinned">/.test(ask)
       && /pinsFor\(wiring\.pins, linkedProject\?\.id\)/.test(ask) && /onPress=\{\(\) => savedWiring\.unpin\(p\.item\)\}/.test(ask)
@@ -819,7 +1047,7 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('Save says where the card can be found again', /doneAction\(savedWhere\(project\.name\)\)/.test(ask) && /Find it in Ask, under Saved code cards/.test(ask));
   ok('the saved list renders only for a linked project that has saved cards', /\{linkedProject && savedCards\.length > 0 \? \(\s*<View style=\{styles\.savedWrap\} testID="construction-ask-saved">/.test(ask));
   ok('the saved rows and the pinned rows check the cited edition against the linked project\u2019s verified one (info={savedInfo}), so a verified edition is not marked "(as cited)"',
-    /<CodeCardRow\s+item=\{\{ \.\.\.item, stage: savedWiring\.stageOf\(item\) \}\}\s+onPress=\{savedWiring\.onOpen\}\s+edition=\{item\.citedEdition \?\? null\}\s+info=\{savedInfo\}/.test(ask)
+    /<CodeCardRow\s+item=\{savedWiring\.cardOf\(item\)\}\s+onPress=\{savedWiring\.onOpen\}\s+edition=\{item\.citedEdition \?\? null\}\s+info=\{savedInfo\}/.test(ask)
       && /<CodeCardRow\s+item=\{\{ \.\.\.p\.item, stage: p\.stage \}\}\s+onPress=\{savedWiring\.onOpen\}\s+edition=\{p\.item\.citedEdition \?\? null\}\s+info=\{savedInfo\}/.test(ask)
       && (ask.match(/<CodeCardRow\b/g) ?? []).length === 2);
   ok('a saved card can be removed (unsave on the saved store)', /savedStore\.dispatch\(\{ type: 'unsave', projectId, itemId: item\.id \}\)/.test(ask) && /onPress=\{\(\) => savedWiring\.unsave\(item\)\}/.test(ask));
@@ -872,13 +1100,226 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
     sheet.indexOf('testID="inspection-prep-pinned"') > sheet.indexOf('testID="codelook-prep-extras"') && sheet.indexOf('testID="inspection-prep-pinned"') < sheet.indexOf('testID="inspection-prep-result"'));
 }
 
+// ── 4b. The withhold rule covers every place the line can appear ─────────
+//
+// COPYRIGHT. A line the card withholds ("MAGE hid this line because it read
+// like code text") must be withheld everywhere else it could print: the list
+// one tap below the card, the saved check, an RFI draft, a punch item, a
+// permit, a message. THE SWEEP: in every surface file, each read of an AI
+// result's `.requirement` or `.observed` (or of the sweep view's `.title`) is
+// allowed only when
+//   (a) it is the argument of an own-words gate on that line, or
+//   (b) it is read from an object the gate made (`ownWords`, `row`; pinned below to
+//       be assigned from the gate and nothing else), or from `sweepCopy` (a
+//       label, not an AI line), or
+//   (c) the whole line is one of NOT_SHOWN: a line that prints nothing, listed
+//       here word for word with its reason, so any edit to it fails the sweep.
+// A read is a dotted read (`f.requirement`), a BRACKET read (`f['requirement']`)
+// or a DESTRUCTURED read (`const { requirement } = f`, `({ observed }) =>`,
+// `function x({ requirement })`, on one line or over several). A bracket or a
+// destructured read is never a gated read: there is no way to write one that
+// the sweep accepts, so the only way through is a gate call on a dotted read.
+// The pure block in AskConstructionMode.tsx is left out: it IS the gates, and
+// section 3 runs it.
+/** The integrator's patch for the saved check sheet (a file outside this lane). */
+const SAVED_SHEET_PATCH = '/Users/omirmajeed/.claude/projects/-Users-omirmajeed-Desktop-MAGE-ID---CLAUDE/f24f1ad8-bdb7-4740-9485-fd4d5f3a532b/codecard-specs/patches/CCFIX-saved-check-sheet.diff';
+let savedSheetNotice = '';
+console.log('\n4b. The withhold rule covers every place the line can appear');
+{
+  const SWEEP_PANEL = 'components/plans/PlanSweepPanel.tsx';
+  const SAVED_SHEET = 'components/codeThread/SavedCodeCheckSheet.tsx';
+  const savedSheet = read(SAVED_SHEET);
+  const savedSheetGated = /savedRequirementWords/.test(savedSheet);
+  const GATE_ARG = /(?:codeCheckPlainLine|ownWordsLine|ownWordsObserved|isCardPlaceholder|savedRequirementWords)\(\s*$/;
+  const GATED_OBJECTS = ['ownWords', 'row', 'sweepCopy'];
+  const NOT_SHOWN: Record<string, [string, string][]> = {
+    [INDEX]: [
+      ["applicableCodes: data.applicableCodes.map((c) => ({ code: c.code, section: c.section ?? '', requirement: c.requirement })),",
+        'the check saved to the job: `data` is the gated result (pinned below)'],
+      ["Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}",
+        'the drill-in PROMPT (sent to the AI, not shown); `c` is a row of the gated result, and a stand-in line is never sent as a requirement'],
+      ["const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;",
+        'a cache key, never shown'],
+      ['<CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={codeCheckPlainLine(c.requirement, passesEchoCheck)} onBeforeNavigate={onClose} />',
+        'a React key (never shown); the text the permit / punch item / RFI is built from is the gated line'],
+    ],
+    // Only once the saved-sheet patch is in (see the end of this section).
+    ...(savedSheetGated ? { [SAVED_SHEET]: [
+      ["actionTexts: codes.map((c) => c.requirement ?? '').map(savedRequirementWords),",
+        'what a permit / punch item / RFI is built from: every line is mapped straight through the gate in the same expression (validate-code-thread pins its first half)'] as [string, string],
+    ] } : {}),
+    [SWEEP_PANEL]: [
+      ["{ question: (f.question ?? '').trim() ? view.title : '', requirement: view.requirement, observed: view.observed },",
+        'the words handed to sweepCardItem, which gates each one (section 3)'],
+      ["kind: 'rfi', label: view.title, linkedRfiId: rfi.id,",
+        'the RFI pin label inside onDraft: its `view` is the gated row it is called with (pinned below)'],
+      ["kind: 'punch', label: view.title, linkedPunchItemId: punch.id,",
+        'the punch pin label inside onPunch: its `view` is the gated row it is called with (pinned below)'],
+    ],
+  };
+  // Any receiver: a name (`f.requirement`), or the end of a longer expression
+  // (`findings[0]?.requirement`, `call().observed`), which is never a gated object.
+  const AI_READ = /(?:\b([A-Za-z_$][\w$]*)|[\])])\??\.(?:requirement|observed)\b|\b(view)\.title\b/g;
+  const BRACKET_READ = /\[\s*(['"`])(?:requirement|observed)\1\s*\]/g;
+  const KEYS = '[^{}]*\\b(?:requirement|observed)\\b[^{}]*';
+  const DESTRUCTURED_READ = new RegExp(
+    `\\b(?:const|let|var)\\s*\\{${KEYS}\\}\\s*=(?!=)`                                   // const { requirement } = f
+    + `|[(,]\\s*\\{${KEYS}\\}\\s*(?::[^(),=]*)?(?:,[^()]*)?\\)\\s*(?::[^=()]*)?=>`    // ({ requirement }) =>   (a, { observed }: T) =>
+    + `|\\bfunction\\b[^(]*\\(\\s*\\{${KEYS}\\}`,                                      // function x({ requirement })
+    'g');
+  /** Comments blanked (line count kept), so a commented-out line cannot hide a read. */
+  const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, '')).replace(/^\s*\/\/.*$/gm, '');
+  /** Every read in `src` that is not gated, as "line N: text". */
+  const ungated = (file: string, src: string): string[] => {
+    const bad: string[] = [];
+    const allowed = new Set((NOT_SHOWN[file] ?? []).map(([line]) => line));
+    code(src).split('\n').forEach((line, n) => {
+      const t = line.trim();
+      if (!t || allowed.has(t)) return;
+      AI_READ.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = AI_READ.exec(line)) !== null) {
+        const receiver = m[1] ?? m[2] ?? '';
+        // `x.ownWords.requirement` is not the gated object: the name must stand alone.
+        const standsAlone = !/[.\])]\??$/.test(line.slice(0, m.index));
+        if (standsAlone && GATED_OBJECTS.includes(receiver)) continue;
+        if (GATE_ARG.test(line.slice(0, m.index))) continue;
+        bad.push(`line ${n + 1}: ${t.slice(0, 140)}`);
+      }
+      BRACKET_READ.lastIndex = 0;
+      if (BRACKET_READ.test(line)) bad.push(`line ${n + 1} (bracket read): ${t.slice(0, 140)}`);
+    });
+    // Destructured reads, over the whole file (a pattern can span lines).
+    const whole = code(src);
+    DESTRUCTURED_READ.lastIndex = 0;
+    let d: RegExpExecArray | null;
+    while ((d = DESTRUCTURED_READ.exec(whole)) !== null) {
+      const n = whole.slice(0, d.index).split('\n').length;
+      bad.push(`line ${n} (destructured read): ${d[0].replace(/\s+/g, ' ').slice(0, 140)}`);
+    }
+    return bad;
+  };
+  const sweepPanel = read(SWEEP_PANEL);
+  const askOutsidePure = askSrc.replace(/\/\/ <pure:codeCardItems>\n[\s\S]*?\/\/ <\/pure:codeCardItems>/, '');
+  const surfaces: [string, string][] = [
+    [INDEX, index],
+    [ASK, askOutsidePure],
+    [SWEEP_PANEL, sweepPanel],
+    ['components/inspectionPrep/InspectionReadySheet.tsx', read('components/inspectionPrep/InspectionReadySheet.tsx')],
+    ['components/buildingRecord/DraftQuestionButton.tsx', read('components/buildingRecord/DraftQuestionButton.tsx')],
+    ['utils/inspectionPrep.ts', read('utils/inspectionPrep.ts')],
+    ['utils/departmentQuestion.ts', read('utils/departmentQuestion.ts')],
+  ];
+  ok('fixture: the sweep finds an ungated read (a bare {f.requirement}, {`Observed: ${f.observed}`}, a view.title) and passes a gated one',
+    ungated('x', '<Text>{f.requirement}</Text>').length === 1 && ungated('x', '<Text>{`Observed: ${f.observed}`}</Text>').length === 1
+      && ungated('x', '<Text>{view.title}</Text>').length === 1 && ungated('x', 'const t = finding?.requirement;').length === 1
+      && ungated('x', 'log(review?.findings[0]?.requirement);').length === 1 && ungated('x', 'log(pick().observed);').length === 1
+      && ungated('x', '<Text>{a.row.requirement}</Text>').length === 1 && ungated('x', '<Text>{codeCheckPlainLine(a.b.requirement, echo)}</Text>').length === 1
+      && ungated('x', '<Text>{isCardPlaceholder(x) ? f.requirement : null}</Text>').length === 1
+      && ungated('x', '<Text>{codeCheckPlainLine(c.requirement, passesEchoCheck)}</Text>').length === 0
+      && ungated('x', '<Text>{ownWords.requirement}</Text>\n<Text>{row.observed}</Text>').length === 0 && ungated('x', '<Text>{own.requirement}</Text>').length === 1
+      && ungated('x', '// <Text>{f.requirement}</Text>\n{/* {f.observed} */}').length === 0
+      // bracket and destructured reads: never accepted, gate call or not
+      && ungated('x', "<Text>{f['requirement']}</Text>").length === 1 && ungated('x', '<Text>{f["observed"]}</Text>').length === 1 && ungated('x', '<Text>{f?.[`requirement`]}</Text>').length === 1
+      && ungated('x', "<Text>{ownWordsLine(f['requirement'], echo)}</Text>").length === 1
+      && ungated('x', 'const { requirement: rawReq, observed: rawObs } = f;').length === 1 && ungated('x', 'const {\n  observed,\n} = finding;').length === 1
+      && ungated('x', '<Text>{(({ requirement }) => requirement)(f)}</Text>').length === 1 && ungated('x', 'rows.map((r, { observed }: Row) => observed)').length === 1
+      && ungated('x', 'function show({ requirement }: Finding) { return requirement; }').length === 1
+      // …while an object LITERAL with those keys, a type literal and an equality test are not reads
+      && ungated('x', 'save({ requirement: ownWords.requirement, observed: ownWords.observed });').length === 0
+      && ungated('x', 'function g(f: { requirement?: unknown; observed?: unknown }) { return 1; }').length === 0
+      && ungated('x', "if (key === 'requirement') { skip(); }").length === 0
+      && ungated(INDEX, `  ${NOT_SHOWN[INDEX][0][0]}  `).length === 0 && ungated(INDEX, NOT_SHOWN[INDEX][0][0].replace('data.', 'raw.')).length === 1);
+  for (const [file, src] of surfaces) {
+    const bad = ungated(file, src);
+    ok(`${file}: every requirement / observed line from an AI result passes the own-words gate before it is shown, saved or filed`, src.length > 0 && bad.length === 0, bad.join(' | '));
+  }
+  // THE SAVED CHECK SHEET (components/codeThread, outside this lane). It prints
+  // and files the requirement line of a saved Code Check: the raw line for a
+  // check saved before the gate, MAGE's stand-in notice for a row withheld
+  // since. Its gate is a patch for the integrator (SAVED_SHEET_PATCH). Not
+  // applied: said out loud below, and a FAILURE under --require-optin. Applied:
+  // the file is one more surface of this sweep, and its rules are pinned.
+  {
+    if (!savedSheetGated) {
+      savedSheetNotice = `NOT APPLIED: ${SAVED_SHEET} still prints and files a saved check's requirement line with no own-words gate.\n`
+        + `  Apply ${SAVED_SHEET_PATCH}, then run this with --require-optin.`;
+      if (process.argv.includes('--require-optin')) ok(`${SAVED_SHEET}: the saved check's requirement line passes the own-words gate (patch not applied)`, false, SAVED_SHEET_PATCH);
+      else console.log(`  ! saved check sheet ${savedSheetNotice}`);
+    } else {
+      const bad = ungated(SAVED_SHEET, savedSheet);
+      ok(`${SAVED_SHEET}: every requirement line of a saved check passes the own-words gate before it is shown or filed`, bad.length === 0, bad.join(' | '));
+      ok('…through the kit’s gate at the card’s cap, and never a stand-in: words that pass print and file; anything else is the citation alone',
+        savedSheet.includes("import { isStandInLine, passesEchoCheck } from '@/utils/codeCard/echoCheck';")
+          && savedSheet.includes("return line.trim() && !isStandInLine(line.trim()) && passesEchoCheck(line, 400) ? line : '';")
+          && savedSheet.includes('const words = savedRequirementWords(c.requirement);')
+          && savedSheet.includes("return [c.code, c.section].filter(Boolean).join(' ') + (words ? `: ${words}` : '');")
+          && (savedSheet.match(/\.requirement\b/g) ?? []).length === 2 && (savedSheet.match(/savedRequirementWords\b/g) ?? []).length === 3);
+      ok('…and a row with no requirement in words offers no Permits / Punch / RFI buttons and says why, in the result screen’s own words',
+        /\{s\.section === 'codes' && !s\.actionTexts\[i\] \? \(\s*<Text style=\{styles\.fine\} testID=\{`codethread-saved-no-actions-\$\{i\}`\}>\{SAVED_ROW_NO_ACTIONS\}<\/Text>\s*\) : \(\s*<CodeThreadActions/.test(savedSheet)
+          && savedSheet.includes("export const SAVED_ROW_NO_ACTIONS = 'No actions for this line: it has no requirement in words to put in a permit, a punch item or an RFI.';"));
+    }
+  }
+  ok('every NOT_SHOWN line is really in its file, once (a stale allow-list entry is a hole)',
+    Object.entries(NOT_SHOWN).every(([file, lines]) => lines.every(([line]) => code(read(file)).split('\n').filter((l) => l.trim() === line).length === 1)),
+    Object.entries(NOT_SHOWN).flatMap(([file, lines]) => lines.filter(([line]) => code(read(file)).split('\n').filter((l) => l.trim() === line).length !== 1).map(([line]) => `${file}: ${line.slice(0, 80)}`)).join(' | '));
+
+  // The objects the sweep trusts are made by the gate and by nothing else.
+  ok('`ownWords` (Plan Review list) is only ever the gate’s output for that finding',
+    (index.match(/\bownWords = /g) ?? []).length === 1 && index.includes('const ownWords = planFindingOwnWords(f, passesEchoCheck);') && !/\blet ownWords\b|\bownWords\.\w+ = /.test(index)
+      && !/\bownWords\b/.test(sweepPanel) && !/\bownWords\b/.test(askOutsidePure));
+  ok('`row` (sweep rows) is only ever the gated view, and the RFI draft and the punch item are built from that same gated row',
+    (sweepPanel.match(/\bconst row = /g) ?? []).length === 1
+      && sweepPanel.includes('const row = sweepRowOwnWords(sweepFindingView(f, r.sheet, jurisdiction), passesEchoCheck);')
+      && (sweepPanel.match(/\bonDraft\(/g) ?? []).length === 1 && sweepPanel.includes('onPress={() => onDraft(r.sheet, row, key)}')
+      && (sweepPanel.match(/\bonPunch\(/g) ?? []).length === 1 && sweepPanel.includes('onPress={() => onPunch(r.sheet, row, key)}')
+      && sweepPanel.includes('const onDraft = useCallback((sheet: PlanSheet, view: SweepFindingView, key: string) => {')
+      && sweepPanel.includes('const onPunch = useCallback((sheet: PlanSheet, view: SweepFindingView, key: string) => {')
+      && sweepPanel.includes('const rfi = addRFI(rfiFromSweepFinding(sheet, view, new Date(), sheetAttachmentFor(sheet)));')
+      && sweepPanel.includes('const punch = punchFromSweepFinding(sheet, view, generateUUID(), new Date().toISOString());')
+      && (sweepPanel.match(/rfiFromSweepFinding\(/g) ?? []).length === 1 && (sweepPanel.match(/punchFromSweepFinding\(/g) ?? []).length === 1
+      && (sweepPanel.match(/sweepFindingView\(/g) ?? []).length === 2 && !/\brow\.\w+ = /.test(sweepPanel)
+      && !/\brow\.(?:requirement|observed)\b/.test(index) && !/\brow\.(?:requirement|observed)\b/.test(askOutsidePure));
+  ok('a sweep row whose own title is withheld offers no RFI draft and no punch item, and says why in their place',
+    /\{row\.withheld \? \(\s*<Text style=\{styles\.blockedText\} testID=\{`plansweep-row-withheld-\$\{key\}`\}>\{SWEEP_ROW_WITHHELD\}<\/Text>\s*\) : done \? \(/.test(sweepPanel)
+      && /\{row\.withheld \? null : punchDone \? \(/.test(sweepPanel)
+      && sweepPanel.includes('{isCardPlaceholder(row.requirement) ? row.requirement : `${row.requirementLabel}: ${row.requirement}`}'));
+
+  // Code Check: gated ONCE, at the door.
+  ok('Code Check gates the AI’s result where it comes in: the ONLY result the screen ever holds is codeCheckOwnWords(…), and the saved check is built from it',
+    /const data = codeCheckOwnWords\(res\.data as CodeCheckResult, passesEchoCheck\);\s+setResult\(data\);/.test(index)
+      && (index.match(/res\.data as CodeCheckResult/g) ?? []).length === 1
+      && (index.match(/\bsetResult\(/g) ?? []).every((_, i, all) => all.length === 2) && /\bsetResult\(null\);/.test(index) && !/\bsetResult\((?!null\)|data\))/.test(index)
+      && between(index, 'const resultSnapshot: CodeCheckResultSnapshot = {', '};').includes('applicableCodes: data.applicableCodes.map('));
+  const rm2 = between(index, 'function ResultModal(', 'function AccordionSection(');
+  ok('a Code Check row with no requirement in words gets no Permits / Punch / RFI buttons, and the row says why; any other row hands them the GATED line',
+    /\{savedRecord && project \? \(\s*isCardPlaceholder\(codeCheckPlainLine\(c\.requirement, passesEchoCheck\)\) \? \(\s*<Text style=\{styles\.codeTapHint\} testID=\{`code-check-no-actions-\$\{i\}`\}>\{CODE_ROW_NO_ACTIONS\}<\/Text>\s*\) : \(\s*<CodeThreadActions key=\{`codes-\$\{i\}-\$\{c\.requirement\}`\}/.test(rm2)
+      && index.includes("const CODE_ROW_NO_ACTIONS = 'No actions for this line: it has no requirement in words to put in a permit, a punch item or an RFI.';")
+      && (rm2.match(/text=\{c\.requirement\}/g) ?? []).length === 0);
+  ok('the drill-in prompt never sends MAGE’s stand-in line as the requirement', rm2.includes("Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}\n"));
+  ok('the hint above the Code Check rows promises only what a tap does: a card opens its detail; a plain row has the "What the inspector checks" toggle',
+    rm2.includes("{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the inspector checks under a code for what it requires.'}")
+      && !index.includes('Tap a code for') && rm2.includes("{isOpen ? 'Hide what the inspector checks' : 'What the inspector checks'}"));
+
+  // Plan Review: gated where a review is saved, and again where the list prints.
+  const runPlan = between(index, 'const runPlanReview = useCallback(async () => {', 'savePlanReview({ id: reviewId');
+  ok('Plan Review saves a new review’s two AI lines through the gate (never the raw strings)',
+    /\.\.\.planFindingOwnWords\(f, passesEchoCheck\),\s+severity: normalizeLevel\(f\.severity\),/.test(runPlan) && !/requirement: \(f\.requirement|observed: \(f\.observed/.test(index));
+  const planList = between(index, '{(planDetailsOpen || planCards.length === 0) && SEVERITY_ORDER.map', '{/* UX wave B7');
+  ok('…and the per-finding list prints the gated lines (a review saved before the gate holds the raw ones)',
+    /\{group\.map\(\(f\) => \{[\s\S]{0,400}?const ownWords = planFindingOwnWords\(f, passesEchoCheck\);/.test(planList)
+      && /\{ownWords\.requirement \? \(\s*<Text style=\{styles\.findingRequirement\}>\{ownWords\.requirement\}<\/Text>/.test(planList)
+      && /\{ownWords\.observed \? \(\s*<Text style=\{styles\.findingObserved\}>\{`Observed: \$\{ownWords\.observed\}`\}<\/Text>/.test(planList)
+      && !/\{f\.requirement\}|\$\{f\.observed\}/.test(index));
+}
+
 // ── 5. The client opt-in (four files this lane does NOT own) ──────────────
 //
 // Both functions send the code-card rows ONLY when the request asks for them
 // (lane CCSERVER: `codeCards: true`), so that an old app build gets exactly
 // what it always got. The two request helpers and their types are outside this
-// lane, so the change is a patch for the integrator
-// (codecard-specs/patches/CCWIRE-client-optin.diff). THE RULE HERE:
+// lane, so the change is a patch for the integrator (OPTIN_PATCH below: the
+// canonical copy in the session's codecard-specs/patches folder). THE RULE HERE:
 //   - none of it applied: the surfaces still work (Ask shows prose, the sweep
 //     shows every finding as "needs an answer"), but no Ask card and no
 //     look-right row can ever appear. That is said out loud below, and it is a
@@ -887,6 +1328,8 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
 //   - any of it applied: ALL of it must be (a half-applied patch sends the
 //     flag and drops the rows, or the reverse).
 console.log('\n5. The client asks for the code-card rows (files outside this lane)');
+/** The ONE canonical opt-in patch (the optional-lookRight version). An older copy under /private/tmp also applies cleanly: do not use it. */
+const OPTIN_PATCH = '/Users/omirmajeed/.claude/projects/-Users-omirmajeed-Desktop-MAGE-ID---CLAUDE/f24f1ad8-bdb7-4740-9485-fd4d5f3a532b/codecard-specs/patches/CCWIRE-client-optin.diff';
 let optInNotice = '';
 {
   const requireOptIn = process.argv.includes('--require-optin');
@@ -908,19 +1351,29 @@ let optInNotice = '';
     ['reviewPlanCode returns the look-right rows (utils/planCodeReviewer.ts)', /lookRight: Array\.isArray\(data\.data\.lookRight\) \? data\.data\.lookRight : \[\]/.test(reviewer)],
     ['Plan Review (one sheet, in the tab) sends no sweep and no flag: its request is what it always was', !!planReviewCall && !/sweep|codeCards/.test(planReviewCall)],
   ];
+  // The patch's validator pin: validate-plan-sweep hashes the Plan Review
+  // prompt, and that prompt gained one line this round (short plain sentences,
+  // no quotation marks, inches as in.). Until the patch is in, validate-plan-sweep
+  // is red on those two hashes; with it, they are the two below.
+  const planSweepPins = read('scripts/validate-plan-sweep.ts');
+  const PLAN_PROMPT_SHA = ['742c854b31cc314bec0482bd56b38e49b0760772172935e095b12cb6b03e6efe', '0ac123f2d4a4ebfd85c9c1e3e109a8f9dc7f8e889b397be5217410ad158199e9'];
+  const planPinsMoved = PLAN_PROMPT_SHA.every((h) => planSweepPins.includes(`'${h}',`));
   // The two checks that hold with or without the patch are not "applied" marks.
   const applied = [marks[0], marks[2], marks[3], marks[4], marks[5]].filter(([, on]) => on).length;
   if (applied === 0 && !requireOptIn) {
     ok(marks[1][0], marks[1][1]);
     ok(marks[6][0], marks[6][1]);
     optInNotice = 'NOT APPLIED: the app never asks either function for code-card rows, so Ask shows no cards and the sweep shows no "look right" rows in production.\n'
-      + '  Apply codecard-specs/patches/CCWIRE-client-optin.diff (4 client files + 1 validator pin), then run this with --require-optin.';
+      + `  Apply ${OPTIN_PATCH} (4 client files + validate-plan-sweep's pins), then run this with --require-optin.`
+      + (planPinsMoved ? '' : '\n  Until then validate-plan-sweep is red on its two Plan Review prompt hashes: the prompt gained one line this round, and the patch re-records them.');
     console.log(`  ! ${optInNotice}`);
   } else {
     for (const [name, on] of marks) ok(name, on);
+    ok('validate-plan-sweep pins the Plan Review prompt WITH this round’s plain-sentence line (the patch re-records its two hashes)', planPinsMoved);
   }
 }
 
 if (optInNotice) console.log(`\n! client opt-in ${optInNotice}`);
+if (savedSheetNotice) console.log(`\n! saved check sheet ${savedSheetNotice}`);
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-code-card-wiring: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

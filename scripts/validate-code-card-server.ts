@@ -41,7 +41,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as CC from '../supabase/functions/construction-answer/codeCardRequirements';
 import * as CLIENT from '../utils/codeCard/echoCheck';
-import { parseCodeCardItems } from '../utils/codeCard/parse';
+import { limitSignConfirmed, parseCodeCardItems } from '../utils/codeCard/parse';
 import { compare, effectiveVerdict, recheckOutcome } from '../utils/codeCard/verdict';
 import { limitSideInLine, saysNumberWithUnit, LIMIT_COMPARISON } from '../utils/codeCard/saysWithUnit';
 import { shareTextFor } from '../utils/codeCard/shareText';
@@ -94,8 +94,24 @@ const OLD_REQS: Array<[string, Row]> = [
 ];
 // sha256 of buildPrompt(req) for the four requests above, and of
 // JSON.stringify(normalizePlanResult(RAW)) / (RAW, true), computed on the
-// UNTOUCHED file at ee7daf9b BEFORE this lane edited it. The first two equal
-// validate-plan-sweep's BASE_PROMPT_SHA.
+// UNTOUCHED file at ee7daf9b BEFORE this lane edited it.
+//
+// ONE LINE ADDED ON PURPOSE (2026-10-04, the own-words gate): every prompt now
+// tells the model to write its lines as short plain sentences with no
+// quotation marks and inches as "in." (PLAIN_LINE below), because the app
+// withholds a line that carries a quotation mark and an inch mark used to read
+// as one. The hashes here are STILL the untouched file's: each prompt is
+// checked to be the untouched prompt plus exactly that one line, straight
+// after the paraphrase rule. validate-plan-sweep's BASE_PROMPT_SHA pins the
+// first two WITH the line (re-recorded by the opt-in patch).
+const PLAIN_LINE = (fields: string) => `Write ${fields} as short plain sentences of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
+const PLAIN_REVIEW = PLAIN_LINE('requirement and observed');
+const PLAIN_SWEEP = PLAIN_LINE('requirement, observed and question');
+/** The prompt with the one added line taken out (it must be there exactly once, straight after the paraphrase rule). */
+function withoutPlainLine(prompt: string, line: string): string | null {
+  const at = `\n${RULE}\n${line}\n`;
+  return prompt.split(at).length === 2 ? prompt.replace(at, `\n${RULE}\n`) : null;
+}
 const BASE_PROMPTS = [
   'ca7cdf2f908b5373b3bbfa73ba861bea1657d96e1cb2b76928eddaf48c273968',
   'a8f9948d8d6742596f5e253ab6bc9b2d513a6481587bf18c2cba20f0d1ea118a',
@@ -113,17 +129,24 @@ if (P && N) {
   const buildPrompt = P.buildPrompt as (r: Row) => string;
   const cardsOf = P.sweepCodeCardsOf as (s: unknown) => boolean;
   const norm = N.normalizePlanResult as (raw: unknown, sweep?: boolean, cards?: boolean) => Norm;
-  OLD_REQS.forEach(([name, r], i) => ok(`${name}: prompt hash unchanged`, sha(buildPrompt(r)) === BASE_PROMPTS[i], sha(buildPrompt(r))));
+  const plainFor = (r: Row) => (r.sweep && typeof r.sweep === 'object' ? PLAIN_SWEEP : PLAIN_REVIEW);
+  const untouched = (r: Row) => withoutPlainLine(buildPrompt(r), plainFor(r));
+  OLD_REQS.forEach(([name, r], i) => ok(`${name}: the untouched prompt plus exactly the one plain-sentence line (hash of the rest unchanged)`,
+    untouched(r) !== null && sha(untouched(r) ?? '') === BASE_PROMPTS[i], sha(untouched(r) ?? '')));
+  ok('Plan Review is asked for requirement and observed; a sweep for its question too; neither line appears twice',
+    buildPrompt(OLD_REQS[0][1]).includes(PLAIN_REVIEW) && !buildPrompt(OLD_REQS[0][1]).includes(PLAIN_SWEEP)
+      && buildPrompt(OLD_REQS[2][1]).includes(PLAIN_SWEEP) && !buildPrompt(OLD_REQS[2][1]).includes(PLAIN_REVIEW)
+      && buildPrompt(OLD_REQS[3][1]).includes(PLAIN_SWEEP) && planSrc.split('as short plain sentences of under 25 words').length === 2);
   ok('Plan Review normalized result unchanged', sha(JSON.stringify(norm(RAW))) === BASE_NORM);
   ok('sweep normalized result unchanged (no status, stage or lookRight keys)', sha(JSON.stringify(norm(RAW, true))) === BASE_NORM_SWEEP);
   // Only the literal `true` opts in.
   const near: unknown[] = ['true', 1, {}, null, false];
   ok('codeCards: "true" / 1 / {} / null / false → the old sweep prompt, byte for byte',
-    near.every(v => sha(buildPrompt({ ...OLD_REQS[2][1], sweep: { scopeTargets: ['Basement egress window', 'Smoke and CO alarms'], codeCards: v } })) === BASE_PROMPTS[2]));
+    near.every(v => sha(untouched({ ...OLD_REQS[2][1], sweep: { scopeTargets: ['Basement egress window', 'Smoke and CO alarms'], codeCards: v } }) ?? '') === BASE_PROMPTS[2]));
   ok('sweepCodeCardsOf: true only for { codeCards: true }',
     cardsOf({ codeCards: true }) && !cardsOf({ codeCards: 'true' }) && !cardsOf(undefined) && !cardsOf([{ codeCards: true }]) && !cardsOf('codeCards'));
   ok('a codeCards flag with no sweep object at all is still Plan Review',
-    sha(buildPrompt({ ...JURIS, codeCards: true })) === BASE_PROMPTS[1]);
+    sha(untouched({ ...JURIS, codeCards: true }) ?? '') === BASE_PROMPTS[1]);
 
   console.log('\n2. with the flag: status, a guessed stage, the same rules');
   const sweepReq = { ...JURIS, sweep: { scopeTargets: ['Deck guard', 'Stair handrail'], codeCards: true } };
@@ -225,6 +248,17 @@ console.log('\n5. summaryEchoCheck');
   ok('the why cap is 160 and a step cap is 100', e('a'.repeat(160), CC.WHY_CAP) && !e('a'.repeat(161), CC.WHY_CAP) && !e('a'.repeat(101), CC.STEP_CAP));
   ok('double quotes of any kind fail', !e('Guards "required" here') && !e('Guards “required” here') && !e('Guards «required»'));
   ok("a span in single quotes fails ('like this')", !e("Guards are 'required' here") && !e('Guards are ‘required’ here'));
+  // AN INCH MARK IS NOT A QUOTE: a " or a double prime directly after a digit
+  // or a fraction character, not followed by a letter (an x between sizes is fine).
+  const INCHES = ['Guard 36" high.', "Door 2'-8\" wide.", 'Riser at most 7-7/8".', 'Balusters 4½" apart at most.', 'Footing 12"x12" under each post.', 'Footing 12" x 12".', 'Guard 36\u2033 high.', 'Riser ≤ 7-3/4", tread ≥ 10".'];
+  const QUOTES = ['"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'Guards “at least 36” high.', 'A 36"high guard.', 'Note says "36" minimum.'];
+  ok('an inch mark is not a quote: 36", 2\'-8", 7-7/8", 4½", 12"x12", a double prime all pass',
+    INCHES.every(t => e(t)), INCHES.filter(t => !e(t)).join(' | '));
+  ok('…and every real quote still fails: "Guards…", reads "X", R312.1 "Guards, a quote glued to a section number, curly quotes, a mark glued to a word',
+    QUOTES.every(t => !e(t)), QUOTES.filter(t => e(t)).join(' | '));
+  ok('withoutInchMarks takes out the mark and nothing else', CC.withoutInchMarks('Door 2\'-8" wide, 36" high') === "Door 2'-8 wide, 36 high" && CC.withoutInchMarks('reads "X"') === 'reads "X"');
+  ok('the phone’s gate agrees on every one of those lines (same rule, both sides)',
+    INCHES.every(t => CLIENT.passesEchoCheck(t)) && QUOTES.every(t => !CLIENT.passesEchoCheck(t)), [...INCHES.filter(t => !CLIENT.passesEchoCheck(t)), ...QUOTES.filter(t => CLIENT.passesEchoCheck(t))].join(' | '));
   ok('"shall"-style code phrasing fails', ['Guards shall be provided', 'Height not less than 36 in.', 'Not more than 4 in. gaps', 'Install in accordance with the code', 'Exception: decks under 30 in.', 'Where required by the code']
     .every(t => !e(t)));
   const words = (n: number) => Array.from({ length: n }, () => 'go').join(' ');
@@ -330,7 +364,7 @@ console.log('\n6. numbersIn and normalizeRequirements');
         && JSON.stringify(run([{ ...base, usesCalculator: true }], { expression: '31 - 30', value: 1, note: 'n'.repeat(101) })[0]?.calc) === '{"expression":"31 - 30","value":"1"}');
   }
   ok('a why with a newline comes back on one line', one({ why: 'Your deck is\n31 in.   above grade.' })?.why === 'Your deck is 31 in. above grade.');
-  ok('a summary with an inch mark is refused (the prompt asks for in. instead)', run([{ ...base, summary: 'Make the guard 36" high.' }]).length === 0);
+  ok('an inch mark is not a quote: a summary with one is kept as written (the prompt still asks for in.)', run([{ ...base, summary: 'Make the guard 36" high.' }])[0]?.summary === 'Make the guard 36" high.');
   {
     // Round trip: every card the server sends must reach the phone unchanged.
     const canon = (v: unknown): string => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x)
@@ -404,16 +438,34 @@ console.log('\n6. numbersIn and normalizeRequirements');
     };
     const r1 = shown(riser, qRiser, aRiser);
     const r1Text = r1.phone ? shareTextFor(r1.phone, { jobLabel: 'Sample job', sample: true }) : '';
-    ok('PROBE: "at most 7.75 in." with the sign the wrong way (>) and an 8 in. riser: the server sends the trigger and NO job value, so nothing says "within the limit"',
-      !!r1.server && r1.server.verdict === 'limit' && !('jobValue' in r1.server) && JSON.stringify(r1.server.trigger) === '{"value":7.75,"unit":"in","comparison":">"}'
+    ok('PROBE: "at most 7.75 in." with the sign the wrong way (>) and an 8 in. riser: the server sends NO trigger and NO job value, so nothing says "within the limit"',
+      !!r1.server && r1.server.verdict === 'limit' && !('jobValue' in r1.server) && !('trigger' in r1.server) && r1.phone.trigger === undefined
         && r1.same && r1.phone.jobValue === undefined && !/Job: |Result:|within the limit/.test(r1Text) && r1Text.includes('Risers can be at most 7.75 in. tall.'), JSON.stringify(r1.server) + ' ' + r1Text);
     const r2 = shown({ ...riser, triggerComparison: '<=' }, qRiser, aRiser);
     ok('…and with the sign its own words mean (<=) the 8 in. riser is kept and reads "outside the limit"',
       r2.server?.jobValue?.value === 8 && r2.same && recheckOutcome(r2.phone, r2.phone.jobValue!) === 'over_limit'
         && shareTextFor(r2.phone, {}).includes('Job: 8 in. (riser height from your question). Limit at or below 7\u00be in. (AI recall, confirm). Result: outside the limit.'), shareTextFor(r2.phone ?? ({} as never), {}));
     const g2 = shown({ ...guard, verdict: 'limit', summary: 'Guard has to be at least 36 in. high.', triggerComparison: '<' }, qGuard, aGuard);
-    ok('PROBE: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard: no job value, nothing says "within the limit"',
-      !!g2.server && !('jobValue' in g2.server) && g2.server.trigger?.comparison === '<' && g2.same && !/Job: |Result:|within the limit/.test(shareTextFor(g2.phone, {})));
+    ok('PROBE: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard: no trigger, no job value, nothing says "within the limit"',
+      !!g2.server && !('jobValue' in g2.server) && !('trigger' in g2.server) && g2.same && g2.phone.trigger === undefined && !/Job: |Result:|within the limit/.test(shareTextFor(g2.phone, {})));
+    {
+      // A LIMIT'S UNCONFIRMED SIGN NEVER LEAVES THE SERVER (integration round
+      // 3): with or WITHOUT a job value, the trigger is sent only when the
+      // summary itself says the side the sign points to. A re-measure on the
+      // phone then has no unchecked sign to be re-checked against.
+      const noJob = (summary: string, c: string, t = 36) => shown({ ...guard, verdict: 'limit', summary, triggerValue: t, triggerComparison: c, jobValue: null, jobValueSource: null, jobValueLabel: null },
+        'How high does the guard have to be?', 'Under the 2025 RCNYS, Section R312.1.2, the guard height is 36 in. here.');
+      ok('a limit with NO job value: the trigger is sent only with the sign its own summary means; the wrong sign and a summary with no side word send none, and the phone agrees',
+        JSON.stringify(noJob('Guard has to be at least 36 in. high.', '>=').server?.trigger) === '{"value":36,"unit":"in","comparison":">="}' && noJob('Guard has to be at least 36 in. high.', '>=').same
+        && ['>', '<', '<='].every(c => { const x = noJob('Guard has to be at least 36 in. high.', c); return !!x.server && x.server.verdict === 'limit' && !('trigger' in x.server) && x.same && x.phone.trigger === undefined; })
+        && CC.CODE_COMPARISONS.every(c => { const x = noJob('Keep the guard under 36 in. high.', c); return !!x.server && !('trigger' in x.server) && x.same; })
+        && JSON.stringify(noJob('Keep it at most 36 in. high.', '<=').server?.trigger) === '{"value":36,"unit":"in","comparison":"<="}');
+      ok('limitSignConfirmed is that one test, the same on the server and on the phone; a required / not_required card keeps its trigger whatever the sign',
+        CC.limitSignConfirmed({ value: 36, unit: 'in', comparison: '>=' }, 'Guard has to be at least 36 in. high.') && !CC.limitSignConfirmed({ value: 36, unit: 'in', comparison: '<' }, 'Guard has to be at least 36 in. high.')
+        && !CC.limitSignConfirmed({ value: 36, unit: 'in', comparison: '>=' }, '') && CC.CODE_COMPARISONS.every(c => ['Guard has to be at least 36 in. high.', 'Keep it at most 36 in. high.', 'Keep the guard under 36 in. high.', ''].every(t =>
+          CC.limitSignConfirmed({ value: 36, unit: 'in', comparison: c }, t) === limitSignConfirmed({ value: 36, unit: 'in', comparison: c }, t)))
+        && CC.CODE_COMPARISONS.every(c => shown({ ...guard, verdict: 'required', triggerComparison: c, jobValue: null, jobValueSource: null, jobValueLabel: null }, qGuard, aGuard).server?.trigger?.comparison === c));
+    }
     const limitCard = (summary: string, c: string, n = 34, t = 36) => shown({ ...guard, verdict: 'limit', summary, triggerValue: t, triggerComparison: c, jobValue: n },
       'Mine is 30 in., 34 in., 36 in. or 38 in. Which one?', 'Under the 2025 RCNYS, Section R312.1.2, the line is 36 in. here, or 30 in. on the low side.');
     ok('the sign has to be the one the words mean, exactly: "at least" is >= (a 36 in. guard is inside), so > is dropped too; "at most" is <=, so < is dropped',
@@ -442,13 +494,15 @@ console.log('\n6. numbersIn and normalizeRequirements');
         const r = limitCard(line, c, n);
         if (!r.same || !r.phone || effectiveVerdict(r.phone) !== 'limit') { wrong.push(`${line} ${n} ${c}: not the same card`); continue; }
         const has = 'jobValue' in (r.server ?? {});
-        if (has !== (c === (side === 'min' ? '>=' : '<='))) { wrong.push(`${line} ${n} ${c}: job value ${has ? 'kept' : 'dropped'}`); continue; }
+        const confirmed = c === (side === 'min' ? '>=' : '<=');
+        if (('trigger' in (r.server ?? {})) !== confirmed) { wrong.push(`${line} ${n} ${c}: trigger ${confirmed ? 'dropped' : 'kept'}`); continue; }
+        if (has !== confirmed) { wrong.push(`${line} ${n} ${c}: job value ${has ? 'kept' : 'dropped'}`); continue; }
         if (!has) continue;
         kept++;
         const inside = side === 'min' ? n >= 36 : n <= 36;
         if ((recheckOutcome(r.phone, r.phone.jobValue!) === 'within_limit') !== inside) wrong.push(`${line} ${n} ${c}: reads the wrong way`);
       }
-      ok(`${lines.length * 16} limit cards: a job value rides only on the sign the line’s own words mean, and "within the limit" is printed exactly when the job is on that side (${kept} kept)`,
+      ok(`${lines.length * 16} limit cards: a trigger and a job value ride only on the sign the line’s own words mean, and "within the limit" is printed exactly when the job is on that side (${kept} kept)`,
         wrong.length === 0 && kept === lines.length * 4, wrong.slice(0, 5).join('; '));
     }
     // Every verdict, comparison and side of the line: the card the phone shows

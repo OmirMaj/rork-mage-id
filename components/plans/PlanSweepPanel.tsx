@@ -21,7 +21,14 @@
 // the opened card with its actions. A finding is 'ask' unless the server
 // marked it 'fix'; only the server's separate "look right" rows are 'ok', and
 // those never get a question, an RFI draft or a punch item. The per-sheet
-// findings below (rung, mismatch, Draft RFI, Add punch item) are unchanged.
+// findings below keep their rung, mismatch, Draft RFI and Add punch item.
+//
+// THE WITHHOLD RULE COVERS THE ROWS TOO (2026-10-04). A line the card
+// withholds ("MAGE hid this line because it read like code text") is withheld
+// in the per-sheet row as well: each row's view goes through sweepRowOwnWords
+// (the card's own gate) before the row prints it and before an RFI draft or a
+// punch item is made from it. A row whose own title is hidden offers neither,
+// and says why.
 // The sweep itself is still not kept; a card he pins to an inspection
 // checklist or saves is kept by the code-card stores on this device, because
 // he asked for that. Recall is neutral grey here too (founder decision), so
@@ -63,7 +70,7 @@ import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
 import { architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
 import {
-  sweepCardItem, useCodeCardWiring, usePermitOfficeAnswer, withContentIds,
+  isCardPlaceholder, sweepCardItem, sweepRowOwnWords, SWEEP_ROW_WITHHELD, useCodeCardWiring, usePermitOfficeAnswer, withContentIds,
 } from '@/components/construction/AskConstructionMode';
 
 interface Props {
@@ -167,6 +174,9 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
     }
   }, [found, project, grounding.promptBlock]);
 
+  // `view` in the two callbacks below is the GATED row they are called with
+  // (sweepRowOwnWords), never the raw view: the RFI draft, the punch item and
+  // both pin labels carry only words that passed the own-words gate.
   const onDraft = useCallback((sheet: PlanSheet, view: SweepFindingView, key: string) => {
     if (drafted[key]) return;
     const rfi = addRFI(rfiFromSweepFinding(sheet, view, new Date(), sheetAttachmentFor(sheet)));
@@ -434,34 +444,39 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
             <Text style={styles.body} testID={`plansweep-none-${r.sheet.id}`}>{sweepCopy.noFindings(sheetNo(r.sheet))}</Text>
           ) : r.findings.map((f, i) => {
             const key = `${r.sheet.id}#${i}`;
-            const view = sweepFindingView(f, r.sheet, jurisdiction);
+            // The row's words through the card's own gate, before anything
+            // prints them or files them (the RFI draft and the punch item
+            // below are built from THIS gated row).
+            const row = sweepRowOwnWords(sweepFindingView(f, r.sheet, jurisdiction), passesEchoCheck);
             const done = drafted[key];
             const punchDone = punched[key];
             return (
               <View key={key} style={styles.findingRow} testID={`plansweep-finding-${key}`}>
-                <Text style={styles.question}>{view.title}</Text>
-                {view.observed ? <Text style={styles.body}>{`${sweepCopy.observed}: ${view.observed}`}</Text> : null}
-                {view.requirement ? (
-                  <Text style={styles.meta}>{`${view.requirementLabel}: ${view.requirement}`}</Text>
+                <Text style={styles.question}>{row.title}</Text>
+                {row.observed ? <Text style={styles.body}>{`${sweepCopy.observed}: ${row.observed}`}</Text> : null}
+                {row.requirement ? (
+                  <Text style={styles.meta}>{isCardPlaceholder(row.requirement) ? row.requirement : `${row.requirementLabel}: ${row.requirement}`}</Text>
                 ) : null}
                 <View style={styles.inlineRow}>
-                  {view.citation ? <Text style={styles.citation}>{view.citation}</Text> : null}
-                  <View style={[styles.badge, view.rung.rungIndex <= 2 ? styles.badgeBacked : styles.badgeRecall]} testID={`plansweep-rung-${key}`}>
-                    <Text style={[styles.badgeText, view.rung.rungIndex <= 2 ? styles.badgeBackedText : styles.badgeRecallText]}>{view.rung.badge}</Text>
+                  {row.citation ? <Text style={styles.citation}>{row.citation}</Text> : null}
+                  <View style={[styles.badge, row.rung.rungIndex <= 2 ? styles.badgeBacked : styles.badgeRecall]} testID={`plansweep-rung-${key}`}>
+                    <Text style={[styles.badgeText, row.rung.rungIndex <= 2 ? styles.badgeBackedText : styles.badgeRecallText]}>{row.rung.badge}</Text>
                   </View>
-                  {view.mismatch ? (
+                  {row.mismatch ? (
                     <View style={[styles.badge, styles.badgeWarn]} testID={`plansweep-mismatch-${key}`}>
-                      <Text style={[styles.badgeText, styles.badgeWarnText]}>{view.mismatch.label}</Text>
+                      <Text style={[styles.badgeText, styles.badgeWarnText]}>{row.mismatch.label}</Text>
                     </View>
                   ) : null}
                 </View>
                 <View style={styles.inlineRow}>
                   <MapPin size={12} color={t.textSecondary} strokeWidth={1.75} />
-                  <Text style={styles.meta}>{view.where}</Text>
+                  <Text style={styles.meta}>{row.where}</Text>
                 </View>
-                <Text style={styles.meta}>{`${sweepCopy.severity[view.severity]} · ${sweepCopy.confidence[view.confidence]}`}</Text>
-                {!view.location ? <Text style={styles.meta}>{sweepCopy.noLocation}</Text> : null}
-                {done ? (
+                <Text style={styles.meta}>{`${sweepCopy.severity[row.severity]} · ${sweepCopy.confidence[row.confidence]}`}</Text>
+                {!row.location ? <Text style={styles.meta}>{sweepCopy.noLocation}</Text> : null}
+                {row.withheld ? (
+                  <Text style={styles.blockedText} testID={`plansweep-row-withheld-${key}`}>{SWEEP_ROW_WITHHELD}</Text>
+                ) : done ? (
                   <View style={styles.inlineRow}>
                     <Text style={styles.draftedText} testID={`plansweep-drafted-${key}`}>{sweepCopy.drafted(done.number)}</Text>
                     <TouchableOpacity onPress={() => openRfi(done.rfiId)} accessibilityRole="button" testID={`plansweep-open-rfi-${key}`}>
@@ -471,7 +486,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
                 ) : (
                   <Button
                     label={sweepCopy.draftRfi}
-                    onPress={() => onDraft(r.sheet, view, key)}
+                    onPress={() => onDraft(r.sheet, row, key)}
                     variant="secondary"
                     size="sm"
                     iconLeft={<MessageSquare size={13} color={t.text} strokeWidth={1.75} />}
@@ -479,7 +494,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
                     testID={`plansweep-draft-${key}`}
                   />
                 )}
-                {punchDone ? (
+                {row.withheld ? null : punchDone ? (
                   <View style={styles.inlineRow} testID={`plansweep-punched-${key}`}>
                     <Text style={styles.draftedText}>
                       {withoutLink(punchDone.pinned ? sweepCopy.punchAddedPinned : sweepCopy.punchAddedNoPin)}
@@ -491,7 +506,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
                 ) : (
                   <Button
                     label={sweepCopy.addPunch}
-                    onPress={() => onPunch(r.sheet, view, key)}
+                    onPress={() => onPunch(r.sheet, row, key)}
                     variant="secondary"
                     size="sm"
                     iconLeft={<ListChecks size={13} color={t.text} strokeWidth={1.75} />}

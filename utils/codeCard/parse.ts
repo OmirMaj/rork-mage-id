@@ -28,8 +28,11 @@
 //     shows says the side itself, right at the trigger's figure ("at least
 //     36 in.", "at most 7.75 in."; ./saysWithUnit.ts limitSideInLine), and the
 //     sign is the one those words mean (">=" for a minimum, "<=" for a
-//     maximum). No such words, both kinds, or a sign that disagrees: the job
-//     number is dropped and the trigger kept, exactly as above.
+//     maximum). No such words, both kinds, or a sign that disagrees: the
+//     TRIGGER is dropped as well as the job number, whether or not a job
+//     number came with it (limitSignConfirmed). A sign nothing confirmed is
+//     then never on a card, so no number, his re-measure included, can ever
+//     be re-checked against it, on screen or in a saved card.
 //   * EVIDENCE AND "NOT A GUESS" NEVER COME OFF THE WIRE. parseCodeCardItem
 //     returns every item with `evidence: null` and `stageIsGuess: true`,
 //     whatever the input said: the rung is MAGE's own lookup (attachEvidence,
@@ -175,11 +178,19 @@ export function numbersAgreeWithVerdict(
   item: Pick<CodeCardItem, 'verdict' | 'jobValue' | 'trigger'> & { summary?: string },
 ): boolean {
   if (!item.jobValue || !item.trigger || !canRecheck(item)) return true;
-  if (item.verdict === 'limit') {
-    const side = limitSideInLine(item.summary ?? '', item.trigger.value, item.trigger.unit);
-    return side !== null && item.trigger.comparison === LIMIT_COMPARISON[side];
-  }
+  if (item.verdict === 'limit') return limitSignConfirmed(item.trigger, item.summary);
   return recheck(item.jobValue, item.trigger).met === (item.verdict === 'required');
+}
+
+/**
+ * Does a limit's own line confirm the trigger's sign? True only when `line`
+ * says the side right at the trigger's figure ("at least 36 in.") and the sign
+ * is the one those words mean. A limit's trigger rides on a wire card only
+ * when this holds (see the header).
+ */
+export function limitSignConfirmed(trigger: CodeTrigger, line: string | null | undefined): boolean {
+  const side = limitSideInLine(line ?? '', trigger.value, trigger.unit);
+  return side !== null && trigger.comparison === LIMIT_COMPARISON[side];
 }
 
 /**
@@ -243,9 +254,17 @@ function build(raw: unknown, fallbackId: string | undefined, stored: boolean, sh
   if (jobValue) item.jobValue = jobValue;
   const trigger = parseTrigger(r.trigger);
   if (trigger) item.trigger = trigger;
-  // Wire only: numbers that disagree with the verdict, or a limit whose own
-  // line does not say the side, never draw a tape.
-  if (!stored && !numbersAgreeWithVerdict({ ...item, summary: shownLine ?? summary })) delete item.jobValue;
+  // Wire only. A limit whose own line does not confirm the sign loses its
+  // trigger AND its job number (with or without a job number on the wire);
+  // any other card whose numbers disagree with its verdict loses the job
+  // number. Neither ever draws a tape.
+  if (!stored) {
+    const line = shownLine ?? summary;
+    if (item.verdict === 'limit' && item.trigger && !limitSignConfirmed(item.trigger, line)) {
+      delete item.trigger;
+      delete item.jobValue;
+    } else if (!numbersAgreeWithVerdict({ ...item, summary: line })) delete item.jobValue;
+  }
   const calc = rec(r.calc);
   if (calc) {
     const expression = str(calc.expression, caps.calcExpr);

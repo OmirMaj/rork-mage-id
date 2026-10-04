@@ -40,6 +40,15 @@ export function pinIdFor(projectId: string, itemId: string): string {
   return `${projectId}:${itemId}`;
 }
 
+/**
+ * The card as it is shown once the stage on screen is `stage`. A stage HE chose
+ * (it differs from the AI's) is no longer a guess, so the list card, the row
+ * and the reopened card stop saying "AI guess" (makePin keeps a pin the same way).
+ */
+export function withChosenStage(item: CodeCardItem, stage: CodeStage | null | undefined): CodeCardItem {
+  return stage && stage !== item.stage ? { ...item, stage, stageIsGuess: false } : item;
+}
+
 /** Build a pin. `stage` overrides the item's guess; no stage at all files it under 'other'. */
 export function makePin(projectId: string, item: CodeCardItem, now: Date | string, stage?: CodeStage): CodePin {
   const chosen = stage ?? item.stage ?? 'other';

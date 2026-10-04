@@ -9,8 +9,8 @@ exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (a) 
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (b) Ask, prose answer, no requirements (the fallback) 1`] = `
 {
-  "lines": 852,
-  "sha256": "e6722ba3667c28131175c526bf1c1d6131012f7444af4f1189419a38db8258e6",
+  "lines": 849,
+  "sha256": "d148897a8c7afea97ab5da83e533cfccd027ef792f1754679b01bceabca48452",
 }
 `;
 

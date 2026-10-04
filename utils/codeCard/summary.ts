@@ -6,6 +6,7 @@
 
 import type { CodeCardItem, CodeCardStatus, CodeStage } from './types';
 import { CODE_STAGES, stageLabel } from './verdict';
+import { architectFixRows } from './shareText';
 
 export interface CodeTally {
   fix: number;
@@ -132,7 +133,8 @@ export function addAllLabel(items: readonly CodeCardItem[]): string {
 
 /** "Send 3 fixes + 1 question to architect"; null when there is nothing to send. */
 export function architectButtonLabel(items: readonly CodeCardItem[]): string | null {
-  const fixes = items.filter((i) => i.status === 'fix').length;
+  // The rows the email can list (a stand-in row with no section is not one).
+  const fixes = architectFixRows(items).length;
   const questions = items.filter((i) => i.status === 'ask' && (i.question ?? '').trim()).length;
   if (fixes === 0 && questions === 0) return null;
   const parts: string[] = [];

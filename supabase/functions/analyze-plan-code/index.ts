@@ -186,6 +186,10 @@ function buildPrompt(req: PlanCodeRequest): string {
     "Only flag what you can ACTUALLY SEE in the drawing. Prefer fewer high-confidence findings over speculation. This is a PRE-CHECK the GC will verify against their AHJ — it is not a substitute for plan review.",
     "You cannot look anything up: every section number is your own recall. Give a section only when you are certain of it; otherwise leave section empty and describe the requirement.",
     "Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.",
+    // The app shows a line only when it reads as plain words (its own-words
+    // gate: no quotation marks, no sentence over 25 words). An inch written
+    // as a mark, or a drawing note copied in quotes, costs the contractor the line.
+    `Write ${sweep ? "requirement, observed and question" : "requirement and observed"} as short plain sentences of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`,
     juris
       ? "For each finding, citedEdition is the code family and edition you are citing, exactly as named in the jurisdiction block above when that block covers it, and section is the section number alone."
       : "For each finding, citedEdition is the model-code family and the edition year you are recalling (the family alone if you are unsure of the year), and section is the section number alone.",

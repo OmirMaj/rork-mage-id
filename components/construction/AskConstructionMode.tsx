@@ -77,8 +77,9 @@ import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAc
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
 import { attachEvidence, codeCardStoreBlockedReason, parseCodeCardItems } from '@/utils/codeCard/parse';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
-import { codePinStore, makePin, pinnedStage, pinsFor } from '@/utils/codeCard/pins';
-import { codeSavedStore, isSaved, makeSaved, savedFor } from '@/utils/codeCard/saved';
+import { codePinStore, makePin, pinsFor } from '@/utils/codeCard/pins';
+import { codeSavedStore, makeSaved, savedFor } from '@/utils/codeCard/saved';
+import { EMPTY_REMEASURES, keptIsShown, recordRemeasure, remeasureFor, type RemeasureMap } from '@/utils/codeCard/remeasure';
 import { smsUrlFor, subRecipientsFor, type SubRecipient } from '@/utils/codeCard/shareText';
 import { stageLabel } from '@/utils/codeCard/verdict';
 import { addAllLabel } from '@/utils/codeCard/summary';
@@ -196,6 +197,29 @@ export function buildingRecordForAsk(
  *  - IDS COME FROM THE CONTENT. "req-1" and "cc-1" repeat on every answer, so a
  *    pin or a save keyed on them would show on the NEXT answer's first card.
  *    withContentIds keys each card on its edition, section, words and place.
+ *  - THE WITHHOLD RULE COVERS EVERY PLACE THE LINE CAN APPEAR, not just the
+ *    card. A requirement or observed line from the AI is shown, saved, put in
+ *    an RFI, a punch item, a permit or a message only after the same own-words
+ *    gate: ownWordsLine (the requirement: its words, or the withheld notice),
+ *    ownWordsObserved (what the drawing shows: its words, or nothing).
+ *    Code Check gates its rows ONCE, where the AI's result enters the screen
+ *    (codeCheckOwnWords), so the result on screen, the saved check and every
+ *    action taken from it hold only gated lines. Plan Review gates a new
+ *    review where it is saved (planFindingOwnWords) and gates again where the
+ *    list prints, for reviews saved before this rule. The sweep gates its
+ *    row view (sweepRowOwnWords) before the list, the RFI draft and the punch
+ *    item read it; a row whose own title is withheld offers neither, and says why.
+ *  - A TRIGGER OF ZERO IS "DID NOT SAY". The relay tells the model to use 0
+ *    for a number it does not know, so flatTrigger reads a value of 0 or less
+ *    as no trigger.
+ *  - AN INCH MARK IS NOT A QUOTE. The gate (utils/codeCard/echoCheck.ts) reads
+ *    a " straight after a digit as an inch mark, so a drawing line such as
+ *    "Riser 7-3/4" max" is shown, saved and filed as written. Every other
+ *    quotation mark still withholds the line.
+ *  - THE TWO STAND-IN LINES below are the kit's LINE_WITHHELD / LINE_NO_TEXT,
+ *    word for word (this block cannot import; scripts/validate-code-card-wiring.ts
+ *    pins them equal). The kit uses them to keep a stand-in out of a text to a
+ *    sub, the architect email and a saved check.
  */
 export const CARD_TEXT_MAX = 400;
 export const CARD_WITHHELD = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
@@ -248,7 +272,8 @@ export function withContentIds(prefix: string, items: readonly CodeCardItem[]): 
 /** The trigger off Code Check's flat wire: nothing unless the unit is there. */
 function flatTrigger(c: Record<string, unknown>): unknown {
   const unit = cardLine(c.triggerUnit);
-  return unit ? { value: c.triggerValue, unit, comparison: cardLine(c.triggerComparison) } : undefined;
+  if (!unit || typeof c.triggerValue !== 'number' || !(c.triggerValue > 0)) return undefined;
+  return { value: c.triggerValue, unit, comparison: cardLine(c.triggerComparison) };
 }
 /**
  * The words he gave for one Code Check run: the scenario and every follow-up
@@ -279,6 +304,53 @@ export function cardWithChosenStage(item: CodeCardItem, stage: CodeCardItem['sta
 /** The plain line of a Code Check row that is not a card: the same gate as a card's line. */
 export function codeCheckPlainLine(requirement: unknown, echo: CardEcho): string {
   return cardSummary(requirement, echo);
+}
+/**
+ * A requirement line from the AI for any list, record, draft or message: its
+ * own words when they pass the gate, the withheld notice when they do not, ''
+ * when there are none. The same gate and the same notice as the card.
+ */
+export function ownWordsLine(text: unknown, echo: CardEcho): string {
+  const t = cardLine(text);
+  if (!t) return '';
+  return echo(t, CARD_TEXT_MAX) ? t : CARD_WITHHELD;
+}
+/** What the AI says the drawing shows, for any list or draft: its words when they pass the gate, else nothing. */
+export function ownWordsObserved(text: unknown, echo: CardEcho): string {
+  const t = cardLine(text);
+  return t && echo(t, CARD_TEXT_MAX) ? t : '';
+}
+/**
+ * A Code Check result as the screen may hold it: every row's requirement
+ * through the gate ONCE, where the AI's result comes in. The result on screen,
+ * the check saved to the job and every permit, punch item or RFI drafted from
+ * a row then carry only this line.
+ */
+export function codeCheckOwnWords<R extends { applicableCodes: readonly { requirement?: unknown }[] }>(result: R, echo: CardEcho): R {
+  return { ...result, applicableCodes: result.applicableCodes.map((c) => ({ ...c, requirement: ownWordsLine(c.requirement, echo) })) } as R;
+}
+/** One Plan Review finding's two AI lines, gated, as the review is saved and as its list prints them. */
+export function planFindingOwnWords(f: { requirement?: unknown; observed?: unknown }, echo: CardEcho): { requirement: string; observed: string } {
+  return { requirement: ownWordsLine(f.requirement, echo), observed: ownWordsObserved(f.observed, echo) };
+}
+/** Why a sweep row offers no RFI draft and no punch item: its own words are hidden. */
+export const SWEEP_ROW_WITHHELD = 'No RFI draft or punch item for this row: MAGE hid its words because they read like code text. Use the citation to read the section.';
+/**
+ * A Plan Set Code Sweep row's view with its three AI lines gated: the title
+ * (the question for the architect), the requirement and what the drawing
+ * shows. Everything that prints or files the row reads THIS view: the list,
+ * the RFI draft and the punch item. `withheld` = the title itself was hidden,
+ * so there is nothing to put in an RFI or a punch item.
+ */
+export function sweepRowOwnWords<V extends { title: string; requirement: string; observed: string }>(view: V, echo: CardEcho): V & { withheld: boolean } {
+  const title = ownWordsLine(view.title, echo);
+  return {
+    ...view,
+    title: title || CARD_WITHHELD,
+    requirement: ownWordsLine(view.requirement, echo),
+    observed: ownWordsObserved(view.observed, echo),
+    withheld: !title || title === CARD_WITHHELD,
+  };
 }
 export function codeCheckCardItem(
   c: Record<string, unknown> & { code?: string; section?: string; requirement?: string },
@@ -338,7 +410,7 @@ export function planFindingCardItem(
   const status: CodeCardItem['status'] = f.confidence === 'low' ? 'ask' : 'fix';
   const parsed = parse({ ...f, id: f.id, verdict: 'required', summary: 'Requirement', section: 'none', status, location: undefined, question: undefined }, f.id);
   const base: CodeCardItem = parsed ?? { id: f.id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
-  const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status };
+  const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status, stageIsGuess: true };
   if (cite.citedCode) item.citedEdition = cite.citedCode;
   const observed = cardLine(f.observed);
   if (observed && echo(observed, 120)) item.observed = observed;
@@ -408,9 +480,9 @@ export function cardKeepBlockedReason(item: CodeCardItem, kind: 'checklist' | 's
   if (isCardPlaceholder(item.summary)) return kind === 'checklist' ? NO_WORDS_CHECKLIST : NO_WORDS_SAVE;
   return codeCardStoreBlockedReason(item);
 }
-/** Where a pinned card can be taken off again (the opened card's Checklist row, once pinned). */
+/** The opened card's Checklist row once pinned: where it is, and that a tap takes it off again. */
 export function pinnedWhere(stage: CodeStage): string {
-  return `On ${stageLabel(stage)} checklist. To take it off: Ask, under On inspection checklists, with this project linked.`;
+  return `On ${stageLabel(stage)} checklist. Tap to take it off.`;
 }
 /** The line under the pinned list: when each one shows, and that they live on this device. */
 export const PINNED_LIST_NOTE = 'Each one shows in Inspection Ready 3 days before that inspection. Kept on this device. Confirm with your building department.';
@@ -445,9 +517,12 @@ export function usePermitOfficeAnswer(project: Project | null, active: boolean):
  * are device-local stores, Ask town opens his own Mail, a sub is texted from
  * his own Messages.
  */
-export function useCodeCardWiring({ project, info, sample = false, testID }: {
+export function useCodeCardWiring({ project, info, infoFor, sample = false, testID }: {
   project: Project | null;
   info: CodeJurisdictionInfo | null;
+  /** The jurisdiction facts for the card that is OPEN (its own edition and
+   *  viewer volume), when a list's cards can cite different volumes. */
+  infoFor?: (item: CodeCardItem) => CodeJurisdictionInfo | null;
   sample?: boolean;
   testID: string;
 }) {
@@ -458,16 +533,46 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
   const { subcontractors } = useProjects();
   const projectId = project?.id ?? null;
   const [openItem, setOpenItem] = useState<CodeCardItem | null>(null);
+  // A stage he picked belongs to that card ON THAT JOB: keyed on both, so it
+  // never shows on another job's card with the same words.
   const [stageEdits, setStageEdits] = useState<Record<string, CodeStage>>({});
-  const [jobValues, setJobValues] = useState<Record<string, CodeJobValue>>({});
+  const stageKey = useCallback((item: CodeCardItem) => `${projectId ?? ''}|${item.id}`, [projectId]);
+  // THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN. Every read goes
+  // through remeasureFor (utils/codeCard/remeasure.ts): the number is used only
+  // for the same card, on the same job, with the same starting number and
+  // trigger he stepped from. A card on a later answer or run shows its own.
+  const [remeasures, setRemeasures] = useState<RemeasureMap>(EMPTY_REMEASURES);
+  /** The number he re-measured on THIS card this session, if any (what the card shows and Save keeps). */
+  const jobValueOf = useCallback(
+    (item: CodeCardItem): CodeJobValue | undefined => remeasureFor(item, projectId, remeasures),
+    [projectId, remeasures],
+  );
   const [ask, setAsk] = useState<{ question: string; topic: string } | null>(null);
 
+  // THE "ON … CHECKLIST" AND "SAVED" MARKS BELONG TO THE CARD AS IT IS SHOWN.
+  // A card's id is its words, so a pin or a saved card with the same id may be
+  // an EARLIER card (another verdict, trigger or job number). Both marks go
+  // through the kit's keptIsShown (utils/codeCard/remeasure.ts): the kept card
+  // counts only when its verdict, its trigger and the number it shows are the
+  // ones on screen. Otherwise Checklist / Save is ready again and replaces it.
+  /** The stage THIS card, as shown, is pinned to on this job, or null. */
+  const pinnedStageOf = useCallback((item: CodeCardItem): CodeStage | null => {
+    const pin = pinsFor(pins, projectId).find((p) => p.item.id === item.id);
+    return pin && keptIsShown(pin, item) ? pin.stage : null;
+  }, [pins, projectId]);
+  /** Is THIS card, with the number now on screen, the one saved to this job? */
+  const savedShown = useCallback((item: CodeCardItem): boolean =>
+    keptIsShown(savedFor(saved, projectId).find((c) => c.item.id === item.id), item, jobValueOf(item)),
+  [saved, projectId, jobValueOf]);
+
   const stageOf = useCallback((item: CodeCardItem): CodeStage | undefined =>
-    stageEdits[item.id] ?? pinnedStage(pins, projectId, item.id) ?? item.stage, [stageEdits, pins, projectId]);
+    stageEdits[stageKey(item)] ?? pinnedStageOf(item) ?? item.stage, [stageEdits, stageKey, pinnedStageOf]);
+  /** The card as every surface shows it: with the stage on screen, and a stage HE chose no longer labelled a guess. */
+  const cardOf = useCallback((item: CodeCardItem): CodeCardItem => cardWithChosenStage(item, stageOf(item)), [stageOf]);
 
   const checklistFor = useCallback((item: CodeCardItem): CodeCardAction => {
     if (!projectId) return blockedAction(NO_JOB_CHECKLIST);
-    const pinned = pinnedStage(pins, projectId, item.id);
+    const pinned = pinnedStageOf(item);
     if (pinned) return doneAction(`On ${stageLabel(pinned)} checklist`);
     const cannot = cardKeepBlockedReason(item, 'checklist');
     if (cannot) return blockedAction(cannot);
@@ -475,15 +580,16 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
       pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, new Date(), stageOf(item)) });
       if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
     });
-  }, [projectId, pins, pinStore, stageOf]);
-  // The opened card has room to say where a pin can be taken off again.
-  const checklistFromSheet = useCallback((item: CodeCardItem): CodeCardAction => {
-    const pinned = pinnedStage(pins, projectId, item.id);
-    return projectId && pinned ? doneAction(pinnedWhere(pinned)) : checklistFor(item);
-  }, [projectId, pins, checklistFor]);
+  }, [projectId, pinnedStageOf, pinStore, stageOf]);
   const unpin = useCallback((item: CodeCardItem) => {
     if (projectId) pinStore.dispatch({ type: 'unpin', projectId, itemId: item.id });
   }, [projectId, pinStore]);
+  // The opened card's Checklist row, once pinned, takes the pin off again: a
+  // card pinned from Code Check or a plan check is unpinned right where it is.
+  const checklistFromSheet = useCallback((item: CodeCardItem): CodeCardAction => {
+    const pinned = pinnedStageOf(item);
+    return projectId && pinned ? doneAction(pinnedWhere(pinned), () => unpin(item)) : checklistFor(item);
+  }, [projectId, pinnedStageOf, checklistFor, unpin]);
 
   const openAsk = useCallback((item: CodeCardItem) => {
     setAsk({
@@ -506,13 +612,13 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
 
   const saveFor = useCallback((item: CodeCardItem): CodeCardAction => {
     if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
-    if (isSaved(saved, projectId, item.id)) return doneAction(savedWhere(project.name));
+    if (savedShown(item)) return doneAction(savedWhere(project.name));
     const cannot = cardKeepBlockedReason(item, 'save');
     if (cannot) return blockedAction(cannot);
     return readyAction(() => {
-      savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), new Date(), jobValues[item.id] ?? null) });
+      savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), new Date(), jobValueOf(item) ?? null) });
     });
-  }, [projectId, project, saved, savedStore, stageOf, jobValues]);
+  }, [projectId, project, savedShown, savedStore, stageOf, jobValueOf]);
   const unsave = useCallback((item: CodeCardItem) => {
     if (projectId) savedStore.dispatch({ type: 'unsave', projectId, itemId: item.id });
   }, [projectId, savedStore]);
@@ -531,17 +637,17 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     const now = new Date();
     for (const item of items) {
       if (cardKeepBlockedReason(item, 'checklist')) continue;
-      if (!pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, now, stageOf(item)) });
+      if (!pinnedStageOf(item)) pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, now, stageOf(item)) });
     }
-  }, [projectId, pins, pinStore, stageOf]);
+  }, [projectId, pinnedStageOf, pinStore, stageOf]);
   const saveAll = useCallback((items: readonly CodeCardItem[]) => {
     if (!projectId) return;
     const now = new Date();
     for (const item of items) {
       if (cardKeepBlockedReason(item, 'save')) continue;
-      if (!isSaved(saved, projectId, item.id)) savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), now, jobValues[item.id] ?? null) });
+      if (!savedShown(item)) savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), now, jobValueOf(item) ?? null) });
     }
-  }, [projectId, saved, savedStore, stageOf, jobValues]);
+  }, [projectId, savedShown, savedStore, stageOf, jobValueOf]);
 
   // The list's two bulk buttons, the same on every surface. They count and act
   // on the cards that CAN be kept: a stand-in card is never pinned or saved, so
@@ -551,34 +657,34 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     const label = addAllLabel((can.length > 0 ? can : items).map((c) => ({ ...c, stage: stageOf(c) })));
     if (!projectId) return { label, action: blockedAction(NO_JOB_CHECKLIST) };
     if (can.length === 0) return { label, action: blockedAction(NO_WORDS_CHECKLIST) };
-    if (can.every((c) => !!pinnedStage(pins, projectId, c.id))) return { label, action: doneAction('On the inspection checklists') };
+    if (can.every((c) => !!pinnedStageOf(c))) return { label, action: doneAction('On the inspection checklists') };
     return { label, action: readyAction(() => addAll(can)) };
-  }, [projectId, pins, stageOf, addAll]);
+  }, [projectId, pinnedStageOf, stageOf, addAll]);
   const saveAllAction = useCallback((items: readonly CodeCardItem[]): CodeCardAction => {
     if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
     const can = items.filter((c) => !cardKeepBlockedReason(c, 'save'));
     if (can.length === 0) return blockedAction(NO_WORDS_SAVE);
-    if (can.every((c) => isSaved(saved, projectId, c.id))) return doneAction(`Saved to ${project.name}`);
+    if (can.every((c) => savedShown(c))) return doneAction(`Saved to ${project.name}`);
     return readyAction(() => saveAll(can));
-  }, [projectId, project, saved, saveAll]);
+  }, [projectId, project, savedShown, saveAll]);
 
   const overlay = (
     <>
       <CodeCardSheet
         visible={!!openItem}
-        item={openItem ? { ...openItem, stage: stageOf(openItem) } : null}
+        item={openItem ? cardOf(openItem) : null}
         onClose={() => setOpenItem(null)}
-        info={info}
+        info={openItem && infoFor ? infoFor(openItem) : info}
         sample={sample}
         jobLabel={project?.name ?? null}
         onStageChange={(item, stage) => {
-          setStageEdits((m) => ({ ...m, [item.id]: stage }));
-          if (projectId && pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'setStage', projectId, itemId: item.id, stage });
+          setStageEdits((m) => ({ ...m, [stageKey(item)]: stage }));
+          if (projectId && pinnedStageOf(item)) pinStore.dispatch({ type: 'setStage', projectId, itemId: item.id, stage });
         }}
-        // A re-measure he made earlier this session is the number the card
-        // reopens on, so Save never keeps a number that is not on screen.
-        jobValue={openItem ? jobValues[openItem.id] : undefined}
-        onJobValueChange={(item, jv) => setJobValues((m) => ({ ...m, [item.id]: jv }))}
+        // A re-measure he made on THIS card earlier this session is the number
+        // it reopens on, so Save never keeps a number that is not on screen.
+        jobValue={openItem ? jobValueOf(openItem) : undefined}
+        onJobValueChange={(item, jv) => setRemeasures((m) => recordRemeasure(m, item, projectId, jv))}
         checklist={openItem ? checklistFromSheet(openItem) : undefined}
         askTown={openItem ? askTownFromSheet(openItem) : undefined}
         save={openItem ? saveFor(openItem) : undefined}
@@ -600,10 +706,10 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     </>
   );
 
-  /** The number he re-measured on this card this session, if any (what Save keeps). */
-  const jobValueOf = useCallback((item: CodeCardItem): CodeJobValue | undefined => jobValues[item.id], [jobValues]);
-
-  return { stageOf, jobValueOf, checklistFor, askTownFor, saveFor, unsave, unpin, onOpen: setOpenItem, checklistAll, saveAllAction, pins, saved, overlay };
+  // `busy`: a card (or the town draft) of THIS wiring is open. A surface that
+  // renders the overlay only while a list is open must keep it while busy, or
+  // the sheet would unmount under an open card and leave it set.
+  return { stageOf, cardOf, jobValueOf, checklistFor, askTownFor, saveFor, unsave, unpin, onOpen: setOpenItem, checklistAll, saveAllAction, pins, saved, overlay, busy: !!openItem || !!ask };
 }
 
 /** What a code-card answer was grounded on, snapshotted when it was asked. */
@@ -779,7 +885,13 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     () => (cards.length > 0 ? codeJurisdictionInfoFor(askedFor.resolved, permitAnswer, cards[0]?.citedEdition ?? null) : null),
     [cards, askedFor.resolved, permitAnswer],
   );
-  const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, testID: 'construction-ask-cards' });
+  // The opened card gets the facts for ITS edition (its own viewer volume),
+  // not the first card's.
+  const cardInfoFor = useCallback(
+    (item: CodeCardItem) => codeJurisdictionInfoFor(askedFor.resolved, permitAnswer, item.citedEdition ?? null),
+    [askedFor.resolved, permitAnswer],
+  );
+  const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, infoFor: cardInfoFor, testID: 'construction-ask-cards' });
 
   // ── Saved code cards on the LINKED project ──────────────────────────────
   // Where "Save" lands: a list under the question box whenever the linked
@@ -1124,7 +1236,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
                   return (
                     <View key={c.id} testID={`construction-ask-saved-${c.item.id}`}>
                       <CodeCardRow
-                        item={{ ...item, stage: savedWiring.stageOf(item) }}
+                        item={savedWiring.cardOf(item)}
                         onPress={savedWiring.onOpen}
                         edition={item.citedEdition ?? null}
                         info={savedInfo}
@@ -1196,7 +1308,11 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
           ) : null}
         </View>
       ) : null}
-      {keptOpen ? savedWiring.overlay : null}
+      {/* Kept while a card of these lists is open: unpinning (or removing) the
+          last card closes its list, and the sheet must stay on the card until
+          he closes it. Unmounting it open would leave the card set, and the
+          next pin would reopen it by itself. */}
+      {keptOpen || savedWiring.busy ? savedWiring.overlay : null}
 
       {cards.length > 0 ? wiring.overlay : null}
       <Paywall

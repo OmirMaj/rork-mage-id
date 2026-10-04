@@ -288,7 +288,8 @@ const SAMPLE_ASK = {
 };
 
 const SHEET_ID = 'ccw-sheet-a2';
-async function seedPlanReview() {
+type SeedFinding = Record<string, unknown>;
+async function seedPlanReview(findings?: SeedFinding[]) {
   const sheets = [{
     id: SHEET_ID, projectId: PROJECT_ID, name: 'Deck plan', sheetNumber: 'A-2',
     imageUri: 'data:image/png;base64,iVBORw0KGgo=', createdAt: '2026-09-01T12:00:00.000Z',
@@ -296,7 +297,7 @@ async function seedPlanReview() {
   await AsyncStorage.setItem('mageid_plan_sheets', JSON.stringify(sheets));
   const review = {
     id: 'ccw-review-1', projectId: PROJECT_ID, planSheetId: SHEET_ID, reviewedAt: '2026-09-02T12:00:00.000Z',
-    findings: [
+    findings: findings ?? [
       { id: 'ccw-f1', category: 'guards', codeRef: 'RCNYS 2025 R312.1.3', citedEdition: 'RCNYS 2025', section: 'R312.1.3', evidence: 'model_recall', requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart', severity: 'high', confidence: 'high', status: 'open' },
       { id: 'ccw-f2', category: 'stairs', codeRef: 'RCNYS 2025 R311.7.8', citedEdition: 'RCNYS 2025', section: 'R311.7.8', evidence: 'model_recall', requirement: 'Sample: stair handrail.', observed: 'Sample: no handrail drawn', severity: 'med', confidence: 'low', status: 'open' },
       { id: 'ccw-f3', category: 'other', codeRef: 'IRC/IBC (general)', requirement: 'Sample: ledger attachment.', observed: '', severity: 'low', confidence: 'med', status: 'resolved' },
@@ -357,10 +358,10 @@ async function runAsk() {
   return tree;
 }
 
-async function openPlanReview() {
+async function openPlanReview(findings?: SeedFinding[]) {
   const tree = await phoneRoute('/construction-ai', async () => {
     await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
-    await seedPlanReview();
+    await seedPlanReview(findings);
   });
   await act(async () => { fireEvent.press(screen.getByTestId('mode-toggle-plan')); });
   await pump(2);
@@ -697,6 +698,331 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     expect(textOf(inSheet('value')[0])).toBe('8');
     expect(textOf(inSheet('share-text')[0])).toContain('Result: outside the limit.');
     expect(textOf(inSheet('share-text')[0])).not.toContain('within the limit');
+  });
+
+  // THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN (integration round 3).
+  // A card's id is made from its words, so the same line on a later answer has
+  // the same id. Both cases below are the integration critic's, on the real
+  // Ask screen: two answers in one mounted screen, the hook never remounted.
+  it('a LATER answer never inherits an earlier answer’s re-measure: the same line with another job number shows its own number, on the list card, the opened card, the text to a sub and Save', async () => {
+    const deck = (height: number) => ({
+      id: 'req-1', verdict: 'required', summary: 'Sample: a guard is needed once the deck is more than 30 in. up.', section: 'R312.1.1', citedEdition: '2025 RCNYS', stage: 'final',
+      trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: height, unit: 'in', source: 'job', sourceLabel: 'your question' },
+    });
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [deck(34)] };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    const ask = async (q: string) => {
+      await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), q); });
+      await pump(2);
+      await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+      await pump(6);
+    };
+    const inSheet = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    const onCard = (key: string) => screen.queryAllByTestId(new RegExp(`^code-card-ask-[0-9a-z]+-${key}$`));
+    const textOf = (node: { props: { children?: unknown } }) => [node.props.children].flat(Infinity).join('');
+    const closeSheet = async () => { await act(async () => { fireEvent.press(inSheet('close')[0]); }); await pump(4); };
+
+    // Answer 1: a 34 in. deck. He steps it down to 29 in.: NOT REQUIRED, on the
+    // opened card and on the list card.
+    await ask('Sample: my deck is 34 in. up. Does it need a guard?');
+    const firstId = onCard('open')[0].props.testID as string;
+    expect(onCard('verdict')[0].props.accessibilityLabel).toBe('Verdict: Required');
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    for (let i = 0; i < 5; i++) await act(async () => { fireEvent.press(inSheet('dec')[0]); });
+    await pump(2);
+    expect(textOf(inSheet('value')[0])).toBe('29');
+    expect(textOf(inSheet('share-text')[0])).toContain('Job: 29 in. (measured on site).');
+    await closeSheet();
+    expect(onCard('verdict')[0].props.accessibilityLabel).toBe('Verdict: Not required');
+
+    // Answer 2: another deck, 40 in. up. The server words the requirement the
+    // same way, so the card has the SAME id; its own number is 40 in.
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [deck(40)] };
+    await ask('Sample: the other deck is 40 in. up. Does it need a guard?');
+    expect(onCard('open')).toHaveLength(1);
+    expect(onCard('open')[0].props.testID).toBe(firstId);
+    // The list card: REQUIRED, from its own 40 in.
+    expect(onCard('verdict')[0].props.accessibilityLabel).toBe('Verdict: Required');
+    expect(onCard('tape').length).toBeGreaterThan(0);
+    // The opened card: 40, required, and the text to a sub says 40 in., never 29.
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    expect(textOf(inSheet('value')[0])).toBe('40');
+    expect(inSheet('verdict')[0].props.accessibilityLabel).toBe('Verdict: Required');
+    const text = textOf(inSheet('share-text')[0]);
+    expect(text).toContain('Job: 40 in. (your question).');
+    expect(text).toContain('Result: required.');
+    expect(text).not.toMatch(/29 in\.|measured on site|not required/);
+    // Save keeps the number on screen: the card's own 40 in., no re-measure.
+    await act(async () => { fireEvent.press(inSheet('save')[0]); });
+    await pump(4);
+    const kept = (await savedStored())[PROJECT_ID] as unknown as { item: { jobValue?: { value: number } }; jobValue?: { value: number } }[];
+    expect(kept).toHaveLength(1);
+    expect(kept[0].item.jobValue).toEqual(expect.objectContaining({ value: 40 }));
+    expect(kept[0].jobValue).toBeUndefined();
+  });
+
+  it('a wrong-sign limit on a LATER answer draws no tape even after he re-measured the same line: no number, no "within the limit", on the list card, the opened card, the text to a sub or the saved card', async () => {
+    const guard = (comparison: string, value: number) => ({
+      id: 'req-1', verdict: 'limit', summary: 'Sample: guard has to be at least 36 in. high.', section: 'R312.1.2', citedEdition: '2025 RCNYS', stage: 'final',
+      trigger: { value: 36, unit: 'in', comparison }, jobValue: { value, unit: 'in', source: 'job', sourceLabel: 'your question' },
+    });
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [guard('>=', 34)] };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    const ask = async (q: string) => {
+      await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), q); });
+      await pump(2);
+      await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+      await pump(6);
+    };
+    const inSheet = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    const onCard = (key: string) => screen.queryAllByTestId(new RegExp(`^code-card-ask-[0-9a-z]+-${key}$`));
+    const textOf = (node: { props: { children?: unknown } }) => [node.props.children].flat(Infinity).join('');
+    const closeSheet = async () => { await act(async () => { fireEvent.press(inSheet('close')[0]); }); await pump(4); };
+
+    // Answer 1: the sign its words mean (>=). He steps the 34 in. guard to 37 in.
+    await ask('Sample: my guard is 34 in. high. Is that OK?');
+    const firstId = onCard('open')[0].props.testID as string;
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    expect(inSheet('tape').length).toBeGreaterThan(0);
+    for (let i = 0; i < 3; i++) await act(async () => { fireEvent.press(inSheet('inc')[0]); });
+    await pump(2);
+    expect(textOf(inSheet('value')[0])).toBe('37');
+    expect(textOf(inSheet('share-text')[0])).toContain('Result: within the limit.');
+    await closeSheet();
+
+    // Answer 2: the same line, the sign the WRONG way (<). Nothing confirms that
+    // sign, so the card carries no trigger and no number; the old re-measure of
+    // this card id must not bring a number back.
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [guard('<', 33)] };
+    await ask('Sample: the other guard is 33 in. high. Is that OK?');
+    expect(onCard('open')).toHaveLength(1);
+    expect(onCard('open')[0].props.testID).toBe(firstId);
+    expect(onCard('tape')).toHaveLength(0);
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    expect(inSheet('tape')).toHaveLength(0);
+    expect(inSheet('inc')).toHaveLength(0);
+    expect(inSheet('value')).toHaveLength(0);
+    expect(inSheet('equation')).toHaveLength(0);
+    const text = textOf(inSheet('share-text')[0]);
+    expect(text).toContain('Sample: guard has to be at least 36 in. high.');
+    expect(text).not.toMatch(/Job: |Result:|Limit (?:below|above|at)|within the limit|measured on site/);
+    await act(async () => { fireEvent.press(inSheet('save')[0]); });
+    await pump(4);
+    const kept = (await savedStored())[PROJECT_ID] as unknown as { item: { trigger?: unknown; jobValue?: unknown }; jobValue?: unknown }[];
+    expect(kept).toHaveLength(1);
+    expect(kept[0].jobValue).toBeUndefined();
+    expect(kept[0].item.jobValue).toBeUndefined();
+    expect(kept[0].item.trigger).toBeUndefined();
+  });
+
+  it('a pinned card is unpinned from the card itself: the opened card’s Checklist row pins, then says a tap takes it off, and the tap does', async () => {
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: SAMPLE_REQUIREMENTS };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what does a raised deck need?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    const inSheet = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    await act(async () => { fireEvent.press(cardButton('open')); });
+    await pump(4);
+    await act(async () => { fireEvent.press(inSheet('checklist')[0]); });
+    await pump(4);
+    expect((await pinsStored())[PROJECT_ID]?.map((p) => p.item.summary)).toEqual(['Sample: guards on every open side of the deck.']);
+    expect(screen.getAllByText('On Final checklist. Tap to take it off.').length).toBe(1);
+    // The same row, tapped again: the pin comes off, here, without leaving the card.
+    await act(async () => { fireEvent.press(inSheet('checklist')[0]); });
+    await pump(4);
+    expect(await pinsStored()).toEqual({});
+    expect(screen.queryByText('On Final checklist. Tap to take it off.')).toBeNull();
+  });
+
+  // THE WITHHOLD RULE, RENDERED (integration round 4). The gate must hide a
+  // line that reads like code text everywhere it could print, and must NOT
+  // hide an honest drawing line because it carries an inch mark.
+  const CODE_TEXT = 'Guards shall be provided where the walking surface is more than 30 inches above grade.';
+  const HID = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
+  it('Plan Review: a finding with inch marks shows its words on the card and in the list; a code-text finding shows the notice in both and its words nowhere', async () => {
+    const RISER = 'Riser ≤ 7-3/4", tread ≥ 10".';
+    await openPlanReview([
+      { id: 'ccw-i1', category: 'stairs', codeRef: 'RCNYS 2025 R311.7.5', citedEdition: 'RCNYS 2025', section: 'R311.7.5', evidence: 'model_recall', requirement: RISER, observed: 'Riser scales 8" on the section.', severity: 'high', confidence: 'high', status: 'open' },
+      { id: 'ccw-i2', category: 'guards', codeRef: 'RCNYS 2025 R312.1.1', citedEdition: 'RCNYS 2025', section: 'R312.1.1', evidence: 'model_recall', requirement: CODE_TEXT, observed: 'The note reads "PROVIDE GUARD".', severity: 'high', confidence: 'high', status: 'open' },
+    ]);
+    await act(async () => { fireEvent.press(screen.getByTestId('plan-review-details-toggle')); });
+    await pump(2);
+    // The inch-mark finding: its own words, on the card row AND in the list, with what the drawing shows.
+    expect(screen.getAllByText(RISER).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Observed: Riser scales 8" on the section.').length).toBe(1);
+    // The code-text finding: the notice on the card row AND in the list; the words and the quoted note nowhere.
+    expect(screen.getAllByText(HID).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/shall be provided/)).toBeNull();
+    expect(screen.queryByText(/PROVIDE GUARD/)).toBeNull();
+    expect(JSON.stringify(screen.toJSON())).not.toMatch(/shall be provided|PROVIDE GUARD/);
+  });
+
+  it('Code Check: a line with an inch mark is shown as written (card and plain row); a code-text line is the notice on both, and its words are nowhere on the result', async () => {
+    await runCodeCheck({
+      ...SAMPLE_CODE_CHECK,
+      applicableCodes: [
+        { code: '2025 RCNYS', section: 'R312.1.2', requirement: 'Guard has to be at least 36" high.', verdict: 'limit' },
+        { code: '2025 RCNYS', section: 'R311.7.5', requirement: 'Riser at most 7-3/4" on the deck stair.' },
+        { code: '2025 RCNYS', section: 'R312.1.1', requirement: CODE_TEXT, verdict: 'required' },
+        { code: '2025 RCNYS', section: 'R312.1.3', requirement: 'The code says "guards are required".' },
+      ],
+    });
+    expect(screen.getByTestId('code-check-card-0')).toBeTruthy();
+    expect(screen.getAllByText('Guard has to be at least 36" high.').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('code-check-plain-1')).toBeTruthy();
+    expect(screen.getAllByText('Riser at most 7-3/4" on the deck stair.').length).toBe(1);
+    expect(screen.getByTestId('code-check-card-2')).toBeTruthy();
+    expect(screen.getByTestId('code-check-plain-3')).toBeTruthy();
+    expect(screen.getAllByText(HID).length).toBeGreaterThanOrEqual(2);
+    expect(JSON.stringify(screen.toJSON())).not.toMatch(/shall be provided|guards are required/);
+  });
+
+  // THE "SAVED" AND "ON … CHECKLIST" MARKS BELONG TO THE CARD AS SHOWN. The
+  // critic's case on the real Ask screen: two answers word the requirement the
+  // same way (same card id), with another verdict and another job number.
+  it('a LATER answer with the same line is not marked Saved or On checklist from the earlier card; Save keeps what is on screen, and a − / + step after a save turns the mark off again', async () => {
+    const deck = (height: number) => ({
+      id: 'req-1', verdict: height > 30 ? 'required' : 'not_required', summary: 'Sample: a guard is needed once the deck is more than 30 in. up.', section: 'R312.1.1', citedEdition: '2025 RCNYS', stage: 'final',
+      trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: height, unit: 'in', source: 'job', sourceLabel: 'your question' },
+    });
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [deck(34)] };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    const ask = async (q: string) => {
+      await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), q); });
+      await pump(2);
+      await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+      await pump(6);
+    };
+    const inSheet = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    const onCard = (key: string) => screen.queryAllByTestId(new RegExp(`^code-card-ask-[0-9a-z]+-${key}$`));
+    const done = (node: { props: { accessibilityState?: { checked?: boolean } } }) => node.props.accessibilityState?.checked === true;
+    type Kept = { item: { verdict: string; jobValue?: { value: number } }; jobValue?: { value: number } };
+    const savedNow = async () => ((await savedStored())[PROJECT_ID] ?? []) as unknown as Kept[];
+
+    // Answer 1: REQUIRED at 34 in. He pins it and saves it from the opened card.
+    await ask('Sample: my deck is 34 in. up. Does it need a guard?');
+    const firstId = onCard('open')[0].props.testID as string;
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    await act(async () => { fireEvent.press(inSheet('checklist')[0]); });
+    await pump(2);
+    await act(async () => { fireEvent.press(inSheet('save')[0]); });
+    await pump(4);
+    expect(done(inSheet('save')[0])).toBe(true);
+    expect(done(inSheet('checklist')[0])).toBe(true);
+    expect((await savedNow()).map((c) => [c.item.verdict, c.item.jobValue?.value, c.jobValue?.value])).toEqual([['required', 34, undefined]]);
+    // A step after the save: the number on screen (33) is no longer the saved one, so Save is ready again…
+    await act(async () => { fireEvent.press(inSheet('dec')[0]); });
+    await pump(2);
+    expect(done(inSheet('save')[0])).toBe(false);
+    // …and saving keeps the number on screen, in place of the earlier copy.
+    await act(async () => { fireEvent.press(inSheet('save')[0]); });
+    await pump(4);
+    expect(done(inSheet('save')[0])).toBe(true);
+    expect((await savedNow()).map((c) => [c.item.jobValue?.value, c.jobValue?.value])).toEqual([[34, 33]]);
+    await act(async () => { fireEvent.press(inSheet('close')[0]); });
+    await pump(4);
+
+    // Answer 2: the same line, NOT REQUIRED at 28 in. Same card id.
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [deck(28)] };
+    await ask('Sample: the other deck is 28 in. up. Does it need a guard?');
+    expect(onCard('open')).toHaveLength(1);
+    expect(onCard('open')[0].props.testID).toBe(firstId);
+    expect(onCard('verdict')[0].props.accessibilityLabel).toBe('Verdict: Not required');
+    // The list card's Checklist button does not claim the earlier pin.
+    expect(screen.queryByText('On Final checklist')).toBeNull();
+    await act(async () => { fireEvent.press(onCard('open')[0]); });
+    await pump(4);
+    expect(done(inSheet('save')[0])).toBe(false);
+    expect(done(inSheet('checklist')[0])).toBe(false);
+    expect(screen.queryByText(/Find it in Ask, under Saved code cards/)).toBeNull();
+    expect(screen.queryByText('On Final checklist. Tap to take it off.')).toBeNull();
+    // Save now stores THIS card (one saved card per line on a job: it replaces the earlier copy).
+    await act(async () => { fireEvent.press(inSheet('save')[0]); });
+    await pump(4);
+    expect(done(inSheet('save')[0])).toBe(true);
+    expect((await savedNow()).map((c) => [c.item.verdict, c.item.jobValue?.value, c.jobValue?.value])).toEqual([['not_required', 28, undefined]]);
+  });
+
+  it('unpinning the LAST pinned card from its own opened card leaves that card open until he closes it, and a later pin never reopens it by itself', async () => {
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: SAMPLE_REQUIREMENTS };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what does a raised deck need?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    // The saved lists' opened card (the body renders only while a card is open).
+    const keptSheet = () => screen.queryAllByTestId(/^construction-ask-saved-cards-sheet-ask-[0-9a-z]+$/);
+    const inKept = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-saved-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    await act(async () => { fireEvent.press(cardButton('checklist')); });
+    await pump(4);
+    const id = (await pinsStored())[PROJECT_ID]![0].item.id;
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-pinned-toggle')); });
+    await pump(2);
+    expect(keptSheet()).toHaveLength(0);
+    // Open the pinned card from the pinned list, and unpin it from its own Checklist row.
+    await act(async () => { fireEvent.press(screen.getByTestId(`code-row-${id}`)); });
+    await pump(4);
+    expect(keptSheet()).toHaveLength(1);
+    await act(async () => { fireEvent.press(inKept('checklist')[0]); });
+    await pump(4);
+    expect(await pinsStored()).toEqual({});
+    // The list is gone (it was the last pin), but the card he is looking at stays until he closes it.
+    expect(screen.queryByTestId('construction-ask-pinned')).toBeNull();
+    expect(keptSheet()).toHaveLength(1);
+    await act(async () => { fireEvent.press(inKept('close')[0]); });
+    await pump(4);
+    expect(keptSheet()).toHaveLength(0);
+    // He pins from the answer's list card again: the pin lands, and no sheet opens by itself.
+    await act(async () => { fireEvent.press(cardButton('checklist')); });
+    await pump(4);
+    expect((await pinsStored())[PROJECT_ID]).toHaveLength(1);
+    expect(screen.getByTestId('construction-ask-pinned')).toBeTruthy();
+    expect(keptSheet()).toHaveLength(0);
+  });
+
+  it('a stage he picked on the opened card is not labelled "AI guess" afterwards: on the list card and when the card is opened again', async () => {
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [SAMPLE_REQUIREMENTS[0]] };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what does a raised deck need?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    const inSheet = (key: string) => screen.queryAllByTestId(new RegExp(`^construction-ask-cards-sheet-ask-[0-9a-z]+-${key}$`));
+    expect(screen.getAllByText('Final inspection · AI guess').length).toBeGreaterThan(0);
+    await act(async () => { fireEvent.press(cardButton('open')); });
+    await pump(4);
+    await act(async () => { fireEvent.press(inSheet('stage')[0]); });
+    await act(async () => { fireEvent.press(inSheet('stage-framing')[0]); });
+    await pump(2);
+    await act(async () => { fireEvent.press(inSheet('close')[0]); });
+    await pump(4);
+    // The list card: his stage, with no "AI guess" beside it.
+    expect(screen.queryByText(/AI guess/)).toBeNull();
+    expect(screen.getAllByText('Framing inspection').length).toBeGreaterThan(0);
+    // Reopened: still his, still not a guess.
+    await act(async () => { fireEvent.press(cardButton('open')); });
+    await pump(4);
+    expect(screen.queryByText(/AI guess/)).toBeNull();
+    expect(inSheet('stage')[0].props.accessibilityLabel).toBe('Framing inspection. Change the inspection.');
   });
 
   it('a second answer never inherits the first answer\u2019s pin (ids come from the content)', async () => {

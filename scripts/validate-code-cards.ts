@@ -8,17 +8,31 @@
 // which bun cannot load).
 //
 //   A  verdict.ts      re-check, close-to-the-line band, verdict flip, formatting
-//   B  echoCheck.ts    our words only: caps, long runs, quotes, code phrasing
+//   B  echoCheck.ts    our words only: caps, long runs, quotes, code phrasing;
+//                      AN INCH MARK IS NOT A QUOTE (B9 to B11); the two
+//                      stand-in lines (B12)
 //   C  officialText.ts copy THEN open, volume-level URLs only, blocked says why
 //   D  shareText.ts    sample tail, recall notes (a PARENT match is recall; the
-//                      trigger number is recall on every rung), confirm line
+//                      trigger number is recall on every rung), confirm line;
+//                      A STAND-IN IS NOT A REQUIREMENT: never texted to a sub,
+//                      never the "To fix" line of an email (D22 to D24)
 //   E  parse.ts        unshowable items dropped, structured numbers only, wire
 //                      evidence and "not a guess" never trusted; A CARD NEVER
 //                      OPENS ON THE OPPOSITE OF THE AI'S VERDICT (numbers that
 //                      disagree with it draw no tape); the device-store
 //                      reader keeps what a surface showed and is idempotent;
 //                      saysWithUnit.ts: a job number counts only when he
-//                      wrote it next to its unit
+//                      wrote it next to its unit; A LIMIT'S SIGN RIDES ONLY
+//                      WHEN ITS OWN LINE CONFIRMS IT (no trigger otherwise,
+//                      with or without a job number: E44, E45);
+//                      remeasure.ts: THE RE-MEASURE BELONGS TO ONE CARD AS IT
+//                      WAS SHOWN: same job, id, verdict, starting number and
+//                      trigger, or nothing (E46 to E52); the saved store keeps
+//                      a re-measure only for a card with its own number (E53);
+//                      THE "SAVED" AND "ON … CHECKLIST" MARKS BELONG TO THE
+//                      CARD AS SHOWN: same verdict, trigger and shown number,
+//                      or the mark is off and Save replaces (E54 to E58); a
+//                      stage he chose is not a guess (E59)
 //   F  pins / saved    reducers, persistence, replay, tenant wipe covers the keys
 //                      AND the module memory (reset); A STORE READS BACK EXACTLY
 //                      WHAT IT ACCEPTED (one gate on the way in and out)
@@ -45,23 +59,24 @@ import {
   canRecheck, effectiveVerdict, formatJobNumber, recheck, recheckEquation, stepJobValue, stageInspectionLabel,
   CODE_STAGES,
 } from '../utils/codeCard/verdict';
-import { longestRun, passesEchoCheck, summaryEchoCheck, SUMMARY_MAX } from '../utils/codeCard/echoCheck';
+import { isStandInLine, longestRun, passesEchoCheck, summaryEchoCheck, withoutInchMarks, LINE_NO_TEXT, LINE_WITHHELD, SUMMARY_MAX } from '../utils/codeCard/echoCheck';
 import {
   officialTextPlan, officialTextSteps, officialTextToast, runOfficialText, OFFICIAL_TEXT_BLOCKED, NO_SECTION_TO_COPY, NO_SECTION_TOAST, viewerShortLabel,
 } from '../utils/codeCard/officialText';
 import {
-  architectMessageFor, confirmLine, isGovernmentRung, shareTextFor, smsUrlFor, mailtoUrlFor, subRecipientsFor, tradeMatches,
-  NO_SECTION_NOTE, RECALL_NOTE, SAMPLE_TAIL, TRIGGER_RECALL_NOTE,
+  architectFixRows, architectMessageFor, confirmLine, isGovernmentRung, leftOutLine, shareBlockedReason, shareTextFor, smsUrlFor, mailtoUrlFor, subRecipientsFor, tradeMatches,
+  NO_SECTION_NOTE, NO_WORDS_SEND, RECALL_NOTE, SAMPLE_TAIL, TRIGGER_RECALL_NOTE,
 } from '../utils/codeCard/shareText';
 import {
-  attachEvidence, codeCardStoreBlockedReason, numbersAgreeWithVerdict, parseCodeCardItem, parseCodeCardItems, parseJobValue, storedCodeCardItem, STORED_TEXT_MAX, STORE_BLOCKED_REASON,
+  attachEvidence, codeCardStoreBlockedReason, limitSignConfirmed, numbersAgreeWithVerdict, parseCodeCardItem, parseCodeCardItems, parseJobValue, storedCodeCardItem, STORED_TEXT_MAX, STORE_BLOCKED_REASON,
 } from '../utils/codeCard/parse';
 import { limitSideInLine, saysNumberWithUnit, LIMIT_COMPARISON } from '../utils/codeCard/saysWithUnit';
+import { EMPTY_REMEASURES, keptIsShown, recordRemeasure, remeasureFor } from '../utils/codeCard/remeasure';
 import {
-  codePinStore, createPinStore, makePin, parsePinsState, pinsByStage, pinsFor, pinsReducer, storedPin, CODE_PINS_KEY, EMPTY_PINS, isPinned, __setCodePinStoreForTest,
+  codePinStore, createPinStore, makePin, parsePinsState, pinsByStage, pinsFor, pinsReducer, storedPin, withChosenStage, CODE_PINS_KEY, EMPTY_PINS, isPinned, __setCodePinStoreForTest,
 } from '../utils/codeCard/pins';
 import {
-  codeSavedStore, createSavedStore, makeSaved, parseSavedState, savedFor, savedReducer, storedSaved, CODE_SAVED_KEY, EMPTY_SAVED, isSaved, __setCodeSavedStoreForTest,
+  codeSavedStore, createSavedStore, keepsRemeasure, makeSaved, parseSavedState, savedFor, savedReducer, storedSaved, CODE_SAVED_KEY, EMPTY_SAVED, isSaved, __setCodeSavedStoreForTest,
 } from '../utils/codeCard/saved';
 import { resetCodeCardStores } from '../utils/codeCard/reset';
 import {
@@ -220,6 +235,26 @@ async function main(): Promise<void> {
   ok('B6 a run of 26 words is refused; 25 is allowed', summaryEchoCheck(run26).reasons.includes('long_run') && !summaryEchoCheck(run25).reasons.includes('long_run'));
   ok('B7 a sentence break resets the run', longestRun(`${run25}. ${run25}`) === 25);
   ok('B8 empty is refused', summaryEchoCheck('   ').reasons[0] === 'empty');
+  // AN INCH MARK IS NOT A QUOTE. Plan Review and the plan-set sweep read
+  // drawings, and drawings are dimensioned 3'-0": an honest line with an inch
+  // mark must be shown, not withheld. The rule: a " (or a double prime)
+  // directly after a digit or a fraction character, not followed by a letter
+  // (an x between two sizes is fine). Everything else is still a quote.
+  const inchLines = ['Guard 36" high.', "Door 2'-8\" wide.", 'Riser at most 7-7/8".', 'Balusters 4½" apart.', 'Footing 12"x12" under each post.', 'Footing 12" x 12".', 'Guard 36\u2033 high.',
+    'Riser ≤ 7-3/4", tread ≥ 10".', 'The guard at the deck scales 34" high. Is it meant to be 36"?', 'Guard has to be at least 36" high.'];
+  const quoteLines = ['"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'Guards “at least 36” high.', 'A 36"high guard.', 'Note says "36" minimum.',
+    'Drawn "4 in." apart', 'The code says «36» here.', 'Guard 36 " high.'];
+  ok('B9 an inch mark is not a quote: 36", 2\'-8", 7-7/8", 4½", 12"x12", a double prime and two real drawing lines all pass',
+    inchLines.every((s) => passesEchoCheck(s, 400)), inchLines.filter((s) => !passesEchoCheck(s, 400)).join(' | '));
+  ok('B10 every real quote is still refused, for "quotation": "Guards…", reads "X", R312.1 "Guards, a mark glued to a section number or a word, curly quotes, a mark after a space',
+    quoteLines.every((s) => summaryEchoCheck(s, 400).reasons.includes('quotation')), quoteLines.filter((s) => !summaryEchoCheck(s, 400).reasons.includes('quotation')).join(' | '));
+  ok('B11 withoutInchMarks takes out the mark and nothing else; code phrasing next to an inch mark is still refused',
+    withoutInchMarks('Door 2\'-8" wide, 36" high') === "Door 2'-8 wide, 36 high" && withoutInchMarks('reads "X"') === 'reads "X"' && withoutInchMarks('4½" and 36\u2033') === '4½ and 36'
+    && summaryEchoCheck('Guards shall be 36" high.').reasons.join() === 'code_phrasing');
+  ok('B12 MAGE’s two stand-in lines are known to the kit, and nothing else is one',
+    isStandInLine(LINE_WITHHELD) && isStandInLine(LINE_NO_TEXT) && !isStandInLine('Guard 36 in. high.') && !isStandInLine('') && !isStandInLine(null) && !isStandInLine(undefined)
+    && LINE_WITHHELD === 'MAGE hid this line because it read like code text. Use Official text to read the section.'
+    && LINE_NO_TEXT === 'The AI gave no plain-English line for this one. Use Official text to read the section.');
 
   // ── C ────────────────────────────────────────────────────────────────
   section('C officialText');
@@ -301,6 +336,24 @@ async function main(): Promise<void> {
   ok('D11 the architect email carries every fix and every ask WITH a question', arch.fixes === 1 && arch.questions === 1
     && arch.body.includes('Detail 3/A-2') && arch.body.includes('hold-down') && !arch.body.includes('frost depth') && arch.body.endsWith(SAMPLE_TAIL), arch.body);
   ok('D12 the architect email says it is not plan review', arch.body.includes('not plan review'));
+  // A STAND-IN IS NOT A REQUIREMENT: never texted to a sub, never the "To fix" line of an email.
+  const hidden: CodeCardItem = { ...guards, id: 'h1', summary: LINE_WITHHELD, section: 'R312.1.1', status: 'fix', observed: 'Drawn 34 in.', location: 'A-2' };
+  const hiddenNoSection: CodeCardItem = { ...hidden, id: 'h2', section: '', summary: LINE_NO_TEXT };
+  const archHidden = architectMessageFor([hidden, hiddenNoSection, planItems[0]], { jobLabel: 'Reyes deck', sheetLabel: 'A-2', info });
+  ok('D22 a card with no requirement in words cannot be texted: shareBlockedReason says why; a card with words is not blocked',
+    shareBlockedReason(hidden) === NO_WORDS_SEND && shareBlockedReason(hiddenNoSection) === NO_WORDS_SEND && shareBlockedReason({ summary: '  ' }) === NO_WORDS_SEND
+    && shareBlockedReason(guards) === null && NO_WORDS_SEND === 'This card has no requirement in words, so there is nothing to text. Use Official text to read the section.');
+  ok('D23 the architect email lists a stand-in fix by its section and place only, leaves out one with no section and says how many, and never prints the stand-in line',
+    archHidden.fixes === 2 && archHidden.leftOut === 1 && archHidden.body.includes(`- See R312.1.1, ${RECALL_NOTE} (Drawn 34 in., A-2).`)
+    && !archHidden.body.includes('MAGE hid') && !archHidden.body.includes('The AI gave no') && archHidden.body.includes(`\n${leftOutLine(1)}\n`)
+    && archHidden.body.includes('- Balusters drawn too far apart. (Drawn 4½ in., Detail 3/A-2) Ref: R312.1')
+    && leftOutLine(1) === '1 more item has no requirement in words and no section, so it is not listed here.'
+    && leftOutLine(2) === '2 more items have no requirement in words and no section, so they are not listed here.'
+    && arch.leftOut === 0 && !arch.body.includes('not listed here'), archHidden.body);
+  ok('D24 the Send button counts the rows the email lists: a stand-in with no section is not one, and a check with nothing else to send is blocked',
+    architectFixRows([hidden, hiddenNoSection, planItems[0]]).map((i) => i.id).join() === 'h1,f1'
+    && architectButtonLabel([hidden, hiddenNoSection, planItems[0]]) === 'Send 2 fixes to architect' && architectButtonLabel([hiddenNoSection]) === null
+    && architectButtonLabel([hidden]) === 'Send 1 fix to architect');
   const subs = [
     { id: 's1', contactName: 'Luis Martinez', trade: 'General', phone: '5165550101' },
     { id: 's2', contactName: 'Dave Reyes', trade: 'Framing', phone: '5165550102' },
@@ -466,17 +519,17 @@ async function main(): Promise<void> {
     const GUARD = 'Guard has to be at least 36 in. high.';
     const RISER = 'Risers can be at most 7.75 in. tall.';
     const p1 = limit(GUARD, 36, '<', 34);
-    ok('E30 PROBE 1: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard: the card stays a LIMIT with its trigger and NO job number, so no tape',
-      !!p1 && p1.verdict === 'limit' && effectiveVerdict(p1) === 'limit' && p1.jobValue === undefined && !canRecheck(p1) && JSON.stringify(p1.trigger) === '{"value":36,"unit":"in","comparison":"<"}');
+    ok('E30 PROBE 1: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard: the card stays a LIMIT with NO trigger and NO job number, so no tape',
+      !!p1 && p1.verdict === 'limit' && effectiveVerdict(p1) === 'limit' && p1.jobValue === undefined && !canRecheck(p1) && p1.trigger === undefined && !('trigger' in p1));
     ok('E31 …and the text for a sub says nothing MAGE computed: no "Job:", no "Result:", never "within the limit"; the AI’s line stands',
       textOf(p1).includes(GUARD) && !/Job: |Result:|Limit below|within the limit/.test(textOf(p1)), textOf(p1));
     const p2 = limit(RISER, 7.75, '>', 8);
     ok('E32 PROBE 2: "at most 7.75 in." with the sign the wrong way (>) and an 8 in. riser: no job number, no "within the limit"',
-      !!p2 && p2.verdict === 'limit' && p2.jobValue === undefined && p2.trigger?.value === 7.75 && !/Job: |Result:|within the limit/.test(textOf(p2)), textOf(p2));
+      !!p2 && p2.verdict === 'limit' && p2.jobValue === undefined && p2.trigger === undefined && !/Job: |Result:|within the limit/.test(textOf(p2)), textOf(p2));
     const [p3] = parseCodeCardItems([{ id: 'req-1', verdict: 'limit', summary: RISER, section: 'R311.7.5.1', citedEdition: '2025 RCNYS', stage: 'final',
       trigger: { value: 7.75, unit: 'in', comparison: '>' }, jobValue: { value: 8, unit: 'in', source: 'job', sourceLabel: 'riser height from your question' } }]);
     ok('E33 PROBE 3: the same riser card as the Ask server would send it (a whole requirements[]): the phone drops the job number',
-      !!p3 && p3.jobValue === undefined && p3.trigger?.comparison === '>' && !/Job: |Result:|within the limit/.test(textOf(p3)), textOf(p3));
+      !!p3 && p3.jobValue === undefined && p3.trigger === undefined && !/Job: |Result:|within the limit/.test(textOf(p3)), textOf(p3));
     const g = limit(GUARD, 36, '>=', 34);
     const r = limit(RISER, 7.75, '<=', 8);
     ok('E34 with the sign its own words mean, the job number is kept and reads the right way: 34 in. against "at least 36 in." and 8 in. against "at most 7.75 in." are OUTSIDE the limit',
@@ -515,14 +568,16 @@ async function main(): Promise<void> {
       let kept = 0;
       for (const [line, side] of lines) for (const c of SIGNS) for (const n of [30, 34, 36, 38]) {
         const card = limit(line, 36, c, n);
-        if (!card || effectiveVerdict(card) !== 'limit' || card.trigger?.value !== 36) { wrong.push(`${line} ${n} ${c}: not a limit card`); continue; }
-        if (!!card.jobValue !== (c === (side === 'min' ? '>=' : '<='))) { wrong.push(`${line} ${n} ${c}: job number ${card.jobValue ? 'kept' : 'dropped'}`); continue; }
+        if (!card || effectiveVerdict(card) !== 'limit') { wrong.push(`${line} ${n} ${c}: not a limit card`); continue; }
+        const confirmed = c === (side === 'min' ? '>=' : '<=');
+        if (!!card.trigger !== confirmed || (confirmed && card.trigger?.value !== 36)) { wrong.push(`${line} ${n} ${c}: trigger ${card.trigger ? 'kept' : 'dropped'}`); continue; }
+        if (!!card.jobValue !== confirmed) { wrong.push(`${line} ${n} ${c}: job number ${card.jobValue ? 'kept' : 'dropped'}`); continue; }
         if (!card.jobValue) continue;
         kept++;
         const inside = side === 'min' ? n >= 36 : n <= 36;
         if ((at(card) === 'within the limit') !== inside || (at(card) === 'outside the limit') === inside) wrong.push(`${line} ${n} ${c}: reads the wrong way`);
       }
-      ok(`E40 ${lines.length * 16} limit cards: a job number rides only on the sign the line’s own words mean, and "within the limit" is printed exactly when the job is on the side the line says (${kept} kept)`,
+      ok(`E40 ${lines.length * 16} limit cards: a trigger and a job number ride only on the sign the line’s own words mean, and "within the limit" is printed exactly when the job is on the side the line says (${kept} kept)`,
         wrong.length === 0 && kept === lines.length * 4, wrong.slice(0, 5).join('; '));
     }
     ok('E41 a surface that shows its own line (Code Check sends a stand-in summary) passes THE LINE IT SHOWS: the side is read from that line, and never from a field off the wire',
@@ -539,11 +594,130 @@ async function main(): Promise<void> {
       jobValue: { value: 34, unit: 'in', source: 'measured', sourceLabel: 'measured on site' } });
     ok('E43 the device stores are NOT touched: a stored limit reads back with the number it was saved with, whatever its sign',
       kept?.jobValue?.value === 34 && kept.trigger?.comparison === '<' && storedCodeCardItem({ ...kept })?.jobValue?.value === 34);
+
+    // A LIMIT'S UNCONFIRMED SIGN NEVER RIDES (integration round 3): the trigger
+    // goes too, with or without a job number, so nothing can ever be re-checked
+    // against a sign the card's own line did not confirm.
+    const noJob = (summary: string, trig: number, comparison: string, shownLine?: string) => parseCodeCardItem({
+      id: 'req-1', verdict: 'limit', summary, section: 'R312.1.2', trigger: { value: trig, unit: 'in', comparison },
+    }, 'req-1', shownLine);
+    ok('E44 a limit with NO job number: the trigger is kept only with the sign its own line means; the wrong sign, a line with no side word, and a withheld shown line all leave no trigger',
+      JSON.stringify(noJob(GUARD, 36, '>=')?.trigger) === '{"value":36,"unit":"in","comparison":">="}' && JSON.stringify(noJob(RISER, 7.75, '<=')?.trigger) === '{"value":7.75,"unit":"in","comparison":"<="}'
+      && SIGNS.filter((c) => c !== '>=').every((c) => { const x = noJob(GUARD, 36, c); return !!x && x.verdict === 'limit' && x.trigger === undefined; })
+      && SIGNS.every((c) => noJob('Keep the guard under 36 in. high.', 36, c)?.trigger === undefined)
+      && noJob('Requirement', 36, '>=', GUARD)?.trigger?.value === 36 && noJob(GUARD, 36, '>=', 'MAGE hid this line because it read like code text.')?.trigger === undefined);
+    ok('E45 limitSignConfirmed is that one test: the side word at the figure AND the exact sign; a required / not_required card’s trigger is never dropped for its sign',
+      limitSignConfirmed({ value: 36, unit: 'in', comparison: '>=' }, GUARD) && !limitSignConfirmed({ value: 36, unit: 'in', comparison: '<' }, GUARD)
+      && !limitSignConfirmed({ value: 36, unit: 'in', comparison: '>' }, GUARD) && !limitSignConfirmed({ value: 36, unit: 'in', comparison: '>=' }, '')
+      && !limitSignConfirmed({ value: 36, unit: 'in', comparison: '>=' }, null) && !limitSignConfirmed({ value: 30, unit: 'in', comparison: '>=' }, GUARD)
+      && (['required', 'not_required'] as const).every((v) => SIGNS.every((c) => parseCodeCardItem({ id: 'x', verdict: v, summary: GUARD, section: 'R312.1.2', trigger: { value: 36, unit: 'in', comparison: c } }, 'x')?.trigger?.comparison === c)));
+
+    // ── THE RE-MEASURE BELONGS TO ONE CARD AS IT WAS SHOWN (remeasure.ts) ──
+    const P = 'job-1';
+    const measured = (value: number): CodeJobValue => ({ value, unit: 'in', source: 'measured', sourceLabel: 'measured on site' });
+    const deck = (height: number, over: Partial<CodeCardItem> = {}): CodeCardItem => ({
+      id: 'cc-deck', verdict: height > 30 ? 'required' : 'not_required', summary: 'Sample: a guard is needed once the deck is more than 30 in. up.', section: 'R312.1.1',
+      evidence: null, stageIsGuess: true, trigger: { value: 30, unit: 'in', comparison: '>' },
+      jobValue: { value: height, unit: 'in', source: 'job', sourceLabel: 'deck height from the scenario' }, ...over,
+    });
+    const first = deck(34);
+    const map1 = recordRemeasure(EMPTY_REMEASURES, first, P, measured(29));
+    ok('E46 remeasureFor: the card he stepped, on the job he stepped it on, gets its re-measure back (and a fresh equal copy of that card does too)',
+      remeasureFor(first, P, map1)?.value === 29 && remeasureFor(deck(34), P, map1)?.source === 'measured' && effectiveVerdict(first, remeasureFor(first, P, map1)) === 'not_required');
+    const later = deck(40);
+    ok('E47 A LATER ANSWER: the same line (same card id) with ANOTHER job number of its own (a 40 in. deck after the 34 in. one) gets nothing; it shows 40 in. and stays REQUIRED',
+      later.id === first.id && remeasureFor(later, P, map1) === undefined && effectiveVerdict(later, remeasureFor(later, P, map1)) === 'required'
+      && shareTextFor(later, { jobValue: remeasureFor(later, P, map1) }).includes('Job: 40 in. (deck height from the scenario).') && !shareTextFor(later, { jobValue: remeasureFor(later, P, map1) }).includes('29 in.'));
+    ok('E48 ANOTHER JOB: the same card on a different project, on no project, or stepped with no project and shown on one, gets nothing',
+      remeasureFor(first, 'job-2', map1) === undefined && remeasureFor(first, null, map1) === undefined && remeasureFor(first, undefined, map1) === undefined
+      && remeasureFor(first, null, recordRemeasure(EMPTY_REMEASURES, first, null, measured(29)))?.value === 29
+      && remeasureFor(first, P, recordRemeasure(EMPTY_REMEASURES, first, null, measured(29))) === undefined);
+    ok('E49 ANOTHER TRIGGER: a different trigger value, sign or unit, or another verdict, gets nothing',
+      remeasureFor(deck(34, { trigger: { value: 24, unit: 'in', comparison: '>' } }), P, map1) === undefined
+      && remeasureFor(deck(34, { trigger: { value: 30, unit: 'in', comparison: '>=' } }), P, map1) === undefined
+      && remeasureFor(deck(34, { trigger: { value: 30, unit: 'ft', comparison: '>' }, jobValue: { value: 34, unit: 'ft', source: 'job', sourceLabel: 'x' } }), P, map1) === undefined
+      && remeasureFor(deck(34, { verdict: 'limit' }), P, map1) === undefined
+      && remeasureFor(deck(34, { jobValue: { value: 34, unit: 'ft', source: 'job', sourceLabel: 'x' } }), P, map1) === undefined);
+    ok('E50 A CARD WITH NO NUMBER OF ITS OWN never gets one: no job number, no trigger, or a card under another id',
+      remeasureFor(deck(34, { jobValue: undefined }), P, map1) === undefined && remeasureFor(deck(34, { trigger: undefined }), P, map1) === undefined
+      && remeasureFor(deck(34, { id: 'cc-other' }), P, map1) === undefined && remeasureFor(null, P, map1) === undefined && remeasureFor(first, P, null) === undefined
+      && remeasureFor(first, P, { 'cc-deck': { ...map1['cc-deck'], itemId: 'cc-other' } }) === undefined
+      // …and a stored entry is never trusted past what it remembers, field by field (a map built by hand).
+      && remeasureFor(first, P, { 'cc-deck': { ...map1['cc-deck'], from: { value: 34, unit: 'ft' } } }) === undefined
+      && remeasureFor(first, P, { 'cc-deck': { ...map1['cc-deck'], trigger: { value: 30, unit: 'ft', comparison: '>' } } }) === undefined
+      && remeasureFor(first, P, { 'cc-deck': { ...map1['cc-deck'], jobValue: { ...measured(29), unit: 'ft' } } }) === undefined
+      && remeasureFor(first, P, { 'cc-deck': { ...map1['cc-deck'] } })?.value === 29);
+    ok('E51 recordRemeasure: a card that cannot carry one (no number of its own, no trigger, another unit) leaves the map as it was; stepping back to the card’s own number takes it off; each id holds its latest',
+      recordRemeasure(map1, deck(34, { id: 'x', jobValue: undefined }), P, measured(29)) === map1 && recordRemeasure(map1, deck(34, { id: 'x', trigger: undefined }), P, measured(29)) === map1
+      && recordRemeasure(map1, first, P, { ...measured(29), unit: 'ft' }) === map1 && recordRemeasure(map1, first, P, { ...measured(29), value: NaN }) === map1
+      && remeasureFor(first, P, recordRemeasure(map1, first, P, first.jobValue as CodeJobValue)) === undefined && !('cc-deck' in recordRemeasure(map1, first, P, first.jobValue as CodeJobValue))
+      && remeasureFor(first, P, recordRemeasure(map1, first, P, measured(31)))?.value === 31 && Object.keys(recordRemeasure(map1, first, P, measured(31))).length === 1
+      && remeasureFor(later, P, recordRemeasure(map1, later, P, measured(41)))?.value === 41 && remeasureFor(first, P, recordRemeasure(map1, later, P, measured(41))) === undefined
+      && JSON.stringify(map1['cc-deck']) === JSON.stringify({ projectId: P, itemId: 'cc-deck', verdict: 'required', from: { value: 34, unit: 'in' }, trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: measured(29) }));
+    // The critic's case B, on the pure functions: answer 1 is a good limit
+    // stepped to 33 in.; answer 2 is the same line with the sign the wrong way.
+    const limitA = limit(GUARD, 36, '>=', 34) as CodeCardItem;
+    const mapB = recordRemeasure(EMPTY_REMEASURES, limitA, P, measured(33));
+    const limitB = limit(GUARD, 36, '<', 34) as CodeCardItem;
+    const savedB = makeSaved(P, limitB, '2026-10-04T12:00:00.000Z', remeasureFor(limitB, P, mapB) ?? null);
+    const forced = makeSaved(P, limitB, '2026-10-04T12:00:00.000Z', measured(37));
+    ok('E52 a wrong-sign limit AFTER a re-measure of the same line: no trigger, no number of its own, so the old re-measure is not used; nothing says "within the limit", on the card, in the text or in the saved card',
+      remeasureFor(limitA, P, mapB)?.value === 33 && limitB.id === limitA.id && limitB.trigger === undefined && remeasureFor(limitB, P, mapB) === undefined
+      && !canRecheck({ jobValue: remeasureFor(limitB, P, mapB), trigger: limitB.trigger })
+      && !/Job: |Result:|within the limit/.test(shareTextFor(limitB, { jobValue: remeasureFor(limitB, P, mapB) }))
+      && savedB.jobValue === undefined && storedSaved(savedB, P)?.jobValue === undefined && storedSaved(savedB, P)?.item.trigger === undefined);
+    ok('E53 the saved store holds a re-measure ONLY for a card with its own number and trigger: handed one directly for a card with none, makeSaved leaves it off and storedSaved drops it on the way in and on read-back',
+      forced.jobValue === undefined && storedSaved({ ...forced, jobValue: measured(37) }, P)?.jobValue === undefined
+      && parseSavedState(JSON.stringify({ [P]: [{ ...forced, jobValue: measured(37) }] }))[P]?.[0]?.jobValue === undefined
+      && !keepsRemeasure(limitB, measured(37)) && !keepsRemeasure({ trigger: { value: 36, unit: 'in', comparison: '<' } }, measured(37))
+      && !keepsRemeasure(limitA, { ...measured(37), unit: 'ft' }) && !keepsRemeasure(limitA, null) && keepsRemeasure(limitA, measured(37))
+      && makeSaved(P, limitA, '2026-10-04T12:00:00.000Z', measured(33)).jobValue?.value === 33
+      && storedSaved(makeSaved(P, limitA, '2026-10-04T12:00:00.000Z', measured(33)), P)?.jobValue?.value === 33);
+  }
+  {
+    // ── THE "SAVED" AND "ON … CHECKLIST" MARKS BELONG TO THE CARD AS SHOWN (keptIsShown) ──
+    const P = 'job-1';
+    const measured = (value: number): CodeJobValue => ({ value, unit: 'in', source: 'measured', sourceLabel: 'measured on site' });
+    const deck = (height: number, over: Partial<CodeCardItem> = {}): CodeCardItem => ({
+      id: 'ask-deck', verdict: height > 30 ? 'required' : 'not_required', summary: 'Sample: a guard is needed once the deck is more than 30 in. up.', section: 'R312.1.1',
+      evidence: null, stageIsGuess: true, stage: 'final', trigger: { value: 30, unit: 'in', comparison: '>' },
+      jobValue: { value: height, unit: 'in', source: 'job', sourceLabel: 'deck height from the question' }, ...over,
+    });
+    const first = deck(34);
+    const savedPlain = makeSaved(P, first, '2026-10-04T12:00:00.000Z', null);
+    const savedStepped = makeSaved(P, first, '2026-10-04T12:00:00.000Z', measured(29));
+    const pin = makePin(P, first, '2026-10-04T12:00:00.000Z', 'framing');
+    ok('E54 keptIsShown: the card he saved, as it is on screen, counts as saved; saved with a re-measure, it counts only while that number is on screen',
+      keptIsShown(savedPlain, first) && keptIsShown(savedPlain, deck(34)) && keptIsShown(savedStepped, first, measured(29))
+      && !keptIsShown(savedStepped, first) && !keptIsShown(savedStepped, first, measured(28)) && !keptIsShown(savedPlain, first, measured(29)));
+    const later = deck(28);
+    ok('E55 A LATER ANSWER with the same line (same id): another verdict (not required, 28 in.), another job number (40 in.), another trigger or sign, a number lost or gained: none counts as the saved card',
+      later.id === first.id && later.verdict === 'not_required' && !keptIsShown(savedPlain, later) && !keptIsShown(savedPlain, deck(40))
+      && !keptIsShown(savedPlain, deck(34, { trigger: { value: 24, unit: 'in', comparison: '>' } })) && !keptIsShown(savedPlain, deck(34, { trigger: { value: 30, unit: 'in', comparison: '>=' } }))
+      && !keptIsShown(savedPlain, deck(34, { verdict: 'limit' })) && !keptIsShown(savedPlain, deck(34, { jobValue: undefined })) && !keptIsShown(savedPlain, deck(34, { trigger: undefined }))
+      && !keptIsShown(savedPlain, deck(34, { jobValue: { value: 34, unit: 'ft', source: 'job', sourceLabel: 'x' } }))
+      && !keptIsShown(makeSaved(P, deck(34, { jobValue: undefined, trigger: undefined }), '2026-10-04T12:00:00.000Z', null), first)
+      && keptIsShown(makeSaved(P, deck(34, { jobValue: undefined, trigger: undefined }), '2026-10-04T12:00:00.000Z', null), deck(34, { jobValue: undefined, trigger: undefined })));
+    ok('E56 a number he measured is not the number the question gave: a saved re-measure of 40 in. is not the later card whose OWN number is 40 in. (the saved list’s own copy of it is)',
+      !keptIsShown(makeSaved(P, first, '2026-10-04T12:00:00.000Z', measured(40)), deck(40))
+      && keptIsShown(makeSaved(P, first, '2026-10-04T12:00:00.000Z', measured(40)), { ...first, jobValue: measured(40) }));
+    ok('E57 a pin is the same rule with the card’s own number: the pinned card counts; a later card with another verdict or number does not; the stage he moved it to does not matter',
+      keptIsShown(pin, first) && keptIsShown(pin, deck(34, { stage: 'rough' })) && pin.stage === 'framing' && !keptIsShown(pin, later) && !keptIsShown(pin, deck(40))
+      && !keptIsShown(pin, deck(34, { verdict: 'limit' })) && !keptIsShown(null, first) && !keptIsShown(undefined, first) && !keptIsShown(pin, null));
+    ok('E58 what Save stores when the mark is off REPLACES the earlier card (one saved card and one pin per id on a job)',
+      savedFor(savedReducer(savedReducer(EMPTY_SAVED, { type: 'save', card: savedPlain }), { type: 'save', card: makeSaved(P, later, '2026-10-04T13:00:00.000Z', null) }), P).length === 1
+      && savedFor(savedReducer(savedReducer(EMPTY_SAVED, { type: 'save', card: savedPlain }), { type: 'save', card: makeSaved(P, later, '2026-10-04T13:00:00.000Z', null) }), P)[0].item.verdict === 'not_required'
+      && pinsFor(pinsReducer(pinsReducer(EMPTY_PINS, { type: 'pin', pin }), { type: 'pin', pin: makePin(P, later, '2026-10-04T13:00:00.000Z') }), P).length === 1
+      && pinsFor(pinsReducer(pinsReducer(EMPTY_PINS, { type: 'pin', pin }), { type: 'pin', pin: makePin(P, later, '2026-10-04T13:00:00.000Z') }), P)[0].item.jobValue?.value === 28);
+    ok('E59 withChosenStage: a stage HE chose is shown and is no longer a guess; the AI’s own stage (or none) leaves the card as it was',
+      withChosenStage(first, 'framing').stage === 'framing' && withChosenStage(first, 'framing').stageIsGuess === false
+      && withChosenStage(first, 'final') === first && withChosenStage(first, undefined) === first && withChosenStage(first, null) === first);
   }
   ok('E27 no card off the wire ever opens on a verdict other than the AI\u2019s: every verdict, comparison and side of the line',
     (['required', 'limit', 'not_required'] as const).every((v) => (['>', '>=', '<', '<='] as const).every((c) => [28, 30, 32].every((n) => {
       const card = parseCodeCardItem({ ...raiseGuard, verdict: v, trigger: { value: 30, unit: 'in', comparison: c }, jobValue: { ...raiseGuard.jobValue, value: n } }, 'req-1');
-      return !!card && effectiveVerdict(card) === v && numbersAgreeWithVerdict(card) && card.trigger?.value === 30;
+      // (the fixture's line says "at least 36 in.", so a LIMIT on 30 has no confirmed sign: no trigger)
+      return !!card && effectiveVerdict(card) === v && numbersAgreeWithVerdict(card) && (v === 'limit' ? card.trigger === undefined : card.trigger?.value === 30);
     }))));
   ok('E28 numbersAgreeWithVerdict: nothing to disagree with one number missing or the units apart',
     numbersAgreeWithVerdict({ verdict: 'required' }) && numbersAgreeWithVerdict({ verdict: 'required', trigger: guardTrigger })

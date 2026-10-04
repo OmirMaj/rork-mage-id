@@ -9,6 +9,12 @@
 // it shows the same re-check he saw: pass `jobValue={saved.jobValue}` to
 // CodeCardSheet (or CodeCard) and the card opens on that number.
 //
+// A RE-MEASURE NEEDS THE CARD'S OWN NUMBER. A saved re-measure is kept only
+// for a card that carries its own job number and a trigger in the same unit
+// (`keepsRemeasure`): it is the number he stepped to FROM that number. A card
+// with no number of its own is saved with none, so a saved card can never be
+// re-checked against a number that was not on it.
+//
 // WHAT THE STORE ACCEPTS IS WHAT IT READS BACK. `storedSaved` is the one gate:
 // the reducer runs every card through it on the way in and parseSavedState on
 // the way out (the same rule as pins.ts storedPin), so a card that showed
@@ -17,6 +23,7 @@
 import { safeJson, createPersistedStore, type KVStorage, type PersistedStore } from './store';
 import { parseJobValue, storedCodeCardItem, STORED_TEXT_MAX } from './parse';
 import type { CodeCardItem, CodeJobValue } from './types';
+import { canRecheck } from './verdict';
 
 export const CODE_SAVED_KEY = 'mageid_code_saved_v1';
 export const MAX_SAVED_PER_PROJECT = 200;
@@ -43,6 +50,11 @@ export function savedIdFor(projectId: string, itemId: string): string {
   return `${projectId}:${itemId}`;
 }
 
+/** May a saved copy of `item` carry `jobValue` as its re-measure? See the header. */
+export function keepsRemeasure(item: Pick<CodeCardItem, 'jobValue' | 'trigger'>, jobValue: CodeJobValue | null | undefined): jobValue is CodeJobValue {
+  return !!jobValue && !!item.jobValue && canRecheck(item) && jobValue.unit === item.jobValue.unit;
+}
+
 export function makeSaved(projectId: string, item: CodeCardItem, now: Date | string, jobValue?: CodeJobValue | null): SavedCodeCard {
   const out: SavedCodeCard = {
     id: savedIdFor(projectId, item.id),
@@ -50,7 +62,7 @@ export function makeSaved(projectId: string, item: CodeCardItem, now: Date | str
     item,
     savedAt: typeof now === 'string' ? now : now.toISOString(),
   };
-  if (jobValue && (!item.jobValue || jobValue.value !== item.jobValue.value || jobValue.unit !== item.jobValue.unit)) {
+  if (keepsRemeasure(item, jobValue) && jobValue.value !== item.jobValue?.value) {
     out.jobValue = jobValue;
   }
   return out;
@@ -69,7 +81,7 @@ export function storedSaved(raw: unknown, projectId: string): SavedCodeCard | nu
   if (!item) return null;
   const card: SavedCodeCard = { id: savedIdFor(projectId, item.id), projectId, item, savedAt: r.savedAt };
   const jv = parseJobValue(r.jobValue, STORED_TEXT_MAX);
-  if (jv) card.jobValue = jv;
+  if (keepsRemeasure(item, jv)) card.jobValue = jv;
   return card;
 }
 

@@ -41,8 +41,11 @@
 //     right at the trigger's figure ("at least 36 in.", "at most 7.75 in."),
 //     and the sign is the one those words mean (>= for a minimum, <= for a
 //     maximum). No such words, both kinds, or a sign that disagrees: the
-//     trigger stays and the job value is left off. The client parser applies
-//     the same rule (utils/codeCard/saysWithUnit.ts limitSideInLine);
+//     TRIGGER is left off as well as the job value, whether or not a job value
+//     came with it (limitSignConfirmed), so a sign nothing confirmed never
+//     reaches the phone and no number can be re-checked against it there. The
+//     client parser applies the same rule (utils/codeCard/parse.ts
+//     limitSignConfirmed, utils/codeCard/saysWithUnit.ts limitSideInLine);
 //   • every field fits the client parser's caps (section 32, edition 60,
 //     label 60, trade 40, calc 80/40/100), so a card the server sends is a
 //     card the phone shows, field for field;
@@ -121,6 +124,15 @@ const CODE_PHRASING = /\bshall\b|\bnot less than\b|\bnot more than\b|\bin accord
  *  span in paired straight single quotes. An apostrophe in "don't" / "don’t"
  *  (a RIGHT single quote) is not a quote. */
 const QUOTED = /["\u201c\u201d\u201e\u00ab\u00bb\u2018]|(^|[\s(])'[^']+'(?=$|[\s.,;:!?)])/;
+/** AN INCH MARK IS NOT A QUOTE (the same rule as the client's echoCheck.ts): a
+ *  straight " or a double prime directly after a digit or a fraction character,
+ *  with no space, and not followed by a letter (an x between two sizes is
+ *  fine: 2"x4"), is taken out before the quotation test, so 36", 2'-8" and
+ *  7-7/8" pass. An opening quote never follows a digit, so real quotes still fail. */
+const INCH_MARK = /([0-9\u00bc-\u00be\u2150-\u215e])["\u2033](?![A-WYZa-wyz]|[xX][A-Za-z])/g;
+export function withoutInchMarks(text: string): string {
+  return text.replace(INCH_MARK, "$1");
+}
 
 /** One line: control characters out, whitespace collapsed, trimmed. */
 export function oneLine(v: unknown): string {
@@ -136,7 +148,7 @@ export function oneLine(v: unknown): string {
 export function summaryEchoCheck(text: string, cap: number = SUMMARY_CAP): boolean {
   const t = oneLine(text);
   if (!t || t.length > cap) return false;
-  if (QUOTED.test(t)) return false;
+  if (QUOTED.test(withoutInchMarks(t))) return false;
   if (CODE_PHRASING.test(t)) return false;
   for (const run of t.split(/[.;:!?]+/)) {
     const words = run.trim().split(/\s+/).filter(Boolean);
@@ -302,6 +314,17 @@ export function meets(a: number, comparison: CodeComparison, b: number): boolean
 }
 
 /**
+ * Does a limit's own line confirm the trigger's sign? True only when `line`
+ * says the side right at the trigger's figure and the sign is the one those
+ * words mean. A limit's trigger is sent only when this holds. The client's
+ * copy is utils/codeCard/parse.ts limitSignConfirmed.
+ */
+export function limitSignConfirmed(trigger: CodeTriggerOut, line: string): boolean {
+  const side = limitSideInLine(line, trigger.value, trigger.unit);
+  return side !== null && trigger.comparison === LIMIT_COMPARISON[side];
+}
+
+/**
  * May a card's two numbers be re-checked on the phone? 'required' means the
  * trigger is met, 'not_required' means it is not. A 'limit' has no verdict to
  * check against, so its own line (`summary`) has to say the side right at the
@@ -309,10 +332,7 @@ export function meets(a: number, comparison: CodeComparison, b: number): boolean
  * with no line, or a line that does not say, is false.
  */
 export function numbersAgreeWithVerdict(verdict: CodeVerdict, jobValue: number, trigger: CodeTriggerOut, summary: string = ""): boolean {
-  if (verdict === "limit") {
-    const side = limitSideInLine(summary, trigger.value, trigger.unit);
-    return side !== null && trigger.comparison === LIMIT_COMPARISON[side];
-  }
+  if (verdict === "limit") return limitSignConfirmed(trigger, summary);
   return meets(jobValue, trigger.comparison, trigger.value) === (verdict === "required");
 }
 
@@ -473,8 +493,11 @@ export function normalizeRequirements(raw: unknown, ctx: RequirementsContext): C
       const tv = r.triggerValue;
       const tu = pick(r.triggerUnit, CODE_UNITS);
       const tc = pick(r.triggerComparison, CODE_COMPARISONS);
+      // A LIMIT'S trigger also needs its own summary to confirm the sign (see
+      // the header): otherwise no trigger is sent, with or without a job value.
       if (typeof tv === "number" && Number.isFinite(tv) && tu && tc && saysWithUnit(answer, tv, tu)) {
-        card.trigger = { value: tv, unit: tu, comparison: tc };
+        const trigger: CodeTriggerOut = { value: tv, unit: tu, comparison: tc };
+        if (verdict !== "limit" || limitSignConfirmed(trigger, summary)) card.trigger = trigger;
       }
 
       const jv = r.jobValue;
@@ -485,7 +508,8 @@ export function normalizeRequirements(raw: unknown, ctx: RequirementsContext): C
       // an inch job value.
       // …and the two numbers must give the card's own verdict, or, for a
       // limit, the summary must say the side the sign points to (see the
-      // header): otherwise the trigger stays and the job value is left off.
+      // header): a required / not_required card then keeps its trigger and
+      // loses the job value; a limit has already lost its trigger above.
       const jobText = js === "job" ? question : answer;
       if (
         card.trigger && typeof jv === "number" && Number.isFinite(jv) && js && saysWithUnit(jobText, jv, card.trigger.unit)

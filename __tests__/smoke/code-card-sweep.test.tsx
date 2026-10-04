@@ -88,7 +88,20 @@ const SAMPLE_OK = {
   status: 'ok', stage: 'framing', stageIsGuess: true,
 };
 
-type Review = 'old' | 'none' | 'cards';
+// A row dimensioned the way drawings are (inch marks), and a row that reads like code text.
+const SAMPLE_INCH = {
+  category: 'guards', codeRef: 'RCNYS 2025 R312.1.2', citedEdition: 'RCNYS 2025', section: 'R312.1.2',
+  requirement: 'Guard at least 36" high.', observed: 'Scales 34" on the elevation.',
+  severity: 'high', confidence: 'med', evidence: 'model_recall',
+  question: 'The guard at the deck scales 34" high. Is it meant to be 36"?', location: null,
+};
+const SAMPLE_CODE_TEXT = {
+  category: 'guards', codeRef: 'RCNYS 2025 R312.1.1', citedEdition: 'RCNYS 2025', section: 'R312.1.1',
+  requirement: 'Guards shall be provided where the walking surface is more than 30 inches above grade.', observed: 'The note reads "PROVIDE GUARD".',
+  severity: 'high', confidence: 'med', evidence: 'model_recall', question: '', location: null,
+};
+
+type Review = 'old' | 'none' | 'cards' | 'inch';
 let review: Review = 'old';
 const reviewBodies: Array<Record<string, unknown>> = [];
 
@@ -113,6 +126,7 @@ function installNetwork() {
     }
     reviewBodies.push(opts?.body ?? {});
     if (review === 'none') return { data: { success: true, data: { findings: [], disclaimer: 'verify' } }, error: null };
+    if (review === 'inch') return { data: { success: true, data: { findings: [SAMPLE_INCH, SAMPLE_CODE_TEXT], disclaimer: 'verify' } }, error: null };
     if (review === 'cards') {
       return {
         data: {
@@ -371,6 +385,32 @@ describe('CCWIRE sweep behaviour — status groups, look-right rows, pins', () =
     // Rendering drafted no RFI: the job's RFIs are what they were, none about a riser.
     const rfis: string[] = JSON.parse(String(screen.getByTestId('probe-rfis').props.children));
     expect(rfis.some((q) => /riser/i.test(q))).toBe(false);
+  });
+
+  it('the withhold rule on the per-sheet rows: a question with inch marks keeps its words and its RFI / punch buttons; a row that reads like code text shows the notice, the reason, and neither button', async () => {
+    review = 'inch';
+    await mountPanel();
+    await press('plansweep-find');
+    await press('plansweep-review');
+    const text = allText();
+    // The inch-mark row, as written: the question, what the drawing shows, the requirement.
+    expect(text).toContain('The guard at the deck scales 34" high. Is it meant to be 36"?');
+    expect(text).toContain('Scales 34" on the elevation.');
+    expect(text).toContain('Guard at least 36" high.');
+    expect(screen.getByTestId('plansweep-draft-cs2#0')).toBeTruthy();
+    expect(screen.getByTestId('plansweep-punch-cs2#0')).toBeTruthy();
+    expect(screen.queryByTestId('plansweep-row-withheld-cs2#0')).toBeNull();
+    // The code-text row: the notice and the reason; no RFI draft, no punch item, and its words nowhere.
+    expect(screen.getByTestId('plansweep-row-withheld-cs2#1')).toBeTruthy();
+    expect(screen.queryByTestId('plansweep-draft-cs2#1')).toBeNull();
+    expect(screen.queryByTestId('plansweep-punch-cs2#1')).toBeNull();
+    expect(text).toContain('MAGE hid this line because it read like code text.');
+    expect(text).not.toMatch(/shall be provided|PROVIDE GUARD/);
+    // An RFI drafted from the inch-mark row carries its question as written.
+    await press('plansweep-draft-cs2#0');
+    const rfis: string[] = JSON.parse(String(screen.getByTestId('probe-rfis').props.children));
+    expect(rfis.some((q) => q.includes('The guard at the deck scales 34" high. Is it meant to be 36"?'))).toBe(true);
+    expect(rfis.some((q) => /shall be provided/.test(q))).toBe(false);
   });
 
   it('Add all pins every card to the project, each on its own stage, and the button says so', async () => {

@@ -318,6 +318,16 @@ describe('code cards — behaviour', () => {
     expect(screen.getByText('Add a sub with a phone number in Subs, then you can text this from here.')).toBeTruthy();
   });
 
+  it('6c: a card with no requirement in words (MAGE’s stand-in line) is never texted: Send is blocked with the reason, no preview, and a press sends nothing', () => {
+    const sent: string[] = [];
+    const HIDDEN = { ...GUARDS, id: 'hidden', summary: 'MAGE hid this line because it read like code text. Use Official text to read the section.' };
+    render(<CodeCardSheet visible onClose={noop} item={HIDDEN} info={INFO} sample recipients={SUBS} onSendToSub={(_r, text) => sent.push(text)} />);
+    expect(screen.getByText('This card has no requirement in words, so there is nothing to text. Use Official text to read the section.')).toBeTruthy();
+    expect(screen.queryByTestId('code-card-sheet-hidden-share-text')).toBeNull();
+    fireEvent.press(screen.getByTestId('code-card-sheet-hidden-send'));
+    expect(sent).toEqual([]);
+  });
+
   it('7: recall reads the same on every recalled card, and every card is a Sample', () => {
     render(<CodeCardList items={ANSWER} info={INFO} sample />);
     expect(screen.getAllByText('Model recall · confirm')).toHaveLength(3);

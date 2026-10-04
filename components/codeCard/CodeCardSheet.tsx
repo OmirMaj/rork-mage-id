@@ -10,7 +10,8 @@
 //     goes on its own line with no source: model recall, unless it is another
 //     volume MAGE holds as adopted here); permit
 //   Read the official text (FREE): 1 copies, 2 opens, 3 paste
-//   Add to checklist · Draft a question for the town · Save to job
+//   Add to checklist (once pinned: a tap takes it off again) · Draft a
+//     question for the town · Save to job
 //   Send to a sub: chips from his Subs, the text preview, "Text it to …"
 //   Confirm with your building department. MAGE ID is not affiliated with ICC.
 //
@@ -48,7 +49,7 @@ import {
   runOfficialText,
   type OfficialTextDeps,
 } from '@/utils/codeCard/officialText';
-import { shareTextFor, type SubRecipient } from '@/utils/codeCard/shareText';
+import { shareBlockedReason, shareTextFor, type SubRecipient } from '@/utils/codeCard/shareText';
 import { setSunlight } from '@/utils/codeCard/sunlight';
 import { useCodeCardPalette, useSunlight, type CodeCardPalette } from './palette';
 import { SampleTag, VerdictTag } from './VerdictTag';
@@ -173,6 +174,8 @@ function SheetBody({
     if (!action) { setNote(`${label}: not available here.`); return; }
     if (action.kind === 'ready') { setNote(null); action.onPress(); }
     else if (action.kind === 'blocked') setNote(`${label}: ${action.reason}`);
+    // A done row with an undo (a pinned card's Checklist row): the tap takes it off.
+    else if (action.kind === 'done' && action.onPress) { setNote(null); action.onPress(); }
   };
 
   const onOfficial = async () => {
@@ -218,7 +221,10 @@ function SheetBody({
     );
   };
 
-  const sendBlocked = !recipients || recipients.length === 0
+  // A stand-in line is not a requirement: nothing to text, and the preview
+  // below never shows the notice dressed up as one.
+  const noWords = shareBlockedReason(item);
+  const sendBlocked = noWords ?? (!recipients || recipients.length === 0
     ? NO_SUBS_REASON
     : !onSendToSub
       ? NO_SEND_REASON
@@ -226,7 +232,7 @@ function SheetBody({
         ? `${recipient.name} has no phone number in Subs.`
         : !recipient
           ? 'Pick a sub first.'
-          : null;
+          : null);
 
   return (
     <View style={[styles.wrap, P.sunlight && styles.wrapSun]} testID={tid}>
@@ -482,15 +488,17 @@ function SheetBody({
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.msg}>
-        <Text style={styles.msgText} testID={`${tid}-share-text`}>{text}</Text>
-      </View>
+      {noWords ? null : (
+        <View style={styles.msg}>
+          <Text style={styles.msgText} testID={`${tid}-share-text`}>{text}</Text>
+        </View>
+      )}
       <Button
         label={recipient ? `Text it to ${recipient.name}` : 'Text it to a sub'}
         size="lg"
         fullWidth
         disabled={!!sendBlocked}
-        onPress={() => { if (recipient && onSendToSub) onSendToSub(recipient, text); }}
+        onPress={() => { if (!sendBlocked && recipient && onSendToSub) onSendToSub(recipient, text); }}
         style={styles.sendBtn}
         testID={`${tid}-send`}
       />
