@@ -96,7 +96,7 @@ import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters
 import { canViewFinancials, isFinancialsBlinded, ROLE_LABELS } from '@/utils/roleBlinding';
 import { pricingRoleFor } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
-import { getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold } from '@/utils/projectFinancials';
+import { getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold, coPriorApprovedChanges } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled, roundCents } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
 import { loadActiveContract } from '@/utils/contractEngine';
@@ -1063,12 +1063,9 @@ export default function ProjectDetailScreen() {
   // below this one. A sample job has no server contract ("none on file").
   // The reason is coSavedBaseHold's own, word for word.
   const coApproveHold = useCallback((co: ChangeOrder): string | null => {
-    // app/change-order.tsx's coPriorApprovedChanges, filter for filter. This
-    // page may not import that route (scripts/validate-w4-co-workflow-screen.ts),
-    // so scripts/validate-payfix.ts pins the two to each other.
-    const prior = roundCents(changeOrders
-      .filter(c => c.status === 'approved' && c.id !== co.id && (c.number || 0) < co.number)
-      .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
+    // The approved change orders numbered below this one: the one function
+    // the change-order screen calls too (utils/projectFinancials).
+    const prior = coPriorApprovedChanges(changeOrders, co.number, co.id);
     const contract = project && isSampleProject(project) ? null : (approvalContract !== undefined ? approvalContract : coApproveRowContract);
     const sum = contractSumBasis(project, contract, savedChangeOrderOriginalSum(co, prior)).value;
     return coSavedBaseHold(co, roundCents(sum + prior), (n) => formatMoney(n, 2));

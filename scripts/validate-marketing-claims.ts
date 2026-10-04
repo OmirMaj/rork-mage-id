@@ -20,6 +20,29 @@ function ok(name: string, cond: boolean, detail?: string) {
   else { fail++; console.log('  ✗', name, detail ? `\n      ${detail}` : ''); }
 }
 
+// >>> wording-normalize
+// THE SAME BLOCK, character for character, in scripts/validate-marketing-claims.ts
+// and scripts/validate-payfix.ts (the marketing validator pins the two to each
+// other). A wording guard reads text the way a person does: a non-breaking
+// space is a space, a non-breaking hyphen or an en dash is a hyphen, a
+// registered mark is nothing — however the file writes them (the character
+// itself, the HTML entity, or the \u escape in source) — and a tag between two
+// words does not part them.
+const WORDING_MARKS = /<sup>\s*(?:&reg;|&#0*174;|&#x0*ae;|®|&trade;|&#0*8482;|&#x0*2122;|™)\s*<\/sup>|&reg;|&#0*174;|&#x0*ae;|\\u00ae|\\xae|®|&trade;|&#0*8482;|&#x0*2122;|\\u2122|™/gi;
+const WORDING_SPACES = /&nbsp;|&#0*160;|&#x0*a0;|&#0*8239;|&#x0*202f;|&#0*8199;|&#x0*2007;|\\u00a0|\\xa0|\\u202f|\\u2007|[   ]/gi;
+const WORDING_HYPHENS = /&#0*820[89];|&#x0*201[01];|&#0*8210;|&#x0*2012;|&ndash;|&#0*8211;|&#x0*2013;|\\u201[0-3]|[‐-–]/gi;
+const normalizeWording = (s: string): string => s.replace(WORDING_MARKS, '').replace(WORDING_SPACES, ' ').replace(WORDING_HYPHENS, '-');
+const stripTags = (s: string): string => s.replace(/<[^>]+>/g, ' ');
+/** Every way a guard reads one piece of text: as written, and with its tags
+ *  taken out. BOTH, because taking tags out of code can take a claim out with
+ *  them (whatever stands between the "<" and the ">" of two comparisons), so a
+ *  guard hits when EITHER reading does. Runs of white space are one space. */
+const wordingReadings = (s: string): string[] => {
+  const n = normalizeWording(s);
+  return [n, stripTags(n)].map(t => t.replace(/\s+/g, ' '));
+};
+// <<< wording-normalize
+
 // Public pages only. /screenshots and /dist are internal (robots.txt disallows
 // the former; the latter is a build mirror).
 function publicPages(dir = 'marketing', out: string[] = []): string[] {
@@ -824,10 +847,21 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       'assigned to (Architect), required date (this Friday)',             // playbook.html
     ];
     const flat = (t: string) => t.replace(/\s+/g, ' ');
+    // Lane WORDS2: the pattern stops at a "<" on purpose — a tag ends a table
+    // cell or a paragraph, and "Architect" in one cell is not a claim about
+    // "Approved" in the next. But a tag INSIDE a sentence ends nothing:
+    // "accepted by <strong>lenders</strong>" passed. So the text is read twice,
+    // as written and with its inline tags taken out, after the same
+    // normalization the AIA guard uses (wording-normalize, above).
+    const INLINE_TAG = /<\/?(?:a|abbr|b|cite|code|em|i|mark|q|s|small|span|strong|sub|sup|u|wbr)\b[^>]*>/gi;
     const takesClaim = (raw: string): string | null => {
-      const t = TAKES_ALLOWED.reduce((acc, a) => acc.split(a).join('·'), flat(raw));
-      const m = TAKES.exec(t);
-      return m ? t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 20) : null;
+      const text = normalizeWording(raw);
+      for (const reading of [text, text.replace(INLINE_TAG, '')]) {
+        const t = TAKES_ALLOWED.reduce((acc, a) => acc.split(a).join('·'), flat(reading));
+        const m = TAKES.exec(t);
+        if (m) return t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 20);
+      }
+      return null;
     };
     const takesHits = [...pages, 'marketing/app-store-screenshots/builder.html']
       .map(p => ({ p, m: takesClaim(prose(p)) })).filter(x => x.m);
@@ -842,6 +876,10 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<li>Draws your bank approves faster</li>',
       '<li>Approved by sureties</li>',
       '<p>Some lenders and architects accept these in place of the official AIA Contract Documents.</p>',
+      // Lane WORDS2 — an inline tag, or a space that is not one, inside the sentence.
+      '<p>Progress billing accepted by <strong>lenders</strong> and architects.</p>',
+      '<p>The layout your <a href="/x">architect</a> will <em>accept</em>.</p>',
+      '<li>Draws your bank&nbsp;approves faster</li>',
     ];
     ok('…and that check sees the promise in either order, with any of the four verbs',
       TAKES_MUST_MATCH.every(t => takesClaim(t) != null), TAKES_MUST_MATCH.filter(t => takesClaim(t) == null).join(' | '));
@@ -850,6 +888,8 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<p>Some lenders and architects require the official AIA Contract Documents &mdash; check with yours.</p>',
       '<p>Export the pay application as a PDF package to send to your bank or GC.</p>',
       '<p>Your client approves the change order. Send the PDF to your lender.</p>',
+      // Lane WORDS2 — a tag that ends a cell still ends the sentence.
+      '<tr><td><strong>Architect</strong></td><td>Approved submittals, with revision numbers</td></tr>',
     ];
     ok('…and leaves true copy alone (what they are used to; the standing notice; a full stop in between)',
       TAKES_TRUE_COPY.every(t => takesClaim(t) == null), TAKES_TRUE_COPY.filter(t => takesClaim(t) != null).join(' | '));
@@ -1074,14 +1114,17 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // builds the sentence in two strings).
     const UNHEDGED_AIA = /AIA (G70[23]|[Pp][Aa][Yy][\s-]?[Aa][Pp][Pp][Ss]?\b|[Pp]ay [Aa]pplications?|[Bb]illing|[Dd]ocuments?\b|[Pp]rogress\b|[Ff]orms?\b|[Cc]adence\b)/;
     const AIA_MARK_NAMED = /(?:&ldquo;|&quot;|"|“)AIA Document G702\/G703(?:&rdquo;|&quot;|"|”) are/g;
-    const plain = (raw: string) => flat(raw
-      .replace(/<sup>&reg;<\/sup>|&reg;|®|&trade;|™/g, '')
-      .replace(/&nbsp;|&#160;| /g, ' ')
-      .replace(/&#8209;|&#x2011;|‑|&ndash;|–/g, '-'));
+    // Lane WORDS2: every reading of the text (wording-normalize, at the top of
+    // this file — the same block scripts/validate-payfix.ts runs on the app):
+    // as written, and with its tags taken out, so "AIA <strong>pay apps</strong>"
+    // and "AIA<br>billing" are the label they read as. A hit in either counts.
     const unhedgedAia = (raw: string): string | null => {
-      const t = plain(raw).replace(/AIA-style/gi, '·').replace(AIA_MARK_NAMED, '·');
-      const m = UNHEDGED_AIA.exec(t);
-      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 20) : null;
+      for (const reading of wordingReadings(raw)) {
+        const t = reading.replace(/AIA-style/gi, '·').replace(AIA_MARK_NAMED, '·');
+        const m = UNHEDGED_AIA.exec(t);
+        if (m) return t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 20);
+      }
+      return null;
     };
     const everyPage = [...pages, STORE_SCREENSHOTS];
     const unhedgedPages = everyPage.map(p => ({ p, m: unhedgedAia(prose(p)) })).filter(x => x.m);
@@ -1094,6 +1137,11 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<li>AIA pay apps</li>', '<li>AIA payapp</li>', '<h4>AIA Pay Application</h4>', '<td>AIA G702</td>', '<td>AIA&reg; G702 / G703</td>',
       '<p>AIA&nbsp;billing, built in.</p>', '<p>Official AIA forms, filled in for you.</p>', '<p>AIA Document G702 is what this prints.</p>',
       '<p>AIA progress billing on your phone.</p>',
+      // Lane WORDS2 — a tag between the two words, and every spelling of a
+      // space or a hyphen that is not one.
+      '<p>AIA <strong>pay apps</strong>, built in.</p>', '<p><em>AIA</em> billing</p>', '<h4>AIA<br>Pay Application</h4>',
+      '<td>AIA</td><td>G702</td>', '<p>AIA\u00A0billing</p>', '<p>AIA&#xA0;forms</p>', '<p>AIA pay\u2011app</p>', '<p>AIA pay&#8209;apps</p>',
+      '<p>AIA pay&ndash;app</p>', '<p>AIA pay\u2013apps</p>', '<p>AIA&#174; G702</p>', '<p>AIA<sup>&reg;</sup>&nbsp;G703</p>',
     ];
     ok('…and it sees the label with a hyphen, a space, a non-breaking space, the registered mark, or any of the other nouns',
       UNHEDGED_MUST_MATCH.every(t => unhedgedAia(t) != null), UNHEDGED_MUST_MATCH.filter(t => unhedgedAia(t) == null).join(' | '));
@@ -1102,11 +1150,142 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<td>AIA-style G702 / G703 pay apps</td>',
       'MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are\n registered trademarks of The American Institute of Architects',
       '<p>Some lenders and architects require the official AIA Contract Documents.</p>',
+      // Lane WORDS2 — the hedge in the same spellings, and around a tag.
+      '<p>AIA\u2011style pay apps</p>', '<p>AIA&#8209;style billing</p>', '<p>AIA&ndash;style G702</p>', '<p>AIA-style <strong>pay apps</strong></p>',
     ];
     ok('…and leaves the hedge, the trademark notice and the standing notice alone',
       UNHEDGED_TRUE_COPY.every(t => unhedgedAia(t) == null), UNHEDGED_TRUE_COPY.filter(t => unhedgedAia(t) != null).join(' | '));
     ok('the Houzz Pro page’s footnote says "AIA-style pay-app capabilities"',
       /Cost-learning, margin-alert, and AIA-style pay-app capabilities describe MAGE ID features\./.test(prose('marketing/houzz-pro-alternative.html')));
+    ok('…the normalizer both guards read through is ONE block, the same in scripts/validate-payfix.ts character for character',
+      (() => {
+        const block = (file: string) => /\/\/ >>> wording-normalize\n[\s\S]*?\n\/\/ <<< wording-normalize\n/.exec(readFileSync(file, 'utf8'))?.[0] ?? '';
+        const mine = block('scripts/validate-marketing-claims.ts');
+        return mine.length > 1500 && mine === block('scripts/validate-payfix.ts')
+          && /const wordingReadings = \(s: string\): string\[\] => \{\n  const n = normalizeWording\(s\);\n  return \[n, stripTags\(n\)\]\.map\(t => t\.replace\(\/\\s\+\/g, ' '\)\);\n\};/.test(mine);
+      })());
+    ok('…and it does what it says: a space, a hyphen, nothing; as written and with the tags out',
+      JSON.stringify([normalizeWording('AIA\u00A0pay\u2011app \u2013 AIA&reg; G702&nbsp;/&#160;G703 &ndash; AIA<sup>&reg;</sup>'), wordingReadings('AIA <b>pay\n  app</b>')])
+      === JSON.stringify(['AIA pay-app - AIA G702 / G703 - AIA', ['AIA <b>pay app</b>', 'AIA pay app ']]));
+
+    // BARE "AIA" (lane WORDS2). The rule above reads "AIA" followed by a noun.
+    // The pages also used the bare word as the NAME of MAGE ID's own feature:
+    // "Takeoff + estimating + scheduling + AIA + RFI", "Not every project
+    // needs AIA.", "AIA line 7", "the AIA grid", "For AIA jobs". Said that
+    // way it is the Institute's name on MAGE ID's product. So: on a public
+    // page (and in the App Store screenshot captions) the word AIA stands in
+    // "AIA-style …" or in one of the texts below, by exact text, and nowhere
+    // else. Read the same two ways as above — as written (attributes and
+    // inline scripts included) and with the tags taken out.
+    //   * the two notices: they name the Institute's marks and its documents
+    //     in order to say MAGE ID's are not those;
+    //   * the client portal page's own code comments (its <style> and
+    //     <script>): never rendered, each a whole comment line, each listed.
+    // No competitor description is on the list: none quotes a competitor's
+    // feature name with the word in it (the one cell that used the bare word,
+    // "AIA only, manual" on features/vs-other-tools.html, now names the row it
+    // answers: "AIA-style pay applications only, manual").
+    const PORTAL = 'marketing/portal/index.html';
+    const BARE_AIA_ALLOWED: { text: string; only?: string; why: string }[] = [
+      { text: 'AIA and &ldquo;AIA Document G702/G703&rdquo; are registered trademarks of The American Institute of Architects', why: 'the trademark notice' },
+      { text: 'Some lenders and architects require the official AIA Contract Documents', why: 'the standing notice: the AIA’s own documents' },
+      // The portal builds both notices in two strings.
+      { text: "AIA and &ldquo;AIA Document G702/G703&rdquo; are ' + 'registered trademarks of The American Institute of Architects", only: PORTAL, why: 'the trademark notice' },
+      { text: "Some lenders and architects require the official AIA Contract ' + 'Documents", only: PORTAL, why: 'the standing notice' },
+      { text: '/* ───────── Drawer (invoice / AIA detail) ───────── */', only: PORTAL, why: 'CSS comment' },
+      { text: '/* AIA SOV table */', only: PORTAL, why: 'CSS comment' },
+      { text: '/* ───────── Print styles for AIA (drawer-based) ─────────', only: PORTAL, why: 'CSS comment' },
+      { text: '// on the server clears the AIA side (stripe-webhook creditInvoice updates', only: PORTAL, why: 'JS comment' },
+      { text: '// added to the AIA snapshot row, so a snapshot published before the fix', only: PORTAL, why: 'JS comment' },
+      { text: '/** What the owner pays for this period NOW. MONEY-AIA-CERTIFIED-LINK: once', only: PORTAL, why: 'JS comment (an audit finding’s id)' },
+      { text: '// for this AIA app (auto-attached on save when Connect is set up,', only: PORTAL, why: 'JS comment' },
+      { text: '// see app/aia-pay-app.tsx handleSave). Pre-audit (May 2026) AIA', only: PORTAL, why: 'JS comment' },
+      { text: '// ───────── Drawer (invoice / AIA detail) ─────────', only: PORTAL, why: 'JS comment' },
+      { text: '// out from their lender that an AIA-style certificate is not an AIA one.', only: PORTAL, why: 'JS comment' },
+      { text: '// AIA card clicks', only: PORTAL, why: 'JS comment' },
+      { text: '// AIA Pay buttons — open Stripe-hosted payment link in new tab.', only: PORTAL, why: 'JS comment' },
+    ];
+    const bareAia = (raw: string, page?: string): string | null => {
+      for (const reading of wordingReadings(raw)) {
+        const allowed = BARE_AIA_ALLOWED.filter(a => !a.only || a.only === page)
+          .reduce((acc, a) => acc.split(a.text).join('·'), reading);
+        const t = allowed.replace(/AIA-style/gi, '·');
+        const m = /\bAIA\b/.exec(t);
+        if (m) return t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 30);
+      }
+      return null;
+    };
+    const barePages = everyPage.map(p => ({ p, m: bareAia(prose(p), p) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) uses a bare "AIA" — it says "AIA-style …", or it is one of the listed notices',
+      barePages.length === 0, barePages.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    const BARE_MUST_MATCH = [
+      '<td>Takeoff + estimating + scheduling + AIA + RFI + submittals + cash flow + portals</td>',
+      '<td>Takeoff only — no estimating, scheduling, RFI, AIA, etc.</td>',
+      '<p>field, finance, scheduling, RFI, AIA, portals, all integrated</p>',
+      '<p>Not every project needs AIA. Simple invoices for smaller projects.</p>',
+      '<li>For AIA jobs: AIA-style Pay Applications tile</li>',
+      '<li>Submit AIA-style pay app drafts (when GC has set up AIA on the project).</li>',
+      '<p><strong>Twenty production fixes</strong>, including AIA line 7, the CSV progress export.</p>',
+      '<p>The desktop web app gets registers, money dashboards, the AIA grid and a payments desk.</p>',
+      '<td class="compare-partial">AIA only, manual</td>',
+      '<p>which is the pair used in the AIA table above &mdash; the two figures</p>',
+      '<meta name="description" content="Scheduling, RFIs and AIA in one app." />',
+      '<img src="/a.png" alt="AIA on a phone" />',
+      '<p>Built for <strong>AIA</strong>.</p>', '<p>AIA&#8209;compliant draws</p>', '<p>AIA\u00A0included</p>',
+      '<p>We print the official AIA Contract Documents.</p>',
+      '<p>AIA and its documents, on your phone.</p>',
+      '<p>MAGE ID is an AIA partner.</p>',
+      // A portal comment is excused on the portal page and nowhere else.
+      '<p>/* AIA SOV table */</p>',
+    ];
+    ok('…and that check sees the bare word as a list item, a sentence’s object, an adjective, an attribute, or inside a tag',
+      BARE_MUST_MATCH.every(t => bareAia(t, 'marketing/index.html') != null), BARE_MUST_MATCH.filter(t => bareAia(t, 'marketing/index.html') == null).join(' | '));
+    const BARE_TRUE_COPY = [
+      '<td>Takeoff + estimating + scheduling + AIA-style pay apps + RFI + submittals + cash flow + portals</td>',
+      '<p>Not every project needs AIA-style billing.</p>', '<li>For jobs on AIA-style billing: AIA-style Pay Applications tile</li>',
+      '<p>including line 7 of the AIA-style pay app</p>', '<p>the AIA-style pay-app grid and a payments desk</p>',
+      '<p>AIA&#8209;style pay apps</p>', "eyebrow: 'AIA-STYLE PAY APP'",
+      'MAGE&nbsp;ID produces AIA-style documents. AIA<sup>&reg;</sup> and &ldquo;AIA Document G702/G703&rdquo; are\n        registered trademarks of The American Institute of Architects, which is not affiliated with and\n        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract\n        Documents &mdash; check with yours before you submit.',
+      '<h2 id="aia">Cheapest plan with AIA-style billing</h2>',
+    ];
+    ok('…and leaves the hedge and the two notices alone',
+      BARE_TRUE_COPY.every(t => bareAia(t, 'marketing/index.html') == null), BARE_TRUE_COPY.filter(t => bareAia(t, 'marketing/index.html') != null).join(' | '));
+    ok('…a portal comment passes on the portal page only',
+      bareAia('  /* AIA SOV table */', PORTAL) == null && bareAia('  /* AIA SOV table */', 'marketing/index.html') != null
+      && bareAia("'<p>AIA SOV table</p>'", PORTAL) != null);
+    // The list cannot rot or grow quietly: every text on it is live where it
+    // is excused, the portal ones each START a comment line, and the count is
+    // pinned.
+    const portalLines = readFileSync(PORTAL, 'utf8').split('\n').map(l => l.trim());
+    const stale = BARE_AIA_ALLOWED.filter(a => a.only
+      ? !wordingReadings(prose(a.only))[0].includes(a.text)
+      : pages.filter(p => wordingReadings(prose(p))[0].includes(a.text)).length < 10);
+    ok('the bare-AIA allow-list is 16 exact texts: the two notices (as the pages write them, and as the portal builds them) and 12 portal code comments',
+      BARE_AIA_ALLOWED.length === 16 && BARE_AIA_ALLOWED.filter(a => !a.only).length === 2
+      && BARE_AIA_ALLOWED.filter(a => a.only).every(a => a.only === PORTAL)
+      && BARE_AIA_ALLOWED.filter(a => /comment/.test(a.why)).length === 12,
+      `${BARE_AIA_ALLOWED.length} texts`);
+    ok('…each is live where it is excused (the two notices on ten pages or more)', stale.length === 0, stale.map(a => a.text).join(' | '));
+    const notComment = BARE_AIA_ALLOWED.filter(a => /comment/.test(a.why))
+      .filter(a => !/^(\/\/|\/\*)/.test(a.text) || portalLines.filter(l => l.startsWith(a.text)).length < 1);
+    ok('…and each portal comment on it starts a comment line of that page (// or /*), so none of them is text a client reads',
+      notComment.length === 0, notComment.map(a => a.text).join(' | '));
+    // What the ten sentences say now.
+    const SAYS_AIA_STYLE: [string, string][] = [
+      ['marketing/features/vs-takeoff.html', '<td>Takeoff only — no estimating, scheduling, RFI, AIA-style pay apps, etc.</td>'],
+      ['marketing/features/vs-takeoff.html', 'Takeoff + estimating + scheduling + AIA-style pay apps + RFI + submittals + cash flow + portals</td>'],
+      ['marketing/features/vs-takeoff.html', 'contractor operating system &mdash; field, finance, scheduling, RFI, AIA-style pay apps, portals,'],
+      ['marketing/features/financials.html', 'Not every project needs AIA-style billing. Simple invoices for smaller projects, time-and-materials'],
+      ['marketing/features/index.html', '<li>For jobs on AIA-style billing: AIA-style Pay Applications tile → "+ New draw."'],
+      ['marketing/features/index.html', '<li>Submit AIA-style pay app drafts (when GC has set up AIA-style billing on the project).</li>'],
+      ['marketing/changelog.html', '<strong>Twenty production fixes</strong>, including line 7 of the AIA-style pay app, the CSV progress export and working-day schedule dates.'],
+      ['marketing/changelog.html', '<strong>The desktop web app gets registers, money dashboards, the AIA-style pay-app grid and a payments desk.</strong>'],
+      ['marketing/features/vs-other-tools.html', '<td class="compare-partial">AIA-style pay applications only, manual</td>'],
+      ['marketing/compare/index.html', 'which is the pair used in the AIA-style billing table above &mdash;'],
+    ];
+    const notSaid = SAYS_AIA_STYLE.filter(([p, text]) => prose(p).split(text).length !== 2);
+    ok('the ten sentences that used the bare word say "AIA-style pay apps", "AIA-style billing" or "the AIA-style pay-app grid", once each',
+      notSaid.length === 0, notSaid.map(([p, text]) => `${p}: ${text}`).join(' | '));
 
     // "-READY" IS A PROMISE (lane SWEEP, the founder's call of 2026-10-04).
     // "Bank-ready WIP", "Bank-ready PDFs in three taps": MAGE ID builds the
@@ -1115,9 +1294,11 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // a PDF, for your bank — and no page may say "-ready" of any of the four.
     const READY_FOR_WHOM = /\b(?:bank|banker|lender|architect|suret(?:y|ies))s?[\s-]+ready\b/i;
     const readyClaim = (raw: string): string | null => {
-      const t = plain(raw);
-      const m = READY_FOR_WHOM.exec(t);
-      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30) : null;
+      for (const t of wordingReadings(raw)) {
+        const m = READY_FOR_WHOM.exec(t);
+        if (m) return t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30);
+      }
+      return null;
     };
     const readyPages = everyPage.map(p => ({ p, m: readyClaim(prose(p)) })).filter(x => x.m);
     ok('no page (or App Store screenshot caption) says bank-ready, lender-ready, architect-ready or surety-ready',

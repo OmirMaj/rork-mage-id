@@ -104,7 +104,7 @@ import { isOfflineNow, useOffline } from '@/hooks/useOnline';
 import {
   watchContractRead, nextContractRead, contractSumView, savedChangeOrderOriginalSum,
   CONTRACT_READ_PENDING_REASON, uncheckedContractSumSendNotice, type ContractReadState, type SignedContractLike,
-  coSavedBaseHold, changeOrderRecordRows, CO_RECORD_SUM_CAPTION,
+  coSavedBaseHold, changeOrderRecordRows, CO_RECORD_SUM_CAPTION, coPriorApprovedChanges,
 } from '@/utils/projectFinancials';
 import { loadActiveContract } from '@/utils/contractEngine';
 
@@ -686,21 +686,6 @@ export function coEstimatePickBasis(
     return `Your cost ${money(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup — this line carries none on the estimate`;
   }
   return 'This is your cost. No markup is set, so it goes on the change order at what it costs you.';
-}
-
-/**
- * #129 — "Net change by previously authorized change orders" (AIA G701): the
- * approved COs numbered BELOW this one. Not "every other approved CO": reopening
- * CO #1 after CO #2 was approved pulled CO #2 into CO #1's base.
- */
-export function coPriorApprovedChanges(
-  cos: { id: string; number: number; status: string; changeAmount: number }[],
-  thisNumber: number,
-  thisId: string | null | undefined,
-): number {
-  return coRoundCents(cos
-    .filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)
-    .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
 }
 
 /**
