@@ -235,6 +235,10 @@ export const SURFACES: Surface[] = [
   // lanes: the t() key type only allows real areas, so both use office.permitPath.*.
   { id: 'office.permit-path', phase: 2, state: 'pending', keyPrefixes: ['office.permitPath.'], lane: 'PPUI+PPASK', files: ['app/permit-path.tsx', 'components/permitPath/RouteSpine.tsx', 'components/permitPath/StationDetail.tsx', 'components/permitPath/InterviewPanel.tsx', 'components/permitPath/ReadinessPanel.tsx', 'components/permitPath/PermitPathHeroCard.tsx', 'components/permitPath/AskDepartmentSheet.tsx', 'components/permitPath/SaveAnswerSheet.tsx', 'hooks/useJurisdictionAnswers.ts'] },
   { id: 'schedule.lateness', phase: 2, state: 'pending', keyPrefixes: ['schedule.lateness.'], lane: 'W7 LATE', files: ['components/schedule/LatenessPadChip.tsx'], partialFiles: ['app/(tabs)/schedule/index.tsx'] },
+  // Who is on this project (dark behind WHOS_ON_ENABLED): the stack, the Team
+  // block, the roster row lines, the question card and the switch. Every
+  // string of the feature lives in the one copy hook.
+  { id: 'office.whoson', phase: 2, state: 'pending', keyPrefixes: ['office.whoson.'], files: ['hooks/useWhosOnCopy.ts'], lane: 'WHOKIT' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */
