@@ -47,6 +47,19 @@
 // data, not instructions". The system array is unchanged. The block's RULES
 // paragraph is always kept: an over-long block loses fact lines, never rules.
 //
+// Code cards (lane CCSERVER, 2026-10-03): a request with `codeCards: true`
+// also gets `requirements` — the answer restated as structured cards
+// (codeCardRequirements.ts: one structured-output call over the FINISHED
+// answer, then server checks: echo-checked summaries, section / edition /
+// trigger kept only when the answer prints them, evidence always null,
+// stageIsGuess always true, calc only the run's own calculator). The agentic
+// run, its SYSTEM prompt, its system array and its first message are
+// untouched; the prose, citations and every other field are exactly as
+// before, and a request without the flag gets no `requirements` key and no
+// extra call. Any failure there → `requirements: []`, never an error. The
+// cards call only gets what is left of a 105 s budget from the handler's
+// start (the app gives up at 120 s), so it can never cost the prose answer.
+//
 // Deploy:  supabase functions deploy construction-answer
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY.
 
@@ -54,6 +67,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import Anthropic from "npm:@anthropic-ai/sdk@0.115.0";
 import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { splitCitations, webCitationsFromTextBlocks, planSearchTerms } from "./citationFilter.ts";
+import { requirementsFor, requirementsTimeoutFor, wantsCodeCards, type CodeRequirementOut, type RequirementsClient } from "./codeCardRequirements.ts";
 
 // ── env ───────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -95,6 +109,9 @@ interface ConstructionAnswerResult {
   verified: boolean;
   disclaimer?: string | null;
   usedAI: boolean;
+  /** Code cards only (request `codeCards: true`): the answer as structured
+   *  cards; [] when there are none or the extraction failed. Absent otherwise. */
+  requirements?: CodeRequirementOut[];
 }
 
 // ── safe arithmetic evaluator (ported verbatim from utils/constructionCalc.ts) ─
@@ -680,6 +697,8 @@ function parseFooter(fullText: string): { answer: string; verified: boolean; dis
 
 // ── handler ────────────────────────────────────────────────────────────────────
 serve(async (req: Request) => {
+  // Code cards' wall-clock budget is measured from here (requirementsTimeoutFor).
+  const startedAt = Date.now();
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
   if (req.method !== "POST") return jsonResp({ error: "Use POST" }, 405);
 
@@ -705,7 +724,7 @@ serve(async (req: Request) => {
     }
 
     // 3. Parse body.
-    let body: { question?: string; projectId?: string | null; jurisdiction?: unknown; buildingRecord?: unknown };
+    let body: { question?: string; projectId?: string | null; jurisdiction?: unknown; buildingRecord?: unknown; codeCards?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -942,6 +961,18 @@ serve(async (req: Request) => {
       disclaimer: parsed.disclaimer,
       usedAI: true,
     };
+    // Code cards: only an opted-in request pays for the extra call. It reads
+    // the answer text the run produced (an empty run gets [] without a call,
+    // never the "couldn't produce an answer" placeholder) and never throws.
+    // It gets only what is left of the 105 s budget (the app gives up at
+    // 120 s), capped at 25 s; under 8 s left it is skipped, so a long run
+    // still returns its prose in time, with requirements: [].
+    if (wantsCodeCards(body)) {
+      const cardsMs = requirementsTimeoutFor(Date.now() - startedAt);
+      result.requirements = answer && cardsMs > 0
+        ? await requirementsFor(client as unknown as RequirementsClient, MODEL, { question, answer, calc }, cardsMs)
+        : [];
+    }
 
     return jsonResp(result);
   } catch (err) {

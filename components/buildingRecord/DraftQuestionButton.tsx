@@ -16,8 +16,19 @@
 // decision because a job whose address is only "Baltimore, MD" has no
 // department until the Census place lookup answers. Both are early returns
 // before any hook, so hook order never changes.
+//
+// Code cards (lane CCWIRE, 2026-10-03): any OTHER New York, New Jersey or
+// Connecticut job with an address (askTownKind === 'town') goes to
+// TownDraftQuestion: the place lookup names the town, village or city, and
+// permitOfficeFor() gives its office row (hand-verified, the NJ DCA roster,
+// the CT DAS list, or a name-only card). Same rules: MAGE sends nothing, no
+// person is named, an email only when the row carries one. A Census answer in
+// one of the five NYC counties routes to the NYC card's inner component.
+// A code card's "Ask town" opens the same sheet without its own button
+// (`open` / `onOpenChange` / `hideTrigger`) with its question pre-filled
+// (`initialQuestion`); Maryland keeps its own button (askTownBlockedReason).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as MailComposer from 'expo-mail-composer';
 import { MessageSquare } from 'lucide-react-native';
@@ -37,7 +48,12 @@ import {
   resolveCodeJurisdiction,
   type BuildingDepartment,
 } from '@/utils/codeJurisdiction';
-import { buildQuestionPrompt, jobFilingFor, routeQuestion } from '@/utils/departmentQuestion';
+import {
+  askTownKind, buildQuestionPrompt, jobFilingFor, routeOfficeQuestion, routeQuestion, type QuestionRouting,
+} from '@/utils/departmentQuestion';
+import type { BuildingRecordSummary } from '@/utils/buildingRecord';
+import { permitOfficeFor, placeQueryForProject, type PermitOffice, type PlaceQuery } from '@/utils/permitOffices';
+import { usePlaceLookup } from '@/utils/placeLookup';
 import { mageAISmart } from '@/utils/mageAI';
 import { copyToClipboard } from '@/utils/clipboard';
 import { showAlert } from '@/utils/alert';
@@ -56,9 +72,22 @@ interface DraftQuestionProps {
   permitNumbers?: ReadonlyArray<string | null | undefined>;
   topic?: string;
   testID?: string;
+  /** Controlled open (a code card's "Ask town"). Omitted: the button opens it. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the "Draft a question" button (the caller opens the sheet itself). */
+  hideTrigger?: boolean;
+  /** The question box's starting text, in MAGE's words. He edits it. */
+  initialQuestion?: string;
 }
 
-export function DraftQuestionButton({ project, permitNumber, permitNumbers, topic, testID }: DraftQuestionProps) {
+/** The props every inner variant passes through to the composer. */
+type ComposerControl = Pick<DraftQuestionProps, 'topic' | 'testID' | 'open' | 'onOpenChange' | 'hideTrigger' | 'initialQuestion'>;
+
+export function DraftQuestionButton({
+  project, permitNumber, permitNumbers, topic, testID, open, onOpenChange, hideTrigger, initialQuestion,
+}: DraftQuestionProps) {
+  const control: ComposerControl = { topic, testID, open, onOpenChange, hideTrigger, initialQuestion };
   // Maryland first: a plain "Baltimore, MD" job has no department until the
   // place lookup answers, so the NYC decision below would drop it.
   if (project && isMdJobsite(jobsiteAddressForProject(project))) {
@@ -72,6 +101,12 @@ export function DraftQuestionButton({ project, permitNumber, permitNumbers, topi
       />
     );
   }
+  // Any other NY / NJ / CT job with an address: its town's office (pure
+  // decision, no hook here).
+  if (project && askTownKind(project) === 'town') {
+    const query = placeQueryForProject(project);
+    if (query) return <TownDraftQuestion project={project} query={query} permitNumber={permitNumber} permitNumbers={permitNumbers} control={control} />;
+  }
   // Pure, and decided before any hook below it can run: a job with no
   // verified building department renders nothing at all.
   const department = departmentFor(resolveCodeJurisdiction(jobsiteAddressForProject(project)));
@@ -82,8 +117,7 @@ export function DraftQuestionButton({ project, permitNumber, permitNumbers, topi
       department={department}
       permitNumber={permitNumber}
       permitNumbers={permitNumbers}
-      topic={topic}
-      testID={testID}
+      {...control}
     />
   );
 }
@@ -93,25 +127,14 @@ function DraftQuestionInner({
   department,
   permitNumber,
   permitNumbers,
-  topic,
-  testID,
+  ...control
 }: {
   project: Project;
   department: BuildingDepartment;
   permitNumber?: string | null;
   permitNumbers?: ReadonlyArray<string | null | undefined>;
-  topic?: string;
-  testID?: string;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
+} & ComposerControl) {
   const building = useBuildingRecord(project);
-  const [open, setOpen] = useState(false);
-  const [question, setQuestion] = useState('');
-  const [drafting, setDrafting] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   // A stable key for the job's permit numbers, so a fresh array each render
   // does not re-resolve the filing.
@@ -122,8 +145,62 @@ function DraftQuestionInner({
   );
   const nyc = useMemo(() => isNycJobsite(jobsiteAddressForProject(project)), [project]);
   const routing = useMemo(() => routeQuestion({ department, job, nyc }), [department, job, nyc]);
+  return (
+    <DraftComposer
+      project={project}
+      routing={routing}
+      buildingSummary={building.summary}
+      bin={building.record?.bin ?? null}
+      {...control}
+    />
+  );
+}
 
-  const close = useCallback(() => setOpen(false), []);
+/**
+ * The sheet itself: what he wants to ask, the drafted subject and body (both
+ * editable), the routing card, and Open in Mail / Copy. Shared by the NYC and
+ * town variants; the routing decides who it is addressed to. Sends nothing.
+ */
+function DraftComposer({
+  project,
+  routing,
+  buildingSummary,
+  bin,
+  phone = null,
+  topic,
+  testID,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
+  initialQuestion,
+}: {
+  project: Project;
+  routing: QuestionRouting;
+  buildingSummary: BuildingRecordSummary | null | undefined;
+  bin: string | null;
+  /** The office's listed phone (town rows), shown as text, never dialled from here. */
+  phone?: string | null;
+} & ComposerControl) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? !!openProp : openState;
+  const setOpen = useCallback((next: boolean) => {
+    if (!controlled) setOpenState(next);
+    onOpenChange?.(next);
+  }, [controlled, onOpenChange]);
+  const [question, setQuestion] = useState(initialQuestion ?? '');
+  const [drafting, setDrafting] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  // A card that opens the sheet with a new question replaces the old one.
+  useEffect(() => {
+    if (open && initialQuestion) setQuestion(initialQuestion);
+  }, [open, initialQuestion]);
+
+  const close = useCallback(() => setOpen(false), [setOpen]);
 
   const draft = useCallback(async () => {
     if (!question.trim() || drafting) return;
@@ -133,8 +210,8 @@ function DraftQuestionInner({
       project,
       routing,
       question,
-      buildingSummary: building.summary,
-      bin: building.record?.bin ?? null,
+      buildingSummary,
+      bin,
       topic: topic ?? null,
     });
     try {
@@ -151,7 +228,7 @@ function DraftQuestionInner({
     } finally {
       setDrafting(false);
     }
-  }, [question, drafting, project, routing, building.summary, building.record, topic]);
+  }, [question, drafting, project, routing, buildingSummary, bin, topic]);
 
   const openInMail = useCallback(async () => {
     const recipients = routing.toEmail ? [routing.toEmail] : [];
@@ -181,15 +258,17 @@ function DraftQuestionInner({
     : 'MAGE has no email for them — pick them from your contacts.';
 
   return (
-    <View style={styles.wrap}>
-      <Button
-        label="Draft a question"
-        variant="secondary"
-        size="sm"
-        iconLeft={<MessageSquare size={14} color={colors.text} strokeWidth={2} />}
-        onPress={() => setOpen(true)}
-        testID={testID}
-      />
+    <View style={hideTrigger ? undefined : styles.wrap}>
+      {hideTrigger ? null : (
+        <Button
+          label="Draft a question"
+          variant="secondary"
+          size="sm"
+          iconLeft={<MessageSquare size={14} color={colors.text} strokeWidth={2} />}
+          onPress={() => setOpen(true)}
+          testID={testID}
+        />
+      )}
       <Sheet
         visible={open}
         onClose={close}
@@ -254,11 +333,75 @@ function DraftQuestionInner({
         <View style={styles.routing}>
           <Text style={styles.routeTo} testID={testID ? `${testID}-to` : undefined}>{toLine}</Text>
           <Text style={styles.meta} testID={testID ? `${testID}-email` : undefined}>{emailLine}</Text>
+          {phone ? <Text style={styles.meta} testID={testID ? `${testID}-phone` : undefined}>{`Phone (from the office list): ${phone}`}</Text> : null}
           {routing.channel ? <Text style={styles.channel}>{routing.channel.label}</Text> : null}
           {routing.whyThisChannel ? <Text style={styles.meta}>{routing.whyThisChannel}</Text> : null}
         </View>
       </Sheet>
     </View>
+  );
+}
+
+/** The NYC card's department, for a Census answer in one of the five NYC
+ *  counties whose typed address missed the NYC row (DepartmentCard does the same). */
+const NYC_DEPARTMENT = departmentFor(resolveCodeJurisdiction({ city: 'New York', state: 'NY' }));
+
+/** A NY / NJ / CT town job: the place lookup names the office, then the
+ *  composer drafts to it. Renders nothing while the lookup runs or when it
+ *  names no office (the job then has no office MAGE can route to). */
+function TownDraftQuestion({
+  project, query, permitNumber, permitNumbers, control,
+}: {
+  project: Project;
+  query: PlaceQuery;
+  permitNumber?: string | null;
+  permitNumbers?: ReadonlyArray<string | null | undefined>;
+  control: ComposerControl;
+}) {
+  const lookup = usePlaceLookup(query);
+  const answer = lookup.status === 'done' ? permitOfficeFor(lookup.place, { state: query.state, postalCity: query.postalCity }) : null;
+  const routable = !!answer && ((answer.kind === 'nyc' && !!NYC_DEPARTMENT) || (answer.kind === 'office' && !!answer.office));
+  // Opened from a code card with no button of its own: when the lookup
+  // cannot name an office, say why instead of opening nothing.
+  const failed = lookup.status === 'error' || (lookup.status === 'done' && !routable);
+  const { open, onOpenChange } = control;
+  useEffect(() => {
+    if (!failed || !open) return;
+    showAlert(
+      'Town not found',
+      lookup.status === 'error'
+        ? "Couldn't reach the Census geocoder, so MAGE couldn't tell which town issues permits here. Try again in a moment."
+        : (answer?.headline ?? "MAGE couldn't tell which town issues permits at this address. Check the job's address, then try again."),
+    );
+    onOpenChange?.(false);
+  }, [failed, open, onOpenChange, lookup.status, answer?.headline]);
+  if (!answer) return null;
+  if (answer.kind === 'nyc' && NYC_DEPARTMENT) {
+    return (
+      <DraftQuestionInner
+        project={project}
+        department={NYC_DEPARTMENT}
+        permitNumber={permitNumber}
+        permitNumbers={permitNumbers}
+        {...control}
+      />
+    );
+  }
+  if (answer.kind !== 'office' || !answer.office) return null;
+  return <TownOfficeDraft project={project} office={answer.office} {...control} />;
+}
+
+function TownOfficeDraft({ project, office, ...control }: { project: Project; office: PermitOffice } & ComposerControl) {
+  const routing = useMemo(() => routeOfficeQuestion(office), [office]);
+  return (
+    <DraftComposer
+      project={project}
+      routing={routing}
+      buildingSummary={null}
+      bin={null}
+      phone={office.phone}
+      {...control}
+    />
   );
 }
 

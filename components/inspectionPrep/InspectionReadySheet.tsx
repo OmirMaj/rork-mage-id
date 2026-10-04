@@ -17,15 +17,21 @@
 // picked the way Snap proof picks one. It renders INSIDE this sheet's own
 // Modal tree (covering the card), never as a second presented modal; its
 // lines land in a "From your photo code check" group (entry.extras).
+//
+// Code cards (lane CCWIRE): a card's "Checklist" action pins it to a stage on
+// this job (utils/codeCard/pins.ts, device-local). The pins whose stage matches
+// this inspection's name (utils/inspectionPrep.ts pinnedPrepItems) show in a
+// "Pinned from code cards" group, last, with its fixed note. No pins, no group:
+// the sheet is byte-identical to before.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw, ScanSearch } from 'lucide-react-native';
+import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw, ScanSearch, Pin } from 'lucide-react-native';
 import type { Permit, Project } from '@/types';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -46,9 +52,12 @@ import {
   groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 import { editionMismatchFor } from '@/utils/codeAmendments';
+import { codePinStore, pinsFor } from '@/utils/codeCard/pins';
 import {
+  PINNED_NOTE,
   PREP_DISCLAIMER,
   buildChecklist,
+  pinnedPrepItems,
   buildRecallPrompt,
   prepStateKey,
   punchForPrepItem,
@@ -61,6 +70,13 @@ import { permitTypeLabel } from '@/utils/statusLabels';
 
 export const RECALL_CHIP = 'From model recall — verify with your AHJ';
 export const RECALL_NEEDS_PRO = 'Commonly checked items are on the Pro plan.';
+
+/** The app's code-card pin store, loaded on first use (device-local). */
+function useCodePinsState() {
+  const store = codePinStore();
+  useEffect(() => { void store.load(); }, [store]);
+  return useSyncExternalStore(store.subscribe, store.getState, store.getState);
+}
 
 function permitLabel(p: Permit): string {
   const n = (p.permitNumber ?? '').trim();
@@ -104,6 +120,12 @@ export default function InspectionReadySheet({
     const shown = new Set(full.items.map((i) => i.id));
     return (entry.extras ?? []).filter((x) => !shown.has(x.id));
   }, [entry.extras, full.items]);
+  // Code cards pinned to this inspection's stage on this job (last group).
+  const pinsState = useCodePinsState();
+  const pinned = useMemo(
+    () => pinnedPrepItems(pinsFor(pinsState, project.id), inspection),
+    [pinsState, project.id, inspection],
+  );
 
   // ── Recall (Pro and up) ────────────────────────────────────────────────
   const [recallBusy, setRecallBusy] = useState(false);
@@ -436,6 +458,18 @@ export default function InspectionReadySheet({
                   <Text style={s.sectionHeading}>From your photo code check</Text>
                 </View>
                 {extras.map(renderItem)}
+              </View>
+            ) : null}
+
+            {/* Code cards pinned to this stage (lane CCWIRE). */}
+            {pinned.length > 0 ? (
+              <View style={s.section} testID="inspection-prep-pinned">
+                <View style={s.sectionHead}>
+                  <Pin size={15} color={t.accentLabel} strokeWidth={1.75} />
+                  <Text style={s.sectionHeading}>Pinned from code cards</Text>
+                </View>
+                <Text style={s.groundingChip}>{PINNED_NOTE}</Text>
+                {pinned.map(renderItem)}
               </View>
             ) : null}
 

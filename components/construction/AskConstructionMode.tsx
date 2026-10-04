@@ -23,8 +23,21 @@
 // jurisdiction resolves through jurisdictionQueryForProject, so a job whose
 // location ends in a ZIP that lies in one government, or whose parcel side
 // the contractor confirmed, gets that government's codes.
+//
+// Code cards (lane CCWIRE, 2026-10-03): when the answer carries a structured
+// `requirements[]` (construction-answer, lane CCSERVER), each requirement is a
+// code card: parsed and re-checked client side (utils/codeCard/parse.ts drops
+// any item whose words fail the echo gate), with the ladder's evidence for the
+// jurisdiction SENT with the question, under ONE JurisdictionBlock (edition +
+// permit office, each with its own source and date). An answer with no
+// usable requirement renders exactly as before: prose, calc, sources, banner.
+// The card actions are real and land somewhere he can see: Checklist pins it
+// to the job's Inspection Ready (device-local), Ask town opens "Draft a
+// question" (his own Mail; MAGE sends nothing), Save keeps it on the job,
+// and the opened card texts a sub from HIS Messages. useCodeCardWiring is
+// shared with the Code Check and Plan Review cards in the tab.
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, Linking, Platform, StyleSheet,
@@ -51,7 +64,28 @@ import type {
   AnswerCitation, ConstructionAnswerBuildingRecord, ConstructionAnswerJurisdiction,
 } from '@/types/constructionAnswer';
 import type { Project } from '@/types';
-import { codesSummary, jurisdictionQueryForProject, resolveCodeJurisdiction, type AddressableProject } from '@/utils/codeJurisdiction';
+import {
+  codesSummary, departmentFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
+  type AddressableProject, type ResolvedCodeJurisdiction,
+} from '@/utils/codeJurisdiction';
+import { CodeCardList } from '@/components/codeCard/CodeCardList';
+import { CodeCardSheet } from '@/components/codeCard/CodeCardSheet';
+import { JurisdictionBlock } from '@/components/codeCard/JurisdictionBlock';
+import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAction } from '@/components/codeCard/parts';
+import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
+import { attachEvidence, parseCodeCardItems } from '@/utils/codeCard/parse';
+import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
+import { codePinStore, makePin, pinnedStage } from '@/utils/codeCard/pins';
+import { codeSavedStore, isSaved, makeSaved } from '@/utils/codeCard/saved';
+import { smsUrlFor, subRecipientsFor, type SubRecipient } from '@/utils/codeCard/shareText';
+import { stageLabel } from '@/utils/codeCard/verdict';
+import { addAllLabel } from '@/utils/codeCard/summary';
+import type { PersistedStore } from '@/utils/codeCard/store';
+import { permitOfficeFor, placeQueryForProject, type PermitOfficeAnswer } from '@/utils/permitOffices';
+import { usePlaceLookup } from '@/utils/placeLookup';
+import { askTownBlockedReason, codeCardQuestion } from '@/utils/departmentQuestion';
+import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionButton';
+import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { useJobBuildingRecord, type JobBuildingRecordState } from '@/hooks/useJobBuildingRecord';
 // Learn-by-doing tutorial "construction-ai-ask" (utils/tutorial/defs): on the
@@ -106,6 +140,163 @@ export function buildingRecordForAsk(
   return { source: building.sourceLabel, asOf: building.asOf, block };
 }
 
+// ── Code cards: the wiring every card surface in the tab shares ─────────────
+
+/** A code-card store's state, loaded on first use (device-local). */
+function useCodeCardStore<S, A>(store: PersistedStore<S, A>): S {
+  useEffect(() => { void store.load(); }, [store]);
+  return useSyncExternalStore(store.subscribe, store.getState, store.getState);
+}
+
+export const NO_JOB_CHECKLIST = 'Link a job first, so this lands on that job\u2019s Inspection Ready checklist.';
+export const NO_JOB_SAVE = 'Link a job first, so this is kept with that job.';
+/** iOS cannot present a sheet while another is closing (the Code Check openDelay rule). */
+const SHEET_HANDOFF_MS = Platform.OS === 'ios' ? 450 : 80;
+
+/**
+ * Permit office for a job, for the JurisdictionBlock: a verified department
+ * row (New York City, Baltimore) answers directly; any other NY / NJ / CT job
+ * asks the place lookup (cached) only while `active`. Null = not known.
+ */
+export function usePermitOfficeAnswer(project: Project | null, active: boolean): PermitOfficeAnswer | null {
+  const resolved = useMemo(() => (project ? resolveCodeJurisdiction(jurisdictionQueryForProject(project)) : null), [project]);
+  const hasDepartment = !!resolved && !!departmentFor(resolved);
+  const query = useMemo(() => (project && active && !hasDepartment ? placeQueryForProject(project) : null), [project, active, hasDepartment]);
+  const lookup = usePlaceLookup(query);
+  if (hasDepartment) return { kind: 'nyc', office: null, headline: null, cautions: [] };
+  if (!query || lookup.status !== 'done') return null;
+  return permitOfficeFor(lookup.place, { state: query.state, postalCity: query.postalCity });
+}
+
+/**
+ * Everything a code card's buttons do, for one job (or none). Returns the
+ * per-card actions and one overlay node to render once (the opened card and
+ * the "Draft a question" sheet). Nothing here sends anything: pins and saves
+ * are device-local stores, Ask town opens his own Mail, a sub is texted from
+ * his own Messages.
+ */
+export function useCodeCardWiring({ project, info, sample = false, testID }: {
+  project: Project | null;
+  info: CodeJurisdictionInfo | null;
+  sample?: boolean;
+  testID: string;
+}) {
+  const pinStore = codePinStore();
+  const savedStore = codeSavedStore();
+  const pins = useCodeCardStore(pinStore);
+  const saved = useCodeCardStore(savedStore);
+  const { subcontractors } = useProjects();
+  const projectId = project?.id ?? null;
+  const [openItem, setOpenItem] = useState<CodeCardItem | null>(null);
+  const [stageEdits, setStageEdits] = useState<Record<string, CodeStage>>({});
+  const [jobValues, setJobValues] = useState<Record<string, CodeJobValue>>({});
+  const [ask, setAsk] = useState<{ question: string; topic: string } | null>(null);
+
+  const stageOf = useCallback((item: CodeCardItem): CodeStage | undefined =>
+    stageEdits[item.id] ?? pinnedStage(pins, projectId, item.id) ?? item.stage, [stageEdits, pins, projectId]);
+
+  const checklistFor = useCallback((item: CodeCardItem): CodeCardAction => {
+    if (!projectId) return blockedAction(NO_JOB_CHECKLIST);
+    const pinned = pinnedStage(pins, projectId, item.id);
+    if (pinned) return doneAction(`On ${stageLabel(pinned)} checklist`);
+    return readyAction(() => {
+      pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, new Date(), stageOf(item)) });
+      if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+    });
+  }, [projectId, pins, pinStore, stageOf]);
+
+  const openAsk = useCallback((item: CodeCardItem) => {
+    setAsk({ question: codeCardQuestion(item), topic: [item.citedEdition, item.section].filter(Boolean).join(' ') || 'a code question' });
+  }, []);
+  const askTownFor = useCallback((item: CodeCardItem): CodeCardAction => {
+    const reason = askTownBlockedReason(project);
+    return reason ? blockedAction(reason) : readyAction(() => openAsk(item));
+  }, [project, openAsk]);
+  // From the opened card: close it first, then open the draft (one sheet at a time).
+  const askTownFromSheet = useCallback((item: CodeCardItem): CodeCardAction => {
+    const reason = askTownBlockedReason(project);
+    return reason ? blockedAction(reason) : readyAction(() => {
+      setOpenItem(null);
+      setTimeout(() => openAsk(item), SHEET_HANDOFF_MS);
+    });
+  }, [project, openAsk]);
+
+  const saveFor = useCallback((item: CodeCardItem): CodeCardAction => {
+    if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
+    if (isSaved(saved, projectId, item.id)) return doneAction(`Saved to ${project.name}`);
+    return readyAction(() => {
+      savedStore.dispatch({ type: 'save', card: makeSaved(projectId, { ...item, stage: stageOf(item) }, new Date(), jobValues[item.id] ?? null) });
+    });
+  }, [projectId, project, saved, savedStore, stageOf, jobValues]);
+
+  const sendToSub = useCallback((recipient: SubRecipient, text: string) => {
+    const url = smsUrlFor(recipient.phone, text, Platform.OS);
+    if (!url) {
+      showAlert('No phone number', `${recipient.name} has no phone number in Subs. Add one there, or copy the text instead.`);
+      return;
+    }
+    void Linking.openURL(url).catch(() => showAlert('Couldn\u2019t open Messages', 'Copy the text and send it from your phone.'));
+  }, []);
+
+  const addAll = useCallback((items: readonly CodeCardItem[]) => {
+    if (!projectId) return;
+    const now = new Date();
+    for (const item of items) {
+      if (!pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, now, stageOf(item)) });
+    }
+  }, [projectId, pins, pinStore, stageOf]);
+  const saveAll = useCallback((items: readonly CodeCardItem[]) => {
+    if (!projectId) return;
+    const now = new Date();
+    for (const item of items) {
+      if (!isSaved(saved, projectId, item.id)) savedStore.dispatch({ type: 'save', card: makeSaved(projectId, { ...item, stage: stageOf(item) }, now, jobValues[item.id] ?? null) });
+    }
+  }, [projectId, saved, savedStore, stageOf, jobValues]);
+
+  const overlay = (
+    <>
+      <CodeCardSheet
+        visible={!!openItem}
+        item={openItem ? { ...openItem, stage: stageOf(openItem) } : null}
+        onClose={() => setOpenItem(null)}
+        info={info}
+        sample={sample}
+        jobLabel={project?.name ?? null}
+        onStageChange={(item, stage) => {
+          setStageEdits((m) => ({ ...m, [item.id]: stage }));
+          if (projectId && pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'setStage', projectId, itemId: item.id, stage });
+        }}
+        onJobValueChange={(item, jv) => setJobValues((m) => ({ ...m, [item.id]: jv }))}
+        checklist={openItem ? checklistFor(openItem) : undefined}
+        askTown={openItem ? askTownFromSheet(openItem) : undefined}
+        save={openItem ? saveFor(openItem) : undefined}
+        recipients={subRecipientsFor(subcontractors ?? [], openItem?.trade)}
+        onSendToSub={sendToSub}
+        testID={`${testID}-sheet`}
+      />
+      {project && ask ? (
+        <DraftQuestionButton
+          project={project}
+          hideTrigger
+          open
+          onOpenChange={(o) => { if (!o) setAsk(null); }}
+          initialQuestion={ask.question}
+          topic={ask.topic}
+          testID={`${testID}-ask-town`}
+        />
+      ) : null}
+    </>
+  );
+
+  return { stageOf, checklistFor, askTownFor, saveFor, onOpen: setOpenItem, addAll, saveAll, pins, saved, overlay };
+}
+
+/** What a code-card answer was grounded on, snapshotted when it was asked. */
+interface AskedFor {
+  project: Project | null;
+  resolved: ResolvedCodeJurisdiction | null;
+}
+
 interface Props {
   projects: Project[];
   bottomInset: number;
@@ -153,6 +344,9 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
   const [errCode, setErrCode] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  // The job and jurisdiction the answer was asked against (its cards are
+  // grounded on these, not on whatever is linked now).
+  const [askedFor, setAskedFor] = useState<AskedFor>({ project: null, resolved: null });
 
   const canSubmit = question.trim().length > 3 && !loading;
 
@@ -233,6 +427,10 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
         jurisdiction: jurisdictionForAsk(linkedProject, confirmedCounty),
         buildingRecord: attachedRecord,
       });
+      setAskedFor({
+        project: linkedProject,
+        resolved: linkedProject ? resolveCodeJurisdiction(jurisdictionQueryForProject(linkedProject, confirmedCounty)) : null,
+      });
       setResult(res);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -252,6 +450,21 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
   }, [router]);
 
   const showHonesty = !!result && (!result.verified || !!result.disclaimer);
+
+  // ── Code cards: the answer's structured requirements, when it has any ────
+  // An older server (or a cached answer, or the tutorial's sample) sends
+  // none, and so does any answer whose every item fails the echo gate: then
+  // `cards` is empty and the answer renders exactly as before.
+  const cards = useMemo<CodeCardItem[]>(() => {
+    const raw = result ? (result as { requirements?: unknown }).requirements : undefined;
+    return attachEvidence(parseCodeCardItems(raw), askedFor.resolved);
+  }, [result, askedFor.resolved]);
+  const permitAnswer = usePermitOfficeAnswer(askedFor.project, cards.length > 0);
+  const cardInfo = useMemo<CodeJurisdictionInfo | null>(
+    () => (cards.length > 0 ? codeJurisdictionInfoFor(askedFor.resolved, permitAnswer, cards[0]?.citedEdition ?? null) : null),
+    [cards, askedFor.resolved, permitAnswer],
+  );
+  const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, testID: 'construction-ask-cards' });
 
   // Hoisted so the tutorial's spotlights can wrap them during a run on the
   // sample; otherwise they render exactly as before.
@@ -497,6 +710,46 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
         <ChatTurn role="assistant" live variant="page" style={styles.resultCard} testID="construction-ask-result">
           <Text style={styles.answerText} selectable>{result.answer}</Text>
 
+          {cards.length > 0 && cardInfo ? (
+            <View style={styles.cardsWrap} testID="construction-ask-code-cards">
+              {/* Sunlight: more contrast and bigger type on site (stored per device). */}
+              <View style={styles.sunRow}>
+                <SunlightToggle testID="construction-ask-sunlight" />
+              </View>
+              <JurisdictionBlock info={cardInfo} testID="construction-ask-jurisdiction" />
+              <CodeCardList
+                items={cards}
+                info={cardInfo}
+                mode="answer"
+                stageOf={wiring.stageOf}
+                onOpen={wiring.onOpen}
+                checklistFor={wiring.checklistFor}
+                askTownFor={wiring.askTownFor}
+                primary={{
+                  key: 'add-all',
+                  label: addAllLabel(cards.map((c) => ({ ...c, stage: wiring.stageOf(c) }))),
+                  icon: 'clip',
+                  action: !askedFor.project
+                    ? blockedAction(NO_JOB_CHECKLIST)
+                    : cards.every((c) => !!pinnedStage(wiring.pins, askedFor.project?.id, c.id))
+                      ? doneAction('On the inspection checklists')
+                      : readyAction(() => wiring.addAll(cards)),
+                }}
+                secondary={[{
+                  key: 'save-all',
+                  label: 'Save',
+                  icon: 'save',
+                  action: !askedFor.project
+                    ? blockedAction(NO_JOB_SAVE)
+                    : cards.every((c) => isSaved(wiring.saved, askedFor.project?.id, c.id))
+                      ? doneAction(`Saved to ${askedFor.project.name}`)
+                      : readyAction(() => wiring.saveAll(cards)),
+                }]}
+                testID="construction-ask-card-list"
+              />
+            </View>
+          ) : null}
+
           {result.calc ? (
             <View style={styles.calcBadge}>
               <Calculator size={14} color={Colors.primary} strokeWidth={1.75} />
@@ -518,6 +771,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
       ) : null}
       </MaybeScrollAnchor>
 
+      {cards.length > 0 ? wiring.overlay : null}
       <Paywall
         visible={showPaywall}
         feature="Construction Answers"
@@ -633,6 +887,8 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   // accent is never the background), in the same hole as the box.
   sampleWrap: { gap: 8 },
   groundingWrap: { gap: 12 },
+  cardsWrap: { gap: 12 },
+  sunRow: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const },
   sampleChip: {
     padding: 12, gap: 4, borderRadius: Tokens.radius.card,
     backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.line,

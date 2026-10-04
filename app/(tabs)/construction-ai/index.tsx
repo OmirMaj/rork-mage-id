@@ -33,7 +33,7 @@ import {
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
   Clock, Scale, MessageCircleQuestion, CalendarClock, Check, XCircle,
-  ExternalLink, Landmark, ClipboardList, FileQuestion, Quote, Camera,
+  ExternalLink, Landmark, ClipboardList, FileQuestion, Quote, Camera, Info,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -71,7 +71,23 @@ import { recordInspectionResult } from '@/utils/inspectionPrep';
 import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { permitTypeLabel } from '@/utils/statusLabels';
-import AskConstructionMode from '@/components/construction/AskConstructionMode';
+import AskConstructionMode, { useCodeCardWiring, usePermitOfficeAnswer, NO_JOB_CHECKLIST, NO_JOB_SAVE } from '@/components/construction/AskConstructionMode';
+// Code cards (lane CCWIRE): every Code Check citation and every Plan Review
+// finding is a code card (components/codeCard, lane CCKIT). The ladder, the
+// recall chip, the mismatch badge and the drill-in stay exactly where the
+// honesty validators expect them; the card is the answer-first face on top.
+import { CodeCard } from '@/components/codeCard/CodeCard';
+import { CodeCardList } from '@/components/codeCard/CodeCardList';
+import { blockedAction, doneAction, readyAction } from '@/components/codeCard/parts';
+import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
+import { parseCodeCardItem } from '@/utils/codeCard/parse';
+import { passesEchoCheck } from '@/utils/codeCard/echoCheck';
+import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
+import { pinnedStage } from '@/utils/codeCard/pins';
+import { isSaved } from '@/utils/codeCard/saved';
+import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
+import { addAllLabel, architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
+import { bookedStageDays } from '@/utils/inspectionPrep';
 // Learn-by-doing tutorial "construction-ai-ask" (utils/tutorial/defs): the tab
 // opens on the SAMPLE job in Ask mode, the practice pass opens the tab there
 // only (practicePass.ts scopes it to the run's sandbox id), and while the run
@@ -130,7 +146,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { readParam } from '@/utils/uxRoutes';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
-import { todayCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { projectTypeLabel } from '@/utils/projectTypes';
 // Code Thread: the job's own data grounds the check, the model may ask up to
 // three answer-changing follow-ups, and each run is saved to the job (on this
@@ -426,6 +442,80 @@ function planFindingCitation(f: { codeRef: string; citedEdition?: string | null;
   return { citedCode: edition || (f.codeRef ?? '').trim(), section: edition ? (f.section ?? '').trim() : '' };
 }
 // </pure:planFindingCitation>
+
+// <pure:codeCardItems>
+/**
+ * Code cards (lane CCWIRE): one Code Check citation or one Plan Review finding
+ * as a CodeCardItem. Pure, with its two dependencies injected (CCKIT's
+ * parseCodeCardItem for the structured fields, and the echo gate), so
+ * scripts/validate-code-card-wiring.ts runs these exact lines under bun.
+ *
+ * THE RULES:
+ *  - A citation is ALWAYS a card (a ladder you only see when the news is
+ *    good is not a ladder): a line that fails the echo gate is not trimmed or
+ *    dropped, its words are WITHHELD and the card says why.
+ *  - The summary is the model's plain-English requirement, shown in full up
+ *    to CARD_TEXT_MAX (the line this screen always showed), never a quote,
+ *    never code phrasing (the gate refuses both).
+ *  - The section is the one the model gave, or '' — never a placeholder.
+ *  - evidence is the ladder's own CitationEvidence for THIS citation.
+ *  - The verdict is the model's when it is one of the three; otherwise
+ *    'required' (an "applicable code" is a requirement on this job).
+ *  - Plan Review: no status from the server means 'ask' for a low-confidence
+ *    finding (it needs an answer first) and 'fix' otherwise; the AI's read of
+ *    the sheet is never an approval, so nothing becomes 'ok' by inference.
+ */
+const CARD_TEXT_MAX = 400;
+const CARD_WITHHELD = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
+type CardParse = (raw: unknown, fallbackId?: string) => CodeCardItem | null;
+type CardEcho = (text: string, max: number) => boolean;
+function cardVerdict(v: unknown): CodeCardItem['verdict'] {
+  return v === 'limit' || v === 'not_required' ? v : 'required';
+}
+function cardSummary(text: unknown, echo: CardEcho): string {
+  const t = typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
+  return t && echo(t, CARD_TEXT_MAX) ? t : CARD_WITHHELD;
+}
+function codeCheckCardItem(
+  c: Record<string, unknown> & { code?: string; section?: string; requirement?: string },
+  i: number,
+  evidence: CodeCardItem['evidence'],
+  parse: CardParse,
+  echo: CardEcho,
+): CodeCardItem {
+  const id = `cc-${i + 1}`;
+  const section = typeof c.section === 'string' ? c.section.trim() : '';
+  const code = typeof c.code === 'string' ? c.code.trim() : '';
+  const verdict = cardVerdict(c.verdict);
+  // parse() checks every structured field; its summary/section are stand-ins
+  // replaced below (the summary has its own gate, the section may be empty).
+  const parsed = parse({ ...c, id, verdict, summary: 'Requirement', section: 'none', citedEdition: code || undefined }, id);
+  const base: CodeCardItem = parsed ?? { id, verdict, summary: '', section: '', evidence: null, stageIsGuess: true };
+  const item: CodeCardItem = { ...base, id, verdict, summary: cardSummary(c.requirement, echo), section, evidence };
+  if (code) item.citedEdition = code;
+  return item;
+}
+function planFindingCardItem(
+  f: Record<string, unknown> & { id: string; requirement?: string; observed?: string; confidence?: string },
+  cite: { citedCode: string; section: string },
+  evidence: CodeCardItem['evidence'],
+  parse: CardParse,
+  echo: CardEcho,
+): CodeCardItem {
+  const raw = f.cardStatus;
+  const status: CodeCardItem['status'] = raw === 'fix' || raw === 'ask' || raw === 'ok'
+    ? raw
+    : f.confidence === 'low' ? 'ask' : 'fix';
+  const parsed = parse({ ...f, id: f.id, verdict: 'required', summary: 'Requirement', section: 'none', status }, f.id);
+  const base: CodeCardItem = parsed ?? { id: f.id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
+  const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status };
+  if (cite.citedCode) item.citedEdition = cite.citedCode;
+  const observed = typeof f.observed === 'string' ? f.observed.trim() : '';
+  if (observed && echo(observed, 120)) item.observed = observed;
+  else delete item.observed;
+  return item;
+}
+// </pure:codeCardItems>
 
 /** A Plan Review finding as saved since analyze-plan-code returned its evidence
  *  (lane C). The extra fields ride in the local plan-review store; CodeFinding
@@ -1187,6 +1277,41 @@ function ConstructionAIScreenInner() {
     return out;
   }, [existingReview, planJurisdiction]);
   const planRungSummary = useMemo(() => rungSummaryLine([...planEvidence.values()].map((x) => x.ev)), [planEvidence]);
+  // ── Code cards on Plan Review (lane CCWIRE) ─────────────────────────────
+  // One card per finding still OPEN, grouped by status (Fix / Needs an
+  // answer) in CodeCardList's plan mode. A finding he marked Resolved or
+  // Dismissed is handled, so it is not "to fix before you submit"; it stays in
+  // the per-finding list below (ladder, mismatch badge, Open/Resolved/Dismissed).
+  const planCards = useMemo<CodeCardItem[]>(() => (existingReview?.findings ?? [])
+    .filter((f) => f.status === 'open')
+    .map((f) => planFindingCardItem(
+      f as unknown as Record<string, unknown> & { id: string },
+      planFindingCitation(f as PlanFindingSaved),
+      planEvidence.get(f.id)?.ev ?? null,
+      parseCodeCardItem,
+      passesEchoCheck,
+    )), [existingReview, planEvidence]);
+  const planPermitAnswer = usePermitOfficeAnswer(planProject, mode === 'plan' && planCards.length > 0);
+  const planCardInfo = useMemo(() => codeJurisdictionInfoFor(planJurisdiction, planPermitAnswer, null), [planJurisdiction, planPermitAnswer]);
+  const planWiring = useCodeCardWiring({ project: planProject, info: planCardInfo, testID: 'plan-review-cards' });
+  const planBooked = useMemo<Partial<Record<CodeStage, string | null>>>(() => {
+    if (!planProject) return {};
+    const days = bookedStageDays(permits, planProject.id, todayCalendarDay());
+    const out: Partial<Record<CodeStage, string | null>> = {};
+    for (const [stage, day] of Object.entries(days) as [CodeStage, string][]) {
+      out[stage] = formatCalendarDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    return out;
+  }, [permits, planProject]);
+  const [planDetailsOpen, setPlanDetailsOpen] = useState(false);
+  const planMismatchCount = useMemo(() => [...planEvidence.values()].filter((x) => !!x.mismatch).length, [planEvidence]);
+  const sendToArchitect = useCallback(() => {
+    if (!planProject || !planSheet) return;
+    const sheetLabel = planSheet.sheetNumber ? `${planSheet.sheetNumber} ${planSheet.name}` : planSheet.name;
+    const msg = architectMessageFor(planCards, { jobLabel: planProject.name, sheetLabel, info: planCardInfo });
+    void Linking.openURL(mailtoUrlFor('', msg.subject, msg.body)).catch(() =>
+      showAlert('No mail app', 'Copy the findings into your email instead.'));
+  }, [planProject, planSheet, planCards, planCardInfo]);
   const planMonthlyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_monthly[tier], [tier]);
 
   const runPlanReview = useCallback(async () => {
@@ -1403,14 +1528,15 @@ Scenario: ${scenario.trim()}
 ${factsBlock ? `${factsBlock}\n` : ''}
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
+- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English, one sentence, at most 140 characters), verdict ("required", "limit" or "not_required"), why (one short line, at most 160 characters, on why it applies to THIS job, or ""), stage (your best guess of the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trigger ({ value, unit ("in", "ft", "psf", "deg" or "count"), comparison (">", ">=", "<" or "<=") } ONLY when you are certain of the number; otherwise omit it), jobValue ({ value, unit, source: "job", sourceLabel } ONLY when the job's own number is stated above, e.g. "deck height from the scenario"; otherwise omit it), trade (the trade that builds it, e.g. "framing", or ""), whatToBuild (array of up to 4 short lines, each at most 100 characters, on what to build) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
 ${followUpInstruction(answered)}
 
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
-Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.`;
+Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.
+Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
@@ -2471,7 +2597,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                             lookup behind this — and the chip says so ABOVE the
                             findings, in the same words and tone as Code Check. */}
                         <View style={styles.recallChip} testID="plan-review-recall-chip">
-                          <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+                          <Info size={12} color={themeColors.textSecondary} strokeWidth={2} />
                           <Text style={styles.recallChipText}>
                             From model recall — verify with your AHJ before relying on a section number
                           </Text>
@@ -2479,7 +2605,71 @@ Never invent a section number you are unsure of — leave section empty and desc
                         {planRungSummary ? (
                           <Text style={styles.rungSummary} testID="plan-review-rung-summary">{planRungSummary}</Text>
                         ) : null}
-                        {SEVERITY_ORDER.map((sev) => {
+                        {/* The findings as code cards, by status (lane CCWIRE). */}
+                        {planCards.length > 0 ? (
+                          <CodeCardList
+                            items={planCards}
+                            info={planCardInfo}
+                            mode="plan"
+                            eyebrow={`Result · ${planCards.length} to look at`}
+                            planSourceLabel={planSheet?.sheetNumber || planSheet?.name || null}
+                            bookedDates={planBooked}
+                            stageOf={planWiring.stageOf}
+                            onOpen={planWiring.onOpen}
+                            checklistFor={planWiring.checklistFor}
+                            askTownFor={planWiring.askTownFor}
+                            primary={{
+                              key: 'architect',
+                              label: architectButtonLabel(planCards) ?? 'Send to architect',
+                              icon: 'send',
+                              action: architectButtonLabel(planCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
+                            }}
+                            secondary={[
+                              {
+                                key: 'checklists',
+                                label: addAllLabel(planCards.map((c) => ({ ...c, stage: planWiring.stageOf(c) }))),
+                                icon: 'clip',
+                                action: !planProject
+                                  ? blockedAction(NO_JOB_CHECKLIST)
+                                  : planCards.every((c) => !!pinnedStage(planWiring.pins, planProject.id, c.id))
+                                    ? doneAction('On the inspection checklists')
+                                    : readyAction(() => planWiring.addAll(planCards)),
+                              },
+                              {
+                                key: 'save',
+                                label: 'Save',
+                                icon: 'save',
+                                action: !planProject
+                                  ? blockedAction(NO_JOB_SAVE)
+                                  : planCards.every((c) => isSaved(planWiring.saved, planProject.id, c.id))
+                                    ? doneAction(`Saved to ${planProject.name}`)
+                                    : readyAction(() => planWiring.saveAll(planCards)),
+                              },
+                            ]}
+                            testID="plan-review-card-list"
+                          />
+                        ) : null}
+                        {planCards.length > 0 ? planWiring.overlay : null}
+                        {/* Each finding's evidence (the ladder), its mismatch
+                            badge and his Open / Resolved / Dismissed mark. An
+                            edition mismatch is a real warning, so its count
+                            shows on the toggle even when the list is shut. */}
+                        <TouchableOpacity
+                          onPress={() => setPlanDetailsOpen((o) => !o)}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: planDetailsOpen }}
+                          style={styles.codeDetailToggle}
+                          testID="plan-review-details-toggle"
+                        >
+                          <Text style={styles.codeDetailToggleText}>
+                            {`${planDetailsOpen ? 'Hide' : 'Show'} the evidence and status for each finding (${existingReview.findings.length})${planMismatchCount > 0 ? ` · ${planMismatchCount} edition mismatch${planMismatchCount === 1 ? '' : 'es'}` : ''}`}
+                          </Text>
+                          {planDetailsOpen
+                            ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
+                            : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
+                        </TouchableOpacity>
+                        {(planDetailsOpen || planCards.length === 0) && SEVERITY_ORDER.map((sev) => {
                           const group = existingReview.findings.filter((f) => f.severity === sev);
                           if (group.length === 0) return null;
                           return (
@@ -2505,9 +2695,9 @@ Never invent a section number you are unsure of — leave section empty and desc
                                   ) : null}
                                   {planEvidence.get(f.id)?.mismatch ? (
                                     <View style={styles.rungWrap} testID={`plan-review-edition-mismatch-${f.id}`}>
-                                      <View style={[styles.rungBadge, styles.rungRecall, styles.rungMismatchBadge]}>
+                                      <View style={[styles.rungBadge, styles.rungWarn, styles.rungMismatchBadge]}>
                                         <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.25} />
-                                        <Text style={[styles.rungBadgeText, styles.rungRecallText, styles.rungMismatchText]}>{planEvidence.get(f.id)!.mismatch!.label}</Text>
+                                        <Text style={[styles.rungBadgeText, styles.rungWarnText, styles.rungMismatchText]}>{planEvidence.get(f.id)!.mismatch!.label}</Text>
                                       </View>
                                     </View>
                                   ) : null}
@@ -2629,9 +2819,14 @@ function ViewerLinks({ links, testID }: { links: { label: string; url: string }[
           <Text style={styles.viewerLinkText} numberOfLines={2}>Open {l.label}</Text>
         </TouchableOpacity>
       ))}
+      {/* Code cards (lane CCWIRE): said once, next to the buttons it explains. */}
+      <Text style={styles.viewerLinkNote}>{ICC_VIEWER_NOTE}</Text>
     </View>
   );
 }
+
+/** The line beside every ICC viewer button (founder-approved wording). */
+const ICC_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";
 
 /**
  * The rung ONE citation is standing on, rendered so it reads at a glance.
@@ -2639,9 +2834,11 @@ function ViewerLinks({ links, testID }: { links: { label: string; url: string }[
  * Colour carries the rung and the words repeat it, because colour alone is not
  * an accessible signal and a contractor reading this in the sun is not reading
  * carefully: green = MAGE holds the government's own text, blue = a government
- * document names the section, amber = recall. Amber is the same warning tone
- * the model-recall chip above the list already uses, on purpose — the two are
- * making the same admission and must not look like different severities.
+ * document names the section, neutral grey = recall. Grey is the same tone
+ * the model-recall chip above the list uses, on purpose — the two are making
+ * the same admission and must not look like different severities. (Recall was
+ * amber until the code cards wave; the founder moved it to grey so amber means
+ * a real warning. The words, the place and the size did not change.)
  */
 function RungBadge({ ev, testID }: { ev: CitationEvidence; testID: string }) {
   const styles = useThemedStyles(makeStyles);
@@ -2657,8 +2854,8 @@ function RungBadge({ ev, testID }: { ev: CitationEvidence; testID: string }) {
   const iconColor =
     ev.rung === 'amended' ? themeColors.successLabel
       : ev.rung === 'named' ? Colors.primary
-        : themeColors.warningLabel;
-  const Icon = ev.rung === 'amended' ? Landmark : ev.rung === 'named' ? ShieldCheck : AlertTriangle;
+        : themeColors.textSecondary;
+  const Icon = ev.rung === 'amended' ? Landmark : ev.rung === 'named' ? ShieldCheck : Info;
 
   return (
     <View style={styles.rungWrap} testID={testID}>
@@ -3106,6 +3303,14 @@ function ResultModal({
    *  result.applicableCodes; null where the row is silent or the cite matches. */
   const mismatches = useMemo(() => (!result || !jurisdiction) ? [] : result.applicableCodes.map(c => editionMismatchFor(jurisdiction, c.code)), [result, jurisdiction]);
   const rungSummary = useMemo(() => rungSummaryLine(evidence), [evidence]);
+  /** Code cards, index-aligned with result.applicableCodes (one per citation, always). */
+  const cards = useMemo<CodeCardItem[]>(
+    () => (result ? result.applicableCodes.map((c, i) => codeCheckCardItem(c as Record<string, unknown> & typeof c, i, evidence[i] ?? null, parseCodeCardItem, passesEchoCheck)) : []),
+    [result, evidence],
+  );
+  const permitAnswer = usePermitOfficeAnswer(project, visible && cards.length > 0);
+  const cardInfo = useMemo(() => codeJurisdictionInfoFor(jurisdiction, permitAnswer, null), [jurisdiction, permitAnswer]);
+  const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'code-check-cards' });
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
    *  iOS refuses to present a second Modal over this one (see the openDelay
    *  workaround in runCodeCheck), so a detail sheet would silently never
@@ -3142,7 +3347,9 @@ Return a JSON object with:
 - commonFailures: array of 2-4 specific ways contractors fail this particular code.
 - ruleOfThumb: one short field-usable rule of thumb for staying compliant, or '' if none applies.
 
-Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.`;
+Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.
+Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
+Also return, when you can, these structured fields for the code card (omit any you are unsure of): verdict ("required", "limit" or "not_required"), stage (the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trigger ({ value, unit ("in", "ft", "psf", "deg" or "count"), comparison (">", ">=", "<" or "<=") } ONLY when you are certain of the number), whatToBuild (array of up to 4 short lines in your own words, each at most 100 characters).`;
 
     // The jurisdiction is in this prompt too, so it is in this key too.
     const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
@@ -3244,6 +3451,9 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
             </View>
           ) : null}
           {project ? <DepartmentCard project={project} testID="codethread-department" /> : null}
+          {/* The opened card and the town draft, inside this sheet's own tree
+              (a nested sheet presents; a sibling one would not on iOS). */}
+          {cards.length > 0 ? wiring.overlay : null}
 
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
@@ -3269,7 +3479,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                   no retrieval runs on this surface. Say so ABOVE the codes,
                   not in the footer (brain-center directive, HONEST leg). */}
               <View style={styles.recallChip} testID="code-check-recall-chip">
-                <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+                <Info size={12} color={themeColors.textSecondary} strokeWidth={2} />
                 <Text style={styles.recallChipText}>
                   From model recall — verify with your AHJ before relying on a section number
                 </Text>
@@ -3281,7 +3491,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               {rungSummary ? (
                 <Text style={styles.rungSummary} testID="code-check-rung-summary">{rungSummary}</Text>
               ) : null}
-              <Text style={styles.codeTapHint}>Tap a code for what it requires and what the inspector checks.</Text>
+              <Text style={styles.codeTapHint}>Tap a card for what it requires and what the inspector checks.</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
                 const isOpen = openCode === key;
@@ -3289,20 +3499,32 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                 const ev = evidence[i];
                 return (
                   <View key={i} style={styles.codeRow}>
+                    {/* The citation as a code card: verdict, our words, section ·
+                        edition · evidence meter, and its actions. A tap on the
+                        body opens the drill-in below, as the header did. */}
+                    {cards[i] ? (
+                      <CodeCard
+                        item={{ ...cards[i], stage: wiring.stageOf(cards[i]) }}
+                        info={cardInfo}
+                        onOpen={() => toggleCode(c)}
+                        checklist={wiring.checklistFor(cards[i])}
+                        askTown={wiring.askTownFor(cards[i])}
+                        onMore={wiring.onOpen}
+                        testID={`code-check-card-${i}`}
+                      />
+                    ) : null}
                     <TouchableOpacity
                       onPress={() => toggleCode(c)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
                       accessibilityLabel={`${[c.code, c.section].filter(Boolean).join(' ')} — ${isOpen ? 'hide' : 'show'} detail`}
+                      style={styles.codeDetailToggle}
                       testID={`code-detail-toggle-${i}`}
                     >
-                      <View style={styles.codeLabelRow}>
-                        <Text style={styles.codeLabel}>{[c.code, c.section].filter(Boolean).join(' · ')}</Text>
-                        {isOpen
-                          ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
-                          : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
-                      </View>
-                      <Text style={styles.codeReq}>{c.requirement}</Text>
+                      <Text style={styles.codeDetailToggleText}>{isOpen ? 'Hide what the inspector checks' : 'What the inspector checks'}</Text>
+                      {isOpen
+                        ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
+                        : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
 
                     {/* WHICH RUNG THIS ONE CITATION IS ON. Always rendered —
@@ -3311,9 +3533,9 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                     {ev ? <RungBadge ev={ev} testID={`code-check-rung-${i}`} /> : null}
                     {mismatches[i] ? (
                       <View style={styles.rungWrap} testID={`code-check-edition-mismatch-${i}`}>
-                        <View style={[styles.rungBadge, styles.rungRecall, styles.rungMismatchBadge]}>
+                        <View style={[styles.rungBadge, styles.rungWarn, styles.rungMismatchBadge]}>
                           <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.25} />
-                          <Text style={[styles.rungBadgeText, styles.rungRecallText, styles.rungMismatchText]}>{mismatches[i]!.label}</Text>
+                          <Text style={[styles.rungBadgeText, styles.rungWarnText, styles.rungMismatchText]}>{mismatches[i]!.label}</Text>
                         </View>
                       </View>
                     ) : null}
@@ -3805,13 +4027,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
-  // AI-F3 recall chip — warning tone (theme tokens), never the primary blue
-  // the code rows use, so "from model recall" cannot read as a citation.
+  // AI-F3 recall chip — neutral grey (theme tokens; amber until the code cards
+  // wave), never the primary blue the code rows use, so "from model recall"
+  // cannot read as a citation.
   // ── THE LADDER ────────────────────────────────────────────────────
   // Green = MAGE holds the government's own amendment text. Primary = a
-  // government document names the section. Amber = model recall, and it is
-  // the SAME amber as the recall chip above the list on purpose: the two are
-  // making the same admission and must not look like different severities.
+  // government document names the section. Neutral grey = model recall, and
+  // it is the SAME grey as the recall chip above the list on purpose: the two
+  // are making the same admission and must not look like different severities.
   viewerLinkWrap: {
     flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 6,
   },
@@ -3825,6 +4048,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   viewerLinkText: {
     ...Type.caption2, fontWeight: '700' as const, color: Colors.primary, flexShrink: 1,
   },
+  viewerLinkNote: { ...Type.caption2, color: themeColors.textMuted, width: '100%' as const, lineHeight: 15 },
   rungWrap: { marginTop: 8, gap: 6 },
   rungBadge: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
@@ -3834,11 +4058,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   rungAmended: { backgroundColor: themeColors.successSoft },
   rungNamed: { backgroundColor: themeColors.surfaceAlt },
-  rungRecall: { backgroundColor: themeColors.warningSoft },
+  // Recall: NEUTRAL GREY (founder decision 2026-10-03, code cards) — the same
+  // words, in the same place, at the same size; amber is kept for real
+  // warnings, like the edition-mismatch badge (rungWarn).
+  rungRecall: { backgroundColor: themeColors.neutralSoft },
+  rungWarn: { backgroundColor: themeColors.warningSoft },
   rungBadgeText: { ...Type.caption2, fontWeight: '700' as const, letterSpacing: 0.3 },
   rungAmendedText: { color: themeColors.successLabel },
   rungNamedText: { color: Colors.primary },
-  rungRecallText: { color: themeColors.warningLabel },
+  rungRecallText: { color: themeColors.textSecondary },
+  rungWarnText: { color: themeColors.warningLabel },
   // The mismatch label runs 100-174 chars; without this the pill overflows the card on a phone.
   rungMismatchBadge: { maxWidth: '100%' as const },
   rungMismatchText: { flexShrink: 1 },
@@ -3866,16 +4095,21 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   recallChip: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10,
-    borderRadius: Tokens.radius.md, backgroundColor: themeColors.warningSoft,
+    borderRadius: Tokens.radius.md, backgroundColor: themeColors.neutralSoft,
   },
   recallChipText: {
-    ...Type.caption1, fontWeight: '600' as const, color: themeColors.warningLabel, flex: 1,
+    ...Type.caption1, fontWeight: '600' as const, color: themeColors.textSecondary, flex: 1,
   },
   codeTapHint: {
     fontSize: Type.caption2.fontSize, color: themeColors.textMuted,
     fontStyle: 'italic' as const, marginBottom: 10, lineHeight: 15,
   },
   codeRow: { marginBottom: 10 },
+  codeDetailToggle: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    alignSelf: 'flex-start' as const, minHeight: 44, paddingHorizontal: 4,
+  },
+  codeDetailToggleText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   codeLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 2 },
   codeLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
   codeReq: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },

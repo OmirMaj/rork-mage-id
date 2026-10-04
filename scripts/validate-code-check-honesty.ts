@@ -143,6 +143,19 @@ ok('ResultModal renders the mismatch badge under the rung badge',
   && index.includes('testID={`code-check-edition-mismatch-${i}`}'));
 ok('the recall chip and rung badge are still there',
   index.includes('<RungBadge ev={ev}') && /Recalling/.test(index));
+// Recall TONE (founder decision 2026-10-03, code cards): recall keeps its
+// words, its place and its size, in neutral grey instead of amber, so amber
+// is left for real warnings (the edition mismatch below stays amber).
+ok('recall tone: the recall chip is neutral grey (fill + ink)',
+  /recallChip: \{[^}]*backgroundColor: themeColors\.neutralSoft/.test(index)
+    && /recallChipText: \{[^}]*color: themeColors\.textSecondary/.test(index));
+ok('recall tone: the recall rung badge is neutral grey',
+  /rungRecall: \{ backgroundColor: themeColors\.neutralSoft \}/.test(index)
+    && /rungRecallText: \{ color: themeColors\.textSecondary \}/.test(index));
+ok('recall tone: the edition-mismatch badge keeps the amber warning tone',
+  (index.match(/styles\.rungBadge, styles\.rungWarn, styles\.rungMismatchBadge/g) ?? []).length === 2
+    && /rungWarn: \{ backgroundColor: themeColors\.warningSoft \}/.test(index)
+    && /rungWarnText: \{ color: themeColors\.warningLabel \}/.test(index));
 
 // ── 6. Onboarding copy ────────────────────────────────────────────────────
 console.log('\n6. Onboarding copy');
