@@ -301,7 +301,9 @@ export default function DocumentsScreen() {
         projectId: a.projectId,
         projectName: projectById.get(a.projectId) ?? a.projectName,
         type: 'aia_billing',
-        title: `AIA G702 · App #${a.applicationNumber}`,
+        // "-style" (lane PAYFIX): MAGE ID drafts an AIA-STYLE pay application,
+        // never the official AIA document.
+        title: `AIA-style G702 · App #${a.applicationNumber}`,
         status: payAppDocStatus(a.paidAt, a.invoiceId ? invoiceStatusById.get(a.invoiceId) : undefined, a.portalState),
         createdAt: a.applicationDate ?? a.savedAt ?? new Date().toISOString(),
         notes: a.payLinkUrl ? 'Pay link active' : undefined,
@@ -407,7 +409,7 @@ export default function DocumentsScreen() {
               {/* No contracts here: contracts are not aggregated into this feed,
                   so the old 'Every contract, …' promise was false (#161). */}
               <Text style={styles.docsHeroSub}>
-                Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Tap any card to open it where it lives.
+                Your COIs, permits, submittals and AIA-style pay apps across your projects — in one feed. Tap any card to open it where it lives.
               </Text>
             </View>
             <View style={styles.alertsRow}>

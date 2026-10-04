@@ -77,6 +77,9 @@ import {
   aiaPayableNow,
   certifiedPayLinkNeedsRemint,
   mergeRemintedPayLink,
+  // Lane PAYFIX: where G702 line 1 came from, and the words that say so.
+  payAppContractSumSource,
+  PAY_APP_CONTRACT_SUM_LABEL,
 } from '@/utils/aiaBilling';
 // The one definition of "what is still owed on this invoice", net of held
 // retention — the same helper the portal and the invoice screen gate their Pay
@@ -94,7 +97,7 @@ import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
 import { createPaymentLink, isPayLinkBalanceCode, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
-import type { SavedAIAPayApp } from '@/types';
+import type { SavedAIAPayApp, ProjectContract } from '@/types';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import {
@@ -129,6 +132,12 @@ import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSand
 import { payAppLinePayload, payAppPeriodPayload, toCentsD } from '@/utils/tutorial/learn/fixturesD';
 import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
 import { todayCalendarDay } from '@/utils/calendarDate';
+// Lane PAYFIX: line 1 reads the signed contract; the header seeds from it.
+import { loadActiveContract } from '@/utils/contractEngine';
+
+/** How long a new period waits for the contract read before it seeds from the
+ *  estimate and says the contract was not checked (lane PAYFIX). */
+const CONTRACT_READ_TIMEOUT_MS = 6000;
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
 function fmtG703(n: number): string {
@@ -254,6 +263,35 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const sampleJob = isSampleProject(project);
   const aiaTutorialRef = useRef({ runOnThis, sampleJob });
   aiaTutorialRef.current = { runOnThis, sampleJob };
+
+  // ── The signed contract (lane PAYFIX) ───────────────────────────────────
+  // G702 line 1 is the SIGNED contract's figure when there is one, and a first
+  // period's owner name / contract date come from it (seedPayAppHeader). A new
+  // period waits for this read to SETTLE before it seeds — seeding first would
+  // freeze the estimate onto line 1 a moment before the contract arrived. It
+  // settles on every path: a row, `null` (none on file, or a sample job, which
+  // has no server contract), or `undefined` (offline, a failed read, or no
+  // answer within CONTRACT_READ_TIMEOUT_MS — line 1 then says the contract was
+  // not checked rather than claiming there is none).
+  const [contractRead, setContractRead] = useState<{ projectId: string; contract: ProjectContract | null | undefined } | null>(null);
+  const contractProjectId = project?.id;
+  useEffect(() => {
+    if (!contractProjectId) return;
+    if (sampleJob || isOfflineNow()) {
+      setContractRead({ projectId: contractProjectId, contract: sampleJob ? null : undefined });
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      if (live) setContractRead(prev => (prev?.projectId === contractProjectId ? prev : { projectId: contractProjectId, contract: undefined }));
+    }, CONTRACT_READ_TIMEOUT_MS);
+    void loadActiveContract(contractProjectId)
+      .then(r => { if (live) setContractRead({ projectId: contractProjectId, contract: r.ok ? r.contract : undefined }); })
+      .catch(() => { if (live) setContractRead({ projectId: contractProjectId, contract: undefined }); });
+    return () => { live = false; clearTimeout(timer); };
+  }, [contractProjectId, sampleJob]);
+  const contractSettled = !!contractProjectId && contractRead?.projectId === contractProjectId;
+  const activeContract = contractSettled ? contractRead?.contract : undefined;
   /** The line his last edit wrote "This period" on (updateLine /
    *  applyPercentToLine — the card, the % chips and the grid all go through
    *  them). The line-set signal reads it; a re-seed never sets it. */
@@ -440,6 +478,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     if (!invoice || !project || !settings?.branding) return null;
     const seeded = seedAIAPayApplicationFromInvoice(invoice, project, approvedCOs, settings.branding, {
       applicationNumber: resolvedApplicationNumber,
+      // Lane PAYFIX: line 1 from the signed contract (estimate only when none
+      // is signed, and labelled), and the header carried from the period
+      // before — or from the contract / project on a first period.
+      contract: activeContract,
+      priorHeader: priorAIA,
       periodTo: app?.periodTo || undefined,
       applicationDate: app?.applicationDate || undefined,
       // The window opens the day after the prior period closed — the same rule
@@ -466,7 +509,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       storedRetainagePercent: priorAIA.storedRetainagePercent,
     };
   }, [invoice, project, settings?.branding, approvedCOs, resolvedApplicationNumber, priorAIA,
-    app?.periodTo, app?.applicationDate, app?.periodFrom]);
+    app?.periodTo, app?.applicationDate, app?.periodFrom, activeContract]);
 
   /**
    * INITIALISE ONCE PER CERTIFICATE, NOT ON EVERY CONTEXT REFRESH.
@@ -493,6 +536,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
 
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
+    // A NEW period waits for the contract read to settle (lane PAYFIX) — it
+    // always does, see contractRead. A saved certificate is the record and
+    // hydrates at once.
+    if (!savedForThisInvoice && !contractSettled) return;
     const key = `${invoice.id}|${savedForThisInvoice?.id ?? 'new'}`;
     // Gate AND stamp in one call. As two lines here, a reviewer deleted the
     // stamp and the whole data-loss defect came back with every guard green —
@@ -520,7 +567,14 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     }
     setApp(seeded);
     setCarriedFromAppNumber(priorAIA && priorAIA.lines.length > 0 ? priorAIA.applicationNumber : null);
-  }, [invoice, project, settings?.branding, savedForThisInvoice, applicationFromSaved, seedFreshApplication, priorAIA]);
+  }, [invoice, project, settings?.branding, savedForThisInvoice, applicationFromSaved, seedFreshApplication, priorAIA, contractSettled]);
+
+  // Where G702 line 1 came from, for the screen and the PDF (lane PAYFIX).
+  // One rule for a fresh seed and a reopened record (payAppContractSumSource);
+  // nothing is claimed until the contract read has settled.
+  const lineOneSource = app && contractSettled
+    ? payAppContractSumSource(app.originalContractSum, project, activeContract)
+    : undefined;
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
 
@@ -1373,7 +1427,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       // The STORED summary wins. A live recompute is only the fallback for a
       // draft that has never been saved.
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: printedCoSummary },
+        { ...app, changeOrderSummary: printedCoSummary, originalContractSumSource: lineOneSource },
         settings.branding,
       );
     } catch (err) {
@@ -1382,7 +1436,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, printedCoSummary]);
+  }, [app, settings?.branding, printedCoSummary, lineOneSource]);
 
   // ── Certify: one slide (wave-next W2, moments B4) ──────────────────────
   // "Ready to certify?" keeps its attestation; the certify is a slide that
@@ -1518,7 +1572,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     setGenerating(true);
     try {
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: printedCoSummary },
+        { ...app, changeOrderSummary: printedCoSummary, originalContractSumSource: lineOneSource },
         settings.branding,
       );
     } catch (err) {
@@ -1527,7 +1581,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, printedCoSummary]);
+  }, [app, settings?.branding, printedCoSummary, lineOneSource]);
 
   // ── Wave 6d (M1) desktop hooks — above the first early return. ─────────────
   const isDesktop = useIsDesktop();
@@ -2468,7 +2522,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             testID="aia-g702-strip"
             style={isDesktop && styles.kpiDesktop}
             cells={[
-              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2) },
+              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2), sub: lineOneSource ? PAY_APP_CONTRACT_SUM_LABEL[lineOneSource] : undefined },
               { key: 'net-co', label: 'Net COs', value: `${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}` },
               { key: 'to-date', label: 'Contract to date', value: formatMoney(app.contractSumToDate, 2) },
               { key: 'completed', label: 'Completed & stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
@@ -2919,6 +2973,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 and a summary a dollar off it is two documents (founder
                 default 2, wave 6d). */}
             <Row label="Original contract sum" value={formatMoney(app.originalContractSum, 2)} />
+            {/* Lane PAYFIX: where line 1 came from — the signed contract, or
+                the estimate and why. */}
+            {lineOneSource ? (
+              <Text style={styles.sovBasisNote} testID="aia-line1-source">{PAY_APP_CONTRACT_SUM_LABEL[lineOneSource]}</Text>
+            ) : null}
             <Row label="Net change by change orders" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
             <Row label="Contract sum to date" value={formatMoney(app.contractSumToDate, 2)} bold />
             <Divider />

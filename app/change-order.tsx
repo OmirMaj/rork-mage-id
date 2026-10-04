@@ -97,6 +97,9 @@ import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
 import { CO_SAMPLE, toCents } from '@/utils/tutorial/learn/fixturesA';
 import { isOfflineNow } from '@/hooks/useOnline';
+// Lane PAYFIX: "Original contract sum" is the SIGNED contract's figure.
+import { contractSumBasis, CONTRACT_SUM_BASIS_LABEL } from '@/utils/projectFinancials';
+import { loadActiveContract } from '@/utils/contractEngine';
 
 /**
  * The CO fields frozen at save/send (#129, #131). Declared here and SPREAD
@@ -1235,10 +1238,37 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // before this CO (utils/wip's snapshot fallback, fieldTicketCore,
   // leakCoDraft and UniversalMicButton all write/read it that way); only the
   // filter is corrected, from "every other approved CO" to "the ones before it".
-  const originalContractSum = useMemo(() => {
-    if (!project) return 0;
-    return project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
-  }, [project]);
+  //
+  // THE SIGNED CONTRACT, NOT THE ESTIMATE (lane PAYFIX). This row used to be
+  // the estimate's grand total — on the document the homeowner signs, beside a
+  // contract he signed at a negotiated figure. It is resolveContractSum now:
+  // the signed contract, else the estimate ONLY when nothing is signed, and the
+  // caption under the row says which ("Estimate (no signed contract yet)", or
+  // "…not checked" when the read failed — never "none" over a read that did
+  // not answer). A sample job has no server contract: null, at once.
+  const [coContractRead, setCoContractRead] = useState<{ projectId: string; contract: { status?: string; contractValue?: number } | null | undefined } | null>(null);
+  const coContractProjectId = project?.id;
+  const coContractSample = !!project && isSampleProject(project);
+  useEffect(() => {
+    if (!coContractProjectId) return;
+    if (coContractSample || isOfflineNow()) {
+      setCoContractRead({ projectId: coContractProjectId, contract: coContractSample ? null : undefined });
+      return;
+    }
+    let live = true;
+    void loadActiveContract(coContractProjectId)
+      .then(r => { if (live) setCoContractRead({ projectId: coContractProjectId, contract: r.ok ? r.contract : undefined }); })
+      .catch(() => { if (live) setCoContractRead({ projectId: coContractProjectId, contract: undefined }); });
+    return () => { live = false; };
+  }, [coContractProjectId, coContractSample]);
+  const coContractSettled = !!coContractProjectId && coContractRead?.projectId === coContractProjectId;
+  const contractSum = useMemo(
+    () => contractSumBasis(project, coContractSettled ? coContractRead?.contract : undefined),
+    [project, coContractSettled, coContractRead],
+  );
+  const originalContractSum = project ? contractSum.value : 0;
+  /** The caption under "Original contract sum"; nothing until the read settles. */
+  const contractSumCaption = project && coContractSettled ? CONTRACT_SUM_BASIS_LABEL[contractSum.basis] : null;
   const priorApprovedChanges = useMemo(
     // Against the CONFIRMED number once known (#141): a CO the server moved
     // from #4 to #5 counts the approved #4 as prior. The send waits for it.
@@ -1261,6 +1291,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     existingCO?.reason ?? (
       prefillReason === 'allowance_overage' ? 'Allowance overage'
       : prefillReason === 'client_request' ? 'Client request'
+      // Lane PAYFIX: the CO copilot's "field condition" lands as itself — it
+      // used to be rewritten to "client request" before it got here.
+      : prefillReason === 'field_condition' ? 'Field condition'
       : prefillReason === 'out_of_scope' ? 'Out-of-scope work (from daily report)'
       : ''
     )
@@ -2858,6 +2891,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               <Text style={styles.totalLabel}>Original contract sum</Text>
               <Text style={styles.totalValue}>{formatCurrency(originalContractSum)}</Text>
             </View>
+            {/* Lane PAYFIX: where that figure came from. */}
+            {contractSumCaption ? (
+              <Text style={styles.coMarginNote} testID="co-contract-sum-source">{contractSumCaption}</Text>
+            ) : null}
             {priorApprovedChanges !== 0 && (
               <>
                 <View style={styles.totalRow}>

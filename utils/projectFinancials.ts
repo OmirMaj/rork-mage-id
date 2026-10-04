@@ -30,7 +30,7 @@ import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/ut
  * estimate — optimistic by the difference. Neither figure is printed on a
  * client document, which is where the same defect actually mattered (the
  * portal, fixed; app/change-order.tsx and utils/aiaBilling.ts G702 line 1,
- * still on the estimate and out of this wave's scope). See
+ * fixed in lane PAYFIX — see `resolveContractSum` below). See
  * docs/audits/2026-09-11-handoff-money-to-wip.md.
  */
 export function getContractValue(
@@ -98,13 +98,23 @@ export interface SignedContractLike {
  *     sum into utils/portalSnapshot.ts is what makes the anon view print the
  *     signed figure, and that file belongs to the WIP/AIA wave.
  *
- * STILL ON THE ESTIMATE, none of them in this wave's scope:
+ *   • app/change-order.tsx — "Original contract sum" on the document a
+ *     homeowner signs, and the `originalContractValue` stamped on the saved
+ *     CO (lane PAYFIX). The estimate stands in ONLY when no contract is
+ *     signed, captioned "Estimate (no signed contract yet)", or "…not
+ *     checked" when the contract read failed.
+ *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1
+ *     (lane PAYFIX), with the same fallback rule; the source rides on the
+ *     application (`payAppContractSumSource`) and prints beside line 1 on the
+ *     screen and the PDF whenever it is not the signed contract.
+ *   • components/moments-sites/COApproveSheet.tsx, hooks/useProjectPulse.ts.
+ *
+ * STILL ON THE ESTIMATE, not touched by lane PAYFIX:
  *   • `getContractValue` above (see its own note) → marginRiskScore, livingEstimate;
- *   • app/change-order.tsx — prints "Original Contract Value" on the document a
- *     homeowner signs;
- *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1;
  *   • utils/wip.ts `deriveOriginalContractWithSource` — seven branches, no
- *     `signed_contract` among them.
+ *     `signed_contract` among them. (Its `pay_app_contract_sum` branch reads
+ *     the latest saved G702's line 1, so pay apps saved after lane PAYFIX
+ *     carry the signed figure into it indirectly.)
  */
 export function resolveContractSum(
   project: Project | null | undefined,
@@ -116,6 +126,35 @@ export function resolveContractSum(
     return { value: v, source: 'signed_contract', estimateTotal };
   }
   return { value: estimateTotal, source: 'estimate', estimateTotal };
+}
+
+/**
+ * A contract-sum source as a SCREEN states it (lane PAYFIX): resolveContractSum's
+ * two answers, plus `estimate_unread` — the contract read failed, so the
+ * estimate stands in and nobody knows whether a signed figure exists. A screen
+ * must not print "no signed contract yet" over a read that never answered.
+ */
+export type ContractSumBasis = ContractSumSource | 'estimate_unread';
+
+/** The caption beside an original contract sum, by basis. */
+export const CONTRACT_SUM_BASIS_LABEL: Record<ContractSumBasis, string> = {
+  signed_contract: 'Signed contract',
+  estimate: 'Estimate (no signed contract yet)',
+  estimate_unread: 'Estimate (signed contract not checked)',
+};
+
+/**
+ * resolveContractSum for a screen that READ the contract: `contract` is the
+ * active row, `null` when the project has none on file, `undefined` when the
+ * read failed. The estimate is the fallback only when nothing signed exists,
+ * and the basis says which case it is.
+ */
+export function contractSumBasis(
+  project: Project | null | undefined,
+  contract: SignedContractLike | null | undefined,
+): { value: number; basis: ContractSumBasis; estimateTotal: number } {
+  const r = resolveContractSum(project, contract ?? null);
+  return { value: r.value, basis: contract === undefined ? 'estimate_unread' : r.source, estimateTotal: r.estimateTotal };
 }
 
 /**

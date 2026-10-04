@@ -14,6 +14,28 @@ export interface COApplied {
   params: { projectId: string; prefillReason: string; prefillDescription: string; prefillAmount: string; prefillScheduleDays: string };
 }
 
+/**
+ * The reason codes the change-order screen turns into the words the client
+ * signs (app/change-order.tsx, its `prefillReason` labels).
+ */
+export type COReasonCode = 'client_request' | 'field_condition' | 'allowance_overage';
+
+/**
+ * THE REASON THE CLIENT SIGNS IS THE REASON THAT WAS GIVEN (lane PAYFIX).
+ *
+ * This used to be `allowance_overage ? allowance_overage : client_request`, so
+ * a GC who said "field condition — extra footing" handed his client a change
+ * order that read "Client request": the client signing for a change he never
+ * asked for, on the document that decides who pays for it. A known code passes
+ * through unchanged; anything else ('other', a missing reason, a model
+ * paraphrase) is '' — the reason box opens EMPTY for the GC to fill in, and
+ * nothing is ever turned into "client request" that was not said as one.
+ */
+export function coReasonCode(raw: string | null | undefined): COReasonCode | '' {
+  const code = (raw ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return code === 'client_request' || code === 'field_condition' || code === 'allowance_overage' ? code : '';
+}
+
 export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
   id: 'change_order',
   label: 'Draft a change order',
@@ -71,7 +93,7 @@ export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
     if (!ctx.project) throw new Error('No project for this change order.');
     const description = (draft.description ?? '').trim();
     if (!description) throw new Error('Tell me what the change is first.');
-    const reason = draft.reason === 'allowance_overage' ? 'allowance_overage' : 'client_request';
+    const reason = coReasonCode(draft.reason);
     return {
       route: '/change-order',
       projectId: ctx.projectId,

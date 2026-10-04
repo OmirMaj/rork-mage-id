@@ -15,7 +15,12 @@ import type {
 // billedAmountForLine is the one definition of "how much of this line did this
 // invoice actually charge", including the anyPreScaled gate.
 import { roundCents, retainageOnWorkValue, billedAmountForLine } from '@/utils/invoiceBilling';
-import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+// G702 line 1 reads the SIGNED contract (lane PAYFIX) through the one resolver
+// the portal and the change-order screen use.
+import {
+  resolveContractSum, CONTRACT_SUM_BASIS_LABEL, type ContractSumBasis, type SignedContractLike,
+} from '@/utils/projectFinancials';
+import { calendarDayOf } from '@/utils/calendarDate';
 // The namespaced key an approved change order rides on an invoice line, so a
 // CO billed through either entry point lands on the right G703 row.
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
@@ -225,6 +230,105 @@ export interface AIAPayApplication {
    * type-checks.
    */
   sovBasis?: AIASovBasis;
+
+  /**
+   * Where G702 line 1 came from — see payAppContractSumSource. Undefined on a
+   * record that cannot prove its source (older saves, hand-built tests), and
+   * the form then prints the bare line label it always printed.
+   */
+  originalContractSumSource?: PayAppContractSumSource;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G702 LINE 1 IS THE SIGNED CONTRACT (lane PAYFIX; MONEY-CONTRACT-1).
+//
+// Line 1 used to be `effectiveEstimateTotal(project)` — the ESTIMATE — on the
+// certificate a lender funds against, while the contract the owner signed may
+// carry a negotiated figure. It now reads `resolveContractSum`: the signed
+// contract, else the estimate. The estimate is a fallback ONLY when there is no
+// signed contract, and then the line SAYS so; when the contract could not be
+// read at all (offline), it says that instead of claiming there is none.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `signed_contract` / `estimate` are resolveContractSum's own answers.
+ * `estimate_unread`: the contract read failed, so the estimate stands in and
+ * nobody knows whether a signed figure exists. `estimate_not_contract`: a
+ * saved certificate whose line 1 is the estimate while a signed contract with
+ * a different figure now exists (a record frozen before this fix, or before
+ * the contract was signed) — the refresh button is how it gets corrected.
+ */
+export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract';
+
+/** The words beside line 1, on the screen and (except for a signed contract) on
+ *  the PDF — the change-order screen's captions plus the reopened-record case. */
+export const PAY_APP_CONTRACT_SUM_LABEL: Record<PayAppContractSumSource, string> = {
+  ...CONTRACT_SUM_BASIS_LABEL,
+  estimate_not_contract: 'Estimate (differs from the signed contract)',
+};
+
+/** Everything the pay app reads off the project's active contract. Structural,
+ *  so this file stays importable by a bun guard. */
+export interface PayAppContractLike extends SignedContractLike {
+  signedAt?: string;
+  homeownerSignature?: { name?: string; signedAt?: string };
+}
+
+const sameCents = (a: number, b: number) => Math.abs(roundCents(a) - roundCents(b)) < 0.005;
+
+/**
+ * Which source a line-1 figure provably came from. ONE rule for a fresh seed
+ * and a reopened record: line 1 is not editable on the screen, so it is either
+ * the figure resolveContractSum answers today or a frozen earlier answer.
+ *
+ * `contract`: the active contract row, `null` when the project has none on
+ * file, `undefined` when it has not been (or could not be) read.
+ * Undefined result = no provable source; print no label rather than a guess.
+ */
+export function payAppContractSumSource(
+  lineOne: number,
+  project: Project | null | undefined,
+  contract: SignedContractLike | null | undefined,
+): PayAppContractSumSource | undefined {
+  const r = resolveContractSum(project, contract ?? null);
+  if (contract === undefined) return sameCents(lineOne, r.estimateTotal) ? 'estimate_unread' : undefined;
+  if (sameCents(lineOne, r.value)) return r.source;
+  if (r.source === 'signed_contract' && sameCents(lineOne, r.estimateTotal)) return 'estimate_not_contract';
+  return undefined;
+}
+
+/** The header fields a G702 repeats every period. */
+export interface PayAppHeaderSeed {
+  ownerName: string;
+  contractDate?: string;
+  architectName?: string;
+}
+
+/**
+ * THE HEADER CARRIES FORWARD (lane PAYFIX). A new period used to open with the
+ * owner name blank and the contract date empty, every month, so the GC retyped
+ * the same two facts onto every certificate (or sent one without them).
+ *
+ * Order: the previous period's value (what the GC last certified), else the
+ * signed contract (the homeowner's typed signing name; the day it was signed),
+ * else the project's primary contact for the owner. A draft or sent contract
+ * is not a contract — it supplies no date and no owner name.
+ */
+export function seedPayAppHeader(
+  prior: { ownerName?: string; contractDate?: string; architectName?: string } | null | undefined,
+  contract: PayAppContractLike | null | undefined,
+  project: Pick<Project, 'primaryContact'> | null | undefined,
+): PayAppHeaderSeed {
+  const signed = contract?.status === 'signed' ? contract : null;
+  const ownerName = prior?.ownerName?.trim()
+    || signed?.homeownerSignature?.name?.trim()
+    || project?.primaryContact?.name?.trim()
+    || '';
+  const contractDate = calendarDayOf(prior?.contractDate)
+    ?? calendarDayOf(signed?.signedAt ?? signed?.homeownerSignature?.signedAt)
+    ?? undefined;
+  const architectName = prior?.architectName?.trim() || undefined;
+  return { ownerName, contractDate, architectName };
 }
 
 function escapeHtml(text: string): string {
@@ -1869,8 +1973,10 @@ export function mergeRefreshedContract(
 
   return {
     ...prev,
-    // The three contract scalars are the refresh.
+    // The three contract scalars are the refresh — and line 1's source with
+    // them, so a refreshed figure never keeps the old figure's label.
     originalContractSum: fresh.originalContractSum,
+    originalContractSumSource: fresh.originalContractSumSource,
     netChangeByCO: fresh.netChangeByCO,
     contractSumToDate: fresh.contractSumToDate,
     sovBasis: fresh.sovBasis ?? prev.sovBasis,
@@ -1909,13 +2015,28 @@ export function seedAIAPayApplicationFromInvoice(
     applicationDate?: string;
     /** Start of the billing window. */
     periodFrom?: string;
+    /**
+     * The project's active contract: a row, `null` when none is on file,
+     * `undefined` when it was not (or could not be) read. G702 line 1 is the
+     * SIGNED contract's figure when there is one (resolveContractSum), and the
+     * contract also seeds the header on a first period (seedPayAppHeader).
+     */
+    contract?: PayAppContractLike | null;
+    /** The previous period's header, carried forward (seedPayAppHeader). An
+     *  explicit `ownerName` / `architectName` / `contractDate` above wins. */
+    priorHeader?: { ownerName?: string; contractDate?: string; architectName?: string } | null;
+    contractDate?: string;
   },
 ): AIAPayApplication {
   // MISS-05: carry the invoice's ACTUAL retainage rate — including a
   // deliberate 0%. See retainagePercentForInvoice for why there is no 10%
   // fallback any more.
   const retainagePercent = opts?.retainagePercent ?? retainagePercentForInvoice(invoice);
-  const originalContractSum = roundCents(effectiveEstimateTotal(project));
+  // Line 1: the signed contract, else the estimate — and the source rides on
+  // the application so the line can say which (payAppContractSumSource).
+  const originalContractSum = roundCents(resolveContractSum(project, opts?.contract ?? null).value);
+  const originalContractSumSource = payAppContractSumSource(originalContractSum, project, opts?.contract);
+  const header = seedPayAppHeader(opts?.priorHeader, opts?.contract, project);
   const netChangeByCO = roundCents(approvedCOs.reduce((s, co) => s + co.changeAmount, 0));
   const contractSumToDate = roundCents(originalContractSum + netChangeByCO);
 
@@ -1939,14 +2060,15 @@ export function seedAIAPayApplicationFromInvoice(
     applicationDate: opts?.applicationDate ?? invoice.issueDate,
     periodTo: opts?.periodTo ?? invoice.issueDate,
     periodFrom: opts?.periodFrom,
-    contractDate: undefined,
-    ownerName: opts?.ownerName ?? '',
+    contractDate: opts?.contractDate ?? header.contractDate,
+    ownerName: opts?.ownerName ?? header.ownerName,
     contractorName: branding.companyName ?? 'Contractor',
-    architectName: opts?.architectName,
+    architectName: opts?.architectName ?? header.architectName,
     projectName: project.name,
     projectLocation: project.location,
     contractForDescription: project.description,
     originalContractSum,
+    originalContractSumSource,
     netChangeByCO,
     contractSumToDate,
     retainagePercent,
@@ -2041,6 +2163,18 @@ export function seedAIAPayApplicationFromInvoice(
  * stands unchanged — but the obligation is the contractor's, not AIA's, so it
  * can be stated in plain words. Do not "restore" the original text.
  *
+ * THE SAME NOW HOLDS FOR EVERY OTHER SENTENCE IN BOTH BLOCKS (lane PAYFIX,
+ * before the first App Store build). The closing clause had survived the
+ * contractor rewrite as AIA's G702 sentence word for word (the one about the
+ * certificate not being negotiable), and the architect's paragraph, the initial-the-changed-
+ * figures note and two change-order summary row labels were close paraphrases
+ * of the form. All are MAGE's own plain words now, with the same meaning: the
+ * certified amount is payable only to the named contractor and cannot be
+ * signed over; issuing, paying or accepting it gives up no right either party
+ * has under the contract. Field names (AMOUNT CERTIFIED, the nine numbered
+ * lines, the G703 column letters) are what a lender checks the figures
+ * against, so they stay. scripts/validate-payfix.ts refuses the old sentences.
+ *
  * The jurat prints only when the GC asks for it. AIA's own instructions say
  * the Contractor should sign G702, have it notarized and submit it with the
  * G703, and on public work an un-notarized application comes back — but a
@@ -2076,6 +2210,15 @@ export function buildAIAPayAppHtml(
   );
 
   const coSummary = app.changeOrderSummary;
+
+  // Line 1 names its source whenever it is NOT the signed contract — the
+  // owner and the lender read this page, and an estimate printed as the
+  // contract sum is the defect lane PAYFIX fixed. A signed figure needs no
+  // note; an unprovable one (older record) prints the bare label it always did.
+  const lineOneSource = app.originalContractSumSource;
+  const lineOneNote = lineOneSource && lineOneSource !== 'signed_contract'
+    ? ` <span style="color:#666;font-weight:400;">&mdash; ${escapeHtml(PAY_APP_CONTRACT_SUM_LABEL[lineOneSource])}</span>`
+    : '';
 
   const logoBlock = branding.logoUri
     ? `<img src="${escapeHtml(branding.logoUri)}" class="logo" alt="logo" />`
@@ -2414,7 +2557,7 @@ export function buildAIAPayAppHtml(
   <table class="cover">
     <tbody>
       <tr>
-        <td class="line-label" style="width:70%;">1. Original Contract Sum</td>
+        <td class="line-label" style="width:70%;">1. Original Contract Sum${lineOneNote}</td>
         <td class="num">$ ${fmt(app.originalContractSum)}</td>
       </tr>
       <tr>
@@ -2476,12 +2619,12 @@ export function buildAIAPayAppHtml(
     <tbody>
       ${coSummary ? `
       <tr>
-        <td>Total changes approved in previous months by Owner</td>
+        <td>Changes the Owner approved in earlier months</td>
         <td class="num">$ ${fmt(coSummary.priorAdditions)}</td>
         <td class="num">$ ${fmt(coSummary.priorDeductions)}</td>
       </tr>
       <tr>
-        <td>Total approved this month</td>
+        <td>Changes approved this month</td>
         <td class="num">$ ${fmt(coSummary.thisPeriodAdditions)}</td>
         <td class="num">$ ${fmt(coSummary.thisPeriodDeductions)}</td>
       </tr>
@@ -2539,7 +2682,7 @@ export function buildAIAPayAppHtml(
     <div class="cert-block">
       <div class="cert-head">Architect's Certificate for Payment</div>
       <div class="cert-body">
-        On the basis of site observations and of the data in this Application, the Architect certifies to the Owner that the Work has progressed as stated, that its quality is in accordance with the Contract Documents so far as the Architect can judge, and that the Contractor is entitled to payment of the AMOUNT CERTIFIED.
+        By signing below, the Architect tells the Owner that, going by visits to the site and the figures in this Application, the work has reached the stage shown, it meets the Contract Documents as far as the Architect can tell, and the Contractor should be paid the AMOUNT CERTIFIED.
       </div>
       <div class="amount-certified">
         <span class="ac-label">AMOUNT CERTIFIED</span>
@@ -2548,7 +2691,7 @@ export function buildAIAPayAppHtml(
           : '$ <span class="rule" style="min-width:120px">&nbsp;</span>'}</span>
       </div>
       <div class="cert-note">
-        (Attach an explanation if the amount certified differs from the amount applied for. Initial every figure on this Application and on the Continuation Sheet that is changed to match the amount certified.)
+        (If the amount certified is not the amount applied for, attach a note saying why, and put your initials beside each figure on this page or the Continuation Sheet that you change to match it.)
       </div>
       ${app.amountCertified != null && Math.abs(roundCents(app.amountCertified - totals.currentPaymentDue)) > 0.01 ? `
       <div class="cert-note" style="margin-top:5px;color:#111;font-weight:600;">
@@ -2565,7 +2708,7 @@ export function buildAIAPayAppHtml(
         </div>
       </div>
       <div class="cert-closing">
-        This Certificate is not negotiable. The AMOUNT CERTIFIED is payable only to the Contractor named herein. Issuance, payment and acceptance of payment are without prejudice to any rights of the Owner or Contractor under this Contract.
+        Only the Contractor named on this page can be paid the AMOUNT CERTIFIED; this certificate cannot be signed over or transferred to anyone else. Issuing it, paying it or accepting that payment does not give up any right the Owner or the Contractor has under their contract.
       </div>
     </div>
   </div>

@@ -785,6 +785,11 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       { pattern: /Everyone else charges \$99 to \$199/i, why: 'refutable — Contractor Foreman Basic is $49/mo for one user on annual billing' },
       { pattern: /ASC\s*606[^)]{0,40}loss/i, why: 'ASC 606 has no onerous-contract provision; the construction full-loss rule is ASC 605-35 (utils/wip.ts:139-141 gets this right)' },
       { pattern: /the only construction app that/i, why: 'an exhaustive negative claim across a category with hundreds of products — use the checkable "cheapest we could find" form' },
+      // Lane PAYFIX: the portal offers a Pay button on a pay application and
+      // nothing else — its only signing actions are change orders, proposals
+      // and budgets. features/financials.html promised both of these.
+      { pattern: /Owner e-signature via client portal/i, why: 'the portal has no signing action for pay applications — only a Pay button' },
+      { pattern: /client portal for owner signature/i, why: 'same — a pay application is paid in the portal, never signed there' },
     ];
     for (const { pattern, why } of FALSE_CLAIMS) {
       const hits = pages.filter(p => pattern.test(prose(p)));
