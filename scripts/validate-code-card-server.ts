@@ -118,10 +118,17 @@ const OLD_REQS: Array<[string, Row]> = [
 const PLAIN_LINE = (fields: string) => `Write ${fields} as short plain sentences of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
 const PLAIN_REVIEW = PLAIN_LINE('requirement and observed');
 const PLAIN_SWEEP = PLAIN_LINE('requirement, observed and question');
-/** The prompt with the one added line taken out (it must be there exactly once, straight after the paraphrase rule). */
+// A SECOND LINE ADDED ON PURPOSE (2026-10-04, "the code doesn't tell you
+// measurements any more"): straight after the plain-sentence line every prompt
+// carries the specifics rule (SPECIFICS below: state the number with its unit
+// and its trigger; a recalled figure is stated and labelled, never left out).
+// The hashes are STILL the untouched file's: each prompt is the untouched
+// prompt plus exactly those two lines, in that order, after the paraphrase rule.
+const SPECIFICS = 'Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.';
+/** The prompt with the two added lines taken out (each must be there exactly once, in order, straight after the paraphrase rule). */
 function withoutPlainLine(prompt: string, line: string): string | null {
-  const at = `\n${RULE}\n${line}\n`;
-  return prompt.split(at).length === 2 ? prompt.replace(at, `\n${RULE}\n`) : null;
+  const at = `\n${RULE}\n${line}\n${SPECIFICS}\n`;
+  return prompt.split(at).length === 2 && prompt.split(SPECIFICS).length === 2 ? prompt.replace(at, `\n${RULE}\n`) : null;
 }
 const BASE_PROMPTS = [
   'ca7cdf2f908b5373b3bbfa73ba861bea1657d96e1cb2b76928eddaf48c273968',
@@ -142,12 +149,16 @@ if (P && N) {
   const norm = N.normalizePlanResult as (raw: unknown, sweep?: boolean, cards?: boolean) => Norm;
   const plainFor = (r: Row) => (r.sweep && typeof r.sweep === 'object' ? PLAIN_SWEEP : PLAIN_REVIEW);
   const untouched = (r: Row) => withoutPlainLine(buildPrompt(r), plainFor(r));
-  OLD_REQS.forEach(([name, r], i) => ok(`${name}: the untouched prompt plus exactly the one plain-sentence line (hash of the rest unchanged)`,
+  OLD_REQS.forEach(([name, r], i) => ok(`${name}: the untouched prompt plus exactly the plain-sentence line and the specifics line (hash of the rest unchanged)`,
     untouched(r) !== null && sha(untouched(r) ?? '') === BASE_PROMPTS[i], sha(untouched(r) ?? '')));
   ok('Plan Review is asked for requirement and observed; a sweep for its question too; neither line appears twice',
     buildPrompt(OLD_REQS[0][1]).includes(PLAIN_REVIEW) && !buildPrompt(OLD_REQS[0][1]).includes(PLAIN_SWEEP)
       && buildPrompt(OLD_REQS[2][1]).includes(PLAIN_SWEEP) && !buildPrompt(OLD_REQS[2][1]).includes(PLAIN_REVIEW)
       && buildPrompt(OLD_REQS[3][1]).includes(PLAIN_SWEEP) && planSrc.split('as short plain sentences of under 25 words').length === 2);
+  ok('every prompt path asks for the number: the specifics rule once, straight after the plain-sentence line, and it is one line of the source',
+    OLD_REQS.every(([, r]) => buildPrompt(r).split(`\n${plainFor(r)}\n${SPECIFICS}\n`).length === 2) && planSrc.split(SPECIFICS).length === 2
+      && /state the required number with its unit and the condition that triggers it/.test(SPECIFICS) && /A figure from your own recall is still stated/.test(SPECIFICS)
+      && /Never leave a number out or answer vaguely/.test(SPECIFICS) && !/["'`]/.test(SPECIFICS));
   ok('Plan Review normalized result unchanged', sha(JSON.stringify(norm(RAW))) === BASE_NORM);
   ok('sweep normalized result unchanged (no status, stage or lookRight keys)', sha(JSON.stringify(norm(RAW, true))) === BASE_NORM_SWEEP);
   // Only the literal `true` opts in.
@@ -288,8 +299,14 @@ console.log('\n5. summaryEchoCheck');
   ok('withoutInchMarks takes out the mark and nothing else', CC.withoutInchMarks('Door 2\'-8" wide, 36" high') === "Door 2'-8 wide, 36 high" && CC.withoutInchMarks('reads "X"') === 'reads "X"');
   ok('the phone’s gate agrees on every one of those lines (same rule, both sides)',
     INCHES.every(t => CLIENT.passesEchoCheck(t)) && QUOTES.every(t => !CLIENT.passesEchoCheck(t)), [...INCHES.filter(t => !CLIENT.passesEchoCheck(t)), ...QUOTES.filter(t => CLIENT.passesEchoCheck(t))].join(' | '));
-  ok('"shall"-style code phrasing fails', ['Guards shall be provided', 'Height not less than 36 in.', 'Not more than 4 in. gaps', 'Install in accordance with the code', 'Exception: decks under 30 in.', 'Where required by the code']
+  ok('"shall"-style code phrasing fails: shall, Exception:, a cross-reference written the code’s way (in accordance with Section / Table, where required by this code)',
+    ['Guards shall be provided', 'Height shall be not less than 36 in.', 'Install in accordance with Section R507', 'Fasten in accordance with Table R602.3(1)', 'Exception: decks under 30 in.', 'Where required by this code', 'Where required by Sections R312 and R311']
     .every(t => !e(t)));
+  // 2026-10-04: a number is never a signal. These were refused until then, and
+  // the figure went with them.
+  ok('a plain line is never refused for carrying a number or an ordinary word next to one (not less than, not more than, minimum, in accordance with the plans, where required by the town)',
+    ['Height not less than 36 in.', 'Not more than 4 in. gaps', 'Install in accordance with the plans', 'Where required by the town', 'Guard height: 36 in. minimum', 'Risers no more than 7 3/4 in. tall']
+    .every(t => e(t) && CLIENT.passesEchoCheck(t)));
   const words = (n: number) => Array.from({ length: n }, () => 'go').join(' ');
   ok('a run of 25 words passes, 26 fails, and a sentence break resets the run',
     e(words(25), 200) && !e(words(26), 200) && e(`${words(20)}. ${words(20)}`, 200));
@@ -301,7 +318,7 @@ console.log('\n5. summaryEchoCheck');
   // vanish on the client for a reason the server never saw.
   const corpus = [
     'Add a guard: the deck is more than 30 in. above grade.', "You don't need a guard below 30 in.", 'Keep baluster gaps under 4 in.',
-    'Guards shall be provided', 'Height not less than 36 in.', 'Install in accordance with the code', 'Exception: decks under 30 in.',
+    'Guards shall be provided', 'Height not less than 36 in.', 'Install in accordance with the code', 'Install in accordance with Section R507', 'Exception: decks under 30 in.',
     'Comply with Table R602.3(1)', 'Thereof', 'Herein', 'Notwithstanding', 'The \u2018guard', 'A \u201cquote\u201d', "a 'span' here",
     words(25), words(26), `${words(20)}. ${words(20)}`, 'a'.repeat(140), 'a'.repeat(141), '- - - - - - - - - - - - - - - - - - - - - - - - - - - -',
   ];
@@ -371,18 +388,18 @@ console.log('\n5b. the phone gate is the server gate: the same phrases, the same
   ok('no code phrase is on the phone only', !!diff && diff[1].length === 0, diff ? diff[1].join('  ') : '');
   const sv = serverPhrases(serverSrc) ?? [], ph = phonePhrases(phoneSrc) ?? [];
   ok(`the two lists are EQUAL, entry for entry, in the same order (${sv.length} phrases each, none twice)`,
-    sv.length >= 11 && sv.length === ph.length && sv.every((x, i) => x === ph[i]) && new Set(sv).size === sv.length, `${sv.length} vs ${ph.length}`);
+    sv.length === 9 && sv.length === ph.length && sv.every((x, i) => x === ph[i]) && new Set(sv).size === sv.length, `${sv.length} vs ${ph.length}`);
   // Fixture: the comparer sees a phrase taken off either side, an added one,
   // and refuses a list it cannot read.
   {
-    const dropPhone = phoneSrc.replace('  /\\bnot less than\\b/i,\n', '');
-    const dropServer = serverSrc.replace('\\bwhere required by\\b|', '');
+    const dropPhone = phoneSrc.replace('  /\\bthereof\\b/i,\n', '');
+    const dropServer = serverSrc.replace('\\bnotwithstanding\\b|', '');
     const addPhone = phoneSrc.replace('  /\\bshall\\b/i,\n', '  /\\bshall\\b/i,\n  /\\bpursuant to\\b/i,\n');
     const a = oneSided(serverSrc, dropPhone), b = oneSided(dropServer, phoneSrc), c = oneSided(serverSrc, addPhone);
     ok('fixture: a phrase taken off the phone, one taken off the server and one added on the phone only are each reported; an unreadable list is refused',
       dropPhone !== phoneSrc && dropServer !== serverSrc && addPhone !== phoneSrc
-        && !!a && a[0].join() === '\\bnot less than\\b' && a[1].length === 0
-        && !!b && b[0].length === 0 && b[1].join() === '\\bwhere required by\\b'
+        && !!a && a[0].join() === '\\bthereof\\b' && a[1].length === 0
+        && !!b && b[0].length === 0 && b[1].join() === '\\bnotwithstanding\\b'
         && !!c && c[0].length === 0 && c[1].join() === '\\bpursuant to\\b'
         && oneSided(serverSrc, phoneSrc.replace('/\\bshall\\b/i,', 'SHALL_RE,')) === null
         && oneSided(serverSrc.replace('const CODE_PHRASING = ', 'const CODE_PHRASING_2 = '), phoneSrc) === null
@@ -429,8 +446,8 @@ console.log('\n5b. the phone gate is the server gate: the same phrases, the same
   // The same answers. One sample line per phrase (a phrase with no sample
   // fails here, so a new phrase brings its line), then every other shape.
   const SAMPLES = [
-    'Guards shall be provided.', 'Height not less than 36 in.', 'Gaps not more than 4 in.', 'Install in accordance with the plans.',
-    'Guards where required by the town.', 'Exception: decks under 30 in.', 'Exceptions : none here.', 'As set out herein.', 'Hereinafter the deck.',
+    'Guards shall be provided.', 'Install in accordance with Section R507.', 'Fasten in accordance with Table R602.3(1).', 'Built in accordance with this code.',
+    'Guards where required by Section R312.1.', 'Guards where required by this chapter.', 'Exception: decks under 30 in.', 'Exceptions : none here.', 'As set out herein.', 'Hereinafter the deck.',
     'Use the width thereof.', 'Notwithstanding the above.', 'Comply with Section R312.', 'Complying with Table R602.3(1).', 'It complies with Chapter 3.',
     'Follow the provisions of the code.',
   ];
@@ -439,6 +456,8 @@ console.log('\n5b. the phone gate is the server gate: the same phrases, the same
   const LINES = [
     ...SAMPLES, ...SAMPLES.map((t) => t.toUpperCase()), ...SAMPLES.map((t) => `Add a guard. ${t} Then check it.`),
     'Add a guard: the deck is more than 30 in. above grade.', "You don't need a guard below 30 in.", 'You don\u2019t need a guard below 30 in.', 'Keep baluster gaps under 4 in.',
+    'Height not less than 36 in.', 'Gaps not more than 4 in.', 'Install in accordance with the plans.', 'Guards where required by the town.', 'Guard height: 36 in. minimum.',
+    'Guards must be at least 36 in. high where the walking surface is more than 30 in. above grade.', 'Maximum riser height is 7 3/4 in.; risers can differ by no more than 3/8 in.',
     'Guards "required" here', 'Guards \u201crequired\u201d here', 'Guards \u00abrequired\u00bb', 'The \u2018guard rule', 'Guards are \u2018required\u2019 here', 'A lone \u201e mark',
     "Guards are 'required' here", "Use ('approved') fasteners", "'Guards' go on open sides", "It says 'guards on open sides'", "the '90s deck and the '80s stair",
     "Door 2'-8\" wide.", "A 6' x 8' landing.", "The contractors' crew and the owners' rep.", "Rock 'n' roll", "4' wide, 'more or less', 8' long",
@@ -731,6 +750,9 @@ console.log('\n6. numbersIn and normalizeRequirements');
     ok(`the client's limit-side reader answers exactly as the server's (${lines.length * values.length * CC.CODE_UNITS.length} probes)`, diff.length === 0, diff.slice(0, 5).join('; '));
     ok('…and the corpus exercises a side as well as "no side"', sides >= 20, String(sides));
     const side = (t: string, v: number, u: CC.CodeUnit = 'in') => CC.limitSideInLine(t, v, u);
+    ok('limitSideInLine reads the plain words the gate now lets through: not less than / no less than is a minimum, not more than is a maximum (server and phone)',
+      [CC.limitSideInLine, limitSideInLine].every((f) => f('Guard has to be not less than 36 in. high.', 36, 'in') === 'min' && f('Treads no less than 10 in. deep.', 10, 'in') === 'min'
+        && f('Risers not more than 7.75 in. tall.', 7.75, 'in') === 'max' && f('Not less than 34 in. and not more than 38 in.', 34, 'in') === null));
     ok('limitSideInLine: the side word sits right at the trigger’s figure, before it or straight after its unit',
       side('Guard has to be at least 36 in. high.', 36) === 'min' && side('Guard height: 36 in. minimum.', 36) === 'min' && side('A minimum of 36 in. clear.', 36) === 'min' && side('Leave 36 in. or more.', 36) === 'min'
         && side('Risers can be at most 7.75 in. tall.', 7.75) === 'max' && side('Keep gaps 4 in. or less.', 4) === 'max' && side('No more than 40 psf.', 40, 'psf') === 'max' && side('Risers up to 7¾ in.', 7.75) === 'max'
@@ -885,8 +907,19 @@ console.log('\n9. construction-answer wiring');
   // sha256 of three spans of the UNTOUCHED file (ee7daf9b), recorded before any
   // edit: the calculator + SYSTEM + tools + data helpers, the whole agentic
   // loop, and the charge + citation split. Code cards changes none of them.
-  ok('the calculator, SYSTEM, tools and data helpers are byte-identical to the untouched file',
-    sha(seg('// ── safe arithmetic evaluator', '// ── handler')) === 'adb44d51f3db9df0f416f3a2c249b576321960f1bf098998d426bc32f8175dcf');
+  // ONE LINE REPLACED ON PURPOSE (2026-10-04, "the code doesn't tell you
+  // measurements any more"): HONESTY CONTRACT rule 1 used to tell the model to
+  // leave out any figure it had not retrieved this turn; it now tells it to
+  // state the figure and LABEL an unretrieved one as AI recall. The hash is
+  // STILL the untouched file's: with the old rule 1 put back in place of the
+  // new one, the span is the untouched span. validate-code-copyright-prompts
+  // pins the new rule's words.
+  const OLD_RULE_1 = `1. NEVER state a specific building-code section number, an allowable span, a minimum dimension, a load figure, a fastener schedule, a fire-rating, or any other authoritative code/spec figure UNLESS you retrieved it via the web_search tool in THIS conversation. If you have not retrieved it this turn, say so plainly ("I couldn't retrieve the exact code figure, so treat this as general guidance") and give your best general engineering guidance instead — do not invent a section number or a span table value.`;
+  const rule1 = /\n(1\. [^\n]+)\n2\. CITE every authoritative claim\./.exec(src)?.[1] ?? '';
+  const spanWithOldRule1 = seg('// ── safe arithmetic evaluator', '// ── handler').replace(rule1 || '\u0000', OLD_RULE_1);
+  ok('the calculator, SYSTEM, tools and data helpers are byte-identical to the untouched file, but for HONESTY CONTRACT rule 1 (one line, replaced)',
+    rule1.length > 0 && rule1 !== OLD_RULE_1 && src.split(rule1).length === 2
+      && sha(spanWithOldRule1) === 'adb44d51f3db9df0f416f3a2c249b576321960f1bf098998d426bc32f8175dcf', sha(spanWithOldRule1));
   ok('the agentic loop is byte-identical to the untouched file',
     sha(seg('    const client = new Anthropic(', '    const parsed = parseFooter(fullText);')) === 'da3901889462ded41f1c90c57e9190eb3f59262b40905ceb12e72a59901e8d73');
   ok('the charge and the citation split are byte-identical to the untouched file',

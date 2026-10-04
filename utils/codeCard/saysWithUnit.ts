@@ -118,10 +118,10 @@ export function saysNumberWithUnit(text: unknown, value: unknown, unit: unknown)
 //
 // THE RULE, in full:
 //   * the line prints the limit's figure next to its unit ("36 in.");
-//   * a side word sits RIGHT AT that figure: before it ("at least", "minimum",
-//     "minimum of" / "at most", "maximum", "maximum of", "no more than", "up
-//     to") or straight after its unit ("or more", "minimum" / "or less",
-//     "maximum");
+//   * a side word sits RIGHT AT that figure: before it ("at least", "not less
+//     than", "no less than", "minimum", "minimum of" / "at most", "maximum",
+//     "maximum of", "no more than", "not more than", "up to") or straight
+//     after its unit ("or more", "minimum" / "or less", "maximum");
 //   * the whole line uses ONE kind of side word. A line with both kinds
 //     ("at least 34 in. and at most 38 in.") gives no side.
 // Every one of those words includes the figure itself, so a minimum is ">="
@@ -129,10 +129,10 @@ export function saysNumberWithUnit(text: unknown, value: unknown, unit: unknown)
 
 export type LimitSide = 'min' | 'max';
 
-const MIN_ANYWHERE = /\b(?:at least|minimum|or more)\b/i;
-const MAX_ANYWHERE = /\b(?:at most|maximum|or less|no more than|up to)\b/i;
-const MIN_BEFORE = /\b(?:at least|minimum(?: of)?)\s*$/i;
-const MAX_BEFORE = /\b(?:at most|maximum(?: of)?|no more than|up to)\s*$/i;
+const MIN_ANYWHERE = /\b(?:at least|not less than|no less than|minimum|or more)\b/i;
+const MAX_ANYWHERE = /\b(?:at most|maximum|or less|no more than|not more than|up to)\b/i;
+const MIN_BEFORE = /\b(?:at least|not less than|no less than|minimum(?: of)?)\s*$/i;
+const MAX_BEFORE = /\b(?:at most|maximum(?: of)?|no more than|not more than|up to)\s*$/i;
 const MIN_AFTER = /^\s*(?:or more|minimum)\b/i;
 const MAX_AFTER = /^\s*(?:or less|maximum)\b/i;
 

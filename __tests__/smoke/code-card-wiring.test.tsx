@@ -1081,7 +1081,7 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
   it('Code Check summary: a code-shaped sentence is replaced by the notice with its section, once; the rest of the paragraph stays', async () => {
     await runCodeCheck({
       ...SAMPLE_CODE_CHECK,
-      summary: 'Sample summary: a raised deck needs guards. R312.1 "Sample title" says sample guards shall be provided. Sample again: sample height not less than a sample figure. Sample: plan on a final inspection.',
+      summary: 'Sample summary: a raised deck needs guards. R312.1 "Sample title" says sample guards shall be provided. Sample again: sample height shall be a sample figure. Sample: plan on a final inspection.',
     });
     expect(screen.getAllByText(`Sample summary: a raised deck needs guards. ${NOTICE} Section: R312.1. Sample: plan on a final inspection.`)).toHaveLength(1);
     expect(screen.queryAllByText(/shall be provided|not less than|Sample title/)).toHaveLength(0);
@@ -1153,7 +1153,7 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
       ],
       followUps: [
         { question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No', 'Not sure'] },
-        { question: 'Sample: is it installed in accordance with the listing?', options: ['Yes', 'No'] },
+        { question: 'Sample: is it installed in accordance with this code?', options: ['Yes', 'No'] },
       ],
     };
     await phoneRoute(`/project-detail?id=${PROJECT_ID}`, async () => {
@@ -1213,7 +1213,7 @@ describe('CARDS3 — the Code Check lists, the prose notice and the glued inch m
     commonViolations: ['Sample guards shall be not less than a sample height.'],
     followUps: [
       { id: 'q1', question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No'] },
-      { id: 'q2', question: 'Sample: is it built in accordance with R312.1?', options: ['Yes', 'No'] },
+      { id: 'q2', question: 'Sample: is it built in accordance with Section R312.1?', options: ['Yes', 'No'] },
     ],
   };
 

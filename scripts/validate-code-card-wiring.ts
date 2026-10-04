@@ -115,7 +115,7 @@ import { canRecheck, effectiveVerdict, recheckOutcome, stepJobValue } from '../u
 import { architectMessageFor, shareBlockedReason, shareTextFor, NO_WORDS_SEND } from '../utils/codeCard/shareText';
 import {
   isStandInLine, ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, passesProseCheck, withheldNotice,
-  LINE_NO_TEXT, LINE_WITHHELD, PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,
+  LINE_NO_TEXT, LINE_WITHHELD, PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD, SPECIFICS_RULE,
 } from '../utils/codeCard/echoCheck';
 import { saysNumberWithUnit } from '../utils/codeCard/saysWithUnit';
 import { evidenceView, sectionIsBacked } from '../utils/codeCard/evidence';
@@ -870,7 +870,7 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
     ['verdict', 'why', 'stage', 'trade', 'whatToBuild', 'triggerValue', 'triggerUnit', 'triggerComparison', 'jobNumber', 'jobNumberUnit', 'jobNumberLabel']
       .every((k) => new RegExp(`\\b${k}\\b`).test(main) && new RegExp(`\\n    ${k}: z\\.`).test(between(index, 'const codeCheckSchema = z.object({', '\ntype CodeCheckResult'))));
   ok('the Code Check prompt caps the requirement at 140 characters, and asks for a limit’s line to say the side right before the number',
-    main.includes('requirement (plain English, one sentence, at most 140 characters; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high.")'));
+    main.includes('requirement (plain English, one sentence, at most 140 characters, that states the required number with its unit and when it applies; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high.")'));
   ok('the Code Check prompt says which way a comparison points, and that a minimum or a maximum is a "limit" whose sign is the side the job has to stay on (the Ask prompt’s sentence)',
     main.includes('how the job\'s number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30.')
       && main.includes('A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4'));
@@ -883,6 +883,36 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   // the other two differ from their old text by that one line and nothing else.
   const PLAIN = 'Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or \' marks.';
   const PLAIN_REF = '${PLAIN_SENTENCE_RULE}';
+  // THE SPECIFICS RULE (2026-10-04, the founder: "the code doesn't directly
+  // tell you measurements any more"). Every copyright change told the AI what
+  // NOT to write and none told it the number is a fact, so it went vague. The
+  // three in-app prompts now carry ONE more sentence from ONE source
+  // (SPECIFICS_RULE in utils/codeCard/echoCheck.ts), straight after the
+  // plain-sentence line, and each asks for the figure where it describes the
+  // field. The sha256 pins below are STILL the ones recorded before: each
+  // prompt is proved to be its old text plus exactly the edits listed here
+  // (every edit is put back, and must be there exactly once, before hashing).
+  const SPECIFICS = 'Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.';
+  const SPECIFICS_REF = '${SPECIFICS_RULE}';
+  /** `src` with every [now, before] edit put back; null when an edit is not there exactly once. */
+  const putBack = (src: string, edits: readonly (readonly [string, string])[]): string | null => {
+    let out = src;
+    for (const [now, before] of edits) {
+      if (out.split(now).length !== 2) return null;
+      out = out.replace(now, before);
+    }
+    return out;
+  };
+  const MAIN_EDITS = [
+    [', naming each key number with its unit (heights, widths, depths, clearances, counts, ratings)\n- applicableCodes:', '\n- applicableCodes:'],
+    ['at most 140 characters, that states the required number with its unit and when it applies; for a "limit"', 'at most 140 characters; for a "limit"'],
+    [`\n${PLAIN_REF}\n${SPECIFICS_REF}`, `\n${PLAIN_REF}`],
+  ] as const;
+  const DRILL_EDITS = [
+    ['State every number, dimension and rating it sets, each with its unit and when it applies.', 'Include the specific numbers/dimensions/ratings it specifies when you are confident of them.'],
+    ['on site for this code, each with the figure it is measured against.', 'on site for this code.'],
+    [`\n${PLAIN_REF}\n${SPECIFICS_REF}`, `\n${PLAIN_REF}`],
+  ] as const;
   const sha256 = (t: string) => createHash('sha256').update(t).digest('hex');
   /** A prompt's template source: from `const prompt = \`<first words>` to the closing backtick. */
   const promptSrc = (firstWords: string) => between(index, `const prompt = \`${firstWords}`, '`;\n');
@@ -891,22 +921,34 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('the plain-sentence rule is ONE exported sentence (short plain sentences, no quotation marks, inches as in. and feet as ft), and the screen and the recall prompt import it from the kit',
     PLAIN_SENTENCE_RULE === PLAIN && read('utils/codeCard/echoCheck.ts').split(PLAIN).length === 2
       && !index.includes('one short plain sentence') && !read('utils/inspectionPrep.ts').includes('one short plain sentence')
-      && /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,\s/.test(index)
-      && read('utils/inspectionPrep.ts').includes("import { PLAIN_SENTENCE_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';"));
-  ok('the Code Check prompt asks for plain sentences with no quotation marks and inches as in. (the gate withholds a quoted line), straight after the no-verbatim sentence, as its last line',
-    main.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\`;\n`));
+      && /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD, SPECIFICS_RULE,\s/.test(index)
+      && read('utils/inspectionPrep.ts').includes("import { PLAIN_SENTENCE_RULE, SPECIFICS_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';"));
+  ok('the specifics rule is ONE exported sentence too: state the number with its unit and its trigger, numbers and section numbers are facts, a recalled figure is stated and labelled, never left out; it carries no quotation mark',
+    SPECIFICS_RULE === SPECIFICS && read('utils/codeCard/echoCheck.ts').split(SPECIFICS).length === 2
+      && !index.includes('Be specific: state the required number') && !read('utils/inspectionPrep.ts').includes('Be specific: state the required number')
+      && /state the required number with its unit and the condition that triggers it/.test(SPECIFICS) && /are facts, not code text, so always state them/.test(SPECIFICS)
+      && /A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department/.test(SPECIFICS)
+      && /Never leave a number out or answer vaguely to avoid quoting/.test(SPECIFICS) && !/["'`\u201c\u201d]/.test(SPECIFICS));
+  ok('no in-app code prompt tells the AI to hold a figure back: none says "when you are confident of them", "Never state a dimension" or "read the figure in the adopted code"',
+    [index, read('utils/inspectionPrep.ts')].every((t) => !/when you are confident of them|Never state a dimension|read the figure in the adopted code/.test(t)));
+  ok('the Code Check prompt asks for plain sentences with no quotation marks and inches as in. (the gate withholds a quoted line), straight after the no-verbatim sentence, and then for the specifics, as its last line',
+    main.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\n${SPECIFICS_REF}\`;\n`));
+  ok('the Code Check prompt asks for the NUMBER in the summary and in every requirement line',
+    main.includes('- summary: one paragraph explaining the key code implications, naming each key number with its unit (heights, widths, depths, clearances, counts, ratings)\n')
+      && main.includes('that states the required number with its unit and when it applies;'));
   const mainSrc = promptSrc('A contractor is working on the following project and needs a building-code sanity check.');
-  ok('…and the Code Check prompt READS exactly as it did before the sentence moved to the kit: with the sentence put back in place of its name, its source has the sha256 recorded before the change',
-    mainSrc.split(PLAIN_REF).length === 2 && sha256(mainSrc.replace(PLAIN_REF, PLAIN)) === MAIN_SHA_BEFORE, sha256(mainSrc.replace(PLAIN_REF, PLAIN)));
-  ok('…so its cache key did not move (still cards2: answers written under an unchanged prompt may be replayed)',
-    /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !/::cards[013-9]/.test(index));
+  const mainBefore = putBack(mainSrc, MAIN_EDITS);
+  ok('…and those three edits are the ONLY change to the Code Check prompt: with each put back (and the plain sentence in place of its name), its source has the sha256 recorded before',
+    mainBefore !== null && mainBefore.split(PLAIN_REF).length === 2 && sha256(mainBefore.replace(PLAIN_REF, PLAIN)) === MAIN_SHA_BEFORE, mainBefore === null ? 'an edit is missing' : sha256(mainBefore.replace(PLAIN_REF, PLAIN)));
+  ok('…so its cache key MOVED (cards3): an answer written under the prompt that did not ask for the number is not replayed',
+    /::\$\{answersCacheFragment\(answered\)\}::cards3`;/.test(index) && !/::cards[0-24-9]/.test(index));
 
   // Inspection Ready's recall prompt: run, not grepped.
   {
     const prepSrc = read('utils/inspectionPrep.ts');
     ok('Inspection Ready’s recall prompt carries the no-verbatim sentence as one of its RULES, and the plain-sentence line straight after it, as its last rule',
-      /'- Write every requirement in your own words\. Never quote or reproduce the text of any model code \(ICC, NFPA\) word for word\.',\n(?:\s*\/\/[^\n]*\n)*\s*`- \$\{PLAIN_SENTENCE_RULE\}`,\n {2}\];\n {2}const prompt = lines\.join\('\\n'\);/.test(prepSrc)
-        && prepSrc.includes(`'- ${NO_VERBATIM}',\n`) && prepSrc.split(PLAIN_REF).length === 2);
+      /'- Write every requirement in your own words\. Never quote or reproduce the text of any model code \(ICC, NFPA\) word for word\.',\n(?:\s*\/\/[^\n]*\n)*\s*`- \$\{PLAIN_SENTENCE_RULE\}`,\n(?:\s*\/\/[^\n]*\n)*\s*`- \$\{SPECIFICS_RULE\}`,\n {2}\];\n {2}const prompt = lines\.join\('\\n'\);/.test(prepSrc)
+        && prepSrc.includes(`'- ${NO_VERBATIM}',\n`) && prepSrc.split(PLAIN_REF).length === 2 && prepSrc.split(SPECIFICS_REF).length === 2);
     const inspection: UpcomingInspection = {
       key: 'p1:framing:2026-10-06', projectId: 'p1', name: 'Framing inspection', day: '2026-10-06', daysUntil: 2,
       source: { kind: 'task', taskId: 't1' }, authority: 'Town of Sample', category: null, permitId: null, taskId: 't1', taskName: 'Framing inspection',
@@ -926,30 +968,48 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
       const r = buildRecallPrompt({ inspection, project: { id: 'p1', name: 'Sample deck' } as unknown as Project, jurisdiction, covered, answers: { 'Sample: any stairs?': 'Yes' } });
       return { before, lines: r.prompt.split('\n'), key: r.cacheKey };
     });
-    ok('the recall prompt as RUN ends with the no-verbatim rule and then the plain-sentence rule (with an edition named, and with none)',
-      runs.every((r) => r.lines[r.lines.length - 1] === `- ${PLAIN}` && r.lines[r.lines.length - 2] === `- ${NO_VERBATIM}`), runs.map((r) => r.lines.slice(-2).join(' / ')).join(' | '));
-    ok('…and that line is the ONLY change: without its last line the prompt has the sha256 recorded on the untouched file, on both paths',
-      runs.every((r) => sha256(r.lines.slice(0, -1).join('\n')) === r.before), runs.map((r) => sha256(r.lines.slice(0, -1).join('\n'))).join(' | '));
-    ok('an answer cached under the old recall prompt is not replayed: the cache key is the old key plus the prompt version (plain1), and nothing else moved',
-      RECALL_PROMPT_VERSION === 'plain1' && runs.every((r) => r.key === `${KEY_BEFORE}::plain1`)
-        && prepSrc.includes("}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;") && prepSrc.includes("export const RECALL_PROMPT_VERSION = 'plain1';"), runs.map((r) => r.key).join(' | '));
+    ok('the recall prompt as RUN ends with the no-verbatim rule, then the plain-sentence rule, then the specifics rule (with an edition named, and with none)',
+      runs.every((r) => r.lines[r.lines.length - 1] === `- ${SPECIFICS}` && r.lines[r.lines.length - 2] === `- ${PLAIN}` && r.lines[r.lines.length - 3] === `- ${NO_VERBATIM}`), runs.map((r) => r.lines.slice(-3).join(' / ')).join(' | '));
+    // The recall prompt used to FORBID figures ("Never state a dimension…"),
+    // so the list read "check the guard height" with no height. That rule is
+    // now the opposite one; the group is still under the model-recall chip.
+    const FIGURE_NOW = '- State the figure the inspector checks against, with its unit and when it applies. It is shown as AI recall to confirm with the building department, so never leave it out. When you do not know the figure, say what the inspector checks and mark confidence low.';
+    const FIGURE_BEFORE = '- Never state a dimension, clearance, rating or other figure; say what the inspector checks and tell the contractor to read the figure in the adopted code.';
+    const RECALL_EDITS = [
+      [`\n${FIGURE_NOW}\n`, `\n${FIGURE_BEFORE}\n`],
+      ['- Each item: text (what the inspector checks, with the figure and its unit, one short line), codeRef,', '- Each item: text (what the inspector checks, one short line), codeRef,'],
+    ] as const;
+    const recallBefore = runs.map((r) => putBack(r.lines.slice(0, -2).join('\n'), RECALL_EDITS));
+    ok('the recall prompt ASKS for the figure the inspector checks against (stated as recall, never left out), and its item shape asks for it too',
+      runs.every((r) => r.lines.includes(FIGURE_NOW) && !r.lines.some((l) => /Never state a dimension/.test(l)) && r.lines.some((l) => l.includes('with the figure and its unit'))));
+    ok('…and those are the ONLY changes: without its last two lines and with the two edits put back, the prompt has the sha256 recorded on the untouched file, on both paths',
+      runs.every((r, i) => recallBefore[i] !== null && sha256(recallBefore[i] ?? '') === r.before), recallBefore.map((t) => (t === null ? 'an edit is missing' : sha256(t))).join(' | '));
+    ok('an answer cached under an older recall prompt is not replayed: the cache key is the old key plus the prompt version (specific1), and nothing else moved',
+      RECALL_PROMPT_VERSION === 'specific1' && runs.every((r) => r.key === `${KEY_BEFORE}::specific1`)
+        && prepSrc.includes("}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;") && prepSrc.includes("export const RECALL_PROMPT_VERSION = 'specific1';"), runs.map((r) => r.key).join(' | '));
+    ok('the sheet still labels that group as model recall (the chip, and the heading)',
+      /export const RECALL_CHIP = 'From model recall — verify with your AHJ';/.test(read('components/inspectionPrep/InspectionReadySheet.tsx'))
+        && read('components/inspectionPrep/InspectionReadySheet.tsx').includes('Commonly checked (model recall)'));
   }
-  ok('an answer cached before the limit rule is not replayed (the cache key moved to cards2)',
-    /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !index.includes('::cards1'));
+  ok('an answer cached before the limit rule, or before the specifics rule, is not replayed (the cache key is past cards1 and cards2)',
+    /::\$\{answersCacheFragment\(answered\)\}::cards3`;/.test(index) && !index.includes('::cards1') && !index.includes('::cards2'));
   const drill = between(index, 'A contractor ran a code check and wants to understand ONE specific code citation in depth.', 'const cacheKey = `code_detail::');
   ok('the drill-in prompt carries the sentence too', drill.includes(NO_VERBATIM));
   const detailSchema = between(index, 'const codeDetailSchema = z.object({', '\ntype CodeDetail');
   ok('the drill-in asks for NOTHING its schema cannot carry (prose fields only; no card fields)',
-    drill.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\`;\n`) && !/verdict|whatToBuild|\btrigger\b|triggerValue|jobNumber|structured fields/.test(drill)
+    drill.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\n${SPECIFICS_REF}\`;\n`) && !/verdict|whatToBuild|\btrigger\b|triggerValue|jobNumber|structured fields/.test(drill)
       && ['plainEnglish', 'appliesBecause', 'inspectorChecks', 'commonFailures', 'ruleOfThumb'].every((k) => drill.includes(`- ${k}:`) && detailSchema.includes(`${k}: z.`)),
     drill.slice(-200));
   const drillSrc = promptSrc('A contractor ran a code check and wants to understand ONE specific code citation in depth.');
-  ok('the drill-in prompt carries the plain-sentence line, straight after the no-verbatim sentence, as its last line: the same sentence the Code Check prompt carries, by name',
-    drillSrc.endsWith(`\n${NO_VERBATIM}\n${PLAIN_REF}`) && index.split(PLAIN_REF).length === 3);
-  ok('…and that line is the ONLY change to the drill-in prompt: without it, its source has the sha256 recorded on the untouched file',
-    drillSrc.split(`\n${PLAIN_REF}`).length === 2 && sha256(drillSrc.replace(`\n${PLAIN_REF}`, '')) === DRILL_SHA_BEFORE, sha256(drillSrc.replace(`\n${PLAIN_REF}`, '')));
-  ok('an answer cached under the old drill-in prompt is not replayed: the cache key is the old key plus ::plain1',
-    index.includes("const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;")
+  ok('the drill-in prompt carries the plain-sentence line, straight after the no-verbatim sentence, and then the specifics line, as its last line: the same sentences the Code Check prompt carries, by name',
+    drillSrc.endsWith(`\n${NO_VERBATIM}\n${PLAIN_REF}\n${SPECIFICS_REF}`) && index.split(PLAIN_REF).length === 3 && index.split(SPECIFICS_REF).length === 3);
+  ok('the drill-in asks for EVERY number the section sets (no "when you are confident of them"), and for the figure each inspector check is measured against',
+    drill.includes('State every number, dimension and rating it sets, each with its unit and when it applies.') && drill.includes('each with the figure it is measured against.'));
+  const drillBefore = putBack(drillSrc, DRILL_EDITS);
+  ok('…and those edits are the ONLY change to the drill-in prompt: with each put back and the plain-sentence line taken out, its source has the sha256 recorded on the untouched file',
+    drillBefore !== null && drillBefore.split(`\n${PLAIN_REF}`).length === 2 && sha256(drillBefore.replace(`\n${PLAIN_REF}`, '')) === DRILL_SHA_BEFORE, drillBefore === null ? 'an edit is missing' : sha256(drillBefore.replace(`\n${PLAIN_REF}`, '')));
+  ok('an answer cached under an older drill-in prompt is not replayed: the cache key is the old key plus ::plain2',
+    index.includes("const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain2`;")
       && (index.match(/`code_detail::/g) ?? []).length === 1);
 
   const viewer = between(index, 'function ViewerLinks(', 'function RungBadge(');
@@ -1233,7 +1293,7 @@ console.log('\n4b. The withhold rule covers every place the line can appear');
         'the check saved to the job: `data` is the gated result (pinned below)'],
       ["Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}",
         'the drill-in PROMPT (sent to the AI, not shown); `c` is a row of the gated result, and a stand-in line is never sent as a requirement'],
-      ["const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;",
+      ["const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain2`;",
         'a cache key, never shown'],
       ['<CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={codeCheckPlainLine(c.requirement, passesEchoCheck)} onBeforeNavigate={onClose} />',
         'a React key (never shown); the text the permit / punch item / RFI is built from is the gated line'],
@@ -1576,7 +1636,7 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
         && index.includes("const label = c.section.trim() ? [c.code, c.section].filter(Boolean).join(' ') : '';")
         && index.includes('return [label, ...sections.filter((s) => !label.includes(s))];'));
     ok('the kit’s prose gate is the one the screen imports',
-      /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,\s+ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, withheldNotice,\s+type ProseBlock, type ProseList,\s+\} from '@\/utils\/codeCard\/echoCheck';/.test(index));
+      /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD, SPECIFICS_RULE,\s+ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, withheldNotice,\s+type ProseBlock, type ProseList,\s+\} from '@\/utils\/codeCard\/echoCheck';/.test(index));
     // What the screen then holds, with the real gate.
     const answer = {
       plainEnglish: 'A guard goes on every open side once the deck is more than 30 in. up. Guards shall be not less than 36 in. high. Keep the gaps tight.',
@@ -1655,7 +1715,7 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
       ],
       followUps: [
         { question: 'Any stairs with four or more risers?', options: ['Yes', 'No', 'Not sure'] },
-        { question: 'Is the guard installed in accordance with the listing?', options: ['Yes', 'No'] },
+        { question: 'Is the guard installed in accordance with Section R312.1?', options: ['Yes', 'No'] },
         { question: 'Which label is on the glazing?', options: ['"Tempered"', 'None'] },
       ],
     };
@@ -1882,7 +1942,7 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
       commonViolations: ['Sample guards shall be not less than a sample height.', 'Exception: sample decks.'],
       followUps: [
         { id: 'a', question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No'] },
-        { id: 'b', question: 'Sample: is it built in accordance with R312.1?', options: ['Yes', 'No'] },
+        { id: 'b', question: 'Sample: is it built in accordance with Section R312.1?', options: ['Yes', 'No'] },
       ],
     };
     const printed = { permits: ownWordsList(result.permitsRequired), inspections: ownWordsList(result.inspections), violations: ownWordsList(result.commonViolations), asked: ownWordsQuestions(result.followUps) };

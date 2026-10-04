@@ -17,6 +17,20 @@
 //       (Code Check, its drill-in, Inspection Ready's recall group) and for
 //       nothing else, before the reply-language rule
 //
+// THE OTHER HALF (2026-10-04). Those rules told the AI what NOT to write and
+// nothing told it that a number is a fact, so answers went vague ("guards may
+// be required at certain heights"). The legal line did not move: the code's
+// SENTENCES are never reproduced; a required dimension, a count, a threshold
+// and a section number are facts and are always stated, a recalled one
+// LABELLED as recall. This guard pins that half too:
+//
+//   [5] the specifics rule is one sentence, the same on the phone
+//       (SPECIFICS_RULE), in the ai relay (ai_code_check only) and in
+//       analyze-plan-code (every path); construction-answer rule 1 tells the
+//       model to state the figure and label an unretrieved one as recall (it
+//       no longer tells it to leave the figure out), and its cards call keeps
+//       the number in the summary; no prompt forbids a figure
+//
 // Run: bun run scripts/validate-code-copyright-prompts.ts
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -116,6 +130,49 @@ console.log('\n[4] ai relay: the rule rides on ai_code_check only');
   ok('the base system sentence never carries the rule (every other feature unchanged)', !(m?.[1] ?? RULE).includes(RULE));
   ok('the relay still reads feature before building sys', src.indexOf('const feature = rawFeature || "general";') >= 0
     && src.indexOf('const feature = rawFeature || "general";') < src.indexOf('const sys = '));
+}
+
+// ── [5] the number is a fact: stated, and labelled when it is recall ────
+console.log('\n[5] the specifics rule: the number is stated; recall is labelled, never left out');
+{
+  const SPECIFICS = 'Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.';
+  const RULE_1 = '1. LEAD WITH THE SPECIFIC FIGURE. State the number with its unit, the condition that triggers it and the section number, in one or two plain sentences (for example: Guards have to be at least 36 in. high where the walking surface is more than 30 in. above grade, IRC R312.1). Retrieve every authoritative code/spec figure (a section number, an allowable span, a minimum dimension, a load figure, a fastener schedule, a fire rating) with the web_search tool in THIS conversation whenever you can. When you could not retrieve a figure this turn, STILL state the figure you recall, and label it in the same sentence as AI recall that the building department has to confirm. Never leave a number out, and never answer vaguely, because it was not retrieved; never present a recalled figure as retrieved. Do not invent a section number or a span table value you do not actually know: say that you do not know it.';
+  const phone = read('utils/codeCard/echoCheck.ts');
+  ok('the phone exports the specifics rule, word for word, once', phone.includes(`export const SPECIFICS_RULE = \`${SPECIFICS}\`;`) && phone.split(SPECIFICS).length === 2);
+  ok('the rule asks for the number, its unit and its trigger; says numbers and section numbers are facts; has recall stated and labelled; forbids going vague; and carries no quotation mark',
+    /state the required number with its unit and the condition that triggers it/.test(SPECIFICS) && /Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them\./.test(SPECIFICS)
+      && /A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department\./.test(SPECIFICS)
+      && /Never leave a number out or answer vaguely to avoid quoting\./.test(SPECIFICS) && !/["'`]/.test(SPECIFICS));
+  const relay = read('supabase/functions/ai/index.ts');
+  const tail = /const sys = ("[^"\n]*")([\s\S]*?)\+ replyLanguageRule\(body\.locale\);/.exec(relay)?.[2] ?? '';
+  const code = tail.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  ok('ai relay: the specifics rule rides on ai_code_check only, straight after the no-verbatim rule and before the reply-language rule',
+    code.replace(/\s+/g, ' ').includes(`+ (feature === "ai_code_check" ? " ${RULE}" : "") + (feature === "ai_code_check" ? " ${SPECIFICS}" : "")`)
+      && relay.split(SPECIFICS).length === 2);
+  const plan = read('supabase/functions/analyze-plan-code/index.ts');
+  ok('analyze-plan-code: the specifics rule is one line of the prompt, in the pure block', plan.split(`    "${SPECIFICS}",\n`).length === 2
+    && (plan.match(/\/\/ <pure:planPrompt>\n([\s\S]*?)\/\/ <\/pure:planPrompt>/)?.[1] ?? '').includes(SPECIFICS));
+  const ask = read('supabase/functions/construction-answer/index.ts');
+  const sys = /const SYSTEM = `([\s\S]*?)`;/.exec(ask)?.[1] ?? '';
+  ok('construction-answer rule 1: state the figure (number, unit, trigger, section); retrieve it when possible; a figure not retrieved is STILL stated and labelled AI recall; never invented', sys.includes(`\n${RULE_1}\n2. CITE every authoritative claim.`));
+  ok('…and rule 1 no longer tells the model to leave an unretrieved figure out', !/NEVER state a specific building-code section number|treat this as general guidance/.test(sys));
+  ok('…while the label stays: VERIFIED is "yes" only if every figure was retrieved this turn (anything else shows the confirm banner)',
+    sys.includes('VERIFIED: yes    (use "yes" only if every authoritative code/spec figure in your answer was retrieved via web_search this turn; otherwise "no")')
+      && /never present a recalled figure as retrieved/.test(RULE_1) && /Do not invent a section number or a span table value you do not actually know/.test(RULE_1));
+  const cards = read('supabase/functions/construction-answer/codeCardRequirements.ts');
+  ok('the cards call keeps the number: a summary states the number the answer states, with its unit; and it still restates ONLY the answer',
+    cards.includes('"When the answer states a number for the requirement, the summary states that number with its unit, and the condition that triggers it when it fits. A number, a dimension, a count and a section number are facts, not code text: never leave them out of a card.",')
+      && cards.includes('"Use ONLY what the answer below states. Never add a requirement, a section number, an edition, a dimension or any other figure that the answer does not state.'));
+  const prompts = [
+    ['app/(tabs)/construction-ai/index.tsx', read('app/(tabs)/construction-ai/index.tsx')], ['utils/inspectionPrep.ts', read('utils/inspectionPrep.ts')],
+    ['supabase/functions/ai/index.ts', relay], ['supabase/functions/analyze-plan-code/index.ts', plan], ['construction-answer SYSTEM', sys], ['construction-answer cards call', cards],
+  ];
+  const FORBIDS = /Never state a dimension|when you are confident of them|read the figure in the adopted code|NEVER state a specific building-code section number/;
+  const bad = prompts.filter(([, t]) => FORBIDS.test(t.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'))).map(([n]) => n);
+  ok('no code prompt tells the AI to hold a figure back', bad.length === 0, bad.join(', '));
+  ok('…and the no-verbatim rule is still in every one of them (the legal line did not move)',
+    relay.includes(RULE) && plan.includes(RULE) && cards.includes(RULE) && sys.includes(RULE_7)
+      && read('app/(tabs)/construction-ai/index.tsx').split(RULE).length === 3 && read('utils/inspectionPrep.ts').includes(RULE));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

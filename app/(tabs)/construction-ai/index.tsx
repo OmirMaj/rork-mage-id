@@ -87,7 +87,7 @@ import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
 import { parseCodeCardItem } from '@/utils/codeCard/parse';
 import { saysNumberWithUnit } from '@/utils/codeCard/saysWithUnit';
 import {
-  PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,
+  PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD, SPECIFICS_RULE,
   ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, withheldNotice,
   type ProseBlock, type ProseList,
 } from '@/utils/codeCard/echoCheck';
@@ -1513,8 +1513,8 @@ ${buildingBlock}Category: ${categoryLabel}
 Scenario: ${scenario.trim()}
 ${factsBlock ? `${factsBlock}\n` : ''}
 Return a JSON object with:
-- summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English, one sentence, at most 140 characters; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high."), verdict ("required" when it must be built or done on this job, "limit" when it is a maximum or minimum to stay inside, "not_required" when the job falls outside it), why (one short line, at most 160 characters, on why it applies to THIS job, or ""), stage (your best guess of the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trade (the trade that builds it, e.g. "framing", or ""), whatToBuild (array of up to 4 short lines in your own words, each at most 100 characters, on what to build; [] if none), triggerValue, triggerUnit and triggerComparison (the number the requirement turns on, its unit ("in", "ft", "psf", "deg" or "count") and how the job's number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30. A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4 — ONLY when you are certain of the number; otherwise triggerUnit "" and triggerValue -1), jobNumber, jobNumberUnit and jobNumberLabel (the job's OWN number for that requirement, in the same unit, and where it is stated, e.g. "deck height from the scenario" — ONLY when the number is stated above; otherwise jobNumberUnit "" and jobNumber -1) }
+- summary: one paragraph explaining the key code implications, naming each key number with its unit (heights, widths, depths, clearances, counts, ratings)
+- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English, one sentence, at most 140 characters, that states the required number with its unit and when it applies; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high."), verdict ("required" when it must be built or done on this job, "limit" when it is a maximum or minimum to stay inside, "not_required" when the job falls outside it), why (one short line, at most 160 characters, on why it applies to THIS job, or ""), stage (your best guess of the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trade (the trade that builds it, e.g. "framing", or ""), whatToBuild (array of up to 4 short lines in your own words, each at most 100 characters, on what to build; [] if none), triggerValue, triggerUnit and triggerComparison (the number the requirement turns on, its unit ("in", "ft", "psf", "deg" or "count") and how the job's number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30. A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4 — ONLY when you are certain of the number; otherwise triggerUnit "" and triggerValue -1), jobNumber, jobNumberUnit and jobNumberLabel (the job's OWN number for that requirement, in the same unit, and where it is stated, e.g. "deck height from the scenario" — ONLY when the number is stated above; otherwise jobNumberUnit "" and jobNumber -1) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
@@ -1523,11 +1523,12 @@ ${followUpInstruction(answered)}
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
 Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.
 Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
-${PLAIN_SENTENCE_RULE}`;
+${PLAIN_SENTENCE_RULE}
+${SPECIFICS_RULE}`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
-    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${hashLeakText(scenario.trim().toLowerCase(), '', [])}::${ctx?.cacheFragment ?? 'noctx'}::${codeBuilding.phase === 'ready' ? codeBuilding.summary.cacheKey : 'nobr'}::${answersCacheFragment(answered)}::cards2`;
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${hashLeakText(scenario.trim().toLowerCase(), '', [])}::${ctx?.cacheFragment ?? 'noctx'}::${codeBuilding.phase === 'ready' ? codeBuilding.summary.cacheKey : 'nobr'}::${answersCacheFragment(answered)}::cards3`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey, 'ai_code_check');
@@ -3379,20 +3380,21 @@ Code cited: ${label}
 Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}
 
 Return a JSON object with:
-- plainEnglish: what this code section actually requires, in plain contractor English (2-4 sentences). Include the specific numbers/dimensions/ratings it specifies when you are confident of them.
+- plainEnglish: what this code section actually requires, in plain contractor English (2-4 sentences). State every number, dimension and rating it sets, each with its unit and when it applies.
 - appliesBecause: one or two sentences on why THIS code was triggered by THIS specific scope of work.
-- inspectorChecks: array of 2-5 concrete things an inspector will physically look at or measure on site for this code.
+- inspectorChecks: array of 2-5 concrete things an inspector will physically look at or measure on site for this code, each with the figure it is measured against.
 - commonFailures: array of 2-4 specific ways contractors fail this particular code.
 - ruleOfThumb: one short field-usable rule of thumb for staying compliant, or '' if none applies.
 
 Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.
 Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
-${PLAIN_SENTENCE_RULE}`;
+${PLAIN_SENTENCE_RULE}
+${SPECIFICS_RULE}`;
 
     // The jurisdiction is in this prompt too, so it is in this key too.
-    // `plain1`: an answer cached under the prompt as it was before its last
-    // line (the plain-sentence rule) is not replayed.
-    const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;
+    // `plain2`: an answer cached under the prompt as it was before its last
+    // lines (the plain-sentence rule, then the specifics rule) is not replayed.
+    const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain2`;
     try {
       const res = await mageAISmart(prompt, codeDetailSchema, cacheKey, 'ai_code_check');
       if (!res.success || !res.data) {

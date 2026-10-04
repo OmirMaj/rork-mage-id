@@ -45,7 +45,7 @@ import { inspectionHistoryFactsFor, type InspectionHistoryGrounding } from '@/ut
 import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import { ROADMAP_FEATURE } from '@/utils/automation/roadmapToScheduleWork';
 import type { CodePin, CodeStage } from '@/utils/codeCard/types';
-import { PLAIN_SENTENCE_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';
+import { PLAIN_SENTENCE_RULE, SPECIFICS_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';
 import {
   issuingAuthorityForAddress,
   jurisdictionQueryForProject,
@@ -459,7 +459,7 @@ export function buildChecklist(a: {
 // ─── The recall prompt ────────────────────────────────────────────────────────
 
 /** Moves with the prompt's wording: the last part of the recall cache key. */
-export const RECALL_PROMPT_VERSION = 'plain1';
+export const RECALL_PROMPT_VERSION = 'specific1';
 
 export function buildRecallPrompt(a: {
   inspection: UpcomingInspection;
@@ -493,21 +493,28 @@ export function buildRecallPrompt(a: {
     '',
     'RULES:',
     '- List what an inspector commonly checks at this inspection, from your recall of the model codes. You cannot look anything up.',
-    '- Never state a dimension, clearance, rating or other figure; say what the inspector checks and tell the contractor to read the figure in the adopted code.',
+    // The figure IS the check. Until 2026-10-04 this line told the AI never to
+    // state a dimension, so the list read "check the guard height" with no
+    // height. The recall group is labelled AI recall on the sheet, and its low-
+    // confidence lines sit under Verify, so the figure is stated and labelled,
+    // not left out.
+    '- State the figure the inspector checks against, with its unit and when it applies. It is shown as AI recall to confirm with the building department, so never leave it out. When you do not know the figure, say what the inspector checks and mark confidence low.',
     '- Give a codeRef only when you are certain of it, using the edition named above; otherwise leave it empty.',
     ...(jurisdiction.grounded ? [] : ['- No edition is named above, so leave every codeRef empty.']),
     '- Mark confidence low when unsure.',
     '- Ask at most 3 follow-up questions, each with 2-4 short tap options, only when the answer changes the list (e.g. "Any basement bedrooms?" Yes / No / Not sure).',
-    '- Each item: text (what the inspector checks, one short line), codeRef, confidence (high, med or low), why (one short line).',
+    '- Each item: text (what the inspector checks, with the figure and its unit, one short line), codeRef, confidence (high, med or low), why (one short line).',
     // Copyright: the same sentence every code prompt carries.
     '- Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.',
     // ...and the Code Check prompt's own next line (one source): short plain
     // sentences, no quotation marks, in. and ft. The own-words gate withholds
     // a line that carries a quotation mark, so the AI is told not to write one.
     `- ${PLAIN_SENTENCE_RULE}`,
+    // ...and the specifics rule (one source): the number is stated, as recall.
+    `- ${SPECIFICS_RULE}`,
   ];
   const prompt = lines.join('\n');
-  // `plain1`: an answer cached under the prompt as it was before that line is
+  // RECALL_PROMPT_VERSION: an answer cached under the prompt's earlier wording is
   // not replayed (the 24 h AI cache is keyed on this string).
   const cacheKey = `inspection_prep::${inspection.key}::${jurisdiction.cacheKey}::${digest(covered.map((c) => c.text).join('\n'))}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;
   return { prompt, cacheKey };

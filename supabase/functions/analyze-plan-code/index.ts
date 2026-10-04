@@ -194,6 +194,13 @@ function buildPrompt(req: PlanCodeRequest): string {
     // gate: no quotation marks, no sentence over 25 words). An inch written
     // as a mark, or a drawing note copied in quotes, costs the contractor the line.
     `Write ${sweep ? "requirement, observed and question" : "requirement and observed"} as short plain sentences of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`,
+    // The number is the answer (2026-10-04). "Never quote the code" alone made
+    // the model drop figures; a required dimension is a fact. Every finding is
+    // shown under the model-recall chip, so a recalled figure is stated and
+    // labelled, never left out. The same sentence as the app's SPECIFICS_RULE
+    // (utils/codeCard/echoCheck.ts) and the ai relay's; pinned equal by
+    // scripts/validate-code-copyright-prompts.ts.
+    "Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.",
     juris
       ? "For each finding, citedEdition is the code family and edition you are citing, exactly as named in the jurisdiction block above when that block covers it, and section is the section number alone."
       : "For each finding, citedEdition is the model-code family and the edition year you are recalling (the family alone if you are unsure of the year), and section is the section number alone.",

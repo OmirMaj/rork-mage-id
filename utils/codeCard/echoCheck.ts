@@ -34,11 +34,23 @@
 //                      not a measurement. An opening quote never follows a
 //                      digit, so "Guards…", reads "X" and R312.1 "Guards all
 //                      still fail.
-//   4. code phrasing   "shall", "not less than", "not more than", "in
-//                      accordance with", "where required by", "Exception:",
-//                      "herein", "thereof", "notwithstanding", "comply with
-//                      Section", "the provisions of". Our own words never
-//                      need them.
+//   4. code phrasing   the words that mark COPIED code text: "shall",
+//                      "Exception:", "herein", "thereof", "notwithstanding",
+//                      "the provisions of", and a cross-reference written the
+//                      code's way ("in accordance with Section …", "where
+//                      required by Table …", "comply with Section …"). Our
+//                      own words never need them.
+//                      A NUMBER IS NEVER A SIGNAL, and neither is an ordinary
+//                      word next to one: "at least 36 in.", "36 in. minimum",
+//                      "not less than 36 in.", "no more than 7 3/4 in.",
+//                      "required", "in accordance with the manufacturer's
+//                      instructions" all pass. A required dimension is a fact
+//                      and the card exists to show it; a gate that hid the
+//                      line for saying "not less than" hid the answer
+//                      (2026-10-04, the founder: "the code doesn't tell you
+//                      measurements any more"). Until then "not less than",
+//                      "not more than" and every "in accordance with" /
+//                      "where required by" were refused.
 //
 // A rejected summary is not shown. The caller drops the item (or the line)
 // rather than trimming it, because a trimmed quote is still a quote.
@@ -164,16 +176,31 @@ export const PROSE_VIEWER_LINE = "Read the code in the publisher's free viewer, 
 export const PLAIN_SENTENCE_RULE = `Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
 
 /**
- * Phrasing that reads like model-code text rather than a contractor's words.
+ * What every prompt that asks the AI for a code requirement is told, straight
+ * after the plain-sentence rule: THE NUMBER IS THE ANSWER. The copyright rule
+ * ("never quote the code") made the AI drop figures to be safe; a required
+ * dimension, a count, a threshold and a section number are facts, and a
+ * contractor needs them. Recall is LABELLED on screen (the AI-recall chip and
+ * the confirm line), never left out. ONE SOURCE on the phone (the Code Check
+ * prompt, its drill-in, Inspection Ready's recall prompt); the servers carry
+ * the same sentence, word for word (ai relay for ai_code_check,
+ * analyze-plan-code, construction-answer's cards call), pinned equal by
+ * scripts/validate-code-copyright-prompts.ts.
+ */
+export const SPECIFICS_RULE = `Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.`;
+
+/**
+ * Phrasing that marks COPIED model-code text rather than a contractor's words.
  * THE SAME LIST AS THE SERVER'S CODE_PHRASING, one entry per alternative
  * (validate-code-card-server fails when a phrase is on one side only).
+ * Nothing here may match a plain sentence for carrying a number or an ordinary
+ * word such as minimum, maximum, at least, not less than, required (rule 4 in
+ * the header; validate-code-cards runs 40 such sentences through both modes).
  */
 const CODE_PHRASES: readonly RegExp[] = [
   /\bshall\b/i,
-  /\bnot less than\b/i,
-  /\bnot more than\b/i,
-  /\bin accordance with\b/i,
-  /\bwhere required by\b/i,
+  /\bin accordance with (?:this (?:code|section|chapter)|sections?|tables?|chapters?)\b/i,
+  /\bwhere required by (?:this (?:code|section|chapter)|sections?|tables?|chapters?)\b/i,
   /\bexceptions?\s*:/i,
   /\bherein(?:after)?\b/i,
   /\bthereof\b/i,

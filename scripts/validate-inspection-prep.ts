@@ -355,7 +355,14 @@ let samplePrompt = '';
   ok('names the inspection and day', a.prompt.includes(`INSPECTION: Rough electrical on ${insp.day}`));
   ok('has ALREADY COVERED with the history + scope texts', a.prompt.includes('ALREADY COVERED (do not repeat):')
     && covered.every((c) => a.prompt.includes(c.text)));
-  ok('forbids figures', a.prompt.includes('Never state a dimension'));
+  // 2026-10-04: this rule used to be 'forbids figures' ("Never state a
+  // dimension…"), and the list read "check the guard height" with no height.
+  // The figure is now ASKED for, stated as recall under the model-recall chip.
+  ok('asks for the figure the inspector checks against, stated as AI recall, and never forbids one',
+    a.prompt.includes('- State the figure the inspector checks against, with its unit and when it applies. It is shown as AI recall to confirm with the building department, so never leave it out.')
+      && a.prompt.includes('with the figure and its unit') && !/Never state a dimension|read the figure in the adopted code/.test(a.prompt));
+  ok('…and still says what to do when it does not know the figure (say what is checked, mark confidence low)',
+    a.prompt.includes('When you do not know the figure, say what the inspector checks and mark confidence low.') && a.prompt.includes('- Mark confidence low when unsure.'));
   ok('says it cannot look anything up', a.prompt.includes('You cannot look anything up.'));
   ok('codeRef only when certain', a.prompt.includes('Give a codeRef only when you are certain of it'));
   ok('max 3 follow-ups rule', a.prompt.includes('Ask at most 3 follow-up questions'));

@@ -201,6 +201,14 @@ ok(`${FN} marks the prompt and normalizePlanResult as pure blocks`, !!promptBloc
 // plain sentences with no quotation marks and inches as "in.", because the
 // app's own-words gate withholds a quoted line. scripts/validate-code-card-server.ts
 // proves each prompt is the ca7cdf2f… / a8f9948d… prompt plus exactly that line.
+// A THIRD line on purpose (2026-10-04, "the code doesn't tell you measurements
+// any more"): straight after the plain-sentence line, the specifics rule tells
+// the model to state the required number with its unit and its trigger, and to
+// state a recalled figure (labelled) rather than leave it out. The hashes below
+// do NOT move: each prompt is checked to be the recorded prompt plus exactly
+// that one line (taken out before hashing, and required to be there once).
+const SPECIFICS_LINE = 'Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting.';
+const withoutSpecifics = (p: string): string => (p.split(`\n${SPECIFICS_LINE}\n`).length === 2 ? p.replace(`\n${SPECIFICS_LINE}\n`, '\n') : '');
 const BASE_PROMPT_SHA = [
   '742c854b31cc314bec0482bd56b38e49b0760772172935e095b12cb6b03e6efe',
   '0ac123f2d4a4ebfd85c9c1e3e109a8f9dc7f8e889b397be5217410ad158199e9',
@@ -218,7 +226,8 @@ if (promptBlock && normBlock) {
   const buildPrompt = promptBlock.buildPrompt as (r: Record<string, unknown>) => string;
   const sweepTargetsOf = promptBlock.sweepTargetsOf as (s: unknown) => string[] | null;
   const norm = normBlock.normalizePlanResult as (raw: unknown, sweep?: boolean) => { findings: Record<string, unknown>[]; disclaimer: string };
-  REQS.forEach((r, i) => ok(`Plan Review prompt #${i + 1} is byte-identical to base`, sha(buildPrompt(r)) === BASE_PROMPT_SHA[i]));
+  REQS.forEach((r, i) => ok(`Plan Review prompt #${i + 1} is byte-identical to base, plus exactly the one specifics line`, sha(withoutSpecifics(buildPrompt(r))) === BASE_PROMPT_SHA[i]));
+  ok('the specifics line sits straight after the plain-sentence line, on Plan Review and on the sweep', [REQS[0], REQS[1], { ...REQS[1], sweep: { scopeTargets: ['Deck guard'] } }].every((r) => buildPrompt(r).includes(` marks.\n${SPECIFICS_LINE}\n`)));
   ok('Plan Review normalized output is byte-identical to base (no question/location keys)', sha(JSON.stringify(norm(RAW))) === BASE_NORM_SHA);
   ok('…and carries neither key', norm(RAW).findings.every(f => !('question' in f) && !('location' in f)));
   const sweepReq = { ...REQS[1], sweep: { scopeTargets: ['Basement egress window', ' Smoke\u0007 and CO alarms ', '', 'x'.repeat(200), 'a', 'b', 'c', 'd', 'e', 'f'] } };

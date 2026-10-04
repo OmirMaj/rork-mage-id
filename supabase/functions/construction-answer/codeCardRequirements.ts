@@ -8,8 +8,11 @@
 // output call turns THAT ANSWER into cards. It reads only the question and the
 // finished answer: it cannot search, cannot see the retrieved pages, and is
 // told to restate only what the answer already says. The answer itself obeys
-// honesty rule 1 (no figure that was not retrieved this turn) and rule 7 (no
-// long verbatim quote), so a card can carry nothing the answer did not.
+// honesty rule 1 (the figure is stated; one that was not retrieved this turn
+// is labelled AI recall, and VERIFIED is then "no") and rule 7 (no long
+// verbatim quote), so a card can carry nothing the answer did not. A card's
+// own label comes from the phone (the ladder's evidence for its section:
+// AI recall unless a government document names it), never from this call.
 //
 // THEN THE SERVER CHECKS IT, because a model told "only what the answer says"
 // can still drift:
@@ -116,10 +119,13 @@ export const NO_VERBATIM_RULE =
 
 // ── echo check ───────────────────────────────────────────────────────────────
 
-/** Phrasing that reads like model-code text rather than a contractor's words.
- *  A superset of the client's list (utils/codeCard/echoCheck.ts), so a card
- *  the server sends is never one the client would refuse. */
-const CODE_PHRASING = /\bshall\b|\bnot less than\b|\bnot more than\b|\bin accordance with\b|\bwhere required by\b|\bexceptions?\s*:|\bherein(?:after)?\b|\bthereof\b|\bnotwithstanding\b|\bcompl(?:y|ying|ies) with (?:section|table|chapter)\b|\bthe provisions of\b/i;
+/** Phrasing that marks COPIED model-code text rather than a contractor's words.
+ *  The client's list (utils/codeCard/echoCheck.ts), entry for entry, so a card
+ *  the server sends is never one the client would refuse. A number is never a
+ *  signal, and neither is an ordinary word next to one: "at least 36 in.",
+ *  "not less than 36 in.", "36 in. minimum" and "in accordance with the
+ *  manufacturer's instructions" all pass (see rule 4 in the client's header). */
+const CODE_PHRASING = /\bshall\b|\bin accordance with (?:this (?:code|section|chapter)|sections?|tables?|chapters?)\b|\bwhere required by (?:this (?:code|section|chapter)|sections?|tables?|chapters?)\b|\bexceptions?\s*:|\bherein(?:after)?\b|\bthereof\b|\bnotwithstanding\b|\bcompl(?:y|ying|ies) with (?:section|table|chapter)\b|\bthe provisions of\b/i;
 /** Double quotes of any kind, guillemets, any left single curly quote, or a
  *  span in paired straight single quotes. An apostrophe in "don't" / "don’t"
  *  (a RIGHT single quote) is not a quote. */
@@ -266,10 +272,10 @@ export function saysWithUnit(text: string, value: number, unit: CodeUnit): boole
 // rule in full); scripts/validate-code-card-server.ts runs both over one
 // corpus and fails if they ever answer differently.
 export type LimitSide = "min" | "max";
-const MIN_ANYWHERE = /\b(?:at least|minimum|or more)\b/i;
-const MAX_ANYWHERE = /\b(?:at most|maximum|or less|no more than|up to)\b/i;
-const MIN_BEFORE = /\b(?:at least|minimum(?: of)?)\s*$/i;
-const MAX_BEFORE = /\b(?:at most|maximum(?: of)?|no more than|up to)\s*$/i;
+const MIN_ANYWHERE = /\b(?:at least|not less than|no less than|minimum|or more)\b/i;
+const MAX_ANYWHERE = /\b(?:at most|maximum|or less|no more than|not more than|up to)\b/i;
+const MIN_BEFORE = /\b(?:at least|not less than|no less than|minimum(?: of)?)\s*$/i;
+const MAX_BEFORE = /\b(?:at most|maximum(?: of)?|no more than|not more than|up to)\s*$/i;
 const MIN_AFTER = /^\s*(?:or more|minimum)\b/i;
 const MAX_AFTER = /^\s*(?:or less|maximum)\b/i;
 
@@ -411,6 +417,7 @@ export const REQUIREMENTS_SYSTEM = [
   NO_VERBATIM_RULE,
   "summary: one plain sentence in your own words, at most 140 characters, with no quotation marks and none of the code's wording (no \"shall\", no \"not less than\"). Say the requirement the way a contractor would say it on site, using American spelling.",
   "For a limit, write the summary with at least or at most right before the number: Guard has to be at least 36 in. high.",
+  "When the answer states a number for the requirement, the summary states that number with its unit, and the condition that triggers it when it fits. A number, a dimension, a count and a section number are facts, not code text: never leave them out of a card.",
   "verdict: required when the answer says the job must have it, limit when the answer gives a maximum or minimum to stay within, not_required when the answer says it is not needed for this job.",
   "why: why it applies to THIS job, at most 160 characters, or null.",
   "section and citedEdition: copy them exactly as the answer prints them, or null when the answer gives none. Make a card only for a requirement the answer ties to a section number; a card without one is dropped.",

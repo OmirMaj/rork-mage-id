@@ -242,8 +242,9 @@ async function main(): Promise<void> {
   ];
   ok('B1 our own summaries pass', ours.every((s) => passesEchoCheck(s)), ours.filter((s) => !passesEchoCheck(s)).join(' | '));
   ok('B2 "shall" is code phrasing', summaryEchoCheck('Guards shall be provided on open sides.').reasons.includes('code_phrasing'));
-  ok('B3 "in accordance with" / "Exception:" / "comply with Section" are code phrasing',
-    !passesEchoCheck('Build it in accordance with the plans.') && !passesEchoCheck('Exception: decks under 30 in.') && !passesEchoCheck('Rails must comply with Section R312.'));
+  ok('B3 a cross-reference written the code’s way ("in accordance with Section …", "comply with Section …") and "Exception:" are code phrasing; "in accordance with the plans" is plain English',
+    !passesEchoCheck('Build it in accordance with Section R507.') && !passesEchoCheck('Exception: decks under 30 in.') && !passesEchoCheck('Rails must comply with Section R312.')
+    && passesEchoCheck('Build it in accordance with the plans.') && passesEchoCheck('Install it in accordance with the manufacturer’s instructions.'));
   ok('B4 straight and curly double quotes are refused, apostrophes are not',
     !passesEchoCheck('Guards "at least 36 in." high.') && !passesEchoCheck('Guards “at least” 36 in.') && passesEchoCheck('Don’t skip the stair side.'));
   ok('B5 over the cap is refused (140 summary; caller caps for why / build lines)',
@@ -303,9 +304,66 @@ async function main(): Promise<void> {
 
   // CARD MODE carries the server's whole list (lane CARDS2): the phone is the
   // only gate on Code Check, Plan Review and the sweep, so it is never looser.
-  ok('B13 card mode: the server’s extra phrases are code phrasing here too (not less than, not more than, where required by, the provisions of)',
-    ['Height not less than 36 in.', 'Gaps not more than 4 in.', 'Guards where required by the town.', 'Follow the provisions of the code.', 'NOT LESS THAN 36 in.']
+  ok('B13 card mode: the server’s phrases are code phrasing here too (where required by Section / Table / this code, in accordance with Table, the provisions of), in any case',
+    ['Guards where required by Section R312.1.', 'Guards where required by this code.', 'Fasten in accordance with Table R602.3.', 'Follow the provisions of the code.', 'WHERE REQUIRED BY SECTION R312.']
       .every((t) => summaryEchoCheck(t).reasons.join() === 'code_phrasing'));
+  // A NUMBER IS NEVER A SIGNAL (2026-10-04). Until then the gate refused "not
+  // less than", "not more than" and every "in accordance with" / "where
+  // required by", so a plain line that carried the figure was hidden and the
+  // answer read vague. A required dimension is a fact; these all show.
+  ok('B13b a plain line is never hidden for carrying a number or an ordinary word next to one: not less than, not more than, minimum, maximum, at least, required, where required by the town',
+    ['Height not less than 36 in.', 'Gaps not more than 4 in.', 'NOT LESS THAN 36 in.', 'Guards where required by the town.', 'Guard height: 36 in. minimum.', 'Maximum riser height is 7 3/4 in.',
+      'A guard is required once the deck is more than 30 in. up.', 'Risers no more than 7 3/4 in. tall, treads at least 10 in. deep.']
+      .every((t) => passesEchoCheck(t) && passesProseCheck(t)));
+  const SPECIFIC_LINES = [
+    'Guards must be at least 36 in. high where the walking surface is more than 30 in. above grade.',
+    'A guard is needed once the deck is more than 30 in. above the ground.',
+    'Guard height: 36 in. minimum, measured from the walking surface.',
+    'Guards have to be not less than 36 in. high.',
+    'Openings in a guard must not let a 4 in. sphere pass through.',
+    'Stair risers can be at most 7 3/4 in. tall.',
+    'Risers must be not more than 7.75 in. high, and treads not less than 10 in. deep.',
+    'Treads must be at least 10 in. deep, measured nosing to nosing.',
+    'Maximum riser height is 7 3/4 in.; the tallest and shortest riser in a flight can differ by no more than 3/8 in.',
+    'Stairs need at least 6 ft 8 in. of headroom.',
+    'Stairways must be at least 36 in. wide above the handrail.',
+    'Handrail height is 34 in. to 38 in. above the tread nosings.',
+    'A handrail is required on at least one side of any stair with 4 or more risers.',
+    'Handrails need at least 1.5 in. of clearance to the wall.',
+    'Egress windows need a clear opening of at least 5.7 sq ft (5.0 sq ft at grade level).',
+    'The sill of an egress window can be no more than 44 in. above the floor.',
+    'Egress opening: minimum 24 in. clear height and 20 in. clear width.',
+    'Every sleeping room needs at least 1 emergency escape opening where required by the local code.',
+    'At least 1 smoke alarm is required in each bedroom, outside each sleeping area and on every level.',
+    'Where 2 or more smoke alarms are needed, interconnect them in accordance with the manufacturer instructions.',
+    'Keep a smoke alarm at least 3 ft from a bathroom door with a tub or shower.',
+    'GFCI protection is required for all 125 V, 15 A and 20 A receptacles in bathrooms, garages and outdoors.',
+    'Kitchen countertop receptacles: no point along the wall more than 24 in. from a receptacle.',
+    'Receptacles within 6 ft of a sink need GFCI protection.',
+    'Provide at least 2 small-appliance 20 A circuits for the kitchen counters.',
+    'Footings must bear at least 12 in. below undisturbed ground, and below the local frost line.',
+    'Footing depth: 42 in. minimum in this frost zone. AI recall - confirm with your building department.',
+    'Footings for a 2-story house on 1,500 psf soil are typically 15 in. wide minimum.',
+    'A 2x10 SPF No. 2 floor joist at 16 in. on center spans about 15 ft 5 in. at 40 psf live load.',
+    'Joists need at least 1.5 in. of bearing on wood or metal and 3 in. on masonry.',
+    'Notches in the end of a joist can be at most 1/4 of the joist depth.',
+    'Holes bored in joists must stay 2 in. from the top and bottom edges and be no bigger than 1/3 of the depth.',
+    'Habitable rooms need a ceiling height of at least 7 ft.',
+    'Minimum ceiling height is 7 ft; bathrooms can be 6 ft 8 in.',
+    'Basement ceilings can drop to 6 ft 4 in. under beams and ducts.',
+    'The garage-to-house wall needs at least 1/2 in. gypsum board on the garage side.',
+    'Ceilings under a habitable room above the garage need 5/8 in. Type X gypsum board.',
+    'Walls closer than 5 ft to the lot line need a 1-hour fire rating.',
+    'The door between the garage and the house must be solid wood at least 1 3/8 in. thick or 20-minute rated.',
+    'Guards at least 36 in. high where the drop is more than 30 in. (IRC R312.1). AI recall: confirm with your building department.',
+  ];
+  const hiddenSpecific = SPECIFIC_LINES.filter((t) => !passesEchoCheck(t, 400) || !passesEchoCheck(t, SUMMARY_MAX) || !passesProseCheck(t));
+  ok(`B13c ${SPECIFIC_LINES.length} plain requirement lines WITH their numbers (guards, stairs, handrails, egress, smoke alarms, GFCI, footings, joists, ceilings, fire separation) all show, in card mode and in prose mode`,
+    SPECIFIC_LINES.length === 40 && SPECIFIC_LINES.every((t) => /\d/.test(t)) && hiddenSpecific.length === 0, hiddenSpecific.join(' | '));
+  ok('B13d …and the same lines written the code’s way are still hidden, number or not: shall, Exception:, a quoted title, in accordance with Section',
+    ['The bottom of the footing shall be at least 12 in. below grade.', 'Guards shall be not less than 36 in. high.', 'Exception: guards under 30 in.',
+      'R312.1 "Guards" sets 36 in.', 'Guards 36 in. high in accordance with Section R312.1.2.']
+      .every((t) => !passesEchoCheck(t, 400) && !passesProseCheck(t)));
   ok('B14 card mode: a span in paired straight single quotes is a quotation; an apostrophe, a possessive and a foot mark are not',
     ["Guards are 'required' here", "'Guards' go on open sides", "Use ('approved') fasteners", "It says 'guards on open sides'"].every((t) => summaryEchoCheck(t).reasons.join() === 'quotation')
     && ["You don't need a guard below 30 in.", "The contractors' crew and the owners' rep.", "A 6' x 8' landing.", "Door 2'-8\" wide.", "the '90s deck and the '80s stair"].every((t) => passesEchoCheck(t)));
@@ -321,7 +379,7 @@ async function main(): Promise<void> {
     long60.length > 400 && summaryEchoCheck(long60, 400).reasons.join() === 'too_long,long_run'
     && ownWordsProse(long60).withheld === 0 && ownWordsProse(long60).text === long60 && passesProseCheck(long60)
     && passesProseCheck(`${run26} and more ${run26}`) && !passesEchoCheck(`${run26} and more ${run26}`, 4000));
-  const para = 'The deck needs a guard. Section R312.1 "Guards" says guards shall be provided. Keep gaps under 4 in. Height not less than 36 in. per R312.1.2. Check the stairs.';
+  const para = 'The deck needs a guard. Section R312.1 "Guards" says guards shall be provided. Keep gaps under 4 in. Height shall be 36 in. per R312.1.2. Check the stairs.';
   const gated = ownWordsProse(para);
   ok('B17 prose: a sentence that reads like code text is replaced by the PROSE notice ONCE, later ones are taken out, the rest stays as written',
     gated.text === `The deck needs a guard. ${PROSE_WITHHELD} Sections: R312.1, R312.1.2. Keep gaps under 4 in. Check the stairs.`
@@ -331,10 +389,10 @@ async function main(): Promise<void> {
     && ownWordsProse('Guards shall be there.').text === PROSE_WITHHELD);
   ok('B19 prose: each code-text signal withholds its sentence and names its reason: a quotation, a code phrase, a section then a quoted title',
     ownWordsProse('Fine. The note reads "X". Fine too.').reasons.join() === 'quotation'
-    && ownWordsProse('Fine. Build it in accordance with the plans. Fine too.').reasons.join() === 'code_phrasing'
+    && ownWordsProse('Fine. Build it in accordance with Section R507. Fine too.').reasons.join() === 'code_phrasing'
     && ownWordsProse("Fine. See R312.1 'Guards and rails. Fine too.").reasons.join() === 'section_title'
     && ownWordsProse('Fine. See 1015.2: “Where required” first. Fine too.').reasons.includes('section_title')
-    && ['Use «this» here.', "Use 'approved' fasteners.", 'Exception: decks under 30 in.', 'Guards where required by the town.', 'Follow the provisions of the code.', 'Gaps not more than 4 in.']
+    && ['Use «this» here.', "Use 'approved' fasteners.", 'Exception: decks under 30 in.', 'Guards where required by this code.', 'Follow the provisions of the code.', 'Gaps shall be under 4 in.']
       .every((t) => ownWordsProse(`Fine. ${t} Fine too.`).text === `Fine. ${PROSE_WITHHELD} Fine too.`));
   ok('B20 prose: a possessive after a section number is not a quoted title, and a plain section number is fine',
     passesProseCheck("R312.1's rule covers the open side.") && passesProseCheck('See R312.1 for guards and 1015.2 for the commercial rule.'));
@@ -408,7 +466,7 @@ async function main(): Promise<void> {
     && ownWordsList(['Joists at 12"o.c.', 'Guard 36"min at the stair']).items.length === 2);
   const asked = ownWordsQuestions([
     { id: 'a', question: 'Any stairs with four or more risers?', options: ['Yes', 'No', 'Not sure'] },
-    { id: 'b', question: 'Is the guard installed in accordance with R312.1?', options: ['Yes', 'No'] },
+    { id: 'b', question: 'Is the guard installed in accordance with Section R312.1?', options: ['Yes', 'No'] },
     { id: 'c', question: 'Which label is on the glazing?', options: ['"Tempered"', 'None'] },
     { id: 'd', question: '  Is it a sleeping room? ', options: [' Yes ', 'No'], extra: 7 },
     { id: 'e', question: '', options: ['Yes', 'No'] },

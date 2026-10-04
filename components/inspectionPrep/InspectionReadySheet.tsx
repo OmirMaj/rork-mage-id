@@ -6,7 +6,8 @@
 //   1. what HIS inspector with this authority wrote before (verbatim, dated);
 //   2. what this job's estimate puts in scope for the trade;
 //   3. what an inspector commonly checks — MODEL RECALL, labelled amber,
-//      Pro and up, never a figure;
+//      Pro and up, with the figure the inspector checks against (stated as
+//      recall, under the recall chip);
 //   4. the low-confidence recall, split out as "verify on site".
 // The disclaimer is a fixed constant (PREP_DISCLAIMER), never model text.
 //

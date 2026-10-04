@@ -275,6 +275,14 @@ serve(async (req) => {
       // ai_code_check gets it: every other feature's system prompt is
       // byte-identical to before. Pinned by validate-code-copyright-prompts.
       + (feature === "ai_code_check" ? " Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word." : "")
+      // The number is the answer (2026-10-04). The rule above, alone, made the
+      // model drop figures to be safe ("guards may be required at certain
+      // heights"). A required dimension, a count, a threshold and a section
+      // number are facts, and every ai_code_check surface labels them as AI
+      // recall, so they are stated and labelled, never left out. On the server
+      // so it reaches every installed build. The same sentence as the app's
+      // SPECIFICS_RULE; pinned by validate-code-copyright-prompts.
+      + (feature === "ai_code_check" ? " Be specific: state the required number with its unit and the condition that triggers it, for example a guard at least 36 in. high where the drop is more than 30 in. Numbers, dimensions, counts, thresholds and section numbers are facts, not code text, so always state them. A figure from your own recall is still stated: the app marks it as AI recall to confirm with the building department. Never leave a number out or answer vaguely to avoid quoting." : "")
       // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
       // when the client sent locale "es". '' otherwise, so an English request's
       // system prompt is byte-identical to before. Schemas, enums, numbers and

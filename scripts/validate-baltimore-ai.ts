@@ -244,7 +244,17 @@ const MAIN_SYSTEM_SHA = 'dba73046c49c1cce61ef01b87e91862c63cb6ddebf5fca584f03ebe
   const sAt = askFn.indexOf('const SYSTEM = `');
   const sEnd = sAt < 0 ? -1 : askFn.indexOf('`;\n', sAt);
   const systemStmt = sAt < 0 || sEnd < 0 ? '' : askFn.slice(sAt, sEnd + 2);
-  ok('SYSTEM is byte-identical to main', sha(`${systemStmt}\n`) === MAIN_SYSTEM_SHA, sha(`${systemStmt}\n`));
+  // ONE LINE REPLACED ON PURPOSE (2026-10-04): HONESTY CONTRACT rule 1 told the
+  // model to leave out a figure it had not retrieved this turn, which is how
+  // answers went vague; it now states the figure and labels an unretrieved one
+  // as AI recall. MAIN_SYSTEM_SHA does not move: with the old rule 1 put back
+  // in place of the new one, SYSTEM is the recorded statement, byte for byte.
+  // scripts/validate-code-copyright-prompts.ts pins the new rule's words.
+  const OLD_RULE_1 = `1. NEVER state a specific building-code section number, an allowable span, a minimum dimension, a load figure, a fastener schedule, a fire-rating, or any other authoritative code/spec figure UNLESS you retrieved it via the web_search tool in THIS conversation. If you have not retrieved it this turn, say so plainly ("I couldn't retrieve the exact code figure, so treat this as general guidance") and give your best general engineering guidance instead — do not invent a section number or a span table value.`;
+  const rule1 = /\n(1\. [^\n]+)\n2\. CITE every authoritative claim\./.exec(systemStmt)?.[1] ?? '';
+  const systemWithOldRule1 = systemStmt.replace(rule1 || '\u0000', OLD_RULE_1);
+  ok('SYSTEM is byte-identical to main, but for HONESTY CONTRACT rule 1 (one line, replaced)',
+    rule1.length > 0 && rule1 !== OLD_RULE_1 && systemStmt.split(rule1).length === 2 && sha(`${systemWithOldRule1}\n`) === MAIN_SYSTEM_SHA, sha(`${systemWithOldRule1}\n`));
   ok('SYSTEM holds the one AHJ instruction (rule 4) and the one "AHJ:" footer line, nothing more',
     (systemStmt.match(/confirm with their Authority Having Jurisdiction/g) ?? []).length === 1
       && (systemStmt.match(/\nAHJ: </g) ?? []).length === 1
