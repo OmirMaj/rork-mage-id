@@ -15,6 +15,11 @@
 //        does not declare (PostgREST answers "function not found");
 //      - an account that is deleted and leaves its last-seen rows behind;
 //      - strings no Spanish translator will ever be handed;
+//      - the two guards the migration arms on LIVE tables (projects and the
+//        roster) the moment it is applied, flag or no flag, going back to
+//        naming the two client roles: a role added later would pass both.
+//        They are allow-lists (validate-whoson-server holds the exact text;
+//        this file holds only the line that must survive until the apply);
 //      - a validator that exists and that the ship gate never runs.
 //
 // B. DARK. WHOS_ON_ENABLED is false, and that one constant is the whole
@@ -76,6 +81,13 @@ const METADATA = 'docs/app-store-metadata.md';
 // ── planted mutations (in memory) ────────────────────────────────────────────
 type Mutation = { name: string; file: string; from?: string; to?: string; append?: string };
 const GATE = 'if (!WHOS_ON_ENABLED) return null;';
+// The allow-list both guards of the migration open with, and the deny-list it replaced (lane WHO3).
+const GUARD_ALLOW = "  if current_user in ('service_role', 'postgres', 'supabase_admin') then return new; end if;\n"
+  + "  begin\n    select ro.rolname into v_server\n      from pg_catalog.pg_proc fn\n      join pg_catalog.pg_roles ro on ro.oid = fn.proowner\n"
+  + "     where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)');\n  exception when others then\n    v_server := null;\n  end;\n"
+  + "  if v_server is not null and current_user = v_server then return new; end if;\n";
+const GUARD_DENY = "  if current_user not in ('authenticated', 'anon') then return new; end if;\n";
+const GUARD_UNCHANGED = "  if new.user_id is not distinct from old.user_id then return new; end if;\n";
 const MUTATIONS: Mutation[] = [
   { name: 'the flag is turned on', file: FLAGS, from: 'export const WHOS_ON_ENABLED = false;', to: 'export const WHOS_ON_ENABLED = true;' },
   { name: 'ProjectPeopleStack loses its flag check', file: 'components/whoson/ProjectPeopleStack.tsx', from: GATE, to: '' },
@@ -117,6 +129,9 @@ const MUTATIONS: Mutation[] = [
   { name: 'ship-check drops this validator', file: 'package.json', from: ' && bun run test:whoson-integrate', to: '' },
   { name: 'the people read is written to the device', file: PERSIST, from: "export const PERSIST_ALLOW: readonly string[] = ['stripeConnectStatus'];", to: "export const PERSIST_ALLOW: readonly string[] = ['stripeConnectStatus', 'project_people'];" },
   { name: 'the purge is not the 90 days the privacy paragraph promises', file: MIGRATION, from: "interval '90 days'", to: "interval '365 days'" },
+  { name: 'the roster guard goes back to the deny-list (it names the two client roles)', file: MIGRATION, from: GUARD_ALLOW, to: GUARD_DENY },
+  { name: 'the owner guard goes back to the deny-list', file: MIGRATION, from: GUARD_UNCHANGED + GUARD_ALLOW, to: GUARD_UNCHANGED + GUARD_DENY },
+  { name: 'a client role is added to a guard\'s allow-list', file: MIGRATION, from: "current_user in ('service_role', 'postgres', 'supabase_admin') then return new;", to: "current_user in ('service_role', 'postgres', 'supabase_admin', 'authenticated') then return new;" },
 ];
 
 const MUTATE_ARG = process.env.MUTATE || '';
@@ -331,6 +346,26 @@ const returned = (() => {
       && shouldPersist({ queryKey: ['whoson_choice', 'u1'], state: { status: 'success' } } as never, 'u1') === false);
   const stores = KIT.filter(f => /AsyncStorage|localStorage|SecureStore/.test(code(f)));
   ok('no kit file touches AsyncStorage, localStorage or SecureStore', stores.length === 0, stores.join(', '));
+}
+
+// A8. the two guards the apply arms on live tables are allow-lists.
+// Applying the migration is a go-live step somebody takes later, and from that
+// moment both guards judge every write to projects and to the roster, with the
+// flag still off. A guard that names the client roles lets every other role
+// through, so the text must still be the allow-list on the day of the apply.
+{
+  const guards = Array.from(mig.matchAll(/create or replace function public\.(whoson_guard_\w+)\(\) returns trigger\s+language plpgsql security invoker[^$]*\bas \$\$([\s\S]*?)\$\$;/g))
+    .map(m => ({ name: m[1], body: m[2].replace(/\s+/g, ' ') }));
+  const want = GUARD_ALLOW.replace(/\s+/g, ' ').trim();
+  ok('the migration has its two guards, both SECURITY INVOKER',
+    guards.map(g => g.name).sort().join(',') === 'whoson_guard_project_owner,whoson_guard_roster');
+  ok('both guards open with the allow-list: service_role, postgres, supabase_admin, then the looked-up owner of project_people',
+    guards.length === 2 && guards.every(g => g.body.includes(want)),
+    guards.filter(g => !g.body.includes(want)).map(g => g.name).join(', '));
+  ok('neither guard names a client role or is written as "not in" (a role added later is a client by default)',
+    guards.length === 2 && guards.every(g => !/authenticated|\banon\b|\bnot in\b/.test(g.body) && count(g.body, /current_user in \(/g) === 1
+      && /current_user in \('service_role', 'postgres', 'supabase_admin'\)/.test(g.body)),
+    guards.filter(g => /authenticated|\banon\b|\bnot in\b/.test(g.body)).map(g => g.name).join(', '));
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

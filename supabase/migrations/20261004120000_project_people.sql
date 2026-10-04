@@ -75,8 +75,25 @@
 --        the other account becomes "the owner", and the attacker, still an
 --        accepted team member, is shown the owner row.
 --   One rule closes both: ONLY THE SERVER PUTS A PERSON ON A PROJECT.
---   zz_whoson_guard_roster (project_collaborators). A client role
---   (authenticated, anon) can never
+--   WHO THE SERVER IS. Both guards name who may, never who may not (the same
+--   allow-list as profiles_keep_ai_consent, 20261004100000_ai_consent_hardening.sql):
+--     - service_role: the edge functions (project-invite is the one writer of
+--       the roster; delete-account deletes from it);
+--     - postgres and supabase_admin: the SQL editor, a migration, a restore,
+--       and every SECURITY DEFINER function those roles own (inside one,
+--       current_user is its owner);
+--     - the role that owns public.project_people(text, text), this file's own
+--       definer function. It is looked up at the write, not assumed: on a
+--       database whose migrations run as some other role, that role and the
+--       definer functions it owns are the server too. The lookup cannot raise
+--       (a missing function is NULL, anything else is caught); when it cannot
+--       tell, the caller is a client.
+--   EVERYONE ELSE IS A CLIENT: the two roles PostgREST gives a request today
+--   (authenticated, anon), and any role created later (a reporting role, an
+--   integration role), whatever grants or policies it is given on the two
+--   tables, and any SECURITY DEFINER function such a role owns. A guard that
+--   named the two client roles instead would let that third role through.
+--   zz_whoson_guard_roster (project_collaborators). A client can never
 --     - write the person on a roster row (insert with a user_id, or change it),
 --     - make a row accepted (insert it accepted, or move its status to accepted),
 --     - move a row to another project.
@@ -85,16 +102,28 @@
 --     email against the invited one before it accepts. What an owner may still
 --     write directly is unchanged: an invite that names no account, a role, a
 --     revoke, a delete.
---   aa_whoson_guard_project_owner (projects). A client role can never change
+--   aa_whoson_guard_project_owner (projects). A client can never change
 --     projects.user_id: the value is put back, silently, exactly as
 --     projects_freeze_ownership already does for a non-owner (a 42501 on this
 --     table is classed terminal by the app's offline queue, utils/offlineQueue.ts,
 --     which would drop a whole project save; a pin cannot). Every other column
---     is untouched. The service role and the SQL editor are not client roles: a
---     support reassignment still works.
+--     is untouched, and a save that leaves the owner alone (every save the app
+--     makes) is passed on its first line: no lookup, nothing pinned. A support
+--     reassignment through the service role or the SQL editor still works.
 --   The app never does either thing: it only reads the roster (invite, accept,
 --   revoke, role change and leave all go through the edge function), and every
 --   project save sends the owner's own id. No app version is affected.
+--   Every writer in the repo was read, and the proof runs each one's statement
+--   as the role it runs as: project-invite's five writes (invite upsert,
+--   accept, leave, revoke, role change) and delete-account's delete, as the
+--   service role; a definer function, owned by the role that applied it and
+--   called by a signed-in account, that updates a project row without touching
+--   its owner (the shape of portal_rotate_access_token and
+--   field_update_schedule_tasks, the only two SQL functions that update
+--   public.projects); the app's own project save; the deletion of a login and
+--   of a project (the foreign keys cascade as deletes, and neither guard fires
+--   on a delete). No SQL function and no trigger in the repo writes a roster
+--   row or a project's owner.
 --   Not covered, on purpose: the invited email and the accepted date on a row
 --   stay the owner's to edit directly. They are shown to the owner only.
 --   Rows that already exist are not re-checked. Before the feature is switched
@@ -102,6 +131,19 @@
 --     select pc.project_id, pc.invited_email, u.email
 --       from public.project_collaborators pc join auth.users u on u.id = pc.user_id
 --      where pc.status = 'accepted' and lower(u.email) <> lower(pc.invited_email);
+--   BEFORE APPLYING, read production twice more (read-only). The guards arm at
+--   the apply, so what they will call a client must be known first:
+--     select distinct r.rolname
+--       from pg_proc p join pg_roles r on r.oid = p.proowner
+--      where p.pronamespace = 'public'::regnamespace and p.prosecdef;
+--       -- expected: postgres (supabase_admin is also on the list). A definer
+--       -- function owned by any other role is a client to both guards.
+--     select distinct grantee from information_schema.role_table_grants
+--      where table_schema = 'public' and table_name in ('projects', 'project_collaborators')
+--        and privilege_type in ('INSERT', 'UPDATE');
+--       -- expected: anon, authenticated, postgres, service_role. Any other
+--       -- grantee can still write what an owner may; it can no longer put a
+--       -- person on a project or change who owns one.
 --
 -- ERASE. A person's rows are deleted
 --   - when his answer changes, in either direction, by any path (trigger on
@@ -147,6 +189,13 @@
 --     -- aa_whoson_guard_project_owner, whoson_forget_on_choice, whoson_forget_on_roster, zz_whoson_guard_roster
 --   select proname, prosecdef from pg_proc where proname like 'whoson_guard_%';                  -- two rows, both false
 --     -- (a guard reads current_user; as a definer it would see its owner and guard nothing)
+--   select proname,
+--          position('current_user in (''service_role'', ''postgres'', ''supabase_admin'')' in prosrc) > 0 as allow_list,
+--          position('''authenticated''' in prosrc) + position('''anon''' in prosrc) as client_names
+--     from pg_proc where proname like 'whoson_guard_%';                                          -- two rows, both true / 0
+--   select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
+--    where p.oid = 'public.project_people(text, text)'::regprocedure;                            -- postgres
+--     -- (the fourth role both guards pass; it must never be a role a request can run as)
 --   select jobname, schedule from cron.job where jobname = 'whoson-presence-purge';              -- one row, 17 8 * * *
 --
 -- UNDO (by hand, only if the feature is withdrawn)
@@ -164,8 +213,11 @@
 --
 -- PROOF. scratchpad/pgq/project-people.mjs runs this file twice on PGlite
 -- against the real project_collaborators and can_access_project definitions and
--- prints every case of SPEC.md section 5; scripts/validate-whoson-server.ts pins
--- the text.
+-- prints every case of SPEC.md section 5, then the allow-list: every writer as
+-- the role it runs as (S, R), a third role with every table privilege and a
+-- definer function that role owns (A), and the looked-up owner, present,
+-- replaced and missing (L). Its planted mutation 37 restores the deny-list and
+-- turns those cases red. scripts/validate-whoson-server.ts pins the text.
 --
 -- Idempotent: add column / create table / create index if not exists, create or
 -- replace function, drop trigger if exists, cron.schedule upserts by job name,
@@ -408,19 +460,37 @@ create trigger whoson_forget_on_roster
 -- ── 7. only the server puts a person on a project ────────────────────────────
 -- See THE TWO GUARDS in the header. Both functions are SECURITY INVOKER on
 -- purpose, and must stay so: the rule reads current_user, which inside a definer
--- function is the function's owner, and the guard would then guard nothing. The
--- edge function writes as service_role and a definer function as its owner:
--- both pass. Same test as invoices_ledger_guard (20260920020000). Firing a
--- trigger needs no EXECUTE privilege, so the revoke in section 9 does not
--- disarm either.
+-- function is the function's owner, and the guard would then guard nothing.
+-- Both open with the same allow-list, written the same way in each (the
+-- self-check at the foot of the file and scripts/validate-whoson-server.ts hold
+-- the two copies equal): three named server roles, then the owner of
+-- public.project_people(text, text), looked up inside a block that cannot
+-- raise. Neither body names a client role: a role nobody has created yet is a
+-- client by default. The allow-list is not a shared helper function on purpose:
+-- a trigger calls a helper as the writing role, which would then need EXECUTE
+-- on it, and a missing grant would fail every project save.
+-- Firing a trigger needs no EXECUTE privilege, so the revoke in section 9 does
+-- not disarm either.
 --
 -- 7a. the roster. The trigger is named zz_ so that it fires LAST among the
 -- BEFORE row triggers (they fire in name order) and judges the row as it will
 -- be stored.
 create or replace function public.whoson_guard_roster() returns trigger
 language plpgsql security invoker set search_path = public
-as $$ begin
-  if current_user not in ('authenticated', 'anon') then return new; end if;
+as $$
+declare
+  v_server name;
+begin
+  if current_user in ('service_role', 'postgres', 'supabase_admin') then return new; end if;
+  begin
+    select ro.rolname into v_server
+      from pg_catalog.pg_proc fn
+      join pg_catalog.pg_roles ro on ro.oid = fn.proowner
+     where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)');
+  exception when others then
+    v_server := null;
+  end;
+  if v_server is not null and current_user = v_server then return new; end if;
   if tg_op = 'INSERT' then
     if new.user_id is not null or new.status = 'accepted' then
       raise exception 'only the server can put a person on a project' using errcode = '42501';
@@ -440,12 +510,27 @@ create trigger zz_whoson_guard_roster
 -- 7b. the owner. A pin, not a raise (see the header). Named aa_ so that it fires
 -- FIRST: every other BEFORE trigger on projects then decides from the real
 -- owner (the house prefix, as in aa_collab_freeze_ownership).
+-- The first line passes a write that leaves the owner alone, whoever makes it:
+-- putting back a value that did not change is a no-op, so the app's ordinary
+-- save (every one sends the owner's own id) never reaches the lookup.
 create or replace function public.whoson_guard_project_owner() returns trigger
 language plpgsql security invoker set search_path = public
-as $$ begin
-  if current_user in ('authenticated', 'anon') then
-    new.user_id := old.user_id;
-  end if;
+as $$
+declare
+  v_server name;
+begin
+  if new.user_id is not distinct from old.user_id then return new; end if;
+  if current_user in ('service_role', 'postgres', 'supabase_admin') then return new; end if;
+  begin
+    select ro.rolname into v_server
+      from pg_catalog.pg_proc fn
+      join pg_catalog.pg_roles ro on ro.oid = fn.proowner
+     where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)');
+  exception when others then
+    v_server := null;
+  end;
+  if v_server is not null and current_user = v_server then return new; end if;
+  new.user_id := old.user_id;
   return new;
 end $$;
 drop trigger if exists aa_whoson_guard_project_owner on public.projects;
@@ -481,6 +566,10 @@ grant execute on function public.set_share_presence(boolean) to authenticated, s
 -- ── self-check ───────────────────────────────────────────────────────────────
 -- Fail the apply, not a later request, if the locks did not land as written.
 do $$
+declare
+  v_guard  text;
+  v_src    text;
+  v_server name;
 begin
   if not (select relrowsecurity from pg_class where oid = 'public.project_presence'::regclass) then
     raise exception '[whoson] verify: row level security is off on project_presence';
@@ -511,6 +600,28 @@ begin
   if (select prosecdef from pg_proc where oid = 'public.whoson_guard_roster()'::regprocedure)
      or (select prosecdef from pg_proc where oid = 'public.whoson_guard_project_owner()'::regprocedure) then
     raise exception '[whoson] verify: a guard is security definer; it would see its owner as current_user and guard nothing';
+  end if;
+  -- Both guards are the allow-list: the three server roles and the looked-up
+  -- owner, and no client role by name (a role named there is a deny-list again).
+  foreach v_guard in array array['public.whoson_guard_roster()', 'public.whoson_guard_project_owner()'] loop
+    select p.prosrc into v_src from pg_proc p where p.oid = v_guard::regprocedure;
+    if position('if current_user in (''service_role'', ''postgres'', ''supabase_admin'') then return new; end if;' in v_src) = 0
+       or position('if v_server is not null and current_user = v_server then return new; end if;' in v_src) = 0
+       or position('pg_catalog.to_regprocedure(''public.project_people(text,text)'')' in v_src) = 0
+       or position('''authenticated''' in v_src) > 0
+       or position('''anon''' in v_src) > 0 then
+      raise exception '[whoson] verify: % must be the allow-list (service_role, postgres, supabase_admin, the owner of project_people) and name no client role', v_guard;
+    end if;
+  end loop;
+  -- The fourth role both guards pass is whoever owns project_people.
+  select r.rolname into v_server
+    from pg_proc p join pg_roles r on r.oid = p.proowner
+   where p.oid = 'public.project_people(text, text)'::regprocedure and p.prosecdef;
+  if v_server is null then
+    raise exception '[whoson] verify: public.project_people(text, text) must exist and be SECURITY DEFINER; both guards look its owner up';
+  end if;
+  if v_server in ('authenticated', 'anon', 'authenticator') then
+    raise exception '[whoson] verify: public.project_people is owned by %, a role a request can run as: both guards would let that role put a person on a project', v_server;
   end if;
   if not exists (select 1 from pg_trigger t
                   where t.tgrelid = 'public.projects'::regclass and t.tgname = 'aa_whoson_guard_project_owner'

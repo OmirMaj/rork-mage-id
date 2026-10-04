@@ -28,13 +28,21 @@
 //   [8] the two erase triggers and the 90-day job (inside its pg_cron guard)
 //   [9] the file is idempotent, changes no existing row, and its code is ASCII
 //  [10] the two guards: only the server puts a person on a project. A client
-//       role can never write the account on a roster row, make a row accepted,
+//       can never write the account on a roster row, make a row accepted,
 //       move a row to another project, or change who owns a project; both
 //       guards run as the INVOKER (they read current_user) and are armed on
 //       every write they judge
+//  [11] WHO THE SERVER IS (lane WHO3): both guards are ALLOW-lists. They open
+//       with the same text: three named roles (service_role, postgres,
+//       supabase_admin: the list 20261004100000_ai_consent_hardening.sql
+//       uses, read from that file and compared), then the owner of
+//       project_people, looked up in a block that cannot raise. Neither body
+//       names a client role, the apply refuses a guard that does, and the
+//       header lists the read-only production checks to run before applying
 //
-// PLANTED MUTATIONS: MUTATE=1..36 edits the text in memory (the file on disk
-// is never touched) and each one must turn this red.
+// PLANTED MUTATIONS: MUTATE=1..48 edits the text in memory (the file on disk
+// is never touched) and each one must turn this red. 30 and 35 restore the
+// deny-list (the guards name the two client roles again).
 //
 // Run: bun run scripts/validate-whoson-server.ts
 
@@ -57,6 +65,13 @@ let raw = RAW_ON_DISK;
 
 // ── planted mutations ────────────────────────────────────────────────────────
 const MUTATE = Number(process.env.MUTATE || 0);
+// The allow-list as both guards write it, and the deny-list it replaced.
+const ALLOW_NAMES = "  if current_user in ('service_role', 'postgres', 'supabase_admin') then return new; end if;\n";
+const LOOKUP = "  begin\n    select ro.rolname into v_server\n      from pg_catalog.pg_proc fn\n      join pg_catalog.pg_roles ro on ro.oid = fn.proowner\n     where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)');\n  exception when others then\n    v_server := null;\n  end;\n";
+const OWNER_PASS = "  if v_server is not null and current_user = v_server then return new; end if;\n";
+const ALLOW = ALLOW_NAMES + LOOKUP + OWNER_PASS;
+const DENY = "  if current_user not in ('authenticated', 'anon') then return new; end if;\n";
+const UNCHANGED = "  if new.user_id is not distinct from old.user_id then return new; end if;\n";
 const MUTATIONS: [string, string, string][] = [
   ['a team member receives the other team members', '       and (v_is_owner or pc.user_id = v_me)', ''],
   ['the invited email reaches a non-owner', 'case when v_is_owner then s.email end as invited_email', 's.email as invited_email'],
@@ -87,13 +102,25 @@ const MUTATIONS: [string, string, string][] = [
   ['the roster guard runs as its definer', 'create or replace function public.whoson_guard_roster() returns trigger\nlanguage plpgsql security invoker set search_path = public', 'create or replace function public.whoson_guard_roster() returns trigger\nlanguage plpgsql security definer set search_path = public'],
   ['the roster guard is never armed', 'create trigger zz_whoson_guard_roster\n  before insert or update on public.project_collaborators\n  for each row execute function public.whoson_guard_roster();', ''],
   ['the roster guard lets a client make a row accepted', "     or (new.status = 'accepted' and old.status is distinct from 'accepted') then\n", '     then\n'],
-  ['the roster guard only refuses anon', "  if current_user not in ('authenticated', 'anon') then return new; end if;", "  if current_user not in ('anon') then return new; end if;"],
+  ['THE DENY-LIST RESTORED in the roster guard (it names the two client roles; every other role passes)', ALLOW, DENY],
   ['the roster guard is armed on insert only', '  before insert or update on public.project_collaborators\n', '  before insert on public.project_collaborators\n'],
   ['the caller is taken from somewhere else later', "  if v_pid is null then return; end if;\n", "  if v_pid is null then return; end if;\n  v_me := v_pid;\n"],
   ['the owner guard runs as its definer', 'create or replace function public.whoson_guard_project_owner() returns trigger\nlanguage plpgsql security invoker set search_path = public', 'create or replace function public.whoson_guard_project_owner() returns trigger\nlanguage plpgsql security definer set search_path = public'],
   ['the owner guard is never armed', 'create trigger aa_whoson_guard_project_owner\n  before update on public.projects\n  for each row execute function public.whoson_guard_project_owner();', ''],
-  ['the owner guard only pins for anon', "  if current_user in ('authenticated', 'anon') then\n    new.user_id := old.user_id;", "  if current_user in ('anon') then\n    new.user_id := old.user_id;"],
+  ['THE DENY-LIST RESTORED in the owner guard', UNCHANGED + ALLOW, UNCHANGED + DENY],
   ['the owner guard only fires when the column is named', '  before update on public.projects\n', '  before update of name on public.projects\n'],
+  ["a client role is added to the roster guard's allow-list", "current_user in ('service_role', 'postgres', 'supabase_admin') then return new;", "current_user in ('service_role', 'postgres', 'supabase_admin', 'authenticated') then return new;"],
+  ['the roster guard forgets the service role (project-invite could not accept)', ALLOW_NAMES, "  if current_user in ('postgres', 'supabase_admin') then return new; end if;\n"],
+  ['the owner lookup can raise: its handler is gone', '  exception when others then\n    v_server := null;\n', ''],
+  ['the owner lookup casts instead of asking (a missing function raises)', "pg_catalog.to_regprocedure('public.project_people(text,text)');\n  exception", "'public.project_people(text,text)'::regprocedure;\n  exception"],
+  ['the roster guard looks up the owner of another function', "where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)');", "where fn.oid = pg_catalog.to_regprocedure('public.set_share_presence(boolean)');"],
+  ['the owner guard loses its lookup: the two guards no longer open the same way', UNCHANGED + ALLOW, UNCHANGED + ALLOW_NAMES],
+  ['the owner guard passes every write on its first line', UNCHANGED, '  if true then return new; end if;\n'],
+  ['the owner pass no longer needs a found owner', OWNER_PASS, '  if v_server is null or current_user = v_server then return new; end if;\n'],
+  ['the self-check no longer refuses a guard that names a client role', "       or position('''authenticated''' in v_src) > 0\n       or position('''anon''' in v_src) > 0 then", '       then'],
+  ['the self-check accepts project_people owned by a role a request can run as', "  if v_server in ('authenticated', 'anon', 'authenticator') then", '  if false then'],
+  ['the header loses the read-only checks to run before applying', 'BEFORE APPLYING, read production twice more (read-only).', 'Apply it.'],
+  ['the header describes a deny-list again', 'EVERYONE ELSE IS A CLIENT:', 'A client role is one of'],
 ];
 if (MUTATE) {
   const m = MUTATIONS[MUTATE - 1];
@@ -219,7 +246,7 @@ ok('neither trigger function is callable by a client',
   eq('nothing in the file is granted to anon or PUBLIC', toClient, []);
 }
 ok('the apply checks itself: a self-check block raises on a missing lock',
-  count(sql, "raise exception '[whoson] verify:") === 11
+  count(sql, "raise exception '[whoson] verify:") === 14
   && has("if has_function_privilege('anon', 'public.project_people(text, text)', 'execute')")
   && has("if not (select relrowsecurity from pg_class where oid = 'public.project_presence'::regclass) then"));
 
@@ -384,9 +411,14 @@ ok('the roster trigger fires on a status or user change and on delete',
 console.log('\n[10] only the server puts a person on a project');
 ok('the guard runs as the INVOKER (it reads current_user; as a definer it would see its owner and refuse nobody), search_path pinned',
   /\bsecurity invoker\b/.test(guard.head) && !/security definer/.test(guard.head) && /\bset search_path = public\b/.test(guard.head), guard.head);
-eq('the guard is exactly the rule: a client role never writes the account on a row, never makes a row accepted, never moves a row to another project',
+// The allow-list both guards open with, on one line (see [11]).
+const ALLOW_FLAT = "if current_user in ('service_role', 'postgres', 'supabase_admin') then return new; end if;"
+  + " begin select ro.rolname into v_server from pg_catalog.pg_proc fn join pg_catalog.pg_roles ro on ro.oid = fn.proowner"
+  + " where fn.oid = pg_catalog.to_regprocedure('public.project_people(text,text)'); exception when others then v_server := null; end;"
+  + ' if v_server is not null and current_user = v_server then return new; end if;';
+eq('the guard is exactly the rule: the allow-list, then a client never writes the account on a row, never makes a row accepted, never moves a row to another project',
   guard.body.replace(/\s+/g, ' ').trim(),
-  "begin if current_user not in ('authenticated', 'anon') then return new; end if;"
+  `declare v_server name; begin ${ALLOW_FLAT}`
   + " if tg_op = 'INSERT' then if new.user_id is not null or new.status = 'accepted' then raise exception 'only the server can put a person on a project' using errcode = '42501'; end if;"
   + " elsif new.user_id is distinct from old.user_id or new.project_id is distinct from old.project_id or (new.status = 'accepted' and old.status is distinct from 'accepted')"
   + " then raise exception 'only the server can put a person on a project' using errcode = '42501'; end if; return new; end");
@@ -394,9 +426,9 @@ ok('it is armed BEFORE every insert and every update of a roster row (no column 
   has('drop trigger if exists zz_whoson_guard_roster on public.project_collaborators; create trigger zz_whoson_guard_roster before insert or update on public.project_collaborators for each row execute function public.whoson_guard_roster();'));
 ok('the owner guard runs as the INVOKER too, search_path pinned',
   /\bsecurity invoker\b/.test(ownerGuard.head) && !/security definer/.test(ownerGuard.head) && /\bset search_path = public\b/.test(ownerGuard.head), ownerGuard.head);
-eq('the owner guard is exactly the rule: a client role never changes who owns a project (the value is put back; nothing is raised, no other column is touched)',
+eq('the owner guard is exactly the rule: an unchanged owner passes at once, then the allow-list, then a client never changes who owns a project (the value is put back; nothing is raised, no other column is touched)',
   ownerGuard.body.replace(/\s+/g, ' ').trim(),
-  "begin if current_user in ('authenticated', 'anon') then new.user_id := old.user_id; end if; return new; end");
+  `declare v_server name; begin if new.user_id is not distinct from old.user_id then return new; end if; ${ALLOW_FLAT} new.user_id := old.user_id; return new; end`);
 ok('it is armed BEFORE every update of a project (no column list), for each row, and named to fire first',
   has('drop trigger if exists aa_whoson_guard_project_owner on public.projects; create trigger aa_whoson_guard_project_owner before update on public.projects for each row execute function public.whoson_guard_project_owner();'));
 ok('no client role can call either guard',
@@ -414,6 +446,74 @@ eq('the only triggers created are the two erase triggers and the two guards, eac
     'whoson_forget_on_roster after update of status, user_id or delete on project_collaborators',
     'zz_whoson_guard_roster before insert or update on project_collaborators',
     'aa_whoson_guard_project_owner before update on projects']);
+
+// ── [11] who the server is: an allow-list ────────────────────────────────────
+console.log('\n[11] both guards are allow-lists');
+{
+  const bodies = [guard, ownerGuard].map(f => f.body.replace(/\s+/g, ' ').trim());
+  // From the first test of current_user to the last "return new" before the rule.
+  const opening = (b: string) => {
+    const from = b.indexOf('if current_user');
+    const to = b.indexOf('current_user = v_server then return new; end if;');
+    return from >= 0 && to > from ? b.slice(from, to + 'current_user = v_server then return new; end if;'.length) : '';
+  };
+  eq('both guards open with the same allow-list, character for character', bodies.map(opening), [ALLOW_FLAT, ALLOW_FLAT]);
+  ok('current_user is tested exactly twice in each guard: once against the three names, once against the looked-up owner',
+    bodies.every(b => count(b, 'current_user') === 2 && count(b, "current_user in ('service_role', 'postgres', 'supabase_admin')") === 1 && count(b, 'v_server is not null and current_user = v_server') === 1),
+    bodies.map(b => String(count(b, 'current_user'))).join(', '));
+  ok('neither guard names a client role, and neither is written as "not in": a role nobody has created yet is a client',
+    bodies.every(b => !/authenticated|anon\b|authenticator|\bnot in\b|\bpublic\b(?!\.)/.test(b)),
+    bodies.map(b => (b.match(/authenticated|anon\b|authenticator|\bnot in\b/g) ?? []).join(',')).join(' | '));
+  eq('the only quoted role names in a guard are the three server roles',
+    bodies.map(b => [...b.matchAll(/current_user in \(([^)]*)\)/g)].map(m => m[1])),
+    [["'service_role', 'postgres', 'supabase_admin'"], ["'service_role', 'postgres', 'supabase_admin'"]]);
+  ok('the owner lookup cannot raise: it asks with to_regprocedure (NULL for a missing function), inside a block that catches everything, and never casts',
+    bodies.every(b => count(b, "pg_catalog.to_regprocedure('public.project_people(text,text)')") === 1
+      && count(b, 'exception when others then v_server := null; end;') === 1 && !/::reg\w+/.test(b)));
+  ok('...and an owner that was not found passes nobody', bodies.every(b => !/v_server is null/.test(b) && count(b, 'v_server') === 5),
+    bodies.map(b => String(count(b, 'v_server'))).join(', '));
+  ok('the function whose owner is looked up is one this file creates as SECURITY DEFINER',
+    /\bsecurity definer\b/.test(people.head) && people.args.replace(/\s+/g, ' ') === "p_project_id text, p_mark text default 'none'");
+  ok('the owner guard passes an unchanged owner before anything else (the app\'s ordinary save never reaches the lookup), and pins after the allow-list',
+    bodies[1].startsWith('declare v_server name; begin if new.user_id is not distinct from old.user_id then return new; end if; if current_user in (')
+    && bodies[1].endsWith('then return new; end if; new.user_id := old.user_id; return new; end') && count(bodies[1], 'new.user_id := old.user_id;') === 1);
+  ok('the roster guard still raises 42501 twice, after the allow-list', count(bodies[0], "raise exception 'only the server can put a person on a project' using errcode = '42501';") === 2
+    && bodies[0].indexOf('raise exception') > bodies[0].indexOf('current_user = v_server then return new; end if;'));
+  // The reference: the guard the AI-consent hardening migration made an allow-list the same day.
+  const REF = '20261004100000_ai_consent_hardening.sql';
+  const ref = readFileSync(join(ROOT, 'supabase', 'migrations', REF), 'utf8').replace(/--[^\n]*/g, '');
+  const names = (t: string) => [...new Set([...t.matchAll(/current_user in \(([^)]*)\) then\s+return new;/g)].map(m => m[1].replace(/\s+/g, ' ')))];
+  eq(`the three named roles are the ones ${REF} names (one list in the repo, not two)`, names(guard.body + ownerGuard.body), names(ref));
+  ok('...and that file is an allow-list too', names(ref).length === 1 && names(ref)[0] === "'service_role', 'postgres', 'supabase_admin'", JSON.stringify(names(ref)));
+}
+ok('the apply refuses a guard that is not the allow-list, or that names a client role',
+  has("foreach v_guard in array array['public.whoson_guard_roster()', 'public.whoson_guard_project_owner()'] loop select p.prosrc into v_src from pg_proc p where p.oid = v_guard::regprocedure;"
+    + " if position('if current_user in (''service_role'', ''postgres'', ''supabase_admin'') then return new; end if;' in v_src) = 0"
+    + " or position('if v_server is not null and current_user = v_server then return new; end if;' in v_src) = 0"
+    + " or position('pg_catalog.to_regprocedure(''public.project_people(text,text)'')' in v_src) = 0"
+    + " or position('''authenticated''' in v_src) > 0 or position('''anon''' in v_src) > 0 then raise exception '[whoson] verify:"));
+ok('the apply refuses a project_people that is missing, not a definer, or owned by a role a request can run as',
+  has("select r.rolname into v_server from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'public.project_people(text, text)'::regprocedure and p.prosecdef;"
+    + " if v_server is null then raise exception '[whoson] verify:")
+  && has("if v_server in ('authenticated', 'anon', 'authenticator') then raise exception '[whoson] verify:"));
+{
+  // The header is read as written (comments are the subject here), with the planted mutation applied.
+  const head = raw.slice(0, raw.indexOf('\nalter table public.profiles\n')).replace(/\n--[ \t]*/g, ' ').replace(/\s+/g, ' ');
+  ok('the header says who the server is, and that everyone else is a client',
+    head.includes('WHO THE SERVER IS.') && head.includes('EVERYONE ELSE IS A CLIENT:') && head.includes('any role created later')
+    && head.includes('service_role:') && head.includes('postgres and supabase_admin:') && head.includes('the role that owns public.project_people(text, text)')
+    && head.includes('The lookup cannot raise'));
+  ok('the header no longer describes either guard as a list of client roles', !/A client role \(authenticated, anon\) can never/.test(head) && !head.includes('are not client roles'));
+  ok('the header lists the read-only production checks to run before applying: who owns the definer functions, who can write the two tables',
+    head.includes('BEFORE APPLYING, read production twice more (read-only).')
+    && head.includes("select distinct r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.pronamespace = 'public'::regnamespace and p.prosecdef;")
+    && head.includes("select distinct grantee from information_schema.role_table_grants where table_schema = 'public' and table_name in ('projects', 'project_collaborators') and privilege_type in ('INSERT', 'UPDATE');"));
+  ok('...and the two that were already there: the accepted rows nobody can explain, and the trigger order on both tables',
+    head.includes("where pc.status = 'accepted' and lower(u.email) <> lower(pc.invited_email);")
+    && head.includes('zz_whoson_guard_roster must be the last one on its table and aa_whoson_guard_project_owner the first.'));
+  ok('VERIFY AFTER reads the allow-list and the owner back', head.includes("position('''authenticated''' in prosrc) + position('''anon''' in prosrc) as client_names")
+    && head.includes("where p.oid = 'public.project_people(text, text)'::regprocedure; -- postgres"));
+}
 
 // ── [9] the file ─────────────────────────────────────────────────────────────
 console.log('\n[9] the file');
