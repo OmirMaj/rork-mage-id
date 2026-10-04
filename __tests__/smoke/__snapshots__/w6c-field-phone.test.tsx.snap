@@ -93,8 +93,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) field-ticket
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) field-ticket: pick a job on a free plan -> the paywall / access view 1`] = `
 {
-  "lines": 475,
-  "sha256": "e71034935ffa0bfb2ded64dd098283c1f58194e004df245762d46d98ba16d15d",
+  "lines": 472,
+  "sha256": "a1df1584f9ccf562cf084126526a969fc0500d9e5c05f36810c4628879ca4c4b",
 }
 `;
 

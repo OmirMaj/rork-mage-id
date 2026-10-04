@@ -23,8 +23,8 @@ exports[`ux lane A — phone golden (390 × 844 iOS) daily-report (editor, send 
 
 exports[`ux lane A — phone golden (390 × 844 iOS) home (DailyLogCard) 1`] = `
 {
-  "lines": 1981,
-  "sha256": "8c7226e63e540e4c0161edaa42344e8762808bcce62e05921d45ff0194a52dd0",
+  "lines": 1978,
+  "sha256": "695ef008183721d1522d51d9dce858a329abe151c28b32acaec74cbea4ecebde",
 }
 `;
 

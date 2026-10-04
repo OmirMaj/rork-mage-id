@@ -22,6 +22,13 @@
  * The AI answer is cleared after primeWorld so the "AI features" row reads the
  * first-run state ("Off", asked on first use) whether or not the shared world
  * seeds a yes for the suites that drive AI flows.
+ *
+ * BOTH CLOCKS ARE PINNED (finisher round). /settings prints when the AI
+ * allowances reset ("Daily AI resets at 8:00 PM · Takeoff pages reset …"), and
+ * the first recording read the wall clock: run after midnight UTC it said
+ * "resets tomorrow at 8:00 PM" and went red with no code change. Same pins as
+ * w6d-forms-phone (the app's Date.now and the outer realm's, which
+ * renderRouter's fake timers start from).
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,6 +47,25 @@ function collectText(node: unknown, out: string[] = []): string[] {
 // strings are not in these screens' copy.
 const lines = (tree: { toJSON: () => unknown }) =>
   collectText(tree.toJSON()).map(s => s.trim()).filter(Boolean).join('\n');
+
+const NOW = new Date('2026-08-15T15:00:00.000Z').getTime();
+const GOLDEN_CLOCK = new Date('2026-09-25T16:00:00.000Z').getTime();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const outerFs = require('node:fs') as { readFileSync: { constructor: FunctionConstructor } };
+const OuterDate = outerFs.readFileSync.constructor('return Date')() as DateConstructor;
+let nowSpy: jest.SpyInstance | null = null;
+let outerNowSpy: jest.SpyInstance | null = null;
+beforeEach(() => {
+  jest.useRealTimers();
+  nowSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
+  outerNowSpy = OuterDate === Date ? null : jest.spyOn(OuterDate, 'now').mockReturnValue(GOLDEN_CLOCK);
+});
+afterEach(() => {
+  nowSpy?.mockRestore();
+  nowSpy = null;
+  outerNowSpy?.mockRestore();
+  outerNowSpy = null;
+});
 
 describe('APPSET phone golden (iOS 390, text)', () => {
   it('/settings reads exactly as recorded', async () => {
