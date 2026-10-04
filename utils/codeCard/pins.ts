@@ -7,9 +7,17 @@
 //
 // The stage a card is pinned to starts as the AI's guess (`item.stage`, else
 // 'other') and the contractor can move it; a moved pin stops being a guess.
+//
+// WHAT THE STORE ACCEPTS IS WHAT IT READS BACK. `storedPin` is the one gate:
+// the reducer runs every pin through it on the way in, and parsePinsState runs
+// every stored pin through it on the way out. It is idempotent and its output
+// survives JSON unchanged, so a pin that showed "On Final checklist" is still
+// there after a restart, and a card it refuses is never pinned at all (the
+// state does not change; codeCardStoreBlockedReason says why). The state the
+// reducer returns is always in that stored form.
 
 import { safeJson, createPersistedStore, type KVStorage, type PersistedStore } from './store';
-import { parseCodeCardItem } from './parse';
+import { storedCodeCardItem } from './parse';
 import type { CodeCardItem, CodePin, CodeStage } from './types';
 import { CODE_STAGES, isCodeStage } from './verdict';
 
@@ -45,11 +53,28 @@ export function makePin(projectId: string, item: CodeCardItem, now: Date | strin
   };
 }
 
+/**
+ * One pin in the form the store keeps, or null when it cannot be kept. Used by
+ * the reducer (accept) AND by parsePinsState (read back): see the header.
+ */
+export function storedPin(raw: unknown, projectId: string): CodePin | null {
+  if (!projectId || !raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (r.projectId !== projectId) return null;
+  if (!isCodeStage(r.stage) || typeof r.pinnedAt !== 'string') return null;
+  // Device-local: the evidence and the stage edit were attached on this
+  // device when he pinned it, so they are kept (never so for wire input).
+  const item = storedCodeCardItem(r.item);
+  if (!item) return null;
+  return { id: pinIdFor(projectId, item.id), projectId, stage: r.stage, item, pinnedAt: r.pinnedAt };
+}
+
 export function pinsReducer(state: PinsState, action: PinAction): PinsState {
   switch (action.type) {
     case 'pin': {
-      const { pin } = action;
-      if (!pin.projectId || !pin.item?.id) return state;
+      // The same gate the reader uses. A card it refuses is not pinned.
+      const pin = storedPin(action.pin, typeof action.pin?.projectId === 'string' ? action.pin.projectId : '');
+      if (!pin) return state;
       const list = state[pin.projectId] ?? [];
       const without = list.filter((p) => p.item.id !== pin.item.id);
       const next = [...without, pin].slice(-MAX_PINS_PER_PROJECT);
@@ -70,8 +95,12 @@ export function pinsReducer(state: PinsState, action: PinAction): PinsState {
       let changed = false;
       const next = list.map((p) => {
         if (p.item.id !== action.itemId || p.stage === action.stage) return p;
+        // Back through the gate: the state stays in its stored form, and a
+        // stage that is not one of the inspections is refused (the pin stays put).
+        const moved = storedPin({ ...p, stage: action.stage, item: { ...p.item, stage: action.stage, stageIsGuess: false } }, p.projectId);
+        if (!moved) return p;
         changed = true;
-        return { ...p, stage: action.stage, item: { ...p.item, stage: action.stage, stageIsGuess: false } };
+        return moved;
       });
       return changed ? { ...state, [action.projectId]: next } : state;
     }
@@ -86,7 +115,10 @@ export function pinsReducer(state: PinsState, action: PinAction): PinsState {
   }
 }
 
-/** Read the stored JSON back; malformed pins are dropped, never shown. */
+/**
+ * Read the stored JSON back through the SAME gate the reducer accepted it
+ * with (storedPin). Malformed or hand-edited pins are dropped, never shown.
+ */
 export function parsePinsState(raw: string | null): PinsState {
   const data = safeJson(raw);
   if (!data || typeof data !== 'object' || Array.isArray(data)) return EMPTY_PINS;
@@ -95,12 +127,8 @@ export function parsePinsState(raw: string | null): PinsState {
     if (!projectId || !Array.isArray(list)) continue;
     const pins: CodePin[] = [];
     for (const p of list) {
-      if (!p || typeof p !== 'object') continue;
-      const r = p as Record<string, unknown>;
-      const item = parseCodeCardItem(r.item);
-      if (!item || !isCodeStage(r.stage) || typeof r.pinnedAt !== 'string') continue;
-      if (r.projectId !== projectId) continue;
-      pins.push({ id: pinIdFor(projectId, item.id), projectId, stage: r.stage, item, pinnedAt: r.pinnedAt });
+      const pin = storedPin(p, projectId);
+      if (pin) pins.push(pin);
     }
     if (pins.length) out[projectId] = pins.slice(-MAX_PINS_PER_PROJECT);
   }
@@ -145,4 +173,14 @@ let shared: PinStore | null = null;
 export function codePinStore(): PinStore {
   if (!shared) shared = createPinStore();
   return shared;
+}
+
+/** Tenant wipe: empty the shared store's memory (see ./reset.ts). No store yet = nothing held. */
+export function resetCodePinStore(): void {
+  shared?.reset();
+}
+
+/** Tests only: point the shared store at a storage double (null = a fresh default one on next use). */
+export function __setCodePinStoreForTest(store: PinStore | null): void {
+  shared = store;
 }

@@ -26,6 +26,23 @@
 //     the server can stand behind: 'job' = the figure next to that unit in the
 //     question, 'sheet' = the figure next to that unit in the answer;
 //     'measured' is the client's tape, never the model's;
+//   • THE NUMBERS MUST AGREE WITH THE VERDICT. The phone re-checks a card's
+//     two numbers the moment it opens, so a 'required' or 'not_required' card
+//     whose own numbers give the other answer would open showing the opposite
+//     of its verdict and its summary. Such a card keeps its trigger and loses
+//     its job value (no tape, no result line; the verdict and the words
+//     stand). The client parser applies the same rule (utils/codeCard/parse.ts
+//     numbersAgreeWithVerdict);
+//   • A LIMIT'S OWN LINE MUST SAY THE SIDE. A 'limit' has no verdict to check
+//     its numbers against: only the model's comparison sign says which way the
+//     job has to stand, and a sign pointing the wrong way would have the phone
+//     print "within the limit" for a 34 in. guard against a 36 in. minimum. So
+//     a limit keeps its job value only when its summary says the side itself,
+//     right at the trigger's figure ("at least 36 in.", "at most 7.75 in."),
+//     and the sign is the one those words mean (>= for a minimum, <= for a
+//     maximum). No such words, both kinds, or a sign that disagrees: the
+//     trigger stays and the job value is left off. The client parser applies
+//     the same rule (utils/codeCard/saysWithUnit.ts limitSideInLine);
 //   • every field fits the client parser's caps (section 32, edition 60,
 //     label 60, trade 40, calc 80/40/100), so a card the server sends is a
 //     card the phone shows, field for field;
@@ -154,8 +171,9 @@ export function numbersIn(text: string): Set<number> {
 }
 
 /** One figure as written: its full value, the loose parts of a mixed number,
- *  and where it ends in the text (so the unit after it can be read). */
-interface NumberSpan { value: number; parts: number[]; end: number }
+ *  and where it starts and ends in the text (so the words before it and the
+ *  unit after it can be read). */
+interface NumberSpan { value: number; parts: number[]; start: number; end: number }
 
 function numberSpans(text: string): NumberSpan[] {
   const out: NumberSpan[] = [];
@@ -170,25 +188,26 @@ function numberSpans(text: string): NumberSpan[] {
     "g",
   );
   const num = (s: string) => parseFloat(s.replace(/,/g, ""));
-  const push = (value: number, parts: number[], end: number) => {
-    if (Number.isFinite(value)) out.push({ value: round4(value), parts: parts.filter(Number.isFinite).map(round4), end });
+  const push = (value: number, parts: number[], start: number, end: number) => {
+    if (Number.isFinite(value)) out.push({ value: round4(value), parts: parts.filter(Number.isFinite).map(round4), start, end });
   };
   let m: RegExpExecArray | null;
   while ((m = re.exec(t)) !== null) {
-    const end = m.index + m[0].length;
+    const start = m.index;
+    const end = start + m[0].length;
     if (m[1] !== undefined) {
       const w = num(m[1]), n = num(m[2]), d = num(m[3]);
-      if (d !== 0) push(w + n / d, [w, n / d], end);
-      else push(w, [], end);
+      if (d !== 0) push(w + n / d, [w, n / d], start, end);
+      else push(w, [], start, end);
     } else if (m[4] !== undefined) {
       const n = num(m[4]), d = num(m[5]);
-      if (d !== 0) push(n / d, [], end);
+      if (d !== 0) push(n / d, [], start, end);
     } else if (m[7] !== undefined) {
       const f = VULGAR[m[7]];
-      if (m[6] !== undefined) push(num(m[6]) + f, [num(m[6]), f], end);
-      else push(f, [], end);
+      if (m[6] !== undefined) push(num(m[6]) + f, [num(m[6]), f], start, end);
+      else push(f, [], start, end);
     } else if (m[8] !== undefined) {
-      push(num(m[8]), [], end);
+      push(num(m[8]), [], start, end);
     }
   }
   return out;
@@ -219,6 +238,82 @@ export function saysWithUnit(text: string, value: number, unit: CodeUnit): boole
     if (unit === "count") return !Object.values(UNIT_AFTER).some((re) => re.test(after));
     return UNIT_AFTER[unit].test(after);
   });
+}
+
+// Which side of a limit a line says. The client's copy, rule for rule, is
+// utils/codeCard/saysWithUnit.ts limitSideInLine (the header there states the
+// rule in full); scripts/validate-code-card-server.ts runs both over one
+// corpus and fails if they ever answer differently.
+export type LimitSide = "min" | "max";
+const MIN_ANYWHERE = /\b(?:at least|minimum|or more)\b/i;
+const MAX_ANYWHERE = /\b(?:at most|maximum|or less|no more than|up to)\b/i;
+const MIN_BEFORE = /\b(?:at least|minimum(?: of)?)\s*$/i;
+const MAX_BEFORE = /\b(?:at most|maximum(?: of)?|no more than|up to)\s*$/i;
+const MIN_AFTER = /^\s*(?:or more|minimum)\b/i;
+const MAX_AFTER = /^\s*(?:or less|maximum)\b/i;
+
+/** The sign a side's words mean: the figure itself is inside the limit. */
+export const LIMIT_COMPARISON: Readonly<Record<LimitSide, CodeComparison>> = { min: ">=", max: "<=" };
+
+/**
+ * Which side of `value unit` the line says the job has to stay on, or null
+ * when it does not say: the line prints that figure next to that unit, ONE
+ * kind of side word is used in the whole line, and it sits right at the
+ * figure (before it, or straight after its unit).
+ */
+export function limitSideInLine(line: string, value: number, unit: CodeUnit): LimitSide | null {
+  const t = String(line ?? "");
+  if (typeof value !== "number" || !Number.isFinite(value) || !CODE_UNITS.includes(unit)) return null;
+  const min = MIN_ANYWHERE.test(t);
+  const max = MAX_ANYWHERE.test(t);
+  if (min === max) return null; // no side word, or both kinds
+  const want = round4(value);
+  const before = min ? MIN_BEFORE : MAX_BEFORE;
+  const after = min ? MIN_AFTER : MAX_AFTER;
+  const at = numberSpans(t).some((s) => {
+    if (s.value !== want) return false;
+    const rest = t.slice(s.end);
+    let unitLength = 0;
+    if (unit === "count") {
+      if (Object.values(UNIT_AFTER).some((re) => re.test(rest.slice(0, 40)))) return false;
+    } else {
+      const m = UNIT_AFTER[unit].exec(rest.slice(0, 40));
+      if (!m) return false;
+      unitLength = m[0].length;
+    }
+    return before.test(t.slice(0, s.start)) || after.test(rest.slice(unitLength));
+  });
+  return at ? (min ? "min" : "max") : null;
+}
+
+/** Floating-point slack: the client's EPS (utils/codeCard/verdict.ts). */
+const EPS = 1e-9;
+
+/** Does `a <comparison> b` hold? The client's compare(), number for number
+ *  (exact on the boundary: 30 >= 30 is true, 30 > 30 is not). */
+export function meets(a: number, comparison: CodeComparison, b: number): boolean {
+  switch (comparison) {
+    case ">": return a > b + EPS;
+    case ">=": return a >= b - EPS;
+    case "<": return a < b - EPS;
+    case "<=": return a <= b + EPS;
+    default: return false;
+  }
+}
+
+/**
+ * May a card's two numbers be re-checked on the phone? 'required' means the
+ * trigger is met, 'not_required' means it is not. A 'limit' has no verdict to
+ * check against, so its own line (`summary`) has to say the side right at the
+ * trigger's figure, and the sign has to be the one those words mean; a limit
+ * with no line, or a line that does not say, is false.
+ */
+export function numbersAgreeWithVerdict(verdict: CodeVerdict, jobValue: number, trigger: CodeTriggerOut, summary: string = ""): boolean {
+  if (verdict === "limit") {
+    const side = limitSideInLine(summary, trigger.value, trigger.unit);
+    return side !== null && trigger.comparison === LIMIT_COMPARISON[side];
+  }
+  return meets(jobValue, trigger.comparison, trigger.value) === (verdict === "required");
 }
 
 /** Does `hay` print `needle` as a whole token: case- and spacing-insensitive,
@@ -286,12 +381,14 @@ export const REQUIREMENTS_SYSTEM = [
   "Use ONLY what the answer below states. Never add a requirement, a section number, an edition, a dimension or any other figure that the answer does not state. If the answer states no specific requirement, return an empty list.",
   NO_VERBATIM_RULE,
   "summary: one plain sentence in your own words, at most 140 characters, with no quotation marks and none of the code's wording (no \"shall\", no \"not less than\"). Say the requirement the way a contractor would say it on site, using American spelling.",
+  "For a limit, write the summary with at least or at most right before the number: Guard has to be at least 36 in. high.",
   "verdict: required when the answer says the job must have it, limit when the answer gives a maximum or minimum to stay within, not_required when the answer says it is not needed for this job.",
   "why: why it applies to THIS job, at most 160 characters, or null.",
   "section and citedEdition: copy them exactly as the answer prints them, or null when the answer gives none. Make a card only for a requirement the answer ties to a section number; a card without one is dropped.",
   "Write inches as in. and feet as ft, never with \" or ' marks.",
   "stage: your best guess at which inspection checks it (footing, foundation, framing, rough, insulation, final, other), or null. It is shown as a guess.",
   "triggerValue, triggerUnit, triggerComparison: only when the answer states a single number the requirement turns on, in the answer's own unit (in, ft, psf, deg or count); otherwise all three null. Never convert units.",
+  "triggerComparison is how this job's number stands against the trigger when the requirement applies: a guard needed once a deck is more than 30 in. up is > with 30. A minimum or a maximum the work has to stay within is always verdict limit, never required, and its comparison is the side the job has to stay on: a guard at least 36 in. high is >= with 36. A maximum is <=: a gap at most 4 in. wide is <= with 4.",
   "jobValue: only when the contractor's question or the answer gives this job's own number for the same thing, in the same unit as the trigger; jobValueSource is job for the question, sheet for a plan sheet the answer names; jobValueLabel says where it came from in a few words. Otherwise all three null.",
   "usesCalculator: true only when the answer's own calculation is the basis of this card.",
   "trade: the trade that builds it, in one or two words, or null.",
@@ -386,8 +483,14 @@ export function normalizeRequirements(raw: unknown, ctx: RequirementsContext): C
       // figure the answer printed (it names the plan sheet it read), and in
       // both cases written next to the trigger's unit: "12 ft wide" is never
       // an inch job value.
+      // …and the two numbers must give the card's own verdict, or, for a
+      // limit, the summary must say the side the sign points to (see the
+      // header): otherwise the trigger stays and the job value is left off.
       const jobText = js === "job" ? question : answer;
-      if (card.trigger && typeof jv === "number" && Number.isFinite(jv) && js && saysWithUnit(jobText, jv, card.trigger.unit)) {
+      if (
+        card.trigger && typeof jv === "number" && Number.isFinite(jv) && js && saysWithUnit(jobText, jv, card.trigger.unit)
+        && numbersAgreeWithVerdict(verdict, jv, card.trigger, summary)
+      ) {
         const label = oneLine(r.jobValueLabel);
         card.jobValue = {
           value: jv,

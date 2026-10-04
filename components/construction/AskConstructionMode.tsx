@@ -46,7 +46,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   MessageCircleQuestion, ExternalLink, FileText, Calculator,
-  AlertTriangle, FileQuestion, DollarSign, RotateCcw, Bookmark, ChevronDown, ChevronUp,
+  AlertTriangle, FileQuestion, DollarSign, RotateCcw, Bookmark, ChevronDown, ChevronUp, ClipboardCheck,
 } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -75,9 +75,9 @@ import { CodeCardSheet } from '@/components/codeCard/CodeCardSheet';
 import { JurisdictionBlock } from '@/components/codeCard/JurisdictionBlock';
 import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
-import { attachEvidence, parseCodeCardItems } from '@/utils/codeCard/parse';
+import { attachEvidence, codeCardStoreBlockedReason, parseCodeCardItems } from '@/utils/codeCard/parse';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
-import { codePinStore, makePin, pinnedStage } from '@/utils/codeCard/pins';
+import { codePinStore, makePin, pinnedStage, pinsFor } from '@/utils/codeCard/pins';
 import { codeSavedStore, isSaved, makeSaved, savedFor } from '@/utils/codeCard/saved';
 import { smsUrlFor, subRecipientsFor, type SubRecipient } from '@/utils/codeCard/shareText';
 import { stageLabel } from '@/utils/codeCard/verdict';
@@ -153,19 +153,42 @@ export function buildingRecordForAsk(
  * lines under bun.
  *
  * THE RULES:
- *  - A citation is ALWAYS a card (a ladder you only see when the news is
- *    good is not a ladder): a line that fails the echo gate is not trimmed or
- *    dropped, its words are WITHHELD and the card says why.
+ *  - A Code Check citation is a card ONLY when the model said which of the
+ *    three verdicts it is (codeCheckCardItem returns null otherwise: an answer
+ *    from before the code cards, or a row the model left blank). The screen
+ *    then shows the plain citation line, as it always did. NOTHING is ever
+ *    shown as "Required" by default.
+ *  - A card stays a card whatever its words: a line that fails the echo gate
+ *    is not trimmed or dropped, its words are WITHHELD and the card says why
+ *    (the plain line of a row that is not a card passes the same gate:
+ *    codeCheckPlainLine).
+ *  - Code Check's wire is FLAT (codeCheckSchema in the tab): the relay marks
+ *    every key of the schema required, so "no number" is an EMPTY UNIT, never
+ *    a missing key. flatTrigger / flatJobValue build the structured pair only
+ *    when the unit is there, and CCKIT's parser still refuses anything that is
+ *    not a finite number with a known unit: no tape from a guessed number.
+ *  - THE JOB'S OWN NUMBER MUST BE ONE HE WROTE. Code Check's prompt is built
+ *    on the phone, so nothing upstream checks the model's "jobNumber". It is
+ *    kept only when that figure is printed, next to that unit, in the words he
+ *    gave for the run (`job`: the scenario and his answers; the test is
+ *    CCKIT's saysNumberWithUnit, the same rule the Ask server applies to the
+ *    question). No `job`, or a figure he never wrote: no job number, no tape.
+ *  - A LIMIT'S LINE MUST SAY THE SIDE. The parser is handed the line the card
+ *    will SHOW (not the stand-in summary), so a "limit" keeps its job number
+ *    only when that line reads "at least 36 in." / "at most 7.75 in." right at
+ *    the trigger's figure and the model's sign is the one those words mean
+ *    (CCKIT's rule: utils/codeCard/parse.ts). Otherwise: the trigger, no tape,
+ *    no "Result" line; the AI's words stand.
  *  - The summary is the model's plain-English requirement, shown in full up
  *    to CARD_TEXT_MAX (the line these screens always showed), never a quote,
  *    never code phrasing (the gate refuses both).
  *  - The section is the one the model gave, or '' — never a placeholder.
  *  - evidence is the ladder's own CitationEvidence for THIS citation.
- *  - The verdict is the model's when it is one of the three; otherwise
- *    'required' (an "applicable code" is a requirement on this job).
- *  - Plan Review: no status from the server means 'ask' for a low-confidence
- *    finding (it needs an answer first) and 'fix' otherwise; the AI's read of
- *    the sheet is never an approval, so nothing becomes 'ok' by inference.
+ *  - The verdict is the model's, and only when it is one of the three (case
+ *    and spacing forgiven: "Not required" is not_required).
+ *  - Plan Review: a low-confidence finding is 'ask' (it needs an answer
+ *    first) and any other is 'fix'; the AI's read of the sheet is never an
+ *    approval, so nothing on Plan Review is ever 'ok'.
  *  - Plan Set Code Sweep: a finding is a question for the architect ('ask')
  *    unless the server marked it 'fix'. ONLY a row from the server's separate
  *    "look right" list is 'ok', and an 'ok' row never carries a question (it
@@ -177,14 +200,19 @@ export function buildingRecordForAsk(
 export const CARD_TEXT_MAX = 400;
 export const CARD_WITHHELD = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
 export const CARD_NO_TEXT = 'The AI gave no plain-English line for this one. Use Official text to read the section.';
-export type CardParse = (raw: unknown, fallbackId?: string) => CodeCardItem | null;
+export type CardParse = (raw: unknown, fallbackId?: string, shownLine?: string) => CodeCardItem | null;
 export type CardEcho = (text: string, max: number) => boolean;
+/** What the model's "job number" is checked against: the words he gave for the run. */
+export interface CardJobText { text: string; says: (text: string, value: number, unit: string) => boolean }
 /** True when the summary is MAGE's stand-in, not a requirement in words. */
 export function isCardPlaceholder(summary: string | null | undefined): boolean {
   return summary === CARD_WITHHELD || summary === CARD_NO_TEXT;
 }
-function cardVerdict(v: unknown): CodeCardItem['verdict'] {
-  return v === 'limit' || v === 'not_required' ? v : 'required';
+/** The model's verdict when it is one of the three, else null (never a default). */
+export function cardVerdictOf(v: unknown): CodeCardItem['verdict'] | null {
+  if (typeof v !== 'string') return null;
+  const k = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return k === 'required' || k === 'limit' || k === 'not_required' ? k : null;
 }
 function cardLine(text: unknown): string {
   return typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
@@ -217,29 +245,88 @@ export function withContentIds(prefix: string, items: readonly CodeCardItem[]): 
     return { ...item, id: n === 1 ? base : `${base}-${n}` };
   });
 }
+/** The trigger off Code Check's flat wire: nothing unless the unit is there. */
+function flatTrigger(c: Record<string, unknown>): unknown {
+  const unit = cardLine(c.triggerUnit);
+  return unit ? { value: c.triggerValue, unit, comparison: cardLine(c.triggerComparison) } : undefined;
+}
+/**
+ * The words he gave for one Code Check run: the scenario and every follow-up
+ * answer, as sent. The screen snapshots this WITH the result, so "View last
+ * result" checks a job number against the run on screen, not the scenario box
+ * as it reads now.
+ */
+export function codeCheckJobText(scenario: string, answers: readonly { answer: string }[]): string {
+  return [scenario, ...answers.map((a) => a.answer)].join('\n');
+}
+/**
+ * The job's own number off the flat wire: nothing unless the unit is there
+ * AND he wrote that figure next to that unit himself (see the rules above).
+ */
+function flatJobValue(c: Record<string, unknown>, job: CardJobText | undefined): unknown {
+  const unit = cardLine(c.jobNumberUnit);
+  if (!unit || !job || typeof c.jobNumber !== 'number' || !job.says(job.text, c.jobNumber, unit)) return undefined;
+  return { value: c.jobNumber, unit, source: 'job', sourceLabel: cardLine(c.jobNumberLabel) };
+}
+/**
+ * The card as a store keeps it once the stage shown is `stage`. A stage HE
+ * chose (it differs from the AI's) is no longer a guess, so the saved card
+ * reopens without "AI guess" (makePin does the same for a pin).
+ */
+export function cardWithChosenStage(item: CodeCardItem, stage: CodeCardItem['stage']): CodeCardItem {
+  return stage && stage !== item.stage ? { ...item, stage, stageIsGuess: false } : item;
+}
+/** The plain line of a Code Check row that is not a card: the same gate as a card's line. */
+export function codeCheckPlainLine(requirement: unknown, echo: CardEcho): string {
+  return cardSummary(requirement, echo);
+}
 export function codeCheckCardItem(
   c: Record<string, unknown> & { code?: string; section?: string; requirement?: string },
   i: number,
   evidence: CodeCardItem['evidence'],
   parse: CardParse,
   echo: CardEcho,
-): CodeCardItem {
+  job?: CardJobText,
+): CodeCardItem | null {
+  const verdict = cardVerdictOf(c.verdict);
+  if (!verdict) return null;
   const id = `cc-${i + 1}`;
   const section = typeof c.section === 'string' ? c.section.trim() : '';
   const code = typeof c.code === 'string' ? c.code.trim() : '';
-  const verdict = cardVerdict(c.verdict);
+  // The line the card will show, through its own gate (a stand-in when the
+  // model's words are withheld or missing).
+  const summary = cardSummary(c.requirement, echo);
   // parse() checks every structured field; its summary/section are stand-ins
-  // replaced below (the summary has its own gate, the section may be empty).
-  const parsed = parse({ ...c, id, verdict, summary: 'Requirement', section: 'none', citedEdition: code || undefined }, id);
+  // replaced below (the summary has its own gate, the section may be empty),
+  // and it is handed the line the card SHOWS, which is what a limit's side is
+  // read from.
+  // ONLY the fields named here ride: a plan-check field (status, observed,
+  // location, question) never reaches a Code Check card, whatever the model sent.
+  const parsed = parse({
+    id, verdict, summary: 'Requirement', section: 'none', citedEdition: code || undefined,
+    why: c.why, stage: c.stage, trade: c.trade, whatToBuild: c.whatToBuild,
+    trigger: flatTrigger(c), jobValue: flatJobValue(c, job),
+  }, id, summary);
   const base: CodeCardItem = parsed ?? { id, verdict, summary: '', section: '', evidence: null, stageIsGuess: true };
-  const item: CodeCardItem = { ...base, id, verdict, summary: cardSummary(c.requirement, echo), section, evidence };
+  const item: CodeCardItem = { ...base, id, verdict, summary, section, evidence };
   if (code) item.citedEdition = code;
-  // Plan-check fields never ride on a Code Check citation.
-  delete item.status;
-  delete item.observed;
-  delete item.location;
-  delete item.question;
   return item;
+}
+/**
+ * Every Code Check row as its card, or null where the row is not a card,
+ * index-aligned with the rows; the cards carry content ids.
+ */
+export function codeCheckCards(
+  rows: readonly (Record<string, unknown> & { code?: string; section?: string; requirement?: string })[],
+  evidence: readonly CodeCardItem['evidence'][],
+  parse: CardParse,
+  echo: CardEcho,
+  job?: CardJobText,
+): (CodeCardItem | null)[] {
+  const items = rows.map((c, i) => codeCheckCardItem(c, i, evidence[i] ?? null, parse, echo, job));
+  const withIds = withContentIds('cc', items.filter((x): x is CodeCardItem => !!x));
+  let k = 0;
+  return items.map((x) => (x ? withIds[k++] : null));
 }
 export function planFindingCardItem(
   f: Record<string, unknown> & { id: string; requirement?: string; observed?: string; confidence?: string },
@@ -248,10 +335,7 @@ export function planFindingCardItem(
   parse: CardParse,
   echo: CardEcho,
 ): CodeCardItem {
-  const raw = f.cardStatus;
-  const status: CodeCardItem['status'] = raw === 'fix' || raw === 'ask' || raw === 'ok'
-    ? raw
-    : f.confidence === 'low' ? 'ask' : 'fix';
+  const status: CodeCardItem['status'] = f.confidence === 'low' ? 'ask' : 'fix';
   const parsed = parse({ ...f, id: f.id, verdict: 'required', summary: 'Requirement', section: 'none', status, location: undefined, question: undefined }, f.id);
   const base: CodeCardItem = parsed ?? { id: f.id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
   const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status };
@@ -311,6 +395,25 @@ function useCodeCardStore<S, A>(store: PersistedStore<S, A>): S {
 
 export const NO_JOB_CHECKLIST = 'Link a project first, so this lands on that project\u2019s Inspection Ready checklist.';
 export const NO_JOB_SAVE = 'Link a project first, so this is kept with that project.';
+/** A card with no requirement in words (MAGE's stand-in line) is not a checklist item. */
+export const NO_WORDS_CHECKLIST = 'This card has no requirement in words, so there is nothing to put on a checklist. Use Official text to read the section.';
+export const NO_WORDS_SAVE = 'This card has no requirement in words, so there is nothing to keep. Use Official text to read the section.';
+/**
+ * Why a card cannot go on a checklist / be saved, or null when it can. A
+ * stand-in card says so; anything else the device store would refuse
+ * (utils/codeCard/parse.ts storedCodeCardItem) gives the store's own reason.
+ * A card this returns null for is one the store reads back after a restart.
+ */
+export function cardKeepBlockedReason(item: CodeCardItem, kind: 'checklist' | 'save'): string | null {
+  if (isCardPlaceholder(item.summary)) return kind === 'checklist' ? NO_WORDS_CHECKLIST : NO_WORDS_SAVE;
+  return codeCardStoreBlockedReason(item);
+}
+/** Where a pinned card can be taken off again (the opened card's Checklist row, once pinned). */
+export function pinnedWhere(stage: CodeStage): string {
+  return `On ${stageLabel(stage)} checklist. To take it off: Ask, under On inspection checklists, with this project linked.`;
+}
+/** The line under the pinned list: when each one shows, and that they live on this device. */
+export const PINNED_LIST_NOTE = 'Each one shows in Inspection Ready 3 days before that inspection. Kept on this device. Confirm with your building department.';
 /** Where a saved card can be found again (the opened card's Save row, once saved). */
 export function savedWhere(projectName: string): string {
   return `Saved to ${projectName}. Find it in Ask, under Saved code cards, with this project linked.`;
@@ -366,11 +469,21 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     if (!projectId) return blockedAction(NO_JOB_CHECKLIST);
     const pinned = pinnedStage(pins, projectId, item.id);
     if (pinned) return doneAction(`On ${stageLabel(pinned)} checklist`);
+    const cannot = cardKeepBlockedReason(item, 'checklist');
+    if (cannot) return blockedAction(cannot);
     return readyAction(() => {
       pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, new Date(), stageOf(item)) });
       if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
     });
   }, [projectId, pins, pinStore, stageOf]);
+  // The opened card has room to say where a pin can be taken off again.
+  const checklistFromSheet = useCallback((item: CodeCardItem): CodeCardAction => {
+    const pinned = pinnedStage(pins, projectId, item.id);
+    return projectId && pinned ? doneAction(pinnedWhere(pinned)) : checklistFor(item);
+  }, [projectId, pins, checklistFor]);
+  const unpin = useCallback((item: CodeCardItem) => {
+    if (projectId) pinStore.dispatch({ type: 'unpin', projectId, itemId: item.id });
+  }, [projectId, pinStore]);
 
   const openAsk = useCallback((item: CodeCardItem) => {
     setAsk({
@@ -394,8 +507,10 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
   const saveFor = useCallback((item: CodeCardItem): CodeCardAction => {
     if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
     if (isSaved(saved, projectId, item.id)) return doneAction(savedWhere(project.name));
+    const cannot = cardKeepBlockedReason(item, 'save');
+    if (cannot) return blockedAction(cannot);
     return readyAction(() => {
-      savedStore.dispatch({ type: 'save', card: makeSaved(projectId, { ...item, stage: stageOf(item) }, new Date(), jobValues[item.id] ?? null) });
+      savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), new Date(), jobValues[item.id] ?? null) });
     });
   }, [projectId, project, saved, savedStore, stageOf, jobValues]);
   const unsave = useCallback((item: CodeCardItem) => {
@@ -415,6 +530,7 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     if (!projectId) return;
     const now = new Date();
     for (const item of items) {
+      if (cardKeepBlockedReason(item, 'checklist')) continue;
       if (!pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'pin', pin: makePin(projectId, item, now, stageOf(item)) });
     }
   }, [projectId, pins, pinStore, stageOf]);
@@ -422,9 +538,29 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     if (!projectId) return;
     const now = new Date();
     for (const item of items) {
-      if (!isSaved(saved, projectId, item.id)) savedStore.dispatch({ type: 'save', card: makeSaved(projectId, { ...item, stage: stageOf(item) }, now, jobValues[item.id] ?? null) });
+      if (cardKeepBlockedReason(item, 'save')) continue;
+      if (!isSaved(saved, projectId, item.id)) savedStore.dispatch({ type: 'save', card: makeSaved(projectId, cardWithChosenStage(item, stageOf(item)), now, jobValues[item.id] ?? null) });
     }
   }, [projectId, saved, savedStore, stageOf, jobValues]);
+
+  // The list's two bulk buttons, the same on every surface. They count and act
+  // on the cards that CAN be kept: a stand-in card is never pinned or saved, so
+  // it must not hold the button at "not done yet" for ever either.
+  const checklistAll = useCallback((items: readonly CodeCardItem[]): { label: string; action: CodeCardAction } => {
+    const can = items.filter((c) => !cardKeepBlockedReason(c, 'checklist'));
+    const label = addAllLabel((can.length > 0 ? can : items).map((c) => ({ ...c, stage: stageOf(c) })));
+    if (!projectId) return { label, action: blockedAction(NO_JOB_CHECKLIST) };
+    if (can.length === 0) return { label, action: blockedAction(NO_WORDS_CHECKLIST) };
+    if (can.every((c) => !!pinnedStage(pins, projectId, c.id))) return { label, action: doneAction('On the inspection checklists') };
+    return { label, action: readyAction(() => addAll(can)) };
+  }, [projectId, pins, stageOf, addAll]);
+  const saveAllAction = useCallback((items: readonly CodeCardItem[]): CodeCardAction => {
+    if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
+    const can = items.filter((c) => !cardKeepBlockedReason(c, 'save'));
+    if (can.length === 0) return blockedAction(NO_WORDS_SAVE);
+    if (can.every((c) => isSaved(saved, projectId, c.id))) return doneAction(`Saved to ${project.name}`);
+    return readyAction(() => saveAll(can));
+  }, [projectId, project, saved, saveAll]);
 
   const overlay = (
     <>
@@ -439,8 +575,11 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
           setStageEdits((m) => ({ ...m, [item.id]: stage }));
           if (projectId && pinnedStage(pins, projectId, item.id)) pinStore.dispatch({ type: 'setStage', projectId, itemId: item.id, stage });
         }}
+        // A re-measure he made earlier this session is the number the card
+        // reopens on, so Save never keeps a number that is not on screen.
+        jobValue={openItem ? jobValues[openItem.id] : undefined}
         onJobValueChange={(item, jv) => setJobValues((m) => ({ ...m, [item.id]: jv }))}
-        checklist={openItem ? checklistFor(openItem) : undefined}
+        checklist={openItem ? checklistFromSheet(openItem) : undefined}
         askTown={openItem ? askTownFromSheet(openItem) : undefined}
         save={openItem ? saveFor(openItem) : undefined}
         recipients={subRecipientsFor(subcontractors ?? [], openItem?.trade)}
@@ -461,7 +600,10 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     </>
   );
 
-  return { stageOf, checklistFor, askTownFor, saveFor, unsave, onOpen: setOpenItem, addAll, saveAll, pins, saved, overlay };
+  /** The number he re-measured on this card this session, if any (what Save keeps). */
+  const jobValueOf = useCallback((item: CodeCardItem): CodeJobValue | undefined => jobValues[item.id], [jobValues]);
+
+  return { stageOf, jobValueOf, checklistFor, askTownFor, saveFor, unsave, unpin, onOpen: setOpenItem, checklistAll, saveAllAction, pins, saved, overlay };
 }
 
 /** What a code-card answer was grounded on, snapshotted when it was asked. */
@@ -648,14 +790,24 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     () => savedFor(wiring.saved, linkedProject?.id).slice().reverse(),
     [wiring.saved, linkedProject],
   );
-  const savedResolved = useMemo(
-    () => (linkedProject && savedCards.length > 0 ? resolveCodeJurisdiction(jurisdictionQueryForProject(linkedProject, confirmedCounty)) : null),
-    [linkedProject, savedCards.length, confirmedCounty],
+  // ── Cards on the LINKED project's inspection checklists ─────────────────
+  // Where "Checklist" lands, visible at any time (Inspection Ready shows a
+  // pin only in the 3 days before its inspection), and where a pin comes off.
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const pinnedCards = useMemo(
+    () => pinsFor(wiring.pins, linkedProject?.id).slice().reverse(),
+    [wiring.pins, linkedProject],
   );
-  const savedPermit = usePermitOfficeAnswer(linkedProject, savedOpen && savedCards.length > 0);
+  const keptCount = savedCards.length + pinnedCards.length;
+  const keptOpen = (savedOpen && savedCards.length > 0) || (pinnedOpen && pinnedCards.length > 0);
+  const savedResolved = useMemo(
+    () => (linkedProject && keptCount > 0 ? resolveCodeJurisdiction(jurisdictionQueryForProject(linkedProject, confirmedCounty)) : null),
+    [linkedProject, keptCount, confirmedCounty],
+  );
+  const savedPermit = usePermitOfficeAnswer(linkedProject, keptOpen);
   const savedInfo = useMemo<CodeJurisdictionInfo | null>(
-    () => (savedCards.length > 0 ? codeJurisdictionInfoFor(savedResolved, savedPermit, null) : null),
-    [savedCards.length, savedResolved, savedPermit],
+    () => (keptCount > 0 ? codeJurisdictionInfoFor(savedResolved, savedPermit, null) : null),
+    [keptCount, savedResolved, savedPermit],
   );
   const savedWiring = useCodeCardWiring({ project: linkedProject, info: savedInfo, testID: 'construction-ask-saved-cards' });
 
@@ -915,29 +1067,12 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
                 info={cardInfo}
                 mode="answer"
                 stageOf={wiring.stageOf}
+                jobValueOf={wiring.jobValueOf}
                 onOpen={wiring.onOpen}
                 checklistFor={wiring.checklistFor}
                 askTownFor={wiring.askTownFor}
-                primary={{
-                  key: 'add-all',
-                  label: addAllLabel(cards.map((c) => ({ ...c, stage: wiring.stageOf(c) }))),
-                  icon: 'clip',
-                  action: !askedFor.project
-                    ? blockedAction(NO_JOB_CHECKLIST)
-                    : cards.every((c) => !!pinnedStage(wiring.pins, askedFor.project?.id, c.id))
-                      ? doneAction('On the inspection checklists')
-                      : readyAction(() => wiring.addAll(cards)),
-                }}
-                secondary={[{
-                  key: 'save-all',
-                  label: 'Save',
-                  icon: 'save',
-                  action: !askedFor.project
-                    ? blockedAction(NO_JOB_SAVE)
-                    : cards.every((c) => isSaved(wiring.saved, askedFor.project?.id, c.id))
-                      ? doneAction(`Saved to ${askedFor.project.name}`)
-                      : readyAction(() => wiring.saveAll(cards)),
-                }]}
+                primary={{ key: 'add-all', icon: 'clip', ...wiring.checklistAll(cards) }}
+                secondary={[{ key: 'save-all', label: 'Save', icon: 'save', action: wiring.saveAllAction(cards) }]}
                 testID="construction-ask-card-list"
               />
             </View>
@@ -992,6 +1127,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
                         item={{ ...item, stage: savedWiring.stageOf(item) }}
                         onPress={savedWiring.onOpen}
                         edition={item.citedEdition ?? null}
+                        info={savedInfo}
                         ruled={i > 0}
                       />
                       <TouchableOpacity
@@ -1013,7 +1149,54 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
           ) : null}
         </View>
       ) : null}
-      {savedOpen && savedCards.length > 0 ? savedWiring.overlay : null}
+      {/* ── On the linked project's inspection checklists (where Checklist lands) ── */}
+      {linkedProject && pinnedCards.length > 0 ? (
+        <View style={styles.savedWrap} testID="construction-ask-pinned">
+          <TouchableOpacity
+            onPress={() => setPinnedOpen((o) => !o)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: pinnedOpen }}
+            style={styles.savedToggle}
+            testID="construction-ask-pinned-toggle"
+          >
+            <ClipboardCheck size={15} color={Colors.primary} strokeWidth={1.9} />
+            <Text style={styles.savedToggleText}>{`On inspection checklists for ${linkedProject.name} (${pinnedCards.length})`}</Text>
+            {pinnedOpen
+              ? <ChevronUp size={15} color={Colors.textMuted} strokeWidth={1.75} />
+              : <ChevronDown size={15} color={Colors.textMuted} strokeWidth={1.75} />}
+          </TouchableOpacity>
+          {pinnedOpen ? (
+            <>
+              <Card pad="none" radius="panel" style={styles.savedList}>
+                {pinnedCards.map((p, i) => (
+                  <View key={p.id} testID={`construction-ask-pinned-${p.item.id}`}>
+                    <CodeCardRow
+                      item={{ ...p.item, stage: p.stage }}
+                      onPress={savedWiring.onOpen}
+                      edition={p.item.citedEdition ?? null}
+                      info={savedInfo}
+                      ruled={i > 0}
+                    />
+                    <TouchableOpacity
+                      onPress={() => savedWiring.unpin(p.item)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Unpin from the ${stageLabel(p.stage)} checklist: ${p.item.summary}`}
+                      style={styles.savedRemove}
+                      testID={`construction-ask-pinned-remove-${p.item.id}`}
+                    >
+                      <Text style={styles.savedRemoveText}>Unpin</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </Card>
+              <Text style={styles.savedNote}>{PINNED_LIST_NOTE}</Text>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+      {keptOpen ? savedWiring.overlay : null}
 
       {cards.length > 0 ? wiring.overlay : null}
       <Paywall

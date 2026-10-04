@@ -5,7 +5,10 @@
 //   Why it applies here: the tape, − / + re-measure (re-runs the verdict, the
 //     tape and the text to the sub), the equation, "close to the line"
 //   What to build (our words)
-//   The code behind it: section + Copy + the evidence words; code; permit
+//   The code behind it: section + Copy + the evidence words; the VERIFIED
+//     edition with its source (an edition the card cites that is not that one
+//     goes on its own line with no source: model recall, unless it is another
+//     volume MAGE holds as adopted here); permit
 //   Read the official text (FREE): 1 copies, 2 opens, 3 paste
 //   Add to checklist · Draft a question for the town · Save to job
 //   Send to a sub: chips from his Subs, the text preview, "Text it to …"
@@ -14,7 +17,7 @@
 // MAGE SENDS NOTHING. "Text it to …" hands the text to the caller, which opens
 // the user's own Messages; the town question opens his own Mail.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -36,7 +39,7 @@ import {
   stepJobValue,
   unitLabel,
 } from '@/utils/codeCard/verdict';
-import { editionForItem, sourceLine } from '@/utils/codeCard/jurisdiction';
+import { editionViewFor, sourceLine } from '@/utils/codeCard/jurisdiction';
 import {
   defaultOfficialTextDeps,
   officialTextPlan,
@@ -46,12 +49,13 @@ import {
   type OfficialTextDeps,
 } from '@/utils/codeCard/officialText';
 import { shareTextFor, type SubRecipient } from '@/utils/codeCard/shareText';
-import { useCodeCardPalette, type CodeCardPalette } from './palette';
+import { setSunlight } from '@/utils/codeCard/sunlight';
+import { useCodeCardPalette, useSunlight, type CodeCardPalette } from './palette';
 import { SampleTag, VerdictTag } from './VerdictTag';
 import { EvidenceMeter } from './EvidenceMeter';
 import { ThresholdTape } from './ThresholdTape';
-import { CLOSE_TO_LINE_NOTE, EDITION_NOT_CONFIRMED } from './CodeCard';
-import { BlockedNote, ConfirmBlock, NOT_AFFILIATED, SunlightToggle, type CodeCardAction } from './parts';
+import { CLOSE_TO_LINE_NOTE, EDITION_NOT_CONFIRMED, NO_SECTION_GIVEN } from './CodeCard';
+import { BlockedNote, ConfirmBlock, NOT_AFFILIATED, SunlightToggle, storeGated, type CodeCardAction } from './parts';
 import { OFFICE_UNVERIFIED } from './JurisdictionBlock';
 
 export interface CodeCardSheetProps {
@@ -60,15 +64,29 @@ export interface CodeCardSheetProps {
   item: CodeCardItem | null;
   info?: CodeJurisdictionInfo | null;
   sample?: boolean;
-  /** Pins Sunlight on or off; omitted, the stored preference and the sheet's own toggle drive it. */
+  /**
+   * Pins Sunlight on or off for this sheet (tests, previews); the sheet's toggle
+   * then flips it for this sheet only. Omitted, the sheet follows the STORED
+   * preference and its toggle changes that preference, like the list's.
+   */
   sunlight?: boolean;
+  /**
+   * The number the card opens on, when it is not the item's own: a re-measure
+   * he saved (`saved.jobValue`) or made earlier this session. Read ONCE when the
+   * card opens; − / + step from it. Omitted, the item's `jobValue` is used.
+   */
+  jobValue?: CodeJobValue;
   /** "Reyes deck, Massapequa", for the text to the sub. */
   jobLabel?: string | null;
   /** The permit office's phone, shown in the code-behind table when known. */
   permitPhone?: string | null;
   /** The contractor moved the inspection off the AI's guess. */
   onStageChange?: (item: CodeCardItem, stage: CodeStage) => void;
-  /** The re-measured number changed (the caller may keep it for Save). */
+  /**
+   * The number on the card changed. Called on EVERY − / + tap with exactly the
+   * number now shown, the step back to the starting number included, so a
+   * caller that keeps it for Save never holds a number that is not on screen.
+   */
   onJobValueChange?: (item: CodeCardItem, jobValue: CodeJobValue) => void;
   checklist?: CodeCardAction;
   askTown?: CodeCardAction;
@@ -85,6 +103,7 @@ export interface CodeCardSheetProps {
 
 export const NO_SUBS_REASON = 'Add a sub with a phone number in Subs, then you can text this from here.';
 export const NO_SEND_REASON = 'Texting is not set up on this screen yet.';
+export const TRIGGER_RECALL_LINE = 'The trigger number is model recall. Confirm it in the official text.';
 
 export function CodeCardSheet(props: CodeCardSheetProps) {
   const { visible, onClose, item, testID } = props;
@@ -96,16 +115,22 @@ export function CodeCardSheet(props: CodeCardSheetProps) {
 }
 
 function SheetBody({
-  item, info, sample, sunlight: sunlightProp, jobLabel, permitPhone, onClose, onStageChange, onJobValueChange,
+  item, info, sample, sunlight: sunlightProp, jobValue: jobValueProp, jobLabel, permitPhone, onClose, onStageChange, onJobValueChange,
   checklist, askTown, save, recipients, onPickRecipient, onSendToSub, officialTextDeps, testID,
 }: CodeCardSheetProps & { item: CodeCardItem }) {
+  // ONE value drives the palette AND the toggle, so the switch can never read
+  // "off" over a sunlit sheet. Pinned by the prop: a local flip for this sheet.
+  // Not pinned: the stored preference, and the toggle writes it.
+  const storedSun = useSunlight();
+  const sunPinned = sunlightProp !== undefined;
   const [localSun, setLocalSun] = useState<boolean | undefined>(undefined);
-  const sunlight = localSun ?? sunlightProp;
+  const sunlight: boolean = sunPinned ? (localSun ?? !!sunlightProp) : storedSun;
   const P = useCodeCardPalette(sunlight);
   const styles = useMemo(() => makeStyles(P), [P]);
   const tid = `${testID ?? 'code-card-sheet'}-${item.id}`;
 
   const [taps, setTaps] = useState(0);
+  const tapsRef = useRef(0);
   const [stage, setStage] = useState<CodeStage | undefined>(item.stage);
   const [stageEdited, setStageEdited] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
@@ -113,28 +138,35 @@ function SheetBody({
   const [copied, setCopied] = useState(false);
   const [pick, setPick] = useState<string | null>(recipients?.[0]?.id ?? null);
 
-  const baseJv = item.jobValue;
-  const recheckable = !!baseJv && canRecheck(item);
+  // The starting number is fixed when the card opens (this body is keyed by the
+  // item), so a caller that echoes onJobValueChange back into `jobValue` cannot
+  // make − / + step twice.
+  const [baseJv] = useState<CodeJobValue | undefined>(() => jobValueProp ?? item.jobValue);
+  const recheckable = !!baseJv && canRecheck({ jobValue: baseJv, trigger: item.trigger });
+  const firstLabel = (item.jobValue?.source !== 'measured' ? item.jobValue?.sourceLabel ?? '' : '').trim();
   const jv: CodeJobValue | undefined = baseJv ? stepJobValue(baseJv, taps) : undefined;
-  useEffect(() => {
-    if (taps !== 0 && jv) onJobValueChange?.(item, jv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taps]);
 
   const verdict = effectiveVerdict(item, jv);
   const eq = recheckable && jv ? recheckEquation(item, jv) : null;
   const close = recheckable && jv && item.trigger ? recheck(jv, item.trigger).closeToLine : false;
   const plan = officialTextPlan(item, info);
   const steps = officialTextSteps(plan);
-  const edition = editionForItem(item, info);
+  const hasSection = !!plan.copyText;
+  const edition = editionViewFor(item, info);
   const shown: CodeCardItem = { ...item, stage, stageIsGuess: stageEdited ? false : item.stageIsGuess };
   const recipient = recipients?.find((r) => r.id === pick) ?? null;
   const text = shareTextFor(shown, { jobLabel, jobValue: jv, info, sample });
   const deps = officialTextDeps ?? defaultOfficialTextDeps();
 
+  // One tap = one number. The count lives in a ref so two taps in one frame
+  // cannot read the same stale count, and the caller is told the SAME number
+  // the card is about to show, every time (back at the start: the start).
   const stepBy = (d: number) => {
+    if (!baseJv) return;
     if (Platform.OS === 'ios') Haptics.selectionAsync().catch(() => {});
-    setTaps((t) => t + d);
+    tapsRef.current += d;
+    setTaps(tapsRef.current);
+    onJobValueChange?.(item, stepJobValue(baseJv, tapsRef.current));
   };
 
   const run = (label: string, action: CodeCardAction | undefined) => {
@@ -213,7 +245,7 @@ function SheetBody({
         </Pressable>
         <View style={styles.spacer} />
         {sample ? <SampleTag sunlight={sunlight} /> : null}
-        <SunlightToggle value={!!sunlight} onChange={setLocalSun} testID={`${tid}-sun`} />
+        <SunlightToggle value={sunlight} onChange={sunPinned ? setLocalSun : setSunlight} testID={`${tid}-sun`} />
         <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Close" testID={`${tid}-close`}>
           <View style={styles.closeDisc}><X size={15} color={P.ink2} strokeWidth={2.4} /></View>
         </Pressable>
@@ -263,7 +295,7 @@ function SheetBody({
           ) : null}
           {recheckable && jv ? (
             <View style={styles.measure}>
-              <ThresholdTape jobValue={jv} trigger={item.trigger} verdict={item.verdict} evidence={item.evidence} showSource={false} sunlight={sunlight} testID={`${tid}-tape`} />
+              <ThresholdTape jobValue={jv} trigger={item.trigger} verdict={item.verdict} showSource={false} sunlight={sunlight} testID={`${tid}-tape`} />
               <View style={styles.stepper}>
                 <Pressable
                   onPress={() => stepBy(-1)}
@@ -290,9 +322,9 @@ function SheetBody({
                 </Pressable>
               </View>
               <Text style={styles.mSrc}>
-                {taps === 0
-                  ? `From ${baseJv?.sourceLabel}. Measured something else on site? Tap − or + and the card re-checks.`
-                  : `Measured on site. ${baseJv?.sourceLabel ? `The first number came from ${baseJv.sourceLabel}.` : ''}`}
+                {jv.source === 'measured'
+                  ? `Measured on site.${firstLabel ? ` The first number came from ${firstLabel}.` : ''}${taps === 0 ? ' Tap − or + to re-check another number.' : ''}`
+                  : `From ${jv.sourceLabel}. Measured something else on site? Tap − or + and the card re-checks.`}
               </Text>
               {eq ? (
                 <Text style={styles.eq} testID={`${tid}-equation`}>
@@ -303,9 +335,8 @@ function SheetBody({
                   {eq.words}
                 </Text>
               ) : null}
-              {!/^(amended|named)$/.test(item.evidence?.rung ?? '') ? (
-                <Text style={styles.recallNote}>The trigger number is model recall. Confirm it in the official text.</Text>
-              ) : null}
+              {/* On EVERY rung: the number is the model's (see ThresholdTape). */}
+              <Text style={styles.recallNote}>{TRIGGER_RECALL_LINE}</Text>
               {close ? (
                 <View style={styles.near} accessibilityLiveRegion="polite" testID={`${tid}-near`}>
                   <TriangleAlert size={17} color={P.warnLabel} strokeWidth={2} />
@@ -339,30 +370,42 @@ function SheetBody({
           <View style={styles.rr}>
             <Text style={styles.rrKey}>Section</Text>
             <View style={styles.rrVal}>
-              <View style={styles.secRow}>
-                <Text style={styles.secText}>{item.section}</Text>
-                <Pressable
-                  onPress={() => { void onCopy(); }}
-                  style={styles.copy}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Copy ${item.section}`}
-                  testID={`${tid}-copy`}
-                >
-                  {copied ? <Check size={14} color={P.successLabel} strokeWidth={2.2} /> : <Copy size={14} color={P.ink} strokeWidth={2} />}
-                  <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
-                </Pressable>
-              </View>
+              {hasSection ? (
+                <View style={styles.secRow}>
+                  <Text style={styles.secText}>{item.section}</Text>
+                  <Pressable
+                    onPress={() => { void onCopy(); }}
+                    style={styles.copy}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Copy ${item.section}`}
+                    testID={`${tid}-copy`}
+                  >
+                    {copied ? <Check size={14} color={P.successLabel} strokeWidth={2.2} /> : <Copy size={14} color={P.ink} strokeWidth={2} />}
+                    <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Text style={styles.rrText}>{NO_SECTION_GIVEN}</Text>
+              )}
               <EvidenceMeter evidence={item.evidence} variant="full" sunlight={sunlight} testID={`${tid}-evidence`} />
             </View>
           </View>
           <View style={[styles.rr, styles.ruled]}>
             <Text style={styles.rrKey}>Code</Text>
             <View style={styles.rrVal}>
-              <Text style={styles.rrText}>{edition ?? EDITION_NOT_CONFIRMED}</Text>
+              {/* A source line sits ONLY under the verified edition. What the card
+                  cites, when it is not that edition, is on its own line below. */}
               {info?.editionLabel ? (
-                <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source not on file'}</Text>
+                <>
+                  <Text style={styles.rrText}>{info.editionLabel}</Text>
+                  <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source not on file'}</Text>
+                  {edition.citedLine ? <Text style={styles.rrSmall} testID={`${tid}-cited`}>{edition.citedLine}</Text> : null}
+                </>
               ) : (
-                <Text style={styles.rrSmall}>No verified adoption record for this address.</Text>
+                <>
+                  <Text style={styles.rrText}>{edition.citedLine ?? EDITION_NOT_CONFIRMED}</Text>
+                  <Text style={styles.rrSmall}>No verified adoption record for this address.</Text>
+                </>
               )}
             </View>
           </View>
@@ -385,7 +428,9 @@ function SheetBody({
         style={({ pressed }) => [styles.official, !plan.available && styles.officialOff, pressed && styles.officialPressed]}
         accessibilityRole="button"
         accessibilityLabel={plan.available
-          ? `Read the official text, free. Copies ${plan.copyText}, opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer; paste it into its search.`
+          ? plan.copyText
+            ? `Read the official text, free. Copies ${plan.copyText}, opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer; paste it into its search.`
+            : `Read the official text, free. Opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer. This card has no section to copy.`
           : `Read the official text, not available. ${plan.blockedReason}`}
         accessibilityState={{ disabled: !plan.available }}
         testID={`${tid}-official`}
@@ -409,9 +454,9 @@ function SheetBody({
       </Pressable>
 
       <View style={styles.alist}>
-        {actionRow('checklist', checklistTitle, 'Shows in Inspection Ready 3 days before that inspection', ClipboardCheck, checklist, false)}
+        {actionRow('checklist', checklistTitle, 'Shows in Inspection Ready 3 days before that inspection', ClipboardCheck, storeGated(checklist, shown), false)}
         {actionRow('ask', 'Draft a question for the town', 'Opens in your Mail. MAGE sends nothing.', MessageCircleQuestion, askTown, true)}
-        {actionRow('save', 'Save to the job', 'Kept with the codes and permits', Bookmark, save, true)}
+        {actionRow('save', 'Save to the job', 'Kept with the codes and permits', Bookmark, storeGated(save, shown), true)}
       </View>
       <BlockedNote text={note} sunlight={sunlight} testID={`${tid}-note`} />
 

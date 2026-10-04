@@ -8,7 +8,7 @@
 // missing the field is null and the block says so; it never fills a gap.
 
 import { codesSummary, codeLine, departmentFor, viewerLinksFor, type ResolvedCodeJurisdiction } from '../codeJurisdiction';
-import { viewerLinkForCitation } from '../codeAmendments';
+import { viewerLinkForCitation, type CitationEvidence } from '../codeAmendments';
 import type { PermitOfficeAnswer } from '../permitOffices';
 import type { CodeCardItem, CodeJurisdictionInfo } from './types';
 
@@ -105,13 +105,112 @@ export function sourceLine(url: string | null | undefined, checkedOn: string | n
   return host ?? `Checked ${date}`;
 }
 
+// ── Which edition a card may print, and how ──────────────────────────────
+//
+// THE RULE, in two halves:
+//   1. A government source line only ever sits under `info.editionLabel`, the
+//      jurisdiction's own verified edition. Nothing the AI cited is ever
+//      printed over it.
+//   2. An edition printed WITHOUT a recall mark is always, word for word, a
+//      name MAGE itself holds for a volume adopted at this address. That is
+//      one of two things:
+//        'same'     a name of the answer's verified edition (`info`), or
+//        'adopted'  a name of the ONE adopted volume MAGE's own lookup
+//                   resolved THIS card's citation to (`evidence.viewerLabel`,
+//                   stamped by citationEvidenceFor; never taken off the wire).
+//      Anything else the AI cited is 'recall': "(as cited)" on the card's meta
+//      line and the list row, "The AI cited: … (model recall)" on the opened
+//      card. It is never guessed to be close enough: against a verified 2025
+//      RCNYS, '2020 RCNYS', 'IRC 2021', 'IRC' and a bare 'RCNYS' are all recall.
+//
+// On the opened card the cited edition gets its own line, with no source under
+// it, whenever it is not the edition printed above it ('adopted' or 'recall').
+
+export const AS_CITED_MARK = '(as cited)';
+
+/** "The AI cited: 2020 RCNYS (model recall)": an edition MAGE holds no record of here. */
+export function citedEditionLine(cited: string): string {
+  return `The AI cited: ${cited.trim()} (model recall)`;
+}
+
+/** "Cited on this card: 2025 ECCCNYS": an adopted volume that is not the edition printed above it. */
+export function adoptedEditionLine(cited: string): string {
+  return `Cited on this card: ${cited.trim()}`;
+}
+
+function editionTokens(text: string | null | undefined): string {
+  const tokens = (text ?? '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return [...new Set(tokens)].sort().join(' ');
+}
+
+/** A volume's own names: its title, and the short name in the title's closing parenthetical ("2025 RCNYS"). */
+function volumeNames(title: string | null | undefined): string[] {
+  const t = (title ?? '').trim();
+  if (!t) return [];
+  const paren = /\(([^)]+)\)\s*$/.exec(t);
+  return paren ? [t, paren[1]] : [t];
+}
+
+function namesOne(cited: string | null | undefined, names: readonly (string | null | undefined)[]): boolean {
+  const own = editionTokens(cited);
+  return !!own && names.some((name) => !!name && editionTokens(name) === own);
+}
+
 /**
- * The edition text a card's meta line shows: the item's own `citedEdition`
- * when it has one, else the jurisdiction's edition, else null (the card then
- * says the edition is not confirmed rather than guessing).
+ * Is the cited edition the answer's verified one? True ONLY when its words are
+ * exactly the words of one of that edition's own names: `info.editionLabel`,
+ * ICC's volume title (`info.viewerLabel`) or the short name in that title's
+ * parenthetical. Case, punctuation and word order are ignored; nothing else
+ * is. No verified edition = never.
  */
-export function editionForItem(item: Pick<CodeCardItem, 'citedEdition'>, info: CodeJurisdictionInfo | null | undefined): string | null {
-  const own = (item.citedEdition ?? '').trim();
-  if (own) return own;
-  return info?.editionLabel ?? null;
+export function isVerifiedEdition(cited: string | null | undefined, info: CodeJurisdictionInfo | null | undefined): boolean {
+  if (!info?.editionLabel) return false;
+  return namesOne(cited, [info.editionLabel, ...volumeNames(info.viewerLabel)]);
+}
+
+/**
+ * Is the cited edition, word for word, the adopted volume MAGE's own lookup
+ * resolved this card's citation to? (`evidence.viewerLabel` is ICC's title of
+ * that ONE volume; it is null when the lookup found none, or more than one.)
+ */
+export function isAdoptedVolume(cited: string | null | undefined, evidence: Pick<CitationEvidence, 'viewerLabel'> | null | undefined): boolean {
+  return namesOne(cited, volumeNames(evidence?.viewerLabel));
+}
+
+export type CitedEditionKind = 'same' | 'adopted' | 'recall';
+
+export interface EditionView {
+  /** The jurisdiction's verified edition (the ONLY text a source line may sit under), or null. */
+  verified: string | null;
+  /** What the AI cited, trimmed; null when it cited none. */
+  cited: string | null;
+  /** How the cited edition stands (see THE RULE); null when none was cited. */
+  kind: CitedEditionKind | null;
+  /** The card's meta line / the list row: an edition MAGE holds, bare, or the cited one with its mark. Null = not confirmed. */
+  meta: string | null;
+  /** The opened card's own line for the cited edition; null when it IS the verified edition printed above it, or none was cited. */
+  citedLine: string | null;
+}
+
+type EditionInput = Pick<CodeCardItem, 'citedEdition'> & { evidence?: Pick<CitationEvidence, 'viewerLabel'> | null };
+
+/** What a card may print about its edition (see THE RULE above). */
+export function editionViewFor(item: EditionInput, info: CodeJurisdictionInfo | null | undefined): EditionView {
+  const cited = (item.citedEdition ?? '').trim();
+  const verified = info?.editionLabel ?? null;
+  if (!cited) return { verified, cited: null, kind: null, meta: verified, citedLine: null };
+  if (isVerifiedEdition(cited, info)) return { verified, cited, kind: 'same', meta: cited, citedLine: null };
+  if (isAdoptedVolume(cited, item.evidence)) return { verified, cited, kind: 'adopted', meta: cited, citedLine: adoptedEditionLine(cited) };
+  return { verified, cited, kind: 'recall', meta: `${cited} ${AS_CITED_MARK}`, citedLine: citedEditionLine(cited) };
+}
+
+/**
+ * The edition text a card's meta line shows (editionViewFor().meta): the cited
+ * edition, bare, when it is a name MAGE holds for a volume adopted here; the
+ * cited edition marked "(as cited)" when it is not; the jurisdiction's edition
+ * when none was cited; else null (the card then says the edition is not
+ * confirmed rather than guessing).
+ */
+export function editionForItem(item: EditionInput, info: CodeJurisdictionInfo | null | undefined): string | null {
+  return editionViewFor(item, info).meta;
 }

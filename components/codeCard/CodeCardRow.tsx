@@ -9,19 +9,28 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CircleCheck, CircleHelp, CircleMinus, MapPin, TriangleAlert } from 'lucide-react-native';
-import type { CodeCardItem } from '@/utils/codeCard/types';
+import type { CodeCardItem, CodeJurisdictionInfo } from '@/utils/codeCard/types';
 import { stageLabel } from '@/utils/codeCard/verdict';
-import { evidenceView } from '@/utils/codeCard/evidence';
+import { rowEvidenceWord } from '@/utils/codeCard/evidence';
+import { editionForItem } from '@/utils/codeCard/jurisdiction';
 import { useCodeCardPalette, type CodeCardPalette } from './palette';
 import { EvidenceBars } from './EvidenceMeter';
+import { NO_SECTION_GIVEN } from './CodeCard';
 
 export interface CodeCardRowProps {
   item: CodeCardItem;
   onPress?: (item: CodeCardItem) => void;
   /** Show the inspection in the row (By status view). Off inside a By inspection group. */
   showStage?: boolean;
-  /** Show the edition beside the section (Ask answers). */
+  /**
+   * Show the edition beside the section (Ask answers). Any text here only
+   * SWITCHES THE EDITION ON: what the row prints is always worked out by the
+   * kit's one rule (editionForItem), so an edition that is not this address's
+   * verified one carries "(as cited)" whatever the caller passed.
+   */
   edition?: string | null;
+  /** The verified edition the row checks the cited one against. None = nothing verified, so a cited edition is marked. */
+  info?: CodeJurisdictionInfo | null;
   /** Draw the hairline above (every row but the first in a group). */
   ruled?: boolean;
   sunlight?: boolean;
@@ -34,7 +43,7 @@ export function askTarget(item: Pick<CodeCardItem, 'status' | 'question'>): stri
   return (item.question ?? '').trim() ? 'Ask architect' : 'Ask town';
 }
 
-export function CodeCardRow({ item, onPress, showStage = true, edition, ruled, sunlight, testID }: CodeCardRowProps) {
+export function CodeCardRow({ item, onPress, showStage = true, edition, info, ruled, sunlight, testID }: CodeCardRowProps) {
   const P = useCodeCardPalette(sunlight);
   const styles = useMemo(() => makeStyles(P), [P]);
   const tid = testID ?? `code-row-${item.id}`;
@@ -42,7 +51,7 @@ export function CodeCardRow({ item, onPress, showStage = true, edition, ruled, s
   const Icon = status === 'fix' ? TriangleAlert : status === 'ask' ? CircleHelp : status === 'ok' ? CircleCheck : CircleMinus;
   const iconColor = status === 'fix' ? P.warnLabel : status === 'ok' ? P.success : P.ink2;
   const target = askTarget(item);
-  const ev = evidenceView(item.evidence);
+  const editionText = edition ? editionForItem(item, info) : null;
   const statusWord = status === 'fix' ? 'Fix' : status === 'ask' ? 'Needs an answer' : status === 'ok' ? 'Looks right on the drawing' : '';
 
   const content = (
@@ -53,12 +62,12 @@ export function CodeCardRow({ item, onPress, showStage = true, edition, ruled, s
         <Text style={[styles.v, status === 'ok' && styles.vOk]}>{item.summary}</Text>
         <View style={styles.m}>
           {item.observed ? <Text style={styles.obs}>{item.observed}</Text> : null}
-          <Text style={styles.sec}>{item.section}</Text>
-          {edition ? <Text style={styles.mText}>{edition}</Text> : null}
+          {(item.section ?? '').trim() ? <Text style={styles.sec}>{item.section}</Text> : <Text style={styles.mText}>{NO_SECTION_GIVEN}</Text>}
+          {editionText ? <Text style={styles.mText}>{editionText}</Text> : null}
           {status ? null : (
             <View style={styles.ev}>
               <EvidenceBars evidence={item.evidence} sunlight={sunlight} />
-              <Text style={styles.mText}>{ev.tone === 'government' ? ev.short : 'Recall'}</Text>
+              <Text style={styles.mText}>{rowEvidenceWord(item.evidence)}</Text>
             </View>
           )}
           {item.location ? (
@@ -75,7 +84,7 @@ export function CodeCardRow({ item, onPress, showStage = true, edition, ruled, s
     </>
   );
 
-  const a11y = [statusWord, item.summary, item.observed, item.section, item.location, target].filter(Boolean).join('. ');
+  const a11y = [statusWord, item.summary, item.observed, (item.section ?? '').trim() || NO_SECTION_GIVEN, item.location, target].filter(Boolean).join('. ');
   if (!onPress) {
     return <View style={[styles.row, ruled && styles.ruled]} accessible accessibilityLabel={a11y} testID={tid}>{content}</View>;
   }

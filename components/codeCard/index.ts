@@ -2,7 +2,7 @@
 // primitives in components/ui (Card, Sheet, Button, SegmentedControl, the
 // motion kit) and the pure logic in utils/codeCard.
 
-export { CodeCard, CLOSE_TO_LINE_NOTE, EDITION_NOT_CONFIRMED, type CodeCardProps } from './CodeCard';
+export { CodeCard, CLOSE_TO_LINE_NOTE, EDITION_NOT_CONFIRMED, NO_SECTION_GIVEN, type CodeCardProps } from './CodeCard';
 export { CodeCardRow, askTarget, type CodeCardRowProps } from './CodeCardRow';
 export {
   CodeCardList,
@@ -12,7 +12,7 @@ export {
   type CodeBulkAction,
   type CodeBulkIcon,
 } from './CodeCardList';
-export { CodeCardSheet, NO_SUBS_REASON, NO_SEND_REASON, type CodeCardSheetProps } from './CodeCardSheet';
+export { CodeCardSheet, NO_SUBS_REASON, NO_SEND_REASON, TRIGGER_RECALL_LINE, type CodeCardSheetProps } from './CodeCardSheet';
 export {
   JurisdictionBlock,
   EDITION_MISSING,
@@ -22,7 +22,7 @@ export {
   type JurisdictionBlockProps,
 } from './JurisdictionBlock';
 export { EvidenceMeter, EvidenceBars, type EvidenceMeterProps } from './EvidenceMeter';
-export { ThresholdTape, tapePercent, type ThresholdTapeProps } from './ThresholdTape';
+export { ThresholdTape, tapePercent, TRIGGER_RECALL_TAIL, type ThresholdTapeProps } from './ThresholdTape';
 export { VerdictTag, SampleTag, VERDICT_LABEL, type VerdictTagProps } from './VerdictTag';
 export {
   SunlightToggle,
@@ -32,6 +32,7 @@ export {
   readyAction,
   doneAction,
   blockedAction,
+  storeGated,
   type CodeCardAction,
 } from './parts';
 export { codeCardPalette, useCodeCardPalette, useSunlight, type CodeCardPalette } from './palette';

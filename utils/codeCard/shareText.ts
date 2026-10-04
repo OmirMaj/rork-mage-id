@@ -7,7 +7,13 @@
 //   * No code wording. The requirement line is the card's `summary`, which is
 //     MAGE's own words and passed summaryEchoCheck; nothing else quotes.
 //   * A recalled section says so in the text itself ("section from AI recall,
-//     confirm"), so the honesty label travels with the message.
+//     confirm"), so the honesty label travels with the message. A record that
+//     only names the PARENT section is recall too (sectionIsBacked).
+//   * THE TRIGGER NUMBER IS ALWAYS AI RECALL, on every rung. It comes from the
+//     model's structured output and from nowhere else: a "named" record
+//     verifies the section NUMBER, and MAGE holds no record that supplies the
+//     30 in. So "Applies above 30 in." always carries "(AI recall, confirm)",
+//     and no surface credits that number to a government source.
 //   * It always ends by naming who has the final word ("Confirm with …").
 //   * A sample says "(Sample)" as its last word.
 //   * MAGE sends nothing: these functions build text and sms:/mailto: links;
@@ -15,6 +21,8 @@
 
 import type { CitationEvidence } from '../codeAmendments';
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeTrigger } from './types';
+import { sectionIsBacked } from './evidence';
+import { AS_CITED_MARK, editionViewFor } from './jurisdiction';
 import { canRecheck, formatJobNumber, recheckEquation } from './verdict';
 
 export interface ShareTextOptions {
@@ -26,14 +34,33 @@ export interface ShareTextOptions {
   sample?: boolean;
 }
 
-/** True only for the two rungs a government document stands behind. */
+/**
+ * True only when a government document stands behind the cited section itself
+ * (rung amended / named, and NOT a parent-only match). The one rule lives in
+ * ./evidence.ts `sectionIsBacked`; this is its name on the share-text side.
+ */
 export function isGovernmentRung(ev: CitationEvidence | null | undefined): boolean {
-  return !!ev && (ev.rung === 'amended' || ev.rung === 'named');
+  return sectionIsBacked(ev);
 }
 
 export const SAMPLE_TAIL = '(Sample)';
 export const RECALL_NOTE = 'section from AI recall, confirm';
 export const TRIGGER_RECALL_NOTE = 'AI recall, confirm';
+export const NO_SECTION_NOTE = 'no section given';
+
+/**
+ * "2025 RCNYS R312.1" + whether the recall note rides with it. A card with no
+ * section says so instead of printing an empty reference; with no section
+ * there is no recall note on the line either, so an edition the AI cited that
+ * MAGE holds no record of at this address is marked "(as cited)" there
+ * (`editionMarked`, the same rule as the card: ./jurisdiction.ts).
+ */
+function refFor(edition: string, section: string, backed: boolean, editionMarked: boolean): string {
+  const sec = section.trim();
+  if (!sec) return [edition && editionMarked ? `${edition} ${AS_CITED_MARK}` : edition, NO_SECTION_NOTE].filter(Boolean).join(', ');
+  const ref = [edition, sec].filter(Boolean).join(' ');
+  return backed ? ref : `${ref} (${RECALL_NOTE})`;
+}
 
 const TRIGGER_WORDS: Readonly<Record<CodeTrigger['comparison'], string>> = Object.freeze({
   '>': 'above',
@@ -45,6 +72,13 @@ const TRIGGER_WORDS: Readonly<Record<CodeTrigger['comparison'], string>> = Objec
 /** "above 30 in." */
 export function triggerPhrase(trigger: CodeTrigger): string {
   return `${TRIGGER_WORDS[trigger.comparison] ?? trigger.comparison} ${formatJobNumber(trigger.value, trigger.unit)}`;
+}
+
+/** The architect list's reference: "R312.1.3, section from AI recall, confirm". */
+function architectRef(item: Pick<CodeCardItem, 'section' | 'evidence'>): string {
+  const sec = (item.section ?? '').trim();
+  if (!sec) return NO_SECTION_NOTE;
+  return isGovernmentRung(item.evidence) ? sec : `${sec}, ${RECALL_NOTE}`;
 }
 
 function sentence(s: string): string {
@@ -75,15 +109,18 @@ export function shareTextFor(item: CodeCardItem, opts: ShareTextOptions = {}): s
   if (jv && item.trigger && canRecheck({ jobValue: jv, trigger: item.trigger })) {
     const eq = recheckEquation(item, jv);
     const from = (jv.sourceLabel ?? '').trim();
-    parts.push(`Job: ${formatJobNumber(jv.value, jv.unit)}${from ? ` (${from})` : ''}.`);
+    // sentence(): "34 in." already ends in a period, so none is added twice.
+    parts.push(sentence(`Job: ${formatJobNumber(jv.value, jv.unit)}${from ? ` (${from})` : ''}`));
+    // The trigger number is the model's, on every rung (see the header).
     const trig = `${item.verdict === 'limit' ? 'Limit' : 'Applies'} ${triggerPhrase(item.trigger)}`;
-    parts.push(isGovernmentRung(item.evidence) ? `${trig}.` : `${trig} (${TRIGGER_RECALL_NOTE}).`);
-    if (eq) parts.push(`Result: ${eq.words}.`);
+    parts.push(`${trig} (${TRIGGER_RECALL_NOTE}).`);
+    if (eq) parts.push(sentence(`Result: ${eq.words}`));
   }
 
-  const edition = (item.citedEdition ?? opts.info?.editionLabel ?? '').trim();
-  const ref = [edition, item.section.trim()].filter(Boolean).join(' ');
-  parts.push(isGovernmentRung(item.evidence) ? `Ref: ${ref}.` : `Ref: ${ref} (${RECALL_NOTE}).`);
+  const cited = (item.citedEdition ?? '').trim();
+  const edition = cited || (opts.info?.editionLabel ?? '').trim();
+  const editionMarked = editionViewFor(item, opts.info).kind === 'recall';
+  parts.push(sentence(`Ref: ${refFor(edition, item.section ?? '', isGovernmentRung(item.evidence), editionMarked)}`));
   parts.push(confirmLine(opts.info));
   if (opts.sample) parts.push(SAMPLE_TAIL);
   return parts.join(' ');
@@ -109,16 +146,14 @@ export function architectMessageFor(
     lines.push('To fix:');
     for (const f of fixes) {
       const where = [f.observed, f.location].map((s) => (s ?? '').trim()).filter(Boolean).join(', ');
-      const ref = isGovernmentRung(f.evidence) ? f.section : `${f.section}, ${RECALL_NOTE}`;
-      lines.push(`- ${sentence(f.summary)}${where ? ` (${where})` : ''} Ref: ${ref}.`);
+      lines.push(`- ${sentence(f.summary)}${where ? ` (${where})` : ''} ${sentence(`Ref: ${architectRef(f)}`)}`);
     }
   }
   if (asks.length) {
     lines.push('');
     lines.push('Questions:');
     for (const a of asks) {
-      const ref = isGovernmentRung(a.evidence) ? a.section : `${a.section}, ${RECALL_NOTE}`;
-      lines.push(`- ${sentence(a.question ?? '')} Ref: ${ref}.`);
+      lines.push(`- ${sentence(a.question ?? '')} ${sentence(`Ref: ${architectRef(a)}`)}`);
     }
   }
   lines.push('');

@@ -3,29 +3,33 @@
 //
 // RENDERS ONLY FROM STRUCTURED NUMBERS. The caller passes the item's
 // `jobValue` and `trigger`; when canRecheck() says no (either missing, units
-// differ, not finite) this returns null. Nothing is parsed from prose. The
-// trigger is labelled as model recall unless a government rung stands behind
-// the section.
+// differ, not finite) this returns null. Nothing is parsed from prose.
+//
+// THE TRIGGER IS ALWAYS LABELLED AS MODEL RECALL. The number comes from the
+// model's structured output on every card: a government record that names the
+// section verifies the section NUMBER, and MAGE holds no record that supplies
+// the 30 in. So this component is never handed the citation's evidence, and
+// its source line cannot credit the trigger to a government source.
 
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ruler } from 'lucide-react-native';
-import type { CitationEvidence } from '@/utils/codeAmendments';
 import type { CodeJobValue, CodeTrigger, CodeVerdict } from '@/utils/codeCard/types';
 import { canRecheck, formatJobNumber } from '@/utils/codeCard/verdict';
-import { isGovernmentRung, triggerPhrase } from '@/utils/codeCard/shareText';
+import { triggerPhrase } from '@/utils/codeCard/shareText';
 import { useCodeCardPalette, type CodeCardPalette } from './palette';
 
 export interface ThresholdTapeProps {
   jobValue: CodeJobValue | undefined;
   trigger: CodeTrigger | undefined;
   verdict: CodeVerdict;
-  evidence: CitationEvidence | null;
   /** Show the "34 in. from sheet A-2 · trigger is model recall" line. Default true. */
   showSource?: boolean;
   sunlight?: boolean;
   testID?: string;
 }
+
+export const TRIGGER_RECALL_TAIL = 'trigger is model recall';
 
 /** Where a value sits on the tape, as a percentage (0 at the left). */
 export function tapePercent(value: number, max: number): number {
@@ -35,7 +39,7 @@ export function tapePercent(value: number, max: number): number {
 
 const DASHES = [0, 1, 2, 3, 4];
 
-export function ThresholdTape({ jobValue, trigger, verdict, evidence, showSource = true, sunlight, testID }: ThresholdTapeProps) {
+export function ThresholdTape({ jobValue, trigger, verdict, showSource = true, sunlight, testID }: ThresholdTapeProps) {
   const P = useCodeCardPalette(sunlight);
   const styles = useMemo(() => makeStyles(P), [P]);
   if (!jobValue || !trigger || !canRecheck({ jobValue, trigger })) return null;
@@ -47,10 +51,7 @@ export function ThresholdTape({ jobValue, trigger, verdict, evidence, showSource
   const over = Math.max(0, jobPct - trigPct);
   const jobText = formatJobNumber(jobValue.value, jobValue.unit);
   const trigText = `${verdict === 'limit' ? 'Limit' : 'Applies'} ${triggerPhrase(trigger)}`;
-  const gov = isGovernmentRung(evidence);
-  const trigNote = gov
-    ? `${formatJobNumber(trigger.value, trigger.unit)} from ${evidence?.sourceLabel ?? 'a government record'}`
-    : `${formatJobNumber(trigger.value, trigger.unit)} trigger is model recall`;
+  const trigNote = `${formatJobNumber(trigger.value, trigger.unit)} ${TRIGGER_RECALL_TAIL}`;
 
   // A label sits on the side of its mark that has room: right of it in the
   // left half, ending at it in the right half. No measuring needed.
@@ -72,7 +73,7 @@ export function ThresholdTape({ jobValue, trigger, verdict, evidence, showSource
       testID={testID}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Job ${jobText}. ${trigText}.${gov ? '' : ' The trigger is model recall.'}`}
+      accessibilityLabel={`Job ${jobText}. ${trigText}. The trigger is model recall.`}
     >
       {anchored(jobPct, (
         <Text style={styles.tag} numberOfLines={1}>

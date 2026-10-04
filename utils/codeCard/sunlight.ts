@@ -62,6 +62,19 @@ export function toggleSunlight(): void {
   setSunlight(!on);
 }
 
+/**
+ * Tenant wipe (see ./reset.ts): the preference is stored under a swept key, so
+ * the next user must not inherit it from module memory either. Sunlight goes
+ * off for everyone listening, and a read still in flight is ignored.
+ */
+export function resetSunlight(): void {
+  touched = true;
+  loadStarted = true;
+  if (!on) return;
+  on = false;
+  emit();
+}
+
 /** Tests only: reset the module and point it at a storage double (null = none). */
 export function __resetSunlightForTest(s: KVStorage | null = null): void {
   on = false;

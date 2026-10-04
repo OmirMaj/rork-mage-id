@@ -32,6 +32,7 @@ import {
 } from '@/utils/codeJurisdiction';
 import { isMdJobsite } from '@/utils/buildingRecord';
 import { placeQueryForProject } from '@/utils/permitOffices';
+import { sectionIsBacked } from '@/utils/codeCard/evidence';
 
 /** Where the filing is in its life, read off DOB's status text verbatim. */
 export function questionStageFor(filing: BuildingRecordRow | null | undefined): DepartmentQuestionStage {
@@ -668,16 +669,18 @@ export function askTownBlockedReason(project: (Parameters<typeof placeQueryForPr
  *  - `noWords`: the card has no requirement in words (its line was withheld or
  *    missing), so the question asks what the section requires instead of
  *    repeating MAGE's stand-in line.
- *  - The "AI recall" sentence is said only when the section IS recall: a card
- *    whose evidence is a government rung ('amended' / 'named') does not say it.
+ *  - The "AI recall" sentence is said whenever the CARD says recall: the same
+ *    test the card's own label uses (sectionIsBacked). Only a government
+ *    record of the cited section itself ('amended' / 'named') takes it off; a
+ *    PARENT match (the record names R312 for a cited R312.1.3) is still recall.
  */
 export function codeCardQuestion(
-  item: { summary: string; section: string; citedEdition?: string | null; evidence?: { rung: string } | null },
+  item: { summary: string; section: string; citedEdition?: string | null; evidence?: { rung: string; parentMatch?: boolean } | null },
   opts: { noWords?: boolean } = {},
 ): string {
   const ref = [clean(item.citedEdition), clean(item.section)].filter(Boolean).join(' ');
   const summary = opts.noWords ? '' : clean(item.summary).replace(/[.\s]+$/, '');
-  const government = item.evidence?.rung === 'amended' || item.evidence?.rung === 'named';
+  const government = sectionIsBacked(item.evidence);
   const ask = summary
     ? `Does this apply here, and does the town amend it? ${summary}${ref ? ` (${ref})` : ''}.`
     : ref

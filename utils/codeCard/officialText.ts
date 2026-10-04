@@ -36,6 +36,9 @@ export interface OfficialTextPlan {
 export const OFFICIAL_TEXT_BLOCKED =
   'No free viewer link for this address. MAGE has no verified edition here, so ask your building department which code applies.';
 
+export const NO_SECTION_TO_COPY = 'No section to copy';
+export const NO_SECTION_TOAST = 'Opened the code. This card has no section number, so search the viewer by topic.';
+
 /** "2025 RCNYS" from "2025 Residential Code of New York State (2025 RCNYS)". */
 export function viewerShortLabel(label: string | null | undefined): string | null {
   const t = (label ?? '').trim();
@@ -73,9 +76,10 @@ export function officialTextPlan(
 /** The three steps, in our words, for the opened card's Official text button. */
 export function officialTextSteps(plan: OfficialTextPlan): { copies: string; opens: string; paste: string } {
   return {
-    copies: plan.copyText ? `“${plan.copyText}”` : 'The section number',
+    // A card with no section copies nothing, and says so (never "copied").
+    copies: plan.copyText ? `“${plan.copyText}”` : NO_SECTION_TO_COPY,
     opens: plan.viewerShort ? `${plan.viewerShort} in ICC’s free viewer` : 'ICC’s free viewer',
-    paste: 'Into its search',
+    paste: plan.copyText ? 'Into its search' : 'Search it by topic',
   };
 }
 
@@ -135,6 +139,7 @@ export function defaultOfficialTextDeps(): OfficialTextDeps {
 export function officialTextToast(plan: OfficialTextPlan, result: OfficialTextResult): string {
   if (!plan.available) return plan.blockedReason ?? OFFICIAL_TEXT_BLOCKED;
   if (!result.opened) return 'The viewer could not be opened. Try again, or open codes.iccsafe.org yourself.';
+  if (!plan.copyText) return NO_SECTION_TOAST;
   if (!result.copied) return `Copy did not work. Type ${plan.copyText} into the viewer’s search.`;
   return `Copied ${plan.copyText}. Paste it into the viewer’s search.`;
 }

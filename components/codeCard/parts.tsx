@@ -10,6 +10,7 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Building2, Sun } from 'lucide-react-native';
 import { setSunlight } from '@/utils/codeCard/sunlight';
+import { codeCardStoreBlockedReason } from '@/utils/codeCard/parse';
 import { useCodeCardPalette, useSunlight, type CodeCardPalette } from './palette';
 
 /** What a code-card button does. */
@@ -26,6 +27,17 @@ export function doneAction(label: string): CodeCardAction {
 }
 export function blockedAction(reason: string): CodeCardAction {
   return { kind: 'blocked', reason };
+}
+
+/**
+ * A Checklist / Save button for a card the device store would refuse (pins.ts
+ * and saved.ts accept only what they can read back) is BLOCKED, with the
+ * reason. It is never a live button whose tap does nothing.
+ */
+export function storeGated(action: CodeCardAction | undefined, item: unknown): CodeCardAction | undefined {
+  if (!action || action.kind !== 'ready') return action;
+  const reason = codeCardStoreBlockedReason(item);
+  return reason ? blockedAction(reason) : action;
 }
 
 /**

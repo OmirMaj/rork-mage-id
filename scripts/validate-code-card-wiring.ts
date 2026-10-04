@@ -13,13 +13,22 @@
 //      name; which pins show on which inspection; the booked day per stage.
 //   3. The wiring's own pure block (`// <pure:codeCardItems>` in
 //      components/construction/AskConstructionMode.tsx, shared by Ask, Code
-//      Check, Plan Review and the Plan Set Code Sweep) run under bun: every
-//      Code Check citation is a card, a line that reads like code text is
-//      WITHHELD (never trimmed, never shown), the section is never invented,
-//      the ladder's evidence rides on the card; Plan Review findings get a
-//      status that never infers "looks right"; a sweep row is 'ok' ONLY from
-//      the server's "look right" list and then never carries a question; ids
-//      come from the content, so a pin never lands on another answer's card.
+//      Check, Plan Review and the Plan Set Code Sweep) run under bun: a Code
+//      Check citation is a card ONLY when the model gave one of the three
+//      verdicts (never a default "Required"), a line that reads like code text
+//      is WITHHELD (never trimmed, never shown), the section is never
+//      invented, the ladder's evidence rides on the card; Plan Review findings
+//      get a status that never infers "looks right"; a sweep row is 'ok' ONLY
+//      from the server's "look right" list and then never carries a question;
+//      ids come from the content, so a pin never lands on another answer's card.
+//   3b. THE CODE CHECK WIRE, end to end on the real source: the tab's own
+//      `codeCheckSchema` text is evaluated with the real zod, run through
+//      utils/mageAI.ts' own deriveHintFromZod (its source, not a copy) and the
+//      relay's inferSchema, and a full model row is parsed by it and built into
+//      a card. A structured field the schema cannot carry fails here.
+//   3c. WHAT A SURFACE OFFERS TO PIN OR SAVE COMES BACK AFTER A RESTART: every
+//      builder's output goes through the real pins / saved reducers, JSON, and
+//      parsePinsState / parseSavedState.
 //   4. Source pins: the no-verbatim sentence in BOTH in-app prompts, the ICC
 //      not-affiliated line beside the viewer buttons, recall in neutral grey
 //      with the mismatch badge still amber, Ask renders cards only when the
@@ -27,9 +36,18 @@
 //      ONE JurisdictionBlock, every send opens HIS app, nothing calls a send
 //      service; the sweep panel renders the cards above its unchanged
 //      findings; Save lands in a list he can open and remove from; a pinned
-//      card can be unpinned.
+//      card can be seen and unpinned at any time (Ask's pinned list) and from
+//      Inspection Ready; every way Checklist / Save is blocked says why (no
+//      project, a stand-in card, a card the store would refuse); the cards of
+//      an answer are wired to the project that was ASKED for; the Plan Review
+//      details toggle exists only while there are cards.
+//   5. The client opt-in: both functions send the code-card rows only when the
+//      request asks (`codeCards: true`), and the two request helpers are
+//      outside this lane. None of it applied = a loud notice (a failure under
+//      --require-optin); any of it applied = all of it must be.
 //
 // Pure: node:fs plus the pure utils. Run via: bun run scripts/validate-code-card-wiring.ts
+// (after the opt-in patch is in: … --require-optin)
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -42,8 +60,17 @@ import { DEPARTMENTS, NAME_ONLY_NOTE } from '../utils/permitOffices';
 import {
   bookedStageDays, pinnedPrepItems, PINNED_NOTE, stageForInspectionName,
 } from '../utils/inspectionPrep';
-import { parseCodeCardItem } from '../utils/codeCard/parse';
+import { z } from 'zod';
+import { codeCardStoreBlockedReason, parseCodeCardItem, parseCodeCardItems, STORED_TEXT_MAX } from '../utils/codeCard/parse';
+import { effectiveVerdict, recheckOutcome } from '../utils/codeCard/verdict';
+import { shareTextFor } from '../utils/codeCard/shareText';
 import { passesEchoCheck } from '../utils/codeCard/echoCheck';
+import { saysNumberWithUnit } from '../utils/codeCard/saysWithUnit';
+import { evidenceView, sectionIsBacked } from '../utils/codeCard/evidence';
+import { EMPTY_PINS, makePin, parsePinsState, pinnedStage, pinsReducer } from '../utils/codeCard/pins';
+import { EMPTY_SAVED, isSaved, makeSaved, parseSavedState, savedReducer } from '../utils/codeCard/saved';
+import { followUpsZod } from '../utils/codeThread/followUps';
+import { inferSchema } from '../supabase/functions/_shared/inferSchema';
 import { citationEvidenceFor } from '../utils/codeAmendments';
 import { resolveCodeJurisdiction } from '../utils/codeJurisdiction';
 import { encodePermitInspectionNotes } from '../utils/permitInspectionHistory';
@@ -74,6 +101,17 @@ function loadPure(src: string, name: string, exportNames: string[]): Record<stri
   const mod: { exports: Record<string, unknown> } = { exports: {} };
   new Function('module', 'exports', js)(mod, mod.exports);
   return mod.exports;
+}
+/** `src` transpiled and run with `args` in scope; its `name` binding, or null when it does not evaluate. */
+function evalSource<T>(src: string, name: string, args: Record<string, unknown>): T | null {
+  try {
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(`${src}\nmodule.exports = ${name};`);
+    const mod: { exports: unknown } = { exports: null };
+    new Function('module', ...Object.keys(args), js)(mod, ...Object.values(args));
+    return (mod.exports as T) ?? null;
+  } catch {
+    return null;
+  }
 }
 /** The source between `from` and the first `to` after it ('' when absent). */
 function between(src: string, from: string, to: string): string {
@@ -146,6 +184,24 @@ console.log('\n1. Draft a question reaches NY, NJ and CT towns, and sends nothin
   ok('…while an edition-only or unresolved one is', codeCardQuestion({ summary: 'Guards.', section: 'R312.1', evidence: { rung: 'edition' } }).includes('AI recall')
     && codeCardQuestion({ summary: 'Guards.', section: 'R312.1', evidence: { rung: 'unresolved' } }).includes('AI recall')
     && codeCardQuestion({ summary: 'Guards.', section: 'R312.1', evidence: null }).includes('AI recall'));
+  {
+    // A PARENT match is rung 'named' / 'amended' but NOT backing: the card says
+    // "Model recall · confirm", so the draft must say AI recall too. Real New
+    // York rows: 19 NYCRR 1220.2 names RCNYS P2904; P2904.1 is only its child.
+    const nyTown = resolveCodeJurisdiction({ city: 'Oyster Bay', state: 'NY' });
+    const exact = citationEvidenceFor(nyTown, '2025 RCNYS', 'P2904');
+    const parent = citationEvidenceFor(nyTown, '2025 RCNYS', 'P2904.1');
+    ok('fixture: P2904 is named in law, P2904.1 is a parent-only match on the same rung',
+      exact.rung === 'named' && exact.parentMatch !== true && parent.rung === 'named' && parent.parentMatch === true && sectionIsBacked(exact) && !sectionIsBacked(parent));
+    const parentDraft = codeCardQuestion({ summary: 'Sample: sprinklers in the new dwelling.', section: 'P2904.1', citedEdition: '2025 RCNYS', evidence: parent });
+    ok('a PARENT match is still called AI recall in the draft, as it is on the card',
+      evidenceView(parent).short === 'Model recall · confirm' && parentDraft.includes('MAGE marked the section as AI recall.'), parentDraft);
+    ok('…and so is a parent match on the amended rung', codeCardQuestion({ summary: 'Guards.', section: 'R312.1.3', evidence: { rung: 'amended', parentMatch: true } }).includes('AI recall'));
+    ok('…while the section the record itself names is not',
+      !codeCardQuestion({ summary: 'Sample: sprinklers in the new dwelling.', section: 'P2904', citedEdition: '2025 RCNYS', evidence: exact }).includes('AI recall'));
+    ok('the draft and the card use ONE test (sectionIsBacked), not the rung alone',
+      /const government = sectionIsBacked\(item\.evidence\);/.test(read('utils/departmentQuestion.ts')) && !/item\.evidence\?\.rung ===/.test(read('utils/departmentQuestion.ts')));
+  }
   const blank = codeCardQuestion({ summary: 'MAGE hid this line because it read like code text. Use Official text to read the section.', section: 'R312.1', citedEdition: '2025 RCNYS' }, { noWords: true });
   ok("a card with no words asks what the section requires, never repeating MAGE's stand-in line",
     blank.startsWith('What does 2025 RCNYS R312.1 require here, and does the town amend it?') && !blank.includes('MAGE hid'), blank);
@@ -235,19 +291,31 @@ ok(`${INDEX} is readable`, index.length > 0);
 ok(`${ASK} is readable`, askSrc.length > 0);
 {
   const block = loadPure(askSrc, 'codeCardItems', [
-    'codeCheckCardItem', 'planFindingCardItem', 'sweepCardItem', 'withContentIds', 'isCardPlaceholder',
+    'codeCheckCardItem', 'codeCheckCards', 'codeCheckPlainLine', 'cardVerdictOf', 'planFindingCardItem', 'sweepCardItem', 'withContentIds', 'isCardPlaceholder',
+    'cardWithChosenStage', 'codeCheckJobText',
     'CARD_WITHHELD', 'CARD_NO_TEXT', 'CARD_TEXT_MAX',
   ]);
   ok('the wiring marks codeCardItems as a pure block', !!block);
   ok('the screen no longer keeps a second copy of the block', !index.includes('// <pure:codeCardItems>'));
   if (block) {
-    type CC = (c: Record<string, unknown>, i: number, ev: unknown, parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck) => CodeCardItem;
+    /** The words he gave for the run, with CCKIT's own "did he write it?" test. */
+    type JobText = { text: string; says: typeof saysNumberWithUnit };
+    const said = (text: string): JobText => ({ text, says: saysNumberWithUnit });
+    type CCN = (c: Record<string, unknown>, i: number, ev: unknown, parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck, job?: JobText) => CodeCardItem | null;
+    type CC = (c: Record<string, unknown>, i: number, ev: unknown, parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck, job?: JobText) => CodeCardItem;
+    type CCS = (rows: Record<string, unknown>[], ev: unknown[], parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck, job?: JobText) => (CodeCardItem | null)[];
     type PF = (f: Record<string, unknown>, cite: { citedCode: string; section: string }, ev: unknown, parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck) => CodeCardItem;
     type SW = (
       f: Record<string, unknown>, words: { question: string; requirement: string; observed: string }, cite: { citedCode: string; section: string },
       ev: unknown, sheet: { id: string; label: string }, index: number, lookRight: boolean, parse: typeof parseCodeCardItem, echo: typeof passesEchoCheck,
     ) => CodeCardItem;
-    const cc = block.codeCheckCardItem as CC;
+    const ccRaw = block.codeCheckCardItem as CCN;
+    // Rows below are Code Check rows the model gave a verdict for (the wire
+    // always carries one); the no-verdict row has its own checks.
+    const cc: CC = (c, i, e, parse, echo, jobText) => ccRaw({ verdict: 'required', ...c }, i, e, parse, echo, jobText) as CodeCardItem;
+    const ccs = block.codeCheckCards as CCS;
+    const plainLine = block.codeCheckPlainLine as (t: unknown, echo: typeof passesEchoCheck) => string;
+    const verdictOf = block.cardVerdictOf as (v: unknown) => string | null;
     const pf = block.planFindingCardItem as PF;
     const sw = block.sweepCardItem as SW;
     const withIds = block.withContentIds as (prefix: string, items: CodeCardItem[]) => CodeCardItem[];
@@ -261,8 +329,29 @@ ok(`${ASK} is readable`, askSrc.length > 0);
     ok('a citation is a card with our words, its section and its edition',
       a.id === 'cc-1' && a.summary === 'Sample: guards on open sides of a raised deck.' && a.section === 'R312.1' && a.citedEdition === '2025 RCNYS');
     ok("the ladder's evidence rides on the card", a.evidence === ev);
-    ok("no verdict from the model → 'required'", a.verdict === 'required');
     ok('the stage is labelled a guess', a.stageIsGuess === true);
+    // NEVER a default verdict.
+    ok('a row with NO verdict is not a card (null), so nothing shows "Required" by default',
+      ccRaw({ code: '2025 RCNYS', section: 'R312.1', requirement: 'Sample: guards on open sides of a raised deck.' }, 0, ev, parseCodeCardItem, passesEchoCheck) === null);
+    ok('…nor is a row with an empty or unknown verdict',
+      ccRaw({ code: 'IRC', section: 'R312.1', requirement: 'Sample.', verdict: '' }, 0, null, parseCodeCardItem, passesEchoCheck) === null
+        && ccRaw({ code: 'IRC', section: 'R312.1', requirement: 'Sample.', verdict: 'maybe' }, 0, null, parseCodeCardItem, passesEchoCheck) === null
+        && ccRaw({ code: 'IRC', section: 'R312.1', requirement: 'Sample.', verdict: 7 }, 0, null, parseCodeCardItem, passesEchoCheck) === null);
+    ok('the three verdicts are read forgiving case and spacing, and nothing else is',
+      verdictOf('required') === 'required' && verdictOf(' Limit ') === 'limit' && verdictOf('Not required') === 'not_required' && verdictOf('not-required') === 'not_required'
+        && verdictOf('') === null && verdictOf('applies') === null && verdictOf(undefined) === null && verdictOf(null) === null);
+    const mixed = ccs([
+      { code: '2025 RCNYS', section: 'R312.1', requirement: 'Sample: guards on open sides of a raised deck.', verdict: 'required' },
+      { code: '2025 RCNYS', section: '', requirement: 'Sample: an older row with no verdict.' },
+      { code: '2025 RCNYS', section: 'R311.7.8', requirement: 'Sample: a handrail on the deck stair.', verdict: 'limit' },
+    ], [ev, null, null], parseCodeCardItem, passesEchoCheck);
+    ok('codeCheckCards stays index-aligned with the rows: card, null, card',
+      mixed.length === 3 && !!mixed[0] && mixed[1] === null && !!mixed[2] && mixed[2]!.verdict === 'limit' && mixed[0]!.evidence === ev);
+    ok('…and the cards carry content ids (cc-<hash>), never the row number', /^cc-[0-9a-z]+$/.test(mixed[0]!.id) && /^cc-[0-9a-z]+$/.test(mixed[2]!.id) && mixed[0]!.id !== mixed[2]!.id);
+    ok('the plain line of a row that is not a card passes the same own-words gate',
+      plainLine('Sample: an older row with no verdict.', passesEchoCheck) === 'Sample: an older row with no verdict.'
+        && plainLine('Guards shall be provided where the walking surface is more than 30 inches above grade.', passesEchoCheck) === block.CARD_WITHHELD
+        && plainLine('  ', passesEchoCheck) === block.CARD_NO_TEXT);
 
     const noSec = cc({ code: 'IRC', section: '', requirement: 'Sample: a handrail on the stair.' }, 1, null, parseCodeCardItem, passesEchoCheck);
     ok('a citation with no section keeps an EMPTY section (never a placeholder)', noSec.section === '' && noSec.id === 'cc-2');
@@ -280,20 +369,114 @@ ok(`${ASK} is readable`, askSrc.length > 0);
     ok('both stand-in lines are known placeholders; a real line is not', isPlaceholder(WITHHELD) && isPlaceholder(NO_TEXT) && !isPlaceholder(a.summary) && !isPlaceholder(''));
 
     const rich = cc({
-      code: '2025 RCNYS', section: 'R312.1', requirement: 'Guards on every open side.', verdict: 'limit', stage: 'final',
-      trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: 34, unit: 'in', source: 'job', sourceLabel: 'deck height from the scenario' },
-      whatToBuild: ['A guard on every open side.', 'Guards shall be 36 in.'], why: 'Your deck is 34 in. up.',
-      status: 'ok', observed: 'Drawn 4 in.', location: 'A-2', question: 'Is it drawn?',
-    }, 5, null, parseCodeCardItem, passesEchoCheck);
+      code: '2025 RCNYS', section: 'R312.1', requirement: 'Sample: keep the walking surface at least 30 in. up.', verdict: 'limit', stage: 'final',
+      triggerValue: 30, triggerUnit: 'in', triggerComparison: '>=',
+      jobNumber: 34, jobNumberUnit: 'in', jobNumberLabel: 'deck height from the scenario',
+      whatToBuild: ['A guard on every open side.', 'Guards shall be 36 in.'], why: 'Your deck is 34 in. up.', trade: 'framing',
+      status: 'ok', observed: 'Drawn 4 in.', location: 'A-2', question: 'Is it drawn?', evidence: { rung: 'amended' }, stageIsGuess: false,
+    }, 5, null, parseCodeCardItem, passesEchoCheck, said('Sample: a deck 34 in. above grade, 12 ft wide.'));
     ok("the model's verdict is kept when it is one of the three", rich.verdict === 'limit');
-    ok('a structured trigger and job value are kept', rich.trigger?.value === 30 && rich.jobValue?.value === 34);
+    ok('the flat trigger and job number become the structured pair',
+      JSON.stringify(rich.trigger) === JSON.stringify({ value: 30, unit: 'in', comparison: '>=' })
+        && JSON.stringify(rich.jobValue) === JSON.stringify({ value: 34, unit: 'in', source: 'job', sourceLabel: 'deck height from the scenario' }));
+    ok('why and trade ride', rich.why === 'Your deck is 34 in. up.' && rich.trade === 'framing');
     ok('a what-to-build line with code phrasing is dropped, the rest kept', JSON.stringify(rich.whatToBuild) === JSON.stringify(['A guard on every open side.']));
-    ok('the stage is kept and still a guess', rich.stage === 'final' && rich.stageIsGuess === true);
-    ok('plan-check fields never ride on a Code Check citation, whatever the model sent',
-      rich.status === undefined && rich.observed === undefined && rich.location === undefined && rich.question === undefined);
-    const junk = cc({ code: 'IRC', section: 'R312.1', requirement: 'Guards.', trigger: { value: 'thirty', unit: 'in', comparison: '>' }, verdict: 'maybe' }, 6, null, parseCodeCardItem, passesEchoCheck);
+    ok('the stage is kept and still a guess, whatever the model claimed', rich.stage === 'final' && rich.stageIsGuess === true);
+    ok('plan-check fields and evidence never ride on a Code Check citation, whatever the model sent',
+      rich.status === undefined && rich.observed === undefined && rich.location === undefined && rich.question === undefined && rich.evidence === null);
+    const none = cc({ code: 'IRC', section: 'R312.1', requirement: 'Guards.', triggerValue: -1, triggerUnit: '', triggerComparison: '', jobNumber: -1, jobNumberUnit: '', jobNumberLabel: '', why: '', stage: '', trade: '', whatToBuild: [] }, 6, null, parseCodeCardItem, passesEchoCheck);
+    ok('"the model did not say" (empty unit, empty words) makes NO trigger, job number, why, stage, trade or build list',
+      none.trigger === undefined && none.jobValue === undefined && none.why === undefined && none.stage === undefined && none.trade === undefined && none.whatToBuild === undefined);
+    const junk = cc({ code: 'IRC', section: 'R312.1', requirement: 'Guards.', triggerValue: 'thirty', triggerUnit: 'in', triggerComparison: '>' }, 6, null, parseCodeCardItem, passesEchoCheck);
     ok('an unstructured trigger is dropped (no tape from guessed numbers)', junk.trigger === undefined);
-    ok("an unknown verdict falls back to 'required'", junk.verdict === 'required');
+    ok('a caught number (-1) with a unit is dropped too, and so is an unknown unit or comparison',
+      cc({ code: 'IRC', requirement: 'Guards.', triggerValue: -1, triggerUnit: 'in', triggerComparison: '>' }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined
+        && cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 30, triggerUnit: 'inches', triggerComparison: '>' }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined
+        && cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 30, triggerUnit: 'in', triggerComparison: 'over' }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined);
+    ok('a job number with no label of where it came from is dropped',
+      cc({ code: 'IRC', requirement: 'Guards.', triggerValue: 30, triggerUnit: 'in', triggerComparison: '>', jobNumber: 34, jobNumberUnit: 'in', jobNumberLabel: '' }, 6, null, parseCodeCardItem, passesEchoCheck, said('A deck 34 in. up.')).jobValue === undefined);
+    {
+      // THE JOB'S OWN NUMBER MUST BE ONE HE WROTE (the Ask server's rule, on
+      // the phone): Code Check's prompt is built here, so nothing upstream
+      // checks the model's "jobNumber".
+      const row = {
+        code: '2025 RCNYS', section: 'R312.1', requirement: 'Sample: guards on every open side.', verdict: 'required',
+        triggerValue: 30, triggerUnit: 'in', triggerComparison: '>', jobNumber: 34, jobNumberUnit: 'in', jobNumberLabel: 'deck height from the scenario',
+      };
+      const job = (text?: string) => cc(row, 7, null, parseCodeCardItem, passesEchoCheck, text === undefined ? undefined : said(text)).jobValue;
+      ok('a job number he wrote, next to its unit, is kept (scenario: "34 in. above grade")', job('Sample: a deck 34 in. above grade.')?.value === 34 && job('Sample: a deck 34 inches up.')?.value === 34);
+      ok('…and one from an answer he gave counts too (the screen joins the scenario and his answers)', job('Sample: a new deck.\nAbout 34 in.')?.value === 34);
+      ok('a job number he never wrote is dropped: no tape from the model\u2019s account of his job', job('Sample: a new deck off the kitchen.') === undefined);
+      ok('…and so is the same figure next to another unit (34 ft is not 34 in.), or a bare 34', job('Sample: a deck 34 ft long.') === undefined && job('Sample: lot 34, a new deck.') === undefined);
+      ok('with no words to check against, there is NO job number (never the model\u2019s on trust)', job() === undefined && job('') === undefined);
+      ok('the trigger stays when the job number goes', JSON.stringify(cc(row, 7, null, parseCodeCardItem, passesEchoCheck).trigger) === JSON.stringify({ value: 30, unit: 'in', comparison: '>' }));
+      ok('a job number that is not a number is dropped before the test runs',
+        cc({ ...row, jobNumber: '34' }, 7, null, parseCodeCardItem, passesEchoCheck, said('A deck 34 in. up.')).jobValue === undefined);
+      // The numbers must agree with the verdict (the kit's wire rule) here too.
+      const flipped = cc({ ...row, requirement: 'Sample: raise the guard to at least 36 in.', triggerValue: 36, triggerComparison: '>=' }, 7, null, parseCodeCardItem, passesEchoCheck, said('Sample: the guard is 34 in. high.'));
+      ok('Code Check: numbers that give the OTHER verdict draw no tape (job number dropped, verdict and trigger kept)',
+        flipped.verdict === 'required' && flipped.jobValue === undefined && flipped.trigger?.value === 36);
+      const asLimit = cc({ ...row, verdict: 'limit', requirement: 'Sample: raise the guard to at least 36 in.', triggerValue: 36, triggerComparison: '>=' }, 7, null, parseCodeCardItem, passesEchoCheck, said('Sample: the guard is 34 in. high.'));
+      ok('…while the same numbers on a LIMIT whose line says the side ("at least 36 in.", sign >=) are kept: a job outside its limit is a real finding, and it reads "outside the limit"',
+        asLimit.verdict === 'limit' && asLimit.jobValue?.value === 34 && recheckOutcome(asLimit, asLimit.jobValue!) === 'over_limit');
+    }
+    {
+      // A LIMIT'S OWN LINE MUST SAY THE SIDE (integration round 2). A limit has
+      // no verdict to check its numbers against, so a sign pointing the wrong
+      // way printed "within the limit" for a 34 in. guard against a 36 in.
+      // minimum, on the card and in the text to a sub. The critic's probes,
+      // through the real codeCheckCards and the real parser.
+      const probe = (scenario: string, row: Record<string, unknown>) =>
+        ccs([{ code: '2025 RCNYS', why: '', stage: 'final', trade: '', whatToBuild: [], ...row }], [null], parseCodeCardItem, passesEchoCheck, said(scenario))[0] as CodeCardItem;
+      const text = (c: CodeCardItem) => shareTextFor(c, { jobLabel: 'Sample job', sample: true });
+      const guardRow = { section: 'R312.1.2', requirement: 'Guard has to be at least 36 in. high.', verdict: 'limit', triggerValue: 36, triggerUnit: 'in', jobNumber: 34, jobNumberUnit: 'in', jobNumberLabel: 'guard height from the scenario' };
+      const riserRow = { section: 'R311.7.5.1', requirement: 'Risers can be at most 7.75 in. tall.', verdict: 'limit', triggerValue: 7.75, triggerUnit: 'in', jobNumber: 8, jobNumberUnit: 'in', jobNumberLabel: 'riser height from the scenario' };
+      const guardScene = 'Sample: deck guard is 34 in. high on a deck 40 in. above grade.';
+      const riserScene = 'Sample: stair risers are 8 in. tall.';
+      const p1 = probe(guardScene, { ...guardRow, triggerComparison: '<' });
+      ok('PROBE 1: "at least 36 in." with the sign the wrong way (<) and a 34 in. guard he typed: no job number, so no tape and no "within the limit" anywhere',
+        p1.verdict === 'limit' && effectiveVerdict(p1) === 'limit' && p1.jobValue === undefined && JSON.stringify(p1.trigger) === '{"value":36,"unit":"in","comparison":"<"}'
+          && !/Job: |Result:|within the limit/.test(text(p1)) && text(p1).includes('Guard has to be at least 36 in. high.'), text(p1));
+      const p2 = probe(riserScene, { ...riserRow, triggerComparison: '>' });
+      ok('PROBE 2: "at most 7.75 in." with the sign the wrong way (>) and an 8 in. riser he typed: no job number, no "within the limit"',
+        p2.verdict === 'limit' && p2.jobValue === undefined && p2.trigger?.value === 7.75 && !/Job: |Result:|within the limit/.test(text(p2)), text(p2));
+      const [p3] = parseCodeCardItems([{ id: 'req-1', verdict: 'limit', summary: 'Risers can be at most 7.75 in. tall.', section: 'R311.7.5.1', citedEdition: '2025 RCNYS',
+        trigger: { value: 7.75, unit: 'in', comparison: '>' }, jobValue: { value: 8, unit: 'in', source: 'job', sourceLabel: 'riser height from your question' } }]);
+      ok('PROBE 3: the same riser row as an Ask card off the wire: the phone drops the job number whatever the server sent',
+        !!p3 && p3.verdict === 'limit' && p3.jobValue === undefined && p3.trigger?.comparison === '>' && !/Job: |Result:|within the limit/.test(text(p3)), p3 ? text(p3) : 'no card');
+      const g = probe(guardScene, { ...guardRow, triggerComparison: '>=' });
+      const r = probe(riserScene, { ...riserRow, triggerComparison: '<=' });
+      ok('with the sign its own words mean, the typed number is kept and reads the right way: 34 in. against "at least 36 in." and 8 in. against "at most 7.75 in." are both OUTSIDE the limit',
+        g.jobValue?.value === 34 && recheckOutcome(g, g.jobValue!) === 'over_limit' && text(g).includes('Job: 34 in. (guard height from the scenario). Limit at or above 36 in. (AI recall, confirm). Result: outside the limit.')
+          && r.jobValue?.value === 8 && recheckOutcome(r, r.jobValue!) === 'over_limit' && text(r).includes('Result: outside the limit.'), `${text(g)} | ${text(r)}`);
+      const inside = probe('Sample: deck guard is 38 in. high.', { ...guardRow, jobNumber: 38, triggerComparison: '>=' });
+      const edge = probe('Sample: deck guard is 36 in. high.', { ...guardRow, jobNumber: 36, triggerComparison: '>=' });
+      ok('…a 38 in. guard, and a guard exactly 36 in., read "within the limit"; the strict sign (>) would put 36 in. outside its own line, so it draws no tape',
+        recheckOutcome(inside, inside.jobValue!) === 'within_limit' && recheckOutcome(edge, edge.jobValue!) === 'within_limit'
+          && probe('Sample: deck guard is 36 in. high.', { ...guardRow, jobNumber: 36, triggerComparison: '>' }).jobValue === undefined
+          && probe(riserScene, { ...riserRow, triggerComparison: '<' }).jobValue === undefined);
+      ok('a limit whose line has no side word, both kinds, the word at another figure, or words MAGE withheld: no job number, whatever the sign',
+        (['>', '>=', '<', '<='] as const).every((c) =>
+          probe(guardScene, { ...guardRow, triggerComparison: c, requirement: 'Keep the guard under 36 in. high.' }).jobValue === undefined
+          && probe(guardScene, { ...guardRow, triggerComparison: c, requirement: 'Guard at least 36 in. and at most 42 in. high.' }).jobValue === undefined
+          && probe(guardScene, { ...guardRow, triggerComparison: c, requirement: 'Guard at least 42 in. high on a deck 36 in. up.' }).jobValue === undefined
+          && probe(guardScene, { ...guardRow, triggerComparison: c, requirement: 'Guards shall be at least 36 in. high.' }).jobValue === undefined
+          && probe(guardScene, { ...guardRow, triggerComparison: c, requirement: '' }).jobValue === undefined));
+      ok('the side is read from the line the card SHOWS, never the stand-in summary the parser is sent, and never a field off the wire',
+        /const summary = cardSummary\(c\.requirement, echo\);/.test(askSrc) && /\}, id, summary\);\s+const base: CodeCardItem = parsed \?\?/.test(askSrc)
+          && /const item: CodeCardItem = \{ \.\.\.base, id, verdict, summary, section, evidence \};/.test(askSrc)
+          && probe(guardScene, { ...guardRow, triggerComparison: '<', shownLine: 'Guard at most 36 in.', summary: 'Guard at most 36 in.' }).jobValue === undefined
+          && parseCodeCardItem({ id: 'x', verdict: 'limit', summary: 'Requirement', section: 'none', shownLine: 'Guard has to be at least 36 in. high.',
+            trigger: { value: 36, unit: 'in', comparison: '>=' }, jobValue: { value: 34, unit: 'in', source: 'job', sourceLabel: 'x' } }, 'x')?.jobValue === undefined
+          && parseCodeCardItem({ id: 'x', verdict: 'limit', summary: 'Requirement', section: 'none',
+            trigger: { value: 36, unit: 'in', comparison: '>=' }, jobValue: { value: 34, unit: 'in', source: 'job', sourceLabel: 'x' } }, 'x', 'Guard has to be at least 36 in. high.')?.jobValue?.value === 34);
+      const jobTextOf = block.codeCheckJobText as (scenario: string, answers: { answer: string }[]) => string;
+      ok('the words a run’s job number is checked against are the scenario and every answer, as sent',
+        jobTextOf('A deck.', [{ answer: 'About 34 in.' }, { answer: 'Yes' }]) === 'A deck.\nAbout 34 in.\nYes' && jobTextOf('A deck.', []) === 'A deck.');
+    }
+    ok('a NESTED trigger / jobValue object off the wire is ignored (the wire is flat)',
+      cc({ code: 'IRC', requirement: 'Guards.', trigger: { value: 30, unit: 'in', comparison: '>' }, jobValue: { value: 34, unit: 'in', source: 'measured', sourceLabel: 'x' } }, 6, null, parseCodeCardItem, passesEchoCheck).trigger === undefined
+        && cc({ code: 'IRC', requirement: 'Guards.', jobValue: { value: 34, unit: 'in', source: 'measured', sourceLabel: 'x' } }, 6, null, parseCodeCardItem, passesEchoCheck).jobValue === undefined);
 
     const f1 = pf({ id: 'f1', requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart', confidence: 'high', status: 'open' }, { citedCode: 'RCNYS 2025', section: 'R312.1.3' }, ev, parseCodeCardItem, passesEchoCheck);
     ok("a confident finding is 'fix'", f1.status === 'fix' && f1.section === 'R312.1.3' && f1.citedEdition === 'RCNYS 2025');
@@ -302,8 +485,9 @@ ok(`${ASK} is readable`, askSrc.length > 0);
     ok("a low-confidence finding is 'ask' (needs an answer first)", f2.status === 'ask' && f2.citedEdition === undefined && f2.section === '');
     const f3 = pf({ id: 'f3', requirement: 'Sample.', confidence: 'high', status: 'resolved' }, { citedCode: 'IRC', section: '' }, null, parseCodeCardItem, passesEchoCheck);
     ok("a finding he marked resolved is NOT turned into 'ok' (the AI's read is never an approval)", f3.status === 'fix');
-    const f4 = pf({ id: 'f4', requirement: 'Sample.', confidence: 'low', cardStatus: 'ok' }, { citedCode: 'IRC', section: '' }, null, parseCodeCardItem, passesEchoCheck);
-    ok("a server card status is used as sent", f4.status === 'ok');
+    const f4 = pf({ id: 'f4', requirement: 'Sample.', confidence: 'high', cardStatus: 'ok', status: 'ok' }, { citedCode: 'IRC', section: '' }, null, parseCodeCardItem, passesEchoCheck);
+    ok("nothing on Plan Review is ever 'ok', whatever a field on the finding says", f4.status === 'fix');
+    ok('no surface reads a field nothing writes (cardStatus is gone)', !/cardStatus/.test(askSrc) && !/cardStatus/.test(index));
 
     // Plan Set Code Sweep rows.
     const sheet = { id: 'sw2', label: 'A-201' };
@@ -353,6 +537,133 @@ ok(`${ASK} is readable`, askSrc.length > 0);
         withIds('x', [{ ...a, location: 'A-3' }])[0].id,
       ]).size === 6);
     ok('nothing but the id changes', JSON.stringify({ ...one[0], id: '' }) === JSON.stringify({ ...a, id: '' }));
+
+    // Plan Review: a re-review reuses the review id and numbers from 0 again.
+    const before = withIds('plan', [pf({ id: 'plan-review-sheet1-0', requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart', confidence: 'high' }, { citedCode: 'RCNYS 2025', section: 'R312.1.3' }, null, parseCodeCardItem, passesEchoCheck)]);
+    const after = withIds('plan', [pf({ id: 'plan-review-sheet1-0', requirement: 'Sample: stair handrail.', observed: 'Sample: no handrail drawn', confidence: 'high' }, { citedCode: 'RCNYS 2025', section: 'R311.7.8' }, null, parseCodeCardItem, passesEchoCheck)]);
+    const pinnedBefore = pinsReducer(EMPTY_PINS, { type: 'pin', pin: makePin('p1', before[0], '2026-10-01T10:00:00.000Z') });
+    ok('Plan Review: the SAME finding id with different content is a different card', before[0].id !== after[0].id && /^plan-[0-9a-z]+$/.test(before[0].id));
+    ok('…so a pin on the old finding never shows on the new one at that index',
+      pinnedStage(pinnedBefore, 'p1', before[0].id) !== null && pinnedStage(pinnedBefore, 'p1', after[0].id) === null);
+    ok('…and the same finding found again keeps its pin',
+      pinnedStage(pinnedBefore, 'p1', withIds('plan', [pf({ id: 'plan-review-sheet1-3', requirement: 'Sample: baluster spacing.', observed: 'Sample: drawn 4½ in. apart', confidence: 'high' }, { citedCode: 'RCNYS 2025', section: 'R312.1.3' }, null, parseCodeCardItem, passesEchoCheck)])[0].id) !== null);
+
+    // ── 3c. What a surface offers to pin or save comes back after a restart ──
+    console.log('\n3c. Every builder\u2019s card survives the device stores (pin, save, restart)');
+    ok('the longest line a card shows fits the stores (CARD_TEXT_MAX <= STORED_TEXT_MAX)', (block.CARD_TEXT_MAX as number) <= STORED_TEXT_MAX);
+    const long213 = cc({ code: 'IRC', section: 'R310.1', requirement: 'Every basement bedroom needs an egress window. The opening must be big enough to climb out of, low enough to reach, and open from inside without a key or tool. A well is needed when the sill is below grade.' }, 4, ev, parseCodeCardItem, passesEchoCheck);
+    const offered: [string, CodeCardItem][] = [
+      ['Code Check, with a section', a],
+      ['Code Check, EMPTY section', noSec],
+      ['Code Check, a 213-character line', long213],
+      ['Code Check, every structured field', rich],
+      ['Plan Review finding', f1],
+      ['Plan Review finding, no section, no edition', f2],
+      ['sweep finding (question, observed, sheet)', s1],
+      ['sweep fix with a stage', s2],
+      ['sweep look-right row', s4],
+      ['sweep row whose line is its question', s5],
+    ];
+    for (const [name, raw] of offered) {
+      const card = withIds('rt', [raw])[0];
+      ok(`${name}: the store accepts it (no blocked reason)`, codeCardStoreBlockedReason(card) === null, JSON.stringify(card));
+      const pins1 = pinsReducer(EMPTY_PINS, { type: 'pin', pin: makePin('p1', card, '2026-10-01T10:00:00.000Z', 'final') });
+      const pins2 = parsePinsState(JSON.stringify(pins1));
+      ok(`${name}: pinned, and still pinned after a restart, unchanged`,
+        pinnedStage(pins1, 'p1', card.id) === 'final' && pinnedStage(pins2, 'p1', card.id) === 'final' && JSON.stringify(pins2) === JSON.stringify(pins1));
+      const kept = pins2.p1?.[0]?.item;
+      ok(`${name}: the pin holds the card's own words, section and edition`,
+        !!kept && kept.summary === card.summary && kept.section === card.section && kept.citedEdition === card.citedEdition && kept.observed === card.observed && kept.location === card.location);
+      const saved1 = savedReducer(EMPTY_SAVED, { type: 'save', card: makeSaved('p1', card, '2026-10-01T10:00:00.000Z') });
+      const saved2 = parseSavedState(JSON.stringify(saved1));
+      ok(`${name}: saved, and still saved after a restart, unchanged`,
+        isSaved(saved1, 'p1', card.id) && isSaved(saved2, 'p1', card.id) && JSON.stringify(saved2) === JSON.stringify(saved1));
+    }
+    {
+      // A stage HE set is not a guess once saved (makePin does the same for a pin).
+      const chosen = block.cardWithChosenStage as (item: CodeCardItem, stage: CodeCardItem['stage']) => CodeCardItem;
+      const card = withIds('rt', [a])[0];
+      const moved = chosen(card, 'framing');
+      ok('fixture: the card\u2019s stage is the AI\u2019s guess, and not framing', card.stageIsGuess === true && card.stage !== 'framing');
+      ok('a stage he chose is saved as his, not as the AI\u2019s guess', moved.stage === 'framing' && moved.stageIsGuess === false);
+      ok('the AI\u2019s own stage, or none, leaves the card untouched (still a guess)', chosen(card, card.stage) === card && chosen(card, undefined) === card);
+      const kept = parseSavedState(JSON.stringify(savedReducer(EMPTY_SAVED, { type: 'save', card: makeSaved('p1', moved, '2026-10-01T10:00:00.000Z') }))).p1?.[0]?.item;
+      ok('…and it reopens from Saved after a restart on his stage, with no "AI guess"', !!kept && kept.stage === 'framing' && kept.stageIsGuess === false, JSON.stringify(kept));
+      const guess = parseSavedState(JSON.stringify(savedReducer(EMPTY_SAVED, { type: 'save', card: makeSaved('p1', chosen(card, card.stage), '2026-10-01T10:00:00.000Z') }))).p1?.[0]?.item;
+      ok('…while a card saved on the AI\u2019s stage reopens as a guess', !!guess && guess.stageIsGuess === true);
+    }
+    ok('the long line really is over the wire cap (140) — the case the wire parser would drop', long213.summary.length > 140 && long213.summary.length <= 400, String(long213.summary.length));
+    const refused = { ...a, id: 'rt-bad', summary: 'Guards shall be provided.' };
+    ok('a card the store refuses has a blocked reason, and the reducers leave the state alone (no pin that vanishes later)',
+      codeCardStoreBlockedReason(refused) !== null
+        && pinsReducer(EMPTY_PINS, { type: 'pin', pin: makePin('p1', refused, '2026-10-01T10:00:00.000Z') }) === EMPTY_PINS
+        && savedReducer(EMPTY_SAVED, { type: 'save', card: makeSaved('p1', refused, '2026-10-01T10:00:00.000Z') }) === EMPTY_SAVED);
+
+    // ── 3b. The Code Check wire, on the real source ─────────────────────────
+    console.log('\n3b. Code Check: the structured fields survive the real schema, hint and relay rule');
+    const schemaSrc = between(index, 'const codeCheckSchema = z.object({', '\ntype CodeCheckResult');
+    ok('codeCheckSchema is found in the tab', schemaSrc.startsWith('const codeCheckSchema = z.object({') && schemaSrc.trimEnd().endsWith('});'));
+    const mageSrc = read('utils/mageAI.ts');
+    const deriveSrc = between(mageSrc, 'function deriveHintFromZod(', '\n/** Peel optional');
+    ok('deriveHintFromZod is found in utils/mageAI.ts', deriveSrc.startsWith('function deriveHintFromZod(') && deriveSrc.trimEnd().endsWith('}'));
+    type RealSchema = { safeParse: (v: unknown) => { success: boolean; data?: unknown } };
+    const schema = evalSource<RealSchema>(schemaSrc, 'codeCheckSchema', { z, followUpsZod });
+    const derive = evalSource<(s: unknown) => unknown>(deriveSrc, 'deriveHintFromZod', {});
+    ok('the real schema and the real hint derivation evaluate under bun', !!schema && !!derive);
+    if (schema && derive) {
+      const hint = derive(schema) as { applicableCodes?: Record<string, unknown>[] };
+      const row = hint.applicableCodes?.[0] ?? {};
+      const WORDS = ['code', 'section', 'requirement', 'verdict', 'why', 'stage', 'trade', 'triggerUnit', 'triggerComparison', 'jobNumberUnit', 'jobNumberLabel'];
+      const NUMBERS = ['triggerValue', 'jobNumber'];
+      ok('the derived hint has ONE example row carrying every card field',
+        Array.isArray(hint.applicableCodes) && hint.applicableCodes.length === 1
+          && JSON.stringify(Object.keys(row).sort()) === JSON.stringify([...WORDS, ...NUMBERS, 'whatToBuild'].sort()), JSON.stringify(row));
+      ok('every word field hints a string, every number a number (never null: a null hints nothing)',
+        WORDS.every((k) => row[k] === '') && NUMBERS.every((k) => row[k] === -1), JSON.stringify(row));
+      ok('whatToBuild hints an array (of strings to the relay)', Array.isArray(row.whatToBuild), JSON.stringify(row.whatToBuild));
+      const inferred = inferSchema(hint) as { properties?: Record<string, { type: string; items?: { type: string; properties?: Record<string, { type: string; items?: { type: string } }>; required?: string[] } }> };
+      const item = inferred.properties?.applicableCodes?.items;
+      ok("the relay's schema: applicableCodes is an array of objects", inferred.properties?.applicableCodes?.type === 'array' && item?.type === 'object');
+      ok("the relay's schema types every card field: words are strings, the two numbers are numbers, whatToBuild is an array of strings",
+        WORDS.every((k) => item?.properties?.[k]?.type === 'string') && NUMBERS.every((k) => item?.properties?.[k]?.type === 'number')
+          && item?.properties?.whatToBuild?.type === 'array' && item?.properties?.whatToBuild?.items?.type === 'string', JSON.stringify(item?.properties));
+      ok('…and requires every one (so "the model did not say" must have a value: an empty word or unit)',
+        [...WORDS, ...NUMBERS, 'whatToBuild'].every((k) => (item?.required ?? []).includes(k)), JSON.stringify(item?.required));
+      ok('no nested object in a row (the hint derivation stops six levels down; a nested number would hint as a string)',
+        Object.values(item?.properties ?? {}).every((p) => p.type !== 'object'));
+
+      const full = {
+        summary: 'Sample summary.',
+        applicableCodes: [{
+          code: '2025 RCNYS', section: 'R312.1', requirement: 'Sample: guards on every open side of the deck.', verdict: 'not_required',
+          why: 'Sample: the deck is 24 in. above grade.', stage: 'final', trade: 'framing', whatToBuild: ['Sample: nothing to add at this height.'],
+          triggerValue: 30, triggerUnit: 'in', triggerComparison: '>', jobNumber: 24, jobNumberUnit: 'in', jobNumberLabel: 'deck height from the scenario',
+        }],
+        permitsRequired: [], inspections: [], commonViolations: [], followUps: [],
+      };
+      const parsed = schema.safeParse(full);
+      const out = (parsed.data as { applicableCodes: Record<string, unknown>[] } | undefined)?.applicableCodes?.[0];
+      ok('a full model row parses, and EVERY structured field survives the schema',
+        parsed.success && !!out && JSON.stringify(out) === JSON.stringify(full.applicableCodes[0]), JSON.stringify(out));
+      const built = out ? ccs([out], [ev], parseCodeCardItem, passesEchoCheck, said('Sample: a deck 24 in. above grade.'))[0] : null;
+      ok('…and reaches the card: the verdict the model gave, why, stage, trade, what to build, trigger and job number',
+        !!built && built.verdict === 'not_required' && built.why === 'Sample: the deck is 24 in. above grade.' && built.stage === 'final' && built.trade === 'framing'
+          && JSON.stringify(built.whatToBuild) === JSON.stringify(['Sample: nothing to add at this height.'])
+          && JSON.stringify(built.trigger) === JSON.stringify({ value: 30, unit: 'in', comparison: '>' })
+          && built.jobValue?.value === 24 && built.jobValue?.source === 'job', JSON.stringify(built));
+      ok('…and the job number only because he wrote it: the same row with other words has none',
+        !!out && ccs([out], [ev], parseCodeCardItem, passesEchoCheck, said('Sample: a low deck.'))[0]?.jobValue === undefined
+          && ccs([out], [ev], parseCodeCardItem, passesEchoCheck)[0]?.jobValue === undefined);
+      const old3 = schema.safeParse({ summary: 'Sample.', applicableCodes: [{ code: 'IRC', section: 'R312.1', requirement: 'Sample: an answer cached before the code cards.' }] });
+      const oldRow = (old3.data as { applicableCodes: Record<string, unknown>[] } | undefined)?.applicableCodes?.[0];
+      ok('an old three-field row still parses, with "did not say" in every card field',
+        old3.success && !!oldRow && oldRow.verdict === '' && oldRow.triggerUnit === '' && oldRow.triggerValue === -1 && oldRow.jobNumberUnit === '' && JSON.stringify(oldRow.whatToBuild) === '[]');
+      ok('…and is NOT a card (the plain citation line shows instead)', !!oldRow && ccs([oldRow], [null], parseCodeCardItem, passesEchoCheck)[0] === null);
+      const bad = schema.safeParse({ applicableCodes: [{ code: 'IRC', requirement: 'Sample.', verdict: 'required', triggerValue: 'thirty', triggerUnit: 'in', triggerComparison: '>', why: 7, stage: null }] });
+      const badRow = (bad.data as { applicableCodes: Record<string, unknown>[] } | undefined)?.applicableCodes?.[0];
+      ok('a wrong-typed field never fails the row: it becomes "did not say"', bad.success && !!badRow && badRow.triggerValue === -1 && badRow.why === '' && badRow.stage === '');
+      ok('…and a caught number never becomes a trigger', !!badRow && ccs([badRow], [null], parseCodeCardItem, passesEchoCheck)[0]?.trigger === undefined);
+    }
   }
 }
 
@@ -362,10 +673,30 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
 {
   ok('both in-app prompts (Code Check + drill-in) carry the no-verbatim sentence', index.split(NO_VERBATIM).length - 1 === 2, `found ${index.split(NO_VERBATIM).length - 1}`);
   const main = between(index, 'A contractor is working on the following project and needs a building-code sanity check.', "const cacheKey = `code_check::");
-  ok('the Code Check prompt asks for the structured card fields', /verdict \("required", "limit" or "not_required"\)/.test(main) && /stage \(your best guess of the inspection/.test(main) && /trigger \(\{ value, unit/.test(main));
-  ok('the Code Check prompt caps the requirement at 140 characters', main.includes('requirement (plain English, one sentence, at most 140 characters)'));
+  ok('the Code Check prompt asks for the verdict (each of the three explained), the why, the stage, the trade and what to build',
+    /verdict \("required" when it must be built or done on this job, "limit" when it is a maximum or minimum to stay inside, "not_required" when the job falls outside it\)/.test(main)
+      && /why \(one short line, at most 160 characters/.test(main) && /stage \(your best guess of the inspection/.test(main)
+      && /trade \(the trade that builds it/.test(main) && /whatToBuild \(array of up to 4 short lines in your own words, each at most 100 characters/.test(main));
+  ok('…and for the FLAT trigger and job number, each with its "not certain" value (an empty unit)',
+    main.includes('triggerValue, triggerUnit and triggerComparison (') && main.includes('ONLY when you are certain of the number; otherwise triggerUnit "" and triggerValue -1)')
+      && main.includes('jobNumber, jobNumberUnit and jobNumberLabel (') && main.includes('ONLY when the number is stated above; otherwise jobNumberUnit "" and jobNumber -1)'));
+  ok('every field the prompt asks a row for is a key of the schema (a field the schema lacks cannot come back)',
+    ['verdict', 'why', 'stage', 'trade', 'whatToBuild', 'triggerValue', 'triggerUnit', 'triggerComparison', 'jobNumber', 'jobNumberUnit', 'jobNumberLabel']
+      .every((k) => new RegExp(`\\b${k}\\b`).test(main) && new RegExp(`\\n    ${k}: z\\.`).test(between(index, 'const codeCheckSchema = z.object({', '\ntype CodeCheckResult'))));
+  ok('the Code Check prompt caps the requirement at 140 characters, and asks for a limit’s line to say the side right before the number',
+    main.includes('requirement (plain English, one sentence, at most 140 characters; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high.")'));
+  ok('the Code Check prompt says which way a comparison points, and that a minimum or a maximum is a "limit" whose sign is the side the job has to stay on (the Ask prompt’s sentence)',
+    main.includes('how the job\'s number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30.')
+      && main.includes('A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4'));
+  ok('an answer cached before the limit rule is not replayed (the cache key moved to cards2)',
+    /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !index.includes('::cards1'));
   const drill = between(index, 'A contractor ran a code check and wants to understand ONE specific code citation in depth.', 'const cacheKey = `code_detail::');
   ok('the drill-in prompt carries the sentence too', drill.includes(NO_VERBATIM));
+  const detailSchema = between(index, 'const codeDetailSchema = z.object({', '\ntype CodeDetail');
+  ok('the drill-in asks for NOTHING its schema cannot carry (prose fields only; no card fields)',
+    drill.includes(`\n${NO_VERBATIM}\`;\n`) && !/verdict|whatToBuild|\btrigger\b|triggerValue|jobNumber|structured fields/.test(drill)
+      && ['plainEnglish', 'appliesBecause', 'inspectorChecks', 'commonFailures', 'ruleOfThumb'].every((k) => drill.includes(`- ${k}:`) && detailSchema.includes(`${k}: z.`)),
+    drill.slice(-200));
 
   const viewer = between(index, 'function ViewerLinks(', 'function RungBadge(');
   ok("the ICC line sits inside ViewerLinks, after the buttons", viewer.indexOf('<Text style={styles.viewerLinkNote}>{ICC_VIEWER_NOTE}</Text>') > viewer.indexOf('{links.map('));
@@ -378,11 +709,24 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('the recall words are unchanged (Code Check and Plan Review)', (index.match(/From model recall — verify with your AHJ before relying on a section number/g) ?? []).length === 2);
 
   const rm = between(index, 'function ResultModal(', 'function AccordionSection(');
-  ok('every citation renders a CodeCard from its own card item, with content ids',
-    /cards\[i\] \? \(\s*<CodeCard/.test(rm)
-      && /withContentIds\('cc', result\.applicableCodes\.map\(\(c, i\) => codeCheckCardItem\(c as Record<string, unknown> & typeof c, i, evidence\[i\] \?\? null, parseCodeCardItem, passesEchoCheck\)\)\)/.test(rm));
+  ok('every citation with a verdict renders a CodeCard from its own card item (codeCheckCards: index-aligned, content ids)',
+    /const card = cards\[i\] \?\? null;/.test(rm) && /\{card \? \(\s*<CodeCard/.test(rm)
+      && /codeCheckCards\(result\.applicableCodes, evidence, parseCodeCardItem, passesEchoCheck, \{ text: jobText, says: saysNumberWithUnit \}\)/.test(rm));
+  ok('Code Check checks the model\u2019s job number against the words HE gave: the scenario and his answers, with the kit\u2019s own test',
+    /setResultJurisdiction\(jurisdiction\);\s+setResultJobText\(codeCheckJobText\(scenario, answered\)\);/.test(index)
+      && /export function codeCheckJobText\(scenario: string, answers: readonly \{ answer: string \}\[\]\): string \{\s+return \[scenario, \.\.\.answers\.map\(\(a\) => a\.answer\)\]\.join\('\\n'\);\s+\}/.test(askSrc)
+      && index.includes("import { saysNumberWithUnit } from '@/utils/codeCard/saysWithUnit';")
+      && !/codeCheckCards\([^)]*passesEchoCheck\)/.test(index));
+  ok('…and those words are the RUN’s, snapshotted with the result: "View last result" never checks an old run against the scenario box as it reads now',
+    /jurisdiction=\{resultJurisdiction\}\s+jobText=\{resultJobText\}/.test(index) && /setResultJurisdiction\(null\);\s+setResultJobText\(''\);/.test(index)
+      && !/\bjobText = /.test(rm) && !/\[scenario, \.\.\.answers/.test(index) && /\[result, evidence, jobText\],/.test(rm));
+  ok('a citation with NO verdict renders the plain line through the own-words gate, never a card',
+    /\) : \(\s*<View testID=\{`code-check-plain-\$\{i\}`\}>/.test(rm) && rm.includes('<Text style={styles.codeReq}>{codeCheckPlainLine(c.requirement, passesEchoCheck)}</Text>'));
+  ok('the Code Check card carries its stage, Checklist, Ask town and More',
+    /<CodeCard\s+item=\{\{ \.\.\.card, stage: wiring\.stageOf\(card\) \}\}\s+info=\{cardInfo\}\s+jobValue=\{wiring\.jobValueOf\(card\)\}\s+onOpen=\{\(\) => toggleCode\(c\)\}\s+checklist=\{wiring\.checklistFor\(card\)\}\s+askTown=\{wiring\.askTownFor\(card\)\}\s+onMore=\{wiring\.onOpen\}/.test(rm));
   ok('the drill-in toggle and the rung badge stay with each citation', rm.includes('testID={`code-detail-toggle-${i}`}') && rm.includes('{ev ? <RungBadge ev={ev} testID={`code-check-rung-${i}`} /> : null}'));
-  ok("the card's overlay renders inside the result sheet's tree", rm.includes('{cards.length > 0 ? wiring.overlay : null}'));
+  ok("the card's overlay renders inside the result sheet's tree", rm.includes('{anyCard ? wiring.overlay : null}') && rm.includes('const anyCard = cards.some((c) => !!c);'));
+  ok('Code Check pins and saves go to the project the run was saved to', rm.includes("const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'code-check-cards' });"));
 
   const plan = between(index, "mode === 'plan' ? (", "mode === 'ask' ? (");
   ok('Plan Review renders a plan-mode CodeCardList BELOW the recall chip', plan.indexOf('<CodeCardList') > plan.indexOf('testID="plan-review-recall-chip"') && /mode="plan"/.test(plan));
@@ -390,6 +734,18 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('an edition mismatch count shows on the details toggle even when it is shut', plan.includes('edition mismatch'));
   ok('only OPEN findings are carded (resolved / dismissed are handled, never "to fix")', /\.filter\(\(f\) => f\.status === 'open'\)/.test(index));
   ok('with no open finding the per-finding list shows on its own', /\{\(planDetailsOpen \|\| planCards\.length === 0\) && SEVERITY_ORDER\.map/.test(index));
+  ok('…and the details toggle renders ONLY while there are cards (a toggle over an always-open list would do nothing)',
+    /\{planCards\.length > 0 \? \(\s*<TouchableOpacity\s+onPress=\{\(\) => setPlanDetailsOpen\(\(o\) => !o\)\}/.test(plan)
+      && (plan.match(/testID="plan-review-details-toggle"/g) ?? []).length === 1);
+  ok('the toggle says this is where a finding is marked resolved or dismissed (the cards have no such button)',
+    plan.includes('each finding’s evidence, and mark it resolved or dismissed (${existingReview.findings.length})'));
+  ok('Plan Review cards are keyed on their CONTENT (a re-review renumbers its findings)',
+    /const planCards = useMemo<CodeCardItem\[\]>\(\(\) => withContentIds\('plan', \(existingReview\?\.findings \?\? \[\]\)\s+\.filter\(\(f\) => f\.status === 'open'\)\s+\.map\(\(f\) => planFindingCardItem\(/.test(index));
+  ok('Plan Review cards carry the stage, the opened card, Checklist and Ask town, on the plan\u2019s project',
+    /stageOf=\{planWiring\.stageOf\}\s+onOpen=\{planWiring\.onOpen\}\s+checklistFor=\{planWiring\.checklistFor\}\s+askTownFor=\{planWiring\.askTownFor\}/.test(plan)
+      && index.includes("const planWiring = useCodeCardWiring({ project: planProject, info: planCardInfo, testID: 'plan-review-cards' });")
+      && plan.includes('{planCards.length > 0 ? planWiring.overlay : null}'));
+  ok('Plan Review\u2019s two bulk buttons are the shared ones', plan.includes("{ key: 'checklists', icon: 'clip', ...planWiring.checklistAll(planCards) },") && plan.includes("{ key: 'save', label: 'Save', icon: 'save', action: planWiring.saveAllAction(planCards) },"));
 
   const ask = askSrc;
   ok('Ask parses requirements with parseCodeCardItems, attaches the evidence SENT with the question, and keys the cards on their content',
@@ -401,13 +757,71 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('the jurisdiction is snapshotted at ask time', /setAskedFor\(\{\s*project: linkedProject,/.test(ask));
   ok('a sub is texted from HIS Messages (sms: via Linking)', /const url = smsUrlFor\(recipient\.phone, text, Platform\.OS\);/.test(ask) && /void Linking\.openURL\(url\)/.test(ask));
   ok('a sub with no phone says why', ask.includes("has no phone number in Subs"));
-  ok('Checklist pins to the job (pins store), blocked with a reason without a job',
-    /pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, new Date\(\), stageOf\(item\)\) \}\)/.test(ask) && /blockedAction\(NO_JOB_CHECKLIST\)/.test(ask));
+  // ── The wiring hook: who it pins for, and every way a button is blocked ──
+  const hook = between(ask, 'export function useCodeCardWiring(', '/** What a code-card answer was grounded on');
+  const fn = (name: string) => between(hook, `const ${name} = useCallback(`, '\n  }, [');
+  ok('the hook is found', hook.length > 0 && hook.includes('const projectId = project?.id ?? null;'));
+  ok("Ask's cards are wired to the project that was ASKED for, not the one linked now",
+    ask.includes("const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, testID: 'construction-ask-cards' });")
+      && ask.includes("const savedWiring = useCodeCardWiring({ project: linkedProject, info: savedInfo, testID: 'construction-ask-saved-cards' });"));
+  ok("Ask's list carries the stage, the opened card, Checklist and Ask town",
+    /stageOf=\{wiring\.stageOf\}\s+jobValueOf=\{wiring\.jobValueOf\}\s+onOpen=\{wiring\.onOpen\}\s+checklistFor=\{wiring\.checklistFor\}\s+askTownFor=\{wiring\.askTownFor\}/.test(ask));
+  ok('a re-measure he made this session is the number the card reopens on and the number its list card shows, so Save and Save all never keep a number that is not on screen',
+    /jobValue=\{openItem \? jobValues\[openItem\.id\] : undefined\}\s+onJobValueChange=\{\(item, jv\) => setJobValues\(\(m\) => \(\{ \.\.\.m, \[item\.id\]: jv \}\)\)\}/.test(hook)
+      && /const jobValueOf = useCallback\(\(item: CodeCardItem\): CodeJobValue \| undefined => jobValues\[item\.id\], \[jobValues\]\);/.test(hook)
+      && /jobValue=\{jobValueOf\?\.\(item\)\}/.test(read('components/codeCard/CodeCardList.tsx')));
+  ok("Ask's opened card and town draft render whenever there are cards", ask.includes('{cards.length > 0 ? wiring.overlay : null}'));
+  const checklist = fn('checklistFor');
+  ok('Checklist, in order: no project says why; pinned says where; a card that cannot be kept says why; else it pins to THIS project',
+    /^const checklistFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId\) return blockedAction\(NO_JOB_CHECKLIST\);\s+const pinned = pinnedStage\(pins, projectId, item\.id\);\s+if \(pinned\) return doneAction\(`On \$\{stageLabel\(pinned\)\} checklist`\);\s+const cannot = cardKeepBlockedReason\(item, 'checklist'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, new Date\(\), stageOf\(item\)\) \}\);/.test(checklist), checklist.slice(0, 300));
+  const save = fn('saveFor');
+  ok('Save, in order: no project says why; saved says where; a card that cannot be kept says why; else it saves to THIS project',
+    /^const saveFor = useCallback\(\(item: CodeCardItem\): CodeCardAction => \{\s+if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+if \(isSaved\(saved, projectId, item\.id\)\) return doneAction\(savedWhere\(project\.name\)\);\s+const cannot = cardKeepBlockedReason\(item, 'save'\);\s+if \(cannot\) return blockedAction\(cannot\);\s+return readyAction\(\(\) => \{\s+savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, /.test(save), save.slice(0, 300));
+  ok('a stand-in card (no requirement in words) is never pinned or saved, and says so; anything else the store would refuse gives the store\u2019s reason',
+    /export function cardKeepBlockedReason\(item: CodeCardItem, kind: 'checklist' \| 'save'\): string \| null \{\s+if \(isCardPlaceholder\(item\.summary\)\) return kind === 'checklist' \? NO_WORDS_CHECKLIST : NO_WORDS_SAVE;\s+return codeCardStoreBlockedReason\(item\);\s+\}/.test(ask)
+      && /NO_WORDS_CHECKLIST = 'This card has no requirement in words, so there is nothing to put on a checklist\. Use Official text to read the section\.'/.test(ask)
+      && /NO_WORDS_SAVE = 'This card has no requirement in words, so there is nothing to keep\. Use Official text to read the section\.'/.test(ask));
+  const addAll = fn('addAll');
+  const saveAll = fn('saveAll');
+  ok('Add all pins each keepable card to THIS project on its own stage, skipping what is already pinned',
+    /if \(!projectId\) return;/.test(addAll) && /if \(cardKeepBlockedReason\(item, 'checklist'\)\) continue;/.test(addAll)
+      && /if \(!pinnedStage\(pins, projectId, item\.id\)\) pinStore\.dispatch\(\{ type: 'pin', pin: makePin\(projectId, item, now, stageOf\(item\)\) \}\);/.test(addAll));
+  ok('Save all keeps each keepable card on THIS project',
+    /if \(!projectId\) return;/.test(saveAll) && /if \(cardKeepBlockedReason\(item, 'save'\)\) continue;/.test(saveAll)
+      && /savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), now, jobValues\[item\.id\] \?\? null\) \}\);/.test(saveAll));
+  ok('Save and Save all keep a stage HE chose as his (never re-labelled "AI guess"), and never spread the stage alone',
+    /makeSaved\(projectId, cardWithChosenStage\(item, stageOf\(item\)\), new Date\(\), jobValues\[item\.id\] \?\? null\)/.test(save)
+      && !/makeSaved\(projectId, \{ \.\.\.item, stage: stageOf\(item\) \}/.test(hook));
+  const bulkPin = fn('checklistAll');
+  ok('the bulk Checklist button: no project says why; nothing keepable says why; done only when every KEEPABLE card is pinned',
+    /const can = items\.filter\(\(c\) => !cardKeepBlockedReason\(c, 'checklist'\)\);/.test(bulkPin)
+      && /if \(!projectId\) return \{ label, action: blockedAction\(NO_JOB_CHECKLIST\) \};\s+if \(can\.length === 0\) return \{ label, action: blockedAction\(NO_WORDS_CHECKLIST\) \};\s+if \(can\.every\(\(c\) => !!pinnedStage\(pins, projectId, c\.id\)\)\) return \{ label, action: doneAction\('On the inspection checklists'\) \};\s+return \{ label, action: readyAction\(\(\) => addAll\(can\)\) \};/.test(bulkPin), bulkPin);
+  const bulkSave = fn('saveAllAction');
+  ok('the bulk Save button: the same four answers',
+    /if \(!projectId \|\| !project\) return blockedAction\(NO_JOB_SAVE\);\s+const can = items\.filter\(\(c\) => !cardKeepBlockedReason\(c, 'save'\)\);\s+if \(can\.length === 0\) return blockedAction\(NO_WORDS_SAVE\);\s+if \(can\.every\(\(c\) => isSaved\(saved, projectId, c\.id\)\)\) return doneAction\(`Saved to \$\{project\.name\}`\);\s+return readyAction\(\(\) => saveAll\(can\)\);/.test(bulkSave), bulkSave);
+  ok("Ask's two bulk buttons are the shared ones",
+    ask.includes("primary={{ key: 'add-all', icon: 'clip', ...wiring.checklistAll(cards) }}") && ask.includes("secondary={[{ key: 'save-all', label: 'Save', icon: 'save', action: wiring.saveAllAction(cards) }]}"));
+  // A pin can be seen and taken off at any time (Inspection Ready shows it only 3 days out).
+  ok('a pin comes off through the pins store, for THIS project', /if \(projectId\) pinStore\.dispatch\(\{ type: 'unpin', projectId, itemId: item\.id \}\);/.test(fn('unpin')));
+  ok('the opened card says where a pin can be taken off again',
+    /return projectId && pinned \? doneAction\(pinnedWhere\(pinned\)\) : checklistFor\(item\);/.test(fn('checklistFromSheet'))
+      && hook.includes('checklist={openItem ? checklistFromSheet(openItem) : undefined}')
+      && ask.includes('return `On ${stageLabel(stage)} checklist. To take it off: Ask, under On inspection checklists, with this project linked.`;'));
+  ok('Ask lists the linked project\u2019s pinned cards (only when it has any), each with Unpin',
+    /\{linkedProject && pinnedCards\.length > 0 \? \(\s*<View style=\{styles\.savedWrap\} testID="construction-ask-pinned">/.test(ask)
+      && /pinsFor\(wiring\.pins, linkedProject\?\.id\)/.test(ask) && /onPress=\{\(\) => savedWiring\.unpin\(p\.item\)\}/.test(ask)
+      && ask.includes('{`On inspection checklists for ${linkedProject.name} (${pinnedCards.length})`}'));
+  ok('the pinned list says when each one shows and that it lives on this device',
+    /PINNED_LIST_NOTE = 'Each one shows in Inspection Ready 3 days before that inspection\. Kept on this device\. Confirm with your building department\.'/.test(ask) && ask.includes('<Text style={styles.savedNote}>{PINNED_LIST_NOTE}</Text>'));
   ok('Save keeps the card on the job (saved store)', /savedStore\.dispatch\(\{ type: 'save', card: makeSaved\(/.test(ask));
   ok('Ask town opens Draft a question (his own Mail) or says why it cannot', /askTownBlockedReason\(project\)/.test(ask) && /<DraftQuestionButton[\s\S]*?hideTrigger[\s\S]*?initialQuestion=\{ask\.question\}/.test(ask));
   ok("the town question never repeats MAGE's stand-in line", /codeCardQuestion\(item, \{ noWords: isCardPlaceholder\(item\.summary\) \}\)/.test(ask));
   ok('Save says where the card can be found again', /doneAction\(savedWhere\(project\.name\)\)/.test(ask) && /Find it in Ask, under Saved code cards/.test(ask));
   ok('the saved list renders only for a linked project that has saved cards', /\{linkedProject && savedCards\.length > 0 \? \(\s*<View style=\{styles\.savedWrap\} testID="construction-ask-saved">/.test(ask));
+  ok('the saved rows and the pinned rows check the cited edition against the linked project\u2019s verified one (info={savedInfo}), so a verified edition is not marked "(as cited)"',
+    /<CodeCardRow\s+item=\{\{ \.\.\.item, stage: savedWiring\.stageOf\(item\) \}\}\s+onPress=\{savedWiring\.onOpen\}\s+edition=\{item\.citedEdition \?\? null\}\s+info=\{savedInfo\}/.test(ask)
+      && /<CodeCardRow\s+item=\{\{ \.\.\.p\.item, stage: p\.stage \}\}\s+onPress=\{savedWiring\.onOpen\}\s+edition=\{p\.item\.citedEdition \?\? null\}\s+info=\{savedInfo\}/.test(ask)
+      && (ask.match(/<CodeCardRow\b/g) ?? []).length === 2);
   ok('a saved card can be removed (unsave on the saved store)', /savedStore\.dispatch\(\{ type: 'unsave', projectId, itemId: item\.id \}\)/.test(ask) && /onPress=\{\(\) => savedWiring\.unsave\(item\)\}/.test(ask));
   ok('the saved list says it is kept on this device, in our words, section from recall', /SAVED_NOTE = 'Kept on this device\. In MAGE\\u2019s words; section from AI recall unless marked\. Confirm with your building department\.'/.test(ask));
   ok('the no-project reasons say project', /NO_JOB_CHECKLIST = 'Link a project first/.test(ask) && /NO_JOB_SAVE = 'Link a project first/.test(ask));
@@ -432,6 +846,10 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('a look-right row never reaches the RFI / punch rows (they map r.findings only)', /r\.findings\.map\(\(f, i\) => \{\s*const key = `\$\{r\.sheet\.id\}#\$\{i\}`;/.test(sweep) && (sweep.match(/lookRightRows\(/g) ?? []).length === 2);
   ok("the sweep's architect email opens HIS Mail (mailto)", /void Linking\.openURL\(mailtoUrlFor\('', msg\.subject, msg\.body\)\)/.test(sweep));
   ok('the opened card and the town draft render inside the panel (it sits in a sheet)', sweep.includes('{sweepCards.length > 0 ? wiring.overlay : null}'));
+  ok('the sweep cards carry the stage, the opened card, Checklist and Ask town, on the panel\u2019s project',
+    /stageOf=\{wiring\.stageOf\}\s+onOpen=\{wiring\.onOpen\}\s+checklistFor=\{wiring\.checklistFor\}\s+askTownFor=\{wiring\.askTownFor\}/.test(sweep)
+      && sweep.includes("const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'plansweep-cards' });"));
+  ok('the sweep\u2019s two bulk buttons are the shared ones', sweep.includes("{ key: 'checklists', icon: 'clip', ...wiring.checklistAll(sweepCards) },") && sweep.includes("{ key: 'save', label: 'Save', icon: 'save', action: wiring.saveAllAction(sweepCards) },"));
   ok('sweep recall is neutral grey; the edition mismatch keeps amber',
     /recallChip: \{[^}]*backgroundColor: t\.neutralSoft/.test(sweep) && /recallChipText: \{[^}]*color: t\.textSecondary/.test(sweep)
       && /badgeRecall: \{ backgroundColor: t\.neutralSoft \}/.test(sweep) && /badgeRecallText: \{ color: t\.textSecondary \}/.test(sweep)
@@ -454,5 +872,55 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
     sheet.indexOf('testID="inspection-prep-pinned"') > sheet.indexOf('testID="codelook-prep-extras"') && sheet.indexOf('testID="inspection-prep-pinned"') < sheet.indexOf('testID="inspection-prep-result"'));
 }
 
+// ── 5. The client opt-in (four files this lane does NOT own) ──────────────
+//
+// Both functions send the code-card rows ONLY when the request asks for them
+// (lane CCSERVER: `codeCards: true`), so that an old app build gets exactly
+// what it always got. The two request helpers and their types are outside this
+// lane, so the change is a patch for the integrator
+// (codecard-specs/patches/CCWIRE-client-optin.diff). THE RULE HERE:
+//   - none of it applied: the surfaces still work (Ask shows prose, the sweep
+//     shows every finding as "needs an answer"), but no Ask card and no
+//     look-right row can ever appear. That is said out loud below, and it is a
+//     FAILURE under --require-optin (the mode to register in ship-check once
+//     the patch is in);
+//   - any of it applied: ALL of it must be (a half-applied patch sends the
+//     flag and drops the rows, or the reverse).
+console.log('\n5. The client asks for the code-card rows (files outside this lane)');
+let optInNotice = '';
+{
+  const requireOptIn = process.argv.includes('--require-optin');
+  const answerSrc = read('utils/constructionAnswer.ts');
+  const answerTypes = read('types/constructionAnswer.ts');
+  const reviewer = read('utils/planCodeReviewer.ts');
+  const run = read('utils/plans/planSweepRun.ts');
+  // The same capture validate-code-check-honesty and validate-baltimore-ai pin
+  // the request body with: a parenthesis inside the body would cut it short.
+  const body = answerSrc.match(/body: JSON\.stringify\(([^)]*)\)/)?.[1] ?? '';
+  const planReviewCall = between(index, 'await reviewPlanCode({', '});');
+  const marks: [string, boolean][] = [
+    ['Ask sends codeCards: true with the question (utils/constructionAnswer.ts)', /\bcodeCards: true,/.test(body)],
+    ['…and the whole body is still one parenthesis-free object (the honesty validators capture it with [^)]*)',
+      /question: req\.question/.test(body) && /jurisdiction: req\.jurisdiction \?\? null/.test(body) && /buildingRecord: req\.buildingRecord \?\? null/.test(body) && body.trim().endsWith('}')],
+    ['the answer type carries the RAW rows: requirements?: unknown[] (types/constructionAnswer.ts)', /\brequirements\?: unknown\[\];/.test(answerTypes)],
+    ['the sweep asks for the rows: sweep.codeCards: true (utils/plans/planSweepRun.ts)', /sweep: \{ scopeTargets: reasons\.map\(r => r\.topic\), codeCards: true \}/.test(run)],
+    ["the run carries each sheet's look-right rows apart from its findings (planSweepRun.ts)", /reviewed\.push\(\{ sheet, reasons, findings: res\.findings, lookRight: res\.lookRight \?\? \[\] \}\)/.test(run)],
+    ['reviewPlanCode returns the look-right rows (utils/planCodeReviewer.ts)', /lookRight: Array\.isArray\(data\.data\.lookRight\) \? data\.data\.lookRight : \[\]/.test(reviewer)],
+    ['Plan Review (one sheet, in the tab) sends no sweep and no flag: its request is what it always was', !!planReviewCall && !/sweep|codeCards/.test(planReviewCall)],
+  ];
+  // The two checks that hold with or without the patch are not "applied" marks.
+  const applied = [marks[0], marks[2], marks[3], marks[4], marks[5]].filter(([, on]) => on).length;
+  if (applied === 0 && !requireOptIn) {
+    ok(marks[1][0], marks[1][1]);
+    ok(marks[6][0], marks[6][1]);
+    optInNotice = 'NOT APPLIED: the app never asks either function for code-card rows, so Ask shows no cards and the sweep shows no "look right" rows in production.\n'
+      + '  Apply codecard-specs/patches/CCWIRE-client-optin.diff (4 client files + 1 validator pin), then run this with --require-optin.';
+    console.log(`  ! ${optInNotice}`);
+  } else {
+    for (const [name, on] of marks) ok(name, on);
+  }
+}
+
+if (optInNotice) console.log(`\n! client opt-in ${optInNotice}`);
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-code-card-wiring: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

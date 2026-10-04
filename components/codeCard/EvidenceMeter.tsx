@@ -5,6 +5,10 @@
 // Recall keeps its label in the same place at the same size on every card;
 // its tone is neutral grey, not amber (founder decision). The two government
 // rungs fill teal. The badge and the detail sentence are codeAmendments' own.
+//
+// A PARENT MATCH IS RECALL (utils/codeCard/evidence.ts): grey bars and the
+// recall label first, in the same place; the parent badge goes UNDER it on the
+// opened card, never in its place.
 
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -40,15 +44,16 @@ export function EvidenceMeter({ evidence, variant = 'compact', sunlight, testID 
   const P = useCodeCardPalette(sunlight);
   const styles = useMemo(() => makeStyles(P), [P]);
   const v = evidenceView(evidence);
-  const a11y = `Evidence ${v.bars} of 4: ${badgeSentence(v.badge)}. ${v.detail}`;
+  const a11y = `Evidence ${v.bars} of 4: ${v.parent ? `${v.short}. ` : ''}${badgeSentence(v.badge)}. ${v.detail}`;
 
   if (variant === 'full') {
     return (
       <View style={styles.full} testID={testID} accessible accessibilityLabel={a11y}>
         <View style={styles.row}>
           <EvidenceBars evidence={evidence} sunlight={sunlight} />
-          <Text style={styles.badge}>{badgeSentence(v.badge)}</Text>
+          <Text style={styles.badge}>{v.parent ? v.short : badgeSentence(v.badge)}</Text>
         </View>
+        {v.parent ? <Text style={styles.badge}>{badgeSentence(v.badge)}</Text> : null}
         <Text style={styles.detail}>{v.detail}</Text>
       </View>
     );

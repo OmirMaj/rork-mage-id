@@ -128,11 +128,15 @@ export function recheckOutcome(item: Pick<CodeCardItem, 'verdict' | 'trigger'>, 
   return met ? 'required' : 'not_required';
 }
 
+/**
+ * 'over_limit' reads "outside the limit", never "over": a limit can be a
+ * MINIMUM (a guard at least 36 in. high), and a 34 in. guard is under it.
+ */
 export const OUTCOME_WORDS: Readonly<Record<RecheckOutcome, string>> = Object.freeze({
   required: 'required',
   not_required: 'not required',
   within_limit: 'within the limit',
-  over_limit: 'over the limit',
+  over_limit: 'outside the limit',
 });
 
 /** "34 in. > 30 in." plus the outcome words, or null when no re-check runs. */

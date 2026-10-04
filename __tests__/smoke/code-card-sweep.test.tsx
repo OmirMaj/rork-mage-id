@@ -17,8 +17,28 @@
  *          (no status, no stage, no lookRight);
  *     (s4) after a review that raised nothing.
  *
+ *     WHAT THE GOLDEN COVERS. The PANEL. The code-card list is lane CCKIT's
+ *     component with its own golden (__tests__/smoke/code-cards.test.tsx), so
+ *     it is recorded here as ONE line carrying its testID (KIT_ROOT below). No
+ *     node of the untouched panel matches KIT_ROOT.
+ *
+ *     PROVEN DELTAS (dump diffs against the dumps recorded first):
+ *       (s1) (s2) (s4): the recall chip only (7 lines): neutral grey with an
+ *           info mark, was amber with a warning triangle. Same words, place, size.
+ *       (s3): the same chip; the card list (its wrapper and one line) above
+ *           the per-sheet findings; each of the four findings' recall badges
+ *           in the same neutral grey (2 lines each). The per-sheet findings
+ *           are otherwise line for line what they were.
+ *
  *  2. BEHAVIOUR — the code cards on the sweep (status groups, "looks right"
  *     rows, pins), asserted outright in the second describe block.
+ *
+ *     THE CODE-CARD ROWS REACH THE PANEL THROUGH TWO FILES THIS LANE DOES NOT
+ *     OWN (utils/planCodeReviewer.ts, utils/plans/planSweepRun.ts: the request
+ *     flag `sweep.codeCards` and the `lookRight` rows). Until that patch is in
+ *     (codecard-specs/patches/CCWIRE-client-optin.diff) the panel is proven at
+ *     its own boundary, with the run handing it the rows; once it is in, the
+ *     end-to-end case below runs too (it is skipped, by name, before).
  *
  * Set CCWIRE_DUMP_DIR to write each dump for a diff.
  */
@@ -34,6 +54,9 @@ import { supabase } from '@/lib/supabase';
 import { useProjects } from '@/contexts/ProjectContext';
 import PlanSweepPanel from '@/components/plans/PlanSweepPanel';
 import { FORBIDDEN_WORDS } from '@/utils/plans/planSweep';
+import * as sweepRun from '@/utils/plans/planSweepRun';
+import { __setCodePinStoreForTest } from '@/utils/codeCard/pins';
+import { __setCodeSavedStoreForTest } from '@/utils/codeCard/saved';
 import type { PlanSheet } from '@/types';
 
 const IMG = 'data:image/png;base64,AAAA';
@@ -148,8 +171,39 @@ beforeEach(async () => {
   while (spies.length) spies.pop()!.mockRestore();
   review = 'old';
   reviewBodies.length = 0;
+  // Fresh pin / saved stores: they hold their state in memory, and primeWorld
+  // empties the storage under them.
+  __setCodePinStoreForTest(null);
+  __setCodeSavedStoreForTest(null);
   await primeWorld('populated');
 });
+
+// Is the client opt-in in (the two files this lane does not own)? Read off the
+// source, so the end-to-end case switches itself on the day the patch lands.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const readSource = (rel: string): string => require('node:fs').readFileSync(`${process.cwd()}/${rel}`, 'utf8');
+const CLIENT_OPTIN = /codeCards: true/.test(readSource('utils/plans/planSweepRun.ts'))
+  && /lookRight/.test(readSource('utils/plans/planSweepRun.ts'))
+  && /lookRight/.test(readSource('utils/planCodeReviewer.ts'));
+
+/**
+ * The panel's own boundary: the run hands it each reviewed sheet's findings
+ * AND its look-right rows. The real run still executes (the faked network
+ * edge answers it); this only attaches the rows the unpatched run drops.
+ */
+function runCarriesLookRight() {
+  const real = sweepRun.reviewSweepSheets;
+  spies.push(jest.spyOn(sweepRun, 'reviewSweepSheets').mockImplementation(async (opts) => {
+    const out = await real(opts);
+    return {
+      ...out,
+      reviewed: out.reviewed.map((r) => {
+        const carried = (r as unknown as { lookRight?: unknown[] }).lookRight;
+        return { ...r, lookRight: Array.isArray(carried) && carried.length > 0 ? carried : [SAMPLE_OK] };
+      }),
+    } as Awaited<ReturnType<typeof real>>;
+  }));
+}
 
 // ── What a snapshot records (w6d-z2-phone's dump) ──────────────────────────
 const flat = (style: unknown): ViewStyle => (StyleSheet.flatten(style as StyleProp<ViewStyle>) ?? {}) as ViewStyle;
@@ -163,12 +217,16 @@ function small(v: unknown): string | null {
     return j !== undefined && j.length <= 600 ? volatile(j) : null;
   } catch { return null; }
 }
+/** A code-card list (lane CCKIT's component): one line. */
+const KIT_ROOT = /^(code-check-card-\d+|[a-z-]+-card-list)$/;
 function dumpLines(node: unknown, depth: number, out: string[]): void {
   if (node == null) return;
   if (Array.isArray(node)) { for (const n of node) dumpLines(n, depth, out); return; }
   const pad = ' '.repeat(Math.min(depth, 200));
   if (typeof node !== 'object') { out.push(`${pad}"${volatile(String(node))}"`); return; }
   const el = node as { type: string; props: Record<string, unknown>; children: unknown };
+  const tid = el.props?.testID;
+  if (typeof tid === 'string' && KIT_ROOT.test(tid)) { out.push(`${pad}<code-card-kit testID=${JSON.stringify(tid)}>`); return; }
   const parts: string[] = [];
   for (const k of Object.keys(el.props ?? {}).sort()) {
     const v = el.props[k];
@@ -290,9 +348,10 @@ describe('CCWIRE sweep behaviour — status groups, look-right rows, pins', () =
     expect(FORBIDDEN_WORDS.test(text)).toBe(false);
   });
 
-  it('code-card server shape: Fix / Needs an answer / Look right; a look-right row never gets an RFI or a punch', async () => {
+  it('code-card rows: Fix / Needs an answer / Look right; a look-right row never gets an RFI or a punch', async () => {
     review = 'cards';
     await mountPanel();
+    runCarriesLookRight();
     await press('plansweep-find');
     await press('plansweep-review');
     const text = allText();
@@ -309,15 +368,15 @@ describe('CCWIRE sweep behaviour — status groups, look-right rows, pins', () =
     expect(screen.queryByTestId('plansweep-punch-cs2#2')).toBeNull();
     expect(text).not.toMatch(/\b(passed|compliant|approved)\b/i);
     expect(FORBIDDEN_WORDS.test(text)).toBe(false);
-    // No RFI was drafted by rendering anything.
-    expect(JSON.parse(String(screen.getByTestId('probe-rfis').props.children))).toEqual(
-      JSON.parse(String(screen.getByTestId('probe-rfis').props.children)).filter((q: string) => !/riser/.test(q)),
-    );
+    // Rendering drafted no RFI: the job's RFIs are what they were, none about a riser.
+    const rfis: string[] = JSON.parse(String(screen.getByTestId('probe-rfis').props.children));
+    expect(rfis.some((q) => /riser/i.test(q))).toBe(false);
   });
 
   it('Add all pins every card to the project, each on its own stage, and the button says so', async () => {
     review = 'cards';
     await mountPanel();
+    runCarriesLookRight();
     await press('plansweep-find');
     await press('plansweep-review');
     expect(await pinsStored()).toEqual({});
@@ -330,5 +389,20 @@ describe('CCWIRE sweep behaviour — status groups, look-right rows, pins', () =
     expect(pins.filter((p) => p.item.status === 'ok').every((p) => p.stage === 'framing')).toBe(true);
     expect(pins.every((p) => /^sweep-[0-9a-z]+$/.test(p.item.id))).toBe(true);
     expect(allText()).toContain('On the inspection checklists');
+  });
+
+  // END TO END, once the client opt-in patch is in (see the header): the real
+  // run asks for the code-card rows and carries the look-right rows itself.
+  (CLIENT_OPTIN ? it : it.skip)('END TO END (needs the client opt-in patch): the run asks for code-card rows and carries the look-right rows', async () => {
+    review = 'cards';
+    await mountPanel();
+    await press('plansweep-find');
+    await press('plansweep-review');
+    expect(reviewBodies.length).toBe(2);
+    expect(reviewBodies.every((b) => (b.sweep as { codeCards?: unknown } | undefined)?.codeCards === true)).toBe(true);
+    const text = allText();
+    expect(text).toContain('2 need an answer first. 2 look right on the drawing.');
+    expect(text).toContain('Sample: stair riser height.');
+    expect(screen.queryByTestId('plansweep-finding-cs2#2')).toBeNull();
   });
 });

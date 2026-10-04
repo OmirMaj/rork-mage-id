@@ -6,10 +6,16 @@
 // required lazily by ./store.ts so bun can drive all of it.
 //
 // A saved card keeps the number he re-measured, if he changed it, so reopening
-// it shows the same re-check he saw.
+// it shows the same re-check he saw: pass `jobValue={saved.jobValue}` to
+// CodeCardSheet (or CodeCard) and the card opens on that number.
+//
+// WHAT THE STORE ACCEPTS IS WHAT IT READS BACK. `storedSaved` is the one gate:
+// the reducer runs every card through it on the way in and parseSavedState on
+// the way out (the same rule as pins.ts storedPin), so a card that showed
+// "Saved" is still there after a restart and a card it refuses is never saved.
 
 import { safeJson, createPersistedStore, type KVStorage, type PersistedStore } from './store';
-import { parseCodeCardItem, parseJobValue } from './parse';
+import { parseJobValue, storedCodeCardItem, STORED_TEXT_MAX } from './parse';
 import type { CodeCardItem, CodeJobValue } from './types';
 
 export const CODE_SAVED_KEY = 'mageid_code_saved_v1';
@@ -50,11 +56,29 @@ export function makeSaved(projectId: string, item: CodeCardItem, now: Date | str
   return out;
 }
 
+/**
+ * One saved card in the form the store keeps, or null when it cannot be kept.
+ * Used by the reducer (accept) AND by parseSavedState (read back).
+ */
+export function storedSaved(raw: unknown, projectId: string): SavedCodeCard | null {
+  if (!projectId || !raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (r.projectId !== projectId || typeof r.savedAt !== 'string') return null;
+  // Device-local: evidence and stage edits were attached on this device.
+  const item = storedCodeCardItem(r.item);
+  if (!item) return null;
+  const card: SavedCodeCard = { id: savedIdFor(projectId, item.id), projectId, item, savedAt: r.savedAt };
+  const jv = parseJobValue(r.jobValue, STORED_TEXT_MAX);
+  if (jv) card.jobValue = jv;
+  return card;
+}
+
 export function savedReducer(state: SavedState, action: SavedAction): SavedState {
   switch (action.type) {
     case 'save': {
-      const { card } = action;
-      if (!card.projectId || !card.item?.id) return state;
+      // The same gate the reader uses. A card it refuses is not saved.
+      const card = storedSaved(action.card, typeof action.card?.projectId === 'string' ? action.card.projectId : '');
+      if (!card) return state;
       const list = state[card.projectId] ?? [];
       const next = [...list.filter((c) => c.item.id !== card.item.id), card].slice(-MAX_SAVED_PER_PROJECT);
       return { ...state, [card.projectId]: next };
@@ -79,6 +103,7 @@ export function savedReducer(state: SavedState, action: SavedAction): SavedState
   }
 }
 
+/** Read the stored JSON back through the SAME gate the reducer accepted it with (storedSaved). */
 export function parseSavedState(raw: string | null): SavedState {
   const data = safeJson(raw);
   if (!data || typeof data !== 'object' || Array.isArray(data)) return EMPTY_SAVED;
@@ -87,14 +112,8 @@ export function parseSavedState(raw: string | null): SavedState {
     if (!projectId || !Array.isArray(list)) continue;
     const cards: SavedCodeCard[] = [];
     for (const c of list) {
-      if (!c || typeof c !== 'object') continue;
-      const r = c as Record<string, unknown>;
-      const item = parseCodeCardItem(r.item);
-      if (!item || typeof r.savedAt !== 'string' || r.projectId !== projectId) continue;
-      const card: SavedCodeCard = { id: savedIdFor(projectId, item.id), projectId, item, savedAt: r.savedAt };
-      const jv = parseJobValue(r.jobValue);
-      if (jv) card.jobValue = jv;
-      cards.push(card);
+      const card = storedSaved(c, projectId);
+      if (card) cards.push(card);
     }
     if (cards.length) out[projectId] = cards.slice(-MAX_SAVED_PER_PROJECT);
   }
@@ -127,4 +146,14 @@ let shared: SavedStore | null = null;
 export function codeSavedStore(): SavedStore {
   if (!shared) shared = createSavedStore();
   return shared;
+}
+
+/** Tenant wipe: empty the shared store's memory (see ./reset.ts). No store yet = nothing held. */
+export function resetCodeSavedStore(): void {
+  shared?.reset();
+}
+
+/** Tests only: point the shared store at a storage double (null = a fresh default one on next use). */
+export function __setCodeSavedStoreForTest(store: SavedStore | null): void {
+  shared = store;
 }

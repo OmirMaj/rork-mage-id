@@ -32,6 +32,14 @@ export interface PersistedStore<S, A> {
   load(): Promise<void>;
   /** True once storage has answered (or failed). */
   isLoaded(): boolean;
+  /**
+   * TENANT WIPE. Forget everything held in memory: the state goes back to
+   * `initial`, taps waiting for the load are dropped and a load still in
+   * flight is ignored when it lands. Nothing is read or written here. The
+   * store counts as loaded-and-empty afterwards, so the next write persists
+   * ONLY what the next user did, whatever is (or is not yet) left on disk.
+   */
+  reset(): void;
 }
 
 /**
@@ -49,6 +57,8 @@ export function createPersistedStore<S, A>(opts: {
   let state = opts.initial;
   let loaded = false;
   let loading: Promise<void> | null = null;
+  // Bumped by reset(): a load that started before a reset must not land after it.
+  let generation = 0;
   const pending: A[] = [];
   const listeners = new Set<() => void>();
   const storage = opts.storage === undefined ? defaultStorage() : opts.storage;
@@ -56,7 +66,9 @@ export function createPersistedStore<S, A>(opts: {
   const emit = () => { for (const fn of listeners) fn(); };
   const persist = () => {
     if (!storage) return;
-    storage.setItem(opts.key, JSON.stringify(state)).catch(() => { /* next write retries */ });
+    try {
+      storage.setItem(opts.key, JSON.stringify(state)).catch(() => { /* next write retries */ });
+    } catch { /* a storage that throws outright: the screen state stands */ }
   };
 
   const load = (): Promise<void> => {
@@ -66,11 +78,15 @@ export function createPersistedStore<S, A>(opts: {
       loading = Promise.resolve();
       return loading;
     }
-    loading = storage
-      .getItem(opts.key)
+    const startedIn = generation;
+    loading = Promise.resolve()
+      .then(() => storage.getItem(opts.key))
       .then((raw) => opts.parse(raw))
       .catch(() => opts.initial)
       .then((saved) => {
+        // reset() ran while storage was answering: what it read belongs to the
+        // user who just left. Drop it.
+        if (startedIn !== generation) return;
         const replay = pending.splice(0);
         state = replay.reduce(opts.reducer, saved);
         loaded = true;
@@ -96,6 +112,15 @@ export function createPersistedStore<S, A>(opts: {
     },
     load,
     isLoaded: () => loaded,
+    reset() {
+      generation++;
+      pending.length = 0;
+      loaded = true;
+      loading = Promise.resolve();
+      if (state === opts.initial) return;
+      state = opts.initial;
+      emit();
+    },
   };
 }
 

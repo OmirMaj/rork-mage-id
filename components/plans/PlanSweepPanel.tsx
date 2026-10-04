@@ -55,15 +55,13 @@ import { showAlert } from '@/utils/alert';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { bookedStageDays } from '@/utils/inspectionPrep';
 import { CodeCardList } from '@/components/codeCard/CodeCardList';
-import { blockedAction, doneAction, readyAction } from '@/components/codeCard/parts';
+import { blockedAction, readyAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
 import { parseCodeCardItem } from '@/utils/codeCard/parse';
 import { passesEchoCheck } from '@/utils/codeCard/echoCheck';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
-import { pinnedStage } from '@/utils/codeCard/pins';
-import { isSaved } from '@/utils/codeCard/saved';
 import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
-import { addAllLabel, architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
+import { architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
 import {
   sweepCardItem, useCodeCardWiring, usePermitOfficeAnswer, withContentIds,
 } from '@/components/construction/AskConstructionMode';
@@ -413,22 +411,8 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
               action: architectButtonLabel(sweepCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
             }}
             secondary={[
-              {
-                key: 'checklists',
-                label: addAllLabel(sweepCards.map((c) => ({ ...c, stage: wiring.stageOf(c) }))),
-                icon: 'clip',
-                action: sweepCards.every((c) => !!pinnedStage(wiring.pins, project.id, c.id))
-                  ? doneAction('On the inspection checklists')
-                  : readyAction(() => wiring.addAll(sweepCards)),
-              },
-              {
-                key: 'save',
-                label: 'Save',
-                icon: 'save',
-                action: sweepCards.every((c) => isSaved(wiring.saved, project.id, c.id))
-                  ? doneAction(`Saved to ${project.name}`)
-                  : readyAction(() => wiring.saveAll(sweepCards)),
-              },
+              { key: 'checklists', icon: 'clip', ...wiring.checklistAll(sweepCards) },
+              { key: 'save', label: 'Save', icon: 'save', action: wiring.saveAllAction(sweepCards) },
             ]}
             testID="plansweep-card-list"
           />

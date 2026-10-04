@@ -18,7 +18,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Bookmark, CalendarDays, Check, ClipboardCheck, FileText, LayoutList, MessageCircleQuestion, Rows3, Send } from 'lucide-react-native';
 import { Button, Card, SegmentedControl, layoutNext, useSwapFade } from '@/components/ui';
 import { DISPLAY_FONT } from '@/constants/typography';
-import type { CodeCardItem, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
+import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
 import {
   groupByStage,
   groupByStatus,
@@ -62,6 +62,11 @@ export interface CodeCardListProps {
   bookedDates?: Partial<Record<CodeStage, string | null>>;
   /** The contractor's own stage edits over the AI's guess. */
   stageOf?: (item: CodeCardItem) => CodeStage | undefined;
+  /**
+   * The number he re-measured on a card this session (the opened card's − / +),
+   * so the card in the list shows the number Save keeps. Undefined = the item's own.
+   */
+  jobValueOf?: (item: CodeCardItem) => CodeJobValue | undefined;
   /** Answer mode: start in list view. */
   initialView?: 'cards' | 'list';
   onOpen?: (item: CodeCardItem) => void;
@@ -80,7 +85,7 @@ export const ANSWER_FINE_PRINT = `${NOT_AFFILIATED} Requirements are in our own 
 
 export function CodeCardList(props: CodeCardListProps) {
   const {
-    items, info, sample, sunlight, eyebrow, headline, subline, planSourceLabel, bookedDates, stageOf,
+    items, info, sample, sunlight, eyebrow, headline, subline, planSourceLabel, bookedDates, stageOf, jobValueOf,
     initialView, onOpen, checklistFor, askTownFor, primary, secondary, officialTextDeps, testID,
   } = props;
   const P = useCodeCardPalette(sunlight);
@@ -131,6 +136,7 @@ export function CodeCardList(props: CodeCardListProps) {
           onPress={onOpen}
           showStage={showStage}
           edition={mode === 'answer' ? editionForItem(item, info) : null}
+          info={info}
           ruled={i > 0}
           sunlight={sunlight}
         />
@@ -183,6 +189,7 @@ export function CodeCardList(props: CodeCardListProps) {
             info={info}
             sample={sample}
             sunlight={sunlight}
+            jobValue={jobValueOf?.(item)}
             onOpen={onOpen}
             checklist={checklistFor?.(item)}
             askTown={askTownFor?.(item)}

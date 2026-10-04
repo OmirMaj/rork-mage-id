@@ -10,7 +10,8 @@
 //
 // THE RULES IT KEEPS: the summary is MAGE's own words (parse.ts dropped any
 // item whose summary failed summaryEchoCheck); the section and the edition
-// always show; recall says so in the same place at the same size; amber only
+// always show (an edition that is not the verified one is marked "(as
+// cited)"); recall says so in the same place at the same size; amber only
 // for "close to the line"; Official text copies the section and opens the
 // whole volume (never a section link); every blocked button says why.
 
@@ -33,10 +34,12 @@ import { useCodeCardPalette, type CodeCardPalette } from './palette';
 import { SampleTag, VerdictTag } from './VerdictTag';
 import { EvidenceMeter } from './EvidenceMeter';
 import { ThresholdTape } from './ThresholdTape';
-import { BlockedNote, type CodeCardAction } from './parts';
+import { BlockedNote, storeGated, type CodeCardAction } from './parts';
 
 export const CLOSE_TO_LINE_NOTE = 'Close to the line: within 2 in. of the trigger. Measure again on site before you build to it.';
 export const EDITION_NOT_CONFIRMED = 'Edition not confirmed';
+/** A card whose citation carries no section says so; it never prints an empty slot. */
+export const NO_SECTION_GIVEN = 'No section given';
 
 export interface CodeCardProps {
   item: CodeCardItem;
@@ -70,6 +73,7 @@ export function CodeCard({
   const close = recheckable && jv && item.trigger ? recheck(jv, item.trigger).closeToLine : false;
   const edition = editionForItem(item, info);
   const plan = officialTextPlan(item, info);
+  const hasSection = !!(item.section ?? '').trim();
   const stageText = `${stageInspectionLabel(item.stage)}${item.stage && item.stageIsGuess ? ' · AI guess' : ''}`;
   const more = onMore ?? onOpen;
 
@@ -137,7 +141,7 @@ export function CodeCard({
       ) : null}
       {recheckable ? (
         <View style={styles.tape}>
-          <ThresholdTape jobValue={jv} trigger={item.trigger} verdict={item.verdict} evidence={item.evidence} sunlight={sunlight} testID={`${tid}-tape`} />
+          <ThresholdTape jobValue={jv} trigger={item.trigger} verdict={item.verdict} sunlight={sunlight} testID={`${tid}-tape`} />
         </View>
       ) : null}
       {close ? (
@@ -147,7 +151,7 @@ export function CodeCard({
         </View>
       ) : null}
       <View style={styles.meta}>
-        <Text style={styles.sec}>{item.section}</Text>
+        {hasSection ? <Text style={styles.sec}>{item.section}</Text> : <Text style={styles.metaText}>{NO_SECTION_GIVEN}</Text>}
         <Text style={styles.dot}>{'·'}</Text>
         <Text style={styles.metaText}>{edition ?? EDITION_NOT_CONFIRMED}</Text>
         {item.location ? (
@@ -182,9 +186,11 @@ export function CodeCard({
           onPress={() => { void onOfficial(); }}
           style={({ pressed }) => [styles.act, styles.actGo, pressed && styles.pressed]}
           accessibilityRole="button"
-          accessibilityLabel={plan.available
-            ? `Official text, free. Copies ${plan.copyText} and opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer.`
-            : 'Official text, not available'}
+          accessibilityLabel={!plan.available
+            ? 'Official text, not available'
+            : plan.copyText
+              ? `Official text, free. Copies ${plan.copyText} and opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer.`
+              : `Official text, free. Opens ${plan.viewerShort ?? 'the code'} in ICC's free viewer. This card has no section to copy.`}
           accessibilityState={{ disabled: !plan.available }}
           testID={`${tid}-official`}
         >
@@ -192,7 +198,7 @@ export function CodeCard({
           <Text style={[styles.actLabel, { color: plan.available ? P.accentLabel : P.ink3 }]} numberOfLines={1}>Official text</Text>
           <View style={styles.free}><Text style={styles.freeText}>Free</Text></View>
         </Pressable>
-        {cell('checklist', 'Checklist', ClipboardCheck, checklist)}
+        {cell('checklist', 'Checklist', ClipboardCheck, storeGated(checklist, item))}
         {cell('ask', 'Ask town', MessageCircleQuestion, askTown)}
         <Pressable
           onPress={() => (more ? more(item) : setNote('More: open the full card from the list.'))}

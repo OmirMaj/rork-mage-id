@@ -72,8 +72,8 @@ import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { permitTypeLabel } from '@/utils/statusLabels';
 import AskConstructionMode, {
-  useCodeCardWiring, usePermitOfficeAnswer, NO_JOB_CHECKLIST, NO_JOB_SAVE,
-  codeCheckCardItem, planFindingCardItem, withContentIds,
+  useCodeCardWiring, usePermitOfficeAnswer,
+  codeCheckCards, codeCheckJobText, codeCheckPlainLine, planFindingCardItem, withContentIds,
 } from '@/components/construction/AskConstructionMode';
 // Code cards (lane CCWIRE): every Code Check citation and every Plan Review
 // finding is a code card (components/codeCard, lane CCKIT). The ladder, the
@@ -81,15 +81,14 @@ import AskConstructionMode, {
 // honesty validators expect them; the card is the answer-first face on top.
 import { CodeCard } from '@/components/codeCard/CodeCard';
 import { CodeCardList } from '@/components/codeCard/CodeCardList';
-import { blockedAction, doneAction, readyAction } from '@/components/codeCard/parts';
+import { blockedAction, readyAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
 import { parseCodeCardItem } from '@/utils/codeCard/parse';
+import { saysNumberWithUnit } from '@/utils/codeCard/saysWithUnit';
 import { passesEchoCheck } from '@/utils/codeCard/echoCheck';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
-import { pinnedStage } from '@/utils/codeCard/pins';
-import { isSaved } from '@/utils/codeCard/saved';
 import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
-import { addAllLabel, architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
+import { architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
 import { bookedStageDays } from '@/utils/inspectionPrep';
 // Learn-by-doing tutorial "construction-ai-ask" (utils/tutorial/defs): the tab
 // opens on the SAMPLE job in Ask mode, the practice pass opens the tab there
@@ -246,6 +245,28 @@ const codeCheckSchema = z.object({
     // a code text, so a section number is model recall, never a lookup.
     section: z.string().optional().catch('').default(''),
     requirement: z.string().catch('').default(''),
+    // Code cards (lane CCWIRE). FLAT, and every field ends in a typed
+    // `.default()`, on purpose: utils/mageAI.ts derives the relay's schema
+    // hint from THIS object (it reads a default's value, does not unwrap a
+    // bare `.catch()`, and stops six levels down), and the relay then holds
+    // the model to exactly the hinted keys, every one required. A key missing
+    // here cannot be returned at all, and Zod strips it if it is. So "the
+    // model did not say" has a value: '' for a word, an EMPTY UNIT for a
+    // number. No verdict = the row is not a card (never a default
+    // "Required"); no unit = no trigger and no tape (never a guessed number).
+    // scripts/validate-code-card-wiring.ts runs this source through the same
+    // derivation and the relay's inferSchema.
+    verdict: z.string().catch('').default(''),
+    why: z.string().catch('').default(''),
+    stage: z.string().catch('').default(''),
+    trade: z.string().catch('').default(''),
+    whatToBuild: z.array(z.string()).default([]),
+    triggerValue: z.number().catch(-1).default(-1),
+    triggerUnit: z.string().catch('').default(''),
+    triggerComparison: z.string().catch('').default(''),
+    jobNumber: z.number().catch(-1).default(-1),
+    jobNumberUnit: z.string().catch('').default(''),
+    jobNumberLabel: z.string().catch('').default(''),
   })).default([]),
   permitsRequired: z.array(z.string()).default([]),
   inspections: z.array(z.string()).default([]),
@@ -597,6 +618,11 @@ function ConstructionAIScreenInner() {
   // since retyped. A stale rung is a false claim about evidence.
   const [resultJurisdiction, setResultJurisdiction] =
     useState<ResolvedCodeJurisdiction | null>(null);
+  // The words he gave for THIS run (the scenario and his follow-up answers, as
+  // sent), snapshotted for the same reason: a card's job number is checked
+  // against what he wrote for the run on screen, not the scenario box as it
+  // reads now.
+  const [resultJobText, setResultJobText] = useState<string>('');
   const [resultOpen, setResultOpen] = useState(false);
   const [overLimit, setOverLimit] = useState(false);
 
@@ -1211,7 +1237,10 @@ function ConstructionAIScreenInner() {
   // answer) in CodeCardList's plan mode. A finding he marked Resolved or
   // Dismissed is handled, so it is not "to fix before you submit"; it stays in
   // the per-finding list below (ladder, mismatch badge, Open/Resolved/Dismissed).
-  const planCards = useMemo<CodeCardItem[]>(() => (existingReview?.findings ?? [])
+  // IDS COME FROM THE CONTENT here too: a re-review keeps the review's id and
+  // numbers its findings from 0 again, so a pin keyed on the finding id would
+  // move onto whatever finding lands at that index next time.
+  const planCards = useMemo<CodeCardItem[]>(() => withContentIds('plan', (existingReview?.findings ?? [])
     .filter((f) => f.status === 'open')
     .map((f) => planFindingCardItem(
       f as unknown as Record<string, unknown> & { id: string },
@@ -1219,7 +1248,7 @@ function ConstructionAIScreenInner() {
       planEvidence.get(f.id)?.ev ?? null,
       parseCodeCardItem,
       passesEchoCheck,
-    )), [existingReview, planEvidence]);
+    ))), [existingReview, planEvidence]);
   const planPermitAnswer = usePermitOfficeAnswer(planProject, mode === 'plan' && planCards.length > 0);
   const planCardInfo = useMemo(() => codeJurisdictionInfoFor(planJurisdiction, planPermitAnswer, null), [planJurisdiction, planPermitAnswer]);
   const planWiring = useCodeCardWiring({ project: planProject, info: planCardInfo, testID: 'plan-review-cards' });
@@ -1433,6 +1462,7 @@ function ConstructionAIScreenInner() {
     setResultGrounding(null);
     setResultInspectionGrounding(null);
     setResultJurisdiction(null);
+    setResultJobText('');
     setResultOpen(false);
 
     const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
@@ -1457,7 +1487,7 @@ Scenario: ${scenario.trim()}
 ${factsBlock ? `${factsBlock}\n` : ''}
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English, one sentence, at most 140 characters), verdict ("required", "limit" or "not_required"), why (one short line, at most 160 characters, on why it applies to THIS job, or ""), stage (your best guess of the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trigger ({ value, unit ("in", "ft", "psf", "deg" or "count"), comparison (">", ">=", "<" or "<=") } ONLY when you are certain of the number; otherwise omit it), jobValue ({ value, unit, source: "job", sourceLabel } ONLY when the job's own number is stated above, e.g. "deck height from the scenario"; otherwise omit it), trade (the trade that builds it, e.g. "framing", or ""), whatToBuild (array of up to 4 short lines, each at most 100 characters, on what to build) }
+- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English, one sentence, at most 140 characters; for a "limit", say it with "at least" or "at most" right before the number, e.g. "Guard has to be at least 36 in. high."), verdict ("required" when it must be built or done on this job, "limit" when it is a maximum or minimum to stay inside, "not_required" when the job falls outside it), why (one short line, at most 160 characters, on why it applies to THIS job, or ""), stage (your best guess of the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trade (the trade that builds it, e.g. "framing", or ""), whatToBuild (array of up to 4 short lines in your own words, each at most 100 characters, on what to build; [] if none), triggerValue, triggerUnit and triggerComparison (the number the requirement turns on, its unit ("in", "ft", "psf", "deg" or "count") and how the job's number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30. A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4 — ONLY when you are certain of the number; otherwise triggerUnit "" and triggerValue -1), jobNumber, jobNumberUnit and jobNumberLabel (the job's OWN number for that requirement, in the same unit, and where it is stated, e.g. "deck height from the scenario" — ONLY when the number is stated above; otherwise jobNumberUnit "" and jobNumber -1) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
@@ -1469,7 +1499,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
-    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${hashLeakText(scenario.trim().toLowerCase(), '', [])}::${ctx?.cacheFragment ?? 'noctx'}::${codeBuilding.phase === 'ready' ? codeBuilding.summary.cacheKey : 'nobr'}::${answersCacheFragment(answered)}`;
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${hashLeakText(scenario.trim().toLowerCase(), '', [])}::${ctx?.cacheFragment ?? 'noctx'}::${codeBuilding.phase === 'ready' ? codeBuilding.summary.cacheKey : 'nobr'}::${answersCacheFragment(answered)}::cards2`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey, 'ai_code_check');
@@ -1487,6 +1517,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
       setResultGrounding(grounding);
       setResultInspectionGrounding(inspectionGrounding);
       setResultJurisdiction(jurisdiction);
+      setResultJobText(codeCheckJobText(scenario, answered));
       setFollowUps(coerceFollowUps(data.followUps, answered));
       // Save the run to the job: a snapshot of what was SENT and what came
       // back. Local to this device until sign-out (utils/codeThread/store.ts).
@@ -2554,26 +2585,8 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                               action: architectButtonLabel(planCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
                             }}
                             secondary={[
-                              {
-                                key: 'checklists',
-                                label: addAllLabel(planCards.map((c) => ({ ...c, stage: planWiring.stageOf(c) }))),
-                                icon: 'clip',
-                                action: !planProject
-                                  ? blockedAction(NO_JOB_CHECKLIST)
-                                  : planCards.every((c) => !!pinnedStage(planWiring.pins, planProject.id, c.id))
-                                    ? doneAction('On the inspection checklists')
-                                    : readyAction(() => planWiring.addAll(planCards)),
-                              },
-                              {
-                                key: 'save',
-                                label: 'Save',
-                                icon: 'save',
-                                action: !planProject
-                                  ? blockedAction(NO_JOB_SAVE)
-                                  : planCards.every((c) => isSaved(planWiring.saved, planProject.id, c.id))
-                                    ? doneAction(`Saved to ${planProject.name}`)
-                                    : readyAction(() => planWiring.saveAll(planCards)),
-                              },
+                              { key: 'checklists', icon: 'clip', ...planWiring.checklistAll(planCards) },
+                              { key: 'save', label: 'Save', icon: 'save', action: planWiring.saveAllAction(planCards) },
                             ]}
                             testID="plan-review-card-list"
                           />
@@ -2582,7 +2595,13 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                         {/* Each finding's evidence (the ladder), its mismatch
                             badge and his Open / Resolved / Dismissed mark. An
                             edition mismatch is a real warning, so its count
-                            shows on the toggle even when the list is shut. */}
+                            shows on the toggle even when the list is shut. The
+                            toggle exists only while there are cards above it:
+                            with none, the list below is simply shown (a toggle
+                            there would change its own label and nothing else).
+                            It says that this is where a finding is marked
+                            resolved, because the cards have no such button. */}
+                        {planCards.length > 0 ? (
                         <TouchableOpacity
                           onPress={() => setPlanDetailsOpen((o) => !o)}
                           activeOpacity={0.7}
@@ -2592,12 +2611,13 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                           testID="plan-review-details-toggle"
                         >
                           <Text style={styles.codeDetailToggleText}>
-                            {`${planDetailsOpen ? 'Hide' : 'Show'} the evidence and status for each finding (${existingReview.findings.length})${planMismatchCount > 0 ? ` · ${planMismatchCount} edition mismatch${planMismatchCount === 1 ? '' : 'es'}` : ''}`}
+                            {`${planDetailsOpen ? 'Hide' : 'Show'} each finding’s evidence, and mark it resolved or dismissed (${existingReview.findings.length})${planMismatchCount > 0 ? ` · ${planMismatchCount} edition mismatch${planMismatchCount === 1 ? '' : 'es'}` : ''}`}
                           </Text>
                           {planDetailsOpen
                             ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
                             : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
                         </TouchableOpacity>
+                        ) : null}
                         {(planDetailsOpen || planCards.length === 0) && SEVERITY_ORDER.map((sev) => {
                           const group = existingReview.findings.filter((f) => f.severity === sev);
                           if (group.length === 0) return null;
@@ -2681,6 +2701,7 @@ Write every requirement in your own words. Never quote or reproduce the text of 
         scenario={scenario}
         grounding={resultGrounding}
         jurisdiction={resultJurisdiction}
+        jobText={resultJobText}
         inspectionGrounding={resultInspectionGrounding}
         project={savedRecord ? projects.find((p) => p.id === savedRecord.projectId) ?? null : null}
         savedRecord={savedRecord}
@@ -3173,7 +3194,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
 type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
-  visible, result, onClose, location, scenario, grounding, jurisdiction, inspectionGrounding,
+  visible, result, onClose, location, scenario, grounding, jurisdiction, jobText, inspectionGrounding,
   project = null, savedRecord = null, followUps = [], answeredCount = 0, answers = [], onAnswer, dailyCap,
   aiLocked = false,
 }: {
@@ -3186,6 +3207,10 @@ function ResultModal({
    *  summary was run against, not asked in a vacuum. */
   location: string;
   scenario: string;
+  /** The words he gave for THIS run (scenario and follow-up answers, as sent),
+   *  snapshotted with the result: the only text a card's job number is checked
+   *  against. Never the scenario box as it reads now. */
+  jobText: string;
   /** The jurisdiction grounding SENT with this result. The drill-in reuses it
    *  so the detail is answered against the same edition as the summary, and
    *  the chip describes the run rather than the current form state. */
@@ -3232,12 +3257,18 @@ function ResultModal({
    *  result.applicableCodes; null where the row is silent or the cite matches. */
   const mismatches = useMemo(() => (!result || !jurisdiction) ? [] : result.applicableCodes.map(c => editionMismatchFor(jurisdiction, c.code)), [result, jurisdiction]);
   const rungSummary = useMemo(() => rungSummaryLine(evidence), [evidence]);
-  /** Code cards, index-aligned with result.applicableCodes (one per citation, always). */
-  const cards = useMemo<CodeCardItem[]>(
-    () => (result ? withContentIds('cc', result.applicableCodes.map((c, i) => codeCheckCardItem(c as Record<string, unknown> & typeof c, i, evidence[i] ?? null, parseCodeCardItem, passesEchoCheck))) : []),
-    [result, evidence],
+  /** Code cards, index-aligned with result.applicableCodes. A row the model
+   *  gave no verdict for is null: it renders as the plain citation line, never
+   *  as a card with a default "Required". */
+  // The job's own number rides on a card only when HE wrote that figure, next
+  // to that unit, in the scenario or in an answer he gave for this run
+  // (`jobText`: the run's own words, snapshotted with the result).
+  const cards = useMemo<(CodeCardItem | null)[]>(
+    () => (result ? codeCheckCards(result.applicableCodes, evidence, parseCodeCardItem, passesEchoCheck, { text: jobText, says: saysNumberWithUnit }) : []),
+    [result, evidence, jobText],
   );
-  const permitAnswer = usePermitOfficeAnswer(project, visible && cards.length > 0);
+  const anyCard = cards.some((c) => !!c);
+  const permitAnswer = usePermitOfficeAnswer(project, visible && anyCard);
   const cardInfo = useMemo(() => codeJurisdictionInfoFor(jurisdiction, permitAnswer, null), [jurisdiction, permitAnswer]);
   const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'code-check-cards' });
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
@@ -3277,8 +3308,7 @@ Return a JSON object with:
 - ruleOfThumb: one short field-usable rule of thumb for staying compliant, or '' if none applies.
 
 Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.
-Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
-Also return, when you can, these structured fields for the code card (omit any you are unsure of): verdict ("required", "limit" or "not_required"), stage (the inspection that checks it: "footing", "foundation", "framing", "rough", "insulation", "final" or "other"), trigger ({ value, unit ("in", "ft", "psf", "deg" or "count"), comparison (">", ">=", "<" or "<=") } ONLY when you are certain of the number), whatToBuild (array of up to 4 short lines in your own words, each at most 100 characters).`;
+Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.`;
 
     // The jurisdiction is in this prompt too, so it is in this key too.
     const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
@@ -3382,7 +3412,7 @@ Also return, when you can, these structured fields for the code card (omit any y
           {project ? <DepartmentCard project={project} testID="codethread-department" /> : null}
           {/* The opened card and the town draft, inside this sheet's own tree
               (a nested sheet presents; a sibling one would not on iOS). */}
-          {cards.length > 0 ? wiring.overlay : null}
+          {anyCard ? wiring.overlay : null}
 
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
@@ -3420,28 +3450,39 @@ Also return, when you can, these structured fields for the code card (omit any y
               {rungSummary ? (
                 <Text style={styles.rungSummary} testID="code-check-rung-summary">{rungSummary}</Text>
               ) : null}
-              <Text style={styles.codeTapHint}>Tap a card for what it requires and what the inspector checks.</Text>
+              <Text style={styles.codeTapHint}>{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap a code for what it requires and what the inspector checks.'}</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
                 const isOpen = openCode === key;
                 const st = details[key];
                 const ev = evidence[i];
+                const card = cards[i] ?? null;
                 return (
                   <View key={i} style={styles.codeRow}>
                     {/* The citation as a code card: verdict, our words, section ·
                         edition · evidence meter, and its actions. A tap on the
-                        body opens the drill-in below, as the header did. */}
-                    {cards[i] ? (
+                        body opens the drill-in below, as the header did. A row
+                        with no verdict from the model is NOT a card: the plain
+                        citation line, through the same own-words gate. */}
+                    {card ? (
                       <CodeCard
-                        item={{ ...cards[i], stage: wiring.stageOf(cards[i]) }}
+                        item={{ ...card, stage: wiring.stageOf(card) }}
                         info={cardInfo}
+                        jobValue={wiring.jobValueOf(card)}
                         onOpen={() => toggleCode(c)}
-                        checklist={wiring.checklistFor(cards[i])}
-                        askTown={wiring.askTownFor(cards[i])}
+                        checklist={wiring.checklistFor(card)}
+                        askTown={wiring.askTownFor(card)}
                         onMore={wiring.onOpen}
                         testID={`code-check-card-${i}`}
                       />
-                    ) : null}
+                    ) : (
+                      <View testID={`code-check-plain-${i}`}>
+                        <View style={styles.codeLabelRow}>
+                          <Text style={styles.codeLabel}>{[c.code, c.section].filter(Boolean).join(' · ')}</Text>
+                        </View>
+                        <Text style={styles.codeReq}>{codeCheckPlainLine(c.requirement, passesEchoCheck)}</Text>
+                      </View>
+                    )}
                     <TouchableOpacity
                       onPress={() => toggleCode(c)}
                       activeOpacity={0.7}
