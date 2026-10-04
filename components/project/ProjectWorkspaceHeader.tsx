@@ -3,7 +3,7 @@
 // Desktop only (app/project-detail.tsx mounts it inside its `isDesktop ?`
 // branch; the stack header is hidden there, so this carries its actions).
 //
-//   Row A (56)  Projects › job name / address ········ Ask · Share · Edit · Scan · ⋯
+//   Row A (56)  Projects › job name / address  (people) ·· Ask · Share · Edit · Scan · ⋯
 //   Row B (40)  [Pre-Con | Construction | Post-Con | Closeout]  confidence  next step
 //
 // The phone keeps its own hero card, stage chips and bottom buttons; this file
@@ -29,6 +29,7 @@ import { Type } from '@/constants/typography';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { displayText } from '@/utils/formatters';
 import { PROJECT_STAGES, STAGE_LABELS, type ProjectStage } from '@/utils/projectStage';
 import { inPlaceTileForStep, noticeToneForStep } from '@/utils/projectWorkspaceLayout';
@@ -63,17 +64,52 @@ export interface ProjectWorkspaceHeaderProps {
   onLeave: () => void;
   /** Leave is running (or flushing first): the reason it is blocked. */
   leaveBusyReason: string | null;
+  /** Row A, right after the job's name: the people on this project
+   *  (components/whoson ProjectPeopleStack, `header` variant). It is rendered
+   *  BARE, with no wrapper of this file's own: the stack draws nothing until
+   *  the server has answered (and nothing at all while the feature is off),
+   *  and a wrapper would leave an empty box in the row for everyone it has
+   *  nothing to show. Row A stays 56. Left out below
+   *  PEOPLE_SLOT_MIN_CONTENT_WIDTH (see there). */
+  peopleSlot?: React.ReactNode;
 }
+
+/**
+ * The content width (window less the sidebar) below which Row A has no room
+ * for `peopleSlot`, and it is not rendered.
+ *
+ * The slot does not shrink (the stack's row is `flexShrink: 0`) and neither
+ * does the toolbar, so in a narrow window the only thing left to give way is
+ * the job's name, which would be squeezed to nothing. The name comes first:
+ * the Team tile and the Team section are still on the page.
+ *
+ * The sum, from this file's styles and components/desktop/ToolbarActions
+ * (computed, NOT measured in a browser: check 900, 1024 and 1512 once when
+ * the feature is turned on):
+ *     page gutters 2 x 24                                    48
+ *     toolbar: Ask MAGE, Share, Edit, Scan, the menu      ~ 410
+ *     gap between the title block and the toolbar            16
+ *     "Projects" breadcrumb                                ~ 90
+ *     two gaps of 12 inside the title block                  24
+ *     the stack at its narrow size (three slots)           ~ 76
+ *     the job's name, kept legible                          120
+ *                                                          ~ 784
+ * Rounded up to 800. With the 240 sidebar that is a 1040 window; with the
+ * sidebar collapsed to its 64 rail every desktop window (900 and up) clears it.
+ */
+export const PEOPLE_SLOT_MIN_CONTENT_WIDTH = 800;
 
 export function ProjectWorkspaceHeader(props: ProjectWorkspaceHeaderProps) {
   const {
     project, currentStage, onStageChange, invoices, rfis, punchItems, roleError, onOpenTile,
     hasAnyEstimate, onShare, onEdit, editBlockedReason, generatingCloseout, onCloseoutPacket,
-    onAIReport, onExportCalendar, canDelete, canLeave, onDelete, onLeave, leaveBusyReason,
+    onAIReport, onExportCalendar, canDelete, canLeave, onDelete, onLeave, leaveBusyReason, peopleSlot,
   } = props;
   const styles = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
   const router = useRouter();
+  const { width, sidebarWidth } = useResponsiveLayout();
+  const roomForPeople = width - sidebarWidth >= PEOPLE_SLOT_MIN_CONTENT_WIDTH;
   const pid = project.id;
 
   const actions = useMemo<ToolbarAction[]>(() => {
@@ -160,6 +196,7 @@ export function ProjectWorkspaceHeader(props: ProjectWorkspaceHeaderProps) {
             <Text style={styles.name} numberOfLines={1} accessibilityRole="header">{project.name}</Text>
             <Text style={styles.address} numberOfLines={1}>{displayText(project.location, 'No location set')}</Text>
           </View>
+          {roomForPeople ? peopleSlot : null}
         </View>
         <ToolbarActions actions={actions} maxVisible={6} style={styles.toolbar} testID="project-toolbar" />
       </View>

@@ -59,7 +59,44 @@
 // before a request is sent; the server stays the authority for anything this
 // device hasn't loaded.
 
-import React, { useCallback, useMemo, useState } from 'react';
+//
+// ── WHO IS ON THIS PROJECT (2026-10-04, dark behind WHOS_ON_ENABLED) ─────────
+// With the flag on, an ACCEPTED row gains the person's initials at the left
+// and up to three lines under the role line: the name and company that
+// account typed on its own profile, the date it accepted, and "Has it open
+// now" or "Last seen online here …" (nothing when the app does not know).
+// They come from the owner's own project_people() read (hooks/
+// useProjectPeople), matched to the row by user id and only ever to a
+// `member` row. A pending row gains nothing: nothing is claimed about whether
+// that address has an account. The status word becomes "Joined": a green dot
+// beside "Active" on a row that only means "accepted the invite" would read
+// as presence. With the flag off this file renders exactly what it rendered
+// before, "Active" included, and no hook of the feature is called.
+//
+// WHERE THE FEATURE IS READ. Not in CollaboratorsManager's own body. The one
+// people read lives in RosterPeopleRead (below), mounted by RosterPeopleScope
+// around the roster. The scope is an error boundary with a way back: if the
+// read or anything it feeds throws, the roster is drawn again WITHOUT the
+// feature (no initials, no lines), never taken down with it. The rows read
+// the answer from a context, so there is one observer and one clock for the
+// whole roster, however long it is.
+//
+// TWO READS, ONE STORY. The initials come from the people read, which is
+// fresh on every open and every minute; the rows come from the roster read,
+// which the app keeps for five minutes. So a sub who accepted two minutes ago
+// was in the avatar stack and still "Invited" here. RosterPeopleRead closes
+// that with one rule (rosterReadDecision, below): when the owner's people
+// read was SENT after the roster last answered, and it names a team member
+// the roster does not show as accepted (or the roster shows one it does not
+// name), the roster is read again. ONCE per distinct disagreement: one that a
+// fresh roster cannot settle (a role this build does not know) costs one
+// request, not one a minute. A people read OLDER than the roster proves
+// nothing about the roster (it is the stale picture, and it is refreshed on
+// its own), and a roster read already in flight is waited for, so removing a
+// person does not read the roster twice. The roster key is shared with the
+// project page, so the Team title and tile follow.
+
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -70,11 +107,14 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { useProjectPeople } from '@/hooks/useProjectPeople';
+import { PersonAvatar, PersonRowExtras, WhosOnBoundary } from '@/components/whoson';
+import { WHOS_ON_ENABLED } from '@/constants/featureFlags';
 import { rosterView, inviteBlockedReason, ROSTER_ERROR_LINE, ROSTER_OFFLINE_LINE } from '@/utils/projectRole';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, FIELD_ROLE_SCOPE_NOTE, isFinancialsBlinded } from '@/utils/roleBlinding';
 import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
-import type { ProjectCollaborator } from '@/types';
+import type { ProjectCollaborator, ProjectPerson } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { describeError, classifyError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
@@ -103,6 +143,173 @@ const CLIENT_SOURCE_LINES: Record<ClientSource, string> = {
  *  device could not foresee (data not loaded here) is recognised. */
 const CLIENT_REFUSAL_PHRASE = "a client can't be added here";
 
+// ── Who is on this project: the roster's side of it ─────────────────────────
+// The three functions between the two marks are pure (no React, no imports
+// used at run time). scripts/validate-whoson-wire.ts lifts this block out of
+// the file and runs it; keep it free of anything the file imports.
+// ── roster-people pure (begin)
+
+/**
+ * The team member an ACCEPTED roster row stands for in the people read, by
+ * user id. A pending row stands for nobody (nothing is claimed about whether
+ * that address has an account), and only a `member` row is ever matched: an
+ * owner who accepted an invite to his own address has a roster row, and it
+ * must not borrow the owner's row.
+ */
+export function rosterRowPerson(
+  people: readonly ProjectPerson[],
+  c: Pick<ProjectCollaborator, 'status' | 'userId'>,
+): ProjectPerson | undefined {
+  if (c.status !== 'accepted' || !c.userId) return undefined;
+  return people.find((p) => p.kind === 'member' && p.userId === c.userId);
+}
+
+/**
+ * Where the roster and the project OWNER's people read disagree about who has
+ * joined. '' = they agree, or the people read is not the owner's own (a team
+ * member's read names only the owner and himself, so it says nothing about
+ * the roster), or it is unknown (no rows).
+ *   +id  the people read names a team member the roster does not show as accepted
+ *   -id  the roster shows an accepted team member the people read does not name
+ * Sorted, so the same disagreement always reads the same.
+ */
+export function rosterPeopleMismatch(
+  roster: readonly Pick<ProjectCollaborator, 'status' | 'userId'>[],
+  people: readonly Pick<ProjectPerson, 'kind' | 'userId' | 'isSelf'>[],
+): string {
+  const owner = people.find((p) => p.kind === 'owner');
+  if (!owner || !owner.isSelf) return '';
+  const joined = new Set<string>();
+  for (const c of roster) {
+    // The owner's own address, invited and accepted, is not a team member.
+    if (c.status === 'accepted' && c.userId && c.userId !== owner.userId) joined.add(c.userId);
+  }
+  const named = new Set<string>();
+  for (const p of people) if (p.kind === 'member') named.add(p.userId);
+  const out: string[] = [];
+  for (const id of named) if (!joined.has(id)) out.push(`+${id}`);
+  for (const id of joined) if (!named.has(id)) out.push(`-${id}`);
+  return out.sort().join(' ');
+}
+
+/**
+ * Should the roster be read again? Pure.
+ *   mismatch         rosterPeopleMismatch() of what is on screen now
+ *   askedFor         the last disagreement the roster was re-read for ('' = none)
+ *   rosterFetching   a roster read is in flight
+ *   peopleSentAtMs   when the people read was SENT (null = nothing read)
+ *   rosterReadAtMs   when the roster last answered (0 = never)
+ * Returns the new `askedFor` and whether to read.
+ */
+export function rosterReadDecision(a: {
+  mismatch: string;
+  askedFor: string;
+  rosterFetching: boolean;
+  peopleSentAtMs: number | null;
+  rosterReadAtMs: number;
+}): { askedFor: string; refetch: boolean } {
+  // They agree: nothing to ask, and a later disagreement is a new one.
+  if (!a.mismatch) return { askedFor: '', refetch: false };
+  const wait = { askedFor: a.askedFor, refetch: false };
+  // A roster answer is already on its way: judge that one when it lands.
+  if (a.rosterFetching) return wait;
+  // Only a people read sent AFTER the roster answered can show the roster is
+  // behind. An older one is itself the stale picture.
+  if (a.peopleSentAtMs === null || !(a.peopleSentAtMs > a.rosterReadAtMs)) return wait;
+  // Already asked for exactly this, and a fresh roster did not settle it.
+  if (a.mismatch === a.askedFor) return wait;
+  return { askedFor: a.mismatch, refetch: true };
+}
+
+// ── roster-people pure (end)
+
+/** What the roster rows read of the people read. */
+type RosterPeople = { people: readonly ProjectPerson[]; openIds: readonly string[]; fetchedAtMs: number | null };
+/** Nothing known: every row draws what it drew before the feature. */
+const NO_ROSTER_PEOPLE: RosterPeople = { people: [], openIds: [], fetchedAtMs: null };
+const RosterPeopleContext = React.createContext<RosterPeople>(NO_ROSTER_PEOPLE);
+
+type RosterPeopleProps = {
+  projectId: string;
+  roster: ProjectCollaborator[];
+  /** The roster read has answered (useProjectCollaborators().hasData). */
+  rosterKnown: boolean;
+  rosterFetching: boolean;
+  /** When the roster last answered, in ms. 0 = never. */
+  rosterReadAtMs: number;
+  refetchRoster: () => void;
+  children: React.ReactNode;
+};
+
+/** The ONE people read of the roster, and the rule that keeps the roster in
+ *  step with it (see the header). Mounted only by RosterPeopleScope. */
+function RosterPeopleRead({ projectId, roster, rosterKnown, rosterFetching, rosterReadAtMs, refetchRoster, children }: RosterPeopleProps) {
+  const whosOn = useProjectPeople(projectId);
+  const mismatch = rosterKnown ? rosterPeopleMismatch(roster, whosOn.people) : '';
+  const peopleSentAtMs = whosOn.fetchedAtMs;
+  // The last disagreement the roster was re-read for. '' = none.
+  const askedFor = useRef('');
+  useEffect(() => {
+    const next = rosterReadDecision({ mismatch, askedFor: askedFor.current, rosterFetching, peopleSentAtMs, rosterReadAtMs });
+    askedFor.current = next.askedFor;
+    if (next.refetch) refetchRoster();
+  }, [mismatch, rosterFetching, peopleSentAtMs, rosterReadAtMs, refetchRoster]);
+  return (
+    <RosterPeopleContext.Provider value={{ people: whosOn.people, openIds: whosOn.model.openIds, fetchedAtMs: whosOn.fetchedAtMs }}>
+      {children}
+    </RosterPeopleContext.Provider>
+  );
+}
+
+let rosterPeopleFailureLogged = false;
+
+/**
+ * Wraps the roster. Feature off: its children, untouched. Feature on: the
+ * people read around them. If that read, or anything drawn from it, throws,
+ * the roster is drawn again without it. The kit's WhosOnBoundary draws
+ * NOTHING on a failure, which is right for a block of the feature and wrong
+ * here: its children are the roster itself.
+ */
+class RosterPeopleScope extends React.Component<RosterPeopleProps, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown): void {
+    if (rosterPeopleFailureLogged) return;
+    rosterPeopleFailureLogged = true;
+    console.warn('[WhosOn] the roster is shown without its people:', error instanceof Error ? error.message : String(error));
+  }
+
+  render(): React.ReactNode {
+    const { children, ...read } = this.props;
+    if (!WHOS_ON_ENABLED || this.state.failed) return children;
+    return <RosterPeopleRead {...read}>{children}</RosterPeopleRead>;
+  }
+}
+
+/** The initials at the left of an accepted row. Nothing (no empty box) for any other row. */
+function RosterRowAvatar({ c }: { c: ProjectCollaborator }) {
+  const { people, openIds } = useContext(RosterPeopleContext);
+  const person = rosterRowPerson(people, c);
+  if (!person) return null;
+  return (
+    <View style={styles.rowAvatar}>
+      <WhosOnBoundary>
+        <PersonAvatar person={person} size={32} open={openIds.includes(person.userId)} />
+      </WhosOnBoundary>
+    </View>
+  );
+}
+
+/** The lines under an accepted row's role line. PersonRowExtras draws nothing without a person. */
+function RosterRowLines({ c }: { c: ProjectCollaborator }) {
+  const { people, fetchedAtMs } = useContext(RosterPeopleContext);
+  return <PersonRowExtras person={rosterRowPerson(people, c)} fetchedAtMs={fetchedAtMs} />;
+}
+
 export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
   projectId: string;
   /** Opens this job's client portal setup. Optional: the host decides how to
@@ -115,7 +322,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
   const { canAccess } = useTierAccess();
   const role = useProjectRole(projectId);
   const isOwner = role === 'owner';
-  const { collaborators, isLoading, isError, isPaused, hasData, refetch, invite, revoke, changeRole, getLink } = useProjectCollaborators(projectId);
+  const { collaborators, isLoading, isError, isPaused, hasData, isFetching, dataUpdatedAt, refetch, invite, revoke, changeRole, getLink } = useProjectCollaborators(projectId);
   // #129: a failed or offline read is NOT an empty team. Only a read that has
   // answered may say "No collaborators yet"; until then the invite form is
   // off with its reason (the "already on this job" check needs the list).
@@ -483,7 +690,9 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
         </View>
       ) : null}
 
-      {/* Roster */}
+      {/* Roster. The scope adds nothing to the tree: with the feature off it
+          is its children, and with it on it is the people read around them. */}
+      <RosterPeopleScope projectId={projectId} roster={collaborators} rosterKnown={hasData} rosterFetching={isFetching} rosterReadAtMs={dataUpdatedAt} refetchRoster={refetch}>
       {view === 'loading' ? (
         <ActivityIndicator color={t.accent} />
       ) : view === 'error' || view === 'offline' ? (
@@ -498,11 +707,13 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
       ) : (
         collaborators.map((c) => (
           <View key={c.id} style={[styles.row, { borderColor: t.line }]}>
+            <RosterRowAvatar c={c} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowEmail, { color: t.text }]} numberOfLines={1}>{c.email}</Text>
               <Text style={[styles.rowMeta, { color: t.textSecondary }]}>
-                {ROLE_LABELS[c.role] ?? 'Owner'} · {c.status === 'accepted' ? 'Active' : 'Invited'}
+                {ROLE_LABELS[c.role] ?? 'Owner'} · {c.status === 'accepted' ? (WHOS_ON_ENABLED ? 'Joined' : 'Active') : 'Invited'}
               </Text>
+              <RosterRowLines c={c} />
               {isOwner && clientSeats.has(c.id) ? (
                 <View style={[styles.clientNote, { borderColor: t.line, backgroundColor: t.bg, marginTop: 6 }]} testID={`collab-client-seat-${c.id}`}>
                   <ShieldAlert size={16} color={t.danger} strokeWidth={1.75} />
@@ -587,6 +798,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           </View>
         ))
       )}
+      </RosterPeopleScope>
     </View>
   );
 }
@@ -619,6 +831,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: Type.subhead.fontSize, paddingVertical: 8 },
   rosterUnknown: { gap: 8, alignItems: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: Tokens.radius.card, padding: 12 },
+  rowAvatar: { alignSelf: 'flex-start' },
   rowEmail: { fontSize: Type.subhead.fontSize, fontWeight: '700' },
   rowMeta: { fontSize: Type.caption1.fontSize, marginTop: 1 },
   rowRoles: { flexDirection: 'row', gap: 6, marginTop: 8 },

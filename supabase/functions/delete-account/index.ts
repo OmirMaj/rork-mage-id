@@ -179,6 +179,13 @@ const USER_SCOPED_TABLES = [
   // CASCADE already removes them with the login; listed so the erasure does not
   // depend on the FK. The trigger guards updates only, so the delete goes.
   'jurisdiction_answers',
+  // Who has a project open (20261004120000, lane WHOSERVER): one last-seen row
+  // per (project, person). user_id … ON DELETE CASCADE already removes them
+  // with the login; listed so the erasure does not depend on the FK. The
+  // table has RLS on and no policies, so only this function's service key
+  // reaches it. Rows OTHER people left on a project this account owns go with
+  // the project (project_id … ON DELETE CASCADE). Deploy after the migration.
+  'project_presence',
 ];
 
 // 'portal_messages' USED TO BE IN THE LIST ABOVE. The table has no user_id

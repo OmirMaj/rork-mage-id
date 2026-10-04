@@ -44,6 +44,7 @@ import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { LanguageProvider, useT } from "@/contexts/LanguageContext";
 import { LanguageProfileSync } from "@/components/LanguageProfileSync";
+import { ProjectPresenceBeacon } from "@/components/whoson";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { TutorialHost } from "@/components/tutorial/TutorialHost";
 import { useBrainFabPresentation } from "@/components/brain/brainFabState";
@@ -1991,6 +1992,13 @@ export default Sentry.wrap(function RootLayout() {
                                   Below AuthProvider (reads the user) and
                                   LanguageProvider. Renders nothing. */}
                               <LanguageProfileSync />
+                              {/* Who is on this project: the ONE timer behind
+                                  the "Has it open" dot. Below AuthProvider
+                                  (reads the user); reads the project from the
+                                  focused route. Renders nothing, and with
+                                  WHOS_ON_ENABLED false it mounts no listener
+                                  and sends nothing. */}
+                              <ProjectPresenceBeacon />
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <BrainSurface />

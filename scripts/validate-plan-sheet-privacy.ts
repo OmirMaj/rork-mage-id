@@ -188,7 +188,12 @@ eq('a single segment with no folder is refused', planSheetProjectId('a.png'), ''
 eq('an empty segment is refused', planSheetProjectId(`${PROJECT_A}//a.png`), '');
 eq('empty is refused', planSheetProjectId(''), '');
 eq('a non-string is refused', planSheetProjectId(null), '');
-eq('deep keys under the project are fine', planSheetProjectId(`${PROJECT_A}/rev2/a.png`), PROJECT_A);
+// Security review 2026-10-04: the key is checked WHOLE (scripts/validate-storage-paths.ts
+// holds the attack corpus). No writer has ever made a key deeper than
+// `<project>/<file>`, so a deeper one is refused rather than waved through on
+// its first segment — which is how `<mine>/%2e%2e/<yours>/a.png` got read.
+eq('a key deeper than <project>/<file> is refused (no writer makes one)', planSheetProjectId(`${PROJECT_A}/rev2/a.png`), '');
+eq('an encoded traversal is refused', planSheetProjectId(`${PROJECT_A}/%2e%2e/${PROJECT_B}/a.png`), '');
 
 // ── 2. paths win over urls, for one release only ────────────────────────────
 console.log('\nthe analyzers prefer paths and still accept urls:');

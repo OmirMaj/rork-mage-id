@@ -144,6 +144,7 @@ import { rfiLogCounts } from '@/utils/logs/rfiLogRows';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
+import { ProjectPeopleBlock, ProjectPeopleStack } from '@/components/whoson';
 import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
 import { ProjectLevelCard } from '@/components/level/ProjectLevelCard';
 import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
@@ -1952,6 +1953,9 @@ export default function ProjectDetailScreen() {
       // him so: a guess shown as fact, on top of "You left".
       const forgot = forgetSharedProject(id);
       void queryClient.invalidateQueries({ queryKey: ['project_collaborators', id] });
+      // Who is on this project: he is no longer one of them, so no cached
+      // list of its people may outlive the leave.
+      void queryClient.invalidateQueries({ queryKey: ['project_people'] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // #8/#128: the sweep reports how many unsent changes went with the job.
@@ -3185,6 +3189,10 @@ export default function ProjectDetailScreen() {
 
           {expanded.collaborators && (
             <View style={styles.collabCard}>
+              {/* Who is on this project (dark behind WHOS_ON_ENABLED): the
+                  one-time question, the switch and the footnotes. A pure
+                  sibling that draws nothing until the server has answered. */}
+              <ProjectPeopleBlock projectId={project.id} />
               {/* #174: "You (Owner)" only for the owner. A collaborator was
                   shown as the owner, with HIS OWN email under it. He sees a
                   neutral owner row — the owner's name is not readable from
@@ -4843,6 +4851,7 @@ export default function ProjectDetailScreen() {
               onDelete={handleDelete}
               onLeave={handleLeave}
               leaveBusyReason={leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : null}
+              peopleSlot={<ProjectPeopleStack variant="header" projectId={project.id} inviteNudge={!project.clientPortal?.enabled} onOpen={() => openSection('collaborators')} />}
             />
             <ProjectKpiStrip
               projectId={project.id}
@@ -5080,6 +5089,10 @@ export default function ProjectDetailScreen() {
               {displayText(project.description) ? (
                 <Text style={styles.heroDesc}>{displayText(project.description)}</Text>
               ) : null}
+              {/* Who is on this project (dark behind WHOS_ON_ENABLED). Opens
+                  the Team section this page already has: no sheet of its own.
+                  No "Invite" word while the client portal is on (spec D10). */}
+              <ProjectPeopleStack variant="hero" projectId={project.id} inviteNudge={!project.clientPortal?.enabled} onOpen={() => openSection('collaborators')} />
             </View>
           </View>
 

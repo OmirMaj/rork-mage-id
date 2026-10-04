@@ -85,7 +85,16 @@ export function useProjectCollaborators(projectId: string | undefined) {
     },
   });
 
-  const invalidate = () => { void qc.invalidateQueries({ queryKey }); };
+  // An invite sent, a person removed or a role changed also changes who is
+  // on the project: the people read (hooks/useProjectPeople, key
+  // ['project_people', userId, projectId]) is refreshed with the roster, so
+  // the avatar stack never shows someone the owner just removed. With the
+  // "who is on this project" feature off no such query is enabled, and this
+  // sends nothing.
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey });
+    void qc.invalidateQueries({ queryKey: ['project_people'] });
+  };
 
   const invite = useMutation({
     mutationFn: async (vars: { email: string; role: 'editor' | 'viewer' | 'field' }) =>
@@ -149,6 +158,12 @@ export function useProjectCollaborators(projectId: string | undefined) {
     /** #129: the server has answered at least once (data present). Only then
      *  is an empty `collaborators` a real "no one on this job yet". */
     hasData: query.data !== undefined,
+    /** A roster read is in flight: the first one, or a refresh over data already shown. */
+    isFetching: query.isFetching,
+    /** When the roster last ANSWERED, in ms. 0 = never. The Team roster
+     *  (components/collaborators/CollaboratorsManager) compares it with when
+     *  the people read was sent, to tell which of the two is the older picture. */
+    dataUpdatedAt: query.dataUpdatedAt,
     /** Re-run the collaborator read (the "Retry" behind a failed role lookup, audit RT-R2). */
     refetch: () => { void query.refetch(); },
     invite,

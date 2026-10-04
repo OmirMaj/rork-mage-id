@@ -24,6 +24,12 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { requireTier } from '../_shared/auth.ts';
 import { isSampleProjectName } from '../_shared/sampleFence.ts';
 import {
+  PUNCH_AFTER_PHOTO_PATH,
+  punchSealPhotoPath,
+  punchSealRecordPath,
+  requestStoragePath,
+} from '../_shared/storagePath.ts';
+import {
   PUNCH_SEAL_MAX_ITEMS,
   buildPunchSealManifest,
   canonicalJson,
@@ -170,14 +176,26 @@ async function seal(
   };
   for (const id of readiness.itemIds) {
     const r = byId.get(id)!;
-    const src = storagePathOf(r.after_photo_uri);
-    if (!src || !src.startsWith(`${uid}/`)) { foreign.push(id); continue; }
+    // after_photo_uri is a free-text column the app writes, and a project
+    // editor can write it too — so it is request text as far as this function
+    // is concerned. Security review 2026-10-04: the check was
+    // `startsWith("<uid>/")` and the raw value went to download(); the storage
+    // client splices the path into a URL unencoded, so "<uid>/../<other>/x.jpg"
+    // (or %2e%2e) passed and the service role copied someone else's object into
+    // this record. The key must now be EXACTLY what the app writes for an after
+    // photo: `<owner>/<this project>/<file>.<image ext>`, nothing else.
+    const src = requestStoragePath(r.after_photo_uri, PUNCH_AFTER_PHOTO_PATH, { 0: uid, 1: project.id });
+    if (!src) { foreign.push(id); continue; }
     const dl = await supa.storage.from(PHOTO_BUCKET).download(src);
     if (dl.error || !dl.data) { missing.push(id); continue; }
     const bytes = new Uint8Array(await dl.data.arrayBuffer());
     if (bytes.byteLength === 0) { missing.push(id); continue; }
     const sha = await sha256Hex(bytes);
-    const dest = `${uid}/${sealId}/${id}.jpg`;
+    const dest = punchSealPhotoPath(uid, sealId, id);
+    if (!dest) {
+      await removeCopies();
+      return fail(500, 'server', 'The photos could not be copied into the record. Try again.');
+    }
     const up = await supa.storage.from(BUCKET).upload(dest, bytes, {
       contentType: dl.data.type || 'image/jpeg',
       upsert: false,
@@ -282,8 +300,11 @@ async function attachPdf(
   const { seal_id, storage_path, client_hash } = body;
   if (!isUuid(seal_id)) return fail(400, 'bad_request', 'The record id is missing.');
   if (!isHex64(client_hash)) return fail(400, 'bad_request', 'The PDF hash is missing.');
-  // Defense in depth: the exact path for this seal, in the caller's folder.
-  if (storage_path !== `${uid}/${seal_id}/record.pdf`) {
+  // Defense in depth: the exact path for this seal, in the caller's folder —
+  // rebuilt here from the verified caller and the record id, and that rebuilt
+  // key (not the request's string) is what is downloaded and stored below.
+  const recordKey = punchSealRecordPath(uid, seal_id);
+  if (!recordKey || storage_path !== recordKey) {
     return fail(403, 'forbidden', 'That PDF is not stored under this record.');
   }
 
@@ -294,7 +315,7 @@ async function attachPdf(
   if (row.user_id !== uid) return fail(403, 'forbidden', 'Only the project owner can store this PDF.');
   if (row.pdf_path) return fail(409, 'pdf_attached', 'A PDF copy is already stored for this record.', { seal: own.data });
 
-  const dl = await supa.storage.from(BUCKET).download(storage_path);
+  const dl = await supa.storage.from(BUCKET).download(recordKey);
   if (dl.error || !dl.data) return fail(404, 'not_found', 'The uploaded PDF was not found. Save it again.');
   const bytes = new Uint8Array(await dl.data.arrayBuffer());
   if (bytes.byteLength === 0) return fail(400, 'bad_request', 'The uploaded PDF is empty.');
@@ -306,7 +327,7 @@ async function attachPdf(
 
   const upd = await supa
     .from('punch_seals')
-    .update({ pdf_path: storage_path, pdf_hash: serverHash })
+    .update({ pdf_path: recordKey, pdf_hash: serverHash })
     .eq('id', seal_id)
     .eq('user_id', uid)
     .is('pdf_path', null)
