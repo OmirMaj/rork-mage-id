@@ -171,9 +171,10 @@ const u = { recipientEmail: 'Dana@Example.com', eventKey: 'portal_message', enab
     && /List-Unsubscribe=One-Click/.test(code) && /source = 'list_unsubscribe_one_click'/.test(code));
   ok('the one-click POST still reads e / k / t from the query', /normalizeEmail\(url\.searchParams\.get\('e'\)\)/.test(code)
     && /let token: string \| null = url\.searchParams\.get\('t'\)/.test(code));
-  ok('unsubscribe still requires the signed token on POST', /if \(!currentToken && !legacyToken\) \{\s*return jsonResponse\(\{ ok: false, error: 'token_invalid' \}, 400\);/.test(code));
-  // The list-all read (preferences page catch-all) is token-gated with the
-  // CURRENT token only — the legacy token is for the unsubscribe direction.
+  // The signed token is the only token: the pre-rotation grace ended
+  // 2026-10-04 and its branch is deleted (validate-edge-security §18b).
+  ok('unsubscribe still requires the signed token on POST', /const currentToken = !!token && verifyUnsubscribeToken\(email, token\);\s*if \(!currentToken\) \{\s*return jsonResponse\(\{ ok: false, error: 'token_invalid' \}, 400\);/.test(code));
+  // The list-all read (preferences page catch-all) is token-gated the same way.
   const listAt = code.indexOf("if (url.searchParams.get('list') === '1') {");
   const listBlock = listAt >= 0 ? code.slice(listAt, code.indexOf('return jsonResponse({ ok: true, suppressed', listAt)) : '';
   ok('list=1 verifies the signed token before reading', /if \(!token \|\| !verifyUnsubscribeToken\(email, token\)\)/.test(listBlock) && !/legacy/i.test(listBlock));
