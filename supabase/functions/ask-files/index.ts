@@ -18,7 +18,9 @@
 //     PLAN_PAGES_OWNER_ONLY is on (it ships on) the caller must OWN that job:
 //     the owner is checked here, before _shared/planSheetBytes.ts is asked for
 //     anything, because that shared loader would also read for somebody the
-//     owner shared the job with.
+//     owner shared the job with. The key that is loaded is the one the storage
+//     rule (_shared/storagePath.ts) returned for it, pinned to a job that
+//     passed that owner check (core.ownedPlanSheetKey).
 //     A message file is two ids; _shared/messageFileBytes.ts rebuilds the key
 //     from the live row and reads it for the project owner only.
 //   - It never gives the model anything but this ask: the files, their cleaned
@@ -81,6 +83,7 @@ import {
   isBase64,
   kindFor,
   monthlyCapText,
+  ownedPlanSheetKey,
   parseAskFilesRequest,
   parseMessageAnswer,
   planDisplayName,
@@ -321,6 +324,7 @@ serve(async (req) => {
       // is checked before the first page is loaded, so one page that is not
       // his means nothing is read at all. Anything but the boolean false keeps
       // this check on.
+      const ownedJobs = new Set<string>();
       if (PLAN_PAGES_OWNER_ONLY !== false) {
         const jobs = new Set<string>();
         for (const file of ask.files) {
@@ -335,6 +339,7 @@ serve(async (req) => {
           }
           for (const job of jobs) {
             if (!(await callerOwnsProject(svc, auth.userId, job))) return fail("file_unavailable", 403);
+            ownedJobs.add(job);
           }
           step = "load";
         }
@@ -342,10 +347,16 @@ serve(async (req) => {
       for (let i = 0; i < ask.files.length; i++) {
         const file = ask.files[i];
         if (file.source !== "plan") continue;
+        // The storage rule, on the key the owner check was made for: exactly
+        // <a job he owns>/<file>, or nothing is loaded. With the owner rule
+        // switched off the shared loader applies the same rule and its own
+        // access check to this string.
+        const planKey = PLAN_PAGES_OWNER_ONLY !== false ? ownedPlanSheetKey(file.storagePath, ownedJobs) : file.storagePath;
+        if (planKey === "") return fail("file_unavailable", 403);
         const left = TOTAL_MAX_BYTES - totalBytes;
         let part: InlinePart;
         try {
-          [part] = await loadPlanSheetImageParts([file.storagePath], auth.userId, Math.min(PLAN_PAGE_MAX_BYTES, left));
+          [part] = await loadPlanSheetImageParts([planKey], auth.userId, Math.min(PLAN_PAGE_MAX_BYTES, left));
         } catch (e) {
           const why = planLoadFailure(e);
           if (why === "file_unavailable") return fail("file_unavailable", 403);

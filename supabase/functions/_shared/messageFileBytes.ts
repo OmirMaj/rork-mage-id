@@ -10,6 +10,14 @@
 // storage key itself, and only then downloads. It never downloads a key it
 // read from the row or from the request.
 //
+// THE STORAGE RULE. The key it built is then put through requestStoragePath
+// (_shared/storagePath.ts) with the message-attachments shape, pinned to the
+// project the caller was just checked to own and to the message that was
+// read, and the download is given the string the rule returned. The storage
+// client splices a key into a URL as written; the rule is the one place that
+// says what a key may be, and scripts/validate-storage-paths.ts fails when
+// this download stops going through it.
+//
 // OWNER ONLY. The one account that may read a client's files here is the
 // account that owns the project (projects.user_id). Somebody the owner shared
 // the job with is refused like a stranger: that is the rule of the bucket's
@@ -32,6 +40,7 @@ import {
   sniffMatches,
   type MessageFileMime,
 } from './messageFiles.ts';
+import { MESSAGE_ATTACHMENT_PATH, requestStoragePath } from './storagePath.ts';
 
 /** Answered as one generic 403, whatever the reason. */
 export class MessageFileAccessError extends Error {
@@ -151,6 +160,8 @@ export async function loadOwnedMessageFiles(
 
   // 4. The caller OWNS that project.
   if (!(await callerOwnsProject(svc, callerId, projectId))) throw new MessageFileAccessError();
+  // The folder that check was made for, as both writers spell it in a key.
+  const ownedProject = projectId.toLowerCase();
 
   // 5. The cut-off: only a message sent after the client was told. An unset
   //    or unreadable time means no message qualifies.
@@ -197,7 +208,11 @@ export async function loadOwnedMessageFiles(
   for (const w of wanted) {
     let bytes: Uint8Array;
     try {
-      const got = await svc.storage.from(MESSAGE_FILES_BUCKET).download(w.key);
+      // The storage rule, on the built key: exactly
+      // <owned project>/<this message>/<attachment id>.<ext>, or no download.
+      const key = requestStoragePath(w.key, MESSAGE_ATTACHMENT_PATH, { 0: ownedProject, 1: messageId });
+      if (!key) throw new MessageFileAccessError();
+      const got = await svc.storage.from(MESSAGE_FILES_BUCKET).download(key);
       if (!got || got.error || !got.data) throw new MessageFileAccessError();
       bytes = new Uint8Array(await got.data.arrayBuffer());
     } catch {

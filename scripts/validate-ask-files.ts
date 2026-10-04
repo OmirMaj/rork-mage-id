@@ -243,9 +243,8 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
   const accept = [
     `${P}/${O}-page-3.png`,
     `${P}/img-abc_1.2.jpg`,
-    `${P}/sheet.JPEG`,
-    `${P}/a.webp`,
-    `${P.toUpperCase()}/x.PNG`,
+    `${P}/A-201_Floor.Plan.png`,
+    `${P}/${'a'.repeat(124)}.png`,
   ];
   const refuse: [string, unknown][] = [
     ['%2e%2e into another project', `${P}/%2e%2e/${O}/x.png`],
@@ -269,8 +268,17 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
     ['dot-dot as the file', `${P}/..`],
     ['a project that is not a uuid', `project/x.png`],
     ['an empty string', ''],
-    ['over 260 characters', `${P}/${'a'.repeat(196)}.png${'x'.repeat(40)}`],
-    ['a 201-character file name', `${P}/${'a'.repeat(197)}.png`],
+    ['over 256 characters', `${P}/${'a'.repeat(196)}.png${'x'.repeat(40)}`],
+    ['a 129-character file name', `${P}/${'a'.repeat(125)}.png`],
+    // What the storage rule refuses (supabase/functions/_shared/storagePath.ts):
+    // no writer of the bucket spells a key this way, and an upper-case id is a
+    // DIFFERENT storage folder.
+    ['an upper-case project id', `${P.toUpperCase()}/x.png`],
+    ['an upper-case extension', `${P}/x.PNG`],
+    ['a .jpeg', `${P}/sheet.jpeg`],
+    ['a .webp', `${P}/a.webp`],
+    ['a character outside ASCII', `${P}/pl\u00e1n.png`],
+    ['a fullwidth dot segment', `${P}/\uff0e\uff0e/x.png`],
     ['a number', 42],
     ['null', null],
     ['undefined', undefined],
@@ -280,8 +288,8 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
   ok(`isAskablePlanPath: accepts <project uuid>/<file> (${accept.length} cases)`, badAccept.length === 0, badAccept.join('\n'));
   const badRefuse = refuse.filter(([, p]) => core.isAskablePlanPath(p)).map(([why]) => why);
   ok(`isAskablePlanPath: refuses everything else (${refuse.length} cases)`, badRefuse.length === 0, badRefuse.join('\n'));
-  ok('isAskablePlanPath: a 200-character file name is the longest accepted',
-    core.isAskablePlanPath(`${P}/${'a'.repeat(196)}.png`));
+  ok('isAskablePlanPath: a 128-character file name is the longest accepted',
+    core.isAskablePlanPath(`${P}/${'a'.repeat(124)}.png`) && !core.isAskablePlanPath(`${P}/${'a'.repeat(125)}.png`));
   // What it accepts survives a URL unchanged (the server's last check).
   ok('isAskablePlanPath: every accepted path is its own URL pathname',
     accept.every((p) => new URL('https://h/' + p).pathname === '/' + p));
@@ -311,11 +319,19 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
   // The same strings through the server's own functions, when its file is here.
   if (server) {
     const planSheetKey = server.planSheetKey as ((raw: unknown) => string) | undefined;
-    const all: unknown[] = [...accept, ...refuse.map(([, p]) => p), `${P}/${'a'.repeat(196)}.png`];
+    const all: unknown[] = [...accept, ...refuse.map(([, p]) => p), `${P}/${'a'.repeat(196)}.png`, `${P}/${'a'.repeat(123)}.jpg`];
     const differ = typeof planSheetKey === 'function'
       ? all.filter((p) => core.isAskablePlanPath(p) !== (planSheetKey(p) !== '')).map((p) => JSON.stringify(p))
       : ['the server exports no planSheetKey'];
     ok(`parity: isAskablePlanPath agrees with the server's planSheetKey on every case (${all.length})`, differ.length === 0, differ.join('\n'));
+    // …and with THE storage rule, which is what the page finally passes on the
+    // server before it is read. A page the list offers is a page the rule takes.
+    const ruleMod = await import(join(ROOT, 'supabase/functions/_shared/storagePath.ts')) as {
+      PLAN_SHEET_PATH: unknown; requestStoragePath(raw: unknown, shape: unknown, pinned?: Record<number, string>): string | null;
+    };
+    const ruleDiffer = all.filter((p) => core.isAskablePlanPath(p) !== (ruleMod.requestStoragePath(p, ruleMod.PLAN_SHEET_PATH) !== null)).map((p) => JSON.stringify(p));
+    ok(`parity: isAskablePlanPath agrees with the storage rule (requestStoragePath, the plan-sheets shape) on every case (${all.length})`,
+      ruleDiffer.length === 0, ruleDiffer.join('\n'));
     const decodedBytes = server.decodedBytes as ((b64: string) => number) | undefined;
     ok("parity: decodedBase64Bytes agrees with the server's decodedBytes",
       typeof decodedBytes === 'function'

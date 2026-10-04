@@ -60,6 +60,8 @@ export function isStorageId(value: unknown): value is string {
 export type StorageSegmentRule =
   | { readonly kind: 'id' }
   | { readonly kind: 'file'; readonly extensions: readonly string[] }
+  /** `<id>.<ext>`: a file whose whole name is an id, then one dot, then an extension the writers use. */
+  | { readonly kind: 'idFile'; readonly extensions: readonly string[] }
   | { readonly kind: 'literal'; readonly value: string };
 
 export interface StoragePathShape {
@@ -71,6 +73,7 @@ export interface StoragePathShape {
 
 const ID: StorageSegmentRule = { kind: 'id' };
 const file = (...extensions: string[]): StorageSegmentRule => ({ kind: 'file', extensions });
+const idFile = (...extensions: string[]): StorageSegmentRule => ({ kind: 'idFile', extensions });
 
 // ── The shapes, each read from its WRITERS ──────────────────────────────────
 
@@ -114,6 +117,20 @@ export const PUNCH_SEAL_RECORD_PATH: StoragePathShape = {
   segments: [ID, ID, { kind: 'literal', value: 'record.pdf' }],
 };
 
+/**
+ * message-attachments: `<project id>/<message id>/<attachment id>.jpg|png|webp|pdf`.
+ *   server  _shared/messageFiles.ts pathFor         (portal-message-files signs the upload for exactly this key)
+ *   app     utils/messageAttachments.ts messageAttachmentPath
+ *   db      trg_validate_portal_msg_attachments refuses a row whose path is anything else
+ *           (supabase/migrations/20261001150000_portal_message_attachments.sql)
+ * All three parts are ids, lower-cased by both writers; the extension comes
+ * from the file's type and is one of the four the bucket allows.
+ */
+export const MESSAGE_ATTACHMENT_PATH: StoragePathShape = {
+  bucket: 'message-attachments',
+  segments: [ID, ID, idFile('jpg', 'png', 'webp', 'pdf')],
+};
+
 // ── The layers. Each is exported so the guard can test it ALONE: with two
 //    layers refusing the same input, a behaviour test of the whole rule cannot
 //    see one of them being removed. ─────────────────────────────────────────
@@ -137,6 +154,11 @@ export function storagePathSegments(path: string): string[] | null {
 export function storageSegmentMatches(segment: string, rule: StorageSegmentRule): boolean {
   if (rule.kind === 'id') return STORAGE_ID_RE.test(segment);
   if (rule.kind === 'literal') return segment === rule.value;
+  if (rule.kind === 'idFile') {
+    // An id is 36 characters, so the one dot of `<id>.<ext>` sits at index 36.
+    const stem = segment.slice(0, 36);
+    return STORAGE_ID_RE.test(stem) && segment.charAt(36) === '.' && rule.extensions.includes(segment.slice(37));
+  }
   if (segment.length > STORAGE_FILE_NAME_MAX_LENGTH) return false;
   if (!STORAGE_FILE_NAME_RE.test(segment)) return false;
   const dot = segment.lastIndexOf('.');

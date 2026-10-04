@@ -40,11 +40,15 @@ export function decodedBase64Bytes(base64: string): number {
 
 // ── Plan pages ──────────────────────────────────────────────────────────────
 
-const PLAN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLAN_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
-const PLAN_EXT_RE = /\.(?:png|jpe?g|webp)$/i;
-/** '%', a backslash, '?', '#', any whitespace or any control character. */
-const PLAN_FORBIDDEN_RE = /[%\\?#\s\u0000-\u001f\u007f-\u009f]/;
+// The same values as the server's fence (planSheetKey) and as the storage rule
+// every plan page passes before it is read (supabase/functions/_shared/
+// storagePath.ts, the plan-sheets shape): a lower-case uuid, a file name of at
+// most 128 characters ending in .png or .jpg as the two writers spell them.
+const PLAN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const PLAN_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const PLAN_EXT_RE = /\.(?:png|jpg)$/;
+/** '%', a backslash, '?', '#', any whitespace, any control character, anything outside ASCII. */
+const PLAN_FORBIDDEN_RE = /[%\\?#\s\u0000-\u001f\u007f-\uffff]/;
 
 /**
  * May this stored path be sent as a plan page? The server's planSheetKey rule
@@ -54,7 +58,7 @@ const PLAN_FORBIDDEN_RE = /[%\\?#\s\u0000-\u001f\u007f-\u009f]/;
  */
 export function isAskablePlanPath(path: unknown): boolean {
   if (typeof path !== 'string') return false;
-  if (path.length === 0 || path.length > 260 || path !== path.trim()) return false;
+  if (path.length === 0 || path.length > 256 || path !== path.trim()) return false;
   if (PLAN_FORBIDDEN_RE.test(path)) return false;
   const segments = path.split('/');
   if (segments.length !== 2) return false;

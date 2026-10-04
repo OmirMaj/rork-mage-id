@@ -33,6 +33,12 @@
 //      fills that way. Whatever is left must be in the reviewed ledger below
 //      with its reason — a new storage call that is none of those fails here.
 //
+//   5. ASK-FILES, EXECUTED. The AI file reader's two request-named files: a
+//      plan page (its own fence and the rule must agree on every string, and
+//      the key it loads is the rule's answer pinned to a project the caller
+//      owns) and a client's message file (the loader runs against a stub
+//      database and bucket; the key is rebuilt and passes the rule).
+//
 // Nothing in this file touches the network. Run from the repo root:
 //   bun run scripts/validate-storage-paths.ts
 
@@ -42,6 +48,7 @@ import ts from 'typescript';
 import { StorageClient } from '@supabase/storage-js';
 import { buildPlanSheetImagePath } from '../utils/planSheetImageCore';
 import { buildPhotoStoragePath } from '../utils/photoUploadCore';
+import { messageAttachmentPath } from '../utils/messageAttachments';
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail = '') {
@@ -61,6 +68,7 @@ const show = (v: unknown): string => {
 type SegmentRule =
   | { kind: 'id' }
   | { kind: 'file'; extensions: readonly string[] }
+  | { kind: 'idFile'; extensions: readonly string[] }
   | { kind: 'literal'; value: string };
 interface Shape { bucket: string; segments: readonly SegmentRule[] }
 interface StoragePathModule {
@@ -72,6 +80,7 @@ interface StoragePathModule {
   PUNCH_AFTER_PHOTO_PATH: Shape;
   PUNCH_SEAL_PHOTO_PATH: Shape;
   PUNCH_SEAL_RECORD_PATH: Shape;
+  MESSAGE_ATTACHMENT_PATH: Shape;
   isStorageId(v: unknown): boolean;
   storagePathHasForbiddenChar(path: string): boolean;
   storagePathSegments(path: string): string[] | null;
@@ -90,7 +99,7 @@ const fromHere = (repoPath: string) => ['..', ...repoPath.split('/')].join('/');
 const rule = await import(fromHere(RULE_FILE)) as StoragePathModule;
 const {
   PLAN_SHEET_PATH, PDF_UPLOAD_PATH, CONTRACT_PDF_PATH, PUNCH_AFTER_PHOTO_PATH,
-  PUNCH_SEAL_PHOTO_PATH, PUNCH_SEAL_RECORD_PATH, requestStoragePath,
+  PUNCH_SEAL_PHOTO_PATH, PUNCH_SEAL_RECORD_PATH, MESSAGE_ATTACHMENT_PATH, requestStoragePath,
 } = rule;
 
 // Ids as the server prints them. OWN is the caller, VICTIM is somebody else.
@@ -162,6 +171,26 @@ ok('punchSealShare still uploads the record to <userId>/<sealId>/record.pdf',
 legit.push({ name: 'punch-seals: the sealed record PDF', shape: PUNCH_SEAL_RECORD_PATH, path: `${UID}/${BASE}/record.pdf`, pinned: { 0: UID, 1: BASE } });
 ok('punchSealRecordPath rebuilds exactly what the app uploads', rule.punchSealRecordPath(UID, BASE) === `${UID}/${BASE}/record.pdf`);
 legit.push({ name: 'punch-seals: a copied after photo', shape: PUNCH_SEAL_PHOTO_PATH, path: rule.punchSealPhotoPath(UID, BASE, ITEM), pinned: { 0: UID, 1: BASE } });
+
+// message-attachments: both writers, EXECUTED (the server's pathFor is imported
+// in section 6; the app's messageAttachmentPath here). The database trigger
+// refuses a row whose path is anything else.
+const MSG_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
+const MSG_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+for (const mime of MSG_MIMES) {
+  legit.push({
+    name: `message-attachments: a file the app sends (.${MSG_EXT[mime]})`, shape: MESSAGE_ATTACHMENT_PATH,
+    path: messageAttachmentPath(OWN, BASE, ITEM, mime), pinned: { 0: OWN, 1: BASE },
+  });
+}
+legit.push({
+  name: 'message-attachments: ids the app was handed in upper case are lower-cased by the writer', shape: MESSAGE_ATTACHMENT_PATH,
+  path: messageAttachmentPath(OWN.toUpperCase(), BASE.toUpperCase(), ITEM.toUpperCase(), 'image/png'), pinned: { 0: OWN, 1: BASE },
+});
+ok('messageAttachmentPath is <project>/<message>/<attachment>.<ext>, all lower-case ids',
+  messageAttachmentPath(OWN, BASE, ITEM, 'application/pdf') === `${OWN}/${BASE}/${ITEM}.pdf`);
+ok('the trigger still builds the same key for a row (project || / || id || / || attachment id || . || ext)',
+  read('supabase/migrations/20261001150000_portal_message_attachments.sql').includes("v_path := new.project_id || '/' || new.id::text || '/' || v_id || '.' || v_ext;"));
 
 for (const l of legit) {
   const got = l.path === null ? null : requestStoragePath(l.path, l.shape, l.pinned);
@@ -259,6 +288,7 @@ const TARGETS: Target[] = [
   { name: 'project-photos (after photo)', shape: PUNCH_AFTER_PHOTO_PATH, own: `${UID}/${OWN}`, victim: `${VICTIM_UID}/${VICTIM}`, file: `punch-${ITEM}-after.jpg`, pinned: { 0: UID, 1: OWN } },
   { name: 'punch-seals (photo)', shape: PUNCH_SEAL_PHOTO_PATH, own: `${UID}/${BASE}`, victim: `${VICTIM_UID}/${BASE}`, file: `${ITEM}.jpg`, pinned: { 0: UID, 1: BASE } },
   { name: 'punch-seals (record)', shape: PUNCH_SEAL_RECORD_PATH, own: `${UID}/${BASE}`, victim: `${VICTIM_UID}/${BASE}`, file: 'record.pdf', pinned: { 0: UID, 1: BASE } },
+  { name: 'message-attachments', shape: MESSAGE_ATTACHMENT_PATH, own: `${OWN}/${BASE}`, victim: `${VICTIM}/${BASE}`, file: `${ITEM}.jpg`, pinned: { 0: OWN, 1: BASE } },
 ];
 let corpusSize = 0;
 for (const t of TARGETS) {
@@ -310,6 +340,18 @@ for (const good of ['a.png', 'img-1.jpg', `${BASE}-page-12.png`, 'A_b.c-d.png', 
 for (const bad of ['.png', '.a.png', '-a.png', '_a.png', 'a', 'png', 'a.png.', 'a.PNG', 'a.gif', 'a.png.exe', 'a b.png', 'a%2e.png', 'a/b.png', 'a;.png', 'a..', `${'a'.repeat(rule.STORAGE_FILE_NAME_MAX_LENGTH)}.png`]) {
   ok(`file layer refuses ${show(bad)}`, rule.storageSegmentMatches(bad, PNG_RULE) === false);
 }
+const ID_FILE_RULE: SegmentRule = { kind: 'idFile', extensions: ['jpg', 'png', 'webp', 'pdf'] };
+for (const good of [`${ITEM}.jpg`, `${ITEM}.png`, `${ITEM}.webp`, `${ITEM}.pdf`]) {
+  ok(`id-file layer accepts ${show(good)}`, rule.storageSegmentMatches(good, ID_FILE_RULE));
+}
+for (const bad of [ITEM, `${ITEM}.`, `${ITEM}.gif`, `${ITEM}.JPG`, `${ITEM}.jpg.exe`, `${ITEM}.pdf.jpg`, `${ITEM}..jpg`, `${ITEM.toUpperCase()}.jpg`, `${ITEM.replace(/-/g, '')}.jpg`,
+  `x${ITEM}.jpg`, `${ITEM}x.jpg`, `${ITEM.slice(1)}.jpg`, `${ITEM}-page-1.jpg`, 'photo.jpg', '.jpg', 'jpg', '', `${ITEM}.jpg `, `${ITEM}/a.jpg`, `${ITEM}%2ejpg`]) {
+  ok(`id-file layer refuses ${show(bad)}`, rule.storageSegmentMatches(bad, ID_FILE_RULE) === false);
+}
+ok('message-attachments: a safe file name that is not an id is refused (the plain file layer would take it)',
+  requestStoragePath(`${OWN}/${BASE}/photo.jpg`, MESSAGE_ATTACHMENT_PATH) === null
+  && requestStoragePath(`${OWN}/${BASE}/${ITEM}-copy.jpg`, MESSAGE_ATTACHMENT_PATH) === null
+  && rule.storageSegmentMatches('photo.jpg', { kind: 'file', extensions: ['jpg'] }));
 ok('literal layer is exact', rule.storageSegmentMatches('record.pdf', { kind: 'literal', value: 'record.pdf' })
   && !rule.storageSegmentMatches('record.pdf ', { kind: 'literal', value: 'record.pdf' })
   && !rule.storageSegmentMatches('Record.pdf', { kind: 'literal', value: 'record.pdf' }));
@@ -576,6 +618,12 @@ const NASTY = ['..', '%2e%2e', `${OWN}/..`, `${OWN}/%2e%2e`, `${OWN}\\..`, `${OW
 ok('core.ts re-exports the shared pathFor (one builder, not two)', msgCore.pathFor === msgShared.pathFor);
 ok('pathFor emits <project>/<message>/<attachment>.<ext> that every layer accepts',
   ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].every((m) => safeKey(msgShared.pathFor(OWN, BASE, ITEM, m), 3)));
+ok('…and each is exactly the message-attachments shape, pinned to its project and message; the app and the server build the same key',
+  MSG_MIMES.every((m) => {
+    const k = msgShared.pathFor(OWN, BASE, ITEM, m);
+    return k !== null && requestStoragePath(k, MESSAGE_ATTACHMENT_PATH, { 0: OWN, 1: BASE }) === k && k === messageAttachmentPath(OWN, BASE, ITEM, m)
+      && requestStoragePath(k, MESSAGE_ATTACHMENT_PATH, { 0: VICTIM, 1: BASE }) === null && requestStoragePath(k, MESSAGE_ATTACHMENT_PATH, { 0: OWN, 1: ITEM }) === null;
+  }));
 ok('pathFor answers null for any non-id part or unknown type',
   NASTY.every((b) => msgShared.pathFor(b, BASE, ITEM, 'image/png') === null && msgShared.pathFor(OWN, b, ITEM, 'image/png') === null
     && msgShared.pathFor(OWN, BASE, b, 'image/png') === null) && msgShared.pathFor(OWN, BASE, ITEM, 'image/png/../x') === null);
@@ -944,6 +992,133 @@ ok('convert-pdf-to-images: pages are written under the project row it read, not 
 const stripComments = (s: string) => s.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
 const prefixChecks = [...sources.keys()].filter((f) => /\.startsWith\(`\$\{[^}]+\}\/`\)/.test(stripComments(read(f))));
 ok('no function checks ownership of a path by its prefix (startsWith(`${id}/`))', prefixChecks.length === 0, prefixChecks.join(', '));
+
+// ── 8. ask-files: a plan page and a client's message file ───────────────────
+// The AI file reader names a stored file two ways: a plan page by its key (from
+// the request), a client's message file by two ids (the key is rebuilt on the
+// server). Both downloads sit behind the rule; this section runs them.
+console.log('\n8. ask-files (a plan page by key, a client message file by ids), executed:');
+
+interface AskFilesCore {
+  planSheetKey(raw: unknown): string;
+  ownedPlanSheetKey(key: unknown, ownedJobs: Iterable<string>): string;
+  parseAskFilesRequest(body: unknown): { ok: boolean };
+}
+const ASK_CORE_FILE = `${FN_ROOT}/ask-files/core.ts`;
+const ASK_INDEX_FILE = `${FN_ROOT}/ask-files/index.ts`;
+const MSG_LOADER_FILE = `${FN_ROOT}/_shared/messageFileBytes.ts`;
+const askCore = await import(fromHere(ASK_CORE_FILE)) as AskFilesCore;
+const askPlanBody = (path: unknown) => ({ mode: 'ask', question: 'What is on this sheet?', files: [{ source: 'plan', storagePath: path, name: 'A-101' }] });
+
+const planLegit = legit.filter((l) => l.shape === PLAN_SHEET_PATH && l.path !== null).map((l) => l.path as string);
+ok(`ask-files takes every legitimate plan key (${planLegit.length}), unchanged, for a caller who owns its project`,
+  planLegit.length >= 7 && planLegit.every((k) => askCore.planSheetKey(k) === k && askCore.ownedPlanSheetKey(k, [OWN]) === k && askCore.parseAskFilesRequest(askPlanBody(k)).ok === true));
+ok('…and refuses the same keys for a caller who owns only ANOTHER project (the pin), or none',
+  planLegit.every((k) => askCore.ownedPlanSheetKey(k, [VICTIM]) === '' && askCore.ownedPlanSheetKey(k, []) === ''));
+const askFenceLeaks = sheetAttacks.filter((c) => askCore.planSheetKey(c.path) !== '' || askCore.parseAskFilesRequest(askPlanBody(c.path)).ok !== false);
+ok(`ask-files: none of the ${sheetAttacks.length} attack paths gets past the request parser`, askFenceLeaks.length === 0, askFenceLeaks.map((c) => `${c.name}: ${show(c.path)}`).join('\n      '));
+const askRuleLeaks = sheetAttacks.filter((c) => askCore.ownedPlanSheetKey(c.path, [OWN, VICTIM]) !== '');
+ok('ask-files: none of them is a key to load, even with BOTH projects owned', askRuleLeaks.length === 0, askRuleLeaks.map((c) => `${c.name}: ${show(c.path)}`).join('\n      '));
+ok("ask-files: a well-formed key in another tenant's project is not a key to load",
+  askCore.ownedPlanSheetKey(`${VICTIM}/${BASE}-page-1.png`, [OWN]) === '' && askCore.planSheetKey(`${VICTIM}/${BASE}-page-1.png`) !== '');
+
+// The function's own fence and the rule say the same thing about every string.
+const fenceRand = mulberry32(20261005);
+let fenceDisagree = 0, fenceAccepted = 0;
+const firstDisagreements: string[] = [];
+for (let i = 0; i < FUZZ_RUNS; i++) {
+  let str = fenceRand() < 0.6 ? `${OWN}/` : '';
+  const n = 1 + Math.floor(fenceRand() * 5);
+  for (let k = 0; k < n; k++) str += TOKENS[Math.floor(fenceRand() * TOKENS.length)];
+  const byRule = requestStoragePath(str, PLAN_SHEET_PATH) !== null;
+  const byFence = askCore.planSheetKey(str) !== '';
+  if (byRule) fenceAccepted++;
+  if (byRule !== byFence) { fenceDisagree++; if (firstDisagreements.length < 3) firstDisagreements.push(show(str)); }
+  if (byFence && askCore.ownedPlanSheetKey(str, [OWN]) !== (str.startsWith(`${OWN}/`) ? str : '')) { fenceDisagree++; if (firstDisagreements.length < 3) firstDisagreements.push(`owned: ${show(str)}`); }
+}
+const EDGE_KEYS = [`${OWN.toUpperCase()}/a.png`, `${OWN}/a.PNG`, `${OWN}/a.jpeg`, `${OWN}/a.webp`, `${OWN}/a.JPG`, `${OWN}/${'a'.repeat(124)}.png`, `${OWN}/${'a'.repeat(125)}.png`,
+  `${OWN}/${'a'.repeat(196)}.png`, `${OWN}/plán.png`, `${OWN}/a..png`, `${OWN}/a.png.jpg`, `${OWN}/_a.png`, `tmp/${BASE}-page-1.png`];
+const edgeDisagree = EDGE_KEYS.filter((k) => (requestStoragePath(k, PLAN_SHEET_PATH) !== null) !== (askCore.planSheetKey(k) !== ''));
+ok(`ask-files: its own fence and the rule agree on ${FUZZ_RUNS} fuzzed strings (${fenceAccepted} accepted) and on the edge spellings (case, .jpeg, .webp, length, non-ASCII)`,
+  fenceAccepted >= 200 && fenceDisagree === 0 && edgeDisagree.length === 0, [...firstDisagreements, ...edgeDisagree.map(show)].join(', '));
+
+const askCoreSrc = read(ASK_CORE_FILE);
+const askIndexSrc = read(ASK_INDEX_FILE);
+ok('ask-files: the key to load is the rule’s answer, pinned to a project that passed the owner check',
+  /const checked = requestStoragePath\(key, PLAN_SHEET_PATH, \{ 0: job \}\);\s*if \(checked !== null\) return checked;/.test(askCoreSrc)
+  && /if \(!\(await callerOwnsProject\(svc, auth\.userId, job\)\)\) return fail\("file_unavailable", 403\);\s*ownedJobs\.add\(job\);/.test(askIndexSrc)
+  && (askIndexSrc.match(/ownedJobs\.add\(/g) ?? []).length === 1);
+ok('ask-files: the plan loader is handed that key and nothing else',
+  /const planKey = PLAN_PAGES_OWNER_ONLY !== false \? ownedPlanSheetKey\(file\.storagePath, ownedJobs\) : file\.storagePath;\s*if \(planKey === ""\) return fail\("file_unavailable", 403\);/.test(askIndexSrc)
+  && (askIndexSrc.match(/loadPlanSheetImageParts\(/g) ?? []).length === 1 && askIndexSrc.includes('await loadPlanSheetImageParts([planKey], auth.userId,'));
+ok('ask-files has no storage call of its own: its two downloads are the plan-sheet helper’s and the message loader’s (both swept above)',
+  sites.filter((x) => x.file.startsWith(`${FN_ROOT}/ask-files/`)).length === 0
+  && sites.filter((x) => x.file === MSG_LOADER_FILE).length === 1 && sites.filter((x) => x.file === MSG_LOADER_FILE).every((x) => x.method === 'download' && x.pathWhy === '' && x.bucketWhy === ''));
+ok('no ledger entry speaks for ask-files or its loader (both are proven by syntax)',
+  LEDGER.every((l) => !l.file.startsWith(`${FN_ROOT}/ask-files/`) && l.file !== MSG_LOADER_FILE));
+
+// The message loader, run against a stub database and a stub bucket.
+interface MsgLoaderModule {
+  loadOwnedMessageFiles(svc: unknown, callerId: string, refs: { messageId: string; attachmentId: string }[],
+    opts: { maxBytesEach: number; maxBytesTotal: number; notBefore: string }): Promise<{ files: { name: string }[] }>;
+  MessageFileAccessError: new () => Error;
+}
+const msgLoader = await import(fromHere(MSG_LOADER_FILE)) as MsgLoaderModule;
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]);
+const msgDownloads: string[] = [];
+let msgQueries = 0;
+/** A database holding ONE client message (BASE, on project OWN, owned by UID) whose single attachment carries `storedPath`. */
+function msgSvc(storedPath: unknown, attachmentId: string = ITEM) {
+  const rows: Record<string, Record<string, unknown>[]> = {
+    portal_messages: [{ id: BASE, project_id: OWN, author_type: 'client', body: 'hello', created_at: '2026-11-02T10:00:00Z',
+      attachments: [{ id: attachmentId, name: 'a.jpg', mime: 'image/jpeg', size: JPEG_BYTES.length, kind: 'image', path: storedPath }] }],
+    projects: [{ id: OWN, user_id: UID }, { id: VICTIM, user_id: VICTIM_UID }],
+  };
+  return {
+    from: (table: string) => ({
+      select: () => {
+        const filters: [string, string][] = [];
+        const q = {
+          eq: (c: string, v: string) => { filters.push([c, v]); return q; },
+          maybeSingle: async () => { msgQueries++; return { data: (rows[table] ?? []).find((r) => filters.every(([c, v]) => String(r[c]).toLowerCase() === String(v).toLowerCase())) ?? null, error: null }; },
+        };
+        return q;
+      },
+    }),
+    storage: { from: () => ({ download: async (key: string) => { msgDownloads.push(key); return { data: { arrayBuffer: async () => JPEG_BYTES.buffer.slice(0) }, error: null }; } }) },
+  };
+}
+const MSG_OPTS = { maxBytesEach: 1 << 20, maxBytesTotal: 1 << 21, notBefore: '2026-11-01T00:00:00Z' };
+const MSG_KEY = `${OWN}/${BASE}/${ITEM}.jpg`;
+const msgRef = [{ messageId: BASE, attachmentId: ITEM }];
+const tryMsg = async (svc: unknown, caller: string, refs: { messageId: string; attachmentId: string }[]): Promise<'ok' | 'access' | 'other'> => {
+  try { await msgLoader.loadOwnedMessageFiles(svc, caller, refs, MSG_OPTS); return 'ok'; }
+  catch (e) { return e instanceof msgLoader.MessageFileAccessError ? 'access' : 'other'; }
+};
+msgDownloads.length = 0;
+ok('message loader: the owner reads his client’s file, and the bucket is asked for exactly <project>/<message>/<attachment>.jpg',
+  (await tryMsg(msgSvc(MSG_KEY), UID, msgRef)) === 'ok' && JSON.stringify(msgDownloads) === JSON.stringify([MSG_KEY]), JSON.stringify(msgDownloads));
+msgDownloads.length = 0;
+ok('message loader: the same ids from another account download nothing',
+  (await tryMsg(msgSvc(MSG_KEY), VICTIM_UID, msgRef)) === 'access' && msgDownloads.length === 0);
+msgDownloads.length = 0;
+const msgCorpus = attacks(`${OWN}/${BASE}`, `${VICTIM}/${BASE}`, `${ITEM}.jpg`);
+const msgLeaks: string[] = [];
+for (const c of msgCorpus) {
+  const how = await tryMsg(msgSvc(c.path), UID, msgRef);
+  if (how !== 'access' || msgDownloads.length > 0) { msgLeaks.push(`${c.name}: ${how} ${show(msgDownloads[0])}`); msgDownloads.length = 0; }
+}
+ok(`message loader: a row whose stored path is any of the ${msgCorpus.length} attack forms downloads nothing (the key is rebuilt, never read from the row)`, msgLeaks.length === 0, msgLeaks.join('\n      '));
+msgDownloads.length = 0; msgQueries = 0;
+const nastyRefs = NASTY.flatMap((b) => [[{ messageId: b, attachmentId: ITEM }], [{ messageId: BASE, attachmentId: b }]]);
+let nastyWrong = 0;
+for (const r of nastyRefs) if ((await tryMsg(msgSvc(MSG_KEY), UID, r)) !== 'access') nastyWrong++;
+ok(`message loader: ${nastyRefs.length} requests whose ids are not ids make no query and no download`, nastyWrong === 0 && msgQueries === 0 && msgDownloads.length === 0, `${nastyWrong} wrong, ${msgQueries} queries, ${msgDownloads.length} downloads`);
+const msgLoaderSrc = read(MSG_LOADER_FILE);
+ok('message loader: the download takes the rule’s answer for the built key, pinned to the owned project and the message',
+  /const ownedProject = projectId\.toLowerCase\(\);/.test(msgLoaderSrc)
+  && /const key = requestStoragePath\(w\.key, MESSAGE_ATTACHMENT_PATH, \{ 0: ownedProject, 1: messageId \}\);\s*if \(!key\) throw new MessageFileAccessError\(\);\s*const got = await svc\.storage\.from\(MESSAGE_FILES_BUCKET\)\.download\(key\);/.test(msgLoaderSrc)
+  && (msgLoaderSrc.match(/\.download\(/g) ?? []).length === 1);
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} storage paths: ${pass} passed, ${fail} failed (${corpusSize} attack forms × ${TARGETS.length} shapes)\n`);
 if (fail > 0) process.exit(1);

@@ -23,7 +23,8 @@
 // repo-relative paths. A file present there is read (and executed) instead of
 // the repo's, so a planted defect never touches the tree. A mutated
 // supabase/functions/_shared/messageFileBytes.ts or ask-files/core.ts needs a
-// copy of _shared/messageFiles.ts beside it (their relative import).
+// copy of _shared/messageFiles.ts and of _shared/storagePath.ts beside it
+// (their relative imports).
 //
 // Run inside the lane:   ATT_SOLO=1 bun run scripts/validate-ask-files-server.ts
 // Run by the integrator: bun run scripts/validate-ask-files-server.ts
@@ -77,6 +78,13 @@ type Parsed =
   | { ok: true; req: { mode: 'ask' | 'message'; files: ParsedFile[]; question?: string } }
   | { ok: false; code: string; fileIndex?: number };
 type MessageAnswer = { summary: string; asks: string[]; draft: { title: string; description: string } | null; recovered: boolean; clipped: boolean };
+interface RuleMod {
+  STORAGE_PATH_MAX_LENGTH: number;
+  PLAN_SHEET_PATH: unknown;
+  MESSAGE_ATTACHMENT_PATH: unknown;
+  requestStoragePath(raw: unknown, shape: unknown, pinned?: Record<number, string>): string | null;
+}
+const RULE_REL = 'supabase/functions/_shared/storagePath.ts';
 interface CoreMod {
   [k: string]: unknown;
   ERROR_TEXT: Record<string, string>;
@@ -85,6 +93,7 @@ interface CoreMod {
   hourlyLimitText(n: number): string;
   monthlyCapText(cap: number, tier: string): string;
   planSheetKey(raw: unknown): string;
+  ownedPlanSheetKey(key: unknown, ownedJobs: Iterable<string>): string;
   parseAskFilesRequest(body: unknown): Parsed;
   isBase64(s: unknown): boolean;
   decodedBytes(b64: string): number;
@@ -321,11 +330,11 @@ function partA(core: CoreMod): void {
 // ════════════════════════════════════════════════════════════════════════════
 // B. planSheetKey
 // ════════════════════════════════════════════════════════════════════════════
-function partB(core: CoreMod): void {
+function partB(core: CoreMod, rule: RuleMod): void {
   console.log('\nB. planSheetKey: the fence around a plan page key');
   const accepted = [
-    `${U1}/${U2}-page-3.png`, `${U1}/img-abc_1.2.jpg`, `${U1.toUpperCase()}/a.WEBP`, `${U1}/a.jpeg`,
-    `${U1}/${'a'.repeat(196)}.png`,
+    `${U1}/${U2}-page-3.png`, `${U1}/img-abc_1.2.jpg`, `${U1}/img-${U2}.jpg`, `${U1}/A-201_Floor.Plan.png`,
+    `${U1}/${'a'.repeat(124)}.png`,
   ];
   for (const k of accepted) {
     ok(`accepted: ${k.length > 70 ? `${k.slice(0, 50)}… (${k.length} characters)` : k}`, core.planSheetKey(k) === k);
@@ -358,6 +367,16 @@ function partB(core: CoreMod): void {
     ['a space in the file name', `${U1}/a b.png`],
     ['a file name of 300 characters', `${U1}/${'a'.repeat(296)}.png`],
     ['a file name of 201 characters', `${U1}/${'a'.repeat(197)}.png`],
+    ['a file name of 129 characters', `${U1}/${'a'.repeat(125)}.png`],
+    // What the storage rule refuses (_shared/storagePath.ts): no writer of the
+    // bucket spells a key this way, and an upper-case id is a DIFFERENT folder.
+    ['a project id in upper case', `${U1.toUpperCase()}/a.png`],
+    ['an extension in upper case', `${U1}/a.PNG`],
+    ['a .jpeg', `${U1}/a.jpeg`],
+    ['a .webp', `${U1}/a.webp`],
+    ['a character outside ASCII in the file name', `${U1}/pl\u00e1n.png`],
+    ['a fullwidth dot segment', `${U1}/\uff0e\uff0e/x.png`],
+    ['a line separator', `${U1}/x\u2028.png`],
     ['a first segment that is not a uuid', `${U1.slice(0, 35)}/x.png`],
     ['an empty string', ''],
     ['a number', 42],
@@ -371,9 +390,10 @@ function partB(core: CoreMod): void {
   // refuse the same characters, so removing this rule changes no answer above.
   // It is pinned here directly so it cannot be dropped unnoticed.
   const chars: Array<[string, string]> = [['%', '%'], ['backslash', '\\'], ['?', '?'], ['#', '#'], ['space', ' '], ['tab', '\t'],
-    ['newline', '\n'], ['NUL', '\u0000'], ['DEL', '\u007f'], ['NEL', '\u0085'], ['no-break space', '\u00a0']];
+    ['newline', '\n'], ['NUL', '\u0000'], ['DEL', '\u007f'], ['NEL', '\u0085'], ['no-break space', '\u00a0'],
+    ['an accented letter', '\u00e1'], ['a fullwidth dot', '\uff0e'], ['a byte-order mark', '\ufeff']];
   const missed = chars.filter(([, c]) => !core.PLAN_KEY_FORBIDDEN.test(`a${c}b`)).map(([n]) => n);
-  ok('the forbidden-character rule itself refuses %, backslash, ?, #, whitespace and control characters', missed.length === 0, missed.join(', '));
+  ok('the forbidden-character rule itself refuses %, backslash, ?, #, whitespace, control characters and anything outside ASCII', missed.length === 0, missed.join(', '));
   ok('…and lets an ordinary key through', !core.PLAN_KEY_FORBIDDEN.test(`${U1}/a-b_c.1.png`));
   const src = read(CORE_REL);
   const fn = src.slice(src.indexOf('export function planSheetKey('), src.indexOf('// ── the request'));
@@ -383,13 +403,43 @@ function partB(core: CoreMod): void {
   const at = order.map((t) => fn.indexOf(t));
   ok('planSheetKey applies every rule, in this order, and returns the string it was given',
     at.every((p, i) => p >= 0 && (i === 0 || p > at[i - 1])), order.filter((_, i) => at[i] < 0 || (i > 0 && at[i] <= at[i - 1])).join(' | '));
-  ok('the limit is 260 characters', core.PLAN_KEY_MAX === 260);
+  ok('the limit is 256 characters (the storage rule\'s own)', core.PLAN_KEY_MAX === 256 && core.PLAN_KEY_MAX === rule.STORAGE_PATH_MAX_LENGTH);
   ok('core.ts does not name the shared loader\'s weaker shape check', !/planSheetProjectId/.test(src));
-  ok('planKeyProject: the job a valid key belongs to is its first segment, lower-cased',
-    core.planKeyProject(`${U1}/a.png`) === U1 && core.planKeyProject(`${U1.toUpperCase()}/A-201.JPG`) === U1);
+  ok('planKeyProject: the job a valid key belongs to is its first segment',
+    core.planKeyProject(`${U1}/a.png`) === U1 && core.planKeyProject(`${U1}/A-201.jpg`) === U1 && core.planKeyProject(`${U1.toUpperCase()}/A-201.jpg`) === '');
   ok("planKeyProject: '' for anything planSheetKey refuses (so the owner check has no job to look up and refuses)",
     [`${U1}/%2e%2e/${U2}/x.png`, `${U1}/../${U2}/x.png`, `${U1}/a.png/${U2}/b.png`, `${U1}`, '', 'x/a.png', null, 7, { toString: () => `${U1}/a.png` }]
       .every((k) => core.planKeyProject(k) === ''));
+
+  // THE STORAGE RULE (_shared/storagePath.ts). The fence above is this
+  // function's own; the rule is the one every request-supplied storage path
+  // passes. They are run against the same strings: the fence must accept
+  // nothing the rule refuses (and, today, nothing less).
+  const everyCase: unknown[] = [...accepted, ...refused.map(([, v]) => v), `${U1}/${'a'.repeat(123)}.jpg`, `${U2}/x.png`, `${U1}/..png`, `${U1}/a..png`, `${U1}/-a.png`, `${U1}/_a.png`];
+  const byRule = (v: unknown) => rule.requestStoragePath(v, rule.PLAN_SHEET_PATH) !== null;
+  const looser = everyCase.filter((v) => core.planSheetKey(v) !== '' && !byRule(v)).map((v) => JSON.stringify(v));
+  ok(`planSheetKey accepts nothing the storage rule refuses (${everyCase.length} cases)`, looser.length === 0, looser.join(' | '));
+  const differs = everyCase.filter((v) => (core.planSheetKey(v) !== '') !== byRule(v)).map((v) => JSON.stringify(v));
+  ok('…and the two agree on every one of them (one spelling of a plan key, in the fence and in the rule)', differs.length === 0, differs.join(' | '));
+
+  // ownedPlanSheetKey: the rule with the project segment PINNED to a job that
+  // passed the owner check. This is the string the handler loads.
+  const mine = `${U1}/${U2}-page-3.png`;
+  const theirs = `${U2}/${U1}-page-3.png`;
+  ok('ownedPlanSheetKey: his own page, with his job in the owned list, is returned unchanged',
+    core.ownedPlanSheetKey(mine, [U1]) === mine && core.ownedPlanSheetKey(mine, new Set([U2, U1])) === mine);
+  ok('ownedPlanSheetKey: a perfectly shaped key in a job that is NOT in the owned list is refused (the pin)',
+    core.ownedPlanSheetKey(theirs, [U1]) === '' && core.ownedPlanSheetKey(mine, [U2]) === '' && byRule(theirs));
+  ok("ownedPlanSheetKey: an empty owned list is always '' (no check passed, nothing may be loaded)",
+    core.ownedPlanSheetKey(mine, []) === '' && core.ownedPlanSheetKey(mine, new Set<string>()) === '');
+  ok("ownedPlanSheetKey: an owned id in another spelling does not match (upper case, braces, '' and undefined)",
+    [U1.toUpperCase(), `{${U1}}`, '', undefined as unknown as string, `${U1} `].every((j) => core.ownedPlanSheetKey(mine, [j]) === ''));
+  const slipped = refused.filter(([, v]) => core.ownedPlanSheetKey(v, [U1, U2]) !== '').map(([n]) => n);
+  ok(`ownedPlanSheetKey: every refused key above stays refused with both jobs owned (${refused.length} cases)`, slipped.length === 0, slipped.join(', '));
+  const ownedFn = src.slice(src.indexOf('export function ownedPlanSheetKey('), src.indexOf('// ── the request'));
+  ok('ownedPlanSheetKey is the fence, then requestStoragePath with the plan-sheets shape and segment 0 pinned to an owned job, and returns the rule\'s own answer',
+    /if \(planSheetKey\(key\) === ''\) return '';\s*for \(const job of ownedJobs\) \{\s*const checked = requestStoragePath\(key, PLAN_SHEET_PATH, \{ 0: job \}\);\s*if \(checked !== null\) return checked;\s*\}\s*return '';\s*\}/.test(ownedFn));
+  ok('core.ts calls the rule in that one place', (src.match(/requestStoragePath\(/g) ?? []).length === 1);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1050,7 +1100,10 @@ function partI(): void {
     ['12 plan pages: the owner rule is on unless the switch is the boolean false', 'if (PLAN_PAGES_OWNER_ONLY !== false) {'],
     ['12 plan pages: the job of each validated key', 'if (file.source === "plan") jobs.add(planKeyProject(file.storagePath));'],
     ['12 plan pages: the caller owns every job, or nothing is loaded', 'if (!(await callerOwnsProject(svc, auth.userId, job))) return fail("file_unavailable", 403);'],
-    ['12 plan pages, one at a time', '[part] = await loadPlanSheetImageParts([file.storagePath], auth.userId, Math.min(PLAN_PAGE_MAX_BYTES, left));'],
+    ['12 plan pages: a job that passed is remembered', 'ownedJobs.add(job);'],
+    ['12 plan pages: the storage rule, pinned to a job that passed', 'const planKey = PLAN_PAGES_OWNER_ONLY !== false ? ownedPlanSheetKey(file.storagePath, ownedJobs) : file.storagePath;'],
+    ['12 plan pages: no key from the rule, nothing loaded', 'if (planKey === "") return fail("file_unavailable", 403);'],
+    ['12 plan pages, one at a time, the key the rule returned', '[part] = await loadPlanSheetImageParts([planKey], auth.userId, Math.min(PLAN_PAGE_MAX_BYTES, left));'],
     ['12 plan bytes are sniffed', 'sniffMatches(headBytes(part.inlineData.data), part.inlineData.mimeType)'],
     ['12 message files, owner only', 'loaded = await loadOwnedMessageFiles('],
     ['13 a stored PDF is counted', 'const pages = await countPdfPages(file.bytes);'],
@@ -1104,14 +1157,18 @@ function partI(): void {
   ok('no signed URL anywhere in the lane, and no other way out (no socket, no relay to another function)',
     [raw, coreRaw, loaderRaw].every((s) => !/createSignedUrl|getPublicUrl|\/object\/public\/|\bWebSocket\b|Deno\.connect|Deno\.Command|\.functions\.invoke\(|\/functions\/v1\//.test(s)));
   ok("the shared loader's weaker shape check is not used", [raw, coreRaw, loaderRaw].every((s) => !/planSheetProjectId/.test(s)));
-  ok('loadPlanSheetImageParts( is called once, with a one-element array', count(idx, 'loadPlanSheetImageParts(') === 1 && idx.includes('loadPlanSheetImageParts([file.storagePath], auth.userId,'));
+  ok('loadPlanSheetImageParts( is called once, with a one-element array', count(idx, 'loadPlanSheetImageParts(') === 1 && idx.includes('loadPlanSheetImageParts([planKey], auth.userId,'));
+  ok('ownedJobs only ever receives a job that passed the owner check, and the handler never calls the rule around core.ts',
+    count(idx, 'ownedJobs.add(') === 1 && count(idx, 'const ownedJobs = new Set<string>();') === 1 && count(idx, 'ownedPlanSheetKey(') === 1
+    && /if \(!\(await callerOwnsProject\(svc, auth\.userId, job\)\)\) return fail\("file_unavailable", 403\);\s*ownedJobs\.add\(job\);/.test(idx)
+    && !/requestStoragePath|storagePath\.ts/.test(idx));
   ok('every PDF is opened with updateMetadata: false and no option that skips a password',
     count(idx, 'PDFDocument.load(') === 1 && idx.includes('PDFDocument.load(bytes, { updateMetadata: false })') && !/ignoreEncryption/.test(raw) && !/ignoreEncryption/.test(coreRaw));
   ok('a limit in a refusal is always the constant, never a typed number',
     !/\blimit:\s*\d/.test(idx) && [...idx.matchAll(/\blimit: ([A-Z_]+)/g)].every((m) => ['DEVICE_TOTAL_MAX_BYTES', 'TOTAL_MAX_BYTES', 'PLAN_PAGE_MAX_BYTES', 'MESSAGE_FILE_MAX_BYTES', 'PDF_MAX_PAGES'].includes(m[1]))
     && count(idx, 'limit: ') >= 7 && !/\b(?:4194304|6291456|8388608|9437184)\b/.test(idx));
   ok('file_unavailable is one generic 403 wherever it is answered (a plan page, a message file), with no detail beside it',
-    count(idx, 'fail("file_unavailable", 403)') === 3 && count(idx, '"file_unavailable"') === 4 && idx.includes('if (why === "file_unavailable") return fail("file_unavailable", 403);'));
+    count(idx, 'fail("file_unavailable", 403)') === 4 && count(idx, '"file_unavailable"') === 5 && idx.includes('if (why === "file_unavailable") return fail("file_unavailable", 403);'));
   ok('the service client is built in one place, from the server\'s own URL and key, and only the two owner checks and the message loader are handed it',
     count(idx, 'createClient(') === 1 && /function serviceClient\(\) \{\s*if \(!SUPABASE_URL \|\| !SUPABASE_SERVICE_ROLE_KEY\) return null;\s*return createClient\(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, \{/.test(idx)
     && count(idx, 'serviceClient()') === 3 && count(idx, 'svc') === 6 && count(idx, 'const svc = serviceClient();') === 2
@@ -1130,14 +1187,22 @@ function partI(): void {
   ok('messageFileBytes.ts has no collaborator arm (the table is never named, comments included)', !/project_collaborators|collaborators/.test(loaderRaw));
   ok('messageFileBytes.ts is pure: no runtime global, no remote import, no log line', !/\bDeno\b/.test(loaderRaw) && !/https?:\/\//.test(loaderRaw) && !/console\s*\./.test(loaderRaw));
   const importsOf = (s: string) => [...s.matchAll(/^(?:import|export)[^;]*?from\s+['"]([^'"]+)['"];/gm)].map((m) => m[1]);
-  ok("messageFileBytes.ts imports only from './messageFiles.ts'", importsOf(loaderRaw).length === 1 && importsOf(loaderRaw)[0] === './messageFiles.ts' && !/\bimport\(/.test(loaderRaw));
-  ok("core.ts imports only from '../_shared/messageFiles.ts', and has no runtime global and no log line",
-    importsOf(coreRaw).length >= 1 && importsOf(coreRaw).every((s) => s === '../_shared/messageFiles.ts') && !/\bDeno\./.test(coreRaw) && !/console\s*\./.test(coreRaw) && !/\bimport\(/.test(coreRaw));
+  ok("messageFileBytes.ts imports only from './messageFiles.ts' and the storage rule './storagePath.ts' (both pure)",
+    importsOf(loaderRaw).length === 2 && importsOf(loaderRaw)[0] === './messageFiles.ts' && importsOf(loaderRaw)[1] === './storagePath.ts' && !/\bimport\(/.test(loaderRaw));
+  ok("core.ts imports only from '../_shared/messageFiles.ts' and the storage rule '../_shared/storagePath.ts', and has no runtime global and no log line",
+    importsOf(coreRaw).length >= 2 && importsOf(coreRaw).every((s) => s === '../_shared/messageFiles.ts' || s === '../_shared/storagePath.ts')
+    && importsOf(coreRaw).includes('../_shared/storagePath.ts') && !/\bDeno\./.test(coreRaw) && !/console\s*\./.test(coreRaw) && !/\bimport\(/.test(coreRaw));
+  const ruleRaw = read(RULE_REL);
+  ok('the storage rule module is pure too (no runtime global, no import, no log line)', ruleRaw.length > 0 && !/\bDeno\./.test(ruleRaw.replace(/^\s*\/\/.*$/gm, '')) && !/^\s*import\s/m.test(ruleRaw) && !/console\s*\./.test(ruleRaw));
   ok('the loader never downloads a key it did not build: its one download( takes the built key',
     count(loaderRaw, '.download(') === 1 && count(loaderRaw, ".from('projects')") === 1 && count(loaderRaw, 'callerOwnsProject(') === 2
     && loaderRaw.includes('if (!(await callerOwnsProject(svc, callerId, projectId))) throw new MessageFileAccessError();')
-    && loaderRaw.includes('svc.storage.from(MESSAGE_FILES_BUCKET).download(w.key)') && loaderRaw.includes('const key = pathFor(projectId, messageId, aid, a.mime);')
+    && loaderRaw.includes('svc.storage.from(MESSAGE_FILES_BUCKET).download(key)') && loaderRaw.includes('const key = pathFor(projectId, messageId, aid, a.mime);')
     && loaderRaw.includes("typeof a.path !== 'string' || a.path !== key"));
+  ok('…and that key first passes THE storage rule, pinned to the project the owner check was made for and to the message that was read',
+    /if \(!\(await callerOwnsProject\(svc, callerId, projectId\)\)\) throw new MessageFileAccessError\(\);\s*(?:\/\/[^\n]*\n\s*)*const ownedProject = projectId\.toLowerCase\(\);/.test(loaderRaw)
+    && /const key = requestStoragePath\(w\.key, MESSAGE_ATTACHMENT_PATH, \{ 0: ownedProject, 1: messageId \}\);\s*if \(!key\) throw new MessageFileAccessError\(\);\s*const got = await svc\.storage\.from\(MESSAGE_FILES_BUCKET\)\.download\(key\);/.test(loaderRaw)
+    && count(loaderRaw, 'requestStoragePath(') === 1 && count(loaderRaw, 'const messageId = refs[0].messageId.toLowerCase();') === 1);
 
   // text traps
   const traps = ['isValidCron(', 'x-cron-secret', 'stripe-signature', 'REVENUECAT_WEBHOOK_SECRET', 'p_access_token', 'portal access token', 'portal.accessToken',
@@ -1550,19 +1615,28 @@ async function partK(core: CoreMod, loader: LoaderMod, files: FilesMod): Promise
     const noJob = await run(askBody([{ source: 'plan', storagePath: `${uuid(0x77)}/a.png`, name: 'A-1' }]), (w) => { w.planSheets[`${uuid(0x77)}/a.png`] = png; });
     ok('OWNER ONLY: a job that does not exist: the same 403, nothing loaded', noJob.status === 403 && JSON.stringify(noJob.json) === JSON.stringify(denied.json) && noJob.w.planCalls.length === 0);
     const PL = uuid(0xabcdef);   // an id with letters in it
-    const UP = `${PL.toUpperCase()}/Upper-Case-1.PNG`;
+    const UP = `${PL.toUpperCase()}/Upper-Case-1.png`;
     const upper = await run(askBody([{ source: 'plan', storagePath: UP, name: 'A-1' }]), (w) => {
       w.planSheets[UP] = png;
       w.svc = fakeSvc({ portal_messages: [], projects: [{ id: PL, user_id: OWNER }], project_collaborators: [] }, {});
     });
-    ok('OWNER ONLY: a key whose job id is in upper case is asked about in lower case (one job, one spelling), and the loader is handed the key as it was validated',
-      PL !== PL.toUpperCase() && upper.status === 200 && upper.json.success === true && JSON.stringify(upper.w.svc?.queries().map((q) => q.filters)) === JSON.stringify([[['id', PL], ['user_id', OWNER]]]) && upper.w.planCalls[0].paths[0] === UP,
-      JSON.stringify(upper.w.svc?.queries().map((q) => q.filters)));
-    const twice = await run(askBody([{ source: 'plan', storagePath: UP, name: 'A-1' }, { source: 'plan', storagePath: `${PL}/lower-2.png`, name: 'A-2' }]), (w) => {
-      w.planSheets[UP] = png; w.planSheets[`${PL}/lower-2.png`] = png;
+    ok('a key whose job id is in upper case is a different storage folder: 400 at the parser, no lookup, no load (the storage rule takes one spelling of an id)',
+      PL !== PL.toUpperCase() && upper.status === 400 && upper.json.code === 'bad_request' && (upper.w.svc?.queries().length ?? -1) === 0 && upper.w.planCalls.length === 0 && upper.w.fetchCalls.length === 0);
+    const LO = `${PL}/Lower-Case-1.png`;
+    const twice = await run(askBody([{ source: 'plan', storagePath: LO, name: 'A-1' }, { source: 'plan', storagePath: `${PL}/lower-2.png`, name: 'A-2' }]), (w) => {
+      w.planSheets[LO] = png; w.planSheets[`${PL}/lower-2.png`] = png;
       w.svc = fakeSvc({ portal_messages: [], projects: [{ id: PL, user_id: OWNER }], project_collaborators: [] }, {});
     });
-    ok('…and two spellings of one job are one question', twice.status === 200 && twice.w.svc?.queries().length === 1 && twice.w.planCalls.length === 2);
+    ok('OWNER ONLY: two pages of one job are one question, asked with the id as the key spells it, and the loader is handed each key as the rule returned it',
+      twice.status === 200 && twice.w.svc?.queries().length === 1 && JSON.stringify(twice.w.svc?.queries().map((q) => q.filters)) === JSON.stringify([[['id', PL], ['user_id', OWNER]]])
+      && twice.w.planCalls.length === 2 && twice.w.planCalls[0].paths[0] === LO && twice.w.planCalls[1].paths[0] === `${PL}/lower-2.png`,
+      JSON.stringify(twice.w.svc?.queries().map((q) => q.filters)));
+    // The pin, executed through the handler: the owner check is asked about the
+    // caller's OWN job (so it says yes) while the key names somebody else's.
+    // The rule is then given a job list that does not hold the key's job.
+    const unpinned = await runWith(makeHandler(core, loader, env, { featureGate: () => 'ok', PLAN_PAGES_OWNER_ONLY: true, planKeyProject: () => P }), askBody([{ source: 'plan', storagePath: KP2, name: 'A-1' }]), (w) => { w.planSheets[KP2] = png; });
+    ok("the rule's pin stands on its own: a key in a job that is not in the owned list is 403 and never reaches the loader, even when the owner check said yes",
+      JSON.stringify(unpinned.w.svc?.queries().map((q) => q.filters)) === JSON.stringify([[['id', P], ['user_id', OWNER]]]) && unpinned.status === 403 && unpinned.json.code === 'file_unavailable' && unpinned.w.planCalls.length === 0 && unpinned.w.fetchCalls.length === 0 && unpinned.w.charges.length === 0);
     const sloppyDb = await run(askBody([{ source: 'plan', storagePath: KP2, name: 'A-1' }]), (w) => {
       w.planSheets[KP2] = png;
       w.svc = fakeSvc({ portal_messages: [], projects: [{ id: P2, user_id: STRANGER }], project_collaborators: [{ project_id: P2, user_id: OWNER, status: 'accepted' }] }, {}, { ignoreFilter: 'user_id' });
@@ -1783,8 +1857,9 @@ async function partK(core: CoreMod, loader: LoaderMod, files: FilesMod): Promise
 }
 
 async function main(): Promise<void> {
-  let core: CoreMod, loader: LoaderMod, filesMod: FilesMod, portal: PortalCoreMod;
+  let core: CoreMod, loader: LoaderMod, filesMod: FilesMod, portal: PortalCoreMod, rule: RuleMod;
   try {
+    rule = (await import(join(ROOT, RULE_REL))) as RuleMod;
     core = (await import(srcPath(CORE_REL))) as CoreMod;
     loader = (await import(srcPath(LOADER_REL))) as LoaderMod;
     filesMod = (await import(join(ROOT, FILES_REL))) as FilesMod;
@@ -1796,12 +1871,12 @@ async function main(): Promise<void> {
   }
   ok('core.ts and messageFileBytes.ts import under bun (pure: no runtime global, no remote import)', true);
   if (MUT) {
-    for (const rel of [FILES_REL]) {
+    for (const rel of [FILES_REL, RULE_REL]) {
       if (existsSync(join(MUT, rel))) ok(`the mutation dir's copy of ${rel} is byte-identical to the repo's`, readFileSync(join(MUT, rel), 'utf8') === readFileSync(join(ROOT, rel), 'utf8'));
     }
   }
   partA(core);
-  partB(core);
+  partB(core, rule);
   partC(core);
   await partD(core);
   partE(core);

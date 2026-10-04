@@ -24,6 +24,7 @@ import {
   sniffMime,
   type MessageFileMime,
 } from '../_shared/messageFiles.ts';
+import { PLAN_SHEET_PATH, requestStoragePath } from '../_shared/storagePath.ts';
 
 export { cleanName, isMessageFileMime, isUuid, kindFor, sniffMatches, sniffMime };
 export type { MessageFileMime };
@@ -120,17 +121,26 @@ export function monthlyCapText(cap: number, tier: string): string {
 
 // ── the plan page key ───────────────────────────────────────────────────────
 // A plan page is `<project uuid>/<file name>` in the plan-sheets bucket and
-// nothing else. The shared loader's own shape check refuses only segments that
-// are exactly '', '.' or '..', and the storage client puts the path into a URL
-// unencoded, so an encoded dot segment would resolve to another project's
-// folder or to another bucket. This function is the fence: the handler
-// downloads exactly the string it returns.
+// nothing else. The storage client puts a path into a URL unencoded, so an
+// encoded dot segment would resolve to another project's folder or to another
+// bucket.
+//
+// Two checks stand between a request and a download, on the SAME string:
+//   1. planSheetKey() below, when the request is parsed: this function's own
+//      fence. Anything it refuses is a 400 before any lookup.
+//   2. ownedPlanSheetKey(), when the page is about to be loaded: THE storage
+//      rule (requestStoragePath in _shared/storagePath.ts, the plan-sheets
+//      shape) with the project segment pinned to a job the caller was just
+//      checked to own. The handler loads exactly the string it returns.
+// The fence accepts nothing the rule refuses (a lower-case uuid, .png or .jpg
+// as the two writers spell them, the rule's own length limits); the validators
+// run both against one corpus and fail when they disagree.
 // deno-lint-ignore no-control-regex
-export const PLAN_KEY_FORBIDDEN = /[%\\?#\s\u0000-\u001f\u007f-\u009f]/;
-export const PLAN_KEY_MAX = 260;
-const PLAN_PROJECT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLAN_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
-const PLAN_EXT_RE = /\.(?:png|jpg|jpeg|webp)$/i;
+export const PLAN_KEY_FORBIDDEN = /[%\\?#\s\u0000-\u001f\u007f-￿]/;
+export const PLAN_KEY_MAX = 256;
+const PLAN_PROJECT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const PLAN_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const PLAN_EXT_RE = /\.(?:png|jpg)$/;
 
 /** The validated key, or '' for anything else. */
 export function planSheetKey(raw: unknown): string {
@@ -154,6 +164,23 @@ export function planSheetKey(raw: unknown): string {
 export function planKeyProject(key: unknown): string {
   const valid = planSheetKey(key);
   return valid === '' ? '' : valid.split('/')[0].toLowerCase();
+}
+
+/**
+ * The key the handler may load, or ''.
+ *
+ * `ownedJobs` are the project ids the caller was just checked to OWN. The key
+ * is returned, unchanged, only when the storage rule accepts it as a
+ * plan-sheets key whose project segment IS one of those ids. An empty list is
+ * always '': no check passed, so nothing may be loaded.
+ */
+export function ownedPlanSheetKey(key: unknown, ownedJobs: Iterable<string>): string {
+  if (planSheetKey(key) === '') return '';
+  for (const job of ownedJobs) {
+    const checked = requestStoragePath(key, PLAN_SHEET_PATH, { 0: job });
+    if (checked !== null) return checked;
+  }
+  return '';
 }
 
 // ── the request ─────────────────────────────────────────────────────────────
