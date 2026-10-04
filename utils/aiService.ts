@@ -1,5 +1,6 @@
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import type { CalibrationReport } from '@/utils/estimateCalibration';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1351,9 +1352,13 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // the user just saw "AI estimate unavailable" with no clue why — could be
   // a token cutoff, a safety block, a network issue, or just a flaky model
   // moment. Now we tell them what happened + suggest a fix.
+  // AI turned off (utils/aiConsent): say so, not "couldn't generate".
+  const consentOff = aiConsentReason(aiResult);
   const stubWithReason = (reasonCode: string | undefined, errMsg: string | undefined): AIQuickEstimateResult => {
     let why = 'Couldn’t generate the estimate. These are placeholder rows.';
-    if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
+    if (consentOff) {
+      why = consentOff;
+    } else if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
       why = 'The estimate stopped before it finished. Try a shorter scope description or fewer line items.';
     } else if (reasonCode === 'SAFETY') {
       why = 'A safety filter blocked this description. Try rephrasing it.';

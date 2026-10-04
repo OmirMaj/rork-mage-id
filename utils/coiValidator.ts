@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { readAsBase64 } from '@/utils/platformFile';
 import type { COICoverage, COICoverageType, COIValidationResult } from '@/types';
 import { readEdgeError } from '@/utils/edgeError';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { daysUntilCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { hasUnconfirmedAi } from '@/utils/coiFiles';
 
@@ -132,6 +133,11 @@ export async function validateCOIImage(localFileUri: string, mimeType?: string |
     return unreadResult(coiReadFailureMessage('', ''));
   }
 
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (!(await ensureAiConsent())) {
+    return unreadResult(`${AI_CONSENT_OFF_MESSAGE} This certificate wasn't read. Type the expiry from the certificate below so MAGE ID can remind you before it lapses.`);
+  }
   let data: { success: boolean; data?: RawAIExtraction; error?: string } | null = null;
   try {
     const res = await supabase.functions.invoke<{ success: boolean; data?: RawAIExtraction; error?: string }>(

@@ -16,6 +16,7 @@
 
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { edgeFunctionError, edgeErrorStatus } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 // expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
 // readAsStringAsync is a deprecation stub — src/index.ts re-exports
 // ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
@@ -167,6 +168,9 @@ interface AnalyzeMeta {
 }
 
 async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'codeLook'; codeLook?: { jurisdictionBlock?: string; trade?: string; checklist?: string[] } }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }

@@ -51,6 +51,7 @@ import { DFR_SAMPLE_NOTE, SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtu
 import { sampleSendAllowed, sampleSendPlan } from '@/utils/sampleGuard';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import {
@@ -2502,7 +2503,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
       console.warn('[DFR] client update generation failed', e);
-      showAlert(t('field.dfr.couldNotGenerate', 'Could not generate'), describeError(e, { action: 'draft the client update', keptLocally: true, title: t('field.dfr.error.clientUpdateTitle', "Couldn't write the client update") }).body);
+      const off = aiConsentErrorText(e);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotGenerate', 'Could not generate'), off ?? describeError(e, { action: 'draft the client update', keptLocally: true, title: t('field.dfr.error.clientUpdateTitle', "Couldn't write the client update") }).body);
     } finally {
       setHsGenerating(false);
     }
@@ -4319,9 +4321,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     console.log('[DFR] Voice auto-fill complete');
                   } catch (err) {
                     console.log('[DFR] Voice parse error:', err);
+                    const off = aiConsentErrorText(err);
                     showAlert(
-                      t('field.dfr.couldNotUnderstandThe', 'Could not understand the recording'),
-                      t('field.dfr.theTranscriptionServiceMay', 'The transcription service may be slow or down. Try recording again, or fill in the report by hand.'),
+                      off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotUnderstandThe', 'Could not understand the recording'),
+                      off ?? t('field.dfr.theTranscriptionServiceMay', 'The transcription service may be slow or down. Try recording again, or fill in the report by hand.'),
                     );
                   } finally {
                     setVoiceLoading(false);

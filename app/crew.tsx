@@ -40,6 +40,7 @@ import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert, type AlertButton } from '@/utils/alert';
 import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
+import { aiConsentErrorText, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
@@ -403,6 +404,8 @@ function CrewScreenInner() {
     } catch (e) {
       // CONTRACT 26 (#124): the server's own sentence, and a cap or a plan
       // gate goes to the plans page — "try again" would be refused again.
+      const off = aiConsentErrorText(e);
+      if (off) { showAlert(AI_CONSENT_OFF_TITLE, off); setScanStage('capture'); return; }
       const code = edgeErrorCode(e);
       const message = e instanceof Error && e.message ? e.message : t('field.crew.scan.tryClearerPhoto', 'Try a clearer, well-lit photo.');
       if (code === 'monthly_cap_reached' || code === 'tier_required') {

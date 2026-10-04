@@ -29,6 +29,7 @@ import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { describeError } from '@/utils/errorCopy';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
@@ -196,6 +197,9 @@ export default React.memo(function AIQuickEstimate({
       return;
     }
 
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     setStep('loading');
     setError(null);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

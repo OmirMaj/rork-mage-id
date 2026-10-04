@@ -71,6 +71,7 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { cardSurface, ChipRail, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { humanizeEnum } from '@/utils/statusLabels';
 import { useFileInto, type MeasureRef } from '@/components/motion/kit';
 
@@ -311,6 +312,9 @@ function ScanInner() {
     // cap before we burn an uncapped Gemini call.
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) { showAILimitAlert({ limit, router, monthly: true }); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setBusy(true);
     setError(null);

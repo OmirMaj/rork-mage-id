@@ -15,6 +15,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { isGcOnlyEstimateLine } from '@/utils/clientEstimateView';
 import type { Project, ScopeSheet, ScopeSheetItem } from '@/types';
@@ -163,7 +164,10 @@ export async function generateScopeSheet(project: Project, opts?: { forceRegener
   });
 
   if (!res.success || !res.data) {
-    const reason = res.errorKind === 'unauthenticated'
+    const consentOff = aiConsentReason(res);
+    const reason = consentOff
+      ? `${consentOff} Showing a starter sheet you can edit.`
+      : res.errorKind === 'unauthenticated'
       ? 'Sign in to use AI — showing a starter sheet you can edit.'
       : res.errorKind === 'monthly_cap'
         ? (res.error || 'AI limit reached this month — showing a starter sheet you can edit.')

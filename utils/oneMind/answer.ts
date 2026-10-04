@@ -21,6 +21,7 @@
 // resolveScope / factBlocks / composePrompt.
 
 import { mageAI } from '@/utils/mageAI';
+import { AI_CONSENT_OFF_MESSAGE, isAiConsentRefusal } from '@/utils/aiConsentCore';
 import { resolveScope, applyAnchorScope, type OneMindScope } from './resolveScope';
 import { assembleFactBlocks, isColdStart, type FactBlock, type FactBlockDrillIn, type OneMindBundle } from './factBlocks';
 import { composeOneMindPrompt, isAppHowTo, parseCitations, stripCitations } from './composePrompt';
@@ -141,10 +142,14 @@ export async function askOneMind(
     }
     // Blocked (cap / session) → the reason, no facts. Unreachable / empty →
     // verbatim facts, labelled as not answering the question.
-    const reply = oneMindFailureReply(
-      { error: res.error, errorKind: res.errorKind, errorCode: res.errorCode },
-      blocks,
-    );
+    // AI turned off (utils/aiConsent): the reason, no facts — "couldn't reach
+    // the AI" would be untrue, and he asked a question, not for a data dump.
+    const reply = isAiConsentRefusal(res)
+      ? { answer: AI_CONSENT_OFF_MESSAGE, used: [] as FactBlock[], errorKind: res.errorKind ?? 'unknown', errorCode: res.errorCode }
+      : oneMindFailureReply(
+        { error: res.error, errorKind: res.errorKind, errorCode: res.errorCode },
+        blocks,
+      );
     return {
       answer: reply.answer,
       citations: reply.used.map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn })),

@@ -8,6 +8,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { edgeFunctionError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 import type { SpecMatchResult, SpecEntry, TakeoffResult } from '@/types';
 
 export type SpecModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
@@ -43,6 +44,9 @@ export interface AnalyzeSpecResponse {
 }
 
 export async function analyzeSpecBook(opts: AnalyzeSpecOpts): Promise<AnalyzeSpecResponse> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No spec book pages to analyze.');
   }
@@ -158,6 +162,9 @@ export async function extractSubmittalsFromSpecBook(opts: ExtractSubmittalsOpts)
   if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No spec book pages to analyze.');
   }
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
     data?: AiSubmittalsResult;

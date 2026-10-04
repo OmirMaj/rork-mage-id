@@ -50,6 +50,7 @@ import { useBrainFabPresentation } from "@/components/brain/brainFabState";
 import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
+import AiConsentSheet from "@/components/AiConsentSheet";
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { Colors, setCustomPrimary, legacyChrome } from "@/constants/colors";
 import { THEME_PRESETS } from "@/types";
@@ -2000,6 +2001,8 @@ export default Sentry.wrap(function RootLayout() {
                               {/* Renders alerts on web, where RN's Alert is a
                                   no-op. Must stay mounted app-wide. */}
                               <AlertHost />
+                              {/* App Store 5.1.2(i): asks once before any AI request sends data. Renders nothing. */}
+                              <AiConsentSheet />
                               <NailItToastHost />
                             </ShellDockTenantScope>
                             </SearchProvider>

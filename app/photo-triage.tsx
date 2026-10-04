@@ -52,6 +52,7 @@ import { isDeviceLocalUri } from '@/utils/photoUploadCore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { toCalendarDayString, addCalendarDays, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
@@ -419,6 +420,9 @@ function PhotoTriageInner() {
       showAILimitAlert({ limit, router, monthly: true });
       return;
     }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     setBusy(true);
     setError(null);
     try {

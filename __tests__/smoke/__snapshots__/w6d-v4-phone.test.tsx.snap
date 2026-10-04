@@ -37,7 +37,7 @@ exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) delay-event
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) project-detail (the hub with the cost and revision sheets) 1`] = `
 {
-  "lines": 1602,
-  "sha256": "31b9528b129d407084f0ce5121a23a38d93942ee923403b64ee35b90510e96ee",
+  "lines": 1599,
+  "sha256": "d20f93eaf76aa21729a98e62c32fbd3b36c5acd1cba01bf92ee6087c3114e567",
 }
 `;

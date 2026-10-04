@@ -27,6 +27,7 @@ import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 function formatShortDate(iso: string): string {
   try {
@@ -137,7 +138,7 @@ function PaymentPredictionsScreenInner() {
     } catch (err: any) {
       console.warn('[PaymentPredictions] Error:', rawErrorMessage(err));
       const copy = describeError(err, { action: 'forecast your payments' });
-      setError(copy.body);
+      setError(aiConsentErrorText(err) ?? copy.body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);

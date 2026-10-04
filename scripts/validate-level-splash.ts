@@ -33,6 +33,22 @@
  *     rules) recolour the same parts and are pinned by
  *     scripts/validate-level-desk.ts rule H; this rule sets them aside and
  *     checks the light still they recolour.
+ *  H. The native images agree with app.json and with each other (BUILD 18,
+ *     lane APPNATIVE, 2026-10-03): app.json points at these files; the
+ *     splash.backgroundColor and android.adaptiveIcon.backgroundColor are the
+ *     PNGs' own ground, so `resizeMode: contain` letterboxes with no visible
+ *     box; the App Store icon is 1024 × 1024 with NO alpha channel (App Store
+ *     Connect rejects an icon with one) on the same ink ground; the green
+ *     rebrand is in every native image (green present, no old-orange pixel);
+ *     and the assets/brand-next staging folder is gone.
+ *
+ * GREEN SINCE BUILD 18. The baked splash moved from the old orange to the
+ * brand green as it reads on ink (BRAND_ACCENT_ON_DARK, decimal 93,179,110);
+ * the ink ground and the cream caps are unchanged, and so is every pixel of
+ * geometry (scripts/gen-splash.mjs reproduces the PNG pixel for pixel). Rule C
+ * therefore needs utils/levelTimeline.ts NATIVE_SPLASH_ACCENT to be the same
+ * green, or BrandSplash's frame 0 is a different colour from the launch screen
+ * it replaces.
  *
  * No colour literal lives in this file: expected colours come from the
  * NATIVE_SPLASH_* constants or are written as the PNG's decimal RGBA.
@@ -73,7 +89,8 @@ const near = (a: number, b: number, eps: number) => Math.abs(a - b) <= eps;
 
 // ── The PNG decoder ──────────────────────────────────────────────────────────
 
-interface Decoded { width: number; height: number; px: Uint8Array }
+/** px is always RGBA; an RGB (colour type 2) file is expanded with alpha 255. */
+interface Decoded { width: number; height: number; px: Uint8Array; colorType: number }
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -126,12 +143,12 @@ function decodePng(file: Buffer): Decoded {
   const bitDepth = ihdr[8];
   const colorType = ihdr[9];
   const interlace = ihdr[12];
-  if (colorType !== 6) throw new Error(`colour type ${colorType}, need 6 (RGBA)`);
+  if (colorType !== 6 && colorType !== 2) throw new Error(`colour type ${colorType}, need 6 (RGBA) or 2 (RGB)`);
   if (bitDepth !== 8) throw new Error(`bit depth ${bitDepth}, need 8`);
   if (interlace !== 0) throw new Error(`interlace ${interlace}, need 0`);
 
   const raw = inflateSync(Buffer.concat(idat));
-  const bpp = 4;
+  const bpp = colorType === 6 ? 4 : 3;
   const stride = width * bpp;
   if (raw.length !== height * (stride + 1)) throw new Error(`inflated ${raw.length} bytes, need ${height * (stride + 1)}`);
   const px = new Uint8Array(height * stride);
@@ -157,7 +174,12 @@ function decodePng(file: Buffer): Decoded {
       px[dst + i] = v & 0xff;
     }
   }
-  return { width, height, px };
+  if (bpp === 4) return { width, height, px, colorType };
+  const rgba = new Uint8Array(width * height * 4);
+  for (let j = 0, k = 0; j < px.length; j += 3, k += 4) {
+    rgba[k] = px[j]; rgba[k + 1] = px[j + 1]; rgba[k + 2] = px[j + 2]; rgba[k + 3] = 255;
+  }
+  return { width, height, px: rgba, colorType };
 }
 
 // ── Measure ──────────────────────────────────────────────────────────────────
@@ -173,8 +195,9 @@ const hexRgb = (hex: string): [number, number, number] => {
 // The PNG's four values, as decimal RGBA (the ground truth rule C compares the
 // constants against).
 const BG: RGBA = [11, 13, 16, 255];
-const TRACK: RGBA = [255, 106, 26, 64];
-const BUBBLE: RGBA = [255, 106, 26, 255];
+// Green since build 18: BRAND_ACCENT_ON_DARK at the track alpha, and opaque.
+const TRACK: RGBA = [93, 179, 110, 64];
+const BUBBLE: RGBA = [93, 179, 110, 255];
 const CAP: RGBA = [244, 239, 230, 64];
 
 const argv = (flag: string): string | null => {
@@ -198,6 +221,7 @@ try {
   process.exit(1);
 }
 const { width: W, height: H, px } = img;
+check('A. the splash is colour type 6 (RGBA)', img.colorType === 6, String(img.colorType));
 const at = (x: number, y: number): string => {
   const i = (y * W + x) * 4;
   return `${px[i]},${px[i + 1]},${px[i + 2]},${px[i + 3]}`;
@@ -271,9 +295,10 @@ check('B. NATIVE_SPLASH_PX.bubble = {479,546,499,525} = measured', sameExcl(P.bu
 // ── C. Colours ───────────────────────────────────────────────────────────────
 const rgbKey = (hex: string, a: number) => [...hexRgb(hex), a].join(',');
 check('C. NATIVE_SPLASH_BG is the background', rgbKey(NATIVE_SPLASH_BG, 255) === key(BG), NATIVE_SPLASH_BG);
-check('C. NATIVE_SPLASH_ACCENT is the bubble', rgbKey(NATIVE_SPLASH_ACCENT, 255) === key(BUBBLE), NATIVE_SPLASH_ACCENT);
+const ACCENT_FIX = 'utils/levelTimeline.ts NATIVE_SPLASH_ACCENT must be the baked bubble (decimal 93,179,110 since build 18)';
+check('C. NATIVE_SPLASH_ACCENT is the bubble', rgbKey(NATIVE_SPLASH_ACCENT, 255) === key(BUBBLE), `${NATIVE_SPLASH_ACCENT} — ${ACCENT_FIX}`);
 check('C. NATIVE_SPLASH_ACCENT @ TRACK_ALPHA is the track', rgbKey(NATIVE_SPLASH_ACCENT, NATIVE_SPLASH_TRACK_ALPHA) === key(TRACK),
-  `${NATIVE_SPLASH_ACCENT} @ ${NATIVE_SPLASH_TRACK_ALPHA}`);
+  `${NATIVE_SPLASH_ACCENT} @ ${NATIVE_SPLASH_TRACK_ALPHA} — ${ACCENT_FIX}`);
 check('C. NATIVE_SPLASH_CAP @ CAP_ALPHA is the caps', rgbKey(NATIVE_SPLASH_CAP, NATIVE_SPLASH_CAP_ALPHA) === key(CAP),
   `${NATIVE_SPLASH_CAP} @ ${NATIVE_SPLASH_CAP_ALPHA}`);
 check('C. NATIVE_SPLASH_TRACK_ALPHA is 64', NATIVE_SPLASH_TRACK_ALPHA === 64);
@@ -466,7 +491,7 @@ function validatePreJs(doc: string): void {
       check(`G. ${cls} ${k} = ${want[k].toFixed(4)}% (NATIVE_SPLASH_PX within 0.01 %)`, near(have[k], want[k], 0.01), String(have[k]));
     }
     check(`G. ${cls} colour is the WEB_LAUNCH value`, colourIs(r.get('background-color'), colour), r.get('background-color'));
-    check(`G. ${cls} is never the native splash orange / cream`, !colourIs(r.get('background-color'), NATIVE_SPLASH_ACCENT)
+    check(`G. ${cls} is never the native splash accent / cream`, !colourIs(r.get('background-color'), NATIVE_SPLASH_ACCENT)
       && !colourIs(r.get('background-color'), NATIVE_SPLASH_CAP));
     if (alpha === 255) check(`G. ${cls} is opaque`, !r.has('opacity') || opacity(r.get('opacity')) === 1, r.get('opacity'));
     else check(`G. ${cls} opacity is 64/255 (0.251)`, near(opacity(r.get('opacity')), alpha / 255, 0.0005), r.get('opacity'));
@@ -501,6 +526,84 @@ function validatePreJs(doc: string): void {
         && near((g.w / 100) * markW, pr.width, 0.05) && near((g.h / 100) * markH, pr.height, 0.05));
     }
   }
+}
+
+// ── H. The native images agree with app.json and with each other ────────────
+{
+  const appPath = argv('--app') ?? join(ROOT, 'app.json');
+  const iconPath = argv('--icon') ?? join(ROOT, 'assets', 'images', 'icon.png');
+  const adaptivePath = argv('--adaptive') ?? join(ROOT, 'assets', 'images', 'adaptive-icon.png');
+  const app = JSON.parse(readFileSync(appPath, 'utf8')) as {
+    expo: {
+      icon?: string;
+      splash?: { image?: string; resizeMode?: string; backgroundColor?: string };
+      android?: { adaptiveIcon?: { foregroundImage?: string; backgroundColor?: string } };
+    };
+  };
+  const e = app.expo;
+  const sameHex = (hex: string | undefined, c: RGBA) => {
+    try { return !!hex && c[3] === 255 && key([...hexRgb(hex), 255]) === key(c); } catch { return false; }
+  };
+  // The rebrand test, in decimal: green is the brand green family (g well
+  // above r and b); the old orange is r high, b low. Thresholds sit far from
+  // the cream (207,203,196), the ink (11,13,16) and both brands' anti-aliasing.
+  const isGreen = (r: number, g: number, b: number) => g - r >= 50 && g - b >= 40;
+  const isOrange = (r: number, g: number, b: number) => r >= 180 && r - b >= 120 && r - g >= 60;
+  const tally = (d: Decoded) => {
+    let green = 0; let orange = 0;
+    for (let i = 0; i < d.px.length; i += 4) {
+      if (d.px[i + 3] === 0) continue;
+      if (isGreen(d.px[i], d.px[i + 1], d.px[i + 2])) green++;
+      if (isOrange(d.px[i], d.px[i + 1], d.px[i + 2])) orange++;
+    }
+    return { green, orange };
+  };
+  const pxAt = (d: Decoded, x: number, y: number): RGBA => {
+    const i = (y * d.width + x) * 4;
+    return [d.px[i], d.px[i + 1], d.px[i + 2], d.px[i + 3]];
+  };
+  const corners = (d: Decoded): RGBA[] =>
+    [[0, 0], [d.width - 1, 0], [0, d.height - 1], [d.width - 1, d.height - 1]].map(([x, y]) => pxAt(d, x, y));
+
+  // The splash.
+  check('H. app.json splash.image is ./assets/images/splash-icon.png', e.splash?.image === './assets/images/splash-icon.png', String(e.splash?.image));
+  check('H. app.json splash.resizeMode is contain', e.splash?.resizeMode === 'contain', String(e.splash?.resizeMode));
+  check('H. app.json splash.backgroundColor is the splash PNG\'s own ground (no visible box)',
+    sameHex(e.splash?.backgroundColor, BG) && corners(img).every((c) => key(c) === key(BG)), String(e.splash?.backgroundColor));
+  check('H. the splash is the green rebrand (the bubble is green, nothing is the old orange)',
+    isGreen(BUBBLE[0], BUBBLE[1], BUBBLE[2]) && tally(img).orange === 0 && tally(img).green === box(BUBBLE).n + box(TRACK).n,
+    JSON.stringify(tally(img)));
+
+  // The App Store / home-screen icon.
+  check('H. app.json icon is ./assets/images/icon.png', e.icon === './assets/images/icon.png', String(e.icon));
+  let icon: Decoded | null = null;
+  try { icon = decodePng(readFileSync(iconPath)); } catch (err) { check('H. icon.png decodes', false, (err as Error).message); }
+  if (icon) {
+    check('H. icon.png is 1024 × 1024', icon.width === 1024 && icon.height === 1024, `${icon.width} × ${icon.height}`);
+    check('H. icon.png has NO alpha channel (colour type 2; App Store Connect rejects an icon with alpha)', icon.colorType === 2, String(icon.colorType));
+    check('H. icon.png sits on the splash ink ground (all four corners)', corners(icon).every((c) => key(c) === key(BG)),
+      corners(icon).map(key).join(' | '));
+    const t = tally(icon);
+    check('H. icon.png carries the green rebrand (≥ 10,000 green pixels) and no old-orange pixel', t.green >= 10000 && t.orange === 0, JSON.stringify(t));
+  }
+
+  // The Android adaptive icon (foreground on its declared background).
+  check('H. app.json android.adaptiveIcon.foregroundImage is ./assets/images/adaptive-icon.png',
+    e.android?.adaptiveIcon?.foregroundImage === './assets/images/adaptive-icon.png', String(e.android?.adaptiveIcon?.foregroundImage));
+  let adaptive: Decoded | null = null;
+  try { adaptive = decodePng(readFileSync(adaptivePath)); } catch (err) { check('H. adaptive-icon.png decodes', false, (err as Error).message); }
+  if (adaptive) {
+    check('H. adaptive-icon.png is 1024 × 1024', adaptive.width === 1024 && adaptive.height === 1024, `${adaptive.width} × ${adaptive.height}`);
+    check('H. app.json android.adaptiveIcon.backgroundColor is the adaptive icon\'s own ground',
+      sameHex(e.android?.adaptiveIcon?.backgroundColor, corners(adaptive)[0]) && corners(adaptive).every((c) => key(c) === key(BG)),
+      String(e.android?.adaptiveIcon?.backgroundColor));
+    const t = tally(adaptive);
+    check('H. adaptive-icon.png bubble is the splash bubble green, and no old-orange pixel',
+      key(pxAt(adaptive, 512, 512)) === key(BUBBLE) && t.orange === 0, `${key(pxAt(adaptive, 512, 512))} ${JSON.stringify(t)}`);
+  }
+
+  check('H. assets/brand-next (the staging folder) is gone — the green images live in assets/images',
+    !existsSync(argv('--brand-next') ?? join(ROOT, 'assets', 'brand-next')));
 }
 
 if (failures > 0) {

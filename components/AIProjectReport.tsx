@@ -26,6 +26,7 @@ import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 
 interface Props {
   project: Project;
@@ -76,8 +77,9 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Report] Generation failed:', err);
+      const off = aiConsentErrorText(err);
       const copy = describeError(err, { action: 'generate the status report' });
-      showAlert(copy.title, copy.body);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : copy.title, off ?? copy.body);
     } finally {
       setIsLoading(false);
     }

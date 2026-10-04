@@ -10,6 +10,7 @@ import type { ToolboxTopicSource } from '@/types';
 import { toolboxGaps, type ToolboxDraft, type SuggestedTopic } from './toolboxGaps';
 import { buildToolboxGrounding } from './toolboxGrounding';
 import { mageAI } from '@/utils/mageAI';
+import { AiConsentDeclinedError, isAiConsentRefusal } from '@/utils/aiConsentCore';
 import { createId } from '@/utils/scheduleEngine';
 import { todayCalendarDay } from '@/utils/calendarDate';
 
@@ -98,6 +99,7 @@ export const toolboxCapability: CopilotCapability<ToolboxDraft, ToolboxApplied> 
 
     // Write the talking points. Never block the meeting on the AI relay.
     let notes: string;
+    let consentRefused = false;
     try {
       const gen = await mageAI({
         prompt: [
@@ -115,10 +117,15 @@ export const toolboxCapability: CopilotCapability<ToolboxDraft, ToolboxApplied> 
         maxTokens: 900,
         feature: 'voiceCapture',
       });
+      consentRefused = isAiConsentRefusal(gen);
       notes = formatNotes(gen.success ? gen.data : null, topic);
     } catch {
       notes = formatNotes(null, topic);
     }
+    // AI turned off (utils/aiConsent): say so — the copilot shows this
+    // sentence and keeps the draft — rather than filing template notes as if
+    // the AI had written them.
+    if (consentRefused) throw new AiConsentDeclinedError();
 
     const now = new Date().toISOString();
     ctx.safety?.addToolboxTalk?.({

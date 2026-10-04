@@ -56,6 +56,7 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { describeError } from '@/utils/errorCopy';
@@ -164,6 +165,9 @@ function PlanIntelligenceInner() {
     setImageUri(uri);
     setSheetId(fromSheetId);
     measureAspect(uri, w, h);
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); setPhase('pick'); return; }
     setPhase('analyzing');
     try {
       const { rooms: raw } = await analyzePlanRooms({

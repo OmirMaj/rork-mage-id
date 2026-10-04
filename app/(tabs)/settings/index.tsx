@@ -31,7 +31,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats, describeAIUsageCard, type AIUsageSource, type SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { nextAiResetLabel } from '@/utils/aiRateLimiterCore';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useSubscription, type PlanSource } from '@/contexts/SubscriptionContext';
 import { listPriceLabel, type PaidTier } from '@/constants/pricing';
 import { planFeatureLines, planFeatureBlurb, lineTier, type PlanFeatureLine } from '@/utils/planFeatureCopy';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
@@ -64,6 +64,7 @@ import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
 import { SkillsProfileRow } from '@/components/learn/SkillsProfileRow';
+import { declineAiConsent, ensureAiConsent, getAiConsentState, loadAiConsent, resetAiConsent, subscribeAiConsent, type AiConsentState } from '@/utils/aiConsent';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -159,6 +160,113 @@ const FREE_TIER_FAQ =
   + `Pro (${listPriceLabel('pro')} list) adds unlimited projects, ${planFeatureBlurb('pro')}. `
   + `Business (${listPriceLabel('business')} list) adds ${planFeatureBlurb('business')}, and QuickBooks sync.`;
 
+// ── App Store copy (guidelines 2.3.10 and 3.1.1, first submission) ─────────
+// The iPhone app never names Android or Google Play, and never says a paid
+// plan was switched on outside the App Store (or that there is "nothing to
+// cancel" there). Each string below that does is reachable only off iOS:
+// Android reads its own store, the web app keeps today's wording.
+// scripts/validate-ios-store-copy.ts runs these functions with Platform.OS
+// 'ios' and fails on any of those words, and fails any such word in this file
+// that sits outside them.
+
+/** "Is my data private?" — AI providers are named, and on a phone only after
+ *  the person allowed it (components/AiConsentSheet, Settings → AI features). */
+function privacyFaqAnswer(): string {
+  const base = 'Yes. Your projects are stored in your account, and only you and the people you invite can open them. We don’t sell your data.';
+  if (Platform.OS === 'web') {
+    return `${base} When you use an AI feature, what you send it goes to our AI providers only to answer that request.`;
+  }
+  return `${base} AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings → AI features.`;
+}
+
+function ipadFaqAnswer(): string {
+  if (Platform.OS === 'ios') return 'Not yet. MAGE ID runs on iPhone and in the web app at app.mageid.app.';
+  if (Platform.OS === 'android') return 'Not yet. MAGE ID runs on Android phones and in the web app at app.mageid.app.';
+  return 'Not yet. MAGE ID runs on iPhone, Android phones and the web app at app.mageid.app.';
+}
+
+function subscriptionFaqAnswer(): string {
+  if (Platform.OS === 'ios') {
+    return 'If you subscribed in the app, use Settings → Manage subscription, which opens your App Store subscriptions. Nothing is deleted when a plan ends.';
+  }
+  if (Platform.OS === 'android') {
+    return 'If you subscribed in the app, use Settings → Manage subscription, which opens your Google Play subscriptions. Nothing is deleted when a plan ends.';
+  }
+  // #176: a plan turned on by hand has nothing in a store to cancel. Same two
+  // routes as support.html. Web only.
+  return 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings → Manage subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you (how every paid plan starts today), email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.';
+}
+
+/** The delete-account warning's subscription line, per platform. */
+function deleteAccountSubscriptionNote(): string {
+  if (Platform.OS === 'ios') return 'If you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions. Deleting your account does NOT cancel your subscription.';
+  if (Platform.OS === 'android') return 'If you have an active subscription, cancel it first in Google Play → Subscriptions. Deleting your account does NOT cancel your subscription.';
+  return 'If you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.';
+}
+
+type PlanChangeRoute = {
+  /** null: nothing to open — the row is a plain line, not a button. */
+  url: string | null;
+  label: string;
+  subtitle: string | null;
+  fallback: string;
+  downgradeMessage: string;
+};
+
+const PLAN_NAME: Record<'free' | PaidTier, string> = { free: 'Free', pro: 'Pro', business: 'Business', enterprise: 'Enterprise' };
+
+/**
+ * #176: where a plan change or cancel really goes. 'store' only when an App
+ * Store / Google Play entitlement backs the tier AND this is that phone —
+ * never an apps.apple.com link on the web. A paid plan with no store purchase
+ * on a phone is a plain line with the plan's name (3.1.1: no route outside the
+ * App Store, no "turned on by MAGE ID"); the web app keeps the email route.
+ */
+function planChangeRouteFor(planSource: PlanSource, tier: 'free' | PaidTier): PlanChangeRoute {
+  const mailto = 'mailto:help@mageid.app?subject=Change%20my%20MAGE%20ID%20plan';
+  if (planSource === 'store' && (Platform.OS === 'ios' || Platform.OS === 'android')) {
+    const store = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
+    return {
+      url: Platform.OS === 'ios'
+        ? 'itms-apps://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions',
+      label: 'Manage subscription',
+      subtitle: `Cancel or change anytime in the ${store}`,
+      fallback: Platform.OS === 'ios'
+        ? 'Open Settings → Apple ID → Subscriptions to manage your MAGE ID plan.'
+        : 'Open Play Store → Subscriptions to manage your MAGE ID plan.',
+      downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings → Apple ID → Subscriptions' : 'Play Store → Subscriptions'}). Nothing is deleted.`,
+    };
+  }
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    const name = `${PLAN_NAME[tier]} plan`;
+    return {
+      url: null,
+      label: name,
+      subtitle: null,
+      fallback: name,
+      downgradeMessage: `Your ${name} can’t be changed from this screen. Nothing is deleted when a plan ends.`,
+    };
+  }
+  if (planSource === 'store') {
+    // A store subscription viewed on the web: the store page is on his phone.
+    return {
+      url: mailto,
+      label: 'Manage subscription',
+      subtitle: 'Billed through the App Store or Google Play. Change or cancel it on your phone, or email help@mageid.app.',
+      fallback: 'Change or cancel it in your phone’s App Store or Google Play subscriptions, or email help@mageid.app.',
+      downgradeMessage: 'Your plan is billed through the App Store or Google Play. Cancel it in your phone’s subscription settings to switch to Free, or email help@mageid.app. Nothing is deleted.',
+    };
+  }
+  return {
+    url: mailto,
+    label: 'Your plan was turned on by MAGE ID',
+    subtitle: 'Email help@mageid.app to change or cancel. Nothing is deleted.',
+    fallback: 'Email help@mageid.app to change or cancel your plan. Nothing is deleted.',
+    downgradeMessage: 'Your plan was turned on by MAGE ID, so there is nothing to cancel in the App Store. Email help@mageid.app to switch to Free. Nothing is deleted.',
+  };
+}
+
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: 'How do I create my first project?',
@@ -178,7 +286,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'Is my data private?',
-    a: 'Yes. Your projects are stored in your account, and only you and the people you invite can open them. We never share data with third parties.',
+    a: privacyFaqAnswer(),
   },
   {
     q: 'Can I use MAGE ID offline?',
@@ -190,13 +298,11 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'Do you support iPad?',
-    a: 'Not yet. MAGE ID runs on iPhone, Android phones and the web app at app.mageid.app.',
+    a: ipadFaqAnswer(),
   },
   {
     q: 'How do I cancel or change my subscription?',
-    // #176: every paid plan today is turned on by hand, and there is nothing
-    // in the App Store to cancel for it. Same two routes as support.html.
-    a: 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings \u2192 Manage subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you (how every paid plan starts today), email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.',
+    a: subscriptionFaqAnswer(),
   },
   {
     q: 'Does MAGE ID replace a lawyer or licensed inspector?',
@@ -256,45 +362,24 @@ export default function SettingsScreen() {
     const store = pkg?.product?.priceString;
     return store ? `${store}/mo` : `${listPriceLabel(t)} list`;
   }, [proPackage, businessPackage, enterprisePackage]);
-  // #176: where a plan change or cancel really goes. 'store' only when an
-  // App Store / Google Play entitlement backs the tier AND this is that phone
-  // — never an apps.apple.com link on the web. Everything else (a plan turned
-  // on by hand, a promotional grant, the web) is an email; never "no support
-  // call needed" when support is the only route.
-  const planChangeRoute = useMemo(() => {
-    const mailto = 'mailto:help@mageid.app?subject=Change%20my%20MAGE%20ID%20plan';
-    if (planSource === 'store' && (Platform.OS === 'ios' || Platform.OS === 'android')) {
-      const store = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
-      return {
-        url: Platform.OS === 'ios'
-          ? 'itms-apps://apps.apple.com/account/subscriptions'
-          : 'https://play.google.com/store/account/subscriptions',
-        label: 'Manage subscription',
-        subtitle: `Cancel or change anytime in the ${store}`,
-        fallback: Platform.OS === 'ios'
-          ? 'Open Settings \u2192 Apple ID \u2192 Subscriptions to manage your MAGE ID plan.'
-          : 'Open Play Store \u2192 Subscriptions to manage your MAGE ID plan.',
-        downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings \u2192 Apple ID \u2192 Subscriptions' : 'Play Store \u2192 Subscriptions'}). Nothing is deleted.`,
-      };
-    }
-    if (planSource === 'store') {
-      // A store subscription viewed on the web: the store page is on his phone.
-      return {
-        url: mailto,
-        label: 'Manage subscription',
-        subtitle: 'Billed through the App Store or Google Play. Change or cancel it on your phone, or email help@mageid.app.',
-        fallback: 'Change or cancel it in your phone\u2019s App Store or Google Play subscriptions, or email help@mageid.app.',
-        downgradeMessage: 'Your plan is billed through the App Store or Google Play. Cancel it in your phone\u2019s subscription settings to switch to Free, or email help@mageid.app. Nothing is deleted.',
-      };
-    }
-    return {
-      url: mailto,
-      label: 'Your plan was turned on by MAGE ID',
-      subtitle: 'Email help@mageid.app to change or cancel. Nothing is deleted.',
-      fallback: 'Email help@mageid.app to change or cancel your plan. Nothing is deleted.',
-      downgradeMessage: 'Your plan was turned on by MAGE ID, so there is nothing to cancel in the App Store. Email help@mageid.app to switch to Free. Nothing is deleted.',
-    };
-  }, [planSource]);
+  // AI features (App Store 5.1.2(i)): the one-time permission the consent
+  // sheet asks for, revocable here. Phones only — the web app never asks.
+  const [aiConsentState, setAiConsentState] = useState<AiConsentState>(getAiConsentState);
+  useEffect(() => {
+    const off = subscribeAiConsent(setAiConsentState);
+    void loadAiConsent();
+    return off;
+  }, []);
+  const setAiFeatures = useCallback((on: boolean) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    if (!on) { void declineAiConsent(); return; }
+    // On shows the same question as first use — who receives the data and
+    // what is sent (5.1.2(i)) — and stores that answer; the switch follows it.
+    if (getAiConsentState() === 'granted') return;
+    void resetAiConsent().then(() => ensureAiConsent());
+  }, []);
+  // #176 + App Store 3.1.1: see planChangeRouteFor (module scope).
+  const planChangeRoute = useMemo(() => planChangeRouteFor(planSource, tier), [planSource, tier]);
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const { t } = useT();
   const { lang: appLanguage } = useLanguage();
@@ -885,7 +970,7 @@ export default function SettingsScreen() {
   const handleDeleteAccount = useCallback(() => {
     showAlert(
       'Delete account',
-      `This permanently removes your MAGE ID account, every project you own, and the files you uploaded. This cannot be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}\n\nIf you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.`,
+      `This permanently removes your MAGE ID account, every project you own, and the files you uploaded. This cannot be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}\n\n${deleteAccountSubscriptionNote()}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1943,6 +2028,35 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
+          {Platform.OS !== 'web' && (
+            <View style={styles.row} testID="ai-features-row">
+              <View style={styles.iconWrap}>
+                <MageAIMark size={14} color={themeColors.textSecondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>AI features</Text>
+                <Text style={styles.sectionSubtext}>
+                  {aiConsentState === 'granted'
+                    ? 'What you send an AI feature goes to Google Gemini, Anthropic Claude or a speech-to-text service, only to answer it.'
+                    : aiConsentState === 'declined'
+                      ? 'Nothing is sent to an AI provider. AI buttons say so until you turn this on.'
+                      : 'You\u2019ll be asked the first time you use an AI feature.'}
+                </Text>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowValue}>{aiConsentState === 'granted' ? 'On' : 'Off'}</Text>
+                <Switch
+                  value={aiConsentState === 'granted'}
+                  onValueChange={setAiFeatures}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                  ios_backgroundColor={themeColors.line}
+                  accessibilityLabel="AI features"
+                  testID="ai-features-switch"
+                />
+              </View>
+            </View>
+          )}
           <TouchableOpacity
             style={styles.row}
             onPress={() => router.push('/connect-claude' as any)}
@@ -2121,7 +2235,7 @@ export default function SettingsScreen() {
                 price: planPriceLabel('enterprise'),
                 color: themeColors.info,
                 icon: Crown,
-                features: ['Everything in Business', 'Highest AI usage limits', '100 drawing analyses/mo', '200 photo analyses/mo', '4,500 text AI calls/mo', 'Priority queue on heavy AI requests', 'Concierge onboarding'],
+                features: ['Everything in Business', 'Highest AI usage limits', '100 drawing analyses/mo', '200 photo analyses/mo', '4,500 text AI calls/mo', 'Concierge onboarding'],
                 disabled: [],
               },
             ].map(plan => {
@@ -2188,14 +2302,27 @@ export default function SettingsScreen() {
             weakness (Houzz Pro, Contractor Foreman). #176: that only works if
             the route is real — a store subscriber goes to the store page, a
             plan MAGE ID turned on by hand goes to help@mageid.app (the store
-            page lists nothing for him). See planChangeRoute. */}
-        {tier !== 'free' && (
+            page lists nothing for him). See planChangeRoute. On a phone a paid
+            plan with no store purchase is a plain line with the plan's name
+            (App Store 3.1.1): nothing to open, so not a button. */}
+        {tier !== 'free' && planChangeRoute.url === null && (
+          <View style={styles.group}>
+            <View style={styles.row} testID="plan-name-row">
+              <View style={styles.iconWrap}>
+                <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+              </View>
+              <Text style={[styles.rowLabel, { flex: 1 }]}>{planChangeRoute.label}</Text>
+            </View>
+          </View>
+        )}
+        {tier !== 'free' && planChangeRoute.url !== null && (
           <View style={styles.group}>
             <TouchableOpacity
               style={styles.row}
               onPress={() => {
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
                 const url = planChangeRoute.url;
+                if (!url) return;
                 Linking.openURL(url).catch(() => {
                   showAlert(planChangeRoute.label, planChangeRoute.fallback);
                 });

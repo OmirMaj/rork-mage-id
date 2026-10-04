@@ -19,6 +19,7 @@ import { paymentHistoryForInvoice } from '@/utils/paymentPrediction';
 import type { Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -126,7 +127,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (err) {
       console.warn('[AI Invoice] Prediction failed:', rawErrorMessage(err));
-      setError(describeError(err, { action: 'predict when this invoice gets paid' }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'predict when this invoice gets paid' }).body);
     } finally {
       setIsLoading(false);
     }

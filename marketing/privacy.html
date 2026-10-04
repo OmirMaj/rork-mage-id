@@ -58,7 +58,7 @@
 
   <main id="main" class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: June 20, 2026</p>
+    <p class="updated">Last updated: October 3, 2026</p>
 
     <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.</p>
 
@@ -67,9 +67,41 @@
       <li><strong>Account Information:</strong> Name, email address, and password (encrypted) when you sign up.</li>
       <li><strong>Project &amp; Financial Data:</strong> Project details, schedules, estimates, costs, invoices, change orders, daily reports, documents, photos, and client/subcontractor contact details you create inside the app.</li>
       <li><strong>Payment Data:</strong> When you send or receive payments, card processing is handled by Stripe; we do not store full card numbers. Subscriptions are handled by RevenueCat and the Apple App Store / Google Play.</li>
+      <li><strong>Precise Location (only when you allow it):</strong> the GPS position stamped on a jobsite photo, a field-verified takeoff row or a signed field ticket. See <a href="#location">Location</a>.</li>
+      <li><strong>Voice Recordings:</strong> audio you record for dictation or upload from a meeting, sent for transcription and not kept on our servers. See <a href="#voice">Voice recordings</a>.</li>
+      <li><strong>Safety Records:</strong> incident reports you write can include health details about a worker: whether they were injured, what the injury was, and the treatment they received (first aid or medical care).</li>
       <li><strong>Device Information:</strong> Operating system, device type, and app version for diagnostic purposes.</li>
       <li><strong>Usage Data:</strong> App interactions and diagnostics, via PostHog (product analytics), to improve the product.</li>
+      <li><strong>Crash Reports and Session Replay:</strong> collected by Sentry when the app crashes or hits an error. See <a href="#diagnostics">Crash reports and session replay</a>.</li>
     </ul>
+
+    <h2 id="location">Location</h2>
+    <p>MAGE ID uses your device's precise location only when you have allowed it and only in response to something you tap. It never tracks you in the background, and the iPhone app does not ask for "Always" location access.</p>
+    <ul>
+      <li><strong>Stamped on records:</strong> when you take a jobsite photo, field-verify a takeoff row, or sign a field ticket, we save the GPS position with that record so it carries proof of where it was made. It is stored with the project and visible to the people you share that project with.</li>
+      <li><strong>Used once, not stored:</strong> when you tap "Use my location" or "Near me," your position is used on your device to sort nearby projects, jobs and companies by distance.</li>
+      <li><strong>Public pages:</strong> when you publish a photo to your public portfolio, we remove the location data embedded in the image file first.</li>
+    </ul>
+    <p>You can turn location off at any time in your device settings (on iPhone: Settings &rarr; MAGE ID &rarr; Location). Records are still saved, just without a GPS stamp.</p>
+
+    <h2 id="voice">Voice recordings</h2>
+    <p>When you tap the microphone to dictate (for example, a daily report, a punch item or a note) or upload a meeting recording, the audio is sent to our server and from there to a speech-to-text service provided through Rork (which may use its own speech-recognition provider), which returns the text. We keep the text you choose to save; we do not keep the audio on our servers. If you are offline, the recording waits on your device until it can be sent, and is deleted from your device once it has been transcribed. MAGE ID only records while you are actively recording.</p>
+
+    <h2 id="diagnostics">Crash reports and session replay</h2>
+    <p>We use Sentry to find and fix crashes. When the app crashes or hits an error, Sentry receives a report with the error, the app version, your device model and operating system, and the screens and taps that led up to it. A report also includes the app's recent log lines and the addresses of the network requests it made just before the error; those log lines can sometimes contain account details such as your email address. We have switched off Sentry's collection of IP addresses, and we do not deliberately attach your account ID to these reports, though it can appear inside the address of a recorded network request.</p>
+    <p>In the iPhone app, Sentry also records a <strong>session replay</strong> for every session that hits an error and for a random 10% of other sessions. A replay is a reconstruction of what was on screen: layout, navigation and taps. All text, images and graphics are masked (replaced with blocks) before the replay leaves your device, so your project names, numbers and photos are not readable in it. Sentry stores this data in the United States.</p>
+
+    <h2 id="ai">AI features and who processes them</h2>
+    <p>MAGE ID's AI features run on third-party AI providers. When you use one, we send that provider what the feature needs to answer: the text you typed or dictated, the photos, plan pages or documents you submitted, and the relevant project details from your account (for example, your past costs when you ask for an estimate, or your schedule's tasks when you ask to change it). We send them from our server, never with your password.</p>
+    <ul>
+      <li><strong>Google (Gemini)</strong> powers most AI features: estimates, quantity takeoff, plan and spec reading, photo analysis, scanning documents, schedule import and edits, safety drafts, and plain-English summaries.</li>
+      <li><strong>Anthropic (Claude)</strong> answers construction and building-code questions (it may run web searches to find the code sections it cites) and can run quantity takeoff for Enterprise accounts.</li>
+      <li><strong>Rork</strong> provides the speech-to-text service that transcribes voice recordings into text (Rork may use its own speech-recognition provider), as described above.</li>
+    </ul>
+    <p>AI prompts are not used to train third-party foundation models. AI answers can be wrong; check anything you rely on.</p>
+
+    <h2 id="purchases">Purchases</h2>
+    <p>Subscriptions bought in the iPhone app are processed by Apple. We never see your card details. RevenueCat records your subscription status and purchase history against your account so the app knows which plan you are on. Payments you send or receive for your jobs (for example, a client paying an invoice) are processed by Stripe.</p>
 
     <h2>How We Use Your Information</h2>
     <ul>
@@ -91,8 +123,11 @@
       <li><strong>RevenueCat</strong> — subscription management, alongside the Apple App Store and Google Play</li>
       <li><strong>PostHog</strong> — product analytics</li>
       <li><strong>Resend</strong> — transactional email delivery</li>
+      <li><strong>Sentry</strong> — crash reports and session replay</li>
       <li><strong>Apple / Google</strong> — app distribution and in-app purchases</li>
-      <li><strong>Google (Gemini)</strong> and other AI processing vendors — strictly to deliver in-app AI features (e.g. estimate generation, schedule risk analysis, project summaries) on data you submit. AI prompts are not used to train third-party foundation models.</li>
+      <li><strong>CloudConvert</strong> — converting plan PDFs you upload into page images</li>
+      <li><strong>Google Maps / OpenStreetMap</strong> — placing the city and state of a project or bid on a map</li>
+      <li><strong>Google (Gemini)</strong>, <strong>Anthropic (Claude)</strong> and <strong>Rork</strong> (speech-to-text, which may use its own speech-recognition provider) — strictly to deliver in-app AI features on data you submit (see <a href="#ai">AI features</a>). AI prompts are not used to train third-party foundation models.</li>
     </ul>
     <p>We do not sell or rent your personal information to any third party.</p>
 

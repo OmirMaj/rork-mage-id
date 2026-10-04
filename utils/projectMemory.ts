@@ -19,6 +19,7 @@
 
 import { mageAI } from '@/utils/mageAI';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { ensureAiConsent } from '@/utils/aiConsent';
 import { isExcludedMemoryRecord, type MemoryAskOptions } from '@/utils/projectMemoryCore';
 import {
   batchGroups, confidentMatches, memoryDocHash, MEMORY_DOC_PREFIXES, MEMORY_RECORD_SOURCES,
@@ -231,6 +232,10 @@ interface MemoryMatch { doc_id: string; source: string; ref: string; content: st
 
 async function authedPost(url: string, body: unknown): Promise<unknown | null> {
   try {
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Refused → null, the same "could not reach the index" every caller handles.
+    if (!(await ensureAiConsent())) return null;
     const { data: { session } } = await supabase.auth.getSession();
     const jwt = session?.access_token;
     if (!jwt) return null;

@@ -166,7 +166,8 @@ export function levelClearance(width: number): number {
 // decodes the PNG and asserts these; they must equal the baked frame.
 
 export const NATIVE_SPLASH_BG = '#0B0D10';
-export const NATIVE_SPLASH_ACCENT = '#FF6A1A';
+// Build 18 ships the green splash (assets/images/splash-icon.png, bubble rgb 93,179,110).
+export const NATIVE_SPLASH_ACCENT = '#5DB36E';
 export const NATIVE_SPLASH_CAP = '#F4EFE6';
 export const NATIVE_SPLASH_FG = '#F4EFE6';
 /** Track and caps alpha in the PNG: draw as a View opacity of 64/255. */

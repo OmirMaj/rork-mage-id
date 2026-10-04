@@ -44,6 +44,7 @@ import { hazardPhotoForSave, stagedPathFor } from '@/utils/safety/hazardPhoto';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import {
   aiLimitAlertTitle, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
 } from '@/utils/safety/safetyRefresh';
@@ -283,6 +284,9 @@ function SafetyHazardsInner() {
     if (scanBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), scanBlocked); return; }
     const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.hazard.monthlyPhotoLimitReached', 'Monthly photo limit reached.')); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     setDetecting(true);
     setScanNote(null);
     try {

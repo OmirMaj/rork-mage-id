@@ -12,6 +12,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { SUPABASE_ANON_KEY, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
+import { requireAiConsent } from '@/utils/aiConsent';
 
 /** The `{ uri, name, type }` file shape React Native FormData accepts. */
 export interface AudioFile {
@@ -26,6 +27,9 @@ export interface AudioFile {
  * can surface `err.message` directly.
  */
 export async function transcribeAudio(file: AudioFile): Promise<string> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const formData = new FormData();
   // RN FormData accepts the file descriptor shape; cast for the web typings.
   formData.append('audio', file as unknown as Blob);

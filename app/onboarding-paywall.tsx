@@ -22,7 +22,11 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription, restoreOutcome } from '@/contexts/SubscriptionContext';
+import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
+import {
+  autoRenewText, plansLoadFailedText, purchaseFailureKind, soldPeriod, storePlanState,
+  StorePlansUnavailable, useRetryStorePlans,
+} from '@/components/Paywall';
 import {
   LIST_PRICE_MONTHLY, PRICE_AT_CHECKOUT, annualPerMonth, annualSavingsPercent,
 } from '@/constants/pricing';
@@ -137,6 +141,31 @@ export default function OnboardingPaywallScreen() {
 
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('annual');
+  const { retryPlans, retrying } = useRetryStorePlans();
+
+  // ── App Review 3.1.1 / 2.1 (audit 2026-10 #3): what the phone may offer ──
+  // On iOS/Android a plan with no store package has no card, and with no
+  // package for any plan the cards and the buy button give way to one honest
+  // sentence and a Retry. The web keeps every card as before (its checkout is
+  // RevenueCat Web Billing, with its own fallbacks).
+  const nativeStore = Platform.OS !== 'web';
+  const anyStorePackage = !!(proPackage || proAnnualPackage || businessPackage || businessAnnualPackage);
+  const proState = storePlanState({ loading: isLoading, anyPackage: anyStorePackage, planPackage: !!(proPackage || proAnnualPackage) });
+  const businessState = storePlanState({ loading: isLoading, anyPackage: anyStorePackage, planPackage: !!(businessPackage || businessAnnualPackage) });
+  const showPro = !nativeStore || proState === 'ready' || proState === 'loading';
+  const showBusiness = !nativeStore || businessState === 'ready' || businessState === 'loading';
+  const storeUnreachable = nativeStore && proState === 'store-unreachable';
+  // The plan the buy button sells: the one picked, unless its card is hidden.
+  const activePlan: Plan = selectedPlan === 'business' && !showBusiness ? 'pro'
+    : selectedPlan === 'pro' && !showPro ? 'business'
+    : selectedPlan;
+  // Each plan's period as the store sells it: the one picked, or the other
+  // when the picked one has no package — so no card shows, and no tap buys, a
+  // period the store can't sell. On the web, and before anything loads, it is
+  // simply the one picked.
+  const proPeriod: Period = (nativeStore ? soldPeriod(selectedPeriod, !!proPackage, !!proAnnualPackage) : null) ?? selectedPeriod;
+  const businessPeriod: Period = (nativeStore ? soldPeriod(selectedPeriod, !!businessPackage, !!businessAnnualPackage) : null) ?? selectedPeriod;
+  const activePeriod: Period = activePlan === 'pro' ? proPeriod : businessPeriod;
 
   // ── The Annual/Monthly pill glides (the SegmentedControl recipe) ─────────
   // At rest there is none: the selected option paints its own
@@ -280,7 +309,7 @@ export default function OnboardingPaywallScreen() {
       businessSavePct: annualSavingsPercent(businessPackage?.product, businessAnnualPackage?.product),
     };
   }, [proPackage, proAnnualPackage, businessPackage, businessAnnualPackage]);
-  const savePct = selectedPlan === 'pro' ? pricing.proSavePct : pricing.businessSavePct;
+  const savePct = activePlan === 'pro' ? pricing.proSavePct : pricing.businessSavePct;
 
   /**
    * Where every exit from this screen lands.
@@ -323,17 +352,17 @@ export default function OnboardingPaywallScreen() {
   const handlePurchase = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      if (selectedPlan === 'pro') {
-        await purchasePro(selectedPeriod);
+      if (activePlan === 'pro') {
+        await purchasePro(activePeriod);
       } else {
-        await purchaseBusiness(selectedPeriod);
+        await purchaseBusiness(activePeriod);
       }
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       showAlert(
-        "You're on " + (selectedPlan === 'pro' ? 'Pro' : 'Business'),
-        'Every ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + ' feature is on for your account.',
+        "You're on " + (activePlan === 'pro' ? 'Pro' : 'Business'),
+        'Every ' + (activePlan === 'pro' ? 'Pro' : 'Business') + ' feature is on for your account.',
       );
       void leaveToNextScreen();
     } catch (err: unknown) {
@@ -344,12 +373,19 @@ export default function OnboardingPaywallScreen() {
         (err as { userCancelled: boolean }).userCancelled;
       if (cancelled) return;
       console.log('[OnboardingPaywall] purchase failed', err);
+      // The store's message is only classified, never shown (App Review 2.1).
+      const rawMessage = err instanceof Error ? err.message : '';
+      const planSellable = activePlan === 'pro' ? !!(proPackage || proAnnualPackage) : !!(businessPackage || businessAnnualPackage);
+      if (purchaseFailureKind(rawMessage, planSellable) === 'unavailable') {
+        showAlert("Couldn't complete purchase", PLAN_UNAVAILABLE_MESSAGE);
+        return;
+      }
       showAlert(
         "Couldn't complete purchase",
         "The purchase didn't go through. Try again, or tap Restore if you already paid.",
       );
     }
-  }, [selectedPlan, selectedPeriod, purchasePro, purchaseBusiness, leaveToNextScreen]);
+  }, [activePlan, activePeriod, purchasePro, purchaseBusiness, leaveToNextScreen, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage]);
 
   // #126: Restore used to announce "Your purchases have been restored" and
   // LEAVE the screen whenever the call returned — including when the store
@@ -384,25 +420,28 @@ export default function OnboardingPaywallScreen() {
   // specific action the user is about to take.
   const ctaLabel = useMemo(() => {
     if (isPurchasing) return 'Processing…';
-    const planLabel = selectedPlan === 'pro' ? 'Pro' : 'Business';
+    const planLabel = activePlan === 'pro' ? 'Pro' : 'Business';
     return `Start MAGE ID ${planLabel}`;
-  }, [selectedPlan, isPurchasing]);
+  }, [activePlan, isPurchasing]);
 
+  // App Review 3.1.2 (audit 2026-10 #5): the amount billed leads. On annual
+  // that is the yearly total; the per-month equivalent follows in brackets.
   const priceFootnote = useMemo(() => {
-    const pro = selectedPlan === 'pro';
-    if (selectedPeriod === 'annual') {
+    const pro = activePlan === 'pro';
+    if (activePeriod === 'annual') {
       const perMonth = pro ? pricing.proAnnualPerMonth : pricing.businessAnnualPerMonth;
       const total = pro ? pricing.proAnnualTotal : pricing.businessAnnualTotal;
-      return perMonth && total
-        ? `${perMonth}/mo · billed annually (${total}/yr)`
-        : `Billed annually · ${PRICE_AT_CHECKOUT.toLowerCase()}`;
+      if (!total) return `Billed annually · ${PRICE_AT_CHECKOUT.toLowerCase()}`;
+      return perMonth
+        ? `${total}/year · billed annually (${perMonth}/mo)`
+        : `${total}/year · billed annually`;
     }
     const monthly = pro ? pricing.proMonthly : pricing.businessMonthly;
     const isList = pro ? pricing.proMonthlyIsList : pricing.businessMonthlyIsList;
     return isList
       ? `${monthly}/mo list price · billed monthly · exact price shown at checkout`
       : `${monthly}/mo · billed monthly`;
-  }, [selectedPlan, selectedPeriod, pricing]);
+  }, [activePlan, activePeriod, pricing]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -467,6 +506,15 @@ export default function OnboardingPaywallScreen() {
           })}
         </View>
 
+        {storeUnreachable ? (
+          <StorePlansUnavailable
+            message={plansLoadFailedText(Platform.OS)}
+            onRetry={retryPlans}
+            retrying={retrying}
+            testID="onboarding-paywall-plans-unavailable"
+          />
+        ) : (
+        <>
         {/* Period toggle */}
         <View style={styles.periodToggle}>
           {periodGlide && periodGlideTransform ? (
@@ -539,20 +587,23 @@ export default function OnboardingPaywallScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Plan cards */}
+        {/* Plan cards. App Review 3.1.2: on annual the big figure is the
+            yearly total; the per-month equivalent is the small line. */}
         <View style={styles.planRow}>
+          {showPro && (
           <PlanCard
             label="Pro"
             tagline="For active GCs"
             priceTop={
-              selectedPeriod === 'annual' ? pricing.proAnnualPerMonth : pricing.proMonthly
+              proPeriod === 'annual' ? pricing.proAnnualTotal : pricing.proMonthly
             }
+            priceUnit={proPeriod === 'annual' ? '/year' : '/mo'}
             priceBottom={
-              selectedPeriod === 'annual'
-                ? (pricing.proAnnualTotal ? `${pricing.proAnnualTotal}/yr` : 'billed annually')
+              proPeriod === 'annual'
+                ? (pricing.proAnnualPerMonth ? `That’s ${pricing.proAnnualPerMonth}/mo` : 'billed annually')
                 : (pricing.proMonthlyIsList ? 'list price, monthly' : 'billed monthly')
             }
-            active={selectedPlan === 'pro'}
+            active={activePlan === 'pro'}
             onPress={() => {
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
               setSelectedPlan('pro');
@@ -560,26 +611,30 @@ export default function OnboardingPaywallScreen() {
             testID="plan-pro"
             featured
           />
+          )}
+          {showBusiness && (
           <PlanCard
             label="Business"
             tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office team members`}
             priceTop={
-              selectedPeriod === 'annual'
-                ? pricing.businessAnnualPerMonth
+              businessPeriod === 'annual'
+                ? pricing.businessAnnualTotal
                 : pricing.businessMonthly
             }
+            priceUnit={businessPeriod === 'annual' ? '/year' : '/mo'}
             priceBottom={
-              selectedPeriod === 'annual'
-                ? (pricing.businessAnnualTotal ? `${pricing.businessAnnualTotal}/yr` : 'billed annually')
+              businessPeriod === 'annual'
+                ? (pricing.businessAnnualPerMonth ? `That’s ${pricing.businessAnnualPerMonth}/mo` : 'billed annually')
                 : (pricing.businessMonthlyIsList ? 'list price, monthly' : 'billed monthly')
             }
-            active={selectedPlan === 'business'}
+            active={activePlan === 'business'}
             onPress={() => {
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
               setSelectedPlan('business');
             }}
             testID="plan-business"
           />
+          )}
         </View>
 
         <Text style={styles.priceFootnote}>{priceFootnote}</Text>
@@ -603,6 +658,8 @@ export default function OnboardingPaywallScreen() {
             <Text style={styles.ctaLabel}>{ctaLabel}</Text>
           )}
         </TouchableOpacity>
+        </>
+        )}
 
         {/* The only way past this screen used to be an unlabelled X in the top
             corner. A contractor who is not buying today should be able to READ
@@ -617,8 +674,11 @@ export default function OnboardingPaywallScreen() {
           <Text style={styles.declineLabel}>Continue on the free plan</Text>
         </TouchableOpacity>
 
+        {/* App Review 3.1.2 (audit 2026-10 #5): on the phone, cancelling is
+            done in the store account, not this app's Settings — the same
+            auto-renew sentence as the other two purchase screens. */}
         <Text style={styles.reassurance}>
-          Cancel anytime in Settings. No hidden fees.
+          {Platform.OS === 'web' ? 'Cancel anytime in Settings. No hidden fees.' : autoRenewText(Platform.OS)}
         </Text>
 
         <View style={styles.legalRow}>
@@ -650,6 +710,8 @@ interface PlanCardProps {
   tagline: string;
   /** null = the store has not given us this figure: "Price shown at checkout". */
   priceTop: string | null;
+  /** What priceTop is billed per: '/year' on annual (the yearly total), '/mo' on monthly. */
+  priceUnit: string;
   priceBottom: string;
   active: boolean;
   featured?: boolean;
@@ -661,6 +723,7 @@ function PlanCard({
   label,
   tagline,
   priceTop,
+  priceUnit,
   priceBottom,
   active,
   featured,
@@ -738,7 +801,7 @@ function PlanCard({
           <Text style={[styles.planPriceTop, active && styles.planPriceTopActive]}>
             {priceTop}
           </Text>
-          <Text style={styles.planPriceUnit}>/mo</Text>
+          <Text style={styles.planPriceUnit}>{priceUnit}</Text>
         </PriceBlock>
       ) : (
         <PriceBlock style={priceBlockStyle}>
@@ -955,6 +1018,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   planPriceBlock: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    // A yearly total ("$1,499.99" + "/year") can outgrow a half-width card;
+    // the unit wraps under it instead of running out of the card.
+    flexWrap: 'wrap',
     gap: 2,
   },
   planPriceTop: {

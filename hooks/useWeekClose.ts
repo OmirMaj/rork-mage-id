@@ -18,6 +18,8 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import { loadAiConsent } from '@/utils/aiConsent';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
@@ -240,6 +242,10 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
         import('@/utils/mageAI'),
       ]);
       const { invoices: inv, projectsById: byId, subscriptionTier: tierNow } = forecastInputsRef.current;
+      // A background forecast never asks the AI question (utils/aiConsent):
+      // on a phone it runs only once AI features are on, and until then the
+      // close renders without payment dates. The web app never asks.
+      if (Platform.OS !== 'web' && (await loadAiConsent()) !== 'granted') return null;
       // CHECK THE ALLOWANCE BEFORE A FRESH CALL (integration review, wave 5).
       // This runs in the background on Home, and each fresh call counts
       // against the user's ADVANCED daily allowance. A cached answer is free

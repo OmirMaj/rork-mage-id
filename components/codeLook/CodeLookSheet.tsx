@@ -41,6 +41,7 @@ import {
   groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 import { editionMismatchFor } from '@/utils/codeAmendments';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import {
   PREP_WINDOW_DAYS,
   prepStateKey,
@@ -143,7 +144,7 @@ export default function CodeLookSheet({
       setRun({ kind: 'done', result });
     } catch (e) {
       if (!alive.current || mine !== seq.current) return;
-      const message = e instanceof Error && e.message.trim() ? e.message.trim() : "Photo code check didn't finish. Try again.";
+      const message = aiConsentErrorText(e) ?? (e instanceof Error && e.message.trim() ? e.message.trim() : "Photo code check didn't finish. Try again.");
       setRun({ kind: 'error', message, code: edgeErrorCode(e) });
     }
   }, [canAI, photoUri, project, trade, checklist]);

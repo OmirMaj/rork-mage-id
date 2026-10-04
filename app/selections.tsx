@@ -39,6 +39,7 @@ import type { SelectionCategory, SelectionOption, ProjectSchedule } from '@/type
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
@@ -148,6 +149,9 @@ export default function SelectionsScreen() {
   }, [projectId, categories.length, publishPortal]);
 
   const handleCurate = useCallback(async (cat: SelectionCategory) => {
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     setCurating(cat.id);
     try {
       const { options } = await curateSelectionsAI({

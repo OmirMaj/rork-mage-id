@@ -2,8 +2,8 @@
 
 exports[`lane P2 — the phone is unchanged (golden) /paywall, iOS 390 (the native branch) 1`] = `
 {
-  "lines": 1009,
-  "sha256": "c07eed5cd870bb5c0e583d50aec16bacaa6e550c5fa26c815b56d72e6b10f523",
+  "lines": 892,
+  "sha256": "2834db736051d348c3150173eb371b73f4bd3b241683df5d509fa1be753f6280",
 }
 `;
 
@@ -16,8 +16,8 @@ exports[`lane P2 — the phone is unchanged (golden) /paywall, web 390 (WebPaywa
 
 exports[`lane P2 — the phone is unchanged (golden) <Paywall> practiceTutorialId invoice-to-self, iOS 390 1`] = `
 {
-  "lines": 471,
-  "sha256": "e2b4405cdd46610372cfde614e82fa7aa32676b783f0a8cea92f8959e131b7a8",
+  "lines": 468,
+  "sha256": "29f10320265caf022db97d5d46bd335384baf1c1d61a6fcdb8bcb5355842a459",
 }
 `;
 

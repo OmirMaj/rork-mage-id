@@ -58,6 +58,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { describeError } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -1975,7 +1976,13 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 disabled={!!ownerOnlyReason}
                 value={!!portal.weeklyDigest?.enabled}
-                onValueChange={val => handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never)}
+                onValueChange={async val => {
+                  // The recap is written by Google Gemini from this job's
+                  // records (homeowner-weekly-digest), so turning it on is an
+                  // AI share: ask first (utils/aiConsent; always yes on web).
+                  if (val && !(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
+                  handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never);
+                }}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
@@ -1987,6 +1994,10 @@ function ClientPortalSetupScreenInner() {
             onPress={async () => {
               if (!id) return;
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              // App Store 5.1.2(i): the preview has Google Gemini write the
+              // recap from this job's records — an AI share, so it waits for
+              // the person's yes (utils/aiConsent; always yes on the web app).
+              if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
               try {
                 const { data, error } = await supabase.functions.invoke('homeowner-weekly-digest', {
                   body: { projectId: id, preview: true },

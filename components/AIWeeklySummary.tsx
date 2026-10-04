@@ -20,6 +20,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 interface Props {
   projects: Project[];
@@ -91,7 +92,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
       // vanish into an empty page (audit 2026-09-07, ai-features).
       console.error('[AI Weekly] Failed:', err);
       const copy = describeError(err, { action: 'analyze your projects' });
-      setError(`${copy.title}. ${copy.body}`);
+      setError(aiConsentErrorText(err) ?? `${copy.title}. ${copy.body}`);
     } finally {
       setIsLoading(false);
     }

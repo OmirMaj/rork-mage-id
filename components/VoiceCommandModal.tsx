@@ -18,6 +18,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { useSheetFrame } from '@/components/ui/Sheet';
 import {
   parseVoiceCommand,
@@ -157,6 +158,13 @@ export default function VoiceCommandModal({
 
   const processCommand = useCallback(async (text: string) => {
     if (!text.trim()) return;
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) {
+      setResultMessage(AI_CONSENT_OFF_MESSAGE);
+      setModalState('error');
+      return;
+    }
 
     setModalState('processing');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();

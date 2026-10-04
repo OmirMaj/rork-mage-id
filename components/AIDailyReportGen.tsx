@@ -17,6 +17,7 @@ import type { ScheduleTask } from '@/types';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { useT } from '@/contexts/LanguageContext';
 
@@ -91,7 +92,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
       // report blank, with no way to tell signal loss from a broken feature
       // (audit 2026-09-07, ai-features). Same shape as AIQuickEstimate.
       console.error('[AI DFR] Generation failed:', err);
-      setError(describeError(err, { action: 'draft the daily report', title: t('field.dfr.aiGen.errorTitle', "Couldn't draft the report") }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft the daily report', title: t('field.dfr.aiGen.errorTitle', "Couldn't draft the report") }).body);
     } finally {
       setIsLoading(false);
     }

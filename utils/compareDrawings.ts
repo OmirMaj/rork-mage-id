@@ -9,6 +9,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { edgeFunctionError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 
 export type CompareModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
 export type ChangeType = 'added' | 'removed' | 'modified' | 'renote';
@@ -73,6 +74,9 @@ export async function compareDrawings(opts: CompareDrawingsOpts): Promise<{
   if (!(opts.oldPagePath || opts.oldPageUrl) || !(opts.newPagePath || opts.newPageUrl)) {
     throw new Error('Both the old and the new sheet are needed to compare.');
   }
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
     data?: CompareDrawingsResult;

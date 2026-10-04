@@ -48,6 +48,23 @@ import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
 
+// App Store wave (APPPAY item 3): on a phone with no store packages — this
+// harness has no RevenueCat key — the onboarding paywall shows one honest
+// "Plans couldn't load" state instead of the plan cards. The tagline case
+// below supplies two Business packages so the cards render; every other case
+// sees the real (keyless) subscription state.
+let mockStorePackages: Record<string, unknown> | null = null;
+jest.mock('@/contexts/SubscriptionContext', () => {
+  const actual = jest.requireActual('@/contexts/SubscriptionContext');
+  return {
+    ...actual,
+    useSubscription: () => {
+      const real = actual.useSubscription();
+      return mockStorePackages ? { ...real, ...mockStorePackages } : real;
+    },
+  };
+});
+
 // ── The layout gate (phone) ────────────────────────────────────────────────
 let mockWidth = 390;
 let mockHeight = 844;
@@ -405,10 +422,19 @@ describe('Z2 deltas — the sanctioned copy and the weather place', () => {
   });
 
   it('onboarding-paywall: the Business tagline names the seats', async () => {
-    const tree = await phoneRoute('/onboarding-paywall');
-    const text = allText(tree.toJSON()).join('\n');
-    expect(text).toContain('Teams · 5 office team members');
-    expect(text).not.toContain('Teams & unlimited');
+    const pkg = (identifier: string, price: number, priceString: string) => ({
+      identifier, packageType: 'CUSTOM', offeringIdentifier: 'default',
+      product: { identifier: `com.mageid.${identifier.replace('_', '.')}`, price, priceString, title: identifier, description: '', currencyCode: 'USD' },
+    });
+    mockStorePackages = { isLoading: false, businessPackage: pkg('business_monthly', 79.99, '$79.99'), businessAnnualPackage: pkg('business_annual', 769.99, '$769.99') };
+    try {
+      const tree = await phoneRoute('/onboarding-paywall');
+      const text = allText(tree.toJSON()).join('\n');
+      expect(text).toContain('Teams · 5 office team members');
+      expect(text).not.toContain('Teams & unlimited');
+    } finally {
+      mockStorePackages = null;
+    }
   });
 
   it('onboarding-paywall: the new code copy, not the lookup claim', async () => {

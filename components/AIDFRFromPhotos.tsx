@@ -14,6 +14,7 @@ import { generateDFRFromPhotos } from '@/utils/voiceDFRParser';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
@@ -82,7 +83,7 @@ export default React.memo(function AIDFRFromPhotos({
       // normal, and the narrative stays blank — no way to tell a dropped signal
       // from a tier cap from a dead feature (audit 2026-09-07, ai-features).
       console.warn('[AIDFRFromPhotos] generation failed', err);
-      setError(describeError(err, { action: 'draft from those photos', title: t('field.dfr.aiPhotos.errorTitle', "Couldn't draft from the photos") }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft from those photos', title: t('field.dfr.aiPhotos.errorTitle', "Couldn't draft from the photos") }).body);
     } finally {
       setLoading(false);
     }

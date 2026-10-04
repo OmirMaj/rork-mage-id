@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Pressable,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Pressable, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -10,14 +10,16 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { showAlert } from '@/utils/alert';
 import {
-  LIST_PRICE_MONTHLY, PRICE_AT_CHECKOUT, annualPerMonth, annualSavingsAmount, annualSavingsPercent,
+  annualPerMonth, annualSavingsAmount, annualSavingsPercent,
 } from '@/constants/pricing';
+import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/Button';
 import { planFeatureLines } from '@/utils/planFeatureCopy';
 import type { StartCtx, TutorialId } from '@/utils/tutorial/types';
 import { getTutorialState, startTutorial, useTutorialRun } from '@/utils/tutorial/store';
@@ -47,6 +49,117 @@ const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=app.magei
 // 'free' is never a real paywall; it is rendered as nothing (see below).
 type RequiredTier = 'free' | 'pro' | 'business' | 'enterprise';
 type BillingPeriod = 'monthly' | 'annual';
+
+// --- BEGIN storeOffer (pure, no imports; scripts/validate-appstore-paywall.ts executes this block) ---
+// The rules the three native purchase screens share (this modal, app/paywall.tsx
+// and app/onboarding-paywall.tsx), written once for App Review (3.1.1, 3.1.2,
+// 2.1, 2.3.10). The web branches keep their own copy and do not call these.
+
+/** What a native purchase screen shows for one plan. */
+export type StorePlanState = 'loading' | 'ready' | 'plan-unavailable' | 'store-unreachable';
+
+/**
+ * A plan with a store package is 'ready'. Nothing loaded yet → 'loading' (a
+ * spinner, never an invented price). Loaded with no package for ANY plan
+ * (offline, store error, empty offering) → 'store-unreachable', one honest
+ * state with a Retry. Loaded, other plans sell but not this one →
+ * 'plan-unavailable': the plan is not offered, and no email path replaces it.
+ */
+export function storePlanState(o: { loading: boolean; anyPackage: boolean; planPackage: boolean }): StorePlanState {
+  if (o.planPackage) return 'ready';
+  if (o.loading) return 'loading';
+  return o.anyPackage ? 'plan-unavailable' : 'store-unreachable';
+}
+
+/**
+ * The billing period actually sold: the one picked when the store has it, else
+ * the other one, else null. A period with no package is never offered, so a
+ * tap on Upgrade can never start a purchase that is certain to fail.
+ */
+export function soldPeriod(want: 'monthly' | 'annual', monthly: boolean, annual: boolean): 'monthly' | 'annual' | null {
+  if (want === 'annual') return annual ? 'annual' : monthly ? 'monthly' : null;
+  return monthly ? 'monthly' : annual ? 'annual' : null;
+}
+
+/**
+ * Sorts a failed purchase into "the plan can't be bought right now" or "the
+ * purchase didn't go through". The store's message is only READ here, never
+ * shown: the screen answers each kind with its own copy (App Review 2.1).
+ */
+export function purchaseFailureKind(rawMessage: string, planSellable: boolean): 'unavailable' | 'failed' {
+  if (!planSellable) return 'unavailable';
+  return /not configured|not available|isn['’]t available|no packages|unavailable/i.test(rawMessage) ? 'unavailable' : 'failed';
+}
+
+/**
+ * A plan-table label as a store build prints it: no platform note such as
+ * " (Android: beta)" (App Review 2.3.10 names another platform; "beta" reads as
+ * an unfinished build). The web keeps the label as written.
+ */
+export function storeSafeLabel(label: string, os: string): string {
+  return os === 'web' ? label : label.replace(/\s*\([A-Za-z]+: beta\)/g, '');
+}
+
+/** The one honest sentence when no plan loaded from the store. */
+export function plansLoadFailedText(os: string): string {
+  return `Plans couldn’t load from ${os === 'android' ? 'Google Play' : 'the App Store'}. Check your connection and try again.`;
+}
+
+/**
+ * Apple's auto-renewal disclosure (3.1.2), word for word what app/paywall.tsx
+ * already printed: where to cancel (the store account, not the app's Settings),
+ * the 24-hour notice and who charges.
+ */
+export function autoRenewText(os: string): string {
+  const account = os === 'ios' ? 'App Store account' : os === 'android' ? 'Google Play account' : 'platform account';
+  const payer = os === 'ios' ? 'Apple ID' : os === 'android' ? 'Google account' : 'platform account';
+  return `Subscriptions auto-renew until canceled. Manage or cancel in your ${account} settings at least 24 hours before the renewal date. Payment is charged to your ${payer} on confirmation of purchase.`;
+}
+export const AUTO_RENEW_IOS = autoRenewText('ios');
+// --- END storeOffer ---
+
+/**
+ * Refetches RevenueCat's offerings (the context's 'rc-offerings' query) for the
+ * Retry on the store-unreachable state. `retrying` drives the button spinner:
+ * a refetch over a cached null never flips the query's own isLoading.
+ */
+export function useRetryStorePlans(): { retryPlans: () => void; retrying: boolean } {
+  const queryClient = useQueryClient();
+  const [retrying, setRetrying] = useState(false);
+  const retryPlans = useCallback(() => {
+    setRetrying(true);
+    void queryClient.refetchQueries({ queryKey: ['rc-offerings'] }).finally(() => setRetrying(false));
+  }, [queryClient]);
+  return { retryPlans, retrying };
+}
+
+/**
+ * The honest state a native purchase screen shows in place of a plan it cannot
+ * sell: one sentence and a Retry. No email, no "not in the store yet", no list
+ * price passed off as purchasable.
+ */
+export function StorePlansUnavailable({ message, onRetry, retrying, testID }: {
+  message: string;
+  onRetry: () => void;
+  retrying: boolean;
+  testID?: string;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.storeUnavailableBox} testID={testID}>
+      <Text style={styles.storeUnavailableText} accessibilityRole="alert">{message}</Text>
+      <Button
+        label="Retry"
+        onPress={onRetry}
+        loading={retrying}
+        disabled={retrying}
+        variant="secondary"
+        size="sm"
+        testID={testID ? `${testID}-retry` : undefined}
+      />
+    </View>
+  );
+}
 
 interface PaywallProps {
   visible: boolean;
@@ -108,7 +221,6 @@ const ENTERPRISE_BENEFITS: string[] = [
   '100 drawing analyses / month',
   '200 photo analyses / month',
   '4,500 text-AI calls / month',
-  'Priority queue on heavy AI requests',
   'Concierge onboarding for the team',
 ];
 
@@ -465,6 +577,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
     purchasePro,
     purchaseBusiness,
     purchaseEnterprise,
+    restorePurchases,
     proPackage,
     proAnnualPackage,
     businessPackage,
@@ -474,6 +587,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
     isPurchasing,
     isLoading,
   } = useSubscription();
+  const { retryPlans, retrying } = useRetryStorePlans();
 
   const tierLabel = requiredTier === 'enterprise' ? 'Enterprise'
     : requiredTier === 'business' ? 'Business'
@@ -506,12 +620,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       : paidTier === 'business' ? businessAnnualPackage
       : proAnnualPackage;
 
-    const monthlyStore = monthlyPkg?.product?.priceString ?? null;
     return {
-      // The published list rate while the store price is unavailable — labelled
-      // as a list price below, never passed off as the store's figure.
-      monthlyPrice: monthlyStore ?? LIST_PRICE_MONTHLY[paidTier],
-      monthlyIsList: monthlyStore === null,
+      // Store figures only. The native wall offers a period only when its
+      // package loaded (soldPeriod below), so no list price is needed here.
+      monthlyPrice: monthlyPkg?.product?.priceString ?? null,
+      hasMonthly: !!monthlyPkg,
+      hasAnnual: !!annualPkg,
       annualPrice: annualPkg?.product?.priceString ?? null,
       // annual price / 12, floored to the cent, in the store's own format.
       monthlyEquivalent: annualPerMonth(annualPkg?.product),
@@ -534,23 +648,32 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
     return !!monthlyPkg || !!annualPkg;
   }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage]);
 
+  // App Review 3.1.1 / 2.1: a plan the store can't sell has no price and no
+  // buy button (it used to say "still being set up in the App Store" and offer
+  // an email); no package for any plan is one honest state with a Retry.
+  const anyStorePackage = !!(proPackage || proAnnualPackage || businessPackage || businessAnnualPackage || enterprisePackage || enterpriseAnnualPackage);
+  const planState = storePlanState({ loading: isLoading, anyPackage: anyStorePackage, planPackage: tierPackageAvailable });
+  // The period the purchase will actually use: never one without a package.
+  const shownPeriod: BillingPeriod = soldPeriod(period, pricing.hasMonthly, pricing.hasAnnual) ?? period;
+  const bothPeriodsSold = pricing.hasMonthly && pricing.hasAnnual;
+
   const handleUpgrade = useCallback(async () => {
     // Funnel: intent event the moment the user taps Upgrade — fires
     // BEFORE Apple's native confirm sheet. Captures pricing curiosity
     // even when the user backs out of Apple's prompt. Pair with
     // subscription_purchased (success) / subscription_purchase_failed
     // for the bottom of the funnel.
-    track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_STARTED, { tier: requiredTier, period });
+    track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_STARTED, { tier: requiredTier, period: shownPeriod });
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (requiredTier === 'enterprise') {
-        await purchaseEnterprise(period);
+        await purchaseEnterprise(shownPeriod);
       } else if (requiredTier === 'business') {
-        await purchaseBusiness(period);
+        await purchaseBusiness(shownPeriod);
       } else {
-        await purchasePro(period);
+        await purchasePro(shownPeriod);
       }
-      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period });
+      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period: shownPeriod });
       showAlert(`You're on ${tierLabel}`, `Every ${tierLabel} feature is on for your account.`);
       onClose();
     } catch (err: unknown) {
@@ -563,26 +686,42 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       const errorKind = err instanceof Error ? err.name : 'unknown';
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_FAILED, { tier: requiredTier, error_kind: errorKind });
       console.log('[Paywall modal] Purchase failed:', err);
-      // Distinguish "this plan isn't purchasable yet" (config / store-
-      // availability — retrying never helps) from a genuine payment
-      // failure. The generic "try again" on an unconfigured product was
-      // the bug: TestFlight surfaced Enterprise before its IAP product
-      // was approved in App Store Connect, and the user got stuck in a
-      // retry loop with no idea why.
+      // Distinguish "this plan can't be bought right now" from a genuine
+      // payment failure. The store's message is only classified, never shown
+      // (App Review 2.1): build 17 printed a developer setup instruction here,
+      // and this alert used to send the reviewer to an email address.
       const rawMsg = err instanceof Error ? err.message : '';
-      const isUnavailable =
-        !tierPackageAvailable ||
-        /not configured|not available|no packages|unavailable/i.test(rawMsg);
-      if (isUnavailable) {
-        showAlert(
-          `${tierLabel} isn’t available yet`,
-          `The ${tierLabel} plan can’t be bought on this device yet. It is usually still being set up in the App Store. Choose another plan, or email support@mageid.app and we’ll set it up.`,
-        );
+      if (purchaseFailureKind(rawMsg, tierPackageAvailable) === 'unavailable') {
+        showAlert(`${tierLabel} isn’t available`, PLAN_UNAVAILABLE_MESSAGE);
       } else {
         showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
       }
     }
-  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose, tierPackageAvailable]);
+  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, shownPeriod, tierLabel, feature, onClose, tierPackageAvailable]);
+
+  // Restore and the legal links (App Review 3.1.1 / 3.1.2): the same handling
+  // as app/paywall.tsx's footer. restoreOutcome says what actually happened —
+  // a Restore that finds nothing never claims it restored anything (#126).
+  const handleRestore = useCallback(async () => {
+    const store = Platform.OS === 'android' ? 'Google Play' : 'App Store';
+    let result: unknown;
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      result = await restorePurchases();
+    } catch (err) {
+      console.log('[Paywall modal] Restore failed:', err);
+      result = err;
+    }
+    const outcome = restoreOutcome(result, store);
+    showAlert(outcome.title, outcome.body);
+  }, [restorePurchases]);
+
+  const openLegal = useCallback((kind: 'privacy' | 'terms') => {
+    const url = kind === 'privacy'
+      ? 'https://mageid.app/privacy'
+      : 'https://mageid.app/terms';
+    void Linking.openURL(url);
+  }, []);
 
   // On web, we don't take subscription payments — we redirect users to the
   // mobile app where Apple/Google handle billing. The user's account tier
@@ -715,97 +854,97 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
             ))}
           </View>
 
-          {/* Monthly / Annual toggle */}
-          <View style={[styles.toggleRow, isDesktop && segmentedDesktop.container]}>
-            <TouchableOpacity
-              style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, period === 'monthly' && styles.toggleBtnActive]}
-              onPress={() => setPeriod('monthly')}
-              activeOpacity={0.8}
-              testID="paywall-period-monthly"
-            >
-              <Text style={[styles.toggleText, period === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, period === 'annual' && styles.toggleBtnActive]}
-              onPress={() => setPeriod('annual')}
-              activeOpacity={0.8}
-              testID="paywall-period-annual"
-            >
-              <Text style={[styles.toggleText, period === 'annual' && styles.toggleTextActive]}>Annual</Text>
-              {/* Computed from the two store packages; hidden when either is
-                  missing rather than printing a typed "Save 20%" (#42). */}
-              {pricing.savePct !== null && (
-                <View style={styles.saveBadge}>
-                  <Text style={styles.saveBadgeText}>{`Save ${pricing.savePct}%`}</Text>
+          {planState === 'ready' ? (
+            <>
+              {/* Monthly / Annual toggle — only when the store sells both. */}
+              {bothPeriodsSold ? (
+                <View style={[styles.toggleRow, isDesktop && segmentedDesktop.container]}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, shownPeriod === 'monthly' && styles.toggleBtnActive]}
+                    onPress={() => setPeriod('monthly')}
+                    activeOpacity={0.8}
+                    testID="paywall-period-monthly"
+                  >
+                    <Text style={[styles.toggleText, shownPeriod === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, shownPeriod === 'annual' && styles.toggleBtnActive]}
+                    onPress={() => setPeriod('annual')}
+                    activeOpacity={0.8}
+                    testID="paywall-period-annual"
+                  >
+                    <Text style={[styles.toggleText, shownPeriod === 'annual' && styles.toggleTextActive]}>Annual</Text>
+                    {/* Computed from the two store packages; hidden when either is
+                        missing rather than printing a typed "Save 20%" (#42). */}
+                    {pricing.savePct !== null && (
+                      <View style={styles.saveBadge}>
+                        <Text style={styles.saveBadgeText}>{`Save ${pricing.savePct}%`}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                 </View>
-              )}
-            </TouchableOpacity>
-          </View>
+              ) : null}
 
-          {/* Price display */}
-          <View style={styles.priceBox}>
-            {period === 'monthly' ? (
-              <>
-                <Text style={styles.priceBig}>{pricing.monthlyPrice}</Text>
-                <Text style={styles.priceSub}>
-                  {pricing.monthlyIsList
-                    ? 'list price, per month — the exact price is shown at checkout'
-                    : 'per month, cancel anytime'}
-                </Text>
-              </>
-            ) : pricing.monthlyEquivalent && pricing.annualPrice ? (
-              <>
-                <Text style={styles.priceBig}>{pricing.monthlyEquivalent}/mo</Text>
-                <Text style={styles.priceSub}>billed {pricing.annualPrice} annually</Text>
-                {/* Store numbers, integer cents, floored — never parsed back
-                    out of display strings. */}
-                {pricing.saveAmount ? (
-                  <View style={styles.savingsRow}>
-                    <Text style={styles.savingsRowText}>
-                      Save <Text style={styles.savingsRowAmount}>{pricing.saveAmount}</Text> vs. monthly
-                    </Text>
-                  </View>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Text style={styles.priceSub}>{PRICE_AT_CHECKOUT}</Text>
-                <Text style={styles.priceSub}>billed annually</Text>
-              </>
-            )}
-          </View>
+              {/* Price display. App Review 3.1.2: the amount billed is the big
+                  figure. On annual that is the yearly total; the per-month
+                  equivalent (floored, constants/pricing) is the small line. */}
+              <View style={styles.priceBox}>
+                {shownPeriod === 'monthly' ? (
+                  <>
+                    <Text style={styles.priceBig}>{pricing.monthlyPrice}/month</Text>
+                    <Text style={styles.priceSub}>Billed monthly</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.priceBig}>{pricing.annualPrice}/year</Text>
+                    {pricing.monthlyEquivalent ? (
+                      <Text style={styles.priceSub}>{`That’s ${pricing.monthlyEquivalent}/mo, billed once a year`}</Text>
+                    ) : (
+                      <Text style={styles.priceSub}>Billed once a year</Text>
+                    )}
+                    {/* Store numbers, integer cents, floored — never parsed back
+                        out of display strings. */}
+                    {pricing.saveAmount ? (
+                      <View style={styles.savingsRow}>
+                        <Text style={styles.savingsRowText}>
+                          Save <Text style={styles.savingsRowAmount}>{pricing.saveAmount}</Text> vs. monthly
+                        </Text>
+                      </View>
+                    ) : null}
+                  </>
+                )}
+              </View>
 
-          {/* When RC has loaded but this tier has no purchasable package
-              (IAP not yet approved in App Store Connect), say so plainly
-              instead of letting the user tap into a guaranteed failure. */}
-          {!isLoading && !tierPackageAvailable && (
-            <Text style={styles.unavailableNote}>
-              {tierLabel} isn’t available for purchase on your device yet — it’s still being set up in the App Store.
-            </Text>
+              <TouchableOpacity
+                style={[styles.upgradeBtn, { backgroundColor: tierColor }]}
+                onPress={handleUpgrade}
+                disabled={isPurchasing}
+                activeOpacity={0.85}
+                testID="paywall-upgrade-btn"
+              >
+                {isPurchasing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <MageAIMark size={18} color="#fff" />
+                    <Text style={styles.upgradeBtnText}>{`Upgrade to ${tierLabel}`}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : planState === 'loading' ? (
+            <View style={styles.priceBox} testID="paywall-plans-loading">
+              <ActivityIndicator color={themeColors.accent} />
+              <Text style={styles.priceSub}>Loading plans…</Text>
+            </View>
+          ) : (
+            <StorePlansUnavailable
+              message={planState === 'store-unreachable' ? plansLoadFailedText(Platform.OS) : PLAN_UNAVAILABLE_MESSAGE}
+              onRetry={retryPlans}
+              retrying={retrying}
+              testID="paywall-plans-unavailable"
+            />
           )}
-
-          <TouchableOpacity
-            style={[
-              styles.upgradeBtn,
-              { backgroundColor: tierColor },
-              !isLoading && !tierPackageAvailable && { opacity: 0.5 },
-            ]}
-            onPress={handleUpgrade}
-            disabled={isPurchasing || (!isLoading && !tierPackageAvailable)}
-            activeOpacity={0.85}
-            testID="paywall-upgrade-btn"
-          >
-            {isPurchasing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <MageAIMark size={18} color="#fff" />
-                <Text style={styles.upgradeBtnText}>
-                  {!isLoading && !tierPackageAvailable ? `${tierLabel} unavailable` : `Upgrade to ${tierLabel}`}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
 
           {practiceBlock}
 
@@ -816,9 +955,27 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
           <View style={styles.trustRow}>
             <Shield size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.trustText}>
-              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
+              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}.
             </Text>
           </View>
+
+          {/* App Review 3.1.2: Terms, Privacy, Restore and the auto-renew
+              terms on the screen that sells the subscription — the same row
+              and sentence as app/paywall.tsx. */}
+          <View style={styles.legalRow}>
+            <TouchableOpacity onPress={() => openLegal('privacy')} accessibilityRole="link" testID="paywall-modal-privacy">
+              <Text style={styles.legalLink}>Privacy</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalDot}>·</Text>
+            <TouchableOpacity onPress={handleRestore} accessibilityRole="button" testID="paywall-modal-restore">
+              <Text style={styles.legalLink}>Restore</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalDot}>·</Text>
+            <TouchableOpacity onPress={() => openLegal('terms')} accessibilityRole="link" testID="paywall-modal-terms">
+              <Text style={styles.legalLink}>Terms</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.legalFinePrint}>{autoRenewText(Platform.OS)}</Text>
         </ScrollView>
       </View>
     </Modal>
@@ -961,13 +1118,44 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   practiceBtnText: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '600' as const, flexShrink: 1, textAlign: 'center' as const },
   practiceSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, marginTop: 6, paddingHorizontal: 8 },
   notNowText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '500' as const },
-  unavailableNote: {
+  // The honest state for a plan the store can't sell (StorePlansUnavailable):
+  // warning tokens, since it is a condition he can act on (Retry).
+  storeUnavailableBox: {
+    width: '100%',
+    alignItems: 'center' as const,
+    gap: 12,
+    backgroundColor: t.warningSoft,
+    borderRadius: Tokens.radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  storeUnavailableText: {
     fontSize: Type.footnote.fontSize,
-    color: t.textSecondary,
+    color: t.warningLabel,
     textAlign: 'center' as const,
     lineHeight: 18,
-    marginBottom: 10,
-    paddingHorizontal: 8,
+    fontWeight: '600' as const,
+  },
+  // The Privacy · Restore · Terms row and the auto-renew sentence, styled as
+  // app/paywall.tsx's footer.
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  legalLink: { fontSize: Type.footnote.fontSize, color: t.accentLabel, fontWeight: '600' as const },
+  legalDot: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  legalFinePrint: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 16,
+    paddingHorizontal: 12,
+    marginTop: 4,
   },
   trustRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
