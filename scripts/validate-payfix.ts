@@ -1222,5 +1222,59 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
       .every(f => !/priorApprovedChangesTotal/.test(read(f))));
 }
 
+// ── 9. The sample jobs are stamped the way the screen stamps ────────────────
+// (release train 1b) A new user — and App Review — opens a sample job first.
+// The condo sample used to stamp every change order with the ORIGINAL total
+// (its running figure was declared inside the loop), so with the hold above
+// its pending #3 and #4 opened with Share PDF, the proof packet, the portal
+// share and approve all refused until Save. This RUNS the seed, for every
+// flavor, and asks the screen's own predicate about every change order.
+{
+  console.log('\n9. Sample jobs: every seeded change order opens with nothing held');
+  const D = await import('../utils/demoSeed');
+  // The screen's "prior approved changes": approved, not this one, numbered
+  // below it. Pinned to the screen's own filter so this copy cannot drift.
+  ok('the screen counts as prior the APPROVED change orders numbered below this one (the rule the seed must match)',
+    src.co.includes(".filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)"));
+  const priorBelow = (cos: ChangeOrder[], co: ChangeOrder) => cos
+    .filter(c => c.status === 'approved' && c.id !== co.id && (c.number || 0) < co.number)
+    .reduce((sum, c) => sum + c.changeAmount, 0);
+  const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const noop = () => {};
+  for (const flavor of ['small', 'medium', 'large'] as const) {
+    let seeded: Project | null = null;
+    const cos: ChangeOrder[] = [];
+    await D.seedDemoProject({
+      addProject: (p: Project) => { seeded = p; }, addInvoice: noop, addDailyReport: noop, addPunchItem: noop,
+      addProjectPhoto: noop, addRFI: noop, addChangeOrder: (co: ChangeOrder) => { cos.push(co); }, flavor,
+    });
+    // A sample job has no server contract: the read answers "none on file".
+    const original = resolveContractSum(seeded, null).value;
+    eq(`${flavor}: the sample's contract sum is its estimate, the figure on its card`, original, D.DEMO_FLAVORS[flavor].total);
+    ok(`${flavor}: it seeds change orders`, cos.length > 0);
+    for (const co of cos) {
+      const screenBase = original + priorBelow(cos, co);
+      eq(`${flavor} CO #${co.number} (${co.status}): stamped with the base the screen shows — nothing held`,
+        [co.originalContractValue, coSavedBaseDiffers(co, screenBase), coSavedBaseHold(co, screenBase, money)],
+        [screenBase, false, null]);
+      eq(`${flavor} CO #${co.number}: its new contract total is that base plus its own amount`,
+        co.newContractTotal, screenBase + co.changeAmount);
+    }
+    if (flavor === 'large') {
+      eq('large: #1 and #2 are approved, #3 and #4 pending (the case that was held)',
+        cos.map(c => `${c.number}:${c.status}`), ['1:approved', '2:approved', '3:pending', '4:pending']);
+      eq('large: each carries its frozen prior approved changes — a pending change order adds nothing to the next',
+        cos.map(c => c.priorApprovedChangesTotal), cos.map(c => priorBelow(cos, c)));
+      eq('large: #3 and #4 sit on the same base (original + #1 + #2), and it is not the original total',
+        [cos[2].originalContractValue === cos[3].originalContractValue, cos[2].originalContractValue === original + cos[0].changeAmount + cos[1].changeAmount, cos[2].originalContractValue !== original],
+        [true, true, true]);
+      const rows = changeOrderRecordRows(cos[1]);
+      eq('large: approved #2, a locked record, shows the true original sum, the prior change and its base',
+        rows && [rows.originalContractSum, rows.priorApprovedChanges, rows.originalContractValue],
+        [original, cos[0].changeAmount, original + cos[0].changeAmount]);
+    }
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
