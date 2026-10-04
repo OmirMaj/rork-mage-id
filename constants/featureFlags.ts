@@ -100,3 +100,40 @@ export const COMPANIES_DIRECTORY_ENABLED = false;
 // stored still show. Flip it to true only together with the server flag, once
 // the lawyer's answer and each retailer's permission are in hand.
 export const PRODUCT_PHOTOS_ENABLED = false;
+
+// ASK MAGE READS FILES: dark until the Gemini key is confirmed paid (2026-10-04).
+//
+// Ask MAGE can take a photo, a PDF or a plan page and have the AI read it
+// (edge function ask-files, Google Gemini). The privacy page says AI prompts
+// are not used to train models (marketing/privacy.html, "AI features and who
+// processes them"). That holds only on Google's PAID tier, and whether
+// GEMINI_API_KEY is on it has been open since
+// docs/audits/2026-09-03-final-push/09-ai-features.md. The founder confirms it
+// before this flips.
+//
+// While this is false: the Ask composer has no paperclip, no tray and no
+// "What I read" block, utils/askFiles.ts answers 'feature_off' before the
+// consent question and before any request, and every Ask golden is
+// byte-identical. Flip it to true only AFTER supabase/functions/ask-files has
+// ASK_FILES_SERVER_ENABLED = true deployed (ask-files/core.ts).
+export const ASK_FILES_ENABLED = false;
+
+// CLIENT FILES READ BY AI: dark until the founder and a lawyer answer (2026-10-04).
+//
+// On a client's portal message the project owner can tap "Read with MAGE"
+// (phone app only): the AI reads the files the client attached, summarizes
+// them and drafts a description he can start a change order, an RFI or a punch
+// item from. The portal page tells the client nothing about AI today
+// (marketing/portal/index.html), and App Store guideline 5.1.2(i) asks for
+// disclosure and permission before personal data goes to a third-party AI.
+// What the client must be told, and whether the contractor's own answer covers
+// a client's file, is the founder's and a lawyer's call.
+//
+// While this is false: a client message shows no "Read with MAGE" button, the
+// sheet is never mounted, nothing about a message is sent to ask-files, and
+// /rfi and /punch-list do not read the draft hand-over param. Flip it to true
+// only AFTER (1) the portal page tells the client, (2) the privacy page and
+// the App Store privacy answers cover files clients send, (3) ask-files has
+// MESSAGE_SOURCE_ENABLED = true and MESSAGE_SOURCE_NOT_BEFORE set, deployed,
+// and (4) utils/messageAiCore.ts MESSAGE_AI_NOT_BEFORE carries the same time.
+export const PORTAL_MESSAGE_AI_ENABLED = false;

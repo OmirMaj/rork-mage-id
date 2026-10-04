@@ -74,6 +74,8 @@ import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { humanizeEnum } from '@/utils/statusLabels';
 import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays, calendarDayOf } from '@/utils/calendarDate';
+import { PORTAL_MESSAGE_AI_ENABLED } from '@/constants/featureFlags';
+import { readDraftHandoff } from '@/utils/draftHandoff';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -305,10 +307,12 @@ function RFIForm() {
   const isDesktop = useIsDesktop();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId: paramProjectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, rfiId, prefillPhotoId, prefillDraft } = useLocalSearchParams<{
     projectId: string;
     rfiId?: string;
     prefillPhotoId?: string;
+    /** An in-memory hand-over id (utils/draftHandoff), never the text itself. */
+    prefillDraft?: string;
   }>();
   const ctx = useProjects();
   const {
@@ -351,8 +355,12 @@ function RFIForm() {
   );
   const prefillPhotoUri = prefillPhoto?.uri ?? null;
 
-  const [subject, setSubject] = useState(existingRFI?.subject ?? '');
-  const [question, setQuestion] = useState(existingRFI?.question ?? '');
+  // "Read with MAGE" on a client message hands its draft over by id; the text
+  // never rides in the route. Read only while the feature is on and only for a
+  // NEW RFI, so a crafted link cannot prefill this form while it is dark.
+  const [aiDraft] = useState(() => (PORTAL_MESSAGE_AI_ENABLED && !rfiId ? readDraftHandoff(prefillDraft) : null));
+  const [subject, setSubject] = useState(existingRFI?.subject ?? aiDraft?.title ?? '');
+  const [question, setQuestion] = useState(existingRFI?.question ?? aiDraft?.description ?? '');
   const [assignedTo, setAssignedTo] = useState(existingRFI?.assignedTo ?? '');
   // WHICH sub, when this RFI goes to one. Free-text assignedTo can't be
   // attributed, so without this the sub scorecard can't score turnaround.

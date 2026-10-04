@@ -3959,6 +3959,45 @@ export interface MessageAttachment {
   path?: string;
 }
 
+// ─── AI file reads (edge function ask-files) ───────────────────────────────
+export type AskFileKind = 'image' | 'pdf' | 'plan';
+
+/** One file in a request. The server loads 'plan' and 'message' files itself. */
+export type AskFileRef =
+  | { source: 'inline'; name: string; mime: MessageAttachmentMime; base64: string }
+  | { source: 'plan'; storagePath: string; name: string }
+  | { source: 'message'; messageId: string; attachmentId: string };
+
+export type AskFilesRequest =
+  | { mode: 'ask'; files: AskFileRef[]; question: string }
+  | { mode: 'message'; files: AskFileRef[] };
+
+/** What the server sent to the model, one entry per file, in request order. */
+export interface AskFileRead { index: number; name: string; kind: AskFileKind; pages?: number }
+export interface AskFilesUsage { used: number; cap: number }
+export interface MessageAiDraft { title: string; description: string }
+
+export type AskFilesSuccess =
+  | { success: true; mode: 'ask'; answer: string; truncated: boolean; read: AskFileRead[]; usage: AskFilesUsage }
+  | { success: true; mode: 'message'; summary: string; asks: string[]; draft: MessageAiDraft | null;
+      truncated: boolean; read: AskFileRead[]; usage: AskFilesUsage };
+
+/** A refusal answered with HTTP 200 so the app can read fileIndex. Never charged. */
+export type AskFilesRefusalCode =
+  | 'too_many_files' | 'unsupported_type' | 'file_too_large' | 'files_too_large'
+  | 'too_many_pages' | 'unreadable_file' | 'blocked';
+export interface AskFilesRefusal {
+  success: false; code: AskFilesRefusalCode; error: string; fileIndex?: number; pages?: number; limit?: number;
+}
+
+/** What a turn keeps about a file. Saved with Ask history: a name, never a location. */
+export interface AskTurnFile { name: string; kind: AskFileKind; pages?: number }
+
+/** A file waiting in the Ask composer. In memory only. */
+export type AskAttachedFile =
+  | { id: string; source: 'device'; name: string; mime: MessageAttachmentMime; size: number; localUri: string; pages?: number }
+  | { id: string; source: 'plan'; name: string; storagePath: string };
+
 export interface PortalMessage {
   id: string;
   projectId: string;

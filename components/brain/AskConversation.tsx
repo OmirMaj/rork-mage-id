@@ -36,6 +36,19 @@
 // surfaces, no gradients, no glow. Only turns ask() created this session move
 // (liveKeys); Recent recalls and dock remounts render still. Every number is in
 // ask/askMotion.ts. Reduce Motion keeps the states and drops the movement.
+//
+// Files (lane ATTASK, dark behind ASK_FILES_ENABLED). A paperclip in the
+// composer attaches up to four photos, PDFs or plan pages of the anchored job
+// (ask/AskAttach, ask/AskTray). While files are attached a question goes to
+// the file reader (utils/askFiles) instead of One Mind: it stands on its own,
+// with no job facts and no earlier turns, and its answer carries a "What I
+// read" block built from what the server sent to the model (ask/WhatIRead).
+// The files STAY attached and are read again with each question until he
+// removes them; with the tray empty a follow-up goes to One Mind without the
+// file turns, so the text model never elaborates on a file it cannot see. A
+// turn keeps a file's name, kind and page count, never a location or bytes
+// (turns are saved to Ask history). With the flag off none of this renders and
+// nothing is sent.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -90,6 +103,15 @@ import { AskMessage, AskFade } from '@/components/brain/ask/AskMessage';
 import { AskThinking } from '@/components/brain/ask/AskThinking';
 import { AskJumpLatest } from '@/components/brain/ask/AskJumpLatest';
 import { ASK_MOTION, chipDelay } from '@/components/brain/ask/askMotion';
+import { ASK_FILES_ENABLED } from '@/constants/featureFlags';
+import type { AskAttachedFile, AskTurnFile } from '@/types';
+import { AskAttach } from '@/components/brain/ask/AskAttach';
+import { AskTray } from '@/components/brain/ask/AskTray';
+import { WhatIRead } from '@/components/brain/ask/WhatIRead';
+import { askFiles, releaseAskFile, type AskSendFile } from '@/utils/askFiles';
+import {
+  ASK_MAX_FILES, ASK_QUESTION_MAX, askFilesSentence, attachedTurnFiles, guardFileText, toTurnFiles, withoutFileTurns,
+} from '@/utils/askFilesCore';
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -109,6 +131,23 @@ interface Turn {
   /** The words he sent, on the assistant turn that carries `actions`, so
    *  "Answer instead" can re-ask them through One Mind. */
   askedText?: string;
+  /** Lane ATTASK. A file question: the files that went with it (a name, a
+   *  kind, a page count; never a location, an id or bytes: turns are saved). */
+  files?: AskTurnFile[];
+  /** The answer to a file question: what the server sent to the model. An
+   *  empty list marks a file question that failed (nothing was read). */
+  read?: AskTurnFile[];
+  /** The file answer was cut short by the model's output limit. */
+  truncated?: boolean;
+  /** Part of the file answer read like building-code text and was left out. */
+  codeWithheld?: boolean;
+}
+
+/** A tray file as utils/askFiles sends it. */
+function toSendFile(f: AskAttachedFile): AskSendFile {
+  return f.source === 'plan'
+    ? { source: 'plan', name: f.name, storagePath: f.storagePath }
+    : { source: 'device', name: f.name, mime: f.mime, localUri: f.localUri };
 }
 
 /**
@@ -337,10 +376,122 @@ export function AskConversation(props: AskConversationProps) {
     else setJumpVisible(true);
   }, []);
 
+  // ── Files (lane ATTASK). Empty and unused while ASK_FILES_ENABLED is false:
+  // nothing below renders a paperclip, so nothing can be attached. ──────────
+  const [attached, setAttached] = useState<AskAttachedFile[]>([]);
+  const attachedRef = useRef<AskAttachedFile[]>([]);
+  attachedRef.current = attached;
+  // A file question is being read (the thinking row says so).
+  const [readingFiles, setReadingFiles] = useState(false);
+  const addFiles = useCallback((files: AskAttachedFile[]) => {
+    const room = Math.max(0, ASK_MAX_FILES - attachedRef.current.length);
+    // AskAttach already held the pick to the limit and said which files it
+    // refused (two picks landing at once is the only way past it); anything
+    // past the limit here is let go, with no second sentence.
+    for (const f of files.slice(room)) releaseAskFile(f);
+    const next = [...attachedRef.current, ...files.slice(0, room)];
+    attachedRef.current = next;
+    setAttached(next);
+  }, []);
+  const removeFile = useCallback((id: string) => {
+    const gone = attachedRef.current.find(f => f.id === id);
+    if (gone) releaseAskFile(gone);
+    const next = attachedRef.current.filter(f => f.id !== id);
+    attachedRef.current = next;
+    setAttached(next);
+  }, []);
+  /** Empty the tray and delete each device file's local copy. */
+  const clearFiles = useCallback(() => {
+    if (attachedRef.current.length === 0) return;
+    for (const f of attachedRef.current) releaseAskFile(f);
+    attachedRef.current = [];
+    setAttached([]);
+  }, []);
+  // The conversation is going away (the page closes, the dock starts a new
+  // chat by remounting): let the local copies go.
+  useEffect(() => () => { for (const f of attachedRef.current) releaseAskFile(f); }, []);
+  /** Recent recall: a saved thread opens with an empty tray. */
+  const recallThread = useCallback((thread: AskThread) => {
+    clearFiles();
+    setTurns(thread.turns as Turn[]);
+  }, [clearFiles]);
+
+  // A question with files attached. It stands on its own: the file reader is
+  // sent the files and the question, no job facts and no earlier turns. THE
+  // FILES STAY IN THE TRAY after an answer and after every failure.
+  const askWithFiles = useCallback(async (question: string) => {
+    const q = question.slice(0, ASK_QUESTION_MAX);
+    const files = attachedRef.current;
+    const names = files.map(f => f.name);
+    const ku = newKey();
+    setDraft('');
+    markLive(ku);
+    setTurns(prev => [...prev, { role: 'user', text: q, key: ku, files: attachedTurnFiles(files) }]);
+    setBusy(true);
+    setReadingFiles(true);
+    nearEndRef.current = true;
+    setJumpVisible(false);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    // A failed file question: `read: []` (nothing was read) keeps the turn out
+    // of what the text model is sent later.
+    const failed = (text: string, extra?: Pick<Turn, 'errorKind' | 'errorCode'>) => {
+      const kc = newKey();
+      markLive(kc);
+      setTurns(prev => [...prev, { key: kc, role: 'assistant', text, error: true, read: [], ...extra }]);
+    };
+    try {
+      // The same daily allowance a text ask spends (one advanced AI call).
+      const limit = await checkAILimit(tier, 'smart', 'askMage');
+      if (!limit.allowed) {
+        const canUpgrade = tier === 'free' || tier === 'pro';
+        failed(limit.message ?? (canUpgrade
+          ? askCopy.files.errDailyUpgrade
+          : askCopy.files.errDaily(nextAiResetLabel().daily)));
+        if (canUpgrade) router.push('/paywall');
+        return;
+      }
+      const out = await askFiles({ feature: 'ask', files: files.map(toSendFile), question: q });
+      if (out.ok && out.data.mode === 'ask') {
+        void recordAIUsage('smart', 'askMage');
+        // The names the server read are this ask's labels: a sheet number in a
+        // file name is not a code section.
+        const g = guardFileText(out.data.answer, out.data.read.map(r => r.name));
+        // The gate took every sentence: the read was counted, so the turn says
+        // why there is nothing to show (once, as its text) rather than sitting empty.
+        const allWithheld = g.withheld > 0 && g.text.length === 0;
+        const ka = newKey();
+        markLive(ka);
+        setTurns(prev => [...prev, {
+          key: ka,
+          role: 'assistant',
+          text: allWithheld ? askCopy.files.codeWithheld : g.text,
+          read: toTurnFiles(out.data.read),
+          truncated: out.data.truncated === true,
+          codeWithheld: g.withheld > 0 && !allWithheld,
+        }]);
+        return;
+      }
+      const bad = out.ok ? { code: 'internal', message: '' } : out;
+      const sentence = askFilesSentence(bad, askCopy.files, names);
+      // The existing See plans / Sign in buttons read these (blockedAction).
+      const extra: Pick<Turn, 'errorKind' | 'errorCode'> | undefined =
+        bad.code === 'monthly_cap_reached' || bad.code === 'hourly_limit' || bad.code === 'tier_required'
+          ? { errorKind: 'monthly_cap', errorCode: bad.code }
+          : bad.code === 'unauthenticated' ? { errorKind: 'unauthenticated' } : undefined;
+      failed(bad.code === 'offline' ? `${sentence} ${askCopy.files.errOfflineKept}` : sentence, extra);
+    } finally {
+      setBusy(false);
+      setReadingFiles(false);
+      followNewTurn();
+    }
+  }, [tier, router, askCopy, newKey, markLive, followNewTurn]);
+
   const ask = useCallback(async (question: string, opts?: { skipAction?: boolean }) => {
     const q = question.trim();
     if (!q || busy) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Lane ATTASK: files in the tray send the question to the file reader.
+    if (ASK_FILES_ENABLED && attachedRef.current.length > 0) { await askWithFiles(q); return; }
     // Cold-start onboarding: answer the canned demo prompts instantly and
     // entirely client-side — no model call, no metering, no network.
     const demo = isColdStart(bundle) ? DEMO_ANSWERS[q] : undefined;
@@ -378,7 +529,9 @@ export function AskConversation(props: AskConversationProps) {
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
       return;
     }
-    const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
+    // File turns stay out: the text model is never handed a file question or
+    // MAGE's reading of a file it cannot see.
+    const prior = withoutFileTurns(turnsRef.current).map(t => ({ role: t.role, text: t.text }));
     const ku = newKey();
     setDraft('');
     markLive(ku);
@@ -436,7 +589,7 @@ export function AskConversation(props: AskConversationProps) {
       setBusy(false);
       followNewTurn();
     }
-  }, [busy, bundle, tier, router, anchorProjectId, doIt, askCopy, newKey, markLive, followNewTurn]);
+  }, [busy, bundle, tier, router, anchorProjectId, doIt, askCopy, newKey, markLive, followNewTurn, askWithFiles]);
 
   // Desktop web: Enter sends, Shift+Enter keeps the newline. Preventing the
   // default also stops react-native-web's own submit-and-blur, so the cursor
@@ -521,7 +674,7 @@ export function AskConversation(props: AskConversationProps) {
             <TouchableOpacity
               key={thread.id}
               style={styles.recentItemPanel}
-              onPress={() => setTurns(thread.turns as Turn[])}
+              onPress={() => recallThread(thread)}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={`Open the earlier conversation: ${firstQ}`}
@@ -545,7 +698,7 @@ export function AskConversation(props: AskConversationProps) {
               <TouchableOpacity
                 key={thread.id}
                 style={styles.recentCard}
-                onPress={() => setTurns(thread.turns as Turn[])}
+                onPress={() => recallThread(thread)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 testID="ask-recent"
@@ -663,6 +816,10 @@ export function AskConversation(props: AskConversationProps) {
               <ChevronRight size={13} color={themeColors.accent} strokeWidth={2} />
             </TouchableOpacity>
           )}
+          {/* Lane ATTASK: under a file answer. */}
+          {ASK_FILES_ENABLED && t.truncated && <Text style={styles.fileNote}>{askCopy.files.truncated}</Text>}
+          {ASK_FILES_ENABLED && t.codeWithheld && <Text style={styles.fileNote}>{askCopy.files.codeWithheld}</Text>}
+          {ASK_FILES_ENABLED && !!t.read?.length && <WhatIRead files={t.read} partial={t.truncated} copy={askCopy.files} />}
           {/* The grounding row: where this answer came from. No citations, no
               label (never an empty "Sources"). */}
           {citations.length > 0 && (
@@ -715,9 +872,9 @@ export function AskConversation(props: AskConversationProps) {
   const thinking = (
     <AskThinking
       visible={busy}
-      label={askCopy.lookThinking}
+      label={readingFiles ? askCopy.files.thinking : askCopy.lookThinking}
       stillLabel={askCopy.lookStillThinking}
-      a11yLabel={askCopy.lookThinkingA11y}
+      a11yLabel={readingFiles ? askCopy.files.thinkingA11y : askCopy.lookThinkingA11y}
     />
   );
 
@@ -733,14 +890,20 @@ export function AskConversation(props: AskConversationProps) {
   }, [reduced, pressScale]);
   const sendBlocked = busy || !draft.trim();
   // A disabled send always says why (never a silent grey button).
-  const sendHint = busy ? askCopy.lookSendHintBusy : !draft.trim() ? askCopy.lookSendHintEmpty : undefined;
+  // Lane ATTASK: files are in the tray (never while the flag is off).
+  const hasFiles = ASK_FILES_ENABLED && attached.length > 0;
+  const sendHint = busy
+    ? askCopy.lookSendHintBusy
+    : !draft.trim() ? (hasFiles ? askCopy.files.sendHint : askCopy.lookSendHintEmpty) : undefined;
 
   // The composer: one rounded container (mic · field · send) on the page's
   // ground. Only the outer padding differs: the page clears the home
   // indicator, the dock sits on the panel's own padding.
   const inputBar = (
     <View style={[styles.inputBar, panel ? styles.inputBarPanel : { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      {ASK_FILES_ENABLED && attached.length > 0 && <AskTray files={attached} onRemove={removeFile} style={isDesktopPage ? styles.columnDesktop : undefined} />}
       <View style={[styles.composer, isDesktopPage && styles.columnDesktop]}>
+        {ASK_FILES_ENABLED && <AskAttach files={attached} onAdd={addFiles} anchorProjectId={anchorProject?.id} disabled={busy} />}
         <TouchableOpacity
           style={styles.micBtn}
           onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
@@ -755,13 +918,14 @@ export function AskConversation(props: AskConversationProps) {
           style={[styles.input, isDesktopWeb && WEB_INPUT_NO_OUTLINE]}
           value={draft}
           onChangeText={setDraft}
-          placeholder={askCopy.lookPlaceholder}
+          placeholder={hasFiles ? askCopy.files.placeholder : askCopy.lookPlaceholder}
           placeholderTextColor={themeColors.textMuted}
           multiline
           onSubmitEditing={() => ask(draft)}
           blurOnSubmit
           testID="ask-input"
           {...(isDesktopWeb ? { onKeyPress: onComposerKey } : null)}
+          {...(hasFiles ? { maxLength: ASK_QUESTION_MAX } : null)}
         />
         <Animated.View style={pressArmed ? { transform: [{ scale: pressScale }] } : null}>
           <TouchableOpacity
@@ -1016,6 +1180,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 13,
   },
   toolText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.textSecondary },
+
+  // Lane ATTASK: the lines under a file answer (cut short, code text left out).
+  fileNote: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 8 },
 
   // Sources: the grounding row under every answer that cites something.
   sources: { marginTop: 10 },

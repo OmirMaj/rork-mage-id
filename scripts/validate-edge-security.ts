@@ -248,6 +248,7 @@ const INLINE_METERED: Array<[string, string]> = [
   ['ai', "'ai_text'"], ['analyze-photos', 'meterKey'], ['scan-credential', "'scan_credential'"],
   ['safety-generate-jha', "'safety_ai'"], ['safety-detect-hazards', "'safety_ai'"],
   ['safety-draft-incident', "'safety_ai'"], ['scan-anything', "'scan_anything'"],
+  ['ask-files', 'METER_KEY'],
 ];
 for (const [fn, key] of INLINE_METERED) {
   const src = read(`supabase/functions/${fn}/index.ts`);
@@ -398,7 +399,7 @@ const BUCKETED: [string, string, string][] = [
   // are live Gemini relays with the same precheck-then-charge race.
   ...['analyze-drawings', 'analyze-photos', 'analyze-takeoff', 'analyze-spec-book', 'compare-drawings', 'scan-anything', 'scan-credential',
       'import-schedule', 'convert-pdf-to-images', 'safety-generate-jha', 'safety-detect-hazards', 'safety-draft-incident',
-      'plan-extract', 'analyze-plan-code']
+      'plan-extract', 'analyze-plan-code', 'ask-files']
     .map((fn): [string, string, string] => [fn, `${fn}:user:`, 'HOURLY_LIMIT']),
 ];
 for (const [fn, scope, limit] of BUCKETED) {
@@ -414,6 +415,7 @@ const TIMED: [string, RegExp][] = [
   ['scan-anything', /signal: ac\.signal/], ['analyze-drawings', /fetchWithTimeout\(/], ['analyze-takeoff', /fetchWithTimeout\(/],
   ['analyze-spec-book', /fetchWithTimeout\(/], ['compare-drawings', /fetchWithTimeout\(/],
   ['plan-extract', /fetchWithTimeout\(/], ['analyze-plan-code', /fetchWithTimeout\(/],
+  ['ask-files', /fetchWithTimeout\(/],
 ];
 for (const [fn, re] of TIMED) {
   const src = read(`supabase/functions/${fn}/index.ts`);
@@ -432,6 +434,7 @@ const TIMEOUT_DECLS: [string, string][] = [
   ['analyze-spec-book', 'VISION_TIMEOUT_MS = 120_000'], ['compare-drawings', 'VISION_TIMEOUT_MS = 120_000'],
   ['plan-extract', 'VISION_TIMEOUT_MS = 120_000'], ['analyze-plan-code', 'VISION_TIMEOUT_MS = 120_000'],
   ['scan-anything', 'CLASSIFY_TIMEOUT_MS = 30_000'], ['scan-anything', 'EXTRACT_TIMEOUT_MS = 45_000'],
+  ['ask-files', 'VISION_TIMEOUT_MS = 120_000'],
 ];
 for (const [fn, decl] of TIMEOUT_DECLS) {
   ok(`${fn} declares its upstream bound (${decl})`, read(`supabase/functions/${fn}/index.ts`).includes(`const ${decl};`));

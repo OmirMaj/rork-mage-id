@@ -46,6 +46,44 @@ export interface MessageAttachmentCopy {
   open: string;
   download: string;
   size(bytes: number): string;
+  /** "Read with MAGE" on a client's message (lane ATTPORTAL). The failure
+   *  sentences and the "What I read" block come from useAskCopy().files. */
+  ai: {
+    read: string;
+    readA11y: string;
+    sheetTitle: string;
+    willRead: string;
+    notRead: string;
+    notReadCount(count: number): string;
+    notReadSize(mb: number): string;
+    notReadTotal(mb: number): string;
+    notReadPages(limit: number): string;
+    notReadUnreadable: string;
+    notReadMissing: string;
+    noneReadable: string;
+    goesTo: string;
+    counts: string;
+    start: string;
+    reading: string;
+    summary: string;
+    asks: string;
+    asksNone: string;
+    draft: string;
+    draftNote: string;
+    draftNone: string;
+    startCo: string;
+    startRfi: string;
+    startPunch: string;
+    punchLocked: string;
+    planLocked: string;
+    seePlans: string;
+    notSaved: string;
+    notPosted: string;
+    accountOff: string;
+    accountUnknown: string;
+    beforeNotice: string;
+    moreNotRead(count: number): string;
+  };
 }
 
 export function useMessageAttachmentCopy(): MessageAttachmentCopy {
@@ -106,6 +144,42 @@ export function useMessageAttachmentCopy(): MessageAttachmentCopy {
       open: t('common.action.open', 'Open'),
       download: t('common.action.download', 'Download'),
       size,
+      ai: {
+        read: t('office.clientMessages.ai.read', 'Read with MAGE'),
+        readA11y: t('office.clientMessages.ai.read.a11y', 'Have MAGE read the files on this message'),
+        sheetTitle: t('office.clientMessages.ai.sheet.title', 'Read with MAGE'),
+        willRead: t('office.clientMessages.ai.willRead', 'MAGE will read:'),
+        notRead: t('office.clientMessages.ai.notRead', 'Not read:'),
+        notReadCount: (count) => t('office.clientMessages.ai.notRead.count', 'more than {count} files', { count }),
+        notReadSize: (mb) => t('office.clientMessages.ai.notRead.size', 'over {mb} MB', { mb }),
+        notReadTotal: (mb) => t('office.clientMessages.ai.notRead.total', 'over {mb} MB together', { mb }),
+        notReadPages: (limit) => t('office.clientMessages.ai.notRead.pages', 'more than {limit} pages', { limit }),
+        notReadUnreadable: t('office.clientMessages.ai.notRead.unreadable', 'could not be opened'),
+        notReadMissing: t('office.clientMessages.ai.notRead.missing', 'not available'),
+        noneReadable: t('office.clientMessages.ai.noneReadable', "MAGE can't read any of the files on this message."),
+        goesTo: t('office.clientMessages.ai.goesTo', 'The files and the message text go to Google Gemini to be read. Nothing is sent to your client.'),
+        counts: t('office.clientMessages.ai.counts', 'Counts as one of your monthly photo analyses.'),
+        start: t('office.clientMessages.ai.start', 'Read files'),
+        reading: t('office.clientMessages.ai.reading', 'Reading the files'),
+        summary: t('office.clientMessages.ai.summary', 'Summary'),
+        asks: t('office.clientMessages.ai.asks', 'What the client is asking for'),
+        asksNone: t('office.clientMessages.ai.asks.none', 'MAGE found no request in the message or the files it read.'),
+        draft: t('office.clientMessages.ai.draft', 'Draft'),
+        draftNote: t('office.clientMessages.ai.draft.note', "Drafted by MAGE from the client's message. Check it against the files before you save."),
+        draftNone: t('office.clientMessages.ai.draft.none', 'No draft, because MAGE found no request.'),
+        startCo: t('office.clientMessages.ai.startCo', 'Start a change order'),
+        startRfi: t('office.clientMessages.ai.startRfi', 'Start an RFI'),
+        startPunch: t('office.clientMessages.ai.startPunch', 'Start a punch item'),
+        punchLocked: t('office.clientMessages.ai.punchLocked', 'Punch lists are on the Business plan.'),
+        planLocked: t('office.clientMessages.ai.planLocked', 'Reading client files with MAGE is on the Pro plan.'),
+        seePlans: t('office.clientMessages.ai.seePlans', 'See plans'),
+        notSaved: t('office.clientMessages.ai.notSaved', 'This reading is not saved. Close it and it is gone.'),
+        notPosted: t('office.clientMessages.ai.notPosted', 'Nothing here is posted to the thread or sent to your client.'),
+        accountOff: t('office.clientMessages.ai.accountOff', 'Your account has not allowed AI features, so nothing was sent to Google. Check Settings → AI features, then try again.'),
+        accountUnknown: t('office.clientMessages.ai.accountUnknown', "MAGE couldn't check your account's AI setting. Try again in a minute."),
+        beforeNotice: t('office.clientMessages.ai.beforeNotice', 'This message was sent before your client was told about AI reading, so MAGE does not read it.'),
+        moreNotRead: (count) => tn('office.clientMessages.ai.moreNotRead', count, { one: '(1 more not read)', other: '({count} more not read)' }),
+      },
     };
   }, [t, tn]);
 }

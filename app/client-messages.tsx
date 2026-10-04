@@ -23,6 +23,14 @@
 // "Sending…", "Not sent" with Retry / Remove) until its row is written, and
 // it never shows a sent time before that. A text message queued offline says
 // "Waiting to send". Text-only sends take the unchanged sendMessage path.
+//
+// READ WITH MAGE (lane ATTPORTAL, dark behind PORTAL_MESSAGE_AI_ENABLED) — on
+// a client's message that carries stored files, the project OWNER on a phone
+// gets one quiet button under the bubble. It opens MessageAiSheet, which has
+// the AI read those files and drafts a description he can start a change
+// order, an RFI or a punch item from. Nothing it writes is posted to this
+// thread or sent to the client. With the flag false the button's props are
+// never passed and the sheet is never mounted, so the tree is today's.
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Animated, Pressable,
@@ -32,7 +40,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { MessageSquare, Send, Inbox, Lock, ChevronLeft, Paperclip } from 'lucide-react-native';
+import { MessageSquare, Send, Inbox, Lock, ChevronLeft, Paperclip, Sparkles } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -56,6 +64,10 @@ import { useMessageAttachmentUrls, type ThreadAttachment, type MessageAttachment
 import { useMessageAttachmentCopy, type MessageAttachmentCopy } from '@/hooks/useMessageAttachmentCopy';
 import { outboxDisplay, type OutboxDisplay, type OutboxEntry } from '@/utils/messageAttachments';
 import { ChatTurn, useSeenKeys } from '@/components/motion/kit';
+import { PORTAL_MESSAGE_AI_ENABLED } from '@/constants/featureFlags';
+import { canReadWithAi, MESSAGE_AI_NOT_BEFORE } from '@/utils/messageAiCore';
+import MessageAiSheet from '@/components/messages/MessageAiSheet';
+import type { MessageAttachment } from '@/types';
 
 // Anything older than this gap from the previous message gets a fresh
 // timestamp pill above it AND breaks the bubble-run grouping.
@@ -150,6 +162,9 @@ function MessageBubble({
   wide,
   onRetry,
   onRemove,
+  onReadWithAi,
+  readAiLabel,
+  readAiA11y,
 }: {
   item: Extract<DisplayItem, { kind: 'message' }>;
   live: boolean;
@@ -160,6 +175,11 @@ function MessageBubble({
   wide: boolean;
   onRetry?: (outboxId: string) => void;
   onRemove?: (outboxId: string) => void;
+  /** Set only for a message the owner may have MAGE read (utils/messageAiCore
+   *  canReadWithAi). Unset, the bubble draws exactly as before. */
+  onReadWithAi?: () => void;
+  readAiLabel?: string;
+  readAiA11y?: string;
 }) {
   const { message: m, pending, isFirstInRun, isLastInRun } = item;
   const atts = m.attachments ?? [];
@@ -231,6 +251,20 @@ function MessageBubble({
             {bubble}
           </Pressable>
         ) : bubble}
+
+        {onReadWithAi ? (
+          <Pressable
+            onPress={onReadWithAi}
+            style={styles.readAi}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={readAiA11y}
+            testID={`message-read-ai-${m.id}`}
+          >
+            <Sparkles size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.readAiText}>{readAiLabel}</Text>
+          </Pressable>
+        ) : null}
 
         {isLastInRun && !pending ? (
           <Text style={[styles.time, mine && styles.timeMine]}>
@@ -372,6 +406,9 @@ export default function ClientMessagesScreen() {
   const filesRef = useRef(files);
   filesRef.current = files;
   const [viewing, setViewing] = useState<ThreadAttachment | null>(null);
+  // The client message MAGE was asked to read (its id and its files; nothing
+  // is kept after the sheet closes). Only ever set while the flag is on.
+  const [aiMessage, setAiMessage] = useState<{ id: string; attachments: MessageAttachment[] } | null>(null);
   const urls = useMessageAttachmentUrls(messages, { onOpenPhoto: setViewing });
   // The single desktop gate (web >= 900): the same width the sidebar uses.
   const wide = useIsDesktopWeb();
@@ -655,6 +692,13 @@ export default function ClientMessagesScreen() {
             if (item.kind === 'separator') {
               return <TimeSeparator key={item.id} label={item.label} styles={styles} />;
             }
+            // "Read with MAGE": the owner, on a phone, on a client's sent
+            // message with a stored file, written after the client was told.
+            const readable = PORTAL_MESSAGE_AI_ENABLED && canReadWithAi({
+              flag: PORTAL_MESSAGE_AI_ENABLED, isWeb: Platform.OS === 'web', role,
+              authorType: item.message.authorType, pending: !!item.pending,
+              attachments: item.message.attachments ?? [], createdAt: item.message.createdAt,
+              notBefore: MESSAGE_AI_NOT_BEFORE });
             return (
               <MessageBubble
                 key={item.message.id}
@@ -667,6 +711,8 @@ export default function ClientMessagesScreen() {
                 wide={wide}
                 onRetry={retryOutbox}
                 onRemove={confirmRemoveOutbox}
+                {...(readable ? { onReadWithAi: () => setAiMessage({ id: item.message.id, attachments: item.message.attachments ?? [] }),
+                  readAiLabel: copy.ai.read, readAiA11y: copy.ai.readA11y } : null)}
               />
             );
           })
@@ -735,6 +781,9 @@ export default function ClientMessagesScreen() {
         onShare={urls.share}
         onRetry={(a) => urls.refresh(a.id)}
       />
+      {PORTAL_MESSAGE_AI_ENABLED && aiMessage && project
+        ? <MessageAiSheet visible project={project} message={aiMessage} onClose={() => setAiMessage(null)} />
+        : null}
     </KeyboardAvoidingView>
   );
 }
@@ -805,6 +854,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginHorizontal: 8,
   },
   timeMine: { color: t.textMuted },
+  // "Read with MAGE": a quiet text button under a client's files.
+  readAi: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6, marginHorizontal: 8, minHeight: 28 },
+  readAiText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.accentLabel },
 
   // A column: the tray of picked files (when there are any), then the row.
   compose: {

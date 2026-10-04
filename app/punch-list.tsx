@@ -119,6 +119,8 @@ import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialRun,
 import type { RunState } from '@/utils/tutorial/types';
 import { PUNCH_LIST_SAMPLE } from '@/utils/tutorial/defs/punchListClose';
 import { isSampleProject } from '@/utils/sampleGuard';
+import { PORTAL_MESSAGE_AI_ENABLED } from '@/constants/featureFlags';
+import { readDraftHandoff } from '@/utils/draftHandoff';
 
 /** The item the live run saved (punchList.saved) — the row its later steps light. */
 const tutorialPunchItemId = (s: RunState): string | null => (s.status === 'running' ? s.payloads['punchList.saved']?.itemId ?? null : null);
@@ -939,10 +941,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId, new: newParam, itemId: focusItemId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId, new: newParam, prefillDraft, itemId: focusItemId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
+    /** An in-memory hand-over id (utils/draftHandoff), never the text itself. */
+    prefillDraft?: string;
     /** #51/#54: the item a "ready for review" notification is about. */
     itemId?: string;
     /** UX wave B2 (Lane 0 route contract): `new=1` opens the Add form. */
@@ -1120,7 +1124,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       return;
     }
     setShowForm(true);
-  }, [openNew, project, prefillPhotoUri, prefillPhotoId, recordWriteBlock, t]);
+    // "Read with MAGE" on a client message hands its draft over by id; read
+    // only while the feature is on. No location is prefilled.
+    if (PORTAL_MESSAGE_AI_ENABLED) { const d = readDraftHandoff(prefillDraft); if (d) setDescription(d.description); }
+  }, [openNew, project, prefillPhotoUri, prefillPhotoId, recordWriteBlock, t, prefillDraft]);
 
   // The photo row the prefill points at. `prefillPhotoId` used to be a truthy
   // check and nothing else, so everything the photo already knew was thrown
