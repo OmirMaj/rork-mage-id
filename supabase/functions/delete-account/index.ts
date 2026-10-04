@@ -175,6 +175,10 @@ const USER_SCOPED_TABLES = [
   // removes them with the login; listed so the erasure does not depend on the
   // FK. Its trigger guards insert/update only, so the delete goes (lane FACTS).
   'job_fact_links',
+  // Saved department answers (20261002170000, lane PPASK). user_id … ON DELETE
+  // CASCADE already removes them with the login; listed so the erasure does not
+  // depend on the FK. The trigger guards updates only, so the delete goes.
+  'jurisdiction_answers',
 ];
 
 // 'portal_messages' USED TO BE IN THE LIST ABOVE. The table has no user_id

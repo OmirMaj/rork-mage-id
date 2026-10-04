@@ -88,6 +88,7 @@ import {
 } from '@/utils/permitInspectionHistory';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
 import DepartmentCard from '@/components/buildingRecord/DepartmentCard';
+import { PermitPathHeroCard } from '@/components/permitPath/PermitPathHeroCard';
 import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionButton';
 import { issuingAuthorityForAddress, jobsiteAddressForProject, jurisdictionQueryForProject } from '@/utils/codeJurisdiction';
 import { checkDobPermit } from '@/utils/buildingRecordClient';
@@ -1089,6 +1090,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
           </View>
         ) : null}
         {scopedProject ? (<><BuildingRecordCard project={scopedProject} variant="compact" testID="permits-building-record" /><DepartmentCard project={scopedProject} testID="permits-department" /></>) : null}
+        {scopedProject ? <PermitPathHeroCard project={scopedProject} compact testID="permits-permit-path" /> : null}
 
         {/* Next-inspection hero — biggest visual on screen when there
             is one. Calculates days countdown live so "tomorrow" shows
