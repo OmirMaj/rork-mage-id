@@ -14,11 +14,23 @@
 // Nothing runs on mount: the tier comes from useTierAccess (local), the topics
 // from the pure scopeTargetsFor. Nothing is saved: the sweep lives here until
 // the sheet closes, and the panel says so.
+//
+// Code cards (lane CCWIRE, 2026-10-03): once sheets are reviewed, every row is
+// ALSO a code card in one list above the per-sheet findings: the headline, the
+// tally, By status (Fix / Needs an answer / Look right) and By inspection, and
+// the opened card with its actions. A finding is 'ask' unless the server
+// marked it 'fix'; only the server's separate "look right" rows are 'ok', and
+// those never get a question, an RFI draft or a punch item. The per-sheet
+// findings below (rung, mismatch, Draft RFI, Add punch item) are unchanged.
+// The sweep itself is still not kept; a card he pins to an inspection
+// checklist or saves is kept by the code-card stores on this device, because
+// he asked for that. Recall is neutral grey here too (founder decision), so
+// amber is left for the edition mismatch, a real warning.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, Lock, MapPin, Search, MessageSquare, FileText, ListChecks } from 'lucide-react-native';
+import { Info, Lock, MapPin, Search, MessageSquare, FileText, ListChecks } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
@@ -28,17 +40,33 @@ import { Button, Card } from '@/components/ui';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
+import { PLAN_REVIEW_DISCLAIMER, type PlanCodeFindingRaw } from '@/utils/planCodeReviewer';
 import { groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction } from '@/utils/codeJurisdiction';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { sheetAttachmentFor } from '@/utils/plans/revisionActions';
 import { generateUUID } from '@/utils/generateId';
 import {
-  scopeTargetsFor, sweepFindingView, rfiFromSweepFinding, punchFromSweepFinding, sweepCopy, type NotReviewedSheet, type SweepFindingView,
+  scopeTargetsFor, sweepFindingView, sweepCitation, rfiFromSweepFinding, punchFromSweepFinding, sweepCopy, type NotReviewedSheet, type SweepFindingView,
 } from '@/utils/plans/planSweep';
 import { findSweepSheets, reviewSweepSheets, type FindSweepResult, type ReviewSweepResult } from '@/utils/plans/planSweepRun';
 import type { PlanSheet, Project } from '@/types';
 import { describeError } from '@/utils/errorCopy';
+import { showAlert } from '@/utils/alert';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { bookedStageDays } from '@/utils/inspectionPrep';
+import { CodeCardList } from '@/components/codeCard/CodeCardList';
+import { blockedAction, doneAction, readyAction } from '@/components/codeCard/parts';
+import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
+import { parseCodeCardItem } from '@/utils/codeCard/parse';
+import { passesEchoCheck } from '@/utils/codeCard/echoCheck';
+import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
+import { pinnedStage } from '@/utils/codeCard/pins';
+import { isSaved } from '@/utils/codeCard/saved';
+import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
+import { addAllLabel, architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
+import {
+  sweepCardItem, useCodeCardWiring, usePermitOfficeAnswer, withContentIds,
+} from '@/components/construction/AskConstructionMode';
 
 interface Props {
   project: Project;
@@ -54,6 +82,13 @@ type Phase = 'idle' | 'finding' | 'found' | 'reviewing' | 'done';
 
 const sheetNo = (s: PlanSheet) => (s.sheetNumber ?? '').trim() || s.name || 'Sheet';
 
+/** The server's separate "look right" rows for one reviewed sheet (code-card
+ *  responses only; an older server, or a request without the flag, sends none). */
+function lookRightRows(reviewed: unknown): PlanCodeFindingRaw[] {
+  const raw = (reviewed as { lookRight?: unknown } | null)?.lookRight;
+  return Array.isArray(raw) ? raw.filter((x): x is PlanCodeFindingRaw => !!x && typeof x === 'object') : [];
+}
+
 /** "Punch item added — …. Open punch list" → the sentence and the link words. */
 const OPEN_PUNCH = 'Open punch list';
 const withoutLink = (s: string) => (s.endsWith(OPEN_PUNCH) ? s.slice(0, -OPEN_PUNCH.length).trimEnd() : s);
@@ -63,7 +98,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { tier, isProOrAbove } = useTierAccess();
-  const { addRFI, addDrawingPin, addPunchItem } = useProjects();
+  const { addRFI, addDrawingPin, addPunchItem, permits } = useProjects();
   const { user } = useAuth();
 
   const current = useMemo(() => sheets.filter(s => !s.superseded), [sheets]);
@@ -172,13 +207,59 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
     router.push({ pathname: '/rfi', params: { projectId: project.id, rfiId } });
   }, [onClose, router, project.id]);
 
+  // ── Code cards: every reviewed row as a card (lane CCWIRE) ──
+  const sweepCards = useMemo<CodeCardItem[]>(() => {
+    if (!review) return [];
+    const out: CodeCardItem[] = [];
+    for (const r of review.reviewed) {
+      const sheet = { id: r.sheet.id, label: sheetNo(r.sheet) };
+      const add = (rows: readonly PlanCodeFindingRaw[], lookRight: boolean) => rows.forEach((f, i) => {
+        // The sweep's own view: every model word is neutralised there first.
+        const view = sweepFindingView(f, r.sheet, jurisdiction);
+        out.push(sweepCardItem(
+          f as unknown as Record<string, unknown>,
+          { question: (f.question ?? '').trim() ? view.title : '', requirement: view.requirement, observed: view.observed },
+          sweepCitation({ codeRef: view.citation, citedEdition: f.citedEdition, section: f.section }),
+          view.rung,
+          sheet,
+          i,
+          lookRight,
+          parseCodeCardItem,
+          passesEchoCheck,
+        ));
+      });
+      add(r.findings, false);
+      add(lookRightRows(r), true);
+    }
+    return withContentIds('sweep', out);
+  }, [review, jurisdiction]);
+  const permitAnswer = usePermitOfficeAnswer(project, sweepCards.length > 0);
+  const cardInfo = useMemo(() => codeJurisdictionInfoFor(jurisdiction, permitAnswer, null), [jurisdiction, permitAnswer]);
+  const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'plansweep-cards' });
+  const booked = useMemo<Partial<Record<CodeStage, string | null>>>(() => {
+    const out: Partial<Record<CodeStage, string | null>> = {};
+    if (sweepCards.length === 0) return out;
+    const days = bookedStageDays(permits, project.id, todayCalendarDay());
+    for (const [stage, day] of Object.entries(days) as [CodeStage, string][]) {
+      out[stage] = formatCalendarDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    return out;
+  }, [permits, project.id, sweepCards.length]);
+  const reviewedLabel = useMemo(() => (review?.reviewed ?? []).map((r) => sheetNo(r.sheet)).join(', '), [review]);
+  // His own Mail opens with the fixes and questions; nothing is sent from here.
+  const sendToArchitect = useCallback(() => {
+    const msg = architectMessageFor(sweepCards, { jobLabel: project.name, sheetLabel: reviewedLabel, info: cardInfo });
+    void Linking.openURL(mailtoUrlFor('', msg.subject, msg.body)).catch(() =>
+      showAlert('No mail app', 'Copy the questions into your email instead.'));
+  }, [sweepCards, project.name, reviewedLabel, cardInfo]);
+
   // ── header + grounding (always) ──
   const header = (
     <View>
       <Text style={styles.heading}>{sweepCopy.heading}</Text>
       <Text style={styles.subheading}>{sweepCopy.subheading}</Text>
       <View style={styles.recallChip} testID="plansweep-recall-chip">
-        <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
+        <Info size={12} color={t.textSecondary} strokeWidth={2} />
         <Text style={styles.recallChipText}>{sweepCopy.recallLine}</Text>
       </View>
       <Text style={styles.meta} testID="plansweep-edition">{`${sweepCopy.editionPrefix}${grounding.chipLabel}`}</Text>
@@ -311,6 +392,50 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
         ) : null
       ) : null}
 
+      {/* Every reviewed row as a code card: the answer first, by status. */}
+      {sweepCards.length > 0 ? (
+        <View style={styles.cardList}>
+          <CodeCardList
+            items={sweepCards}
+            info={cardInfo}
+            mode="plan"
+            eyebrow={sweepCards.some((c) => c.status === 'ok') ? undefined : `Result · ${sweepCards.length} to look at`}
+            planSourceLabel={reviewedLabel || null}
+            bookedDates={booked}
+            stageOf={wiring.stageOf}
+            onOpen={wiring.onOpen}
+            checklistFor={wiring.checklistFor}
+            askTownFor={wiring.askTownFor}
+            primary={{
+              key: 'architect',
+              label: architectButtonLabel(sweepCards) ?? 'Send to architect',
+              icon: 'send',
+              action: architectButtonLabel(sweepCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
+            }}
+            secondary={[
+              {
+                key: 'checklists',
+                label: addAllLabel(sweepCards.map((c) => ({ ...c, stage: wiring.stageOf(c) }))),
+                icon: 'clip',
+                action: sweepCards.every((c) => !!pinnedStage(wiring.pins, project.id, c.id))
+                  ? doneAction('On the inspection checklists')
+                  : readyAction(() => wiring.addAll(sweepCards)),
+              },
+              {
+                key: 'save',
+                label: 'Save',
+                icon: 'save',
+                action: sweepCards.every((c) => isSaved(wiring.saved, project.id, c.id))
+                  ? doneAction(`Saved to ${project.name}`)
+                  : readyAction(() => wiring.saveAll(sweepCards)),
+              },
+            ]}
+            testID="plansweep-card-list"
+          />
+        </View>
+      ) : null}
+      {sweepCards.length > 0 ? wiring.overlay : null}
+
       {/* Findings, grouped by sheet */}
       {review && review.reviewed.some(r => r.findings.length > 0) ? (
         <Text style={styles.meta} testID="plansweep-approx-note">{sweepCopy.approxNote}</Text>
@@ -341,8 +466,8 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
                     <Text style={[styles.badgeText, view.rung.rungIndex <= 2 ? styles.badgeBackedText : styles.badgeRecallText]}>{view.rung.badge}</Text>
                   </View>
                   {view.mismatch ? (
-                    <View style={[styles.badge, styles.badgeRecall]} testID={`plansweep-mismatch-${key}`}>
-                      <Text style={[styles.badgeText, styles.badgeRecallText]}>{view.mismatch.label}</Text>
+                    <View style={[styles.badge, styles.badgeWarn]} testID={`plansweep-mismatch-${key}`}>
+                      <Text style={[styles.badgeText, styles.badgeWarnText]}>{view.mismatch.label}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -408,10 +533,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subheading: { ...Type.subhead, color: t.textSecondary, marginTop: Tokens.spacing.xxs },
   recallChip: {
     flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, alignSelf: 'flex-start',
-    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.xs,
+    backgroundColor: t.neutralSoft, borderRadius: Tokens.radius.xs,
     paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, marginTop: Tokens.spacing.xs,
   },
-  recallChipText: { ...Type.caption1, color: t.warningLabel, flexShrink: 1 },
+  recallChipText: { ...Type.caption1, color: t.textSecondary, flexShrink: 1 },
   meta: { ...Type.footnote, color: t.textSecondary, marginTop: Tokens.spacing.xxs, flexShrink: 1 },
   body: { ...Type.subhead, color: t.text, marginTop: Tokens.spacing.xxs },
   section: { gap: Tokens.spacing.xxs },
@@ -429,6 +554,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   sheetNo: { ...Type.subheadEmphasized, color: t.text },
   sheetCard: { marginTop: Tokens.spacing.xs },
+  cardList: { marginTop: Tokens.spacing.sm },
   inlineRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   findingRow: {
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
@@ -440,10 +566,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderRadius: Tokens.radius.xs,
     paddingHorizontal: Tokens.spacing.xs, paddingVertical: 2, maxWidth: '100%',
   },
-  badgeRecall: { backgroundColor: t.warningSoft },
+  // Recall: neutral grey (founder decision 2026-10-03, code cards). Amber is
+  // kept for the edition mismatch, a real warning (badgeWarn).
+  badgeRecall: { backgroundColor: t.neutralSoft },
+  badgeWarn: { backgroundColor: t.warningSoft },
   badgeBacked: { backgroundColor: t.successSoft },
   badgeText: { ...Type.caption2, flexShrink: 1 },
-  badgeRecallText: { color: t.warningLabel },
+  badgeRecallText: { color: t.textSecondary },
+  badgeWarnText: { color: t.warningLabel },
   badgeBackedText: { color: t.successLabel },
   draftBtn: { alignSelf: 'flex-start', marginTop: Tokens.spacing.xs },
   draftedText: { ...Type.footnoteEmphasized, color: t.text },

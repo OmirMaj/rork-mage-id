@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CCWIRE sweep golden — recorded on the untouched panel (s1) the panel as it mounts 1`] = `
+{
+  "lines": 43,
+  "sha256": "4a711e58c84ff8808bfef575f005b6ed832a9ae138c711cb2d8728e15b57344e",
+}
+`;
+
+exports[`CCWIRE sweep golden — recorded on the untouched panel (s2) after Find the sheets, before any review 1`] = `
+{
+  "lines": 88,
+  "sha256": "5b21357cd0fa334dbd9b10c0b665dab1f1d035176c8a587026f8481d6f5d2a99",
+}
+`;
+
+exports[`CCWIRE sweep golden — recorded on the untouched panel (s3) after the review, two findings per sheet (old server shape) 1`] = `
+{
+  "lines": 288,
+  "sha256": "f8e57a39d8febd105a37223e29601ec8908afc5bf70b6c60e329cd3fbb14e887",
+}
+`;
+
+exports[`CCWIRE sweep golden — recorded on the untouched panel (s4) after a review that raised nothing 1`] = `
+{
+  "lines": 110,
+  "sha256": "104611f88f0d221bbfed4b62dec07c83953aff809e69d6eec770d2a5fa50a4b0",
+}
+`;

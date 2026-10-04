@@ -91,6 +91,8 @@ export interface PrepItem {
   quoteDate?: string;
   codeRef?: string;
   confidence?: 'high' | 'med' | 'low';
+  /** 'pinned' only: the pinned code card's own id, so the sheet can unpin it. */
+  pinItemId?: string;
 }
 
 export interface RecallAnswer {
@@ -650,6 +652,7 @@ export function pinnedPrepItems(pins: readonly CodePin[], inspection: Pick<Upcom
         group: 'pinned',
         text,
         why: p.stage === 'other' ? 'Pinned from a code card · no inspection stage set' : 'Pinned from a code card',
+        pinItemId: p.item.id,
       };
       if (ref) item.codeRef = ref;
       return [item];

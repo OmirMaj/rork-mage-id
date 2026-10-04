@@ -21,8 +21,9 @@
 // Code cards (lane CCWIRE): a card's "Checklist" action pins it to a stage on
 // this job (utils/codeCard/pins.ts, device-local). The pins whose stage matches
 // this inspection's name (utils/inspectionPrep.ts pinnedPrepItems) show in a
-// "Pinned from code cards" group, last, with its fixed note. No pins, no group:
-// the sheet is byte-identical to before.
+// "Pinned from code cards" group, last, with its fixed note, and each pinned
+// item has an Unpin action. No pins, no group: the sheet is byte-identical to
+// before.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -126,6 +127,9 @@ export default function InspectionReadySheet({
     () => pinnedPrepItems(pinsFor(pinsState, project.id), inspection),
     [pinsState, project.id, inspection],
   );
+  const unpin = useCallback((itemId: string) => {
+    codePinStore().dispatch({ type: 'unpin', projectId: project.id, itemId });
+  }, [project.id]);
 
   // ── Recall (Pro and up) ────────────────────────────────────────────────
   const [recallBusy, setRecallBusy] = useState(false);
@@ -327,6 +331,18 @@ export default function InspectionReadySheet({
           >
             <Text style={s.actionText}>N/A</Text>
           </TouchableOpacity>
+          {/* A pinned code card can be taken off this job's checklists again. */}
+          {item.group === 'pinned' && item.pinItemId ? (
+            <TouchableOpacity
+              style={s.action}
+              onPress={() => unpin(item.pinItemId as string)}
+              accessibilityRole="button"
+              accessibilityLabel="Unpin this code card"
+              testID={`inspection-prep-unpin-${item.id}`}
+            >
+              <Text style={s.actionText}>Unpin</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     );

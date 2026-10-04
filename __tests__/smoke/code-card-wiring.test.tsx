@@ -390,8 +390,16 @@ const SAMPLE_REQUIREMENTS = [
   { id: 'stair', verdict: 'limit', summary: 'Sample: stair handrail, top of rail in the allowed range.', section: 'R311.7.8', stage: 'final' },
 ];
 
-async function pinsStored(): Promise<Record<string, Array<{ stage: string; item: { id: string } }>>> {
+async function pinsStored(): Promise<Record<string, Array<{ stage: string; item: { id: string; summary: string } }>>> {
   return JSON.parse((await AsyncStorage.getItem('mageid_code_pins_v1')) ?? '{}');
+}
+async function savedStored(): Promise<Record<string, Array<{ item: { id: string; summary: string } }>>> {
+  return JSON.parse((await AsyncStorage.getItem('mageid_code_saved_v1')) ?? '{}');
+}
+/** The FIRST Ask card's button (`checklist`, `open`, …); ids are content hashes. */
+function cardButton(key: string) {
+  const all = screen.getAllByTestId(new RegExp(`^code-card-ask-[0-9a-z]+-${key}$`));
+  return all[0];
 }
 
 describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
@@ -413,8 +421,11 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     // The prose answer still leads.
     expect(screen.getAllByText(SAMPLE_ASK.answer).length).toBeGreaterThan(0);
     // No job linked: Checklist says why when tapped, and pins nothing.
-    await act(async () => { fireEvent.press(screen.getByTestId('code-card-guards-checklist')); });
-    expect(screen.getAllByText(/Link a job first/).length).toBeGreaterThan(0);
+    // Ids come from the content ("req-1" repeats on every answer; a pin keyed
+    // on it would land on the next answer's first card).
+    expect(screen.queryByTestId('code-card-guards-checklist')).toBeNull();
+    await act(async () => { fireEvent.press(cardButton('checklist')); });
+    expect(screen.getAllByText(/Link a project first/).length).toBeGreaterThan(0);
     expect(await pinsStored()).toEqual({});
   });
 
@@ -430,7 +441,7 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     expect(screen.getAllByText("Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.").length).toBeGreaterThan(0);
     // No job: Ask town says why.
     await act(async () => { fireEvent.press(screen.getByTestId('code-check-card-0-ask')); });
-    expect(screen.getAllByText(/Link a job first/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Link a project first/).length).toBeGreaterThan(0);
   });
 
   it('Plan Review: findings become status-grouped cards; the details list opens on tap', async () => {
@@ -451,10 +462,11 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     await pump(2);
     await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
     await pump(6);
-    await act(async () => { fireEvent.press(screen.getByTestId('code-card-guards-checklist')); });
+    await act(async () => { fireEvent.press(cardButton('checklist')); });
     await pump(4);
     const pins = await pinsStored();
-    expect(pins[PROJECT_ID]?.map((p) => [p.item.id, p.stage])).toEqual([['guards', 'final']]);
+    expect(pins[PROJECT_ID]?.map((p) => [p.item.summary, p.stage])).toEqual([['Sample: guards on every open side of the deck.', 'final']]);
+    expect(pins[PROJECT_ID]?.[0].item.id).toMatch(/^ask-[0-9a-z]+$/);
     // The card now says where it landed.
     expect(screen.getAllByText('On Final checklist').length).toBeGreaterThan(0);
 
@@ -466,5 +478,62 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     await pump(4);
     expect(screen.getByTestId('inspection-prep-pinned')).toBeTruthy();
     expect(screen.getAllByText('Sample: guards on every open side of the deck.').length).toBeGreaterThan(0);
+  });
+  it('Ask on a linked project: Save lands in a list he can open and remove from', async () => {
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: SAMPLE_REQUIREMENTS };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    // Nothing saved yet: no list.
+    expect(screen.queryByTestId('construction-ask-saved')).toBeNull();
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what does a raised deck need?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    // Open the first card, then Save from the opened card.
+    await act(async () => { fireEvent.press(cardButton('open')); });
+    await pump(4);
+    const saveRows = screen.getAllByTestId(/^construction-ask-cards-sheet-ask-[0-9a-z]+-save$/);
+    await act(async () => { fireEvent.press(saveRows[0]); });
+    await pump(4);
+    const saved = await savedStored();
+    expect(saved[PROJECT_ID]?.map((c) => c.item.summary)).toEqual(['Sample: guards on every open side of the deck.']);
+    // The Save row now says where to find it, and the list is there.
+    expect(screen.getAllByText(/Find it in Ask, under Saved code cards/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('construction-ask-saved')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-saved-toggle')); });
+    await pump(2);
+    const id = saved[PROJECT_ID][0].item.id;
+    expect(screen.getByTestId(`construction-ask-saved-${id}`)).toBeTruthy();
+    expect(screen.getAllByText('Kept on this device. In MAGE\u2019s words; section from AI recall unless marked. Confirm with your building department.').length).toBe(1);
+    // Remove takes it out of the store and the list goes away.
+    await act(async () => { fireEvent.press(screen.getByTestId(`construction-ask-saved-remove-${id}`)); });
+    await pump(4);
+    expect(await savedStored()).toEqual({});
+    expect(screen.queryByTestId('construction-ask-saved')).toBeNull();
+  });
+
+  it('a second answer never inherits the first answer\u2019s pin (ids come from the content)', async () => {
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [{ ...SAMPLE_REQUIREMENTS[0], id: 'req-1' }] };
+    await phoneRoute(`/construction-ai?mode=ask&projectId=${PROJECT_ID}`, async () => {
+      await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+    });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what does a raised deck need?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    await act(async () => { fireEvent.press(cardButton('checklist')); });
+    await pump(4);
+    expect(screen.getAllByText('On Final checklist').length).toBeGreaterThan(0);
+    // Another question, another requirement that the server also calls req-1.
+    mockAskAnswer = { ...SAMPLE_ASK, requirements: [{ ...SAMPLE_REQUIREMENTS[2], id: 'req-1' }] };
+    await act(async () => { fireEvent.changeText(screen.getByTestId('construction-ask-input'), 'Sample: what about the stair handrail?'); });
+    await pump(2);
+    await act(async () => { fireEvent.press(screen.getByTestId('construction-ask-run')); });
+    await pump(6);
+    expect(screen.getAllByText('Sample: stair handrail, top of rail in the allowed range.').length).toBeGreaterThan(0);
+    expect(screen.queryByText('On Final checklist')).toBeNull();
+    const pins = await pinsStored();
+    expect(pins[PROJECT_ID]?.map((p) => p.item.summary)).toEqual(['Sample: guards on every open side of the deck.']);
   });
 });

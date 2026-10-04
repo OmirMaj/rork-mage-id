@@ -128,17 +128,19 @@ describe('Draft a question: NY / NJ / CT towns (code cards)', () => {
     expect(screen.getByTestId('dq-question').props.value).toBe('Sample: does the town amend R312.1?');
   });
 
-  it('(c) no office found: opened from a card it says why and closes; with a button it renders nothing', () => {
+  it('(c) no office found, opened from a card: it says why and closes', () => {
     mockLookup = { status: 'error', place: null };
     const closes: boolean[] = [];
     render(
-      <DraftQuestionButton project={project('t-c', MASSAPEQUA)} hideTrigger open onOpenChange={(o) => closes.push(o)} testID="dq" />,
+      <DraftQuestionButton project={project('t-c', MASSAPEQUA)} hideTrigger open onOpenChange={(o) => { closes.push(o); }} testID="dq" />,
     );
     expect(mockAlerts.map((a) => a[0])).toEqual(['Town not found']);
     expect(closes).toEqual([false]);
     expect(screen.queryByTestId('dq-question')).toBeNull();
+  });
 
-    mockAlerts.length = 0;
+  it('(c2) no office found, with its own button: it renders nothing and says nothing', () => {
+    mockLookup = { status: 'error', place: null };
     render(<DraftQuestionButton project={project('t-c2', MASSAPEQUA)} testID="dq2" />);
     expect(screen.queryByTestId('dq2')).toBeNull();
     expect(mockAlerts).toEqual([]);

@@ -71,7 +71,10 @@ import { recordInspectionResult } from '@/utils/inspectionPrep';
 import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { permitTypeLabel } from '@/utils/statusLabels';
-import AskConstructionMode, { useCodeCardWiring, usePermitOfficeAnswer, NO_JOB_CHECKLIST, NO_JOB_SAVE } from '@/components/construction/AskConstructionMode';
+import AskConstructionMode, {
+  useCodeCardWiring, usePermitOfficeAnswer, NO_JOB_CHECKLIST, NO_JOB_SAVE,
+  codeCheckCardItem, planFindingCardItem, withContentIds,
+} from '@/components/construction/AskConstructionMode';
 // Code cards (lane CCWIRE): every Code Check citation and every Plan Review
 // finding is a code card (components/codeCard, lane CCKIT). The ladder, the
 // recall chip, the mismatch badge and the drill-in stay exactly where the
@@ -442,80 +445,6 @@ function planFindingCitation(f: { codeRef: string; citedEdition?: string | null;
   return { citedCode: edition || (f.codeRef ?? '').trim(), section: edition ? (f.section ?? '').trim() : '' };
 }
 // </pure:planFindingCitation>
-
-// <pure:codeCardItems>
-/**
- * Code cards (lane CCWIRE): one Code Check citation or one Plan Review finding
- * as a CodeCardItem. Pure, with its two dependencies injected (CCKIT's
- * parseCodeCardItem for the structured fields, and the echo gate), so
- * scripts/validate-code-card-wiring.ts runs these exact lines under bun.
- *
- * THE RULES:
- *  - A citation is ALWAYS a card (a ladder you only see when the news is
- *    good is not a ladder): a line that fails the echo gate is not trimmed or
- *    dropped, its words are WITHHELD and the card says why.
- *  - The summary is the model's plain-English requirement, shown in full up
- *    to CARD_TEXT_MAX (the line this screen always showed), never a quote,
- *    never code phrasing (the gate refuses both).
- *  - The section is the one the model gave, or '' — never a placeholder.
- *  - evidence is the ladder's own CitationEvidence for THIS citation.
- *  - The verdict is the model's when it is one of the three; otherwise
- *    'required' (an "applicable code" is a requirement on this job).
- *  - Plan Review: no status from the server means 'ask' for a low-confidence
- *    finding (it needs an answer first) and 'fix' otherwise; the AI's read of
- *    the sheet is never an approval, so nothing becomes 'ok' by inference.
- */
-const CARD_TEXT_MAX = 400;
-const CARD_WITHHELD = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
-type CardParse = (raw: unknown, fallbackId?: string) => CodeCardItem | null;
-type CardEcho = (text: string, max: number) => boolean;
-function cardVerdict(v: unknown): CodeCardItem['verdict'] {
-  return v === 'limit' || v === 'not_required' ? v : 'required';
-}
-function cardSummary(text: unknown, echo: CardEcho): string {
-  const t = typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
-  return t && echo(t, CARD_TEXT_MAX) ? t : CARD_WITHHELD;
-}
-function codeCheckCardItem(
-  c: Record<string, unknown> & { code?: string; section?: string; requirement?: string },
-  i: number,
-  evidence: CodeCardItem['evidence'],
-  parse: CardParse,
-  echo: CardEcho,
-): CodeCardItem {
-  const id = `cc-${i + 1}`;
-  const section = typeof c.section === 'string' ? c.section.trim() : '';
-  const code = typeof c.code === 'string' ? c.code.trim() : '';
-  const verdict = cardVerdict(c.verdict);
-  // parse() checks every structured field; its summary/section are stand-ins
-  // replaced below (the summary has its own gate, the section may be empty).
-  const parsed = parse({ ...c, id, verdict, summary: 'Requirement', section: 'none', citedEdition: code || undefined }, id);
-  const base: CodeCardItem = parsed ?? { id, verdict, summary: '', section: '', evidence: null, stageIsGuess: true };
-  const item: CodeCardItem = { ...base, id, verdict, summary: cardSummary(c.requirement, echo), section, evidence };
-  if (code) item.citedEdition = code;
-  return item;
-}
-function planFindingCardItem(
-  f: Record<string, unknown> & { id: string; requirement?: string; observed?: string; confidence?: string },
-  cite: { citedCode: string; section: string },
-  evidence: CodeCardItem['evidence'],
-  parse: CardParse,
-  echo: CardEcho,
-): CodeCardItem {
-  const raw = f.cardStatus;
-  const status: CodeCardItem['status'] = raw === 'fix' || raw === 'ask' || raw === 'ok'
-    ? raw
-    : f.confidence === 'low' ? 'ask' : 'fix';
-  const parsed = parse({ ...f, id: f.id, verdict: 'required', summary: 'Requirement', section: 'none', status }, f.id);
-  const base: CodeCardItem = parsed ?? { id: f.id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
-  const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status };
-  if (cite.citedCode) item.citedEdition = cite.citedCode;
-  const observed = typeof f.observed === 'string' ? f.observed.trim() : '';
-  if (observed && echo(observed, 120)) item.observed = observed;
-  else delete item.observed;
-  return item;
-}
-// </pure:codeCardItems>
 
 /** A Plan Review finding as saved since analyze-plan-code returned its evidence
  *  (lane C). The extra fields ride in the local plan-review store; CodeFinding
@@ -3305,7 +3234,7 @@ function ResultModal({
   const rungSummary = useMemo(() => rungSummaryLine(evidence), [evidence]);
   /** Code cards, index-aligned with result.applicableCodes (one per citation, always). */
   const cards = useMemo<CodeCardItem[]>(
-    () => (result ? result.applicableCodes.map((c, i) => codeCheckCardItem(c as Record<string, unknown> & typeof c, i, evidence[i] ?? null, parseCodeCardItem, passesEchoCheck)) : []),
+    () => (result ? withContentIds('cc', result.applicableCodes.map((c, i) => codeCheckCardItem(c as Record<string, unknown> & typeof c, i, evidence[i] ?? null, parseCodeCardItem, passesEchoCheck))) : []),
     [result, evidence],
   );
   const permitAnswer = usePermitOfficeAnswer(project, visible && cards.length > 0);

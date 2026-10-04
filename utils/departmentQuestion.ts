@@ -653,10 +653,10 @@ export function askTownKind(project: (Parameters<typeof placeQueryForProject>[0]
 /** Why Ask town is blocked for this job, or null when it can open. Every
  *  blocked button says why. */
 export function askTownBlockedReason(project: (Parameters<typeof placeQueryForProject>[0]) | null | undefined): string | null {
-  if (!project) return 'Link a job first. The question goes to that job’s town.';
+  if (!project) return 'Link a project first. The question goes to that project’s town.';
   const kind = askTownKind(project);
-  if (kind === 'md') return 'For a Maryland job, use Draft a question on the job’s permit card.';
-  if (!kind) return 'Draft a question works for New York, New Jersey and Connecticut jobs with an address.';
+  if (kind === 'md') return 'For a Maryland project, use Draft a question on its permit card.';
+  if (!kind) return 'Draft a question works for New York, New Jersey and Connecticut projects with an address.';
   return null;
 }
 
@@ -664,9 +664,27 @@ export function askTownBlockedReason(project: (Parameters<typeof placeQueryForPr
  * The question a code card pre-fills, in MAGE's own words: the card's summary
  * (our paraphrase, already echo-checked), its section and the edition, and
  * the ask. Never any code text. He edits it before anything is drafted.
+ *
+ *  - `noWords`: the card has no requirement in words (its line was withheld or
+ *    missing), so the question asks what the section requires instead of
+ *    repeating MAGE's stand-in line.
+ *  - The "AI recall" sentence is said only when the section IS recall: a card
+ *    whose evidence is a government rung ('amended' / 'named') does not say it.
  */
-export function codeCardQuestion(item: { summary: string; section: string; citedEdition?: string | null }): string {
+export function codeCardQuestion(
+  item: { summary: string; section: string; citedEdition?: string | null; evidence?: { rung: string } | null },
+  opts: { noWords?: boolean } = {},
+): string {
   const ref = [clean(item.citedEdition), clean(item.section)].filter(Boolean).join(' ');
-  const summary = clean(item.summary).replace(/[.\s]+$/, '');
-  return `On this job, does this apply, and does the town amend it? ${summary}${ref ? ` (${ref})` : ''}. MAGE marked the section as AI recall, so please confirm the section and edition you enforce.`;
+  const summary = opts.noWords ? '' : clean(item.summary).replace(/[.\s]+$/, '');
+  const government = item.evidence?.rung === 'amended' || item.evidence?.rung === 'named';
+  const ask = summary
+    ? `Does this apply here, and does the town amend it? ${summary}${ref ? ` (${ref})` : ''}.`
+    : ref
+      ? `What does ${ref} require here, and does the town amend it?`
+      : 'Which code section covers this work here, and does the town amend it?';
+  const confirm = government
+    ? 'Can you confirm the section and edition you enforce?'
+    : 'MAGE marked the section as AI recall. Can you confirm the section and edition you enforce?';
+  return `${ask} ${confirm}`;
 }

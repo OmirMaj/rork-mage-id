@@ -371,7 +371,7 @@ function TownDraftQuestion({
       'Town not found',
       lookup.status === 'error'
         ? "Couldn't reach the Census geocoder, so MAGE couldn't tell which town issues permits here. Try again in a moment."
-        : (answer?.headline ?? "MAGE couldn't tell which town issues permits at this address. Check the job's address, then try again."),
+        : (answer?.headline ?? "MAGE couldn't tell which town issues permits at this address. Check the project's address, then try again."),
     );
     onOpenChange?.(false);
   }, [failed, open, onOpenChange, lookup.status, answer?.headline]);

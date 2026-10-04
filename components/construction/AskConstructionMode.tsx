@@ -46,7 +46,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   MessageCircleQuestion, ExternalLink, FileText, Calculator,
-  AlertTriangle, FileQuestion, DollarSign, RotateCcw,
+  AlertTriangle, FileQuestion, DollarSign, RotateCcw, Bookmark, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -68,7 +68,9 @@ import {
   codesSummary, departmentFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
   type AddressableProject, type ResolvedCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
+import { Card } from '@/components/ui';
 import { CodeCardList } from '@/components/codeCard/CodeCardList';
+import { CodeCardRow } from '@/components/codeCard/CodeCardRow';
 import { CodeCardSheet } from '@/components/codeCard/CodeCardSheet';
 import { JurisdictionBlock } from '@/components/codeCard/JurisdictionBlock';
 import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAction } from '@/components/codeCard/parts';
@@ -76,7 +78,7 @@ import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from
 import { attachEvidence, parseCodeCardItems } from '@/utils/codeCard/parse';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { codePinStore, makePin, pinnedStage } from '@/utils/codeCard/pins';
-import { codeSavedStore, isSaved, makeSaved } from '@/utils/codeCard/saved';
+import { codeSavedStore, isSaved, makeSaved, savedFor } from '@/utils/codeCard/saved';
 import { smsUrlFor, subRecipientsFor, type SubRecipient } from '@/utils/codeCard/shareText';
 import { stageLabel } from '@/utils/codeCard/verdict';
 import { addAllLabel } from '@/utils/codeCard/summary';
@@ -140,6 +142,165 @@ export function buildingRecordForAsk(
   return { source: building.sourceLabel, asOf: building.asOf, block };
 }
 
+// ── Code cards: how every surface turns a model row into a card ────────────
+
+// <pure:codeCardItems>
+/**
+ * One Code Check citation, one Plan Review finding or one Plan Set Code Sweep
+ * row as a CodeCardItem, and the ids every card list uses. Pure, with its two
+ * dependencies injected (CCKIT's parseCodeCardItem for the structured fields,
+ * and the echo gate), so scripts/validate-code-card-wiring.ts runs these exact
+ * lines under bun.
+ *
+ * THE RULES:
+ *  - A citation is ALWAYS a card (a ladder you only see when the news is
+ *    good is not a ladder): a line that fails the echo gate is not trimmed or
+ *    dropped, its words are WITHHELD and the card says why.
+ *  - The summary is the model's plain-English requirement, shown in full up
+ *    to CARD_TEXT_MAX (the line these screens always showed), never a quote,
+ *    never code phrasing (the gate refuses both).
+ *  - The section is the one the model gave, or '' — never a placeholder.
+ *  - evidence is the ladder's own CitationEvidence for THIS citation.
+ *  - The verdict is the model's when it is one of the three; otherwise
+ *    'required' (an "applicable code" is a requirement on this job).
+ *  - Plan Review: no status from the server means 'ask' for a low-confidence
+ *    finding (it needs an answer first) and 'fix' otherwise; the AI's read of
+ *    the sheet is never an approval, so nothing becomes 'ok' by inference.
+ *  - Plan Set Code Sweep: a finding is a question for the architect ('ask')
+ *    unless the server marked it 'fix'. ONLY a row from the server's separate
+ *    "look right" list is 'ok', and an 'ok' row never carries a question (it
+ *    must never become an architect question or an RFI draft).
+ *  - IDS COME FROM THE CONTENT. "req-1" and "cc-1" repeat on every answer, so a
+ *    pin or a save keyed on them would show on the NEXT answer's first card.
+ *    withContentIds keys each card on its edition, section, words and place.
+ */
+export const CARD_TEXT_MAX = 400;
+export const CARD_WITHHELD = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
+export const CARD_NO_TEXT = 'The AI gave no plain-English line for this one. Use Official text to read the section.';
+export type CardParse = (raw: unknown, fallbackId?: string) => CodeCardItem | null;
+export type CardEcho = (text: string, max: number) => boolean;
+/** True when the summary is MAGE's stand-in, not a requirement in words. */
+export function isCardPlaceholder(summary: string | null | undefined): boolean {
+  return summary === CARD_WITHHELD || summary === CARD_NO_TEXT;
+}
+function cardVerdict(v: unknown): CodeCardItem['verdict'] {
+  return v === 'limit' || v === 'not_required' ? v : 'required';
+}
+function cardLine(text: unknown): string {
+  return typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
+}
+function cardSummary(text: unknown, echo: CardEcho): string {
+  const t = cardLine(text);
+  if (!t) return CARD_NO_TEXT;
+  return echo(t, CARD_TEXT_MAX) ? t : CARD_WITHHELD;
+}
+/** FNV-1a (32-bit) in base 36: short, stable, no dependency. */
+function cardHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+/**
+ * The same cards with ids made from their content: `${prefix}-${hash}`. Two
+ * cards with the same content in one list get `-2`, `-3`. The same requirement
+ * asked again gets the same id, so its pin and its save still show.
+ */
+export function withContentIds(prefix: string, items: readonly CodeCardItem[]): CodeCardItem[] {
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const base = `${prefix}-${cardHash([item.citedEdition ?? '', item.section, item.summary, item.observed ?? '', item.location ?? ''].join('|'))}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return { ...item, id: n === 1 ? base : `${base}-${n}` };
+  });
+}
+export function codeCheckCardItem(
+  c: Record<string, unknown> & { code?: string; section?: string; requirement?: string },
+  i: number,
+  evidence: CodeCardItem['evidence'],
+  parse: CardParse,
+  echo: CardEcho,
+): CodeCardItem {
+  const id = `cc-${i + 1}`;
+  const section = typeof c.section === 'string' ? c.section.trim() : '';
+  const code = typeof c.code === 'string' ? c.code.trim() : '';
+  const verdict = cardVerdict(c.verdict);
+  // parse() checks every structured field; its summary/section are stand-ins
+  // replaced below (the summary has its own gate, the section may be empty).
+  const parsed = parse({ ...c, id, verdict, summary: 'Requirement', section: 'none', citedEdition: code || undefined }, id);
+  const base: CodeCardItem = parsed ?? { id, verdict, summary: '', section: '', evidence: null, stageIsGuess: true };
+  const item: CodeCardItem = { ...base, id, verdict, summary: cardSummary(c.requirement, echo), section, evidence };
+  if (code) item.citedEdition = code;
+  // Plan-check fields never ride on a Code Check citation.
+  delete item.status;
+  delete item.observed;
+  delete item.location;
+  delete item.question;
+  return item;
+}
+export function planFindingCardItem(
+  f: Record<string, unknown> & { id: string; requirement?: string; observed?: string; confidence?: string },
+  cite: { citedCode: string; section: string },
+  evidence: CodeCardItem['evidence'],
+  parse: CardParse,
+  echo: CardEcho,
+): CodeCardItem {
+  const raw = f.cardStatus;
+  const status: CodeCardItem['status'] = raw === 'fix' || raw === 'ask' || raw === 'ok'
+    ? raw
+    : f.confidence === 'low' ? 'ask' : 'fix';
+  const parsed = parse({ ...f, id: f.id, verdict: 'required', summary: 'Requirement', section: 'none', status, location: undefined, question: undefined }, f.id);
+  const base: CodeCardItem = parsed ?? { id: f.id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
+  const item: CodeCardItem = { ...base, id: f.id, verdict: 'required', summary: cardSummary(f.requirement, echo), section: cite.section, evidence, status };
+  if (cite.citedCode) item.citedEdition = cite.citedCode;
+  const observed = cardLine(f.observed);
+  if (observed && echo(observed, 120)) item.observed = observed;
+  else delete item.observed;
+  return item;
+}
+/**
+ * One Plan Set Code Sweep row. `words` are the row's texts AFTER the sweep's
+ * own neutraliser (utils/plans/planSweep.ts sweepFindingView), so no verdict
+ * word reaches a card. `lookRight` is true ONLY for a row of the server's
+ * separate "look right" list.
+ */
+export function sweepCardItem(
+  f: Record<string, unknown>,
+  words: { question: string; requirement: string; observed: string },
+  cite: { citedCode: string; section: string },
+  evidence: CodeCardItem['evidence'],
+  sheet: { id: string; label: string },
+  index: number,
+  lookRight: boolean,
+  parse: CardParse,
+  echo: CardEcho,
+): CodeCardItem {
+  const id = `${sheet.id}#${lookRight ? 'ok' : ''}${index}`;
+  const status: CodeCardItem['status'] = lookRight ? 'ok' : f.status === 'fix' ? 'fix' : 'ask';
+  const parsed = parse({
+    ...f, id, verdict: 'required', summary: 'Requirement', section: 'none', status,
+    observed: undefined, location: undefined, question: undefined, evidence: undefined,
+  }, id);
+  const base: CodeCardItem = parsed ?? { id, verdict: 'required', summary: '', section: '', evidence: null, stageIsGuess: true };
+  const question = lookRight ? '' : cardLine(words.question);
+  const askable = !!question && echo(question, 240);
+  // The requirement in plain words; a row that gave none shows its question.
+  let summary = cardSummary(words.requirement, echo);
+  if (summary === CARD_NO_TEXT && askable) summary = question;
+  const item: CodeCardItem = { ...base, id, verdict: 'required', summary, section: cite.section, evidence, status, stageIsGuess: true };
+  if (cite.citedCode) item.citedEdition = cite.citedCode;
+  const observed = cardLine(words.observed);
+  if (observed && echo(observed, 120)) item.observed = observed;
+  const label = cardLine(sheet.label);
+  if (label) item.location = label;
+  if (askable) item.question = question;
+  return item;
+}
+// </pure:codeCardItems>
+
 // ── Code cards: the wiring every card surface in the tab shares ─────────────
 
 /** A code-card store's state, loaded on first use (device-local). */
@@ -148,8 +309,14 @@ function useCodeCardStore<S, A>(store: PersistedStore<S, A>): S {
   return useSyncExternalStore(store.subscribe, store.getState, store.getState);
 }
 
-export const NO_JOB_CHECKLIST = 'Link a job first, so this lands on that job\u2019s Inspection Ready checklist.';
-export const NO_JOB_SAVE = 'Link a job first, so this is kept with that job.';
+export const NO_JOB_CHECKLIST = 'Link a project first, so this lands on that project\u2019s Inspection Ready checklist.';
+export const NO_JOB_SAVE = 'Link a project first, so this is kept with that project.';
+/** Where a saved card can be found again (the opened card's Save row, once saved). */
+export function savedWhere(projectName: string): string {
+  return `Saved to ${projectName}. Find it in Ask, under Saved code cards, with this project linked.`;
+}
+/** The line under the saved list: what these are, and that they live on this device. */
+export const SAVED_NOTE = 'Kept on this device. In MAGE\u2019s words; section from AI recall unless marked. Confirm with your building department.';
 /** iOS cannot present a sheet while another is closing (the Code Check openDelay rule). */
 const SHEET_HANDOFF_MS = Platform.OS === 'ios' ? 450 : 80;
 
@@ -206,7 +373,10 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
   }, [projectId, pins, pinStore, stageOf]);
 
   const openAsk = useCallback((item: CodeCardItem) => {
-    setAsk({ question: codeCardQuestion(item), topic: [item.citedEdition, item.section].filter(Boolean).join(' ') || 'a code question' });
+    setAsk({
+      question: codeCardQuestion(item, { noWords: isCardPlaceholder(item.summary) }),
+      topic: [item.citedEdition, item.section].filter(Boolean).join(' ') || 'a code question',
+    });
   }, []);
   const askTownFor = useCallback((item: CodeCardItem): CodeCardAction => {
     const reason = askTownBlockedReason(project);
@@ -223,11 +393,14 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
 
   const saveFor = useCallback((item: CodeCardItem): CodeCardAction => {
     if (!projectId || !project) return blockedAction(NO_JOB_SAVE);
-    if (isSaved(saved, projectId, item.id)) return doneAction(`Saved to ${project.name}`);
+    if (isSaved(saved, projectId, item.id)) return doneAction(savedWhere(project.name));
     return readyAction(() => {
       savedStore.dispatch({ type: 'save', card: makeSaved(projectId, { ...item, stage: stageOf(item) }, new Date(), jobValues[item.id] ?? null) });
     });
   }, [projectId, project, saved, savedStore, stageOf, jobValues]);
+  const unsave = useCallback((item: CodeCardItem) => {
+    if (projectId) savedStore.dispatch({ type: 'unsave', projectId, itemId: item.id });
+  }, [projectId, savedStore]);
 
   const sendToSub = useCallback((recipient: SubRecipient, text: string) => {
     const url = smsUrlFor(recipient.phone, text, Platform.OS);
@@ -288,7 +461,7 @@ export function useCodeCardWiring({ project, info, sample = false, testID }: {
     </>
   );
 
-  return { stageOf, checklistFor, askTownFor, saveFor, onOpen: setOpenItem, addAll, saveAll, pins, saved, overlay };
+  return { stageOf, checklistFor, askTownFor, saveFor, unsave, onOpen: setOpenItem, addAll, saveAll, pins, saved, overlay };
 }
 
 /** What a code-card answer was grounded on, snapshotted when it was asked. */
@@ -457,7 +630,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
   // `cards` is empty and the answer renders exactly as before.
   const cards = useMemo<CodeCardItem[]>(() => {
     const raw = result ? (result as { requirements?: unknown }).requirements : undefined;
-    return attachEvidence(parseCodeCardItems(raw), askedFor.resolved);
+    return withContentIds('ask', attachEvidence(parseCodeCardItems(raw), askedFor.resolved));
   }, [result, askedFor.resolved]);
   const permitAnswer = usePermitOfficeAnswer(askedFor.project, cards.length > 0);
   const cardInfo = useMemo<CodeJurisdictionInfo | null>(
@@ -465,6 +638,26 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     [cards, askedFor.resolved, permitAnswer],
   );
   const wiring = useCodeCardWiring({ project: askedFor.project, info: cardInfo, testID: 'construction-ask-cards' });
+
+  // ── Saved code cards on the LINKED project ──────────────────────────────
+  // Where "Save" lands: a list under the question box whenever the linked
+  // project has saved cards. Device-local (utils/codeCard/saved.ts); nothing
+  // renders, and no lookup runs, for a project with none.
+  const [savedOpen, setSavedOpen] = useState(false);
+  const savedCards = useMemo(
+    () => savedFor(wiring.saved, linkedProject?.id).slice().reverse(),
+    [wiring.saved, linkedProject],
+  );
+  const savedResolved = useMemo(
+    () => (linkedProject && savedCards.length > 0 ? resolveCodeJurisdiction(jurisdictionQueryForProject(linkedProject, confirmedCounty)) : null),
+    [linkedProject, savedCards.length, confirmedCounty],
+  );
+  const savedPermit = usePermitOfficeAnswer(linkedProject, savedOpen && savedCards.length > 0);
+  const savedInfo = useMemo<CodeJurisdictionInfo | null>(
+    () => (savedCards.length > 0 ? codeJurisdictionInfoFor(savedResolved, savedPermit, null) : null),
+    [savedCards.length, savedResolved, savedPermit],
+  );
+  const savedWiring = useCodeCardWiring({ project: linkedProject, info: savedInfo, testID: 'construction-ask-saved-cards' });
 
   // Hoisted so the tutorial's spotlights can wrap them during a run on the
   // sample; otherwise they render exactly as before.
@@ -771,6 +964,57 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
       ) : null}
       </MaybeScrollAnchor>
 
+      {/* ── Saved code cards on the linked project (where Save lands) ── */}
+      {linkedProject && savedCards.length > 0 ? (
+        <View style={styles.savedWrap} testID="construction-ask-saved">
+          <TouchableOpacity
+            onPress={() => setSavedOpen((o) => !o)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: savedOpen }}
+            style={styles.savedToggle}
+            testID="construction-ask-saved-toggle"
+          >
+            <Bookmark size={15} color={Colors.primary} strokeWidth={1.9} />
+            <Text style={styles.savedToggleText}>{`Saved code cards on ${linkedProject.name} (${savedCards.length})`}</Text>
+            {savedOpen
+              ? <ChevronUp size={15} color={Colors.textMuted} strokeWidth={1.75} />
+              : <ChevronDown size={15} color={Colors.textMuted} strokeWidth={1.75} />}
+          </TouchableOpacity>
+          {savedOpen ? (
+            <>
+              <Card pad="none" radius="panel" style={styles.savedList}>
+                {savedCards.map((c, i) => {
+                  const item: CodeCardItem = c.jobValue ? { ...c.item, jobValue: c.jobValue } : c.item;
+                  return (
+                    <View key={c.id} testID={`construction-ask-saved-${c.item.id}`}>
+                      <CodeCardRow
+                        item={{ ...item, stage: savedWiring.stageOf(item) }}
+                        onPress={savedWiring.onOpen}
+                        edition={item.citedEdition ?? null}
+                        ruled={i > 0}
+                      />
+                      <TouchableOpacity
+                        onPress={() => savedWiring.unsave(item)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove from saved: ${item.summary}`}
+                        style={styles.savedRemove}
+                        testID={`construction-ask-saved-remove-${c.item.id}`}
+                      >
+                        <Text style={styles.savedRemoveText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </Card>
+              <Text style={styles.savedNote}>{SAVED_NOTE}</Text>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+      {savedOpen && savedCards.length > 0 ? savedWiring.overlay : null}
+
       {cards.length > 0 ? wiring.overlay : null}
       <Paywall
         visible={showPaywall}
@@ -888,6 +1132,13 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   sampleWrap: { gap: 8 },
   groundingWrap: { gap: 12 },
   cardsWrap: { gap: 12 },
+  savedWrap: { marginTop: 16, gap: 8 },
+  savedToggle: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, minHeight: 44 },
+  savedToggleText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.text },
+  savedList: { overflow: 'hidden' as const },
+  savedRemove: { alignSelf: 'flex-end' as const, minHeight: 44, justifyContent: 'center' as const, paddingHorizontal: 14 },
+  savedRemoveText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.textSecondary },
+  savedNote: { fontSize: Type.caption1.fontSize, lineHeight: 17, color: c.textMuted },
   sunRow: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const },
   sampleChip: {
     padding: 12, gap: 4, borderRadius: Tokens.radius.card,
