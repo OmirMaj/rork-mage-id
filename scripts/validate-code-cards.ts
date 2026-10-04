@@ -908,6 +908,19 @@ async function main(): Promise<void> {
   ok('F25 with no store ever created the reset is a no-op (it never creates one)', !threw);
   const resetSrc = readFileSync(join(ROOT, 'utils', 'codeCard', 'reset.ts'), 'utf8');
   ok('F26 the reset reads and writes no storage itself (removing keys stays the sweep’s job)', !/getItem|setItem|removeItem|async-storage|multiRemove/.test(resetSrc.replace(/^\s*\/\/.*$/gm, '')));
+  // The call itself (integrator's file). The reset is only a fix if the wipe
+  // CALLS it: one unconditional call inside wipeLocalUserCache, straight after
+  // the marker read and before anything conditional, so every wipe (sign-out,
+  // another account arriving, account deletion) empties the stores' memory.
+  const authSrc = readFileSync(join(ROOT, 'contexts', 'AuthContext.tsx'), 'utf8');
+  const wipeAt = authSrc.indexOf('async function wipeLocalUserCache(');
+  const wipeEnd = wipeAt < 0 ? -1 : authSrc.indexOf('\n}\n', wipeAt);
+  const wipeBody = wipeAt < 0 || wipeEnd < 0 ? '' : authSrc.slice(wipeAt, wipeEnd).replace(/^\s*\/\/.*$/gm, '').replace(/\n\s*\n/g, '\n');
+  ok('F40 wipeLocalUserCache calls resetCodeCardStores() on EVERY wipe: straight after the marker read, before any branch',
+    /import \{ resetCodeCardStores \} from '@\/utils\/codeCard\/reset';/.test(authSrc)
+    && /const marker = [^\n]*;\n\s*resetCodeCardStores\(\);\n/.test(wipeBody)
+    && wipeBody.split('resetCodeCardStores();').length === 2,
+    wipeBody.slice(0, 600));
 
   const keys = [CODE_PINS_KEY, CODE_SAVED_KEY, CODE_SUNLIGHT_KEY];
   ok('F16 every key is app-owned (prefix sweep sees it)', keys.every(isAppStorageKey));

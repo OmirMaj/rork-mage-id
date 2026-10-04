@@ -24,6 +24,12 @@ export interface PlanCodeFindingRaw {
    *  architect, and the approximate centre on the sheet (0–1). */
   question?: string | null;
   location?: { x: number; y: number } | null;
+  /** Code cards (a sweep request with `codeCards: true`): 'fix' | 'ask' on a
+   *  finding, 'ok' only on a `lookRight` row; the inspection stage is the AI's
+   *  guess. An older function sends none of these. */
+  status?: 'fix' | 'ask' | 'ok';
+  stage?: string | null;
+  stageIsGuess?: boolean;
 }
 
 /**
@@ -41,6 +47,11 @@ export class PlanCodeError extends Error {
 
 export interface PlanCodeResult {
   findings: PlanCodeFindingRaw[];
+  /** Code cards: rows the AI read as matching the drawing ("look right").
+   *  Kept apart from `findings` on purpose: a look-right row is never an
+   *  architect question, an RFI draft or a punch item. [] on an older function.
+   *  Optional in the type so nothing that builds a result by hand has to change. */
+  lookRight?: PlanCodeFindingRaw[];
   disclaimer: string;
 }
 
@@ -116,7 +127,7 @@ export async function reviewPlanCode(opts: {
   jurisdictionBlock?: string;
   /** Plan Set Code Sweep only. Omitted by Plan Review, whose request body is
    *  then exactly what it always was. */
-  sweep?: { scopeTargets: string[] };
+  sweep?: { scopeTargets: string[]; codeCards?: boolean };
 }): Promise<PlanCodeResult> {
   // App Store 5.1.2(i): nothing leaves for the AI provider until the person
   // has allowed AI features (utils/aiConsent; always allowed on the web app).
@@ -137,6 +148,7 @@ export async function reviewPlanCode(opts: {
   }
   return {
     findings: Array.isArray(data.data.findings) ? data.data.findings : [],
+    lookRight: Array.isArray(data.data.lookRight) ? data.data.lookRight : [],
     disclaimer: data.data.disclaimer || PLAN_REVIEW_DISCLAIMER,
   };
 }

@@ -23,6 +23,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
 import { showAlert } from '@/utils/alert';
 import { clearPlanSheetUrlCache } from '@/utils/planSheetUrls';
+import { resetCodeCardStores } from '@/utils/codeCard/reset';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { inviteTokenFromMetadata, markInviteTokenHandled, sanitizeInviteToken, signupMetadata, INVITE_METADATA_FIELD } from '@/utils/deepLinksInvite';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
@@ -360,6 +361,10 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastU
   // The marker lives under the swept prefix; read it first when the caller
   // needs the identity to outlive the wipe (pre-session wipe, session expiry).
   const marker = opts?.keepLastUserMarker ? await readLastUser() : null;
+  // Code-card pins, saved cards and the Sunlight preference also live in module
+  // memory; a store writes its whole state on the next change, so without this
+  // the next user's first pin would write the previous user's pins back.
+  resetCodeCardStores();
   // #112 (CONTRACT 14): the plan-sheet signed-URL cache is module memory, not
   // storage, so the sweep below cannot reach it. Every wipe is a tenant
   // boundary (sign-out, a different account arriving, account deletion), and

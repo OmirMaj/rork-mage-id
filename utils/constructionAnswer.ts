@@ -230,6 +230,9 @@ export async function askConstruction(
           projectId: req.projectId ?? null,
           jurisdiction: req.jurisdiction ?? null,
           buildingRecord: req.buildingRecord ?? null,
+          // Code cards: ask the function for the structured `requirements`
+          // too. An older function ignores the flag; the answer is unchanged.
+          codeCards: true,
         }),
         signal: controller.signal,
       });

@@ -38,8 +38,12 @@
 // RFI draft by accident (an ok row's question is null and its severity low,
 // and there are at most 10 of them). An 'ok' row with nothing observed is
 // dropped, and a status the model left out or garbled reads 'ask', never 'ok'. Without the
-// flag the sweep prompt and result are byte-identical to what they were
-// (scripts/validate-code-card-server.ts pins both against the untouched file).
+// flag the result is byte-identical to what it was, and the prompt is the
+// earlier prompt plus ONE line (2026-10-04, sent on every Plan Review and
+// sweep, flag or not): write short plain sentences, no quotation marks, inches
+// as in. and feet as ft. scripts/validate-code-card-server.ts pins both: the
+// result against the untouched file, each prompt as "the untouched prompt plus
+// exactly that line".
 //
 // Secrets: GEMINI_API_KEY
 
