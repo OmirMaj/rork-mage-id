@@ -41,6 +41,7 @@ import { resolvePricingMarket } from '@/constants/materials';
 import SignaturePad from '@/components/SignaturePad';
 import Paywall from '@/components/Paywall';
 import { SettingsPanes, SettingsSection } from '@/components/settings/SettingsPanes';
+import { SharePresenceSettingRow } from '@/components/whoson';
 import { TileGrid } from '@/components/ui/TileGrid';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
@@ -2534,6 +2535,10 @@ export default function SettingsScreen() {
             <Text style={styles.rowLabel}>Do not sell my info (CA)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
+          {/* "Show when I have a project open" (dark behind WHOS_ON_ENABLED).
+              The row brings its own separator and draws nothing until the
+              server has answered what this account chose. */}
+          <SharePresenceSettingRow />
         </View>
 
         </SettingsSection>

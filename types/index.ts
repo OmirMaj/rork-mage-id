@@ -110,6 +110,36 @@ export interface ProjectCollaborator {
   acceptedAt?: string | null;
 }
 
+/** Who a row of project_people() is: the project's owner, or an accepted team member. */
+export type ProjectPersonKind = 'owner' | 'member';
+
+/** One person on a project, as project_people() returns it for THIS viewer. */
+export interface ProjectPerson {
+  userId: string;
+  kind: ProjectPersonKind;
+  role: ProjectCollaborator['role'];
+  /** profiles.contact_name as that account typed it. Never an email. null = none. */
+  displayName: string | null;
+  companyName: string | null;
+  isSelf: boolean;
+  /** The viewer sent this person's invite. */
+  invitedByViewer: boolean;
+  /** Owner viewer only; null for every other viewer. */
+  invitedEmail: string | null;
+  /** project_collaborators.accepted_at. null on the owner row. */
+  joinedAt: string | null;
+  /** Non-null = has the project open. The number of seconds, counted from when the
+   *  request was SENT, for which the client may keep saying so without a fresh read.
+   *  null = not open, or not known. There is no false. Never set on the viewer's own row. */
+  openExpiresS: number | null;
+  /** Owner viewer, other people's rows only. */
+  lastSeenAt: string | null;
+  /** Seconds since lastSeenAt on the SERVER clock at read time. Owner viewer only. */
+  seenAgeS: number | null;
+  /** Own row only: true, false, or null = not asked yet. */
+  sharesPresence: boolean | null;
+}
+
 /**
  * Structured scope captured on the free Project Scope screen
  * (app/project-scope.tsx). Mirrors the Estimate Wizard's answer shape

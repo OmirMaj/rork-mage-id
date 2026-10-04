@@ -100,3 +100,34 @@ export const COMPANIES_DIRECTORY_ENABLED = false;
 // stored still show. Flip it to true only together with the server flag, once
 // the lawyer's answer and each retailer's permission are in hand.
 export const PRODUCT_PHOTOS_ENABLED = false;
+
+// WHO IS ON THIS PROJECT (2026-10-04) — the avatar stack, the people block in
+// the Team section, and the "Has it open" dot.
+//
+// While this is false, nothing of the feature exists for anyone: no avatar
+// stack on the project page or the desktop header, no people block or roster
+// row extras in the Team section, no "Show when you have a project open?"
+// question card, no Settings row, and the Team roster keeps today's
+// "Role · Active" wording. The root beacon (components/whoson/
+// ProjectPresenceBeacon.tsx) adds no listener and never ticks, and no hook
+// calls project_people(), set_share_presence() or reads
+// profiles.share_presence: utils/whoson/peopleClient.ts refuses to send, and
+// hooks/useProjectPeople.ts and hooks/useSharePresence.ts stay disabled. So
+// nothing about anyone's activity is stored or shown.
+//
+// Why it is off: the founder has not yet answered the privacy decisions in
+// the build spec (whether team members stay hidden from each other, "Has it
+// open" versus another wording, ask-first versus tell-once, the Invite prompt
+// on projects with a client portal), the "Team activity" paragraph is not
+// published in the privacy policy, the App Store privacy answer has not been
+// changed, and the lawyer has not answered whether a contractor seeing when
+// his own employees have a project open needs a written notice.
+//
+// Flip it to true only when ALL of these hold: the founder has decided those
+// questions, the privacy paragraph is live on mageid.app/privacy, the App
+// Privacy answer names App functionality for usage data, the lawyer's answer
+// is in, the migration 20261004120000_project_people.sql is applied to
+// production (and delete-account redeployed with project_presence), and the
+// founder's own two-account test has passed (invite, accept, answer the
+// question on both, watch the dot appear and clear, switch it off).
+export const WHOS_ON_ENABLED = false;
