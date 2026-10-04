@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import type { Invoice, Project } from '@/types';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
@@ -451,7 +452,7 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
   });
 
   if (!aiResult.success || !aiResult.data) {
-    throw new Error(aiResult.error || 'AI could not forecast payments.');
+    throw aiFailureError(aiResult, 'AI could not forecast payments.');
   }
 
   let parsed: any = aiResult.data;

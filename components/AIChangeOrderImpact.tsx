@@ -22,6 +22,7 @@ import type { Project, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 interface Props {
   changeDescription: string;
@@ -96,7 +97,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       // watched "Analyzing Impact..." return to the unpressed button with no
       // analysis and no reason (audit 2026-09-07, ai-features).
       console.warn('[AI CO Impact] Failed:', rawErrorMessage(err));
-      setError(describeError(err, { action: 'analyze this change' }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'analyze this change' }).body);
     } finally {
       setIsLoading(false);
     }

@@ -24,6 +24,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 
 interface Props {
   equipment: Equipment;
@@ -159,8 +160,9 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Equipment] Analysis failed:', err);
+      const off = aiConsentErrorText(err);
       const copy = describeError(err, { action: 'compare renting and buying' });
-      showAlert(copy.title, copy.body);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : copy.title, off ?? copy.body);
     } finally {
       setIsLoading(false);
     }

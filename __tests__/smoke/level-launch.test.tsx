@@ -75,7 +75,7 @@ import {
 // eslint-disable-next-line import/first
 import { __resetSplashStageForTests, getSplashStage, setSplashStage } from '@/components/launch/splashStage';
 // eslint-disable-next-line import/first
-import { LOADER } from '@/utils/levelTimeline';
+import { LOADER, NATIVE_SPLASH_ACCENT } from '@/utils/levelTimeline';
 // eslint-disable-next-line import/first
 import { BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 
@@ -153,11 +153,12 @@ describe('BrandSplash — frame 0', () => {
     const m = markIn(r, 'brand-splash');
     expect(m.animate).toBe(true);
     expect(val(m.amp)).toBe(0);
-    // Frame 0 is the ORANGE native splash replica (NATIVE_SPLASH_*), and the
-    // live brand is green since the 2026-09-16 rebrand, so the hue layer is
-    // there from the first render, carrying the dark-theme brand it shifts to.
-    // (On the orange brand it was absent: live hue == baked accent.)
-    expect(m.hueColor).toBe(BRAND_ACCENT_ON_DARK);
+    // Frame 0 is the native splash replica (NATIVE_SPLASH_*). Build 18 bakes
+    // the splash in the dark-theme brand green, so on the default brand the
+    // live hue IS the baked accent and no hue layer renders (builds 1-17 baked
+    // orange and needed one).
+    expect(NATIVE_SPLASH_ACCENT).toBe(BRAND_ACCENT_ON_DARK);
+    expect(m.hueColor).toBeUndefined();
     // The ink is its own layer under the level, the overlay itself paints nothing.
     expect(flat(r.getByTestId('brand-splash', H).props.style).backgroundColor).toBeUndefined();
     expectNoHaptics();
@@ -283,8 +284,8 @@ describe('BrandSplash — the hold and the exits', () => {
     expect(onDone).not.toHaveBeenCalled();
     advance(1);
     expect(onDone).toHaveBeenCalledTimes(1);
-    // hue: true — the green live brand differs from the baked orange accent.
-    expect(getSplashStage()).toEqual({ alive: true, wordmark: true, hue: true, finished: true });
+    // hue: false — the default live brand is the baked green accent.
+    expect(getSplashStage()).toEqual({ alive: true, wordmark: true, hue: false, finished: true });
     expect(getLaunchPhase()).toBe('open');
   });
 
@@ -356,7 +357,7 @@ describe('BootShell → BrandSplash hand-off', () => {
     advance(1000); // 2000: the splash is alive and shows its wordmark
     expect(val(markIn(r, 'brand-splash').amp)).toBe(1);
     expect(within(r.getByTestId('brand-splash', H)).getByText(WORDMARK)).toBeTruthy();
-    expect(getSplashStage()).toEqual({ alive: true, wordmark: true, hue: true, finished: false });
+    expect(getSplashStage()).toEqual({ alive: true, wordmark: true, hue: false, finished: false });
     // BootShell is still the still replica: no wordmark, amp 0.
     expect(r.queryByTestId('boot-shell-wordmark', H)).toBeNull();
     expect(val(bootAmp)).toBe(0);

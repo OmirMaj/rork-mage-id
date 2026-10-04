@@ -6,6 +6,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { edgeFunctionError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 import type { TakeoffResult } from '@/types';
 
 export type TakeoffModel = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'claude-sonnet-4-5';
@@ -47,6 +48,9 @@ export interface AnalyzeTakeoffResponse {
  * Server enforces tier gate, monthly cap, and rejects free tier.
  */
 export async function analyzeTakeoff(opts: AnalyzeTakeoffOpts): Promise<AnalyzeTakeoffResponse> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No drawing pages to analyze.');
   }

@@ -340,7 +340,11 @@ describe('lane P2 — the phone is unchanged (golden)', () => {
 
   it('<Paywall> practiceTutorialId invoice-to-self, iOS 390', async () => {
     const json = await probeTree('/w6d-forms-paywall-sheet', PaywallProbe, 'ios', 390, 844);
-    expect(JSON.stringify(json)).toContain('paywall-upgrade-btn');
+    // App Store wave (APPPAY item 3): this harness has no RevenueCat key, so no
+    // plan loads and the native wall shows its one honest state (with a Retry)
+    // instead of a price and an Upgrade button. With packages loaded the
+    // button is proved in appstore-paywall-phone.test.tsx.
+    expect(JSON.stringify(json)).toContain('paywall-plans-unavailable');
     expect(fingerprint('paywall component ios 390', json)).toMatchSnapshot();
   });
 
@@ -375,7 +379,9 @@ describe('lane P2 — android 1100 (isDesktop true, desktopWeb false)', () => {
 
   it('the Paywall Modal is not transparent', async () => {
     await probeTree('/w6d-forms-paywall-sheet', PaywallProbe, 'android', 1100, 800);
-    expect(paywallModalHint('paywall-upgrade-btn').transparent).toBeNull();
+    // 'paywall-not-now' is on the native wall in every store state (APPPAY:
+    // with no plan loaded there is no Upgrade button to find the Modal by).
+    expect(paywallModalHint('paywall-not-now').transparent).toBeNull();
   });
 });
 

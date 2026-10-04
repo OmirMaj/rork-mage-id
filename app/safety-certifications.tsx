@@ -27,6 +27,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 // Local calendar day for date defaults — toISOString() is the UTC day and
@@ -245,6 +246,9 @@ function SafetyCertificationsInner() {
     // server's monthly cap is the authoritative one.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
     if (!limit.allowed) { showAlert(t('safety.cert.scanLimitReached', 'Scan limit reached'), limit.message ?? t('safety.cert.scanLimitReachedSee', 'Scan limit reached. See plans for more card scans.')); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });

@@ -9,6 +9,7 @@ import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types
 import { dfrGaps, type DFRDraft, type DFRGroundData } from './dfrGaps';
 import { buildDFRGrounding } from './dfrGrounding';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
+import { AiConsentDeclinedError, aiConsentErrorText } from '@/utils/aiConsentCore';
 import { createId } from '@/utils/scheduleEngine';
 import type { DailyFieldReport } from '@/types';
 
@@ -80,7 +81,10 @@ export const dailyReportCapability: CopilotCapability<DFRDraft, DFRApplied> = {
     let parsed: Partial<DailyFieldReport> = {};
     try {
       parsed = await parseDFRFromTranscript(transcript, ctx.projectId);
-    } catch {
+    } catch (e) {
+      // AI turned off (utils/aiConsent): the copilot shows that sentence and
+      // keeps the draft, rather than filing the raw dictation as if read.
+      if (aiConsentErrorText(e)) throw new AiConsentDeclinedError();
       parsed = { workPerformed: transcript };
     }
 

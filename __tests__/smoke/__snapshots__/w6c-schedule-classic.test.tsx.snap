@@ -2,29 +2,29 @@
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Board view 1`] = `
 {
-  "lines": 2146,
-  "sha256": "09e059880005d7113c8d787fac983eec5fbcfadb4984e468a6fafac880e14dfd",
+  "lines": 2143,
+  "sha256": "cfd6241a6a2f04f5b48fd8d46fe7d5ad704ab1e2a4b33fe784e1fd879aa48d63",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Gantt view 1`] = `
 {
-  "lines": 1992,
-  "sha256": "af7fbce459ad74e4af0ef551dff520285fb939b002130a493250344c9e4c0c40",
+  "lines": 1989,
+  "sha256": "018f40d2eec4fb852332e3ad507bdb667c1d9878673c25e870967352e6fdd9ab",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Lookahead view 1`] = `
 {
-  "lines": 2237,
-  "sha256": "bb7cc4e8f72974de8fbdbde859ccf0f8e558515bf7575bf6cbdd88dd6fb4d909",
+  "lines": 2234,
+  "sha256": "1767961bc49ad429e00e612d83c8f3ae463899a6dd57b5ca738577762e8296b9",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Today view 1`] = `
 {
-  "lines": 2197,
-  "sha256": "b4dc7856ad9c0525da2213d8d56cd013afceed9b52a39473484f5d2103e0c62c",
+  "lines": 2194,
+  "sha256": "ab742063e346ffe606b615cc3341fb44f86d937a10cd0e772c16bbbd2a4fef77",
 }
 `;
 

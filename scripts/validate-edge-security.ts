@@ -81,16 +81,19 @@ function leakyErrorBodies(src: string): string[] {
   return responseBodies(src).flatMap(({ line, text }) => { const hit = stripStringLiterals(text).match(LEAK_TOKEN_RE); return hit ? [`line ${line}: ${hit[0]}`] : []; });
 }
 /**
- * _shared/email.ts keeps the pre-rotation FNV token ONLY as the verify-only
- * legacyFnvUnsubscribeToken export (30-day grace, §18b). The literal-secret and
- * FNV-constant pins look at the file with that one function removed, so the
- * seed can live nowhere else and nothing else may hash with FNV.
+ * The pre-rotation FNV unsubscribe token, as the deleted verify-only function
+ * computed it. Kept HERE, not in supabase/functions, so §12 can prove the live
+ * verifier refuses it. The 30-day grace that accepted it ended 2026-10-04 and
+ * the code is gone (§18b); the seed is public and must never ship again.
  */
-function withoutLegacyFnv(src: string): string {
-  const start = src.indexOf('export function legacyFnvUnsubscribeToken(');
-  if (start < 0) return src;
-  const end = src.indexOf('\n}\n', start);
-  return end < 0 ? src.slice(0, start) : src.slice(0, start) + src.slice(end + 3);
+function preRotationFnvToken(email: string): string {
+  const data = email.toLowerCase().trim() + ':mage-id-unsub-2026-' + 'rotate-on-leak';
+  let h = 14695981039346656037n;
+  for (let i = 0; i < data.length; i++) {
+    h ^= BigInt(data.charCodeAt(i));
+    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
+  }
+  return h.toString(36).padStart(12, '0').slice(0, 12);
 }
 
 // ── 1. _shared/auth.ts: metering fails CLOSED + project_memory cap + limiter ──
@@ -194,9 +197,9 @@ const LITERAL_SECRET_FALLBACK = /Deno\.env\.get\(\s*['"][A-Z0-9_]*(?:SECRET|_KEY
 const LITERAL_SECRET_CONST = /const\s+[A-Z0-9_]*SECRET[A-Z0-9_]*\s*=\s*['"`][^'"`]{8,}['"`]/;
 const secretOffenders: string[] = [];
 for (const f of fnFiles) {
-  // The verify-only legacy FNV seed in _shared/email.ts is exempt until its
-  // grace ends (§18b pins that it lives nowhere else and expires 2026-10-04).
-  const src = withoutLegacyFnv(read(f));
+  // No exemption: the verify-only legacy FNV seed left _shared/email.ts when
+  // its grace ended on 2026-10-04 (§18b), so every file is read whole.
+  const src = read(f);
   if (LITERAL_SECRET_FALLBACK.test(src) || LITERAL_SECRET_CONST.test(src) || /rotate-on-leak/.test(src)) secretOffenders.push(f);
 }
 ok('no edge function falls back to a literal secret (`?? "...rotate-on-leak"`)', secretOffenders.length === 0, secretOffenders.join(', '));
@@ -277,7 +280,7 @@ ok('convert-pdf no longer returns a stack trace', !/stack: stack\?\.slice/.test(
 
 // ── 12. Secrets fail closed (OPS-F11 / AUTH-F13) ─────────────────────────────
 const emailSrc = read('supabase/functions/_shared/email.ts');
-ok('email.ts unsubscribe token is HMAC-SHA256 keyed by UNSUB_SECRET', /Deno\.env\.get\('UNSUB_SECRET'\)/.test(emailSrc) && /hmacSha256\(enc\.encode\(UNSUB_SECRET\)/.test(emailSrc) && !/14695981039346656037n/.test(withoutLegacyFnv(emailSrc)));
+ok('email.ts unsubscribe token is HMAC-SHA256 keyed by UNSUB_SECRET', /Deno\.env\.get\('UNSUB_SECRET'\)/.test(emailSrc) && /hmacSha256\(enc\.encode\(UNSUB_SECRET\)/.test(emailSrc) && !/14695981039346656037n/.test(emailSrc));
 ok('email.ts throws when UNSUB_SECRET is unset', /UNSUB_SECRET is not set/.test(emailSrc));
 ok('unsubscribe 500s when UNSUB_SECRET is unset', /unsubscribeSecretConfigured\(\)/.test(read('supabase/functions/unsubscribe/index.ts')));
 for (const fn of ['schedule-ical', 'schedule-ical-url']) {
@@ -331,12 +334,13 @@ async function hmacSelfTest(): Promise<void> {
   ok('unsubscribe token verifies for the same address (case-insensitive)', mod.verifyUnsubscribeToken('someone@example.com', tok));
   ok('unsubscribe token rejects a tampered token', !mod.verifyUnsubscribeToken('someone@example.com', tok.slice(0, 21) + (tok.endsWith('A') ? 'B' : 'A')));
   ok('unsubscribe token rejects another address', !mod.verifyUnsubscribeToken('other@example.com', tok));
-  // Review 2026-09-05: the verify-only legacy token reproduces the pre-rotation
-  // output byte-for-byte (golden vectors computed from git HEAD's FNV code).
-  const legacyTok = mod.legacyFnvUnsubscribeToken('  Someone@Example.COM ');
-  ok('legacyFnvUnsubscribeToken reproduces the pre-rotation token (golden vector, case/space-insensitive)', legacyTok === 'ip2vu1e0oy4r' && mod.legacyFnvUnsubscribeToken('other@example.com') === '29ynd8p4naa8', legacyTok);
+  // The pre-rotation token (golden vectors from the deleted FNV code, review
+  // 2026-09-05) is refused by the only verifier left, and nothing exports it.
+  const legacyTok = preRotationFnvToken('  Someone@Example.COM ');
+  ok('the pre-rotation token this guard computes is the real one (golden vector, case/space-insensitive)', legacyTok === 'ip2vu1e0oy4r' && preRotationFnvToken('other@example.com') === '29ynd8p4naa8', legacyTok);
   ok('legacy token is 12 base36 chars and is never the HMAC token', /^[0-9a-z]{12}$/.test(legacyTok) && legacyTok !== tok);
-  ok('verifyUnsubscribeToken (the resubscribe gate) rejects the legacy token', !mod.verifyUnsubscribeToken('someone@example.com', legacyTok));
+  ok('verifyUnsubscribeToken (the only gate, both directions) rejects the legacy token', !mod.verifyUnsubscribeToken('someone@example.com', legacyTok));
+  ok('_shared/email.ts no longer exports a legacy token function', typeof (mod as Record<string, unknown>).legacyFnvUnsubscribeToken === 'undefined');
 }
 
 // ── 16. The digest's outbound post-filter does what AI-F13 needs ────────────
@@ -491,22 +495,27 @@ ok('clientIpFrom precedence: cf-connecting-ip → LAST x-forwarded-for hop → x
   && /hops\[hops\.length - 1\]/.test(guards) && /return real \|\| 'unknown';/.test(guards));
 // (clientIpFrom's runtime behaviour is exercised in scripts/validate-notify-authz.ts)
 
-// ── 18b. Legacy unsubscribe-token grace: unsubscribe direction only, 30 days ──
-ok('unsubscribe declares the legacy grace as a literal UTC instant (2026-10-04 = 30 days from 2026-09-04)', unsubSrc.includes("const LEGACY_UNSUB_GRACE_UNTIL = Date.parse('2026-10-04T00:00:00Z');"));
-ok('legacy token is refused once the grace has passed', /if \(Date\.now\(\) >= LEGACY_UNSUB_GRACE_UNTIL\) return false;/.test(unsubSrc));
+// ── 18b. Legacy unsubscribe-token grace: ENDED 2026-10-04, code deleted ──────
+// For 30 days after the HMAC rotation the unsubscribe direction also took the
+// pre-rotation FNV token. The window closed at 2026-10-04T00:00:00Z and this
+// section used to turn red on that date to demand the deletion. It is done;
+// these pins keep the public-seed token from coming back in any direction.
 const resubStart = unsubSrc.indexOf("if (action === 'resubscribe') {");
 const resubBlock = resubStart >= 0 ? balancedFrom(unsubSrc, unsubSrc.indexOf('{', resubStart)) : '';
-ok('resubscribe path never references the legacy verifier', resubBlock.length > 0 && !/legacy/i.test(resubBlock) && /verifyUnsubscribeToken\(email, token\)/.test(resubBlock), resubBlock.slice(0, 160));
+ok('resubscribe path verifies the signed token and nothing else', resubBlock.length > 0 && !/legacy/i.test(resubBlock) && /verifyUnsubscribeToken\(email, token\)/.test(resubBlock), resubBlock.slice(0, 160));
 const unsubBranchAt = unsubSrc.indexOf('// Default action: unsubscribe.');
 const unsubBranch = unsubBranchAt >= 0 ? unsubSrc.slice(unsubBranchAt) : '';
-ok('unsubscribe path takes the legacy token only when the current one fails', unsubBranchAt > resubStart
-  && /const currentToken = !!token && verifyUnsubscribeToken\(email, token\);/.test(unsubBranch)
-  && /const legacyToken = !currentToken && !!token && legacyUnsubscribeTokenAccepted\(email, token\);/.test(unsubBranch));
-const legacyImporters = fnFiles.filter((f) => !f.endsWith('/_shared/email.ts') && /legacyFnvUnsubscribeToken/.test(read(f)));
-ok('legacyFnvUnsubscribeToken is imported by unsubscribe/index.ts only', legacyImporters.length === 1 && legacyImporters[0] === 'supabase/functions/unsubscribe/index.ts', legacyImporters.join(', '));
-ok('legacyFnvUnsubscribeToken is exported from _shared/email.ts and marked for deletion', /export function legacyFnvUnsubscribeToken\(email: string\): string/.test(emailSrc) && /DELETE after 2026-10-04/.test(emailSrc));
-ok('the FNV constants and the old seed live ONLY inside legacyFnvUnsubscribeToken', !/14695981039346656037n|1099511628211n|rotate-on-leak/.test(withoutLegacyFnv(emailSrc)));
-ok('legacy grace still open — once 2026-10-04 passes, delete legacyFnvUnsubscribeToken + the unsubscribe grace branch (and this pin)', Date.now() < Date.parse('2026-10-04T00:00:00Z'), 'the grace branch is dead code now; remove it');
+ok('unsubscribe path refuses anything but the signed token', unsubBranchAt > resubStart
+  && /const currentToken = !!token && verifyUnsubscribeToken\(email, token\);\s*if \(!currentToken\) \{\s*return jsonResponse\(\{ ok: false, error: 'token_invalid' \}, 400\);/.test(unsubBranch));
+const unsubCode = unsubSrc.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+ok('unsubscribe has no second token path (no grace instant, no legacy verifier, one verifier only)',
+  !/legacyToken|legacyUnsubscribeTokenAccepted|LEGACY_UNSUB_GRACE_UNTIL|GRACE_UNTIL/.test(unsubCode)
+  && !/Date\.parse\(/.test(unsubCode)
+  && (unsubCode.match(/verifyUnsubscribeToken\(email, token\)/g) ?? []).length === 3, String((unsubCode.match(/verifyUnsubscribeToken\(email, token\)/g) ?? []).length));
+const legacyMentions = fnFiles.filter((f) => /legacyFnvUnsubscribeToken|legacyUnsubscribeTokenAccepted|LEGACY_UNSUB_GRACE_UNTIL/.test(read(f)));
+ok('no edge function names the legacy token function or its grace', legacyMentions.length === 0, legacyMentions.join(', '));
+const fnvOffenders = fnFiles.filter((f) => /14695981039346656037n|1099511628211n|rotate-on-leak/.test(read(f)));
+ok('the FNV constants and the old public seed live in NO edge function', fnvOffenders.length === 0, fnvOffenders.join(', '));
 
 // ── 18c. A6 / AI-F16, formatting-independent ────────────────────────────────
 // Inside any response body a relay hands to jsonResponse / jsonResp / json or

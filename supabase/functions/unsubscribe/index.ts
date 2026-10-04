@@ -58,14 +58,13 @@
 // the static /unsubscribe page and the /preferences page — carries the
 // token, so only forged calls are blocked.
 //
-// Grace for links already in inboxes (review 2026-09-05): mail sent before the
-// HMAC rotation carries the old 12-char FNV token. Until
-// LEGACY_UNSUB_GRACE_UNTIL that token is ALSO accepted — for the unsubscribe
-// direction only, never re-subscribe — after which the branch is dead code
-// and must be deleted along with legacyFnvUnsubscribeToken in _shared/email.ts.
+// Mail sent before the HMAC rotation carried an old 12-char FNV token. It was
+// accepted for the unsubscribe direction only, for 30 days, until
+// 2026-10-04T00:00:00Z (review 2026-09-05). That window has closed and the
+// code that accepted it is deleted: the signed token is the only token now.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { legacyFnvUnsubscribeToken, unsubscribeSecretConfigured, verifyUnsubscribeToken, UNSUBSCRIBE_PAGE_URL } from "../_shared/email.ts";
+import { unsubscribeSecretConfigured, verifyUnsubscribeToken, UNSUBSCRIBE_PAGE_URL } from "../_shared/email.ts";
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -116,28 +115,6 @@ function normalizeEmail(raw: string | null | undefined): string | null {
   const s = String(raw).trim().toLowerCase();
   if (!s.includes('@') || s.length > 320) return null;
   return s;
-}
-
-// ── Legacy-token grace (review 2026-09-05) — DELETE this block after the date ──
-// 30 days from 2026-09-04. After this instant the pre-rotation FNV token is
-// refused everywhere; delete LEGACY_UNSUB_GRACE_UNTIL, legacyUnsubscribeTokenAccepted,
-// its call in the unsubscribe branch below, and legacyFnvUnsubscribeToken in
-// _shared/email.ts (the ship-check reminds you once the date has passed).
-const LEGACY_UNSUB_GRACE_UNTIL = Date.parse('2026-10-04T00:00:00Z');
-
-/**
- * True only while the grace window is open AND the token is the pre-rotation
- * FNV token for this address. Used by the UNSUBSCRIBE direction only: a forged
- * legacy token (its seed is public) can at worst suppress someone's mail — the
- * user-protective direction — and can never re-subscribe anyone.
- */
-function legacyUnsubscribeTokenAccepted(email: string, token: string): boolean {
-  if (Date.now() >= LEGACY_UNSUB_GRACE_UNTIL) return false;
-  const expected = legacyFnvUnsubscribeToken(email);
-  if (expected.length !== token.length) return false;
-  let r = 0;
-  for (let i = 0; i < expected.length; i++) r |= expected.charCodeAt(i) ^ token.charCodeAt(i);
-  return r === 0;
 }
 
 async function recordUnsubscribe(email: string, eventKey: string | null, source: string): Promise<{ ok: boolean; error?: string }> {
@@ -246,8 +223,7 @@ serve(async (req) => {
         // Every suppression row for this address — the preferences page's
         // catch-all (finding 172): a key missing from marketing/
         // email-event-keys.json must still be visible and re-enableable, or an
-        // unsubscribe from it is one-way again. Current token only: the
-        // pre-rotation legacy token is for the unsubscribe direction alone.
+        // unsubscribe from it is one-way again. The signed token is required.
         if (!unsubscribeSecretConfigured()) {
           console.error('[unsubscribe] UNSUB_SECRET is not set — refusing every token');
           return jsonResponse({ ok: false, error: 'server_misconfigured' }, 500);
@@ -330,14 +306,10 @@ serve(async (req) => {
       // carries t=buildUnsubscribeToken(email) (see _shared/email.ts) and the
       // static marketing/unsubscribe page forwards it (review B2, 2026-09-04),
       // so Gmail one-click and the page both pass; only forged calls are blocked.
-      // Links minted before the rotation carry the legacy FNV token — accepted
-      // for THIS direction only, until LEGACY_UNSUB_GRACE_UNTIL.
       const currentToken = !!token && verifyUnsubscribeToken(email, token);
-      const legacyToken = !currentToken && !!token && legacyUnsubscribeTokenAccepted(email, token);
-      if (!currentToken && !legacyToken) {
+      if (!currentToken) {
         return jsonResponse({ ok: false, error: 'token_invalid' }, 400);
       }
-      if (legacyToken) console.log('[unsubscribe] legacy pre-rotation token accepted (grace ends 2026-10-04)');
       const result = await recordUnsubscribe(email, eventKey ?? null, source);
       if (!result.ok) {
         console.error('[unsubscribe] failed', result.error);

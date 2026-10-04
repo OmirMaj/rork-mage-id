@@ -44815,6 +44815,336 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "AI features",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "#2B3038",
+                                                                                                  "flex": 1,
+                                                                                                  "fontSize": 16,
+                                                                                                  "fontWeight": "400",
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "What you send an AI feature goes to Google Gemini, Anthropic Claude or a speech-to-text service, only to answer it.",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "rgba(43,48,56,0.72)",
+                                                                                                  "fontSize": 13,
+                                                                                                  "lineHeight": 18,
+                                                                                                  "marginBottom": 10,
+                                                                                                  "paddingHorizontal": 20,
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "flex": 1,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                        {
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "On",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "rgba(43,48,56,0.78)",
+                                                                                                  "fontSize": 15,
+                                                                                                  "marginRight": 4,
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                            {
+                                                                                              "children": null,
+                                                                                              "props": {
+                                                                                                "accessibilityLabel": "AI features",
+                                                                                                "accessibilityRole": "switch",
+                                                                                                "disabled": undefined,
+                                                                                                "onChange": [Function],
+                                                                                                "onResponderTerminationRequest": [Function],
+                                                                                                "onStartShouldSetResponder": [Function],
+                                                                                                "onTintColor": "#2F6B3A",
+                                                                                                "style": {
+                                                                                                  "alignSelf": "flex-start",
+                                                                                                  "backgroundColor": "#D7DAD4",
+                                                                                                  "borderRadius": 16,
+                                                                                                },
+                                                                                                "testID": "ai-features-switch",
+                                                                                                "thumbTintColor": "#FFFFFF",
+                                                                                                "tintColor": "#D7DAD4",
+                                                                                                "value": true,
+                                                                                              },
+                                                                                              "type": "RCTSwitch",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "alignItems": "center",
+                                                                                              "flexDirection": "row",
+                                                                                              "gap": 6,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                      ],
+                                                                                      "props": {
+                                                                                        "style": {
+                                                                                          "alignItems": "center",
+                                                                                          "flexDirection": "row",
+                                                                                          "gap": 12,
+                                                                                          "minHeight": 52,
+                                                                                          "paddingHorizontal": 16,
+                                                                                          "paddingVertical": 12,
+                                                                                        },
+                                                                                        "testID": "ai-features-row",
+                                                                                      },
+                                                                                      "type": "View",
+                                                                                    },
+                                                                                    {
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 2.5,
+                                                                                                        "x2": 6.75,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 6.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 11,
+                                                                                                        "x2": 6.75,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 6.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 4.4,
+                                                                                                        "x2": 9.1,
+                                                                                                        "y1": 14.5,
+                                                                                                        "y2": 14.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 14.5,
+                                                                                                        "x2": 22,
+                                                                                                        "y1": 8,
+                                                                                                        "y2": 8,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 18.25,
+                                                                                                        "x2": 18.25,
+                                                                                                        "y1": 8,
+                                                                                                        "y2": 21,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 14.5,
+                                                                                                        "x2": 22,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 21,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
+                                                                                                        "fill": {
+                                                                                                          "payload": 4281297722,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "fill",
+                                                                                                        ],
+                                                                                                      },
+                                                                                                      "type": "RNSVGPath",
+                                                                                                    },
+                                                                                                  ],
+                                                                                                  "props": {
+                                                                                                    "fill": null,
+                                                                                                    "propList": [
+                                                                                                      "fill",
+                                                                                                    ],
+                                                                                                  },
+                                                                                                  "type": "RNSVGGroup",
+                                                                                                },
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "align": "xMidYMid",
+                                                                                                "bbHeight": 14,
+                                                                                                "bbWidth": 14,
+                                                                                                "fill": "none",
+                                                                                                "focusable": false,
+                                                                                                "height": 14,
+                                                                                                "meetOrSlice": 0,
+                                                                                                "minX": 0,
+                                                                                                "minY": 0,
+                                                                                                "style": {
+                                                                                                  "backgroundColor": "transparent",
+                                                                                                  "borderWidth": 0,
+                                                                                                  "flex": 0,
+                                                                                                  "height": 14,
+                                                                                                  "width": 14,
+                                                                                                },
+                                                                                                "vbHeight": 24,
+                                                                                                "vbWidth": 24,
+                                                                                                "width": 14,
+                                                                                              },
+                                                                                              "type": "RNSVGSvgView",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "alignItems": "center",
+                                                                                              "backgroundColor": "#E2E4DF",
+                                                                                              "borderRadius": 7,
+                                                                                              "height": 30,
+                                                                                              "justifyContent": "center",
+                                                                                              "width": 30,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                        {
+                                                                                          "children": [
                                                                                             "Connect Claude (AI assistant)",
                                                                                           ],
                                                                                           "props": {
@@ -50190,107 +50520,6 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Priority queue on heavy AI requests",
-                                                                                                      ],
-                                                                                                      "props": {
-                                                                                                        "style": {
-                                                                                                          "color": "rgba(43,48,56,0.78)",
-                                                                                                          "fontSize": 13,
-                                                                                                          "lineHeight": 18,
-                                                                                                        },
-                                                                                                      },
-                                                                                                      "type": "Text",
-                                                                                                    },
-                                                                                                  ],
-                                                                                                  "props": {
-                                                                                                    "style": {
-                                                                                                      "alignItems": "center",
-                                                                                                      "flexDirection": "row",
-                                                                                                      "gap": 8,
-                                                                                                    },
-                                                                                                  },
-                                                                                                  "type": "View",
-                                                                                                },
-                                                                                                {
-                                                                                                  "children": [
-                                                                                                    {
-                                                                                                      "children": [
-                                                                                                        {
-                                                                                                          "children": [
-                                                                                                            {
-                                                                                                              "children": null,
-                                                                                                              "props": {
-                                                                                                                "d": "M20 6 9 17l-5-5",
-                                                                                                                "fill": null,
-                                                                                                                "propList": [
-                                                                                                                  "fill",
-                                                                                                                  "stroke",
-                                                                                                                  "strokeWidth",
-                                                                                                                  "strokeLinecap",
-                                                                                                                  "strokeLinejoin",
-                                                                                                                ],
-                                                                                                                "stroke": {
-                                                                                                                  "payload": 4279592384,
-                                                                                                                  "type": 0,
-                                                                                                                },
-                                                                                                                "strokeLinecap": 1,
-                                                                                                                "strokeLinejoin": 1,
-                                                                                                                "strokeWidth": 1.75,
-                                                                                                              },
-                                                                                                              "type": "RNSVGPath",
-                                                                                                            },
-                                                                                                          ],
-                                                                                                          "props": {
-                                                                                                            "fill": null,
-                                                                                                            "propList": [
-                                                                                                              "fill",
-                                                                                                              "stroke",
-                                                                                                              "strokeWidth",
-                                                                                                              "strokeLinecap",
-                                                                                                              "strokeLinejoin",
-                                                                                                            ],
-                                                                                                            "stroke": {
-                                                                                                              "payload": 4279592384,
-                                                                                                              "type": 0,
-                                                                                                            },
-                                                                                                            "strokeLinecap": 1,
-                                                                                                            "strokeLinejoin": 1,
-                                                                                                            "strokeWidth": 1.75,
-                                                                                                          },
-                                                                                                          "type": "RNSVGGroup",
-                                                                                                        },
-                                                                                                      ],
-                                                                                                      "props": {
-                                                                                                        "align": "xMidYMid",
-                                                                                                        "bbHeight": 12,
-                                                                                                        "bbWidth": 12,
-                                                                                                        "data-testid": undefined,
-                                                                                                        "fill": "none",
-                                                                                                        "focusable": false,
-                                                                                                        "height": 12,
-                                                                                                        "meetOrSlice": 0,
-                                                                                                        "minX": 0,
-                                                                                                        "minY": 0,
-                                                                                                        "stroke": "#1565C0",
-                                                                                                        "strokeLinecap": "round",
-                                                                                                        "strokeLinejoin": "round",
-                                                                                                        "strokeWidth": 1.75,
-                                                                                                        "style": {
-                                                                                                          "backgroundColor": "transparent",
-                                                                                                          "borderWidth": 0,
-                                                                                                          "flex": 0,
-                                                                                                          "height": 12,
-                                                                                                          "width": 12,
-                                                                                                        },
-                                                                                                        "vbHeight": 24,
-                                                                                                        "vbWidth": 24,
-                                                                                                        "width": 12,
-                                                                                                        "xmlns": "http://www.w3.org/2000/svg",
-                                                                                                      },
-                                                                                                      "type": "RNSVGSvgView",
-                                                                                                    },
-                                                                                                    {
-                                                                                                      "children": [
                                                                                                         "Concierge onboarding",
                                                                                                       ],
                                                                                                       "props": {
@@ -50500,156 +50729,29 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            {
-                                                                                              "children": [
-                                                                                                "Your plan was turned on by MAGE ID",
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "style": {
-                                                                                                  "color": "#2B3038",
-                                                                                                  "flex": 1,
-                                                                                                  "fontSize": 16,
-                                                                                                  "fontWeight": "400",
-                                                                                                },
-                                                                                              },
-                                                                                              "type": "Text",
-                                                                                            },
-                                                                                            {
-                                                                                              "children": [
-                                                                                                "Email help@mageid.app to change or cancel. Nothing is deleted.",
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "style": {
-                                                                                                  "color": "rgba(43,48,56,0.72)",
-                                                                                                  "flex": 1,
-                                                                                                  "fontSize": 11,
-                                                                                                  "fontWeight": "400",
-                                                                                                  "marginTop": 2,
-                                                                                                },
-                                                                                              },
-                                                                                              "type": "Text",
-                                                                                            },
+                                                                                            "Enterprise plan",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
+                                                                                              "color": "#2B3038",
                                                                                               "flex": 1,
+                                                                                              "fontSize": 16,
+                                                                                              "fontWeight": "400",
                                                                                             },
                                                                                           },
-                                                                                          "type": "View",
-                                                                                        },
-                                                                                        {
-                                                                                          "children": [
-                                                                                            {
-                                                                                              "children": [
-                                                                                                {
-                                                                                                  "children": null,
-                                                                                                  "props": {
-                                                                                                    "d": "m9 18 6-6-6-6",
-                                                                                                    "fill": null,
-                                                                                                    "propList": [
-                                                                                                      "fill",
-                                                                                                      "stroke",
-                                                                                                      "strokeWidth",
-                                                                                                      "strokeLinecap",
-                                                                                                      "strokeLinejoin",
-                                                                                                    ],
-                                                                                                    "stroke": {
-                                                                                                      "payload": 3089838136,
-                                                                                                      "type": 0,
-                                                                                                    },
-                                                                                                    "strokeLinecap": 1,
-                                                                                                    "strokeLinejoin": 1,
-                                                                                                    "strokeWidth": 1.75,
-                                                                                                  },
-                                                                                                  "type": "RNSVGPath",
-                                                                                                },
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "fill": null,
-                                                                                                "propList": [
-                                                                                                  "fill",
-                                                                                                  "stroke",
-                                                                                                  "strokeWidth",
-                                                                                                  "strokeLinecap",
-                                                                                                  "strokeLinejoin",
-                                                                                                ],
-                                                                                                "stroke": {
-                                                                                                  "payload": 3089838136,
-                                                                                                  "type": 0,
-                                                                                                },
-                                                                                                "strokeLinecap": 1,
-                                                                                                "strokeLinejoin": 1,
-                                                                                                "strokeWidth": 1.75,
-                                                                                              },
-                                                                                              "type": "RNSVGGroup",
-                                                                                            },
-                                                                                          ],
-                                                                                          "props": {
-                                                                                            "align": "xMidYMid",
-                                                                                            "bbHeight": 16,
-                                                                                            "bbWidth": 16,
-                                                                                            "data-testid": undefined,
-                                                                                            "fill": "none",
-                                                                                            "focusable": false,
-                                                                                            "height": 16,
-                                                                                            "meetOrSlice": 0,
-                                                                                            "minX": 0,
-                                                                                            "minY": 0,
-                                                                                            "stroke": "rgba(43,48,56,0.72)",
-                                                                                            "strokeLinecap": "round",
-                                                                                            "strokeLinejoin": "round",
-                                                                                            "strokeWidth": 1.75,
-                                                                                            "style": {
-                                                                                              "backgroundColor": "transparent",
-                                                                                              "borderWidth": 0,
-                                                                                              "flex": 0,
-                                                                                              "height": 16,
-                                                                                              "width": 16,
-                                                                                            },
-                                                                                            "vbHeight": 24,
-                                                                                            "vbWidth": 24,
-                                                                                            "width": 16,
-                                                                                            "xmlns": "http://www.w3.org/2000/svg",
-                                                                                          },
-                                                                                          "type": "RNSVGSvgView",
+                                                                                          "type": "Text",
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Your plan was turned on by MAGE ID",
-                                                                                        "accessibilityRole": "button",
-                                                                                        "accessibilityState": {
-                                                                                          "busy": undefined,
-                                                                                          "checked": undefined,
-                                                                                          "disabled": undefined,
-                                                                                          "expanded": undefined,
-                                                                                          "selected": undefined,
-                                                                                        },
-                                                                                        "accessibilityValue": {
-                                                                                          "max": undefined,
-                                                                                          "min": undefined,
-                                                                                          "now": undefined,
-                                                                                          "text": undefined,
-                                                                                        },
-                                                                                        "accessible": true,
-                                                                                        "collapsable": false,
-                                                                                        "focusable": true,
-                                                                                        "onClick": [Function],
-                                                                                        "onResponderGrant": [Function],
-                                                                                        "onResponderMove": [Function],
-                                                                                        "onResponderRelease": [Function],
-                                                                                        "onResponderTerminate": [Function],
-                                                                                        "onResponderTerminationRequest": [Function],
-                                                                                        "onStartShouldSetResponder": [Function],
                                                                                         "style": {
                                                                                           "alignItems": "center",
                                                                                           "flexDirection": "row",
                                                                                           "gap": 12,
                                                                                           "minHeight": 52,
-                                                                                          "opacity": 1,
                                                                                           "paddingHorizontal": 16,
                                                                                           "paddingVertical": 12,
                                                                                         },
-                                                                                        "testID": "manage-subscription-link",
+                                                                                        "testID": "plan-name-row",
                                                                                       },
                                                                                       "type": "View",
                                                                                     },
@@ -65619,6 +65721,336 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "AI features",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "#2B3038",
+                                                                                                  "flex": 1,
+                                                                                                  "fontSize": 16,
+                                                                                                  "fontWeight": "400",
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "What you send an AI feature goes to Google Gemini, Anthropic Claude or a speech-to-text service, only to answer it.",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "rgba(43,48,56,0.72)",
+                                                                                                  "fontSize": 13,
+                                                                                                  "lineHeight": 18,
+                                                                                                  "marginBottom": 10,
+                                                                                                  "paddingHorizontal": 20,
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "flex": 1,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                        {
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "On",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "rgba(43,48,56,0.78)",
+                                                                                                  "fontSize": 15,
+                                                                                                  "marginRight": 4,
+                                                                                                },
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
+                                                                                            {
+                                                                                              "children": null,
+                                                                                              "props": {
+                                                                                                "accessibilityLabel": "AI features",
+                                                                                                "accessibilityRole": "switch",
+                                                                                                "disabled": undefined,
+                                                                                                "onChange": [Function],
+                                                                                                "onResponderTerminationRequest": [Function],
+                                                                                                "onStartShouldSetResponder": [Function],
+                                                                                                "onTintColor": "#2F6B3A",
+                                                                                                "style": {
+                                                                                                  "alignSelf": "flex-start",
+                                                                                                  "backgroundColor": "#D7DAD4",
+                                                                                                  "borderRadius": 16,
+                                                                                                },
+                                                                                                "testID": "ai-features-switch",
+                                                                                                "thumbTintColor": "#FFFFFF",
+                                                                                                "tintColor": "#D7DAD4",
+                                                                                                "value": true,
+                                                                                              },
+                                                                                              "type": "RCTSwitch",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "alignItems": "center",
+                                                                                              "flexDirection": "row",
+                                                                                              "gap": 6,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                      ],
+                                                                                      "props": {
+                                                                                        "style": {
+                                                                                          "alignItems": "center",
+                                                                                          "flexDirection": "row",
+                                                                                          "gap": 12,
+                                                                                          "minHeight": 52,
+                                                                                          "paddingHorizontal": 16,
+                                                                                          "paddingVertical": 12,
+                                                                                        },
+                                                                                        "testID": "ai-features-row",
+                                                                                      },
+                                                                                      "type": "View",
+                                                                                    },
+                                                                                    {
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 2.5,
+                                                                                                        "x2": 6.75,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 6.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 11,
+                                                                                                        "x2": 6.75,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 6.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 4.4,
+                                                                                                        "x2": 9.1,
+                                                                                                        "y1": 14.5,
+                                                                                                        "y2": 14.5,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 14.5,
+                                                                                                        "x2": 22,
+                                                                                                        "y1": 8,
+                                                                                                        "y2": 8,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 18.25,
+                                                                                                        "x2": 18.25,
+                                                                                                        "y1": 8,
+                                                                                                        "y2": 21,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "fill": {
+                                                                                                          "payload": 4278190080,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "stroke",
+                                                                                                          "strokeWidth",
+                                                                                                          "strokeLinecap",
+                                                                                                          "strokeLinejoin",
+                                                                                                        ],
+                                                                                                        "stroke": {
+                                                                                                          "payload": 3341496376,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "strokeLinecap": 1,
+                                                                                                        "strokeLinejoin": 1,
+                                                                                                        "strokeWidth": 2.1,
+                                                                                                        "x1": 14.5,
+                                                                                                        "x2": 22,
+                                                                                                        "y1": 21,
+                                                                                                        "y2": 21,
+                                                                                                      },
+                                                                                                      "type": "RNSVGLine",
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "children": null,
+                                                                                                      "props": {
+                                                                                                        "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
+                                                                                                        "fill": {
+                                                                                                          "payload": 4281297722,
+                                                                                                          "type": 0,
+                                                                                                        },
+                                                                                                        "propList": [
+                                                                                                          "fill",
+                                                                                                        ],
+                                                                                                      },
+                                                                                                      "type": "RNSVGPath",
+                                                                                                    },
+                                                                                                  ],
+                                                                                                  "props": {
+                                                                                                    "fill": null,
+                                                                                                    "propList": [
+                                                                                                      "fill",
+                                                                                                    ],
+                                                                                                  },
+                                                                                                  "type": "RNSVGGroup",
+                                                                                                },
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "align": "xMidYMid",
+                                                                                                "bbHeight": 14,
+                                                                                                "bbWidth": 14,
+                                                                                                "fill": "none",
+                                                                                                "focusable": false,
+                                                                                                "height": 14,
+                                                                                                "meetOrSlice": 0,
+                                                                                                "minX": 0,
+                                                                                                "minY": 0,
+                                                                                                "style": {
+                                                                                                  "backgroundColor": "transparent",
+                                                                                                  "borderWidth": 0,
+                                                                                                  "flex": 0,
+                                                                                                  "height": 14,
+                                                                                                  "width": 14,
+                                                                                                },
+                                                                                                "vbHeight": 24,
+                                                                                                "vbWidth": 24,
+                                                                                                "width": 14,
+                                                                                              },
+                                                                                              "type": "RNSVGSvgView",
+                                                                                            },
+                                                                                          ],
+                                                                                          "props": {
+                                                                                            "style": {
+                                                                                              "alignItems": "center",
+                                                                                              "backgroundColor": "#E2E4DF",
+                                                                                              "borderRadius": 7,
+                                                                                              "height": 30,
+                                                                                              "justifyContent": "center",
+                                                                                              "width": 30,
+                                                                                            },
+                                                                                          },
+                                                                                          "type": "View",
+                                                                                        },
+                                                                                        {
+                                                                                          "children": [
                                                                                             "Connect Claude (AI assistant)",
                                                                                           ],
                                                                                           "props": {
@@ -70615,107 +71047,6 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Priority queue on heavy AI requests",
-                                                                                                      ],
-                                                                                                      "props": {
-                                                                                                        "style": {
-                                                                                                          "color": "rgba(43,48,56,0.78)",
-                                                                                                          "fontSize": 13,
-                                                                                                          "lineHeight": 18,
-                                                                                                        },
-                                                                                                      },
-                                                                                                      "type": "Text",
-                                                                                                    },
-                                                                                                  ],
-                                                                                                  "props": {
-                                                                                                    "style": {
-                                                                                                      "alignItems": "center",
-                                                                                                      "flexDirection": "row",
-                                                                                                      "gap": 8,
-                                                                                                    },
-                                                                                                  },
-                                                                                                  "type": "View",
-                                                                                                },
-                                                                                                {
-                                                                                                  "children": [
-                                                                                                    {
-                                                                                                      "children": [
-                                                                                                        {
-                                                                                                          "children": [
-                                                                                                            {
-                                                                                                              "children": null,
-                                                                                                              "props": {
-                                                                                                                "d": "M20 6 9 17l-5-5",
-                                                                                                                "fill": null,
-                                                                                                                "propList": [
-                                                                                                                  "fill",
-                                                                                                                  "stroke",
-                                                                                                                  "strokeWidth",
-                                                                                                                  "strokeLinecap",
-                                                                                                                  "strokeLinejoin",
-                                                                                                                ],
-                                                                                                                "stroke": {
-                                                                                                                  "payload": 4279592384,
-                                                                                                                  "type": 0,
-                                                                                                                },
-                                                                                                                "strokeLinecap": 1,
-                                                                                                                "strokeLinejoin": 1,
-                                                                                                                "strokeWidth": 1.75,
-                                                                                                              },
-                                                                                                              "type": "RNSVGPath",
-                                                                                                            },
-                                                                                                          ],
-                                                                                                          "props": {
-                                                                                                            "fill": null,
-                                                                                                            "propList": [
-                                                                                                              "fill",
-                                                                                                              "stroke",
-                                                                                                              "strokeWidth",
-                                                                                                              "strokeLinecap",
-                                                                                                              "strokeLinejoin",
-                                                                                                            ],
-                                                                                                            "stroke": {
-                                                                                                              "payload": 4279592384,
-                                                                                                              "type": 0,
-                                                                                                            },
-                                                                                                            "strokeLinecap": 1,
-                                                                                                            "strokeLinejoin": 1,
-                                                                                                            "strokeWidth": 1.75,
-                                                                                                          },
-                                                                                                          "type": "RNSVGGroup",
-                                                                                                        },
-                                                                                                      ],
-                                                                                                      "props": {
-                                                                                                        "align": "xMidYMid",
-                                                                                                        "bbHeight": 12,
-                                                                                                        "bbWidth": 12,
-                                                                                                        "data-testid": undefined,
-                                                                                                        "fill": "none",
-                                                                                                        "focusable": false,
-                                                                                                        "height": 12,
-                                                                                                        "meetOrSlice": 0,
-                                                                                                        "minX": 0,
-                                                                                                        "minY": 0,
-                                                                                                        "stroke": "#1565C0",
-                                                                                                        "strokeLinecap": "round",
-                                                                                                        "strokeLinejoin": "round",
-                                                                                                        "strokeWidth": 1.75,
-                                                                                                        "style": {
-                                                                                                          "backgroundColor": "transparent",
-                                                                                                          "borderWidth": 0,
-                                                                                                          "flex": 0,
-                                                                                                          "height": 12,
-                                                                                                          "width": 12,
-                                                                                                        },
-                                                                                                        "vbHeight": 24,
-                                                                                                        "vbWidth": 24,
-                                                                                                        "width": 12,
-                                                                                                        "xmlns": "http://www.w3.org/2000/svg",
-                                                                                                      },
-                                                                                                      "type": "RNSVGSvgView",
-                                                                                                    },
-                                                                                                    {
-                                                                                                      "children": [
                                                                                                         "Concierge onboarding",
                                                                                                       ],
                                                                                                       "props": {
@@ -70925,156 +71256,29 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            {
-                                                                                              "children": [
-                                                                                                "Your plan was turned on by MAGE ID",
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "style": {
-                                                                                                  "color": "#2B3038",
-                                                                                                  "flex": 1,
-                                                                                                  "fontSize": 16,
-                                                                                                  "fontWeight": "400",
-                                                                                                },
-                                                                                              },
-                                                                                              "type": "Text",
-                                                                                            },
-                                                                                            {
-                                                                                              "children": [
-                                                                                                "Email help@mageid.app to change or cancel. Nothing is deleted.",
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "style": {
-                                                                                                  "color": "rgba(43,48,56,0.72)",
-                                                                                                  "flex": 1,
-                                                                                                  "fontSize": 11,
-                                                                                                  "fontWeight": "400",
-                                                                                                  "marginTop": 2,
-                                                                                                },
-                                                                                              },
-                                                                                              "type": "Text",
-                                                                                            },
+                                                                                            "Enterprise plan",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
+                                                                                              "color": "#2B3038",
                                                                                               "flex": 1,
+                                                                                              "fontSize": 16,
+                                                                                              "fontWeight": "400",
                                                                                             },
                                                                                           },
-                                                                                          "type": "View",
-                                                                                        },
-                                                                                        {
-                                                                                          "children": [
-                                                                                            {
-                                                                                              "children": [
-                                                                                                {
-                                                                                                  "children": null,
-                                                                                                  "props": {
-                                                                                                    "d": "m9 18 6-6-6-6",
-                                                                                                    "fill": null,
-                                                                                                    "propList": [
-                                                                                                      "fill",
-                                                                                                      "stroke",
-                                                                                                      "strokeWidth",
-                                                                                                      "strokeLinecap",
-                                                                                                      "strokeLinejoin",
-                                                                                                    ],
-                                                                                                    "stroke": {
-                                                                                                      "payload": 3089838136,
-                                                                                                      "type": 0,
-                                                                                                    },
-                                                                                                    "strokeLinecap": 1,
-                                                                                                    "strokeLinejoin": 1,
-                                                                                                    "strokeWidth": 1.75,
-                                                                                                  },
-                                                                                                  "type": "RNSVGPath",
-                                                                                                },
-                                                                                              ],
-                                                                                              "props": {
-                                                                                                "fill": null,
-                                                                                                "propList": [
-                                                                                                  "fill",
-                                                                                                  "stroke",
-                                                                                                  "strokeWidth",
-                                                                                                  "strokeLinecap",
-                                                                                                  "strokeLinejoin",
-                                                                                                ],
-                                                                                                "stroke": {
-                                                                                                  "payload": 3089838136,
-                                                                                                  "type": 0,
-                                                                                                },
-                                                                                                "strokeLinecap": 1,
-                                                                                                "strokeLinejoin": 1,
-                                                                                                "strokeWidth": 1.75,
-                                                                                              },
-                                                                                              "type": "RNSVGGroup",
-                                                                                            },
-                                                                                          ],
-                                                                                          "props": {
-                                                                                            "align": "xMidYMid",
-                                                                                            "bbHeight": 16,
-                                                                                            "bbWidth": 16,
-                                                                                            "data-testid": undefined,
-                                                                                            "fill": "none",
-                                                                                            "focusable": false,
-                                                                                            "height": 16,
-                                                                                            "meetOrSlice": 0,
-                                                                                            "minX": 0,
-                                                                                            "minY": 0,
-                                                                                            "stroke": "rgba(43,48,56,0.72)",
-                                                                                            "strokeLinecap": "round",
-                                                                                            "strokeLinejoin": "round",
-                                                                                            "strokeWidth": 1.75,
-                                                                                            "style": {
-                                                                                              "backgroundColor": "transparent",
-                                                                                              "borderWidth": 0,
-                                                                                              "flex": 0,
-                                                                                              "height": 16,
-                                                                                              "width": 16,
-                                                                                            },
-                                                                                            "vbHeight": 24,
-                                                                                            "vbWidth": 24,
-                                                                                            "width": 16,
-                                                                                            "xmlns": "http://www.w3.org/2000/svg",
-                                                                                          },
-                                                                                          "type": "RNSVGSvgView",
+                                                                                          "type": "Text",
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Your plan was turned on by MAGE ID",
-                                                                                        "accessibilityRole": "button",
-                                                                                        "accessibilityState": {
-                                                                                          "busy": undefined,
-                                                                                          "checked": undefined,
-                                                                                          "disabled": undefined,
-                                                                                          "expanded": undefined,
-                                                                                          "selected": undefined,
-                                                                                        },
-                                                                                        "accessibilityValue": {
-                                                                                          "max": undefined,
-                                                                                          "min": undefined,
-                                                                                          "now": undefined,
-                                                                                          "text": undefined,
-                                                                                        },
-                                                                                        "accessible": true,
-                                                                                        "collapsable": false,
-                                                                                        "focusable": true,
-                                                                                        "onClick": [Function],
-                                                                                        "onResponderGrant": [Function],
-                                                                                        "onResponderMove": [Function],
-                                                                                        "onResponderRelease": [Function],
-                                                                                        "onResponderTerminate": [Function],
-                                                                                        "onResponderTerminationRequest": [Function],
-                                                                                        "onStartShouldSetResponder": [Function],
                                                                                         "style": {
                                                                                           "alignItems": "center",
                                                                                           "flexDirection": "row",
                                                                                           "gap": 12,
                                                                                           "minHeight": 52,
-                                                                                          "opacity": 1,
                                                                                           "paddingHorizontal": 16,
                                                                                           "paddingVertical": 12,
                                                                                         },
-                                                                                        "testID": "manage-subscription-link",
+                                                                                        "testID": "plan-name-row",
                                                                                       },
                                                                                       "type": "View",
                                                                                     },

@@ -886,8 +886,9 @@ console.log('brand-colour RETIRED-PALETTE GATE (repo-wide):');
 
 const GATE_ROOTS = ['app', 'components', 'utils', 'hooks', 'contexts', 'constants', 'lib', 'types', 'supabase/functions', 'marketing', 'public'];
 const GATE_EXT = /\.(tsx?|jsx?|mjs|html|css|webmanifest|svg)$/;
-// assets/ is out of scope entirely: assets/brand/splash.svg is the installed
-// native splash's source and stays orange until the native build. mocks/ holds
+// assets/ is out of scope entirely: assets/brand/splash.svg is the ORANGE
+// splash's old vector source (build 18 bakes the green PNG from
+// scripts/gen-splash.mjs, which validate-level-splash pins instead). mocks/ holds
 // fixture data with third-party brand colours.
 const GATE_SKIP_DIRS = new Set(['node_modules', '.git', '__tests__', 'docs', 'scripts', 'mocks', '__mocks__', 'assets']);
 const GATE_SKIP_PREFIXES = ['utils/generated/'];
@@ -1181,17 +1182,16 @@ const GATE_ALLOWLIST: AllowEntry[] = [
   { path: 'app/punch-walk.tsx', match: '#16A34A', reason: 'trade colour: categorical' },
   { path: 'app/closeout-binder.tsx', match: '#16A34A', reason: 'per-document colour (G704): categorical' },
   { path: 'utils/pdfGenerator.ts', match: /'Caveat',\s*cursive,\s*Georgia,\s*serif/i, reason: 'typed-signature handwriting fallback, not a display face' },
-  // The installed native splash (assets/images/splash-icon.png) is still the
-  // ORANGE one until the next native build. The Level's frame 0 on device
-  // (BrandSplash) replicates it pixel for pixel, then shifts to the live (green)
-  // hue; validate-level-splash decodes the PNG and pins it. The WEB launch (the
+  // The native splash (assets/images/splash-icon.png) is GREEN from build 18
+  // (lane APPNATIVE, 2026-10-03; builds 1-17 baked the orange one). The Level's
+  // frame 0 on device (BrandSplash) replicates it pixel for pixel, then shifts
+  // to the live hue; validate-level-splash decodes the PNG and pins it. The WEB launch (the
   // pre-JS level in public/index.html, BrandSplash / BootShell on the web) is the
   // green brand since lane LOADERDESK (orchestrator decision 2026-10-01: the web
   // has no native splash to match), so its LIGHT still needs no entry. On a dark
   // page the still recolours to WEB_LAUNCH_DARK, whose caps are Theme.dark.text:
   { path: 'public/index.html', match: /^\s*(html:not\(\[data-theme='light'\]\)|html\[data-theme='dark'\]) #mage-prejs-level \.mpl-cap-l, \1 #mage-prejs-level \.mpl-cap-r \{ background-color: #F4EFE6; \}$/i, reason: 'pre-JS level caps on a DARK page = WEB_LAUNCH_DARK.cap (Theme.dark.text): light ink on the green-black ground, not a cream ground (validate-level-desk rule H)' },
-  { path: 'utils/levelTimeline.ts', match: '#FF6A1A', reason: 'NATIVE_SPLASH_ACCENT: replica of the installed (orange) native splash so frame 0 matches it — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
-  { path: 'utils/levelTimeline.ts', match: '#F4EFE6', reason: 'NATIVE_SPLASH_CAP / NATIVE_SPLASH_FG: same installed native splash replica — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
+  { path: 'utils/levelTimeline.ts', match: '#F4EFE6', reason: 'NATIVE_SPLASH_CAP / NATIVE_SPLASH_FG: the baked splash caps are cream at alpha 64 — unchanged by the build-18 green splash, so this replica stays (validate-level-splash rule C)' },
 ];
 
 // f. DEFERRED: owned right now by the level / d6r phase-B runs. CEILING = the

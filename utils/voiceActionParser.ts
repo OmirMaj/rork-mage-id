@@ -24,6 +24,7 @@
 
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import type { Project, ScheduleTask } from '@/types';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { isMicScheduleEditUtterance, scheduleEditHref } from '@/utils/copilot/intentTable';
@@ -251,7 +252,7 @@ ${transcript}`,
   if (!aiResult.success) {
     return voiceActionSchema.parse({
       kind: 'unsure',
-      reasoning: 'AI is unavailable right now — try again in a moment.',
+      reasoning: aiConsentReason(aiResult) ?? 'AI is unavailable right now — try again in a moment.',
     });
   }
   return resolveMicScheduleUpdates(

@@ -12,6 +12,7 @@
 // commits the change — we never mutate the schedule for them.
 
 import { mageAI } from '@/utils/mageAI';
+import { aiConsentReason } from '@/utils/aiConsentCore';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult, DayScaleOptions } from '@/utils/cpm';
 import { calendarIndexToWorkingOrdinal } from '@/utils/cpm';
@@ -155,7 +156,7 @@ Return up to 6 findings, most important first.`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, findings: [], summary: "Couldn't check the schedule for risks. Try again.", cached: res.cached };
+    return { ok: false, findings: [], summary: aiConsentReason(res) ?? "Couldn't check the schedule for risks. Try again.", cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; findings?: {
@@ -243,7 +244,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, ideas: [], summary: "Couldn't find ways to shorten the schedule. Try again.", cached: res.cached };
+    return { ok: false, ideas: [], summary: aiConsentReason(res) ?? "Couldn't find ways to shorten the schedule. Try again.", cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; ideas?: {
@@ -317,7 +318,7 @@ Project finish: day ${cpm.projectFinish}`;
   });
 
   if (!res.success) {
-    return { ok: false, explanation: "Couldn't explain the critical path right now. Try again.", cached: res.cached };
+    return { ok: false, explanation: aiConsentReason(res) ?? "Couldn't explain the critical path right now. Try again.", cached: res.cached };
   }
   const raw = typeof res.data === 'string' ? res.data : (res.raw ?? '');
   // Defensive: even though the prompt asks for plain prose, strip any stray
@@ -369,7 +370,7 @@ ${serialized}`;
     cacheHours: 2,
   });
 
-  const text = typeof res.data === 'string' ? res.data : (res.raw ?? 'Analysis unavailable.');
+  const text = typeof res.data === 'string' ? res.data : (res.raw ?? aiConsentReason(res) ?? 'Analysis unavailable.');
   return { explanation: text.trim(), projectFinishDelta: hardDelay, cached: res.cached };
 }
 
@@ -407,7 +408,7 @@ Question: ${question}`;
   // Success is driven by whether the model call itself succeeded — the
   // 'No answer.' fallback is only reachable when res.success is false (no
   // string data and no raw text), so ok mirrors res.success.
-  const text = typeof res.data === 'string' ? res.data : (res.raw ?? 'No answer.');
+  const text = typeof res.data === 'string' ? res.data : (res.raw ?? aiConsentReason(res) ?? 'No answer.');
   return { ok: res.success, answer: text.trim() };
 }
 
@@ -461,7 +462,7 @@ ${simplified}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, patches: [], summary: "Couldn't read that. Try saying it another way." };
+    return { ok: false, patches: [], summary: aiConsentReason(res) ?? "Couldn't read that. Try saying it another way." };
   }
 
   const raw = res.data as { summary?: string; updates?: {
@@ -581,7 +582,7 @@ ${description}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, tasks: [], summary: "Couldn't draft the schedule. Try again." };
+    return { ok: false, tasks: [], summary: aiConsentReason(res) ?? "Couldn't draft the schedule. Try again." };
   }
   const raw = res.data as { summary?: string; tasks?: AIGeneratedTask[] };
   const tasks = (raw.tasks ?? []).map(t => ({
@@ -686,7 +687,7 @@ ${itemLines}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, tasks: [], summary: "Couldn't draft the schedule. Try again.", cached: res.cached };
+    return { ok: false, tasks: [], summary: aiConsentReason(res) ?? "Couldn't draft the schedule. Try again.", cached: res.cached };
   }
   const raw = res.data as { summary?: string; tasks?: (AIGeneratedTask & { itemRefs?: number[] })[] };
   const tasks: AIGeneratedTask[] = (raw.tasks ?? []).map(t => {

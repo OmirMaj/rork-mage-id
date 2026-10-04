@@ -82,6 +82,7 @@ import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { AI_CONSENT_DECLINED_CODE, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@/utils/aiConsent';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
 // Tutorials (closeout-binder) + the sample outbound fence: see the header of
@@ -327,6 +328,14 @@ export default function CloseoutBinderScreen() {
       // (supabase/functions/portal-ask-home/sharingFilter.ts). The index is
       // not what keeps a switched-off fact from the owner.
       const indexStatus = await syncMemoryEmbeddings(project.id, memoryDocs);
+      if (indexStatus.code === AI_CONSENT_DECLINED_CODE) {
+        // AI features are off on this phone, so nothing was sent to the index
+        // (it is built by Google Gemini). Not a connection problem, and trying
+        // again changes nothing: say what is off and where to turn it on. The
+        // previous bake stays exactly as it was, as below.
+        showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE);
+        return;
+      }
       if (!indexStatus.ok) {
         // The index did not take the new docs (offline, monthly cap, rate
         // limit). Keep the previous bake exactly as it was — its recorded

@@ -13,6 +13,7 @@ import type { JHAStep } from '@/types';
 import { jhaGaps, type JHADraft } from './jhaGaps';
 import { buildJHAGrounding } from './jhaGrounding';
 import { mageAI } from '@/utils/mageAI';
+import { AiConsentDeclinedError, isAiConsentRefusal } from '@/utils/aiConsentCore';
 import { createId } from '@/utils/scheduleEngine';
 import { todayCalendarDay } from '@/utils/calendarDate';
 
@@ -84,6 +85,7 @@ export const jhaCapability: CopilotCapability<JHADraft, JHAApplied> = {
 
     let steps: JHAStep[] = [];
     let requiredPPE: string[] = [];
+    let consentRefused = false;
     try {
       const gen = await mageAI({
         prompt: [
@@ -105,7 +107,9 @@ export const jhaCapability: CopilotCapability<JHADraft, JHAApplied> = {
         maxTokens: 1600,
         feature: 'voiceCapture',
       });
-      if (gen.success && gen.data) {
+      if (isAiConsentRefusal(gen)) {
+        consentRefused = true;
+      } else if (gen.success && gen.data) {
         const rawSteps: GenStep[] = Array.isArray((gen.data as { steps?: GenStep[] }).steps) ? (gen.data as { steps: GenStep[] }).steps : [];
         steps = rawSteps
           .filter((s) => typeof s.step === 'string' && s.step.trim())
@@ -115,6 +119,10 @@ export const jhaCapability: CopilotCapability<JHADraft, JHAApplied> = {
     } catch {
       // fall through to the minimal stub below
     }
+    // AI turned off (utils/aiConsent): say so — the copilot shows this
+    // sentence and keeps the draft — instead of filing a stub JHA as if the
+    // AI had written it.
+    if (consentRefused) throw new AiConsentDeclinedError();
 
     if (steps.length === 0) {
       steps = [{ id: createId('jstep'), step: task, hazards: ['Identify hazards for this task'], controls: ['Review controls with the crew before starting'] }];

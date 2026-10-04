@@ -4,6 +4,7 @@
 // the interview answers, not an estimate, so it needs no linked estimate.
 // Produces the same AutoScheduleResult the review screen consumes.
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import type { AutoScheduleResult } from '@/utils/autoScheduleFromEstimate';
@@ -63,7 +64,7 @@ export async function generateScheduleFromAnswers(
     feature: 'scheduleCopilot',
   });
   if (!aiResult.success || !aiResult.data) {
-    throw new Error(aiResult.error ?? 'Could not generate the schedule. Try again.');
+    throw aiFailureError(aiResult, 'Could not generate the schedule. Try again.');
   }
 
   let parsed: any = aiResult.data;

@@ -26,6 +26,7 @@ import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
 import { coerceFollowupAnswer } from '@/utils/copilot/scheduleBuilder/followupsValidator';
 import { pickableProjects } from '@/utils/copilot/projectScope';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 const SKIP = Symbol('skip');
 
@@ -190,7 +191,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
       router.replace({ pathname: '/schedule-review', params: { projectId } } as never);
     } catch (e) {
       console.warn('[ScheduleBuilderInterview] build failed', rawErrorMessage(e));
-      setErrMsg(describeError(e, { action: 'build the schedule', keptLocally: true }).body);
+      setErrMsg(aiConsentErrorText(e) ?? describeError(e, { action: 'build the schedule', keptLocally: true }).body);
       setPhase('error');
     }
   }, [q, answers, idx, questions.length, staticQuestions, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);

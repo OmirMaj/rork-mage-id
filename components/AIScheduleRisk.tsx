@@ -21,6 +21,7 @@ import type { ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { describeError } from '@/utils/errorCopy';
+import { aiConsentErrorText } from '@/utils/aiConsent';
 
 interface Props {
   schedule: ProjectSchedule;
@@ -95,7 +96,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       // Say what broke on the card. A spinner that returns to a dashed "Tap to
       // run" box reads as "the feature does nothing".
       console.error('[AI Risk] Failed:', err);
-      setError(describeError(err, { action: 'run the risk forecast' }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'run the risk forecast' }).body);
     } finally {
       setIsLoading(false);
     }

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { IdDocumentType } from '@/types';
 import { shareLinkBase } from '@/utils/webAppOrigin';
 import { edgeFunctionError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 
 export interface IdScanResult {
   fullName: string;
@@ -28,6 +29,9 @@ export interface CertScanResult {
  *  route monthly_cap_reached / tier_required to the plans page instead of
  *  offering a retry that will be refused again. */
 export async function scanGovernmentId(imageBase64: string, mimeType = 'image/jpeg'): Promise<IdScanResult> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const { data, error } = await supabase.functions.invoke('scan-credential', {
     body: { kind: 'government_id', imageBase64, mimeType },
   });
@@ -37,6 +41,9 @@ export async function scanGovernmentId(imageBase64: string, mimeType = 'image/jp
 }
 
 export async function scanCertification(imageBase64: string, mimeType = 'image/jpeg'): Promise<CertScanResult> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const { data, error } = await supabase.functions.invoke('scan-credential', {
     body: { kind: 'certification', imageBase64, mimeType },
   });

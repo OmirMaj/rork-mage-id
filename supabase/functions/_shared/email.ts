@@ -423,30 +423,6 @@ export function verifyUnsubscribeToken(email: string, token: string): boolean {
   return r === 0;
 }
 
-// ─── LEGACY pre-rotation token — DELETE after 2026-10-04 ─────────────
-//
-// Review 2026-09-05: every unsubscribe link in mail sent BEFORE the HMAC
-// rotation carries the OLD 12-char FNV-1a token, which verifyUnsubscribeToken
-// now rejects — a homeowner clicking "Unsubscribe" in last month's digest
-// would get token_invalid. unsubscribe/index.ts accepts this token for the
-// UNSUBSCRIBE direction only (never re-subscribe) until its
-// LEGACY_UNSUB_GRACE_UNTIL, then both sides must be deleted together.
-//
-// The seed below shipped verbatim in the deployed bundle for months and is
-// public — which is exactly why it can only ever authorize the
-// user-protective direction. This is the ONLY permitted caller of it
-// (validate-edge-security pins the single importer and the resubscribe
-// path's silence about it). Never mint with it; never import it elsewhere.
-export function legacyFnvUnsubscribeToken(email: string): string {
-  const data = email.toLowerCase().trim() + ':mage-id-unsub-2026-rotate-on-leak';
-  let h = 14695981039346656037n;
-  for (let i = 0; i < data.length; i++) {
-    h ^= BigInt(data.charCodeAt(i));
-    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
-  }
-  return h.toString(36).padStart(12, '0').slice(0, 12);
-}
-
 // The e / k / t query both unsubscribe URLs carry. The signed token gates BOTH
 // directions in unsubscribe/index.ts (suppress AND re-subscribe): the one-click
 // POST reads it from the header URL's query and the static marketing/unsubscribe

@@ -14,7 +14,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { IconWrapper } from '@/components/ui/IconWrapper';
-import { useSubscription, restoreOutcome } from '@/contexts/SubscriptionContext';
+import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
+import {
+  autoRenewText, plansLoadFailedText, storeSafeLabel, StorePlansUnavailable, useRetryStorePlans,
+} from '@/components/Paywall';
 import { listPriceLabel } from '@/constants/pricing';
 import type { PaidTier } from '@/constants/pricing';
 import { planFeatureBlurb } from '@/utils/planFeatureCopy';
@@ -121,7 +124,9 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   // freeNote, not an X: FEATURE_CONFIG.voiceCapture.freeLifetimeCap = 3, so a
   // bare X denied a trial that exists (and marketing/pricing.html says the
   // same "3 free tries"). The label is unchanged — the matrix validator's
-  // allowlist matches it by name.
+  // allowlist matches it by name. The " (Android: beta)" note on this row and
+  // the plan-viewer row prints on the web only: the phone table renders every
+  // label through storeSafeLabel (App Review 2.3.10, audit 2026-10 #8).
   { label: 'Voice-to-report (Android: beta)', free: false, pro: true, business: true, freeNote: '3 tries' },
   // Was ONE literal row, 'AI Photo Triage / Punch', ticked at Pro — so a Pro
   // buyer was sold AI punch items and then paywalled from the punch list they
@@ -129,7 +134,7 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   { label: 'AI photo triage', key: 'photo_documentation' },
   { label: 'AI punch items from photos', key: 'punch_list_closeout' },
   { label: 'Cash flow and EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
-  { label: 'AIA G702/G703 pay apps', key: 'aia_pay_app' },
+  { label: 'AIA-style G702/G703 pay apps', key: 'aia_pay_app' },
   { label: 'Change orders and invoicing', key: 'change_orders_invoicing' },
   { label: 'Equipment tracking', key: 'equipment_rental' },
   { label: 'Client portal (custom branded)', key: 'client_portal' },
@@ -146,9 +151,13 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
 const FEATURES: FeatureRow[] = FEATURE_SPECS.map(toFeatureRow);
 
 // Fintech & revenue products. Surfaced separately from the feature
-// matrix because they're not yes/no — they're priced + early-access
-// gated. MONEY-F8: the fee row is RENDERED from utils/platformFees.ts
-// (the one schedule, mirrored by create-payment-link) — never typed here.
+// matrix because they're not yes/no — they're priced. MONEY-F8: the fee row
+// is RENDERED from utils/platformFees.ts (the one schedule, mirrored by
+// create-payment-link) — never typed here.
+// App Review 2.1 (audit 2026-10 #11): five "Early access" rows (invoice
+// factoring, a COI marketplace, sub payouts + 1099s, a sub-bid network, a
+// referral exchange) sold products that do not exist on the screen that takes
+// the money. Gone; add a row back the day its product ships.
 interface FintechRow {
   label: string;
   free: string;
@@ -162,11 +171,6 @@ const FINTECH_PERKS: FintechRow[] = [
   // (the old label named Wisetack, with which there is no deal) and the
   // working feature (Payments → Client financing) has no plan gate.
   { label: 'Client financing (bring your own lender)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' },
-  { label: 'Same-day invoice factoring',       free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
-  { label: 'COI / insurance marketplace',      free: '—',    pro: 'Watcher only', business: 'Early access',  enterprise: 'Early access' },
-  { label: 'Mass sub-payouts + auto-1099',     free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
-  { label: 'Sub-bid network',                  free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
-  { label: 'Inter-GC referral exchange (5%)',  free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
 ];
 
 // AI quota table — Enterprise's actual value prop. Numbers must stay in
@@ -212,6 +216,7 @@ export default function PaywallScreen() {
     tier, purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     isLoading, isPurchasing, proPackage, businessPackage, enterprisePackage,
   } = useSubscription();
+  const { retryPlans, retrying } = useRetryStorePlans();
 
   // Pre-selects + frames only. Actual trial/purchase activation is the
   // existing RevenueCat flow and requires the RC webhook + real web key (owner task).
@@ -248,15 +253,14 @@ export default function PaywallScreen() {
   // #129: gate each card on ITS OWN package. The offering loading at all used
   // to enable every Subscribe button, so with no Enterprise product configured
   // the card showed $150/mo, a live Subscribe, and — on tap — a developer
-  // setup instruction. A plan the store cannot sell leads to an email instead.
+  // setup instruction. App Review 3.1.1 (audit 2026-10 #3): a plan the store
+  // cannot sell has NO card on the phone — it used to offer "Contact us" and a
+  // mailto, an off-store purchase path inside the app.
   const unavailable: Record<PaidTier, boolean> = {
     pro: packagesLoaded && !proPackage,
     business: packagesLoaded && !businessPackage,
     enterprise: packagesLoaded && !enterprisePackage,
   };
-  const contactForPlan = useCallback((plan: 'Pro' | 'Business' | 'Enterprise') => {
-    void Linking.openURL(`mailto:support@mageid.app?subject=${encodeURIComponent(`MAGE ID ${plan}`)}`);
-  }, []);
 
   const handlePurchasePro = useCallback(async () => {
     try {
@@ -308,22 +312,12 @@ export default function PaywallScreen() {
       // setup instruction. Raw text stays in the console.
       console.log('[Paywall] Purchase Enterprise failed:', err);
       if (!enterprisePackage) {
-        showAlert('Enterprise unavailable', "Enterprise isn't available in the app yet. Email support@mageid.app and we'll set it up.");
+        showAlert('Enterprise unavailable', PLAN_UNAVAILABLE_MESSAGE);
       } else {
         showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
       }
     }
   }, [purchaseEnterprise, router, enterprisePackage]);
-
-  // When RC offerings failed to load (isFallbackPricing), purchase CTAs
-  // can't process IAP — Alert the notice instead of silently dead-ending.
-  const FALLBACK_NOTICE_TEXT = "Purchases aren't available right now. Check your connection and try again.";
-
-  // Android ships too (app.mageid.android), and RevenueCat buys through Google
-  // Play there. Naming the wrong store in a refusal is a small lie told at the
-  // worst moment — when the contractor is trying to work out whether the
-  // problem is him or us.
-  const storeName = Platform.OS === 'android' ? 'Play Store' : 'App Store';
 
   const handleRestore = useCallback(async () => {
     // Restore must ALWAYS work — it only needs RC configured, not offerings
@@ -447,6 +441,19 @@ export default function PaywallScreen() {
             )}
           </View>
 
+          {/* App Review 3.1.1 / 2.1: with no plan loaded from the store, one
+              honest sentence and a Retry stand in for the paid cards — no
+              list price beside a buy button that cannot work. */}
+          {isFallbackPricing ? (
+            <StorePlansUnavailable
+              message={plansLoadFailedText(Platform.OS)}
+              onRetry={retryPlans}
+              retrying={retrying}
+              testID="paywall-plans-unavailable"
+            />
+          ) : (
+          <>
+          {!unavailable.pro && (
           <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, highlightedPlan === 'pro' && styles.planCardIntentHighlight, tier === 'pro' && styles.planCardActive]}>
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>Popular</Text>
@@ -472,36 +479,21 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                {unavailable.pro ? (
-                  <>
-                    <Button
-                      label="Contact us for Pro"
-                      onPress={() => contactForPlan('Pro')}
-                      variant="secondary"
-                      size="sm"
-                      fullWidth
-                      testID="buy-pro-contact"
-                    />
-                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
-                  </>
-                ) : (
-                  <Button
-                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                    onPress={() => {
-                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                      void handlePurchasePro();
-                    }}
-                    disabled={isPurchasing || isFallbackPricing}
-                    loading={isPurchasing || packagesStillLoading}
-                    size="sm"
-                    fullWidth
-                    testID="buy-pro"
-                  />
-                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => { void handlePurchasePro(); }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-pro"
+                />
               </>
             )}
           </View>
+          )}
 
+          {!unavailable.business && (
           <View style={[styles.planCard, isDesktop && styles.planCardDesktop, highlightedPlan === 'business' && styles.planCardIntentHighlight, tier === 'business' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Building2} tone="accent" size="md" />
@@ -524,36 +516,21 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                {unavailable.business ? (
-                  <>
-                    <Button
-                      label="Contact us for Business"
-                      onPress={() => contactForPlan('Business')}
-                      variant="secondary"
-                      size="sm"
-                      fullWidth
-                      testID="buy-business-contact"
-                    />
-                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
-                  </>
-                ) : (
-                  <Button
-                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                    onPress={() => {
-                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                      void handlePurchaseBusiness();
-                    }}
-                    disabled={isPurchasing || isFallbackPricing}
-                    loading={isPurchasing || packagesStillLoading}
-                    size="sm"
-                    fullWidth
-                    testID="buy-business"
-                  />
-                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => { void handlePurchaseBusiness(); }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-business"
+                />
               </>
             )}
           </View>
+          )}
 
+          {!unavailable.enterprise && (
           <View style={[styles.planCard, isDesktop && styles.planCardDesktop, highlightedPlan === 'enterprise' && styles.planCardIntentHighlight, tier === 'enterprise' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Rocket} tone="accent" size="md" />
@@ -576,51 +553,22 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                {unavailable.enterprise ? (
-                  <>
-                    <Button
-                      label="Contact us for Enterprise"
-                      onPress={() => contactForPlan('Enterprise')}
-                      variant="secondary"
-                      size="sm"
-                      fullWidth
-                      testID="buy-enterprise-contact"
-                    />
-                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
-                  </>
-                ) : (
-                  <Button
-                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                    onPress={() => {
-                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                      void handlePurchaseEnterprise();
-                    }}
-                    disabled={isPurchasing || isFallbackPricing}
-                    loading={isPurchasing || packagesStillLoading}
-                    size="sm"
-                    fullWidth
-                    testID="buy-enterprise"
-                  />
-                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => { void handlePurchaseEnterprise(); }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-enterprise"
+                />
               </>
             )}
           </View>
+          )}
+          </>
+          )}
         </View>
-
-        {isFallbackPricing && (
-          <View style={styles.fallbackNotice}>
-            {/* Was "Prices shown are estimates. In-app purchasing is currently
-                unavailable." Both halves were wrong to say next to a Subscribe
-                button: the numbers below are the published list rate (see the
-                fallback comment above), not estimates, and the second sentence
-                named no cause and offered no way out. */}
-            <Text style={styles.fallbackNoticeText}>
-              {`We can't reach the ${storeName} right now, so a subscription can't be started. `}
-              Your plan and your data are unaffected — try again in a minute, or tap Restore
-              if you have already paid.
-            </Text>
-          </View>
-        )}
 
         <Text style={styles.compareTitle}>Compare plans</Text>
         <View style={styles.compareTable}>
@@ -632,7 +580,7 @@ export default function PaywallScreen() {
           </View>
           {FEATURES.map((f) => (
             <View key={f.label} style={styles.compareRow}>
-              <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{f.label}</Text>
+              <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{storeSafeLabel(f.label, Platform.OS)}</Text>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
                 <FeatureCheck available={f.free} note={f.freeNote} colors={themeColors} />
               </View>
@@ -701,8 +649,10 @@ export default function PaywallScreen() {
         <View style={styles.trustStack}>
           <View style={styles.trustRow}>
             <Shield size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            {/* "Cancel anytime" left with the App Store wave: the auto-renew
+                sentence below says where and when cancelling happens. */}
             <Text style={styles.trustText}>
-              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
+              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}.
             </Text>
           </View>
           <View style={styles.trustRow}>
@@ -725,9 +675,9 @@ export default function PaywallScreen() {
             <Text style={styles.legalLink}>Terms</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.legalFinePrint}>
-          Subscriptions auto-renew until canceled. Manage or cancel in your {Platform.OS === 'ios' ? 'App Store account' : Platform.OS === 'android' ? 'Google Play account' : 'platform account'} settings at least 24 hours before the renewal date. Payment is charged to your {Platform.OS === 'ios' ? 'Apple ID' : Platform.OS === 'android' ? 'Google account' : 'platform account'} on confirmation of purchase.
-        </Text>
+        {/* One wording for all three purchase screens (components/Paywall
+            autoRenewText): the sentence this screen always printed. */}
+        <Text style={styles.legalFinePrint}>{autoRenewText(Platform.OS)}</Text>
 
         {packagesStillLoading && (
           <View style={styles.loadingOverlay}>
@@ -1157,12 +1107,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     marginBottom: 6,
   },
-  planUnavailableNote: {
-    fontSize: Type.caption2.fontSize,
-    color: t.textSecondary,
-    textAlign: 'center' as const,
-    marginTop: 6,
-  },
   currentBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1292,19 +1236,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingText: {
     fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
-  },
-  fallbackNotice: {
-    backgroundColor: t.surfaceAlt,
-    borderRadius: Tokens.radius.md,
-    padding: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  fallbackNoticeText: {
-    fontSize: Type.caption1.fontSize,
-    color: t.textSecondary,
-    textAlign: 'center' as const,
-    lineHeight: 18,
   },
   ctaBtnDisabled: {
     opacity: 0.45,

@@ -1,5 +1,6 @@
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import { matchSubForPhase, assignmentNote, summariseAssignments, type TradeCandidate, type SubTradeOutcome } from '@/utils/subTradeMatch';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
@@ -116,7 +117,7 @@ Output JSON only. No prose.`;
   });
 
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'AI schedule generation failed');
+    throw aiFailureError(aiResult, 'AI schedule generation failed');
   }
 
   let parsed: any = aiResult.data;

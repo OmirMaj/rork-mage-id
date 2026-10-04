@@ -12,22 +12,22 @@
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/assets/images/favicon.png",
-      "sizes": "48x48 72x72 96x96 128x128 256x256",
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon",
+      "purpose": "any"
+    },
+    {
+      "src": "https://mageid.app/assets/favicon-180.png?v=2026-09-16-green",
+      "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/images/icon.png",
+      "src": "https://mageid.app/assets/favicon-512.png?v=2026-09-16-green",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/assets/images/adaptive-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ]
 }

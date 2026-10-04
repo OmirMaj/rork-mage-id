@@ -27,6 +27,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { transcribeAudio } from '@/utils/transcribeAudio';
+import { ensureAiConsent } from '@/utils/aiConsent';
 // Who is signed in comes from the same auth-feed-backed value both other
 // queues use — never a per-call getSession(), which is a NETWORK read when the
 // access token has expired and would stall the enqueue on the captive-portal
@@ -419,6 +420,13 @@ async function runAudioTranscribeQueue(): Promise<AudioFlushResult> {
       // is kept exactly as it is — unchanged objects, so the reconcile writes
       // them back verbatim — and nothing is dropped.
       console.warn('[AudioQueue] Session ended mid-drain — leaving the rest queued');
+      kept.push(...pending.slice(pending.indexOf(task)));
+      break;
+    }
+    // App Store 5.1.2(i): with AI features off, no recording leaves for the
+    // speech-to-text service. Everything left stays queued exactly as it is —
+    // no retry spent, nothing given up — until they are turned back on.
+    if (!(await ensureAiConsent())) {
       kept.push(...pending.slice(pending.indexOf(task)));
       break;
     }

@@ -488,7 +488,7 @@ for (const f of LOADER_FILES) {
     bubble: { x0: 479, x1: 546, y0: 499, y1: 525 },
   }));
   check('G NATIVE_SPLASH_RADII_PX = { track: 0, cap: 4, bubble: 13 }', JSON.stringify(L.NATIVE_SPLASH_RADII_PX) === JSON.stringify({ track: 0, cap: 4, bubble: 13 }));
-  check('G splash colours', L.NATIVE_SPLASH_ACCENT === '#FF6A1A' && L.NATIVE_SPLASH_CAP === '#F4EFE6' && L.NATIVE_SPLASH_BG === '#0B0D10' && L.NATIVE_SPLASH_FG === '#F4EFE6');
+  check('G splash colours', L.NATIVE_SPLASH_ACCENT === '#5DB36E' && L.NATIVE_SPLASH_CAP === '#F4EFE6' && L.NATIVE_SPLASH_BG === '#0B0D10' && L.NATIVE_SPLASH_FG === '#F4EFE6');
   check('G splash alphas 64 / 64, amplitude 110, stretch .14, squash .10', L.NATIVE_SPLASH_TRACK_ALPHA === 64 && L.NATIVE_SPLASH_CAP_ALPHA === 64
     && L.NATIVE_SPLASH_AMP_PX === 110 && L.NATIVE_SPLASH_STRETCH === 0.14 && L.NATIVE_SPLASH_SQUASH === 0.1);
   const r = L.splashRect(393, 852, 'ios');

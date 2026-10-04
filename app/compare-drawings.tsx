@@ -79,6 +79,7 @@ import { cardSurface, Button } from '@/components/ui';
 import type { PlanSheet } from '@/types';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 
 type Step = 'pickOld' | 'pickNew' | 'analyzing' | 'review';
@@ -243,6 +244,10 @@ export default function CompareDrawingsScreen() {
     if (!project || !oldSheet) return;
     resetComparison();
     setPendingPdf(null);
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/png', 'image/jpeg'],
@@ -280,6 +285,9 @@ export default function CompareDrawingsScreen() {
     setError(null);
     // Checked again here: the page picker can sit open a while.
     if (!(await limitAllows())) return;
+    // AI consent again, before the render (utils/aiConsent): it can be turned
+    // off in Settings while the page picker sits open.
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     const key = renderKey(src);
     const label = src.kind === 'pdf' && (src.pageCount === null || src.pageCount > 1)
       ? `${src.asset.name} · page ${src.page}`

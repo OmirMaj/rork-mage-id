@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { readAsBase64 } from '@/utils/platformFile';
 import { supabase } from '@/lib/supabase';
 import { readEdgeError } from '@/utils/edgeError';
+import { requireAiConsent } from '@/utils/aiConsent';
 
 export interface PlanCodeFindingRaw {
   category?: string;
@@ -117,6 +118,9 @@ export async function reviewPlanCode(opts: {
    *  then exactly what it always was. */
   sweep?: { scopeTargets: string[] };
 }): Promise<PlanCodeResult> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  await requireAiConsent();
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
     data?: PlanCodeResult;

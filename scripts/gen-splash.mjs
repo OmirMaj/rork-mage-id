@@ -6,8 +6,18 @@
 // stylised orange "1D". Off-brand, busy, and the FIRST thing every user
 // sees. The approved brand direction is a flat "spirit level" mark — the
 // exact motif from components/PersonaSwitchOverlay.tsx and the marketing
-// site: an ink field, a thin amber level track, and a bubble settled dead
-// centre. Ink + amber only. No illustration, no crest, no gradient/glow.
+// site: an ink field, a thin green level track, and a bubble settled dead
+// centre. Ink + green only. No illustration, no crest, no gradient/glow.
+//
+// GREEN SINCE BUILD 18 (2026-10-03). The 2026-09-16 rebrand moved the brand
+// from the old orange to deep equipment green; the native images could only
+// follow with a native build. The splash accent is BRAND_ACCENT_ON_DARK
+// #5DB36E (constants/colors.ts) — the brand as it reads on the ink ground —
+// not BRAND_ACCENT #2F6B3A, which is 2.80:1 there. The ink ground #0B0D10 is
+// unchanged, so app.json splash.backgroundColor / adaptiveIcon.backgroundColor
+// stay #0B0D10 and the contain-letterboxing has no visible box.
+// scripts/validate-level-splash.ts decodes the result and pins every pixel
+// class, the app.json grounds and the App Store icon.
 //
 // This is the PRE-JS static layer. The crisp Fraunces "MAGE ID" wordmark
 // is drawn by the animated components/BrandSplash.tsx the instant JS boots;
@@ -23,8 +33,8 @@
 // the vector source of truth; re-generate from it instead.
 //
 // USAGE
-//   node scripts/gen-splash.mjs
-// Regenerates:
+//   node scripts/gen-splash.mjs [--out <dir>]
+// Regenerates (into assets/images, or <dir> for a dry run to diff against):
 //   assets/images/splash-icon.png     1024x1024  (native splash, resizeMode:contain)
 //   assets/images/adaptive-icon.png   1024x1024  (Android adaptive foreground)
 // The ink background is baked into the PNG AND declared in app.json
@@ -36,11 +46,15 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = join(__dirname, '..', 'assets', 'images');
+const outFlag = process.argv.indexOf('--out');
+const OUT = outFlag > 0 && process.argv[outFlag + 1]
+  ? process.argv[outFlag + 1]
+  : join(__dirname, '..', 'assets', 'images');
 
-// ── Brand tokens (must match constants/colors.ts Theme.dark + marketing) ──
-const INK = 0x0b0d10ff; // Theme.dark.bg — the scrim / marketing --ink
-const AMBER = 0xff6a1aff; // Theme.dark.accent — the brand orange
+// ── Brand tokens (must match utils/levelTimeline.ts NATIVE_SPLASH_*) ──
+const INK = 0x0b0d10ff; // NATIVE_SPLASH_BG — the splash ink / marketing --ink
+const GREEN = 0x5db36eff; // BRAND_ACCENT_ON_DARK — the brand green on ink
+const GREEN_SOFT = 0x5db36e40; // the same green at alpha 64 (the track)
 // A muted cream at low alpha for the level end-notches — same identity as
 // PersonaSwitchOverlay's `t.textMuted` hairline notch, never a second accent.
 const NOTCH = 0xf4efe640; // cream @ ~25%
@@ -95,10 +109,10 @@ async function buildLevelMark(size, scale = 1) {
   const notchW = Math.round(NOTCH_W * scale);
   const notchH = Math.round(NOTCH_H * (scale > 1 ? 1.6 : 1));
 
-  // Track — thin amber-soft line the bubble rides. Use a low-alpha amber so
-  // the settled bubble (full amber) reads as the hero, exactly like the
+  // Track — thin green-soft line the bubble rides. Use a low-alpha green so
+  // the settled bubble (full green) reads as the hero, exactly like the
   // component (track = t.line hairline, bubble = t.accent).
-  fillRect(img, cx, cy, trackW, trackH, 0xff6a1a40, trackH / 2);
+  fillRect(img, cx, cy, trackW, trackH, GREEN_SOFT, trackH / 2);
 
   // End notches — the level's centre reference marks, muted cream hairlines.
   fillRect(img, cx - trackW / 2, cy, notchW, notchH, NOTCH, 2);
@@ -107,9 +121,9 @@ async function buildLevelMark(size, scale = 1) {
   // Centre reference notch (the "dead centre" the bubble settles into).
   fillRect(img, cx, cy, Math.round(4 * scale), notchH - Math.round(8 * scale), NOTCH, 2);
 
-  // The bubble — settled DEAD CENTRE. Full amber, pill-rounded. This is the
+  // The bubble — settled DEAD CENTRE. Full green, pill-rounded. This is the
   // whole idea.
-  fillRect(img, cx, cy, bubbleW, bubbleH, AMBER, bubbleH / 2);
+  fillRect(img, cx, cy, bubbleW, bubbleH, GREEN, bubbleH / 2);
 
   return img;
 }
@@ -117,7 +131,7 @@ async function buildLevelMark(size, scale = 1) {
 async function main() {
   const splash = await buildLevelMark(SIZE);
   await splash.writeAsync(join(OUT, 'splash-icon.png'));
-  console.log('wrote assets/images/splash-icon.png');
+  console.log(`wrote ${join(OUT, 'splash-icon.png')}`);
 
   // Adaptive icon foreground reuses the level mark (the old crest lived here
   // too). Android masks the foreground to a circle/rounded-square and pads it
@@ -126,7 +140,7 @@ async function main() {
   // sizes while sitting comfortably inside the 66% keep-clear safe zone.
   const adaptive = await buildLevelMark(SIZE, 3);
   await adaptive.writeAsync(join(OUT, 'adaptive-icon.png'));
-  console.log('wrote assets/images/adaptive-icon.png');
+  console.log(`wrote ${join(OUT, 'adaptive-icon.png')}`);
 }
 
 main().catch((e) => {

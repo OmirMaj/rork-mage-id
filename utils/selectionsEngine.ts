@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mageAI } from '@/utils/mageAI';
+import { AiConsentDeclinedError, isAiConsentRefusal } from '@/utils/aiConsentCore';
 import { generateUUID } from '@/utils/generateId';
 import { supabaseWriteDetailed, type WriteOutcome } from '@/utils/offlineQueue';
 import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
@@ -549,6 +550,9 @@ Pick brands the homeowner has heard of. Don't invent fake products. Spread the p
     maxTokens: 2200,
   });
 
+  // AI turned off (utils/aiConsent): an empty list would read as "no options
+  // found"; the refusal says why instead (app/selections also asks first).
+  if (isAiConsentRefusal(aiRes)) throw new AiConsentDeclinedError();
   if (!aiRes.success) {
     console.warn('[selectionsEngine] AI curation failed:', aiRes.error);
     return { options: [], notes: '' };

@@ -2,22 +2,22 @@
 
 exports[`lane P2 — the phone is unchanged (golden) /paywall, iOS 390 (the native branch) 1`] = `
 {
-  "lines": 1013,
-  "sha256": "c71cd4fcf98c277588f9312f2a913b09030ade24a92733699c2f74572ae4eee1",
+  "lines": 896,
+  "sha256": "da3c53b5752b0f926f806aedf4864c97cba7585697c9198e0b408cdad706d3b5",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) /paywall, web 390 (WebPaywallView) 1`] = `
 {
   "lines": 892,
-  "sha256": "4b684b468f6e444f5720775ce4ec463cf07c71b5f2964cbe12874dcd7ae55f32",
+  "sha256": "5579006aac1ccf0343a28850a287b72f58455ff772140f54b328c246f483f23b",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) <Paywall> practiceTutorialId invoice-to-self, iOS 390 1`] = `
 {
-  "lines": 475,
-  "sha256": "80b5242d7e496faa9742fc157cf1e95fddb7b07845b01e22e8417bdb7252f8e4",
+  "lines": 472,
+  "sha256": "31bb91198c367297ec5d600f73209d57ebb407a15b4601f6e805667035d70434",
 }
 `;
 
@@ -72,42 +72,42 @@ exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), iOS 390 1`] = `
 {
-  "lines": 1800,
-  "sha256": "7459f2faa8b73159795d1cdcf9511d338845e7be57a0f19bfd3ae03d8f36f5ae",
+  "lines": 1805,
+  "sha256": "f39529d9413a686a77f297971b2addc259405a52af0753240f000987225f1c91",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), web 390 1`] = `
 {
-  "lines": 1800,
-  "sha256": "7459f2faa8b73159795d1cdcf9511d338845e7be57a0f19bfd3ae03d8f36f5ae",
+  "lines": 1805,
+  "sha256": "f39529d9413a686a77f297971b2addc259405a52af0753240f000987225f1c91",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, iOS 390 1`] = `
 {
-  "lines": 1768,
-  "sha256": "9f18e115f525d372cfe9dc389c666e02edca619143a4586281b00044ee178415",
+  "lines": 1773,
+  "sha256": "58137cea8658e4b56f09e43a4a84e460af9421107472bd0aee2febefbb171164",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, web 390 1`] = `
 {
-  "lines": 1768,
-  "sha256": "9f18e115f525d372cfe9dc389c666e02edca619143a4586281b00044ee178415",
+  "lines": 1773,
+  "sha256": "58137cea8658e4b56f09e43a4a84e460af9421107472bd0aee2febefbb171164",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, iOS 390 1`] = `
 {
-  "lines": 1560,
-  "sha256": "30f846b056654c143d7904e5be334ec456f0983d16fbf2260651c1f14eaf4de2",
+  "lines": 1565,
+  "sha256": "db22c8d06bbbfbc242ad470e75f0a9cc800a8bee856dbefa048a4c1e908561d5",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, web 390 1`] = `
 {
-  "lines": 1560,
-  "sha256": "30f846b056654c143d7904e5be334ec456f0983d16fbf2260651c1f14eaf4de2",
+  "lines": 1565,
+  "sha256": "db22c8d06bbbfbc242ad470e75f0a9cc800a8bee856dbefa048a4c1e908561d5",
 }
 `;

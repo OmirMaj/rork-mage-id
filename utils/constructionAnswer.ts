@@ -39,6 +39,7 @@
 
 import type { AnswerCitation, ConstructionAnswerRequest, ConstructionAnswerResult } from '@/types/constructionAnswer';
 import { withLocalMonthlyReset } from '@/utils/aiRateLimiterCore';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 
 /**
  * The edge function's success body. `citations` are only the records and URLs
@@ -201,6 +202,10 @@ export async function askConstruction(
   if (!userJWT) {
     throw new ConstructionAnswerError('unauthenticated', 'Sign in to use Construction Answers.');
   }
+
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (!(await ensureAiConsent())) throw new ConstructionAnswerError('bad_request', AI_CONSENT_OFF_MESSAGE);
 
   const controller = new AbortController();
   let timedOut = false;

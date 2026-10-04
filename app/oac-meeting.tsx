@@ -47,6 +47,7 @@ import { Tokens } from '@/constants/designTokens';
 import { neutralInk } from '@/components/ui/ink';
 import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE, aiConsentErrorText } from '@/utils/aiConsent';
 import { describeError } from '@/utils/errorCopy';
 import { humanizeEnum } from '@/utils/statusLabels';
 import {
@@ -351,6 +352,9 @@ function OACMeetingInner() {
       showAlert('Mobile only', 'Upload a recording from the MAGE ID app on iPhone or Android.');
       return;
     }
+    // App Store 5.1.2(i): asked before he picks a file that would go to the
+    // speech-to-text service (utils/aiConsent).
+    if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
@@ -458,8 +462,9 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Generate minutes failed:', err);
+      const off = aiConsentErrorText(err);
       const copy = describeError(err, { action: 'generate the minutes', keptLocally: true });
-      showAlert(copy.title, copy.body);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : copy.title, off ?? copy.body);
     } finally {
       setGeneratingMinutes(false);
     }

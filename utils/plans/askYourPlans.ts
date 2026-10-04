@@ -25,6 +25,7 @@ import { imageUriToBase64 } from '@/utils/planCodeReviewer';
 // The function's own `{ error, code }` — a monthly cap stops the run, a single
 // unreadable sheet does not. Shared with Compare and PDF import (audit #79).
 import { readEdgeError } from '@/utils/edgeError';
+import { ensureAiConsent, aiConsentReason, AI_CONSENT_DECLINED_CODE, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { sheetToDocs, PLAN_SOURCE } from './planChunk';
 import { buildAskPrompt, citedSheetRefs, type PlanMatch } from './planAnswer';
 import {
@@ -65,6 +66,9 @@ function readTitleBlock(data: unknown): ExtractedTitleBlock | null {
  * caller's plan_extract allowance.
  */
 export async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (!(await ensureAiConsent())) return { ok: false, code: AI_CONSENT_DECLINED_CODE, reason: AI_CONSENT_OFF_MESSAGE };
   // Storage-backed sheet: let the function download it (DB-F11 pattern). The
   // client never touches the bytes, so web and native take the same path.
   if (s.storagePath) {
@@ -126,6 +130,12 @@ async function embedSheetTexts(
 ): Promise<{ embedded: string[]; failed: { sheetId: string; label: string; code: string; reason: string }[] }> {
   const embedded: string[] = [];
   const failed: { sheetId: string; label: string; code: string; reason: string }[] = [];
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (items.length > 0 && !(await ensureAiConsent())) {
+    for (const { sheet } of items) failed.push({ sheetId: sheet.id, label: sheetLabel(sheet), code: AI_CONSENT_DECLINED_CODE, reason: AI_CONSENT_OFF_MESSAGE });
+    return { embedded, failed };
+  }
   const groups = items.map(({ sheet, text }) =>
     sheetToDocs({ sheetId: sheet.id, sheetNumber: sheetLabel(sheet), text })
       .map(d => ({ ...d, content_hash: hashFor(sheet) })));
@@ -179,6 +189,8 @@ export async function readPlanIndexManifest(
   prune: boolean,
 ): Promise<{ staleIds: Set<string>; pruneRefused: boolean } | null> {
   const current = sheets.filter(s => !s.superseded);
+  // ai-consent: exempt — a manifest carries doc ids and hashes only and the
+  // function makes no model call for it (project-memory-embed MAX_MANIFEST).
   const { data: man, error: manErr } = await supabase.functions.invoke('project-memory-embed', {
     body: {
       projectId,
@@ -301,6 +313,16 @@ const WEAK_FALLBACK_MATCHES = 3;
 /** Answer a question about the project's plans. `sheets` is the plan set as
  *  it is NOW: only matches on its current sheets reach the prompt (#78). */
 export async function askPlans(projectId: string, question: string, sheets: PlanSheet[]): Promise<PlanAnswer> {
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (!(await ensureAiConsent())) {
+    return {
+      answer: '', citations: [], noneFound: false, weakGrounding: false, staleDropped: 0,
+      answerFailed: null, answerFailedKind: null,
+      // No trailing full stop: the panel sets this reason inside its own sentence.
+      searchFailed: AI_CONSENT_OFF_MESSAGE.replace(/\.$/, ''),
+    };
+  }
   // `sources` scopes the vector search to plan sheets INSIDE the top-K. Without
   // it the 8 nearest were usually daily reports, which the filter below then
   // discarded, and the prompt got "(no matching plan sheets found)".
@@ -366,9 +388,10 @@ export async function askPlans(projectId: string, question: string, sheets: Plan
   // excuse, and inviting a retry that charges the owner's search meter again.
   const text = (res.success ? (typeof res.data === 'string' ? res.data : res.raw ?? '') : '').trim();
   if (!res.success || !text) {
-    const reason = (!res.success && typeof res.error === 'string' && res.error.trim())
+    // AI turned off (utils/aiConsent): that sentence, never "came back empty".
+    const reason = aiConsentReason(res) ?? ((!res.success && typeof res.error === 'string' && res.error.trim())
       ? res.error.trim()
-      : 'the answer came back empty';
+      : 'the answer came back empty');
     const kind = res.errorKind === 'network' || res.errorKind === 'timeout' || (res.success && !text) ? 'retry' : 'final';
     return {
       answer: '', citations: [], noneFound: false, weakGrounding: false, searchFailed: null,

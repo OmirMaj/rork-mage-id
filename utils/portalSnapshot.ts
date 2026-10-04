@@ -2659,6 +2659,127 @@ export function buildShortPortalUrl(
   return q ? `${base}?${q}` : base;
 }
 
+// ── PORTALFIX (2026-10-03): the passcode rule, and what an invite may promise ──
+
+/**
+ * The passcode a GC can set (app/client-portal-setup.tsx) and the client's
+ * passcode box accepts (marketing/portal/index.html, #gate-input maxlength):
+ * 4 to 20 characters, letters allowed. ONE rule for both sides. The client's
+ * box used to take 4 digits on a number pad, so every longer code the GC
+ * could set locked the client out for good. The server check
+ * (supabase/functions/validate-portal-passcode) compares the trimmed entry
+ * with the stored code and is unchanged. scripts/validate-portalfix.ts pins
+ * that the page and the screen read these numbers.
+ */
+export const PORTAL_PASSCODE_MIN_LENGTH = 4;
+export const PORTAL_PASSCODE_MAX_LENGTH = 20;
+
+/** The section switches an invite describes (plus whether signing is on). */
+export type PortalInviteSectionFlags = Partial<Pick<ClientPortalSettings,
+  'showSchedule' | 'showBudgetSummary' | 'showInvoices' | 'showChangeOrders' | 'showPhotos'
+  | 'showDailyReports' | 'showPunchList' | 'showRFIs' | 'showDocuments' | 'coApprovalEnabled'>>;
+
+const INVITE_SECTIONS: readonly { key: Exclude<keyof PortalInviteSectionFlags, 'coApprovalEnabled'>; noun: string }[] = [
+  { key: 'showPhotos', noun: 'site photos' },
+  { key: 'showSchedule', noun: 'the schedule' },
+  { key: 'showDailyReports', noun: 'daily reports' },
+  { key: 'showInvoices', noun: 'invoices' },
+  { key: 'showBudgetSummary', noun: 'the budget summary' },
+  { key: 'showChangeOrders', noun: 'change orders' },
+  { key: 'showPunchList', noun: 'the punch list' },
+  { key: 'showRFIs', noun: 'RFIs' },
+  { key: 'showDocuments', noun: 'permit and warranty records' },
+];
+
+/**
+ * The sections an invite may name: exactly the ones switched ON (a switch
+ * left undefined is not promised). The invite used to say "daily updates,
+ * photos, budget, schedule, contract, and any decisions that need your
+ * sign-off" whatever was on. Change orders are offered "to review and sign"
+ * only when signing is on too.
+ */
+export function portalInviteSectionNouns(portal: PortalInviteSectionFlags): string[] {
+  return INVITE_SECTIONS
+    .filter(s => portal[s.key] === true)
+    .map(s => (s.key === 'showChangeOrders' && portal.coApprovalEnabled === true ? 'change orders to review and sign' : s.noun));
+}
+
+/** Those sections as one plain-English list ("site photos, the schedule and invoices"); '' when none. */
+export function portalInviteSectionsSentence(portal: PortalInviteSectionFlags): string {
+  const nouns = portalInviteSectionNouns(portal);
+  if (nouns.length <= 1) return nouns[0] ?? '';
+  return `${nouns.slice(0, -1).join(', ')} and ${nouns[nouns.length - 1]}`;
+}
+
+/**
+ * The plain-text invite the GC's mail app opens when the branded send fails.
+ * It used to say "no password to remember" even with a passcode set. Now a set
+ * passcode is MENTIONED, and never printed: it takes no passcode argument, so
+ * the code cannot ride in the same message as the link (the out-of-band rule
+ * the rest of the invite flow already keeps).
+ */
+export function portalInviteFallbackText(args: {
+  firstName?: string | null;
+  projectName: string;
+  link: string;
+  companyName: string;
+  passcodeOn: boolean;
+}): string {
+  const hi = args.firstName ? `Hi ${args.firstName},` : 'Hi,';
+  const access = args.passcodeOn
+    ? `No app to install. Open it on your phone or computer. The portal asks for a passcode: ${args.companyName} will send it to you in a separate message.`
+    : 'No app to install, no password to remember. Open it on your phone or computer.';
+  return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n— ${args.companyName}`;
+}
+
+/** What a read of the server's key came back with (ok:false = the read itself failed). */
+export type PortalKeyReadBack = { ok: true; token: string | null } | { ok: false };
+
+/**
+ * What a Reset link really did, decided from the SERVER, for the case where
+ * the rotate call did not come back clean (an error, an empty answer, a
+ * dropped connection). The rotate commits on the server before its answer
+ * travels, so a lost answer says nothing about whether the old link died.
+ * Only a read of the key the server holds now can say:
+ *
+ *   • 'reset'     — the server holds a key, and it is not the one this device
+ *                   held before the call: the old link is dead, adopt the new.
+ *   • 'not-reset' — the server still holds the very key this device held: the
+ *                   old link provably still works.
+ *   • 'unknown'   — the read failed, came back empty, or there was no held key
+ *                   to compare with. Say neither; ask for a re-check.
+ *
+ * The one rule the screen may not break: "the old link still works" is said
+ * only on 'not-reset'.
+ */
+export function portalResetOutcome(
+  heldBefore: string | null | undefined,
+  readBack: PortalKeyReadBack,
+): { kind: 'reset'; token: string } | { kind: 'not-reset' } | { kind: 'unknown' } {
+  if (!readBack.ok) return { kind: 'unknown' };
+  const now = typeof readBack.token === 'string' ? readBack.token : '';
+  const held = typeof heldBefore === 'string' ? heldBefore : '';
+  if (!now || !held) return { kind: 'unknown' };
+  return now === held ? { kind: 'not-reset' } : { kind: 'reset', token: now };
+}
+
+/** Said ONLY when the server was read after the call and still holds the very
+ *  key this device held ('not-reset'). The one place "still works" is said. */
+export const PORTAL_RESET_NOT_RESET_NOTE = 'We checked with the server and it still has the same link, so your client\u2019s old link still works. Check your connection and try again.';
+
+/** Said when the read-back failed too ('unknown'): only what is known. The
+ *  screen drops the key it held, so the link shown next is the server's. */
+export const PORTAL_RESET_UNKNOWN_NOTE = 'We couldn\u2019t confirm whether the link was reset, so your client\u2019s old link may have stopped working. Open this screen again when you have a connection (or tap Retry under the link) to see the current link before you send anything.';
+
+/**
+ * PORTALFIX · why a Sample project never gets a client portal, in one place so
+ * every door says the same thing: the Enable button on the project page
+ * (app/project-detail.tsx) and the Client Portal screen's alerts and banner
+ * (which adds what stays off on that screen). utils/sampleGuard.ts promises
+ * "no client-portal post" from a sample.
+ */
+export const SAMPLE_PORTAL_REASON = 'Sample job \u2014 a client portal never goes out from a sample. Create a real project to share a portal with your client.';
+
 /**
  * The customer-facing portal origin. ONE definition on the client, mirroring
  * `PORTAL_BASE` in supabase/functions/_shared/portalLinks.ts.

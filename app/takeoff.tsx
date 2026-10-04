@@ -78,6 +78,7 @@ import { TakeoffAccuracyPanel } from '@/components/TakeoffAccuracyPanel';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, aiConsentErrorText } from '@/utils/aiConsent';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { describeError } from '@/utils/errorCopy';
 // Learn-by-doing tutorial "takeoff-to-estimate" (utils/tutorial/defs): on the
@@ -332,7 +333,7 @@ function TakeoffInner() {
     // answer a cap / plan / hourly refusal with their own sentence and code.
     const refusal = showAiRefusal(e, router);
     setErrorKind(aiRefusalKind(e));
-    setError(refusal ?? String((e as Error)?.message ?? e));
+    setError(refusal ?? aiConsentErrorText(e) ?? String((e as Error)?.message ?? e));
     if (rendered && rendered.length > 0) setRetryPages(rendered);
     setStep('idle');
     refreshQuota();
@@ -355,6 +356,10 @@ function TakeoffInner() {
       setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
       return;
     }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     let rendered: RenderedPlanPage[] | null = null;
     try {
       // Tier gate — AI Takeoff is Pro-only. The server hard-gates every step
@@ -455,6 +460,10 @@ function TakeoffInner() {
       return;
     }
     setSpecMatchError(null);
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
+    if (!(await ensureAiConsent())) { setSpecMatchError(AI_CONSENT_OFF_MESSAGE); return; }
     // #39: the spec book is rendered (takeoff pages) and then read by
     // analyze-spec-book, which spends a drawing analysis — same precheck,
     // before the picker, so a spent month doesn't cost the render.

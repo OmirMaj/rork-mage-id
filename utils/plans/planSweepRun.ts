@@ -17,6 +17,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { readEdgeError } from '@/utils/edgeError';
+import { ensureAiConsent, AI_CONSENT_DECLINED_CODE, AI_CONSENT_OFF_MESSAGE, aiConsentErrorText } from '@/utils/aiConsent';
 import { imageUriToBase64, reviewPlanCode, PlanCodeError, type PlanCodeFindingRaw } from '@/utils/planCodeReviewer';
 import { readPlanIndexManifest } from './askYourPlans';
 import { PLAN_SOURCE } from './planChunk';
@@ -94,6 +95,9 @@ export async function findSweepSheets(opts: {
   if (indexed && indexed.size === 0) return { state: 'needs_index' };
 
   const allowance = await readSweepAllowance(opts.userId, opts.monthlyCap);
+  // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+  // has allowed AI features (utils/aiConsent; always allowed on the web app).
+  if (!(await ensureAiConsent())) return { state: 'refused', message: AI_CONSENT_OFF_MESSAGE, code: AI_CONSENT_DECLINED_CODE };
 
   const searches: SweepSearch[] = [];
   let stoppedWhy: string | null = null;
@@ -193,6 +197,8 @@ export async function reviewSweepSheets(opts: {
       });
       reviewed.push({ sheet, reasons, findings: res.findings });
     } catch (e) {
+      // AI turned off mid-sweep: every sheet left would be refused the same way.
+      if (aiConsentErrorText(e)) { stoppedWhy = AI_CONSENT_OFF_MESSAGE; stopRest('review_stopped', AI_CONSENT_OFF_MESSAGE); break; }
       const code = e instanceof PlanCodeError ? e.code : '';
       const reason = e instanceof PlanCodeError ? e.reason : (e instanceof Error ? e.message : '');
       if (code === 'monthly_cap_reached') { stoppedWhy = sweepCopy.monthlyLimit; stopRest('review_stopped', sweepCopy.monthlyLimit); break; }

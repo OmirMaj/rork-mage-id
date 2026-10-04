@@ -28,6 +28,7 @@ import { ExpoRoot } from 'expo-router/build/ExpoRoot';
 import { store as routerStore } from 'expo-router/build/global-state/router-store';
 import * as Sentry from '@sentry/react-native';
 import * as reactQuery from '@tanstack/react-query';
+import { AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
 import type { QueryClient } from '@tanstack/react-query';
 import { __setSmokeSession } from '@/__tests__/mocks/supabase';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
@@ -127,6 +128,16 @@ export async function primeWorld(state: WorldState): Promise<void> {
   // Cost: the locked branches are not covered. Accepted — /paywall and
   // /onboarding-paywall are themselves routes the suite mounts directly.
   await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
+
+  // AI data-sharing consent (utils/aiConsent, App Store 5.1.2(i)) — a gate, not
+  // data, seeded in both states. On a phone the first AI request with no stored
+  // answer waits on a system alert, and under jest nobody answers it: a suite
+  // that taps an AI button (ai-weekly-summary, plan-sweep) would hang on the
+  // question, or record the question instead of the screen. 'granted' is the
+  // state a contractor who uses AI is in. The unanswered state is covered where
+  // it is the subject: __tests__/smoke/appset-phone.test.tsx removes this key
+  // and records Settings → AI features as it reads before any answer.
+  await AsyncStorage.setItem(AI_CONSENT_STORAGE_KEY, 'granted');
 
   if (state === 'populated') {
     await seedWorld();

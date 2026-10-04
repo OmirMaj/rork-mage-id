@@ -55,6 +55,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
+import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 
 interface PickItem extends AiSubmittalCandidate {
@@ -109,6 +110,9 @@ export default function ExtractSubmittalsScreen() {
   // the project's log and the rows already here (#59).
   const runPass = useCallback(async (picked: PickedBook, startPage: number) => {
     if (!project) return;
+    // AI consent before the render (utils/aiConsent): the render uploads the
+    // PDF and charges its pages; a later pass re-checks (Settings can change).
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
     setStep('uploading');
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -173,6 +177,10 @@ export default function ExtractSubmittalsScreen() {
   const handlePickAndAnalyze = useCallback(async () => {
     setError(null);
     if (!project) { showAlert('No project'); return; }
+    // App Store 5.1.2(i): nothing leaves for the AI provider until the person
+    // has allowed AI features (utils/aiConsent; always allowed on the web app).
+    // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
+    if (!(await ensureAiConsent())) { setError(AI_CONSENT_OFF_MESSAGE); return; }
 
     // Pro-tier gate (vision API spend).
     const limit = await checkAILimit(tier, 'smart', 'specBookExtract');

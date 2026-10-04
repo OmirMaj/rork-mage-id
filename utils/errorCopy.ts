@@ -21,10 +21,10 @@
 // one, a short reference code support can search on. A code is not a stack
 // trace; it is the one token that makes "it keeps happening" diagnosable.
 //
-// PURE ON PURPOSE — no react-native, no expo; its one import is the pure
-// i18n runtime (i18n/core) — so scripts/validate-error-copy.ts can import it
-// under bun and actually execute the classifier instead of grepping for its
-// shape.
+// PURE ON PURPOSE — no react-native, no expo; its only imports are the pure
+// i18n runtime (i18n/core) and the pure AI-consent core (utils/aiConsentCore)
+// — so scripts/validate-error-copy.ts can import it under bun and actually
+// execute the classifier instead of grepping for its shape.
 //
 // SPANISH (wave-next W2, lane ESTOOLS; docs/I18N.md "Gender and sentence
 // building"): the English body splices the caller's `action` fragment into
@@ -36,6 +36,7 @@
 // `title` (e.g. t('field.dfr.error.saveTitle', "Couldn't save the report")).
 
 import { getDisplayLang, t } from '../i18n/core';
+import { AI_CONSENT_OFF_TITLE, aiConsentErrorText } from './aiConsentCore';
 
 /** What went wrong, at the granularity the copy differs on. */
 export type ErrorKind =
@@ -317,6 +318,12 @@ function givenTitle(s: string | undefined): string | undefined {
  *   showAlert(copy.title, copy.body);
  */
 export function describeError(err: unknown, ctx: ErrorContext): ErrorCopy {
+  // AI turned off (utils/aiConsent, App Store 5.1.2(i)): the refusal is not a
+  // fault and "try again in a moment" is the wrong advice — retrying fails the
+  // same way until he turns AI on. Say exactly that, on every screen that
+  // routes a failure through here, whatever it was trying to do.
+  const aiOff = aiConsentErrorText(err);
+  if (aiOff) return { title: AI_CONSENT_OFF_TITLE, body: aiOff, kind: 'unknown', code: null };
   const kind = classifyError(err);
   const code = errorCode(err);
   // A reference code is only useful where support would act on it, and only

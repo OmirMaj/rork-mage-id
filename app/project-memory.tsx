@@ -28,6 +28,7 @@ import {
   PROJECT_MEMORY_SYNC_SCOPE, type MemorySyncStatus,
 } from '@/utils/projectMemory';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { AI_CONSENT_DECLINED_CODE, AI_CONSENT_OFF_MESSAGE } from '@/utils/aiConsent';
 import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -187,7 +188,11 @@ function ProjectMemoryInner() {
                 MAGE has read {docs.length} record{docs.length === 1 ? '' : 's'} from this project: RFIs, daily reports,
                 change orders, submittals and punch items. Ask why something happened or how it was handled.
               </Text>
-              {syncStatus && syncStatus.total > 0 && syncStatus.indexed < syncStatus.total ? (
+              {syncStatus?.code === AI_CONSENT_DECLINED_CODE ? (
+                // AI features are off: the index was never asked, so there is
+                // no "N of M indexed" to state. Say what is off instead.
+                <Text style={styles.indexNote} testID="memory-index-status">{AI_CONSENT_OFF_MESSAGE}</Text>
+              ) : syncStatus && syncStatus.total > 0 && syncStatus.indexed < syncStatus.total ? (
                 <Text style={styles.indexNote} testID="memory-index-status">
                   {syncStatus.indexed} of {syncStatus.total} indexed for meaning search
                   {syncStatus.reason ? ` — ${syncStatus.reason}` : ' so far'}. Meaning search covers only indexed records; when nothing there matches, every record is searched by keyword.
