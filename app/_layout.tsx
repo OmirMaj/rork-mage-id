@@ -51,6 +51,7 @@ import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import AiConsentSheet from "@/components/AiConsentSheet";
+import { AiConsentAccountSync } from "@/components/AiConsentAccountSync";
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { Colors, setCustomPrimary, legacyChrome } from "@/constants/colors";
 import { THEME_PRESETS } from "@/types";
@@ -2005,6 +2006,8 @@ export default Sentry.wrap(function RootLayout() {
                               <AlertHost />
                               {/* App Store 5.1.2(i): asks once before any AI request sends data. Renders nothing. */}
                               <AiConsentSheet />
+                              {/* Tells the account the answer to the AI question; the server reads it. Renders nothing. */}
+                              <AiConsentAccountSync />
                               <NailItToastHost />
                             </ShellDockTenantScope>
                             </SearchProvider>

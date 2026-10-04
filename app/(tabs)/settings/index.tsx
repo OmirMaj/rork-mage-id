@@ -64,6 +64,7 @@ import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
 import { SkillsProfileRow } from '@/components/learn/SkillsProfileRow';
+import { AiAccountSettingsLine } from '@/components/AiAccountNote';
 import { AI_CONSENT_OFF_ROW, declineAiConsent, ensureAiConsent, getAiConsentState, loadAiConsent, resetAiConsent, subscribeAiConsent, type AiConsentState } from '@/utils/aiConsent';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -177,8 +178,10 @@ function privacyFaqAnswer(): string {
     return `${base} When you use an AI feature, what you send it goes to our AI providers only to answer that request.`;
   }
   // "In this app": the answer gates the app's own AI requests. A weekly client
-  // recap or Ask Your Home set up for a job runs on our server and does not
-  // read it (utils/aiConsentCore AI_CONSENT_OFF_ROW says so on the row itself).
+  // recap or Ask Your Home set up for a job runs on our server, which reads the
+  // ACCOUNT's copy of the answer (supabase/functions/_shared/aiConsent.ts); the
+  // row itself says so (utils/aiConsentCore AI_CONSENT_OFF_ROW) and the line
+  // beneath it states what the account says (components/AiAccountNote).
   return `${base} In this app, AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings → AI features.`;
 }
 
@@ -2045,6 +2048,7 @@ export default function SettingsScreen() {
                       ? AI_CONSENT_OFF_ROW
                       : 'You\u2019ll be asked the first time you use an AI feature.'}
                 </Text>
+                <AiAccountSettingsLine />
               </View>
               <View style={styles.rowRight}>
                 <Text style={styles.rowValue}>{aiConsentState === 'granted' ? 'On' : 'Off'}</Text>

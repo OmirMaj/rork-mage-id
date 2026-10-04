@@ -25,8 +25,12 @@
 //      (derived from their outbound hosts, so a new vendor fails this until it
 //      is disclosed), says what is sent, links the privacy policy; the storage
 //      key sits under an app prefix (the tenant sweep wipes it). The copy
-//      claims only what the gate controls: "from this app", and the Off row
-//      names the two server-side client features that keep using AI.
+//      claims only what the gate controls: "from this app". The two server
+//      features that use AI with no tap (the weekly client recap, Ask Your
+//      Home) are named in the question, and the Off row says they follow the
+//      answer saved on the account — true only while those functions read it
+//      (supabase/functions/_shared/aiConsent.ts), which is checked here and,
+//      call by call, in scripts/validate-ai-consent-server.ts.
 //   C. EVERY ENTRY POINT: every client call (supabase.functions.invoke,
 //      invokeWithTimeout, fetch) to a function that reaches an AI vendor has
 //      ensureAiConsent / requireAiConsent earlier in its enclosing async
@@ -370,6 +374,13 @@ function partB() {
 
   ok('"from this app": the question claims only what the gate controls',
     AI_CONSENT_COPY.use.includes('Nothing is sent from this app until you allow it') && !/Nothing is sent until/.test(msg));
+  // The two server paths that send job records to an AI vendor with no tap in
+  // the app. While either function reaches a vendor, the question must say so.
+  const serverAi = aiFunctions();
+  ok('the weekly recap function reaches an AI vendor → the question names the "weekly client recap", sent "with no tap from you"',
+    !serverAi.has('homeowner-weekly-digest') || (/weekly client recap/.test(msg) && /with no tap from you/.test(msg)));
+  ok('portal-ask-home reaches an AI vendor → the question names "Ask Your Home", sent "with no tap from you"',
+    !serverAi.has('portal-ask-home') || (/Ask Your Home/.test(msg) && /with no tap from you/.test(msg)));
 
   const sheet = stripComments(read('components/AiConsentSheet.tsx'));
   ok('the host asks through askAiConsentOnce (the answers pressed in A2), with the app’s own alert',
@@ -674,19 +685,29 @@ function partC() {
     /if \(getAiConsentState\(\) === 'granted'\) return;\s*void resetAiConsent\(\)\.then\(\(\) => ensureAiConsent\(\)\);/.test(settings)
     && !/grantAiConsent/.test(settings));
   // Round-3 review: "Nothing is sent to an AI provider." is a fact the phone
-  // cannot know. The answer is stored on the phone; the Friday recap cron and
-  // Ask Your Home run on the server and never read it. The Off row claims the
-  // app's own AI buttons, and names the server features that keep running —
-  // for as long as those functions reach an AI vendor (derived from their hosts).
+  // cannot know: the Friday recap cron and Ask Your Home run on the server.
+  // Lane AICONSENT: the answer is now also stored on the account, and those two
+  // functions read it (supabase/functions/_shared/aiConsent.ts) right before
+  // any AI call. So the Off row claims the app's own AI buttons, and says the
+  // server features FOLLOW THE ANSWER SAVED ON THE ACCOUNT — a sentence that is
+  // only true while each function that reaches an AI vendor (derived from its
+  // hosts) imports the shared gate and calls it. It never says the account was
+  // told: the line beneath the row (components/AiAccountNote) states that.
   ok('Settings → AI features, Off: the row is AI_CONSENT_OFF_ROW',
     /: aiConsentState === 'declined'\s*\? AI_CONSENT_OFF_ROW\s*:/.test(settings));
   ok('the Off row claims only the app’s own AI buttons',
     AI_CONSENT_OFF_ROW.startsWith('AI buttons in this app send nothing to an AI provider until you turn this on.'));
-  ok('the weekly recap cron reaches an AI vendor → the Off row says it still uses AI, and where to turn it off',
+  const readsAccountAnswer = (fn: string): boolean => {
+    const src = stripComments(read(`supabase/functions/${fn}/index.ts`));
+    return /import \{[^}]*\breadOwnerAiConsent\b[^}]*\} from ['"]\.\.\/_shared\/aiConsent\.ts['"];/.test(src) && /\bawait readOwnerAiConsent\(/.test(src);
+  };
+  ok('the weekly recap cron reaches an AI vendor → it reads the account’s answer (_shared/aiConsent), and the Off row says the recap follows it',
     !AI.has('homeowner-weekly-digest')
-    || (/weekly client recap/.test(AI_CONSENT_OFF_ROW) && /still uses AI on our server/.test(AI_CONSENT_OFF_ROW) && /Turn the recap off on that job’s Client portal screen\./.test(AI_CONSENT_OFF_ROW)));
-  ok('portal-ask-home reaches an AI vendor → the Off row names Ask Your Home',
-    !AI.has('portal-ask-home') || /Ask Your Home/.test(AI_CONSENT_OFF_ROW));
+    || (readsAccountAnswer('homeowner-weekly-digest') && /weekly client recap/.test(AI_CONSENT_OFF_ROW) && /follow the answer saved on your account/.test(AI_CONSENT_OFF_ROW)));
+  ok('portal-ask-home reaches an AI vendor → it reads the account’s answer (_shared/aiConsent), and the Off row names Ask Your Home',
+    !AI.has('portal-ask-home')
+    || (readsAccountAnswer('portal-ask-home') && /Ask Your Home/.test(AI_CONSENT_OFF_ROW) && /follow the answer saved on your account/.test(AI_CONSENT_OFF_ROW)));
+  ok('the Off row no longer says the server "still uses AI" (the server now obeys the account)', !/still uses AI on our server/.test(AI_CONSENT_OFF_ROW));
   ok('…and that switch exists where the row says: "Send weekly recap" on the Client portal screen',
     /title: 'Client portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send weekly recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
   const blanket = files.filter((f) => !f.startsWith('utils/aiConsent') && /Nothing is sent to an AI provider|Nothing is sent until you allow/.test(stripComments(read(f))));

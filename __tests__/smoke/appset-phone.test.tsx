@@ -33,6 +33,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
+import { AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
 
 function collectText(node: unknown, out: string[] = []): string[] {
   if (node == null) return out;
@@ -70,7 +71,7 @@ afterEach(() => {
 describe('APPSET phone golden (iOS 390, text)', () => {
   it('/settings reads exactly as recorded', async () => {
     await primeWorld('empty');
-    await AsyncStorage.removeItem('mageid_ai_consent_v1');
+    await AsyncStorage.removeItem(AI_CONSENT_STORAGE_KEY);
     const tree = await mountRouteChecked('/settings');
     expect(lines(tree)).toMatchSnapshot();
   });
