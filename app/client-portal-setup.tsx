@@ -36,6 +36,7 @@ import {
   PORTAL_PROPOSAL_ACCEPTANCE_LIVE, PROPOSAL_ACCEPTANCE_OFF_REASON,
   PORTAL_PASSCODE_MIN_LENGTH, PORTAL_PASSCODE_MAX_LENGTH,
   portalInviteSectionsSentence, portalInviteFallbackText,
+  portalResetOutcome, type PortalKeyReadBack,
 } from '@/utils/portalSnapshot';
 import { isSampleProject } from '@/utils/sampleGuard';
 import { isOfflineNow } from '@/hooks/useOnline';
@@ -97,6 +98,19 @@ const LEGACY_NO_EXPIRY_PREF = 'none';
  * here with this reason, and the screen says it at the top.
  */
 const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
+
+/**
+ * Resets this app session could not confirm either way: project id -> the key
+ * this device held BEFORE the rotate call. The rotate commits on the server
+ * before its answer travels, so a lost answer leaves the link on screen
+ * possibly dead. While a project is in here the screen offers "Check link"
+ * (never a second reset) and Copy / Share / invites stop, and the check
+ * compares the server's key with the one recorded here, so a project refetch
+ * in between cannot make a real reset look like none. Module-level so leaving
+ * the screen and coming back keeps it; an app restart does not (handoff note).
+ * The key is never logged.
+ */
+const UNCONFIRMED_RESETS = new Map<string, string>();
 
 /**
  * Who this account is to the project, for the purpose of the share link.
@@ -1001,6 +1015,26 @@ function ClientPortalSetupScreenInner() {
     return true;
   }, [linkPending, linkOwnerOnly, linkNeedsSave, linkHealFailed]);
 
+  // PORTALFIX: a reset whose answer never came back. Until the server has been
+  // asked which key it holds, the link on screen may be dead, so the same
+  // three doors stop here too. Returns true when it took over.
+  const [, bumpResetUnconfirmed] = useState(0);
+  const resetUnconfirmed = !!id && UNCONFIRMED_RESETS.has(id);
+  const markResetUnconfirmed = useCallback((heldBefore: string | null) => {
+    if (!id) return;
+    if (heldBefore === null) UNCONFIRMED_RESETS.delete(id);
+    else UNCONFIRMED_RESETS.set(id, heldBefore);
+    bumpResetUnconfirmed(n => n + 1);
+  }, [id]);
+  const warnIfResetUnconfirmed = useCallback((): boolean => {
+    if (!resetUnconfirmed) return false;
+    showAlert(
+      'Check the link first',
+      'We couldn\u2019t confirm whether your last reset went through, so this link may no longer work. Tap Check link under Portal link, then copy or send it.',
+    );
+    return true;
+  }, [resetUnconfirmed]);
+
   // The full base64-hash URL is kept around as a backup for clients
   // whose snapshot cache hasn't propagated yet (e.g., right after
   // creation). Not currently used in the UI but available for debug.
@@ -1203,6 +1237,10 @@ function ClientPortalSetupScreenInner() {
           shareTradeContacts: project?.clientPortal?.shareTradeContacts,
         },
       });
+      // …and the screen holds the same trimmed code it saved, so a trailing
+      // space (iOS adds one after a suggestion) does not leave the screen
+      // "unsaved" forever or put the space in the passcode reminder.
+      setPortal(p => (p.passcode && p.passcode !== p.passcode.trim() ? { ...p, passcode: p.passcode.trim() } : p));
       // The provider republishes the lite snapshot for this job too, so the
       // saved switches reach the homeowner even if he leaves right away.
       requestPortalPublish(id);
@@ -1239,7 +1277,7 @@ function ClientPortalSetupScreenInner() {
     // the GC does not treat the link as safe to forward.
     showAlert(
       'Now share the passcode separately',
-      `Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode}\n\nThe link is still the key to the project. The passcode is a light extra step on the page, so share the link only with your client.`,
+      `Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode.trim()}\n\nThe link is still the key to the project. The passcode is a light extra step on the page, so share the link only with your client.`,
     );
   }, [portal.requirePasscode, portal.passcode]);
 
@@ -1362,6 +1400,7 @@ function ClientPortalSetupScreenInner() {
     // over an empty clipboard.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
+    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1371,7 +1410,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink, warnIfLinkPending, warnIfExpired, warnIfSample]);
+  }, [portalLink, warnIfLinkPending, warnIfResetUnconfirmed, warnIfExpired, warnIfSample]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
@@ -1385,10 +1424,11 @@ function ClientPortalSetupScreenInner() {
     // link cannot approve a change order.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
+    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     setShowSendModal(true);
     if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
-  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample]);
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfResetUnconfirmed, warnIfSample]);
   // The reset's "Send new link" runs on a LATER tap, after the fresh key has
   // re-rendered into portalLink — so it calls the newest handleShare, never
   // the one the reset closed over (which still holds the dead link).
@@ -1409,6 +1449,7 @@ function ClientPortalSetupScreenInner() {
     // a change order.
     if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
+    if (warnIfResetUnconfirmed()) return;
     if (warnIfExpired()) return;
     // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
     // truncates it. The static portal HTML fetches the snapshot from
@@ -1507,7 +1548,7 @@ function ClientPortalSetupScreenInner() {
       console.warn('[ClientPortal] email fallback failed:', fallback.error);
       showAlert('Email not sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample, livePortal]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfResetUnconfirmed, warnIfSample, livePortal]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -1580,43 +1621,93 @@ function ClientPortalSetupScreenInner() {
   // It is NEVER queued for later: it changes who can open the client's page,
   // so it happens on the server now or not at all, and offline says so.
   const [resettingLink, setResettingLink] = useState(false);
+
+  // The fresh key replaces the old one on this device (screen state AND the
+  // saved portal) before the next project sync — the RPC's contract — so
+  // nothing here pushes the dead key back or keeps showing it.
+  const adoptRotated = useCallback((serverToken: string) => {
+    const saved = project?.clientPortal;
+    if (!id || !saved) return;
+    setPortal(p => ({ ...p, accessToken: serverToken }));
+    updateProject(id, { clientPortal: { ...saved, accessToken: serverToken } });
+  }, [id, project?.clientPortal, updateProject]);
+
+  const announceLinkReset = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert(
+      'Link reset',
+      'The old link no longer opens your client’s portal. Send them the new one.',
+      [
+        { text: 'Later', style: 'cancel' },
+        { text: 'Send new link', onPress: () => handleShareRef.current() },
+      ],
+    );
+  }, []);
+
+  // When the rotate call does not come back clean (an error, an empty answer,
+  // a dropped connection) the screen does NOT know whether the old link died:
+  // the server commits the new key before its answer travels. So it asks the
+  // server which key it holds and says only what that proves
+  // (portalResetOutcome). "Check link" runs the same read later.
+  const settleResetFromServer = useCallback(async (heldBefore: string) => {
+    if (!id) return;
+    let readBack: PortalKeyReadBack = { ok: false };
+    try {
+      readBack = await readServerPortalToken(id);
+    } catch {
+      // stays a failed read
+    }
+    const outcome = portalResetOutcome(heldBefore, readBack);
+    if (outcome.kind === 'reset') {
+      adoptRotated(outcome.token);
+      markResetUnconfirmed(null);
+      announceLinkReset();
+      return;
+    }
+    if (outcome.kind === 'not-reset') {
+      markResetUnconfirmed(null);
+      showAlert('Link not reset', 'We checked with the server and it still has the same link, so your client’s old link still works. Check your connection and try again.');
+      return;
+    }
+    // (No held key means no link on screen that could be dead: the link is
+    // still being fetched and Copy / Share are already locked for that.)
+    if (heldBefore) markResetUnconfirmed(heldBefore);
+    showAlert(
+      'Reset not confirmed',
+      'We couldn’t reach the server to confirm whether the link was reset, so your client’s old link may no longer work. When you have a connection, tap Check link under Portal link before you copy or send it.',
+    );
+  }, [id, adoptRotated, markResetUnconfirmed, announceLinkReset]);
+
   const performLinkReset = useCallback(async () => {
     if (!id || !project?.clientPortal?.enabled) return;
     if (isOfflineNow()) {
-      showAlert('You\u2019re offline', 'Resetting the link needs a connection. Nothing changed: your client\u2019s current link still works.');
+      // Nothing was sent, so this one is known.
+      showAlert('You’re offline', 'Resetting the link needs a connection. Nothing was sent, so your client’s link is unchanged.');
       return;
     }
+    // The key this device holds now: what the server's key is compared with
+    // if the answer goes missing.
+    const heldBefore = portal.accessToken || project.clientPortal.accessToken || '';
     setResettingLink(true);
     try {
-      const { data, error } = await supabase.rpc('portal_rotate_access_token', { p_project_id: id });
-      if (error || typeof data !== 'string' || !data) {
-        showAlert('Link not reset', 'The server didn\u2019t confirm the reset, so your client\u2019s old link still works. Check your connection and try again.');
+      let rotated: string | null = null;
+      try {
+        const { data, error } = await supabase.rpc('portal_rotate_access_token', { p_project_id: id });
+        if (!error && typeof data === 'string' && data) rotated = data;
+      } catch {
+        // a thrown call is the same "no clean answer" as an error
+      }
+      if (rotated) {
+        adoptRotated(rotated);
+        markResetUnconfirmed(null);
+        announceLinkReset();
         return;
       }
-      // The RPC's contract: the fresh key replaces the old one on this device
-      // (screen state AND the saved portal) before the next project sync, so
-      // nothing here pushes the dead key back or keeps showing it.
-      const saved = project.clientPortal;
-      const adoptRotated = (serverToken: string) => {
-        setPortal(p => ({ ...p, accessToken: serverToken }));
-        updateProject(id, { clientPortal: { ...saved, accessToken: serverToken } });
-      };
-      adoptRotated(data);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(
-        'Link reset',
-        'The old link no longer opens your client\u2019s portal. Send them the new one.',
-        [
-          { text: 'Later', style: 'cancel' },
-          { text: 'Send new link', onPress: () => handleShareRef.current() },
-        ],
-      );
-    } catch {
-      showAlert('Link not reset', 'The server didn\u2019t confirm the reset, so your client\u2019s old link still works. Check your connection and try again.');
+      await settleResetFromServer(heldBefore);
     } finally {
       setResettingLink(false);
     }
-  }, [id, project?.clientPortal, updateProject]);
+  }, [id, project?.clientPortal, portal.accessToken, adoptRotated, markResetUnconfirmed, announceLinkReset, settleResetFromServer]);
 
   const handleResetLink = useCallback(() => {
     if (warnIfSample()) return;
@@ -1625,15 +1716,38 @@ function ClientPortalSetupScreenInner() {
       showAlert('Save this portal first', 'There is no client link to reset until the portal is saved.');
       return;
     }
+    // No key on this device yet: there is nothing to compare the server's
+    // answer with, so the link is fetched first (same words as Copy / Share).
+    if (warnIfLinkPending()) return;
     if (isOfflineNow()) {
-      showAlert('You\u2019re offline', 'Resetting the link needs a connection. It changes who can open your client\u2019s portal, so it happens on the server right away and is never saved to send later. Try again when you\u2019re back online.');
+      showAlert('You’re offline', 'Resetting the link needs a connection. It changes who can open your client’s portal, so it happens on the server right away and is never saved to send later. Try again when you’re back online.');
       return;
     }
     showAlert('Reset the link?', 'Your client’s old link stops working. Send them the new one.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Reset link', style: 'destructive', onPress: () => { void performLinkReset(); } },
     ]);
-  }, [warnIfSample, ownerOnlyReason, id, project?.clientPortal?.enabled, performLinkReset]);
+  }, [warnIfSample, ownerOnlyReason, id, project?.clientPortal?.enabled, warnIfLinkPending, performLinkReset]);
+
+  // "Check link": after a reset nobody could confirm, ask the server again.
+  // It never rotates — a second reset on top of an unconfirmed one would only
+  // add a second unknown.
+  const handleCheckLink = useCallback(async () => {
+    if (warnIfSample()) return;
+    if (!id) return;
+    const heldBefore = UNCONFIRMED_RESETS.get(id);
+    if (heldBefore === undefined) return;
+    if (isOfflineNow()) {
+      showAlert('You’re offline', 'Checking the link needs a connection. Try again when you’re back online, before you copy or send the link.');
+      return;
+    }
+    setResettingLink(true);
+    try {
+      await settleResetFromServer(heldBefore);
+    } finally {
+      setResettingLink(false);
+    }
+  }, [warnIfSample, id, settleResetFromServer]);
 
   const handleDisablePortal = useCallback(() => {
     showAlert('Turn off the portal?', 'Every client loses access to the portal.', [
@@ -1913,20 +2027,22 @@ function ClientPortalSetupScreenInner() {
               <>
                 <TouchableOpacity
                   style={[styles.generateLinkBtn, (isCollaborator || resettingLink) && styles.generateLinkBtnDisabled]}
-                  onPress={handleResetLink}
+                  onPress={resetUnconfirmed ? handleCheckLink : handleResetLink}
                   disabled={isCollaborator || resettingLink}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Reset link"
+                  accessibilityLabel={resetUnconfirmed ? 'Check link' : 'Reset link'}
                   accessibilityState={{ disabled: isCollaborator || resettingLink, busy: resettingLink }}
                   testID="portal-reset-link-btn"
                 >
                   <Lock size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resettingLink ? 'Resetting\u2026' : 'Reset link'}</Text>
+                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resetUnconfirmed ? (resettingLink ? 'Checking\u2026' : 'Check link') : (resettingLink ? 'Resetting\u2026' : 'Reset link')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.expiryHint} testID="portal-reset-link-hint">
                   {isCollaborator
                     ? 'Only the project owner can reset the client link.'
+                    : resetUnconfirmed
+                      ? 'We couldn\u2019t confirm whether your last reset went through, so the link above may no longer work. Tap Check link before you copy or send it. Needs a connection.'
                     : 'Makes a new link and the old one stops working. Use it if the link reached someone it shouldn\u2019t have, then send the new one to your client. Needs a connection.'}
                 </Text>
               </>

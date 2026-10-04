@@ -2732,6 +2732,37 @@ export function portalInviteFallbackText(args: {
   return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n— ${args.companyName}`;
 }
 
+/** What a read of the server's key came back with (ok:false = the read itself failed). */
+export type PortalKeyReadBack = { ok: true; token: string | null } | { ok: false };
+
+/**
+ * What a Reset link really did, decided from the SERVER, for the case where
+ * the rotate call did not come back clean (an error, an empty answer, a
+ * dropped connection). The rotate commits on the server before its answer
+ * travels, so a lost answer says nothing about whether the old link died.
+ * Only a read of the key the server holds now can say:
+ *
+ *   • 'reset'     — the server holds a key, and it is not the one this device
+ *                   held before the call: the old link is dead, adopt the new.
+ *   • 'not-reset' — the server still holds the very key this device held: the
+ *                   old link provably still works.
+ *   • 'unknown'   — the read failed, came back empty, or there was no held key
+ *                   to compare with. Say neither; ask for a re-check.
+ *
+ * The one rule the screen may not break: "the old link still works" is said
+ * only on 'not-reset'.
+ */
+export function portalResetOutcome(
+  heldBefore: string | null | undefined,
+  readBack: PortalKeyReadBack,
+): { kind: 'reset'; token: string } | { kind: 'not-reset' } | { kind: 'unknown' } {
+  if (!readBack.ok) return { kind: 'unknown' };
+  const now = typeof readBack.token === 'string' ? readBack.token : '';
+  const held = typeof heldBefore === 'string' ? heldBefore : '';
+  if (!now || !held) return { kind: 'unknown' };
+  return now === held ? { kind: 'not-reset' } : { kind: 'reset', token: now };
+}
+
 /**
  * The customer-facing portal origin. ONE definition on the client, mirroring
  * `PORTAL_BASE` in supabase/functions/_shared/portalLinks.ts.
