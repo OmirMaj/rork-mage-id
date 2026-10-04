@@ -207,7 +207,9 @@ serve(async (req) => {
     if (!pdfStoragePath || !projectId) {
       return json({ success: false, error: 'pdfStoragePath and projectId are required' }, 400);
     }
-    log('body_parsed', { pdfStoragePath, projectId, dpi, maxPages, startPage });
+    // The path is request text and is not validated until the ownership check
+    // below, so it is not written to the log (its length is enough to debug with).
+    log('body_parsed', { pdfPathLength: String(pdfStoragePath).length, dpi, maxPages, startPage });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
