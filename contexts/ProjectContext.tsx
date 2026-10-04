@@ -10798,6 +10798,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         if (liveUserIdRef.current !== uid) return;
         if (allMark == null && !marks.has(project.id)) continue;
         if (!project.clientPortal?.enabled || !isPortalOwner(project, uid)) { settle(project.id); continue; }
+        if (isSampleProject(project)) { settle(project.id); continue; } // PORTALFIX: no client-portal post from a sample (utils/sampleGuard)
         // #15: the AIA list is handed over (server-read, gated above), so
         // the pay-app section is built fresh — a sent pay app appears, a
         // recalled one leaves — and it is part of the signature, so a pay

@@ -44,6 +44,7 @@ import type {
   ProjectPhoto, RFI, Warranty, ProjectContract, SelectionCategory, Permit, SavedAIAPayApp, ClientPortalSettings,
 } from '@/types';
 import { buildPortalSnapshot, ownerSafeCloseoutCarry, type PortalSnapshot } from '@/utils/portalSnapshot';
+import { isSampleProject } from '@/utils/sampleGuard';
 import type { CloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { BakedHomePassport } from '@/utils/passport/types';
 
@@ -277,6 +278,9 @@ async function runOnce(input: PortalLiteSyncInput, io: PortalLiteSyncIO): Promis
   if (!project) return 'portal_off';
   const portal = project.clientPortal;
   if (!portal?.enabled || !portal.portalId) return 'portal_off';
+  // PORTALFIX: no client-portal post from a sample (utils/sampleGuard) — the
+  // one choke point every lite publisher (project page, provider pass) shares.
+  if (isSampleProject(project)) return 'portal_off';
   if (!isPortalOwner(project, input.userId)) return 'not_owner';
   // Never publish from a profile that has not loaded (#104).
   if (!input.settingsLoaded) return 'settings_not_loaded';

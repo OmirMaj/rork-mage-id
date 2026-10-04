@@ -775,7 +775,7 @@ export function buildPortalInviteEmailHtml(opts: {
     `
     : `
       ${emailStatRow('Project', projectName)}
-      ${emailStatRow('Live updates for', 'Progress, photos, invoices and messages')}
+      ${emailStatRow('You can see', 'Project overview and messages')}
     `;
 
   // The passcode box is an ATTENTION callout ("keep it private"), so it wears
@@ -806,7 +806,7 @@ export function buildPortalInviteEmailHtml(opts: {
     ` : ''}
     ${emailDivider()}
     <p style="margin:0 0 6px;font-size:14px;color:#4A5159;line-height:1.55;">
-      Everything updates in real time — when ${companyName} adds a photo, sends an invoice, or replies to a message, you'll see it here within seconds. Two-way messaging is built in.
+      When ${companyName} shares a new photo, invoice or update, it shows up the next time you open or refresh your portal. Two-way messaging is built in.
     </p>
     <p style="margin:14px 0 0;font-size:12px;color:#9AA3AD;line-height:1.55;">
       Trouble opening the link? Copy this URL into any browser:<br/>
@@ -815,7 +815,7 @@ export function buildPortalInviteEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Live progress, photos, invoices and messages for ${projectName}. Open it anytime, from any device.`,
+    preheader: `Your private project portal for ${projectName}. Open it anytime, from any device.`,
     eyebrow: 'Project portal',
     title: projectName,
     subtitle: `Live updates from ${companyName}, anytime and from any device.`,
