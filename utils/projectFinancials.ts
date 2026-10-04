@@ -102,11 +102,12 @@ export interface SignedContractLike {
  *     homeowner signs, and the `originalContractValue` stamped on the saved
  *     CO (lane PAYFIX). The estimate stands in ONLY when no contract is
  *     signed, captioned "Estimate (no signed contract yet)", or "…not
- *     checked" when the contract read failed.
+ *     checked" when the contract read did not answer (`contractSumView`).
  *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1
  *     (lane PAYFIX), with the same fallback rule; the source rides on the
- *     application (`payAppContractSumSource`) and prints beside line 1 on the
- *     screen and the PDF whenever it is not the signed contract.
+ *     application (`payAppContractSumSource`) and shows under line 1 on the
+ *     screen. The PDF prints the bare line label: MAGE only knows what is on
+ *     file in MAGE, so it does not tell an owner or lender "no signed contract".
  *   • components/moments-sites/COApproveSheet.tsx, hooks/useProjectPulse.ts.
  *
  * STILL ON THE ESTIMATE, not touched by lane PAYFIX:
@@ -130,31 +131,139 @@ export function resolveContractSum(
 
 /**
  * A contract-sum source as a SCREEN states it (lane PAYFIX): resolveContractSum's
- * two answers, plus `estimate_unread` — the contract read failed, so the
- * estimate stands in and nobody knows whether a signed figure exists. A screen
- * must not print "no signed contract yet" over a read that never answered.
+ * two answers, plus the two cases where "no signed contract yet" would be false:
+ *   `estimate_unread` — the contract read did not answer, so the estimate stands
+ *     in and nobody knows whether a signed figure exists;
+ *   `estimate_signed_no_amount` — a signed contract IS on file but carries no
+ *     usable value (zero, negative, non-finite), so the estimate stands in.
+ * A screen must not print "no signed contract yet" over either.
  */
-export type ContractSumBasis = ContractSumSource | 'estimate_unread';
+export type ContractSumBasis = ContractSumSource | 'estimate_unread' | 'estimate_signed_no_amount';
 
 /** The caption beside an original contract sum, by basis. */
 export const CONTRACT_SUM_BASIS_LABEL: Record<ContractSumBasis, string> = {
   signed_contract: 'Signed contract',
   estimate: 'Estimate (no signed contract yet)',
   estimate_unread: 'Estimate (signed contract not checked)',
+  estimate_signed_no_amount: 'Estimate (signed contract has no amount)',
 };
 
 /**
  * resolveContractSum for a screen that READ the contract: `contract` is the
  * active row, `null` when the project has none on file, `undefined` when the
- * read failed. The estimate is the fallback only when nothing signed exists,
- * and the basis says which case it is.
+ * read did not answer. The estimate is the fallback only when nothing signed
+ * (with an amount) exists, and the basis says which case it is.
  */
 export function contractSumBasis(
   project: Project | null | undefined,
   contract: SignedContractLike | null | undefined,
 ): { value: number; basis: ContractSumBasis; estimateTotal: number } {
   const r = resolveContractSum(project, contract ?? null);
-  return { value: r.value, basis: contract === undefined ? 'estimate_unread' : r.source, estimateTotal: r.estimateTotal };
+  const basis: ContractSumBasis = contract === undefined ? 'estimate_unread'
+    : r.source === 'estimate' && contract?.status === 'signed' ? 'estimate_signed_no_amount'
+    : r.source;
+  return { value: r.value, basis, estimateTotal: r.estimateTotal };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// READING THE CONTRACT, ONCE, FOR EVERY SCREEN THAT PRINTS A CONTRACT SUM
+// (lane PAYFIX, fix round 1).
+//
+// The honesty rule is one sentence: a read that did not answer is NOT "no
+// contract". It used to live as hand-copied wiring in two screens (`r.ok ?
+// r.contract : undefined`, the offline branch, a timeout), where flipping any
+// one of them to `null` printed "Estimate (no signed contract yet)" over a
+// dead network with every guard green. It is here now, pure, and
+// scripts/validate-payfix.ts runs it: the screens only hand it a loader.
+//
+//   row        the active contract
+//   null       the project has none on file (or it is a sample job, which has
+//              no server contract)
+//   undefined  not read: offline, a failed read, a thrown read, or no answer
+//              within the timeout
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** How long a screen waits for the contract read before it says "not checked". */
+export const CONTRACT_READ_TIMEOUT_MS = 6000;
+
+export type ContractReadEvent<T> =
+  | { kind: 'sample' }
+  | { kind: 'offline' }
+  | { kind: 'timeout' }
+  | { kind: 'threw' }
+  | { kind: 'loaded'; result: { ok: boolean; contract?: T | null } };
+
+/** What one read event says about the contract — see the table above. */
+export function contractReadOutcome<T>(event: ContractReadEvent<T>): T | null | undefined {
+  if (event.kind === 'sample') return null;
+  if (event.kind === 'loaded') return event.result.ok ? (event.result.contract ?? null) : undefined;
+  return undefined;
+}
+
+/** A screen's contract read: which project it is for, and what it answered. */
+export interface ContractReadState<T> {
+  projectId: string;
+  contract: T | null | undefined;
+}
+
+/**
+ * Fold one outcome into a screen's read state. An ANSWER (a row or `null`) is
+ * never replaced by "not read": a device that drops offline after a good read
+ * keeps the contract it has.
+ */
+export function nextContractRead<T>(
+  prev: ContractReadState<T> | null,
+  projectId: string,
+  contract: T | null | undefined,
+): ContractReadState<T> {
+  if (prev && prev.projectId === projectId && prev.contract !== undefined && contract === undefined) return prev;
+  return { projectId, contract };
+}
+
+/**
+ * Run one bounded contract read and report every outcome through `onSettle`.
+ * It always settles: at once for a sample job or an offline device (the loader
+ * is never called), otherwise on the answer or on the timeout, whichever comes
+ * first. A LATE answer after a timeout is still delivered, so a screen that
+ * settled as "not checked" corrects itself. Returns the cancel.
+ */
+export function watchContractRead<T>(opts: {
+  sample: boolean;
+  offline: boolean;
+  load: () => Promise<{ ok: boolean; contract?: T | null }>;
+  onSettle: (contract: T | null | undefined) => void;
+  timeoutMs?: number;
+}): () => void {
+  if (opts.sample) { opts.onSettle(contractReadOutcome<T>({ kind: 'sample' })); return () => {}; }
+  if (opts.offline) { opts.onSettle(contractReadOutcome<T>({ kind: 'offline' })); return () => {}; }
+  let live = true;
+  const timer = setTimeout(() => {
+    if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'timeout' }));
+  }, opts.timeoutMs ?? CONTRACT_READ_TIMEOUT_MS);
+  let read: Promise<{ ok: boolean; contract?: T | null }>;
+  try { read = opts.load(); } catch (err) { read = Promise.reject(err); }
+  read.then(
+    (result) => { clearTimeout(timer); if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'loaded', result })); },
+    () => { clearTimeout(timer); if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'threw' })); },
+  );
+  return () => { live = false; clearTimeout(timer); };
+}
+
+/**
+ * Everything a screen shows about an original contract sum, from its read
+ * state: the figure, its basis, and the caption. THE CAPTION IS NULL UNTIL THE
+ * READ FOR THIS PROJECT HAS SETTLED — a screen renders `caption` and nothing
+ * else, so it cannot state a source it has not checked.
+ */
+export function contractSumView<T extends SignedContractLike>(
+  project: Project | null | undefined,
+  read: ContractReadState<T> | null | undefined,
+  projectId: string | null | undefined,
+): { value: number; basis: ContractSumBasis; estimateTotal: number; settled: boolean; contract: T | null | undefined; caption: string | null } {
+  const settled = !!projectId && !!read && read.projectId === projectId;
+  const contract = settled ? read!.contract : undefined;
+  const r = contractSumBasis(project, contract);
+  return { ...r, settled, contract, caption: settled ? CONTRACT_SUM_BASIS_LABEL[r.basis] : null };
 }
 
 /**

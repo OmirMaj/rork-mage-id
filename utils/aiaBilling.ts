@@ -18,9 +18,10 @@ import { roundCents, retainageOnWorkValue, billedAmountForLine } from '@/utils/i
 // G702 line 1 reads the SIGNED contract (lane PAYFIX) through the one resolver
 // the portal and the change-order screen use.
 import {
-  resolveContractSum, CONTRACT_SUM_BASIS_LABEL, type ContractSumBasis, type SignedContractLike,
+  resolveContractSum, contractSumBasis, CONTRACT_SUM_BASIS_LABEL,
+  type ContractSumBasis, type SignedContractLike, type ContractReadState,
 } from '@/utils/projectFinancials';
-import { calendarDayOf } from '@/utils/calendarDate';
+import { calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
 // The namespaced key an approved change order rides on an invoice line, so a
 // CO billed through either entry point lands on the right G703 row.
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
@@ -232,9 +233,10 @@ export interface AIAPayApplication {
   sovBasis?: AIASovBasis;
 
   /**
-   * Where G702 line 1 came from — see payAppContractSumSource. Undefined on a
-   * record that cannot prove its source (older saves, hand-built tests), and
-   * the form then prints the bare line label it always printed.
+   * Where G702 line 1 came from — see payAppContractSumSource. It rides on a
+   * freshly seeded application so a refresh can tell "the contract was not
+   * read" from an answer (mergeRefreshedContract). It is not persisted and
+   * never printed: the screen derives its caption live (payAppLineOneView).
    */
   originalContractSumSource?: PayAppContractSumSource;
 }
@@ -246,8 +248,19 @@ export interface AIAPayApplication {
 // certificate a lender funds against, while the contract the owner signed may
 // carry a negotiated figure. It now reads `resolveContractSum`: the signed
 // contract, else the estimate. The estimate is a fallback ONLY when there is no
-// signed contract, and then the line SAYS so; when the contract could not be
-// read at all (offline), it says that instead of claiming there is none.
+// signed contract, and then the SCREEN says so under the line; when the
+// contract could not be read at all (offline), it says that instead of
+// claiming there is none.
+//
+// AN UNREAD CONTRACT NEVER CHANGES LINE 1 (fix round 1). "Not read" is not an
+// answer, so it can neither put the estimate over a signed figure on refresh
+// (mergeRefreshedContract) nor stand once the answer arrives late
+// (applyContractAnswerToLineOne).
+//
+// THE PDF PRINTS NO SOURCE NOTE. The caption is for the GC, on the screen. On
+// the certificate it would tell an owner and a lender "no signed contract"
+// when MAGE only knows none is on file in MAGE, and it would change the
+// reprint of certificates already saved, locked or paid.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -260,11 +273,21 @@ export interface AIAPayApplication {
  */
 export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract';
 
-/** The words beside line 1, on the screen and (except for a signed contract) on
- *  the PDF — the change-order screen's captions plus the reopened-record case. */
+/** The words under line 1 on the screen — the change-order screen's captions
+ *  plus the reopened-record case. */
 export const PAY_APP_CONTRACT_SUM_LABEL: Record<PayAppContractSumSource, string> = {
   ...CONTRACT_SUM_BASIS_LABEL,
   estimate_not_contract: 'Estimate (differs from the signed contract)',
+};
+
+/** The same, for a KPI cell too narrow for the full caption (seven cells in a
+ *  row on a laptop cut it mid-hedge). The full caption sits on the G702 card. */
+export const PAY_APP_CONTRACT_SUM_SHORT: Record<PayAppContractSumSource, string> = {
+  signed_contract: 'Signed contract',
+  estimate: 'Estimate',
+  estimate_unread: 'Estimate',
+  estimate_signed_no_amount: 'Estimate',
+  estimate_not_contract: 'Estimate',
 };
 
 /** Everything the pay app reads off the project's active contract. Structural,
@@ -290,11 +313,82 @@ export function payAppContractSumSource(
   project: Project | null | undefined,
   contract: SignedContractLike | null | undefined,
 ): PayAppContractSumSource | undefined {
-  const r = resolveContractSum(project, contract ?? null);
-  if (contract === undefined) return sameCents(lineOne, r.estimateTotal) ? 'estimate_unread' : undefined;
-  if (sameCents(lineOne, r.value)) return r.source;
-  if (r.source === 'signed_contract' && sameCents(lineOne, r.estimateTotal)) return 'estimate_not_contract';
+  const r = contractSumBasis(project, contract);
+  if (sameCents(lineOne, r.value)) return r.basis;
+  if (r.basis === 'signed_contract' && sameCents(lineOne, r.estimateTotal)) return 'estimate_not_contract';
   return undefined;
+}
+
+/**
+ * What the screen shows about line 1, from its contract read state. NOTHING is
+ * claimed until the read for this project has settled: `caption` and `short`
+ * are null before that, and when the figure has no provable source. The screen
+ * renders these two strings and derives nothing itself.
+ */
+export function payAppLineOneView(
+  lineOne: number | null | undefined,
+  project: Project | null | undefined,
+  read: ContractReadState<SignedContractLike> | null | undefined,
+  projectId: string | null | undefined,
+): { source: PayAppContractSumSource | undefined; caption: string | null; short: string | null } {
+  const settled = !!projectId && !!read && read.projectId === projectId;
+  const source = settled && typeof lineOne === 'number'
+    ? payAppContractSumSource(lineOne, project, read!.contract)
+    : undefined;
+  return {
+    source,
+    caption: source ? PAY_APP_CONTRACT_SUM_LABEL[source] : null,
+    short: source ? PAY_APP_CONTRACT_SUM_SHORT[source] : null,
+  };
+}
+
+/**
+ * A contract ANSWER that arrives after a new, never-saved period was seeded
+ * without one (the read timed out, or the device was offline): put line 1 on
+ * the figure resolveContractSum gives now, with its source and the contract
+ * sum to date that follows from it. Line 1 is not editable, so nothing the GC
+ * typed is lost. `undefined` (still not read) returns the application
+ * untouched — the same object, so a caller's state does not churn.
+ */
+export function applyContractAnswerToLineOne(
+  app: AIAPayApplication,
+  project: Project | null | undefined,
+  contract: SignedContractLike | null | undefined,
+): AIAPayApplication {
+  if (contract === undefined) return app;
+  const originalContractSum = roundCents(resolveContractSum(project, contract).value);
+  const originalContractSumSource = payAppContractSumSource(originalContractSum, project, contract);
+  if (sameCents(app.originalContractSum, originalContractSum) && app.originalContractSumSource === originalContractSumSource) return app;
+  return {
+    ...app,
+    originalContractSum,
+    originalContractSumSource,
+    contractSumToDate: roundCents(originalContractSum + app.netChangeByCO),
+  };
+}
+
+/**
+ * The sentence the refresh confirmation adds about line 1, so the GC is told
+ * BEFORE he taps: it stays (the contract could not be checked), or it moves
+ * from one figure to another and why. Empty when line 1 will not change.
+ */
+export function refreshLineOneNotice(
+  prev: AIAPayApplication,
+  fresh: AIAPayApplication,
+  money: (n: number) => string,
+): string {
+  if (fresh.originalContractSumSource === 'estimate_unread') {
+    return 'The original contract sum stays as it is, because the signed contract could not be checked just now. Refresh again when you are back online.';
+  }
+  if (sameCents(prev.originalContractSum, fresh.originalContractSum)) return '';
+  const why = fresh.originalContractSumSource ? ` (${PAY_APP_CONTRACT_SUM_LABEL[fresh.originalContractSumSource].toLowerCase()})` : '';
+  return `The original contract sum changes from ${money(prev.originalContractSum)} to ${money(fresh.originalContractSum)}${why}.`;
+}
+
+/** A bare, real 'YYYY-MM-DD' — and nothing else. */
+function bareCalendarDay(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) && parseCalendarDay(v) ? v : null;
 }
 
 /** The header fields a G702 repeats every period. */
@@ -313,6 +407,10 @@ export interface PayAppHeaderSeed {
  * signed contract (the homeowner's typed signing name; the day it was signed),
  * else the project's primary contact for the owner. A draft or sent contract
  * is not a contract — it supplies no date and no owner name.
+ *
+ * The contract date field is free text on the screen. A previous period's
+ * value is carried only when it is a bare, real YYYY-MM-DD; anything else
+ * ("March 28") is skipped rather than parsed into an invented year.
  */
 export function seedPayAppHeader(
   prior: { ownerName?: string; contractDate?: string; architectName?: string } | null | undefined,
@@ -324,7 +422,7 @@ export function seedPayAppHeader(
     || signed?.homeownerSignature?.name?.trim()
     || project?.primaryContact?.name?.trim()
     || '';
-  const contractDate = calendarDayOf(prior?.contractDate)
+  const contractDate = bareCalendarDay(prior?.contractDate)
     ?? calendarDayOf(signed?.signedAt ?? signed?.homeownerSignature?.signedAt)
     ?? undefined;
   const architectName = prior?.architectName?.trim() || undefined;
@@ -1971,14 +2069,24 @@ export function mergeRefreshedContract(
   // the GC ordered moves.
   const appended = fresh.lines.filter(l => !claimed.has(l.id) && !prev.lines.some(p => p.id === l.id));
 
+  // AN UNREAD CONTRACT NEVER CHANGES LINE 1 (lane PAYFIX, fix round 1). A
+  // refresh seeded while the contract could not be read carries the ESTIMATE
+  // as its line 1; taking it would put the estimate over a signed figure on a
+  // saved certificate. Line 1 and its source stay, and the contract sum to
+  // date is that line plus the refreshed change orders.
+  const contractUnread = fresh.originalContractSumSource === 'estimate_unread';
+  const originalContractSum = contractUnread ? prev.originalContractSum : fresh.originalContractSum;
+
   return {
     ...prev,
     // The three contract scalars are the refresh — and line 1's source with
     // them, so a refreshed figure never keeps the old figure's label.
-    originalContractSum: fresh.originalContractSum,
-    originalContractSumSource: fresh.originalContractSumSource,
+    originalContractSum,
+    originalContractSumSource: contractUnread ? prev.originalContractSumSource : fresh.originalContractSumSource,
     netChangeByCO: fresh.netChangeByCO,
-    contractSumToDate: fresh.contractSumToDate,
+    contractSumToDate: contractUnread
+      ? roundCents(prev.originalContractSum + fresh.netChangeByCO)
+      : fresh.contractSumToDate,
     sovBasis: fresh.sovBasis ?? prev.sovBasis,
     // Recomputed from the refreshed change-order set by the caller; a frozen
     // summary would restate a table the refresh has just changed.
@@ -2210,15 +2318,6 @@ export function buildAIAPayAppHtml(
   );
 
   const coSummary = app.changeOrderSummary;
-
-  // Line 1 names its source whenever it is NOT the signed contract — the
-  // owner and the lender read this page, and an estimate printed as the
-  // contract sum is the defect lane PAYFIX fixed. A signed figure needs no
-  // note; an unprovable one (older record) prints the bare label it always did.
-  const lineOneSource = app.originalContractSumSource;
-  const lineOneNote = lineOneSource && lineOneSource !== 'signed_contract'
-    ? ` <span style="color:#666;font-weight:400;">&mdash; ${escapeHtml(PAY_APP_CONTRACT_SUM_LABEL[lineOneSource])}</span>`
-    : '';
 
   const logoBlock = branding.logoUri
     ? `<img src="${escapeHtml(branding.logoUri)}" class="logo" alt="logo" />`
@@ -2557,7 +2656,7 @@ export function buildAIAPayAppHtml(
   <table class="cover">
     <tbody>
       <tr>
-        <td class="line-label" style="width:70%;">1. Original Contract Sum${lineOneNote}</td>
+        <td class="line-label" style="width:70%;">1. Original Contract Sum</td>
         <td class="num">$ ${fmt(app.originalContractSum)}</td>
       </tr>
       <tr>

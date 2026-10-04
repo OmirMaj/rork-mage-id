@@ -77,9 +77,12 @@ import {
   aiaPayableNow,
   certifiedPayLinkNeedsRemint,
   mergeRemintedPayLink,
-  // Lane PAYFIX: where G702 line 1 came from, and the words that say so.
-  payAppContractSumSource,
-  PAY_APP_CONTRACT_SUM_LABEL,
+  // Lane PAYFIX: what the screen says about where G702 line 1 came from, a
+  // late contract answer applied to a never-saved seed, and the refresh
+  // confirmation's sentence about line 1.
+  payAppLineOneView,
+  applyContractAnswerToLineOne,
+  refreshLineOneNotice,
 } from '@/utils/aiaBilling';
 // The one definition of "what is still owed on this invoice", net of held
 // retention — the same helper the portal and the invoice screen gate their Pay
@@ -133,11 +136,10 @@ import { payAppLinePayload, payAppPeriodPayload, toCentsD } from '@/utils/tutori
 import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
 import { todayCalendarDay } from '@/utils/calendarDate';
 // Lane PAYFIX: line 1 reads the signed contract; the header seeds from it.
+// The read itself (offline, failed, timed out, sample) is ONE shared, tested
+// rule: watchContractRead. This screen only hands it the loader.
 import { loadActiveContract } from '@/utils/contractEngine';
-
-/** How long a new period waits for the contract read before it seeds from the
- *  estimate and says the contract was not checked (lane PAYFIX). */
-const CONTRACT_READ_TIMEOUT_MS = 6000;
+import { watchContractRead, nextContractRead, type ContractReadState } from '@/utils/projectFinancials';
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
 function fmtG703(n: number): string {
@@ -272,24 +274,22 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   // settles on every path: a row, `null` (none on file, or a sample job, which
   // has no server contract), or `undefined` (offline, a failed read, or no
   // answer within CONTRACT_READ_TIMEOUT_MS — line 1 then says the contract was
-  // not checked rather than claiming there is none).
-  const [contractRead, setContractRead] = useState<{ projectId: string; contract: ProjectContract | null | undefined } | null>(null);
+  // not checked rather than claiming there is none). An unread contract never
+  // changes line 1: see the late-answer effect and refreshFromContract below.
+  const [contractRead, setContractRead] = useState<ContractReadState<ProjectContract> | null>(null);
   const contractProjectId = project?.id;
+  // `offline` is a dependency so a device that opened this screen offline
+  // reads the contract when it comes back. An answer already held is never
+  // replaced by "not read" (nextContractRead).
   useEffect(() => {
     if (!contractProjectId) return;
-    if (sampleJob || isOfflineNow()) {
-      setContractRead({ projectId: contractProjectId, contract: sampleJob ? null : undefined });
-      return;
-    }
-    let live = true;
-    const timer = setTimeout(() => {
-      if (live) setContractRead(prev => (prev?.projectId === contractProjectId ? prev : { projectId: contractProjectId, contract: undefined }));
-    }, CONTRACT_READ_TIMEOUT_MS);
-    void loadActiveContract(contractProjectId)
-      .then(r => { if (live) setContractRead({ projectId: contractProjectId, contract: r.ok ? r.contract : undefined }); })
-      .catch(() => { if (live) setContractRead({ projectId: contractProjectId, contract: undefined }); });
-    return () => { live = false; clearTimeout(timer); };
-  }, [contractProjectId, sampleJob]);
+    return watchContractRead<ProjectContract>({
+      sample: sampleJob,
+      offline,
+      load: () => loadActiveContract(contractProjectId),
+      onSettle: contract => setContractRead(prev => nextContractRead(prev, contractProjectId, contract)),
+    });
+  }, [contractProjectId, sampleJob, offline]);
   const contractSettled = !!contractProjectId && contractRead?.projectId === contractProjectId;
   const activeContract = contractSettled ? contractRead?.contract : undefined;
   /** The line his last edit wrote "This period" on (updateLine /
@@ -569,12 +569,28 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     setCarriedFromAppNumber(priorAIA && priorAIA.lines.length > 0 ? priorAIA.applicationNumber : null);
   }, [invoice, project, settings?.branding, savedForThisInvoice, applicationFromSaved, seedFreshApplication, priorAIA, contractSettled]);
 
-  // Where G702 line 1 came from, for the screen and the PDF (lane PAYFIX).
-  // One rule for a fresh seed and a reopened record (payAppContractSumSource);
-  // nothing is claimed until the contract read has settled.
-  const lineOneSource = app && contractSettled
-    ? payAppContractSumSource(app.originalContractSum, project, activeContract)
-    : undefined;
+  // A CONTRACT ANSWER THAT ARRIVES AFTER THE SEED (lane PAYFIX, fix round 1).
+  // A new period seeded on the timeout (or offline) carries the estimate on
+  // line 1, and a never-saved period has no Refresh chip to correct it. When
+  // the answer does arrive, line 1, its source and the contract sum to date
+  // follow it — line 1 is not editable, so nothing typed is lost. A SAVED
+  // certificate is the record and is never touched here (its caption says the
+  // figure differs, and Refresh is the explicit tap). Keyed on the read alone:
+  // the project is read through a ref so a background project write cannot
+  // re-run this over a period the GC is editing.
+  const lineOneProjectRef = useRef(project);
+  lineOneProjectRef.current = project;
+  const hasSavedRecord = !!savedForThisInvoice;
+  useEffect(() => {
+    if (hasSavedRecord || !contractSettled || activeContract === undefined) return;
+    setApp(prev => (prev ? applyContractAnswerToLineOne(prev, lineOneProjectRef.current, activeContract) : prev));
+  }, [hasSavedRecord, contractSettled, activeContract]);
+
+  // Where G702 line 1 came from, as the screen states it (lane PAYFIX). One
+  // rule for a fresh seed and a reopened record, and nothing is claimed until
+  // the contract read has settled — both inside payAppLineOneView. The PDF
+  // prints no source note.
+  const lineOne = payAppLineOneView(app?.originalContractSum, project, contractRead, contractProjectId);
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
 
@@ -968,7 +984,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     if (!fresh) return;
     showAlert(
       'Refresh the schedule of values?',
-      'On lines the contract still has, the scheduled value and description are replaced with the estimate’s and the change orders approved through this period, and the contract sum to date is recomputed. New estimate lines and change orders are added at the bottom. Everything else stays: lines you added, your item numbers, every amount you entered, both retainage rates, and the architect’s certificate.',
+      // Lane PAYFIX: the last sentence says what happens to line 1 — it stays
+      // when the signed contract could not be checked (mergeRefreshedContract
+      // never lets an unread contract change it), or it names the move.
+      ['On lines the contract still has, the scheduled value and description are replaced with the estimate’s and the change orders approved through this period, and the contract sum to date is recomputed. New estimate lines and change orders are added at the bottom. Everything else stays: lines you added, your item numbers, every amount you entered, both retainage rates, and the architect’s certificate.',
+        refreshLineOneNotice(app, fresh, n => formatMoney(n, 2))].filter(Boolean).join(' '),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1427,7 +1447,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       // The STORED summary wins. A live recompute is only the fallback for a
       // draft that has never been saved.
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: printedCoSummary, originalContractSumSource: lineOneSource },
+        { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
     } catch (err) {
@@ -1436,7 +1456,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, printedCoSummary, lineOneSource]);
+  }, [app, settings?.branding, printedCoSummary]);
 
   // ── Certify: one slide (wave-next W2, moments B4) ──────────────────────
   // "Ready to certify?" keeps its attestation; the certify is a slide that
@@ -1572,7 +1592,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     setGenerating(true);
     try {
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: printedCoSummary, originalContractSumSource: lineOneSource },
+        { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
     } catch (err) {
@@ -1581,7 +1601,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, printedCoSummary, lineOneSource]);
+  }, [app, settings?.branding, printedCoSummary]);
 
   // ── Wave 6d (M1) desktop hooks — above the first early return. ─────────────
   const isDesktop = useIsDesktop();
@@ -1912,14 +1932,14 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       >
         <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>
         <FeatureHeader
-          eyebrow="AIA G702 / G703"
+          eyebrow="AIA-style G702 / G703"
           title="Bill the bank"
-          subtitle="Turn your % complete into the AIA pay app your client&apos;s lender expects. Fills in the contract sum, retainage and schedule of values."
+          subtitle="Turn your % complete into a draft AIA-style pay application. Fills in the contract sum, retainage and schedule of values."
           explainer={{
-            term: 'AIA pay app',
-            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay app format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up.',
+            term: 'AIA-style pay app',
+            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay app format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up. MAGE ID builds a draft in that style. It is not the official AIA document, and some lenders and architects require their own or the official forms.',
             whenToUse: [
-              'Your client or their lender requires AIA-format billing',
+              'Your client or their lender asks for G702/G703-style billing',
               'You need to bill in stages tied to actual completion percentage',
               'Retainage (a % held back until completion) is part of your contract',
             ],
@@ -2522,7 +2542,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             testID="aia-g702-strip"
             style={isDesktop && styles.kpiDesktop}
             cells={[
-              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2), sub: lineOneSource ? PAY_APP_CONTRACT_SUM_LABEL[lineOneSource] : undefined },
+              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2), sub: lineOne.short ?? undefined },
               { key: 'net-co', label: 'Net COs', value: `${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}` },
               { key: 'to-date', label: 'Contract to date', value: formatMoney(app.contractSumToDate, 2) },
               { key: 'completed', label: 'Completed & stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
@@ -2975,8 +2995,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             <Row label="Original contract sum" value={formatMoney(app.originalContractSum, 2)} />
             {/* Lane PAYFIX: where line 1 came from — the signed contract, or
                 the estimate and why. */}
-            {lineOneSource ? (
-              <Text style={styles.sovBasisNote} testID="aia-line1-source">{PAY_APP_CONTRACT_SUM_LABEL[lineOneSource]}</Text>
+            {lineOne.caption ? (
+              <Text style={styles.sovBasisNote} testID="aia-line1-source">{lineOne.caption}</Text>
             ) : null}
             <Row label="Net change by change orders" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
             <Row label="Contract sum to date" value={formatMoney(app.contractSumToDate, 2)} bold />
