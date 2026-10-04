@@ -17,10 +17,16 @@
 //      is stored; granted → called; the web host → always yes, nothing asked
 //      or stored; a stored "no" holds even with no host; require() throws the
 //      honest sentence.
+//   A2. THE THREE ANSWERS, pressed for real on a fake alert (askAiConsentOnce):
+//      only "Allow AI features" is a yes; "Not now" and a dismissed alert are
+//      no; "Privacy policy" opens the policy and asks again; the first answer
+//      wins. A button rewired to a silent grant turns this red.
 //   B. THE QUESTION: names every provider the edge functions actually call
 //      (derived from their outbound hosts, so a new vendor fails this until it
 //      is disclosed), says what is sent, links the privacy policy; the storage
-//      key sits under an app prefix (the tenant sweep wipes it).
+//      key sits under an app prefix (the tenant sweep wipes it). The copy
+//      claims only what the gate controls: "from this app", and the Off row
+//      names the two server-side client features that keep using AI.
 //   C. EVERY ENTRY POINT: every client call (supabase.functions.invoke,
 //      invokeWithTimeout, fetch) to a function that reaches an AI vendor has
 //      ensureAiConsent / requireAiConsent earlier in its enclosing async
@@ -38,15 +44,18 @@ import {
   AI_CONSENT_COPY,
   AI_CONSENT_DECLINED_CODE,
   AI_CONSENT_OFF_MESSAGE,
+  AI_CONSENT_OFF_ROW,
   AI_CONSENT_PRIVACY_URL,
   AI_CONSENT_STORAGE_KEY,
   AiConsentDeclinedError,
   aiConsentAlertMessage,
   aiConsentErrorText,
   aiFailureError,
+  askAiConsentOnce,
   createAiConsentGate,
   isAiConsentDeclinedError,
   parseAiConsent,
+  type AiConsentAlertButton,
   type AiConsentStorage,
 } from '../utils/aiConsentCore';
 import { APP_STORAGE_PREFIXES, DEVICE_SCOPED_KEYS } from '../utils/localCacheKeys';
@@ -225,6 +234,98 @@ async function partA() {
     && parseAiConsent('yes') === 'unknown' && parseAiConsent(null) === 'unknown');
 }
 
+// ── A2. The three answers, pressed ────────────────────────────────────────
+//
+// Round-3 review: the validator only checked that the copy constants appear
+// in the host file. With "Not now" (or a dismissed alert) rewired to a yes,
+// everything stayed green — a silent grant, the exact thing 5.1.2(i) forbids.
+// The answers are now pure logic (utils/aiConsentCore askAiConsentOnce) and
+// each one is pressed here on a fake alert.
+type FakeAlert = { title: string; message: string; buttons: AiConsentAlertButton[]; options: { cancelable: boolean; onDismiss: () => void } };
+function fakeAlert() {
+  const shown: FakeAlert[] = [];
+  const show = (title: string, message: string, buttons: AiConsentAlertButton[], options: { cancelable: boolean; onDismiss: () => void }) => {
+    shown.push({ title, message, buttons, options });
+  };
+  const press = (alertIdx: number, text: string) => {
+    // A button (or a whole alert) that is not there is simply not pressed: the
+    // check that follows then fails by name instead of the run crashing.
+    shown[alertIdx]?.buttons.find((x) => x.text === text)?.onPress();
+  };
+  return { shown, show, press };
+}
+/** Settled value of a promise right now, or 'pending'. */
+async function peek(p: Promise<boolean>): Promise<boolean | 'pending'> {
+  return Promise.race([p, new Promise<'pending'>((r) => setTimeout(() => r('pending'), 5))]);
+}
+
+async function partA2() {
+  console.log('\n── A2. the three answers, pressed on a fake alert ──');
+  const ALLOW = 'Allow AI features', NOT_NOW = 'Not now', POLICY = 'Privacy policy';
+  {
+    const a = fakeAlert();
+    const p = askAiConsentOnce(a.show, () => {});
+    const first = a.shown[0];
+    ok('the alert shows the question: its title, the full message, and exactly three answers',
+      a.shown.length === 1 && first.title === AI_CONSENT_COPY.title && first.message === aiConsentAlertMessage()
+      && first.buttons.map((b) => b.text).join('|') === [POLICY, NOT_NOW, ALLOW].join('|'));
+    ok('"Not now" is the cancel answer; no tap-outside dismissal', first.buttons[1].style === 'cancel' && first.options.cancelable === false);
+    ok('nothing is answered until a button is pressed', (await peek(p)) === 'pending');
+    a.press(0, ALLOW);
+    ok('"Allow AI features" → yes', (await peek(p)) === true);
+  }
+  {
+    const a = fakeAlert();
+    const p = askAiConsentOnce(a.show, () => {});
+    a.press(0, NOT_NOW);
+    ok('"Not now" → no (never a silent grant)', (await peek(p)) === false);
+    a.press(0, ALLOW);
+    ok('the first answer wins: a later press changes nothing', (await p) === false);
+  }
+  {
+    const a = fakeAlert();
+    const p = askAiConsentOnce(a.show, () => {});
+    a.shown[0].options.onDismiss();
+    ok('an alert the system dismisses → no (never a silent grant)', (await peek(p)) === false);
+  }
+  {
+    const a = fakeAlert();
+    let opened = 0;
+    const p = askAiConsentOnce(a.show, () => { opened++; });
+    a.press(0, POLICY);
+    ok('"Privacy policy" opens the policy, is not an answer, and the question comes back',
+      opened === 1 && a.shown.length === 2 && (await peek(p)) === 'pending');
+    a.press(0, ALLOW);
+    a.shown[0].options.onDismiss();
+    ok('the spent first alert can no longer answer', (await peek(p)) === 'pending');
+    a.press(1, NOT_NOW);
+    ok('…and the second alert’s "Not now" → no', (await peek(p)) === false);
+  }
+  {
+    const a = fakeAlert();
+    const p = askAiConsentOnce(a.show, () => { throw new Error('no browser'); });
+    a.press(0, POLICY);
+    a.press(1, ALLOW);
+    ok('a policy link that fails to open still asks again; "Allow" on it → yes', a.shown.length === 2 && (await peek(p)) === true);
+  }
+  // Through the real gate: what each answer STORES.
+  for (const [label, act, want] of [
+    ['"Not now"', (a: ReturnType<typeof fakeAlert>) => a.press(0, NOT_NOW), 'declined'],
+    ['a dismissed alert', (a: ReturnType<typeof fakeAlert>) => a.shown[0].options.onDismiss(), 'declined'],
+    ['"Allow AI features"', (a: ReturnType<typeof fakeAlert>) => a.press(0, ALLOW), 'granted'],
+  ] as const) {
+    const s = fakeStorage();
+    const gate = createAiConsentGate({ storage: s.storage });
+    const a = fakeAlert();
+    gate.setHost({ isWeb: false, prompt: () => askAiConsentOnce(a.show, () => {}) });
+    const e = gate.ensure();
+    await new Promise((r) => setTimeout(r, 5));
+    act(a);
+    const yes = await e;
+    ok(`through the gate: ${label} stores '${want}'`, s.map.get(AI_CONSENT_STORAGE_KEY) === want && yes === (want === 'granted'));
+  }
+}
+
 // ── B. The question and the key ───────────────────────────────────────────
 function partB() {
   console.log('\n\u2500\u2500 B. the question names the providers \u2500\u2500');
@@ -267,12 +368,18 @@ function partB() {
   ok('American spelling in the question (analyze, not analyse)', !/analys(e|ing)|authoris|organis|colour|licence\b|favour/i.test(msg + AI_CONSENT_OFF_MESSAGE));
   ok('never "unlimited"', !/unlimited/i.test(msg));
 
-  const sheet = read('components/AiConsentSheet.tsx');
-  ok('the host shows the question with all three answers',
-    /AI_CONSENT_COPY\.title/.test(sheet) && /aiConsentAlertMessage\(\)/.test(sheet)
-    && /AI_CONSENT_COPY\.allow/.test(sheet) && /AI_CONSENT_COPY\.notNow/.test(sheet) && /AI_CONSENT_COPY\.privacyLink/.test(sheet));
-  ok('the Privacy policy answer opens the policy and asks again',
-    /Linking\.openURL\(AI_CONSENT_PRIVACY_URL\)[\s\S]{0,120}askOnce\(resolve\)/.test(sheet));
+  ok('"from this app": the question claims only what the gate controls',
+    AI_CONSENT_COPY.use.includes('Nothing is sent from this app until you allow it') && !/Nothing is sent until/.test(msg));
+
+  const sheet = stripComments(read('components/AiConsentSheet.tsx'));
+  ok('the host asks through askAiConsentOnce (the answers pressed in A2), with the app’s own alert',
+    /prompt: \(\) => askAiConsentOnce\(showAlert, openPrivacyPolicy\)/.test(sheet)
+    && /import \{ showAlert \} from '@\/utils\/alert';/.test(sheet)
+    && /import \{[^}]*\baskAiConsentOnce\b[^}]*\} from '@\/utils\/aiConsent';/.test(sheet));
+  ok('the host has no answer logic of its own (one prompt, no resolve / done / onPress in the file)',
+    (sheet.match(/\bprompt:/g) ?? []).length === 1 && !/\bresolve\b|\bdone\(|onPress|onDismiss|new Promise/.test(sheet));
+  ok('the Privacy policy answer opens https://mageid.app/privacy',
+    /const openPrivacyPolicy = \(\): void => \{\s*Linking\.openURL\(AI_CONSENT_PRIVACY_URL\)/.test(sheet));
   ok('the host registers isWeb from Platform.OS', /isWeb: Platform\.OS === 'web'/.test(sheet) && /setAiConsentHost\(null\)/.test(sheet));
 
   console.log('\n\u2500\u2500 B2. the storage key \u2500\u2500');
@@ -461,6 +568,40 @@ function partC() {
   const pm = stripComments(read('utils/projectMemory.ts'));
   const ab = fnBody(pm, /async function authedPost\(url: string, body: unknown\): Promise<unknown \| null> \{/);
   ok('Project Memory authedPost(): gated before its fetch', ab.indexOf('ensureAiConsent()') > 0 && ab.indexOf('ensureAiConsent()') < ab.indexOf('fetch('));
+  // Round-3 review: authedPost's null read as "The search index could not be
+  // updated just now", and the Home Passport build then said "Check your
+  // connection and try again" to a person who had turned AI off. The sync
+  // asks the gate ITSELF, first, and answers with the sentence and the code.
+  const sb = fnBody(pm, /export async function syncMemoryEmbeddings\([\s\S]*?\): Promise<MemorySyncStatus> \{/);
+  const sGate = sb.indexOf('!(await ensureAiConsent())');
+  ok('Project Memory syncMemoryEmbeddings(): the gate is the FIRST thing the run does, before any record is hashed or sent',
+    /const run = \(async \(\): Promise<MemorySyncStatus> => \{\s*if \(!\(await ensureAiConsent\(\)\)\) \{/.test(sb)
+    && sGate > 0 && sGate < sb.indexOf('memoryDocHash(') && sGate < sb.indexOf('authedPost(')
+    && (sb.match(/\bensureAiConsent\(/g) ?? []).length === 1);
+  ok('…and a refusal returns the sentence and the machine code (never "could not be updated just now")',
+    /if \(!\(await ensureAiConsent\(\)\)\) \{\s*return \{ total, indexed: 0, ok: false, reason: AI_CONSENT_OFF_MESSAGE, code: AI_CONSENT_DECLINED_CODE \};\s*\}/.test(sb));
+  ok('…a call that waited on a refused run gets the refusal too, and a refusal is never recorded as the last sync',
+    /return ran\.code \? \{ \.\.\.ran, total \} : lastSyncByProject\.get\(projectId\)/.test(sb)
+    && sb.indexOf('lastSyncByProject.set(') > sGate
+    && !/lastSyncByProject\.set\(/.test(sb.slice(sGate, sb.indexOf('const hashes ='))));
+  const syncCallers = files.filter((f) => f !== 'utils/projectMemory.ts' && /\bsyncMemoryEmbeddings\(/.test(stripComments(read(f))));
+  const deaf = syncCallers.filter((f) => {
+    const c = stripComments(read(f));
+    return !/\.code === AI_CONSENT_DECLINED_CODE/.test(c) || !/AI_CONSENT_OFF_MESSAGE/.test(c);
+  });
+  ok(`every screen that syncs the index reads the refusal code and shows the sentence (${syncCallers.length} callers)`,
+    syncCallers.length >= 2 && deaf.length === 0, `callers: ${syncCallers.join(', ')}; not handling it: ${deaf.join(', ')}`);
+  const binder = stripComments(read('app/closeout-binder.tsx'));
+  const refusedAt = binder.indexOf('if (indexStatus.code === AI_CONSENT_DECLINED_CODE) {');
+  const failedAt = binder.indexOf('if (!indexStatus.ok) {');
+  const refusedBlock = refusedAt < 0 || failedAt < 0 ? '' : binder.slice(refusedAt, failedAt);
+  ok('closeout binder: a refused index says "AI features are off" and stops, BEFORE the "Check your connection" alert',
+    refusedAt > 0 && refusedAt < failedAt
+    && /^if \(indexStatus\.code === AI_CONSENT_DECLINED_CODE\) \{\s*showAlert\(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE\);\s*return;\s*\}\s*$/.test(refusedBlock)
+    && refusedAt > binder.indexOf('await syncMemoryEmbeddings(project.id, memoryDocs)'), refusedBlock.slice(0, 200));
+  const memScreen = stripComments(read('app/project-memory.tsx'));
+  ok('Project Memory screen: with AI off the index line is the sentence, not "N of M indexed"',
+    /\{syncStatus\?\.code === AI_CONSENT_DECLINED_CODE \? \(\s*<Text style=\{styles\.indexNote\} testID="memory-index-status">\{AI_CONSENT_OFF_MESSAGE\}<\/Text>\s*\) : syncStatus && syncStatus\.total > 0/.test(memScreen));
   const tq = stripComments(read('utils/audioTranscribeQueue.ts'));
   ok('the offline dictation queue keeps recordings queued while AI is off (no retry spent)',
     /if \(!\(await ensureAiConsent\(\)\)\) \{\s*kept\.push\(\.\.\.pending\.slice\(pending\.indexOf\(task\)\)\);\s*break;/.test(tq)
@@ -471,21 +612,49 @@ function partC() {
   // paths carry it).
   const silent: string[] = [];
   const QUIET_OK: Record<string, string> = {
-    'utils/projectMemory.ts': 'null is the "index unreachable" every caller already handles; the answer step goes through mageAI, which carries the sentence',
     'utils/audioTranscribeQueue.ts': 'a background drain: the recordings stay queued; the dictation sheet itself asks before recording',
   };
+  // One FUNCTION, not a file (round-3 review: the whole of utils/projectMemory
+  // was excused, which hid the index sync telling a person who turned AI off
+  // to check his connection). The sync now answers with the sentence itself
+  // (pinned above); what stays quiet is only the transport's null, and only
+  // while its other two callers are searches that fall back to this phone.
+  const QUIET_FN: Record<string, { why: string; pin: (code: string) => boolean }> = {
+    'utils/projectMemory.ts::authedPost': {
+      why: 'search only: a null sends answerFromMemorySemantic / retrieveRelevantSemantic to the keyword path on this phone, and the answer step goes through mageAI, which carries the sentence; the index sync asks the gate itself',
+      // Every authedPost( in the file is its declaration, the gated sync (×2),
+      // or one of the two searches (×1 each). A new caller fails this.
+      pin: (code) => {
+        const n = (src: string) => (src.match(/\bauthedPost\(/g) ?? []).length;
+        return n(code) === 5
+          && n(fnBody(code, /export async function syncMemoryEmbeddings\([\s\S]*?\): Promise<MemorySyncStatus> \{/)) === 2
+          && n(fnBody(code, /export async function answerFromMemorySemantic\([\s\S]*?\): Promise<MemoryAnswer> \{/)) === 1
+          && n(fnBody(code, /export async function retrieveRelevantSemantic\([\s\S]*?\): Promise<MemoryDoc\[\]> \{/)) === 1;
+      },
+    },
+  };
+  const usedQuietFn = new Set<string>();
   for (const file of files) {
     const code = stripComments(read(file));
     if (!/\bensureAiConsent\s*\(/.test(code) || file.startsWith('utils/aiConsent') || QUIET_OK[file]) continue;
+    const lines = code.split('\n');
     // Each refusal branch itself must carry the sentence, not just the file.
     for (const m of code.matchAll(/!\(await ensureAiConsent\(\)\)\)?/g)) {
       const branch = code.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 420);
-      if (!/AI_CONSENT_OFF_MESSAGE/.test(branch)) {
-        silent.push(`${file}:${code.slice(0, m.index).split('\n').length}`);
+      if (/AI_CONSENT_OFF_MESSAGE/.test(branch)) continue;
+      const line = code.slice(0, m.index).split('\n').length;
+      const key = `${file}::${enclosingFnName(lines, line - 1)}`;
+      if (QUIET_FN[key]) {
+        usedQuietFn.add(key);
+        if (!QUIET_FN[key].pin(code)) silent.push(`${key}: listed as quiet, but the code no longer proves it (${QUIET_FN[key].why})`);
+        continue;
       }
+      silent.push(`${file}:${line}`);
     }
   }
   ok('every ensureAiConsent() refusal shows "AI features are off…" (no silent no-op)', silent.length === 0, silent.join(', '));
+  const staleFn = Object.keys(QUIET_FN).filter((k) => !usedQuietFn.has(k));
+  ok('no stale quiet-function entry', staleFn.length === 0, staleFn.join(', '));
 
   partC3(files);
   partC4(files);
@@ -504,6 +673,28 @@ function partC() {
   ok('…and On shows the same question first (who receives what), never a silent grant',
     /if \(getAiConsentState\(\) === 'granted'\) return;\s*void resetAiConsent\(\)\.then\(\(\) => ensureAiConsent\(\)\);/.test(settings)
     && !/grantAiConsent/.test(settings));
+  // Round-3 review: "Nothing is sent to an AI provider." is a fact the phone
+  // cannot know. The answer is stored on the phone; the Friday recap cron and
+  // Ask Your Home run on the server and never read it. The Off row claims the
+  // app's own AI buttons, and names the server features that keep running —
+  // for as long as those functions reach an AI vendor (derived from their hosts).
+  ok('Settings → AI features, Off: the row is AI_CONSENT_OFF_ROW',
+    /: aiConsentState === 'declined'\s*\? AI_CONSENT_OFF_ROW\s*:/.test(settings));
+  ok('the Off row claims only the app’s own AI buttons',
+    AI_CONSENT_OFF_ROW.startsWith('AI buttons in this app send nothing to an AI provider until you turn this on.'));
+  ok('the weekly recap cron reaches an AI vendor → the Off row says it still uses AI, and where to turn it off',
+    !AI.has('homeowner-weekly-digest')
+    || (/weekly client recap/.test(AI_CONSENT_OFF_ROW) && /still uses AI on our server/.test(AI_CONSENT_OFF_ROW) && /Turn the recap off on that job’s Client portal screen\./.test(AI_CONSENT_OFF_ROW)));
+  ok('portal-ask-home reaches an AI vendor → the Off row names Ask Your Home',
+    !AI.has('portal-ask-home') || /Ask Your Home/.test(AI_CONSENT_OFF_ROW));
+  ok('…and that switch exists where the row says: "Send weekly recap" on the Client portal screen',
+    /title: 'Client portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send weekly recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
+  const blanket = files.filter((f) => !f.startsWith('utils/aiConsent') && /Nothing is sent to an AI provider|Nothing is sent until you allow/.test(stripComments(read(f))));
+  ok('no screen says a blanket "Nothing is sent to an AI provider" / "Nothing is sent until you allow"',
+    blanket.length === 0 && !/Nothing is sent to an AI provider/.test(AI_CONSENT_OFF_ROW), blanket.join(', '));
+  ok('the privacy FAQ answer is scoped the same way ("In this app, AI features…")',
+    /In this app, AI features send what you choose to our AI providers only after you allow it/.test(settings));
+  ok('American spelling and never "unlimited" in the Off row', !/analys(e|ing)|authoris|organis|colour|favour|unlimited/i.test(AI_CONSENT_OFF_ROW));
   ok('the row is phones only (the web app never asks)', /\{Platform\.OS !== 'web' && \(\s*<View style=\{styles\.row\} testID="ai-features-row">/.test(settings));
   ok('the message names the Settings row that exists', AI_CONSENT_OFF_MESSAGE.includes('Settings \u2192 AI features'));
 }
@@ -1103,6 +1294,7 @@ function partC4(files: string[]) {
 }
 
 await partA();
+await partA2();
 partB();
 partC();
 

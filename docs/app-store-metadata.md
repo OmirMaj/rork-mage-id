@@ -102,9 +102,11 @@ Privacy Policy: https://mageid.app/privacy
 ## Keywords (100 chars · comma-separated, no spaces after commas)
 
 ```
-contractor,estimate,takeoff,job costing,margin,remodel,builder,invoice,schedule,bid,AIA pay app,WIP
+contractor,estimate,takeoff,job costing,margin,remodel,builder,invoice,schedule,bid,pay app,WIP,lien
 ```
-(≈99) — highest-intent terms; "margin" + "job costing" + "AIA pay app" are the differentiator/buyer-intent terms. Apple stems plurals and indexes the description, so we skip generic "construction."
+(100) — highest-intent terms; "margin" + "job costing" + "pay app" are the differentiator/buyer-intent terms. Apple stems plurals and indexes the description, so we skip generic "construction."
+
+**"AIA" is not in the keyword field on purpose.** It is the American Institute of Architects' trademark, and Apple can reject a keyword field that carries someone else's mark (guideline 2.3.7), the same reason competitor names are left out below. The description still says "AIA-style G702/G703", which Apple indexes. **Founder call:** to take that risk for the search term, swap `pay app` back to `AIA pay app` and drop `,lien` (99 characters), and change rule 8 of `scripts/validate-appstore-paywall.ts` in the same commit: it pins this line.
 
 **Don't include:** competitor brand names (Apple rejects), "free"/"best" (stripped), plurals (auto-stemmed).
 
@@ -165,7 +167,7 @@ No voiceover; captions hard-coded; lead with the moat.
 - 0:00–0:04 — open app → a Margin Risk alert on a live job ("This job is slipping.")
 - 0:04–0:12 — Estimate Wizard → cost database → priced estimate built from *your* numbers
 - 0:12–0:20 — Schedule: rain hits, weather auto-reschedule moves the job
-- 0:20–0:30 — AIA pay app / portal e-sign → end on the pricing card ("Free to start")
+- 0:20–0:30 — AIA-style pay app / portal e-sign → end on the pricing card ("Free to start")
 
 ---
 

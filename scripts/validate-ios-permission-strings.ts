@@ -45,11 +45,22 @@
  *     Sentry.setUser is never called, but a breadcrumb's request address can
  *     carry a user id, so the page says "not deliberately … though it can appear".
  *  F. The third-party list in marketing/privacy.html matches the hosts the
- *     code calls, BOTH ways: a host our code sends user content to (plan PDFs
- *     to CloudConvert; a project's location to OpenStreetMap Nominatim, the
- *     Census geocoder and OpenWeather) is named, and a service the code no
- *     longer calls (Google Maps / Places and Adzuna were removed by the
- *     content-rights wave) is not. --functions / --src point the scan elsewhere.
+ *     code calls, BOTH ways, for each service in the PROCESSORS table: a host
+ *     our code sends user content to (plan PDFs to CloudConvert; a project's
+ *     location to OpenStreetMap Nominatim, the Census geocoder and
+ *     OpenWeather; a push token and the notification text to Expo; the
+ *     records a QuickBooks sync sends to Intuit) is named, and a service the
+ *     code no longer calls (Google Maps / Places and Adzuna were removed by
+ *     the content-rights wave) is not. --functions / --src point the scan
+ *     elsewhere.
+ *     WHAT THE TABLE CANNOT SEE, and the sweep that covers the usual case: a
+ *     service nobody added a row for. So every host that looks like a vendor
+ *     API (`api.` at the start of the name or inside it) anywhere in the code
+ *     must be in API_HOSTS, each with the word the privacy page uses for it or
+ *     a written reason it receives nothing of the user's. A new SaaS call
+ *     fails here until it is disclosed. A vendor whose host is not shaped like
+ *     that (exp.host was one) still needs its own PROCESSORS row: this rule
+ *     does not claim to find every host.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -234,12 +245,42 @@ if (process.argv.includes('--introspect')) {
     { name: 'U.S. Census Bureau geocoder', listed: /Census/, host: /geocoding\.geo\.census\.gov/ },
     { name: 'Google Maps / Places', listed: /Google (Maps|Places)/, host: /(maps|places)\.googleapis\.com/ },
     { name: 'Adzuna', listed: /Adzuna/, host: /api\.adzuna\.com/ },
+    // Round-3 review: both receive user data and neither was on the page.
+    // Expo: notify + morning-digest post the device's push token and the
+    // notification text. Intuit: qbo-sync posts customers, invoices and payments.
+    { name: 'Expo (push notifications)', listed: /<strong>Expo<\/strong>[^<]*push notifications/, host: /exp\.host\/--\/api\/v2\/push/ },
+    { name: 'Intuit QuickBooks', listed: /<strong>Intuit QuickBooks<\/strong>[^<]*only if you connect/, host: /quickbooks\.api\.intuit\.com/ },
   ];
   for (const p of PROCESSORS) {
     const isCalled = p.host.test(called);
     const isListed = p.listed.test(li);
     check(`F. ${p.name}: ${isCalled ? 'the code calls it, so the list names it' : 'the code does not call it, so the list does not name it'}`,
       isCalled === isListed, `called=${isCalled} listed=${isListed}`);
+  }
+  // The sweep: every vendor-API-shaped host in the code is one this file has
+  // classified. `on` is the word the Third-Party Services list must carry;
+  // `none` is the reason the host receives nothing of the user's.
+  const API_HOSTS: Record<string, { on: RegExp } | { none: string }> = {
+    'api.anthropic.com': { on: /Anthropic/ },
+    'api.cloudconvert.com': { on: /CloudConvert/ },
+    'api.openweathermap.org': { on: /OpenWeather/ },
+    'api.resend.com': { on: /Resend/ },
+    'api.revenuecat.com': { on: /RevenueCat/ },
+    'api.stripe.com': { on: /Stripe/ },
+    'quickbooks.api.intuit.com': { on: /Intuit QuickBooks/ },
+    'sandbox-quickbooks.api.intuit.com': { on: /Intuit QuickBooks/ },
+    'developer.api.intuit.com': { on: /Intuit QuickBooks/ },
+    'api.sam.gov': { none: 'public federal bid listings fetched by date and NAICS code with our own key; nothing of the user\'s is in the request' },
+  };
+  const apiHosts = [...new Set([...called.matchAll(/https?:\/\/((?:[a-z0-9-]+\.)*api\.[a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)].map((m) => m[1].toLowerCase()))].sort();
+  check('F. the API-host sweep found the vendor hosts this file was written against (it is not silently empty)',
+    apiHosts.length >= (argv('--src') || argv('--functions') ? 0 : 8), apiHosts.join(', '));
+  const unknownHosts = apiHosts.filter((h) => !API_HOSTS[h]);
+  check('F. every vendor-API host in the code is classified (add it to API_HOSTS and, if it receives user data, to marketing/privacy.html)',
+    unknownHosts.length === 0, unknownHosts.join(', '));
+  for (const h of apiHosts) {
+    const c = API_HOSTS[h];
+    if (c && 'on' in c) check(`F. ${h}: the code names it, so the Third-Party Services list says ${c.on.source}`, c.on.test(li));
   }
 }
 

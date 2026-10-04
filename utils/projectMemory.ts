@@ -19,7 +19,7 @@
 
 import { mageAI } from '@/utils/mageAI';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
-import { ensureAiConsent } from '@/utils/aiConsent';
+import { AI_CONSENT_DECLINED_CODE, AI_CONSENT_OFF_MESSAGE, ensureAiConsent } from '@/utils/aiConsent';
 import { isExcludedMemoryRecord, type MemoryAskOptions } from '@/utils/projectMemoryCore';
 import {
   batchGroups, confidentMatches, memoryDocHash, MEMORY_DOC_PREFIXES, MEMORY_RECORD_SOURCES,
@@ -234,7 +234,10 @@ async function authedPost(url: string, body: unknown): Promise<unknown | null> {
   try {
     // App Store 5.1.2(i): nothing leaves for the AI provider until the person
     // has allowed AI features (utils/aiConsent; always allowed on the web app).
-    // Refused → null, the same "could not reach the index" every caller handles.
+    // Refused → null. Only the two SEARCH callers can get here with AI off
+    // (syncMemoryEmbeddings checks the gate itself and says so): both fall
+    // back to the keyword path on this phone, and the answer step that follows
+    // goes through mageAI, which carries "AI features are off…".
     if (!(await ensureAiConsent())) return null;
     const { data: { session } } = await supabase.auth.getSession();
     const jwt = session?.access_token;
@@ -259,6 +262,11 @@ export interface MemorySyncStatus {
   /** False when the sync could not reach the server or was refused. `reason` says why. */
   ok: boolean;
   reason?: string;
+  /** Set to AI_CONSENT_DECLINED_CODE when nothing was sent because AI features
+   *  are off on this phone. `reason` is then AI_CONSENT_OFF_MESSAGE, and
+   *  `indexed` is 0 because the index was never asked — it is NOT a count. A
+   *  caller shows the sentence, never "check your connection" or "0 indexed". */
+  code?: typeof AI_CONSENT_DECLINED_CODE;
 }
 
 const lastSyncByProject = new Map<string, MemorySyncStatus>();
@@ -303,15 +311,27 @@ export async function syncMemoryEmbeddings(
     // run once more with the LATEST list when this one ends. Only the newest
     // waiting call survives, so a burst of edits costs one extra manifest.
     queued.set(projectId, { docs, opts });
-    return running.then(() => {
+    return running.then((ran) => {
       const next = queued.get(projectId);
-      if (!next || next.docs !== docs) return lastSyncByProject.get(projectId) ?? { total, indexed: 0, ok: false };
+      // Superseded by a newer list. If the run it waited on was refused (AI
+      // features off), that is this call's answer too — never a bare "not ok".
+      if (!next || next.docs !== docs) return ran.code ? { ...ran, total } : lastSyncByProject.get(projectId) ?? { total, indexed: 0, ok: false };
       queued.delete(projectId);
       return syncMemoryEmbeddings(projectId, next.docs, next.opts);
     });
   }
 
   const run = (async (): Promise<MemorySyncStatus> => {
+    // App Store 5.1.2(i): the embed function sends each record's text to
+    // Google Gemini. With AI features off, say THAT — once, here, before
+    // anything is sent — instead of letting authedPost's null read as "could
+    // not be updated just now", which told a person who turned AI off to
+    // check his connection. Not recorded as the project's last sync: the
+    // index was never asked. (Inside the run, so the in-flight / queued
+    // bookkeeping above stays synchronous, exactly as it was.)
+    if (!(await ensureAiConsent())) {
+      return { total, indexed: 0, ok: false, reason: AI_CONSENT_OFF_MESSAGE, code: AI_CONSENT_DECLINED_CODE };
+    }
     const hashes = new Map(docs.map(d => [d.id, memoryDocHash(d)]));
     const manifest = (await authedPost(MEMORY_EMBED_URL, {
       projectId,

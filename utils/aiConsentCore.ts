@@ -229,7 +229,12 @@ export const AI_CONSENT_COPY = {
     'Photos, plan pages and documents you choose to analyze',
     'Voice recordings you make for transcription',
   ],
-  use: 'It is used only to answer that request. Nothing is sent until you allow it, and you can turn AI features off any time in Settings → AI features.',
+  // "from this app" on purpose: the answer is stored on this phone and gates
+  // the app's own AI requests. It is not known to the server, where a weekly
+  // client recap or Ask Your Home that was switched on for a job keeps running
+  // (see AI_CONSENT_OFF_ROW). A bare "Nothing is sent" would claim more than
+  // the gate controls.
+  use: 'It is used only to answer that request. Nothing is sent from this app until you allow it, and you can turn AI features off any time in Settings → AI features.',
   privacyLink: 'Privacy policy',
   allow: 'Allow AI features',
   notNow: 'Not now',
@@ -237,6 +242,20 @@ export const AI_CONSENT_COPY = {
 
 /** Title for a blocked AI button's alert (the body is AI_CONSENT_OFF_MESSAGE). */
 export const AI_CONSENT_OFF_TITLE = 'AI features are off';
+
+/** Settings → AI features, with the switch Off. It claims ONLY what the gate
+ *  controls: the AI requests this app makes. The answer lives on the phone
+ *  (AI_CONSENT_STORAGE_KEY) and the server never sees it, so two client-portal
+ *  features a contractor switched on for a job keep sending that job's records
+ *  to Google Gemini from our server: the Friday recap
+ *  (supabase/functions/homeowner-weekly-digest, per-job switch "Send weekly
+ *  recap" on the job's Client portal screen, app/client-portal-setup.tsx) and Ask Your Home
+ *  (supabase/functions/portal-ask-home, when the client asks a question in the
+ *  portal). "Nothing is sent to an AI provider" would be untrue for him. */
+export const AI_CONSENT_OFF_ROW =
+  'AI buttons in this app send nothing to an AI provider until you turn this on. '
+  + 'A weekly client recap or Ask Your Home you set up for a job still uses AI on our server. '
+  + 'Turn the recap off on that job’s Client portal screen.';
 
 /** The question's full text (components/AiConsentSheet shows it as the system
  *  alert's message; the Privacy policy button opens AI_CONSENT_PRIVACY_URL). */
@@ -249,4 +268,60 @@ export function aiConsentAlertMessage(): string {
     `${c.sentHeading}:\n${list(c.sent)}`,
     c.use,
   ].join('\n\n');
+}
+
+// ── Asking. The three answers are logic, not layout, so they live here where
+//    scripts/validate-ai-consent.ts can press each one under bun with a fake
+//    alert: "Allow AI features" is the ONLY yes. "Not now", a dismissed alert
+//    and a second press are all no / ignored — a regression that turned one of
+//    them into a silent grant is exactly what 5.1.2(i) forbids. ───────────────
+
+export interface AiConsentAlertButton {
+  text: string;
+  style?: 'default' | 'cancel' | 'destructive';
+  onPress: () => void;
+}
+
+/** The app's showAlert (utils/alert), or a fake in the validator. */
+export type AiConsentShowAlert = (
+  title: string,
+  message: string,
+  buttons: AiConsentAlertButton[],
+  options: { cancelable: boolean; onDismiss: () => void },
+) => void;
+
+/** Shows the question and resolves with the answer: true only for "Allow AI
+ *  features". "Privacy policy" opens the policy and asks again (reading it is
+ *  not an answer). Android has no tap-outside dismissal (cancelable: false);
+ *  if the system dismisses the alert anyway, that is "not now". */
+export function askAiConsentOnce(show: AiConsentShowAlert, openPolicy: () => void): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const ask = (): void => {
+      let settled = false;
+      const done = (yes: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(yes);
+      };
+      show(
+        AI_CONSENT_COPY.title,
+        aiConsentAlertMessage(),
+        [
+          {
+            text: AI_CONSENT_COPY.privacyLink,
+            onPress: () => {
+              if (settled) return;
+              settled = true; // this alert is spent; the next one carries the answer
+              try { openPolicy(); } catch { /* the question below still asks */ }
+              ask();
+            },
+          },
+          { text: AI_CONSENT_COPY.notNow, style: 'cancel', onPress: () => done(false) },
+          { text: AI_CONSENT_COPY.allow, onPress: () => done(true) },
+        ],
+        { cancelable: false, onDismiss: () => done(false) },
+      );
+    };
+    ask();
+  });
 }

@@ -23,7 +23,8 @@
 //   1. Privacy + Terms links to mageid.app, and a Restore that runs
 //      restorePurchases through restoreOutcome.
 //   2. The auto-renew sentence, from the one shared autoRenewText().
-//   3. None of: mailto:, "Contact us", "by email", "Android", "beta",
+//   3. None of: mailto:, "Contact us", "by email", ANY email address (the
+//      feature-row table included), "Android", "beta",
 //      "Early access", "Priority queue", "Not in the …", "App Store yet".
 //   4. No purchase error.message reaches showAlert or a <Text>; a failure is
 //      only CLASSIFIED (purchaseFailureKind) and answered with our own copy.
@@ -32,6 +33,8 @@
 //   6. The billed amount is the big figure: on annual, the yearly total + "/year".
 //   7. A plan with no store package has no card; no package at all is ONE
 //      honest state with a Retry that refetches the offerings.
+//   8. Every G702/G703 a buyer reads says "AIA-style"; the store listing doc
+//      says it too, and its keyword field carries no "AIA" at all.
 // And it EXECUTES the pure storeOffer block in components/Paywall.tsx.
 //
 // Run: bun run scripts/validate-appstore-paywall.ts
@@ -169,11 +172,16 @@ ok(`${MODAL}: the "Cancel anytime" footer is gone`, !/Cancel anytime/i.test(moda
 ok(`${SCREEN}: …and from the plans screen's native footer`, !/Cancel anytime/i.test(screenNativeJsx));
 
 console.log('\n3. Nothing on a native path names email, Android, a beta, or a feature that does not exist:');
+/** Any email address: a name, @, a host with a dot. An import path
+ *  ('@/components/…', '@sentry/…') has no name before the @, so it never matches. */
+const EMAIL_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/;
 const FORBIDDEN: { re: RegExp; why: string }[] = [
   { re: /mailto:/i, why: 'an email path (3.1.1: purchases go through the store)' },
   { re: /Contact us/i, why: 'a "Contact us" path for a plan' },
   { re: /by email/i, why: '"we set it up by email"' },
-  { re: /support@mageid\.app/, why: 'an email address in a purchase path' },
+  // ANY address, not one known mailbox (round-3 review: "— questions?
+  // sales@mageid.app" on a row passed while only support@ was named).
+  { re: EMAIL_ADDRESS, why: 'an email address in a purchase path' },
   { re: /Android/, why: 'another platform named (2.3.10)' },
   { re: /\bbeta\b/i, why: 'a beta reference (2.3.10 / 2.2)' },
   { re: /Early access/i, why: 'a product that does not exist (2.1)' },
@@ -190,6 +198,17 @@ for (const { f, all } of NATIVE) {
 // The label table renders through storeSafeLabel, and no label survives it with a platform note.
 const labels = [...featureSpecs.matchAll(/label: '([^']*)'/g)].map(m => m[1]);
 ok(`${SCREEN}: FEATURE_SPECS read (${labels.length} labels)`, labels.length >= 10);
+// The label table is cut out of the native path above (its platform notes are
+// stripped at render), so the email rule is applied to the table itself: every
+// string in it, on every platform, and the labels as iOS prints them.
+{
+  const m = EMAIL_ADDRESS.exec(featureSpecs) ?? /mailto:|Contact us|by email/i.exec(featureSpecs);
+  ok(`${SCREEN}: no FEATURE_SPECS row carries an email address or an email path`, !m,
+    m ? `…${featureSpecs.slice(Math.max(0, m.index - 60), m.index + 60).replace(/\s+/g, ' ')}…` : undefined);
+}
+ok('the email rule knows an address when it sees one, and an import path when it sees that',
+  EMAIL_ADDRESS.test('— questions? sales@mageid.app') && EMAIL_ADDRESS.test('write to help@mageid.app.') && EMAIL_ADDRESS.test('a.b+c@mail.example.co')
+  && !EMAIL_ADDRESS.test("import { x } from '@/components/Paywall';") && !EMAIL_ADDRESS.test("from '@sentry/react-native'") && !EMAIL_ADDRESS.test('at 3 @ $29/mo'));
 const leaked = labels.map(l => lib.storeSafeLabel(l, 'ios')).filter(l => /Android|\bbeta\b/i.test(l));
 ok(`${SCREEN}: no FEATURE_SPECS label names Android or a beta on iOS`, leaked.length === 0, leaked.join(' | '));
 ok(`${SCREEN}: the native compare table prints storeSafeLabel(f.label, Platform.OS)`,
@@ -281,6 +300,23 @@ for (const { f, c } of [{ f: MODAL, c: modalCode }, { f: SCREEN, c: screenCode }
 ok(`${MODAL}: the pay-app feature KEY has a display title that says "AIA-style"`,
   new RegExp(`${AIA_KEY.replace(/[/]/g, '\\/')}\\s*'AIA-style G702\\/G703 pay apps'`).test(modalCode));
 ok(`${MODAL}: the heading prints the display title, not the raw key`, /const featureTitle = FEATURE_TITLE\[feature\] \?\? feature;/.test(modalCode));
+
+// The store listing the founder pastes into App Store Connect follows the same
+// rule (round-3 review: the keyword field and the preview storyboard still
+// carried the bare mark). The keyword field never carries "AIA" at all — it is
+// another organization's trademark (2.3.7) — and stays within Apple's 100
+// characters. One paragraph may NAME the mark: the note that says why.
+{
+  const META = 'docs/app-store-metadata.md';
+  const meta = read(META);
+  const keywords = /## Keywords[^\n]*\n+```\n([^\n]*)\n```/.exec(meta)?.[1] ?? '';
+  ok(`${META}: the keyword field was found, and is within 100 characters`, keywords.length > 20 && keywords.length <= 100, `${keywords.length}: ${keywords}`);
+  ok(`${META}: the keyword field carries no "AIA" (a third party's trademark)`, keywords !== '' && !/\bAIA\b/.test(keywords), keywords);
+  const bareMark = meta.split('\n')
+    .filter((l) => !l.startsWith('**"AIA" is not in the keyword field on purpose.**'))
+    .filter((l) => /\bAIA\b(?!-style)/.test(l));
+  ok(`${META}: every other "AIA" in the listing is "AIA-style"`, bareMark.length === 0, bareMark.map((l) => l.slice(0, 90)).join(' | '));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

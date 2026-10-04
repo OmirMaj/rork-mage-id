@@ -64,7 +64,7 @@ import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
 import { SkillsProfileRow } from '@/components/learn/SkillsProfileRow';
-import { declineAiConsent, ensureAiConsent, getAiConsentState, loadAiConsent, resetAiConsent, subscribeAiConsent, type AiConsentState } from '@/utils/aiConsent';
+import { AI_CONSENT_OFF_ROW, declineAiConsent, ensureAiConsent, getAiConsentState, loadAiConsent, resetAiConsent, subscribeAiConsent, type AiConsentState } from '@/utils/aiConsent';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -176,7 +176,10 @@ function privacyFaqAnswer(): string {
   if (Platform.OS === 'web') {
     return `${base} When you use an AI feature, what you send it goes to our AI providers only to answer that request.`;
   }
-  return `${base} AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings → AI features.`;
+  // "In this app": the answer gates the app's own AI requests. A weekly client
+  // recap or Ask Your Home set up for a job runs on our server and does not
+  // read it (utils/aiConsentCore AI_CONSENT_OFF_ROW says so on the row itself).
+  return `${base} In this app, AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings → AI features.`;
 }
 
 function ipadFaqAnswer(): string {
@@ -2039,7 +2042,7 @@ export default function SettingsScreen() {
                   {aiConsentState === 'granted'
                     ? 'What you send an AI feature goes to Google Gemini, Anthropic Claude or a speech-to-text service, only to answer it.'
                     : aiConsentState === 'declined'
-                      ? 'Nothing is sent to an AI provider. AI buttons say so until you turn this on.'
+                      ? AI_CONSENT_OFF_ROW
                       : 'You\u2019ll be asked the first time you use an AI feature.'}
                 </Text>
               </View>
