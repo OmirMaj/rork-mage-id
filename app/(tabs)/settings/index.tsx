@@ -15,6 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage, useT } from '@/contexts/LanguageContext';
 import { languageEndonym } from '@/components/LanguagePicker';
 import { LANGUAGE_PICKER_ENABLED } from '@/i18n/flags';
+import { signOutBusyLabel } from '@/utils/signOutTiming';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -356,7 +357,7 @@ export default function SettingsScreen() {
     () => (resolvePaymentSplit({ settings }).split && resolveWarrantyMonths(settings) == null ? 'warranty' : 'terms'),
     [settings],
   );
-  const { user, logout, deleteAccount, isAuthenticated, signingOut } = useAuth();
+  const { user, logout, deleteAccount, isAuthenticated, signingOut, signOutPhase } = useAuth();
   const queryClient = useQueryClient();
   const { tier } = useTierAccess();
   // CONTRACT 1 (#176): whether a store subscription backs the tier. A plan
@@ -1125,25 +1126,26 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
-              {/* A5: disabled — with a spinner and a "Signing out…" caption —
-                  from the tap until the device is clean (AuthContext.logout
-                  runs a bounded queue flush first, up to 20 s on a dead
-                  uplink). A second tap used to start a second flush + wipe
-                  underneath the first. */}
+              {/* A5: disabled — with a spinner and a caption — from the tap
+                  until the device is clean. The caption says what the wait
+                  is: "Saving changes…" while AuthContext.logout flushes
+                  queued work (bounded, up to 20 s on a dead uplink), then
+                  "Signing out…" (utils/signOutTiming). A second tap used to
+                  start a second flush + wipe underneath the first. */}
               <TouchableOpacity
                 style={[styles.profileSignOutBtn, signingOut && styles.profileSignOutBtnBusy]}
                 onPress={() => { void confirmSignOut(); }}
                 activeOpacity={0.7}
                 disabled={signingOut}
                 testID="logout-button" accessibilityRole="button"
-                accessibilityLabel={signingOut ? 'Signing out…' : 'Sign out'}
+                accessibilityLabel={signingOut ? signOutBusyLabel(signOutPhase) : 'Sign out'}
                 accessibilityState={{ disabled: signingOut, busy: signingOut }}>
                 {signingOut
                   ? <ActivityIndicator size="small" color={themeColors.textSecondary} />
                   : <LogOut size={16} color={themeColors.textSecondary} strokeWidth={1.75} />}
               </TouchableOpacity>
               {signingOut ? (
-                <Text style={styles.profileSignOutLabel} numberOfLines={1} testID="logout-busy-label">Signing out…</Text>
+                <Text style={styles.profileSignOutLabel} numberOfLines={1} testID="logout-busy-label">{signOutBusyLabel(signOutPhase)}</Text>
               ) : null}
             </View>
           </TouchableOpacity>

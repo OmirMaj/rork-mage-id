@@ -122,11 +122,39 @@ async function main() {
   {
     const auth = read('contexts/AuthContext.tsx');
     const logout = auth.slice(auth.indexOf('const logout = useCallback('), auth.indexOf('const deleteAccount = useCallback('));
-    const flush = logout.indexOf('await flushQueuesBeforeSignOut();');
-    const release = logout.indexOf('await releasePushTokenBeforeSignOut();');
-    const signOut = logout.indexOf('await supabase.auth.signOut();');
-    const wipe = logout.indexOf('await wipeLocalUserCache();');
-    ok('order: flush → release the token → sign out → wipe', flush > 0 && flush < release && release < signOut && signOut < wipe);
+    // Fast sign-out (utils/signOutTiming): the flush and the token release run
+    // side by side inside ONE awaited Promise.all, and that await closes before
+    // the session is touched. Comments are stripped first, so prose that names
+    // these calls cannot satisfy (or break) the order.
+    const code = logout.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const both = /await Promise\.all\(\[\s*flushQueuesBeforeSignOut\(\),\s*plan\.releasePushToken \? releasePushTokenBeforeSignOut\(\) : Promise\.resolve\(\),\s*\]\);/.exec(code);
+    const bothEnd = both ? both.index + both[0].length : -1;
+    const signOut = code.indexOf('await supabase.auth.signOut()');
+    const anySignOut = code.indexOf('supabase.auth.signOut(');
+    const localSignOut = code.indexOf("await supabase.auth.signOut({ scope: 'local' })");
+    const wipe = code.indexOf('await wipeLocalUserCache();');
+    ok('order: flush and token release (together, both awaited) → sign out → wipe',
+      !!both && bothEnd > 0 && bothEnd < signOut && signOut < wipe);
+    ok('nothing signs the session out before the flush and the release have settled',
+      !!both && anySignOut > bothEnd && anySignOut === signOut + 'await '.length);
+    ok('the flush and the release are each called exactly once in logout',
+      (code.match(/flushQueuesBeforeSignOut\(/g) ?? []).length === 1 && (code.match(/releasePushTokenBeforeSignOut\(/g) ?? []).length === 1);
+    ok('a failed (or skipped) global sign-out falls back to the local one, before the wipe',
+      /if \(error\) \{[\s\S]*?await supabase\.auth\.signOut\(\{ scope: 'local' \}\);/.test(code) && localSignOut > signOut && localSignOut < wipe);
+    ok('the wipe always runs: not inside the error branch, not conditional',
+      /\n      await wipeLocalUserCache\(\);\n/.test(code) && (code.match(/wipeLocalUserCache\(/g) ?? []).length === 1);
+    ok('offline starts nothing that only waits on the network: no token release, no global sign-out',
+      /const plan = planSignOut\(\{ offline: isOfflineNow\(\) \}\);/.test(code)
+        && /const \{ error \} = plan\.tryGlobal \? await supabase\.auth\.signOut\(\) : \{ error: new Error\(/.test(code)
+        && /if \(!plan\.tryGlobal && typeof markLogoutUnreachable === 'function'\) markLogoutUnreachable\(\);/.test(code));
+    ok('a second tap joins the sign-out already running',
+      /if \(logoutInFlight\.current\) return logoutInFlight\.current;/.test(code)
+        && code.indexOf('if (logoutInFlight.current) return logoutInFlight.current;') < code.indexOf('setSigningOut(true);'));
+    ok('the button says what it is waiting for: saving while work is queued, then signing out',
+      /setSignOutPhase\(signOutPhaseAtStart\(pendingCount\)\);/.test(code)
+        && code.indexOf('setSignOutPhase(signOutPhaseAtStart(pendingCount));') < (both ? both.index : -1)
+        && code.indexOf("setSignOutPhase('signing-out');") > bothEnd && code.indexOf("setSignOutPhase('signing-out');") < signOut
+        && /setSigningOut\(false\);\s*setSignOutPhase\(null\);/.test(code));
     const fn = auth.slice(auth.indexOf('async function releasePushTokenBeforeSignOut('), auth.indexOf('async function wipeLocalUserCache('));
     ok('a DIRECT update of the three push columns on his own profile (not through the queue)',
       /supabase\.from\('profiles'\)\s*\.update\(\{ push_token: null, push_token_platform: null, push_token_updated_at: null \}\)\s*\.eq\('id', uid\)/.test(fn)
@@ -141,6 +169,68 @@ async function main() {
     ok('the token read sits inside the 3 s bound (never prompts)',
       fn.indexOf('registerForPushNotifications') > fn.indexOf('const release = async') && /Promise\.race\(\[\s*release\(\),/.test(fn));
     ok('bounded and never throws (a failure never blocks sign-out)', /Promise\.race\(/.test(fn) && /PUSH_RELEASE_TIMEOUT_MS = 3000/.test(auth) && /catch \(err\)/.test(fn));
+  }
+
+  console.log('\nfast sign-out: the timing rules (utils/signOutTiming), executed');
+  {
+    const T = await import('../utils/signOutTiming');
+    ok('one /logout request may take 4 s, no more', T.SIGN_OUT_NETWORK_CEILING_MS === 4000);
+    ok('online: release the token and try the global sign-out',
+      T.planSignOut({ offline: false }).releasePushToken === true && T.planSignOut({ offline: false }).tryGlobal === true);
+    ok('offline: neither is started',
+      T.planSignOut({ offline: true }).releasePushToken === false && T.planSignOut({ offline: true }).tryGlobal === false);
+    ok('the scope of a /logout URL: none = global, local, others',
+      T.logoutScopeOf('https://x.supabase.co/auth/v1/logout') === 'global'
+        && T.logoutScopeOf('https://x.supabase.co/auth/v1/logout?scope=global') === 'global'
+        && T.logoutScopeOf('https://x.supabase.co/auth/v1/logout?scope=local') === 'local'
+        && T.logoutScopeOf('https://x.supabase.co/auth/v1/logout?scope=others') === 'others');
+    ok('only GoTrue\'s /logout is a logout URL (not the token refresh, not a table named logout)',
+      T.isLogoutUrl('https://x.supabase.co/auth/v1/logout?scope=local') && T.isLogoutUrl('https://x.supabase.co/auth/v1/logout')
+        && !T.isLogoutUrl('https://x.supabase.co/auth/v1/token?grant_type=refresh_token')
+        && !T.isLogoutUrl('https://x.supabase.co/rest/v1/logout?select=*')
+        && !T.isLogoutUrl('https://x.supabase.co/auth/v1/logout-everywhere'));
+    ok('a GLOBAL sign-out is always sent, whatever was unreachable a moment ago',
+      T.logoutRequestPlan({ scope: 'global', msSinceUnreachable: 0 }) === 'send'
+        && T.logoutRequestPlan({ scope: 'global', msSinceUnreachable: null }) === 'send'
+        && T.logoutRequestPlan({ scope: 'others', msSinceUnreachable: 10 }) === 'send');
+    ok('a LOCAL sign-out is sent when nothing says the server is out of reach',
+      T.logoutRequestPlan({ scope: 'local', msSinceUnreachable: null }) === 'send'
+        && T.logoutRequestPlan({ scope: 'local', msSinceUnreachable: T.LOGOUT_UNREACHABLE_MEMORY_MS }) === 'send'
+        && T.logoutRequestPlan({ scope: 'local', msSinceUnreachable: -5 }) === 'send');
+    ok('a LOCAL sign-out right after an unanswered /logout does not wait on the network again',
+      T.logoutRequestPlan({ scope: 'local', msSinceUnreachable: 0 }) === 'answer-locally'
+        && T.logoutRequestPlan({ scope: 'local', msSinceUnreachable: T.LOGOUT_UNREACHABLE_MEMORY_MS - 1 }) === 'answer-locally');
+    ok('no reply: a local sign-out is answered here (the session dies); a global one reports the failure',
+      T.logoutFailurePlan('local') === 'answer-locally' && T.logoutFailurePlan('global') === 'rethrow' && T.logoutFailurePlan('others') === 'rethrow');
+    ok('a reply: a local sign-out the server answers with an error is still answered here; a global reply is passed on as it came',
+      T.logoutReplyPlan({ scope: 'local', ok: false }) === 'answer-locally' && T.logoutReplyPlan({ scope: 'local', ok: true }) === 'pass'
+        && T.logoutReplyPlan({ scope: 'global', ok: false }) === 'pass' && T.logoutReplyPlan({ scope: 'others', ok: false }) === 'pass');
+    ok('the busy caption: saving only while work is queued',
+      T.signOutPhaseAtStart(0) === 'signing-out' && T.signOutPhaseAtStart(1) === 'saving' && T.signOutPhaseAtStart(40) === 'saving'
+        && T.signOutBusyLabel('saving') === 'Saving changes…' && T.signOutBusyLabel('signing-out') === 'Signing out…'
+        && T.signOutBusyLabel(null) === 'Signing out…' && T.signOutBusyLabel(undefined) === 'Signing out…');
+
+    const lib = read('lib/supabase.ts').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const bounded = lib.slice(lib.indexOf('async function boundedLogoutFetch('), lib.indexOf('export const sessionGuardedFetch'));
+    ok('lib/supabase: every /logout goes through the bounded fetch, before any other request handling',
+      /const requestUrl = urlOf\(input\);\s*if \(isLogoutUrl\(requestUrl\)\) return boundedLogoutFetch\(input, init, requestUrl\);\s*const response = await fetch\(input, init\);/.test(lib));
+    ok('lib/supabase: the request is aborted at the ceiling, and the timer is always cleared',
+      /setTimeout\(\(\) => controller\.abort\(\), SIGN_OUT_NETWORK_CEILING_MS\)/.test(bounded)
+        && /signal: controller\.signal/.test(bounded) && /finally \{\s*if \(timer\) clearTimeout\(timer\);/.test(bounded));
+    ok('lib/supabase: no reply → remembered, a local sign-out answered here, anything else rethrown',
+      /catch \(err\) \{\s*markLogoutUnreachable\(\);\s*if \(logoutFailurePlan\(scope\) === 'answer-locally'\) return localLogoutAnswer\(\);\s*throw err;/.test(bounded));
+    ok('lib/supabase: a reply is weighed by the same rule before it is returned',
+      /const response = await fetch\(input, controller \? \{ \.\.\.init, signal: controller\.signal \} : init\);\s*return logoutReplyPlan\(\{ scope, ok: response\.ok \}\) === 'answer-locally' \? localLogoutAnswer\(\) : response;/.test(bounded));
+    ok('lib/supabase: the local answer is the one auth-js reads as "remove the session" (403 session_not_found)',
+      /error_code: 'session_not_found'/.test(lib) && /new Response\(body, \{ status: 403/.test(lib));
+    const settings = read('app/(tabs)/settings/index.tsx');
+    ok('Settings: the busy caption and its accessibility label come from the phase',
+      /testID="logout-busy-label">\{signOutBusyLabel\(signOutPhase\)\}<\/Text>/.test(settings)
+        && /accessibilityLabel=\{signingOut \? signOutBusyLabel\(signOutPhase\) : 'Sign out'\}/.test(settings));
+    const notif = read('utils/notifications.ts');
+    ok('the sign-out token read (prompt: false) is answered from the token this process already fetched; registering callers still fetch',
+      /if \(opts\.prompt === false && knownExpoPushToken\) return knownExpoPushToken;\s*const tokenData = await Notifications\.getExpoPushTokenAsync\(\{ projectId \}\);\s*knownExpoPushToken = tokenData\.data;/.test(notif)
+        && notif.indexOf("if (finalStatus !== 'granted')") < notif.indexOf('if (opts.prompt === false && knownExpoPushToken)'));
   }
 
   console.log('\n#150 / CONTRACT 24 refreshAll');

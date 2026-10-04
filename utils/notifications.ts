@@ -27,6 +27,14 @@ Notifications.setNotificationHandler({
  * action (Settings toggle, a "Get notified when this CO is signed?"
  * inline button, etc.) so the prompt has context.
  */
+// This install's Expo push token, once this process has fetched it. The token
+// is stable for the life of an install, and getExpoPushTokenAsync is a network
+// round trip to Expo every time it is called. Sign-out reads the token only to
+// release it (AuthContext.releasePushTokenBeforeSignOut, `prompt: false`), so
+// that one caller is answered from here: one request fewer on every sign-out.
+// The callers that REGISTER a token (prompt true, or no opts) always fetch.
+let knownExpoPushToken: string | null = null;
+
 export async function registerForPushNotifications(opts: { prompt?: boolean } = {}): Promise<string | null> {
   if (Platform.OS === 'web') {
     console.log('[Notifications] Web platform — skipping push registration');
@@ -61,7 +69,10 @@ export async function registerForPushNotifications(opts: { prompt?: boolean } = 
       return null;
     }
 
+    if (opts.prompt === false && knownExpoPushToken) return knownExpoPushToken;
+
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    knownExpoPushToken = tokenData.data;
     console.log('[Notifications] Push token:', tokenData.data);
 
     if (Platform.OS === 'android') {
