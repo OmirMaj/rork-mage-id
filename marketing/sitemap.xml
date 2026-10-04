@@ -71,7 +71,7 @@
   </url>
   <url>
     <loc>https://mageid.app/features/financials.html</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -107,7 +107,7 @@
   </url>
   <url>
     <loc>https://mageid.app/features/vs-competitors.html</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -133,7 +133,7 @@
   </url>
   <url>
     <loc>https://mageid.app/support.html</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -174,7 +174,7 @@
   <!-- Legal (lower priority but should be indexed) -->
   <url>
     <loc>https://mageid.app/privacy.html</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

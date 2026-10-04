@@ -790,12 +790,76 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       // and budgets. features/financials.html promised both of these.
       { pattern: /Owner e-signature via client portal/i, why: 'the portal has no signing action for pay applications — only a Pay button' },
       { pattern: /client portal for owner signature/i, why: 'same — a pay application is paid in the portal, never signed there' },
+      // Lane PAYFIX, fix round 3: features/financials.html sold the pay app as
+      // "what the architect expects". MAGE ID cannot know what an architect,
+      // a lender or a bank will take; the standing notice says some require
+      // the official forms. The layout is one they are used to — that is all.
+      { pattern: /what (?:the|your|an?|every|most) (?:architect|lender|bank|banker|surety)s? (?:expects?|accepts?|wants?|requires?|needs?)/i, why: 'a promise about what an architect or lender accepts — say what the document is, not what they will take' },
+      { pattern: /(?:lender|architect)[- ](?:ready|approved|accepted)/i, why: 'same — nobody at MAGE ID can promise a lender or an architect accepts a document' },
     ];
     for (const { pattern, why } of FALSE_CLAIMS) {
       const hits = pages.filter(p => pattern.test(prose(p)));
       ok(`no page claims /${pattern.source.slice(0, 32)}/`, hits.length === 0,
         hits.length ? `${why} — found in: ${hits.join(', ')}` : undefined);
     }
+
+    // THE PROMISE ITSELF, NOT TWO WORDINGS OF IT (lane PAYFIX, fix round 4).
+    // The two patterns above read "what the architect expects" and
+    // "lender-ready". "The layout your architect will accept" and "accepted by
+    // lenders and architects" passed both — and support.html was live with
+    // "a PDF package your bank or GC can accept". So, one pattern (the same
+    // one scripts/validate-payfix.ts runs on the app's document files):
+    // somebody who is not MAGE ID — an architect, a lender, a bank, a surety —
+    // within one sentence of accept / expect / approve / require, in either
+    // order. What may stand is taken out first, by exact text.
+    const TAKER = String.raw`(?:architect|lender|bank|banker|suret(?:y|ies))s?`;
+    const TAKE_VERBS = 'accept|expect|approv|requir';
+    const TAKES = new RegExp(String.raw`\b${TAKER}\b[^.<]{0,40}\b(?:${TAKE_VERBS})\w*|\b(?:${TAKE_VERBS})\w*\b[^.<]{0,40}\b${TAKER}\b`, 'i');
+    const TAKES_ALLOWED: string[] = [
+      // The standing notice, which says the opposite: they may NOT take it.
+      // (Cut before "Documents": the portal page builds the sentence in two strings.)
+      'Some lenders and architects require the official AIA Contract',
+      // Two live sentences about submittals and RFIs, each only as written.
+      '"approved" with revision numbers and architect comments preserved', // features/field.html
+      'assigned to (Architect), required date (this Friday)',             // playbook.html
+    ];
+    const flat = (t: string) => t.replace(/\s+/g, ' ');
+    const takesClaim = (raw: string): string | null => {
+      const t = TAKES_ALLOWED.reduce((acc, a) => acc.split(a).join('·'), flat(raw));
+      const m = TAKES.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 20) : null;
+    };
+    const takesHits = [...pages, 'marketing/app-store-screenshots/builder.html']
+      .map(p => ({ p, m: takesClaim(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) says what an architect, lender, bank or surety accepts, expects, approves or requires',
+      takesHits.length === 0, takesHits.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    const TAKES_MUST_MATCH = [
+      '<p>Progress billing in the G702/G703 layout your architect will accept.</p>',
+      '<p>Progress billing accepted by lenders and architects.</p>',
+      '<p>Export the pay application as a PDF package your bank or GC can accept.</p>',
+      '<p>Progress billing that actually looks like what the architect expects.</p>',
+      '<li>The G702 your lender requires, in one tap</li>',
+      '<li>Draws your bank approves faster</li>',
+      '<li>Approved by sureties</li>',
+      '<p>Some lenders and architects accept these in place of the official AIA Contract Documents.</p>',
+    ];
+    ok('…and that check sees the promise in either order, with any of the four verbs',
+      TAKES_MUST_MATCH.every(t => takesClaim(t) != null), TAKES_MUST_MATCH.filter(t => takesClaim(t) == null).join(' | '));
+    const TAKES_TRUE_COPY = [
+      '<p>Progress billing in the G702/G703 layout architects and lenders are used to.</p>',
+      '<p>Some lenders and architects require the official AIA Contract Documents &mdash; check with yours.</p>',
+      '<p>Export the pay application as a PDF package to send to your bank or GC.</p>',
+      '<p>Your client approves the change order. Send the PDF to your lender.</p>',
+    ];
+    ok('…and leaves true copy alone (what they are used to; the standing notice; a full stop in between)',
+      TAKES_TRUE_COPY.every(t => takesClaim(t) == null), TAKES_TRUE_COPY.filter(t => takesClaim(t) != null).join(' | '));
+    ok('the allow-list is three exact phrases, each live where it was found',
+      TAKES_ALLOWED.length === 3
+      && pages.filter(p => flat(prose(p)).includes(TAKES_ALLOWED[0])).length >= 10
+      && flat(prose('marketing/features/field.html')).split(TAKES_ALLOWED[1]).length === 2
+      && flat(prose('marketing/playbook.html')).split(TAKES_ALLOWED[2]).length === 2);
+    ok('support.html says where the PDF package goes, not who accepts it',
+      /Export the pay application as a PDF package to send to your bank or GC\./.test(prose('marketing/support.html')));
 
     // THE CLAIM ITSELF, NOT TWO SENTENCES OF IT (lane PAYFIX, fix round 1).
     // The two patterns above match only the exact strings features/
@@ -812,30 +876,88 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // contract and change-order e-signature in its own block. A printed
     // "signature line" or "signature block" is true and is not matched.
     const PAY_APP_NOUN = String.raw`(?:pay[\s-]*app(?:lication)?s?\b|G70[23]\b)`;
-    // Fix round 2: the claim in plain words too. "signed by the owner", "your
-    // owner signs each pay app", "digital signature" all passed while only the
-    // "e-sign…" spellings were matched. So: the verb (sign / signs / signed /
-    // signing) and a digital or electronic signature count as well. The noun
-    // "signature" on its own does not ("signature line", "signature block" —
-    // a blank line for a pen is what the PDF really prints), and neither does
-    // signing IN or UP, or a signed CONTRACT, which is not a signature on the
-    // pay application.
-    const E_SIGN = String.raw`(?:\be-?sign(?:ature|atures|ed|ing|s)?\b|owner(?:[’']s)? signature|for (?:owner |client )?signature|(?:digital|electronic)(?:ally)?[\s-]+sign(?:ature|atures|ed|s)?\b|\bsign(?:s|ing)?\b(?![\s-]+(?:in|up|off)\b)|\bsigned\b(?![\s-]+(?:in\b|up\b|contract))|\bcounter-?sign(?:s|ed|ing|ature)?\b)`;
+    // Fix round 3 — THE SIMPLEST RULE THAT CAN BE PROVEN. Rounds 1 and 2 listed
+    // the ways the claim can be worded ("e-sign", then "signs", "signed by",
+    // "digital signature") and each list was beaten by the next wording: a
+    // bare "signature", "sign-off", "DocuSign". So the rule no longer reads
+    // the wording at all: inside one block with a pay-app noun, ANY "sign"
+    // (three letters, any case, inside any word) fails. What may stand is a
+    // short list of exact phrases, taken out of the text before the test.
+    const SIGN_ALLOWED: string[] = [
+      'signature line',   // what the PDF really prints: a blank line for a pen
+      'signature block',  // the same
+      'signed contract',  // line 1 comes from the signed contract — not a signature on the pay app
+      'sign in to',       // logging in ("sign in the portal" is NOT this, and fails)
+      '>sign in<',        // the nav link's own label
+      'sign up',
+      'design',           // designed, designer, redesign
+      // Two live strings, each allowed only as written (their homes are pinned below):
+      'whoever signs off on your draws', // proof.html — a person with a pen, after the PDF is exported
+      'Object.assign(',                  // portal/index.html — script, not copy
+    ];
+    const escRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const stripAllowedSign = (t: string) => SIGN_ALLOWED.reduce((acc, a) => acc.replace(new RegExp(escRe(a), 'gi'), '·'), t);
     const SAME_BLOCK = String.raw`(?:(?!<\/(?:tr|li|div|section)>)[\s\S]){0,240}?`;
-    const PAY_APP_E_SIGN = new RegExp(`${PAY_APP_NOUN}${SAME_BLOCK}${E_SIGN}|${E_SIGN}${SAME_BLOCK}${PAY_APP_NOUN}`, 'i');
+    const PAY_APP_SIGN = new RegExp(`${PAY_APP_NOUN}${SAME_BLOCK}sign|sign${SAME_BLOCK}${PAY_APP_NOUN}`, 'i');
+    const oneLine = (t: string) => t.replace(/\s+/g, ' ');
+    // Fix round 4 — THE 240 CHARACTERS WERE THE NEXT HOLE. A card whose
+    // heading names the pay app and whose paragraph says "your owner signs it"
+    // 300 characters later passed. So the distance is no longer the only
+    // reading. Two more, neither of which measures anything:
+    //   WHOLE ELEMENT  a table row, list item or paragraph that names a pay
+    //                  app has no "sign" anywhere in it;
+    //   TITLE BLOCK    a title that names a pay app — a heading, or a bold /
+    //                  summary / dt / th label — owns everything under it up
+    //                  to the next heading (for a label: or the end of its
+    //                  container), and none of it says "sign".
+    const NOUN_RE = new RegExp(PAY_APP_NOUN, 'i');
+    const wholeElementSign = (t: string): string | null => {
+      for (const m of t.matchAll(/<(tr|li|p)\b[^>]*>[\s\S]*?<\/\1>/gi)) {
+        if (NOUN_RE.test(m[0]) && /sign/i.test(m[0])) return m[0];
+      }
+      return null;
+    };
+    const titleBlockSign = (t: string): string | null => {
+      for (const m of t.matchAll(/<(h[1-6]|strong|b|summary|dt|th)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+        if (!NOUN_RE.test(m[2])) continue;
+        const rest = t.slice(m.index! + m[0].length);
+        const stop = /^h[1-6]$/i.test(m[1]) ? /<h[1-6]\b/i : /<h[1-6]\b|<\/(?:tr|li|div|section|dl|details)>/i;
+        const end = rest.search(stop);
+        const block = m[0] + (end < 0 ? rest : rest.slice(0, end));
+        if (/sign/i.test(block)) return block;
+      }
+      return null;
+    };
+    /** The offending text, or null. */
+    const payAppSign = (raw: string): string | null => {
+      const t = stripAllowedSign(oneLine(raw));
+      return PAY_APP_SIGN.exec(t)?.[0] ?? wholeElementSign(t) ?? titleBlockSign(t);
+    };
     // The App Store screenshot source is not a public page (publicPages skips
     // the folder), but its captions become the store listing's images.
     const STORE_SCREENSHOTS = 'marketing/app-store-screenshots/builder.html';
     const eSignPages = [...pages, STORE_SCREENSHOTS];
-    const oneLine = (t: string) => t.replace(/\s+/g, ' ');
     const eSignHits = eSignPages
-      .map(p => ({ p, m: PAY_APP_E_SIGN.exec(oneLine(prose(p))) }))
+      .map(p => ({ p, m: payAppSign(prose(p)) }))
       .filter(x => x.m);
-    ok('no page (or App Store screenshot caption) puts an e-signature on a pay application',
+    ok('no page (or App Store screenshot caption) puts a signature of any kind on a pay application',
       eSignHits.length === 0,
-      eSignHits.map(x => `${x.p}: "${x.m![0].slice(0, 140)}"`).join(' | '));
-    // The guard has to be able to see the claim it guards: the three live
-    // strings it was written against, and the two financials.html sentences.
+      eSignHits.map(x => `${x.p}: "${x.m!.slice(0, 140)}"`).join(' | '));
+    // The page that made the claim, read whole: the section that sells the pay
+    // application says nothing about signing at all — whatever the distance
+    // between its heading and the word.
+    {
+      const fin = oneLine(prose('marketing/features/financials.html'));
+      const from = fin.indexOf('AIA-style Pay Applications <span class="tier-chip');
+      const to = fin.indexOf('</section>', from);
+      const section = from > 0 && to > from ? stripAllowedSign(fin.slice(from, to)) : '';
+      const at = section.search(/sign/i);
+      ok('features/financials.html: the pay-application section has no "sign" in it anywhere',
+        section.length > 800 && /G702 & G703, one tap away\./.test(section) && /with a Pay button/.test(section) && at < 0,
+        !section ? 'section not found' : at >= 0 ? `…${section.slice(Math.max(0, at - 80), at + 40)}…` : 'section anchors moved');
+    }
+    // The guard has to be able to see the claim it guards: every form the
+    // claim was live in, and every wording a review slipped past it.
     const WAS_LIVE = [
       '<td>AIA-style G702 / G703 pay apps</td><td>Native — full SOV editing, retainage, prior-billings, owner e-sign via portal</td>',
       '<td>AIA-style G702/G703 pay app generator</td>\n<td>One screen — schedule of values, retainage math, change-order roll-up, e-sign export</td>',
@@ -850,10 +972,28 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<p>Send the G702 and the owner can sign it from a phone.</p>',
       '<li>Pay apps, electronically signed</li>',
       '<p>Architects countersign your pay app in the portal.</p>',
+      // Fix round 3 — the bare noun, "sign-off", a brand name, and the lead
+      // paragraph of the pay-app section.
+      '<li>Owner approval and signature on every pay application</li>',
+      '<li>G702/G703 with owner sign-off in the portal</li>',
+      '<li>Pay apps with a signature from the owner, captured in the portal</li>',
+      '<li>Pay applications with DocuSign built in</li>',
+      '<h2>G702 & G703, one tap away.</h2> <p> Progress billing in the G702/G703 layout architects and lenders are used to. Retainage, stored materials, prior billings — all calculate correctly. Export as PDF or send it to the client portal, where your client can review it, add a signature &mdash; and pay it online when you take payments through MAGE ID. </p>',
+      '<li>Pay apps your owner can SIGN from a phone</li>',
+      '<p>Your owner can sign in the portal, right on the pay app.</p>',
+      '<li>G702 with Adobe Sign and HelloSign support</li>',
+      '<li>Pay applications, cosigned by the architect</li>',
+      '<li>G702 signature lines your owner fills in online with a signature pad</li>',
+      // Fix round 4 — the claim more than 240 characters from the noun: under
+      // a heading, under a bold label, and at the far end of one table row.
+      `<div class="card"><h4>AIA-style pay applications</h4><p>${'Schedule of values, retainage and stored materials, worked out for you each period. '.repeat(4)}Then your owner signs it right in the client portal.</p></div>`,
+      `<div class="faq-item"><strong>AIA-style pay apps</strong><p>${'Set up the schedule of values once on the billing screen. '.repeat(6)}</p><p>Your owner signs it in the portal.</p></div>`,
+      `<div class="head"><h2>G702 &amp; G703, one tap away.</h2></div><div class="body"><p>${'Retainage and prior billings calculate correctly. '.repeat(6)}</p><p>Owner e-signature included.</p></div>`,
+      `<tr><td>AIA-style pay apps</td><td>${'Full schedule-of-values editing with retainage and prior billings. '.repeat(5)}Owner signature in the portal.</td></tr>`,
     ];
-    ok('…and that check matches every form the claim was live in',
-      WAS_LIVE.every(t => PAY_APP_E_SIGN.test(t)),
-      WAS_LIVE.filter(t => !PAY_APP_E_SIGN.test(t)).join(' | '));
+    ok('…and that check matches every form the claim was live in, and every wording that got past an earlier version of it',
+      WAS_LIVE.every(t => payAppSign(t) != null),
+      WAS_LIVE.filter(t => payAppSign(t) == null).join(' | '));
     const TRUE_COPY = [
       '<li>G702 cover sheet with signature lines for the contractor and the architect</li>',
       '<div><p>Pay apps go to the portal with a Pay button.</p></div><div><p>Change orders are approved with an e-signature.</p></div>',
@@ -863,10 +1003,32 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       '<p>Line 1 of the pay app comes from your signed contract.</p>',
       '<p>Sign in to build an AIA-style pay app.</p>',
       '<p>Sign up free and send your first pay application this week.</p>',
+      '<p>Designed for the G702/G703 layout, redesigned for a phone.</p>',
+      '<li>Export the G702 and the G703 continuation sheet, and send the PDF to whoever signs off on your draws.</li>',
+      // A title block ends at the next heading; a label's block at the end of its container.
+      '<div class="card"><h4>AIA-style pay applications</h4><p>PDF export, with a Pay button in the portal.</p></div><div class="card"><h4>Change orders</h4><p>Approved with an e-signature.</p></div>',
+      '<div class="faq-item"><strong>AIA-style pay apps</strong><p>Export the PDF.</p></div><div class="faq-item"><strong>Contracts</strong><p>Signed in the portal.</p></div>',
     ];
-    ok('…and leaves true copy alone (printed signature lines; e-signature in its own block)',
-      TRUE_COPY.every(t => !PAY_APP_E_SIGN.test(t)),
-      TRUE_COPY.filter(t => PAY_APP_E_SIGN.test(t)).join(' | '));
+    ok('…and leaves true copy alone (printed signature lines; e-signature in its own block; signing in; the signed contract)',
+      TRUE_COPY.every(t => payAppSign(t) == null),
+      TRUE_COPY.filter(t => payAppSign(t) != null).join(' | '));
+    // An allow-list is a hiding place unless it is exact. The two phrases that
+    // are on it only because they are live are counted where they live, and a
+    // near-miss of any phrase still fails.
+    ok('the two page-specific phrases on the allow-list are live exactly where they were found',
+      oneLine(prose('marketing/proof.html')).split('whoever signs off on your draws').length === 2
+      && /Object\.assign\(/.test(prose('marketing/portal/index.html')));
+    const NEAR_MISS = [
+      '<li>Pay apps with a signature pad</li>',
+      '<li>Pay app signatures, lined up for you</li>',
+      '<li>Pay apps: sign in the portal</li>',
+      '<li>Pay app, signed. Contract, done.</li>',
+      '<li>Pay apps whoever signs them</li>',
+      '<li>Pay apps your owner signs off on</li>',
+    ];
+    ok('…and a near-miss of an allowed phrase still fails',
+      NEAR_MISS.every(t => payAppSign(t) != null), NEAR_MISS.filter(t => payAppSign(t) == null).join(' | '));
+    ok('the allow-list stays short', SIGN_ALLOWED.length === 9 && SIGN_ALLOWED.every(a => a.length >= 6));
     ok('the App Store screenshot caption says AIA-style',
       !/AIA\s+(G70[23]|pay\s*app)/i.test(prose(STORE_SCREENSHOTS).replace(/AIA-style/gi, '')),
       'an App Store image that says "AIA PAY APP" tells a buyer the document is an official AIA form');

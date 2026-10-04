@@ -106,8 +106,8 @@ export function documentChipMatches(row: Pick<DocumentRegisterRow, 'status'>, ch
 /**
  * The pay application's type tag, on the phone card and in the desktop Type
  * column. Lane PAYFIX: not "AIA Billing" — the document is AIA-style, never an
- * official AIA form. (mocks/documents documentTypeInfo still carries the old
- * word for its colours' sake; app/documents.tsx prints this one over it.)
+ * official AIA form. (mocks/documents documentTypeInfo says "AIA-style billing",
+ * which the client view prints; app/documents.tsx prints this shorter tag.)
  */
 export const PAY_APP_TYPE_TAG = 'Pay app';
 

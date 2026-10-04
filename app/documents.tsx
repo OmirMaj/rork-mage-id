@@ -125,8 +125,8 @@ function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfoMap = documentTypeInfo(themeColors);
   const typeInfo = typeInfoMap[doc.type] ?? typeInfoMap.other;
-  // Lane PAYFIX: a pay app's tag is "Pay app", not the mock table's "AIA
-  // Billing" — the document is AIA-style, never an official AIA form.
+  // Lane PAYFIX: a pay app's tag is "Pay app" — the short word, in place of
+  // the mock table's "AIA-style billing". Never an official AIA form.
   const typeLabel = doc.type === 'aia_billing' ? PAY_APP_TYPE_TAG : typeInfo.label;
   const statusInfo = toneConfig(themeColors)[doc.status.tone];
   const StatusIcon = BUCKET_ICON[doc.status.bucket];

@@ -65,22 +65,22 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (p
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved credit: the bill bar says why) 1`] = `
 {
-  "lines": 1002,
-  "sha256": "c1c1984c3c682bd461e2fe2adfb12bc7bb1292610320058543f8dc8ff7b2d5dc",
+  "lines": 991,
+  "sha256": "bbd6f66f011a17c6a5587bc8ccf475da5f0f0ee8b7d3419274159f281532ffad",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved, billable: the bill bar) 1`] = `
 {
   "lines": 1003,
-  "sha256": "535ca48f7e1441d00bdd485653dcf0a526fdb15b17d654d07adfce4cfa79632d",
+  "sha256": "e28c96691c109e360b7f287ca63286575c78ce2f58d779446a80ce9a4db4f200",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (rejected: locked, no bar) 1`] = `
 {
-  "lines": 1008,
-  "sha256": "f8994e2ef830fa55502520544eb80b59506f49a0e3cfb5d176a70909c133909c",
+  "lines": 997,
+  "sha256": "ebea4448a25fe30860ef63bf4ff7bc21e7e890fe76dbda9e8af0c1998dbd43a1",
 }
 `;
 

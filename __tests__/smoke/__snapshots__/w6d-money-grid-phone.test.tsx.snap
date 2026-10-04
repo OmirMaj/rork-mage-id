@@ -31,6 +31,6 @@ exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (e) /change-order, an approved CO: locked 1`] = `
 {
   "lines": 998,
-  "sha256": "4f93b72dcf3a8ed2321d0fbe1ff2af407ce5adeae2d369813f0bb980db320600",
+  "sha256": "91b49fe9999cbd376add4f740c942123d0e40c1bbbca3b193d9b8c1d7a577e77",
 }
 `;

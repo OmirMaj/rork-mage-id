@@ -342,6 +342,129 @@ export function savedChangeOrderOriginalSum(
   return sum > 0 ? sum : null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SAVED BASE AND THE SCREEN (lane PAYFIX, fix rounds 3 and 4).
+//
+// A saved change order carries a stamp: `originalContractValue`, the contract
+// sum just before this change order. Every document that leaves the
+// change-order screen prints THAT stamp — Share PDF, the proof packet and the
+// client portal build from the saved record. The screen's rows are live: once
+// the contract read answers, they show the signed contract. So a saved stamp
+// built on the estimate printed $100,000 on the PDF while the screen said
+// "$92,500 · Signed contract", with nothing on screen saying so.
+//
+// ONE RULE: the figure on screen and the figure a document prints agree, or
+// the document does not leave.
+//   * An EDITABLE change order whose saved stamp differs from the screen's
+//     figure (coSavedBaseDiffers) is held at every exit — Share PDF, the proof
+//     packet, the portal share, the email send AND EVERY APPROVE on the screen
+//     — with a reason that names both figures and says to save first
+//     (coSavedBaseHold). Saving restamps the base. Nothing prints a stale base
+//     silently, and nothing restamps it without a save the contractor made.
+//     Approving is an exit too: it does not restamp the base, and it turns the
+//     change order into a record nobody can save again, so a stale stamp
+//     approved is a stale stamp for good.
+//   * A LOCKED change order (approved, declined, void) cannot be saved, so its
+//     rows are the rows its PDF prints, from the record alone
+//     (changeOrderRecordRows). Nothing live is read for it.
+//
+// The comparison has no other condition. It needs none for a contract read
+// that has not answered: until it answers, the screen's original contract sum
+// IS the figure the saved change order was built on (contractSumBasis keeps
+// it), so the two can only differ when the approved changes before this one
+// moved — and those are on the device, known with or without the read.
+//
+// The other change-order draft writers — components/UniversalMicButton.tsx,
+// utils/fieldTicketCore.ts, utils/brain/leakCoDraft.ts and
+// utils/brain/scopeCoDraft.ts — still stamp the ESTIMATE on the drafts they
+// write, and need no edit: they cannot read the signed contract where they
+// run, and every draft they write is reconciled on the change-order screen
+// before a document can leave it or an approve can be made on it. So is any
+// draft saved before this build, and any draft saved while the contract read
+// had not answered. (An approval made somewhere else — the project screen, or
+// the client in the portal — does not pass through this rule.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const wholeCents = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) : 0);
+
+/**
+ * Does the SAVED change order's stamped base differ from the base the screen
+ * shows now? Compared in whole cents, and nothing else is asked. False for a
+ * change order that has never been saved.
+ */
+export function coSavedBaseDiffers(
+  saved: { originalContractValue?: number } | null | undefined,
+  liveOriginalContractValue: number,
+): boolean {
+  if (!saved) return false;
+  return wholeCents(saved.originalContractValue) !== wholeCents(liveOriginalContractValue);
+}
+
+/**
+ * Why a change-order document may not leave yet — and why the change order may
+ * not be approved yet — in the contractor's words: both figures, and what to
+ * do. Null when the saved stamp and the screen agree. States no cause — the
+ * difference can be a contract signed since the save, or another change order
+ * approved since — only the two figures, which are known.
+ */
+export function coSavedBaseHold(
+  saved: { originalContractValue?: number } | null | undefined,
+  liveOriginalContractValue: number,
+  money: (n: number) => string,
+): string | null {
+  if (!coSavedBaseDiffers(saved, liveOriginalContractValue)) return null;
+  const savedBase = wholeCents(saved!.originalContractValue) / 100;
+  const liveBase = wholeCents(liveOriginalContractValue) / 100;
+  return `The saved copy of this change order was built on a contract sum of ${money(savedBase)}. This screen now shows ${money(liveBase)}. Tap Save to Project to update the saved copy, then share, send or approve it.`;
+}
+
+/** A change order nobody can edit any more — approved, declined or void — is a
+ *  record of what the client was shown. */
+export function changeOrderIsRecord(status: string | null | undefined): boolean {
+  return status === 'approved' || status === 'rejected' || status === 'void';
+}
+
+/** The caption under the first base row of a locked change order. */
+export const CO_RECORD_SUM_CAPTION = 'As recorded on this change order';
+
+/** The base rows of a locked change order. `originalContractSum` and
+ *  `priorApprovedChanges` are null together: the record does not carry them. */
+export interface ChangeOrderRecordRows {
+  /** The stamp: "Contract sum prior to this CO". */
+  originalContractValue: number;
+  /** The approved changes FROZEN on the record, or null when it carries none. */
+  priorApprovedChanges: number | null;
+  /** The stamp less the frozen changes, or null with them. */
+  originalContractSum: number | null;
+}
+
+/**
+ * THE ROWS A LOCKED CHANGE ORDER SHOWS ARE THE ROWS ITS PDF PRINTS, from the
+ * record alone — the same branch as utils/pdfGenerator's `buildUp`
+ * (scripts/validate-payfix.ts pins the two together):
+ *   * the record carries its frozen prior approved changes → the original
+ *     contract sum (stamp less frozen), the frozen changes, and the stamp;
+ *   * it does not (a draft written by the mic, a field ticket or the brain and
+ *     approved without a save here; a sample change order; anything locked
+ *     before the changes were frozen) → the stamp ALONE, as "Contract sum
+ *     prior to this CO". There is no original contract sum on such a record,
+ *     and none is worked out from today's approved changes: that figure would
+ *     be on no document, and it is wrong whenever those changes moved.
+ * Takes no live figure, so it cannot read one. Null for a change order that
+ * can still be edited: its rows are live.
+ */
+export function changeOrderRecordRows(
+  co: { status?: string; originalContractValue?: number; priorApprovedChangesTotal?: number } | null | undefined,
+): ChangeOrderRecordRows | null {
+  if (!co || !changeOrderIsRecord(co.status)) return null;
+  const base = wholeCents(co.originalContractValue) / 100;
+  const frozen = co.priorApprovedChangesTotal;
+  if (typeof frozen !== 'number' || !Number.isFinite(frozen)) {
+    return { originalContractValue: base, priorApprovedChanges: null, originalContractSum: null };
+  }
+  return { originalContractValue: base, priorApprovedChanges: frozen, originalContractSum: cents(base - frozen) };
+}
+
 /** Why Save / Send wait, in the user's words, while the contract read for this
  *  document has not settled. It always settles within CONTRACT_READ_TIMEOUT_MS. */
 export const CONTRACT_READ_PENDING_REASON =
