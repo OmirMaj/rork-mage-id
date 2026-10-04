@@ -20,7 +20,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alon
 {
   "lines": 210,
   "modalCount": 1,
-  "sha256": "700868debcd97ea0e495e9b4767b6e83750f99bb0352dd7f9146a76e5d2d3a47",
+  "sha256": "757d001af7e6bcad318aaa541e2900713b0969ed7d2071482494bca6665a9d0a",
 }
 `;
 
@@ -28,7 +28,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alon
 {
   "lines": 210,
   "modalCount": 1,
-  "sha256": "98d20c0ade2c1ef310b06b8e1453a0849ae1e2b23872665535e37f9745c151d8",
+  "sha256": "bdd516c699b56b81a06588998f67225816083b5ee69821320d27a52a575389a4",
 }
 `;
 

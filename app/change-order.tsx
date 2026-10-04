@@ -96,7 +96,17 @@ import { cardSurface } from '@/components/ui';
 import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialSandboxId } from '@/utils/tutorial/store';
 import { CO_SAMPLE, toCents } from '@/utils/tutorial/learn/fixturesA';
-import { isOfflineNow } from '@/hooks/useOnline';
+import { isOfflineNow, useOffline } from '@/hooks/useOnline';
+// Lane PAYFIX: "Original contract sum" is the SIGNED contract's figure. The
+// read (offline, failed, timed out, sample) and what the row may say about it
+// are the shared, tested rule the pay app uses too: this screen only hands it
+// the loader and the figure a saved change order already carries.
+import {
+  watchContractRead, nextContractRead, contractSumView, savedChangeOrderOriginalSum,
+  CONTRACT_READ_PENDING_REASON, uncheckedContractSumSendNotice, type ContractReadState, type SignedContractLike,
+  coSavedBaseHold, changeOrderRecordRows, CO_RECORD_SUM_CAPTION,
+} from '@/utils/projectFinancials';
+import { loadActiveContract } from '@/utils/contractEngine';
 
 /**
  * The CO fields frozen at save/send (#129, #131). Declared here and SPREAD
@@ -1217,7 +1227,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // 'edit_unsaved' (integration round 2): the CO is on MAGE with this number;
   // only a later edit is under Not saved — the number stands, sending waits.
   const confirmedNumber = existingCO ? ((serverNumber.state === 'confirmed' || serverNumber.state === 'edit_unsaved') ? serverNumber.number ?? existingCO.number : null) : null;
-  const numberHold = useCallback(
+  const serverNumberHold = useCallback(
     (action: 'email' | 'portal' | 'pdf') => (existingCO ? coNumberHoldReason(serverNumber.state, action) : null),
     [existingCO, serverNumber.state],
   );
@@ -1235,19 +1245,100 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // before this CO (utils/wip's snapshot fallback, fieldTicketCore,
   // leakCoDraft and UniversalMicButton all write/read it that way); only the
   // filter is corrected, from "every other approved CO" to "the ones before it".
-  const originalContractSum = useMemo(() => {
-    if (!project) return 0;
-    return project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
-  }, [project]);
+  //
+  // THE SIGNED CONTRACT, NOT THE ESTIMATE (lane PAYFIX). This row used to be
+  // the estimate's grand total — on the document the homeowner signs, beside a
+  // contract he signed at a negotiated figure. It is resolveContractSum now:
+  // the signed contract, else the estimate ONLY when nothing is signed, and the
+  // caption under the row says which. A sample job has no server contract.
+  //
+  // A READ THAT HAS NOT ANSWERED (offline, failed, no answer in 6 seconds,
+  // still loading) never moves the figure a saved change order was built on
+  // and is never called "no signed contract": contractSumView /
+  // contractSumBasis, the same rule the pay app's line 1 follows. Until the
+  // read settles there is no caption, and Save / Send wait (contractSumHold).
+  const [coContractRead, setCoContractRead] = useState<ContractReadState<SignedContractLike> | null>(null);
+  const coContractProjectId = project?.id;
+  const coContractSample = !!project && isSampleProject(project);
+  // A dependency, so a device that opened this screen offline reads the
+  // contract when it comes back; an answer already held is never replaced by
+  // "not read" (nextContractRead).
+  const coOffline = useOffline();
+  useEffect(() => {
+    if (!coContractProjectId) return;
+    return watchContractRead<SignedContractLike>({
+      sample: coContractSample,
+      offline: coOffline,
+      load: () => loadActiveContract(coContractProjectId),
+      onSettle: contract => setCoContractRead(prev => nextContractRead(prev, coContractProjectId, contract)),
+    });
+  }, [coContractProjectId, coContractSample, coOffline]);
   const priorApprovedChanges = useMemo(
     // Against the CONFIRMED number once known (#141): a CO the server moved
     // from #4 to #5 counts the approved #4 as prior. The send waits for it.
     () => coPriorApprovedChanges(existingCOs, baseNumber, coId),
     [existingCOs, baseNumber, coId],
   );
+  const contractSum = useMemo(
+    () => contractSumView(project, coContractRead, coContractProjectId,
+      savedChangeOrderOriginalSum(existingCO, priorApprovedChanges)),
+    [project, coContractRead, coContractProjectId, existingCO, priorApprovedChanges],
+  );
+  // A LOCKED change order (approved, declined, void) is a record nobody can
+  // save again: its rows are the rows its PDF prints, from the record alone —
+  // never today's contract, never today's approved changes. Null while it can
+  // still be edited (lane PAYFIX, fix rounds 3-4; utils/projectFinancials).
+  const coRecordRows = useMemo(() => changeOrderRecordRows(existingCO), [existingCO]);
+  /** A locked record that does not carry its frozen prior changes: its PDF
+   *  prints the stamp alone ("Contract sum prior to this CO"), so the card
+   *  shows that one row and no "Original contract sum" at all. */
+  const coRecordBaseOnly = !!coRecordRows && coRecordRows.originalContractSum == null;
+  // 0 on a base-only record, where no row prints it (the card switches on
+  // coRecordBaseOnly) and nothing can be sent.
+  const originalContractSum = coRecordRows ? (coRecordRows.originalContractSum ?? 0) : project ? contractSum.value : 0;
+  /** The caption under the first base row; nothing until the read settles. */
+  const contractSumCaption = coRecordRows ? CO_RECORD_SUM_CAPTION : project ? contractSum.caption : null;
+  /** Why Save / Send wait: the contract read has not settled, so the figure on
+   *  the row has no caption yet and must not be stamped onto the document. */
+  const contractSumHold = project && !contractSum.settled ? CONTRACT_READ_PENDING_REASON : null;
+  /** The read settled WITHOUT an answer: he sees "…(signed contract not
+   *  checked)" under the row, but the email prints the figure plain, as
+   *  "Original contract sum". The send asks him first (handleConfirmSend), once
+   *  per figure. Null when the read answered. */
+  const uncheckedSumNotice = useMemo(
+    () => (project ? uncheckedContractSumSendNotice(contractSum.basis, originalContractSum, formatCurrency) : null),
+    [project, contractSum.basis, originalContractSum],
+  );
+  const uncheckedSumAcceptedRef = useRef<number | null>(null);
+  const confirmSendRef = useRef<() => void>(() => {});
   const originalContractValue = useMemo(
-    () => coRoundCents(originalContractSum + priorApprovedChanges),
-    [originalContractSum, priorApprovedChanges],
+    () => (coRecordRows ? coRecordRows.originalContractValue : coRoundCents(originalContractSum + priorApprovedChanges)),
+    [coRecordRows, originalContractSum, priorApprovedChanges],
+  );
+  /** The "Net change by prior approved COs" row: the record's frozen figure on
+   *  a locked change order (none when the record carries none), the live one
+   *  otherwise. */
+  const shownPriorApprovedChanges = coRecordRows ? (coRecordRows.priorApprovedChanges ?? 0) : priorApprovedChanges;
+  // ONE RULE FOR EVERY DOCUMENT THAT LEAVES THIS SCREEN (lane PAYFIX, fix
+  // rounds 3-4). Share PDF, the proof packet and the portal share print the
+  // SAVED record's stamped base; the rows above are live. When the two differ,
+  // no document leaves until he saves (which restamps the base) — and the
+  // reason names both figures. The email send waits on the same reason, so the
+  // base is never restamped by a send he did not know changed it. EVERY
+  // APPROVE ON THIS SCREEN waits on it too: approving does not restamp the
+  // base and locks the record, so a stale stamp approved could never be
+  // corrected. A locked change order never holds: its rows ARE the record's.
+  const savedBaseHold = useMemo(
+    () => coSavedBaseHold(existingCO, originalContractValue, formatCurrency),
+    [existingCO, originalContractValue],
+  );
+  /** Why a document may not leave yet: the number MAGE has not confirmed
+   *  (#77/#141), else the saved base that differs from the screen. Every exit
+   *  — the PDF, the proof packet, the portal gate and both email entry points
+   *  — asks this one function. */
+  const numberHold = useCallback(
+    (action: 'email' | 'portal' | 'pdf') => serverNumberHold(action) ?? savedBaseHold,
+    [serverNumberHold, savedBaseHold],
   );
 
   // Prefill from selections-overage CTA: when the homeowner picks an
@@ -1261,6 +1352,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     existingCO?.reason ?? (
       prefillReason === 'allowance_overage' ? 'Allowance overage'
       : prefillReason === 'client_request' ? 'Client request'
+      // Lane PAYFIX: the CO copilot's "field condition" lands as itself — it
+      // used to be rewritten to "client request" before it got here.
+      : prefillReason === 'field_condition' ? 'Field condition'
       : prefillReason === 'out_of_scope' ? 'Out-of-scope work (from daily report)'
       : ''
     )
@@ -1898,6 +1992,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       showAlert(blocked.title, blocked.message);
       return null;
     }
+    // Lane PAYFIX: no figure is stamped as the contract sum before the row
+    // can say where it came from.
+    if (contractSumHold) {
+      showAlert('Checking the signed contract', contractSumHold);
+      return null;
+    }
 
     const now = new Date().toISOString();
 
@@ -2037,7 +2137,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     };
     const write = addChangeOrder(co);
     return { id: co.id, number: nextCoNumber, isUpdate: false, status: nextStatus, pricedEditOnSentCO: false, write };
-  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, confirmedNumber, addChangeOrder, updateChangeOrder]);
+  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, contractSumHold, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, confirmedNumber, addChangeOrder, updateChangeOrder]);
 
   /**
    * #76 — run `proceed` only once no line is unpriced and every AI-estimated
@@ -2149,8 +2249,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // the email would carry a number another device may already have used.
     const hold = numberHold('email');
     if (hold) { showAlert('Not yet', hold); return; }
+    // Lane PAYFIX: the email prints the original contract sum, so the send
+    // waits for the contract read to settle too.
+    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
     withConfirmedPrices(() => withConfirmedImpactDays(() => setShowSendRecipient(true)));
-  }, [withConfirmedImpactDays, withConfirmedPrices, numberHold]);
+  }, [withConfirmedImpactDays, withConfirmedPrices, numberHold, contractSumHold]);
 
   // #77/#141 — a NEW CO saved from Send & Save reopens here (sendNext=1) and
   // the send sheet comes back, recipient prefilled, once its number is
@@ -2323,6 +2426,16 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (!existingCO) { saveNewForSend(); return; }
     const hold = numberHold('email');
     if (hold) { showAlert('Not yet', hold); return; }
+    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
+    // Lane PAYFIX: a figure MAGE could not check goes to the client only after
+    // he has been asked, with the figure named. Nothing is sent on Cancel.
+    if (uncheckedSumNotice && uncheckedSumAcceptedRef.current !== originalContractSum) {
+      showAlert(uncheckedSumNotice.title, uncheckedSumNotice.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send anyway', onPress: () => { uncheckedSumAcceptedRef.current = originalContractSum; confirmSendRef.current(); } },
+      ]);
+      return;
+    }
     if (sendingRef.current) return;
     sendingRef.current = true;
     setSendInFlight(true);
@@ -2474,7 +2587,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     } else {
       releaseSending();
     }
-  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, confirmedNumber, numberHold, router, description, reason, originalContractValue, originalContractSum, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
+  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, confirmedNumber, numberHold, router, description, reason, originalContractValue, originalContractSum, contractSumHold, uncheckedSumNotice, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
+  confirmSendRef.current = () => { void handleConfirmSend(); };
 
   // A locked CO hides the EDIT action bar — an approved one gets the billing
   // bar below instead, which lifts the FAB the same way.
@@ -2633,6 +2747,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // shows as approved, and no toast plays, before that write is confirmed;
   // the confirmed words say "unsigned".
   const approveWithoutSigning = useCallback((co: ChangeOrder) => {
+    // Lane PAYFIX: the same hold as every other approve, before anything else.
+    if (savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }
     const refusal = coUnconfirmedPriceBlocker(co.lineItems, co.description ?? '', formatCurrency);
     if (refusal?.kind === 'refuse') { showAlert(refusal.title, refusal.message); return; }
     const freeze: COFrozenFields = existingFrozenTaxRate == null ? coTaxFreeze(co.changeAmount, liveTaxRatePct) : {};
@@ -2646,7 +2762,19 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       return;
     }
     setApproveSheetCO(co);
-  }, [existingFrozenTaxRate, liveTaxRatePct, project?.schedule?.tasks?.length]);
+  }, [savedBaseHold, existingFrozenTaxRate, liveTaxRatePct, project?.schedule?.tasks?.length]);
+
+  // …and an approve already on screen when the hold appears (the contract read
+  // answered after he opened the sheet) is closed, with the reason: no slide
+  // can approve a base the screen no longer shows.
+  const approveOpen = approveSheetCO !== null || reflowPreviewCO !== null;
+  useEffect(() => {
+    if (!savedBaseHold || !approveOpen) return;
+    setApproveUnsigned(null);
+    setApproveSheetCO(null);
+    setReflowPreviewCO(null);
+    showAlert('Not yet', savedBaseHold);
+  }, [savedBaseHold, approveOpen]);
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
@@ -2793,6 +2921,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   startedAt={existingCO.createdAt}
                   // #73 — no one-tap advance out of Declined or Void.
                   onAdvance={pipe.canAdvance ? (next) => {
+                    // Lane PAYFIX: no approve while the saved base differs from
+                    // the screen — approving locks that base for good. This one
+                    // line stands before both ways this tap can approve: the
+                    // schedule preview's slide and confirmApprove's sheet (this
+                    // is confirmApprove's only caller).
+                    if (next === 'approved' && savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }
                     // Advancing to approved can now rewrite the Gantt. Same rule
                     // as the project screen: preview first, never on the tap.
                     if (
@@ -2854,15 +2988,29 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             {/* AIA G701's rows (#129). "Original Contract" used to show the
                 contract WITH every other approved CO in it. The prior-CO rows
                 only appear when there is a prior approved change to show. */}
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Original contract sum</Text>
-              <Text style={styles.totalValue}>{formatCurrency(originalContractSum)}</Text>
-            </View>
-            {priorApprovedChanges !== 0 && (
+            {/* Lane PAYFIX: a locked record without its frozen prior changes
+                shows the one row its PDF prints — the stamp, under the PDF's
+                own label — and no original contract sum. */}
+            {coRecordBaseOnly ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Contract sum prior to this CO</Text>
+                <Text style={styles.totalValue}>{formatCurrency(originalContractValue)}</Text>
+              </View>
+            ) : (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Original contract sum</Text>
+                <Text style={styles.totalValue}>{formatCurrency(originalContractSum)}</Text>
+              </View>
+            )}
+            {/* Lane PAYFIX: where that figure came from. */}
+            {contractSumCaption ? (
+              <Text style={styles.coMarginNote} testID="co-contract-sum-source">{contractSumCaption}</Text>
+            ) : null}
+            {shownPriorApprovedChanges !== 0 && (
               <>
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Net change by prior approved COs</Text>
-                  <Text style={styles.totalValue}>{priorApprovedChanges >= 0 ? '+' : ''}{formatCurrency(priorApprovedChanges)}</Text>
+                  <Text style={styles.totalValue}>{shownPriorApprovedChanges >= 0 ? '+' : ''}{formatCurrency(shownPriorApprovedChanges)}</Text>
                 </View>
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Contract sum prior to this CO</Text>

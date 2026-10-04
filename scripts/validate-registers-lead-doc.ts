@@ -218,7 +218,7 @@ function doc(over: Partial<DocumentRegisterRow>): DocumentRegisterRow {
   check('expiring in 29 days → soon', documentExpiringSoon(doc({ expiresAt: new Date(nowMs + 29 * DAY).toISOString() }), nowMs));
   check('already past → not soon', !documentExpiringSoon(doc({ expiresAt: new Date(nowMs - DAY).toISOString() }), nowMs));
   check('an expired or void row never warns', !documentExpiringSoon(doc({ expiresAt: new Date(nowMs + 5 * DAY).toISOString(), status: { bucket: 'expired', label: 'Expired', tone: 'danger' } }), nowMs));
-  check("Type: a submittal says 'Submittal', a pay app the phone tag 'AIA Billing'", documentTypeLabel(doc({ id: 'submittal-1' })) === 'Submittal' && documentTypeLabel(doc({ type: 'aia_billing' })) === 'AIA Billing');
+  check("Type: a submittal says 'Submittal', a pay app the phone tag 'Pay app' (never 'AIA Billing': it is AIA-style, not an AIA form)", documentTypeLabel(doc({ id: 'submittal-1' })) === 'Submittal' && documentTypeLabel(doc({ type: 'aia_billing' })) === 'Pay app');
 }
 
 // ── 5. CSV — unknown is an empty cell ──────────────────────────────────────
@@ -339,7 +339,7 @@ function phoneArm(src: string, opener: RegExp): string {
   check('documents: cast lines at or under the baseline (10 as never, 0 as any)', castLines(docs, 'never') <= 10 && castLines(docs, 'any') === 0, `${castLines(docs, 'never')}`);
   const oReg = read('components/registers/DocumentsRegister.tsx');
   const meta = /export const DOCUMENTS_REGISTER_META = '([^']*)';/.exec(oReg)?.[1] ?? '';
-  check('documents register: the one-line meta names the four kinds and no contracts', meta.length > 0 && !/contract/i.test(meta) && /COIs, permits, submittals and AIA pay apps/.test(meta), meta);
+  check('documents register: the one-line meta names the four kinds and no contracts', meta.length > 0 && !/contract/i.test(meta) && /COIs, permits, submittals and AIA-style pay apps/.test(meta), meta);
   check('documents register: rows link through documentRoute (no onRowOpen)', /const r = documentRoute\(d, cois, aiaPayApps\);\s*return routeHref\(r\.pathname, r\.params\);/.test(oReg) && !/onRowOpen=/.test(stripComments(oReg)));
   check('documents register: no Folder / By / Size columns (no data behind them)', !/key: '(folder|by|size)'/.test(oReg));
 

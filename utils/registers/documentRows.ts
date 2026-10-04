@@ -103,13 +103,21 @@ export function documentChipMatches(row: Pick<DocumentRegisterRow, 'status'>, ch
   return chip === 'all' || row.status.bucket === chip;
 }
 
+/**
+ * The pay application's type tag, on the phone card and in the desktop Type
+ * column. Lane PAYFIX: not "AIA Billing" — the document is AIA-style, never an
+ * official AIA form. (mocks/documents documentTypeInfo says "AIA-style billing",
+ * which the client view prints; app/documents.tsx prints this shorter tag.)
+ */
+export const PAY_APP_TYPE_TAG = 'Pay app';
+
 /** The phone card's type tag words (mocks/documents documentTypeInfo). */
 const TYPE_LABEL: Readonly<Record<string, string>> = {
   lien_waiver: 'Lien Waiver',
   coi: 'COI',
   contract: 'Contract',
   proposal: 'Proposal',
-  aia_billing: 'AIA Billing',
+  aia_billing: PAY_APP_TYPE_TAG,
   permit: 'Permit',
 };
 

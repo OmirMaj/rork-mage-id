@@ -9,8 +9,8 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (a) /contract for the fixt
 
 exports[`Lane C golden — the phone (390 × 844 iOS) (b) /change-order, a new CO on the fixture job 1`] = `
 {
-  "lines": 1023,
-  "sha256": "e73028c097478db7ad66889c440b0dc3cd76a84cdcdbfbe13dfe20c38ab03caf",
+  "lines": 1025,
+  "sha256": "f71367e829f260db281e38b106f966041101cda3903341c58e4e11c72f176a52",
 }
 `;
 

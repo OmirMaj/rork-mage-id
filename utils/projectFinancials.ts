@@ -30,7 +30,7 @@ import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/ut
  * estimate — optimistic by the difference. Neither figure is printed on a
  * client document, which is where the same defect actually mattered (the
  * portal, fixed; app/change-order.tsx and utils/aiaBilling.ts G702 line 1,
- * still on the estimate and out of this wave's scope). See
+ * fixed in lane PAYFIX — see `resolveContractSum` below). See
  * docs/audits/2026-09-11-handoff-money-to-wip.md.
  */
 export function getContractValue(
@@ -98,13 +98,26 @@ export interface SignedContractLike {
  *     sum into utils/portalSnapshot.ts is what makes the anon view print the
  *     signed figure, and that file belongs to the WIP/AIA wave.
  *
- * STILL ON THE ESTIMATE, none of them in this wave's scope:
+ *   • app/change-order.tsx — "Original contract sum" on the document a
+ *     homeowner signs, and the `originalContractValue` stamped on the saved
+ *     CO (lane PAYFIX). The estimate stands in ONLY when no contract is
+ *     signed, captioned "Estimate (no signed contract yet)", or "…not
+ *     checked" when the contract read did not answer (`contractSumView`). A
+ *     read that has not answered never moves the figure a saved CO was built
+ *     on (`contractSumBasis`, the unanswered-read rule).
+ *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1
+ *     (lane PAYFIX), with the same fallback rule; the source rides on the
+ *     application (`payAppContractSumSource`) and shows under line 1 on the
+ *     screen. The PDF prints the bare line label: MAGE only knows what is on
+ *     file in MAGE, so it does not tell an owner or lender "no signed contract".
+ *   • components/moments-sites/COApproveSheet.tsx, hooks/useProjectPulse.ts.
+ *
+ * STILL ON THE ESTIMATE, not touched by lane PAYFIX:
  *   • `getContractValue` above (see its own note) → marginRiskScore, livingEstimate;
- *   • app/change-order.tsx — prints "Original Contract Value" on the document a
- *     homeowner signs;
- *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1;
  *   • utils/wip.ts `deriveOriginalContractWithSource` — seven branches, no
- *     `signed_contract` among them.
+ *     `signed_contract` among them. (Its `pay_app_contract_sum` branch reads
+ *     the latest saved G702's line 1, so pay apps saved after lane PAYFIX
+ *     carry the signed figure into it indirectly.)
  */
 export function resolveContractSum(
   project: Project | null | undefined,
@@ -116,6 +129,366 @@ export function resolveContractSum(
     return { value: v, source: 'signed_contract', estimateTotal };
   }
   return { value: estimateTotal, source: 'estimate', estimateTotal };
+}
+
+/**
+ * A contract-sum source as a SCREEN states it (lane PAYFIX): resolveContractSum's
+ * two answers, plus the cases where "no signed contract yet" would be false:
+ *   `estimate_unread` — the contract read did not answer, so the estimate stands
+ *     in and nobody knows whether a signed figure exists;
+ *   `saved_unread` — the read did not answer and the document already carries a
+ *     figure that is not the estimate, so that figure stays exactly as it is;
+ *   `estimate_signed_no_amount` — a signed contract IS on file but carries no
+ *     usable value (zero, negative, non-finite), so the estimate stands in.
+ * A screen must not print "no signed contract yet" over any of them.
+ */
+export type ContractSumBasis = ContractSumSource | 'estimate_unread' | 'saved_unread' | 'estimate_signed_no_amount';
+
+/** The caption beside an original contract sum, by basis. Screen only: nothing
+ *  that goes to an owner, architect or lender prints these. */
+export const CONTRACT_SUM_BASIS_LABEL: Record<ContractSumBasis, string> = {
+  signed_contract: 'Signed contract',
+  estimate: 'Estimate (no signed contract yet)',
+  estimate_unread: 'Estimate (signed contract not checked)',
+  saved_unread: 'As saved (signed contract not checked)',
+  estimate_signed_no_amount: 'Estimate (signed contract has no amount)',
+};
+
+const sameContractCents = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) < 1;
+
+/**
+ * THE UNANSWERED-READ RULE — one function, for every screen that prints an
+ * original contract sum (the pay app's line 1 and the change order's
+ * "Original contract sum" both go through it; scripts/validate-payfix.ts runs
+ * it and mutates it).
+ *
+ * `contract` is the active row, `null` when the project has none on file, and
+ * `undefined` when the read HAS NOT ANSWERED (offline, failed, timed out,
+ * still loading). `onDocument` is the original contract sum the document
+ * already carries, when it has one: a saved pay app's line 1, the previous
+ * period's line 1, the figure a saved change order was built on.
+ *
+ * A read that has not answered:
+ *   1. NEVER CHANGES A FIGURE ALREADY ON THE DOCUMENT. `onDocument` comes back
+ *      as the value, to the cent.
+ *   2. IS NEVER DESCRIBED AS "NO SIGNED CONTRACT". The basis is
+ *      `estimate_unread` or `saved_unread`, never `estimate`.
+ * Only an ANSWER decides: the signed contract, else the estimate — and then
+ * `onDocument` is not consulted, because an answer outranks a stale figure.
+ */
+export function contractSumBasis(
+  project: Project | null | undefined,
+  contract: SignedContractLike | null | undefined,
+  onDocument?: number | null,
+): { value: number; basis: ContractSumBasis; estimateTotal: number } {
+  const r = resolveContractSum(project, contract ?? null);
+  if (contract === undefined) {
+    const kept = typeof onDocument === 'number' && Number.isFinite(onDocument) && onDocument > 0 ? onDocument : null;
+    if (kept != null && !sameContractCents(kept, r.estimateTotal)) {
+      return { value: kept, basis: 'saved_unread', estimateTotal: r.estimateTotal };
+    }
+    return { value: kept ?? r.estimateTotal, basis: 'estimate_unread', estimateTotal: r.estimateTotal };
+  }
+  const basis: ContractSumBasis = r.source === 'estimate' && contract?.status === 'signed'
+    ? 'estimate_signed_no_amount'
+    : r.source;
+  return { value: r.value, basis, estimateTotal: r.estimateTotal };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// READING THE CONTRACT, ONCE, FOR EVERY SCREEN THAT PRINTS A CONTRACT SUM
+// (lane PAYFIX, fix round 1).
+//
+// The honesty rule is one sentence: a read that did not answer is NOT "no
+// contract". It used to live as hand-copied wiring in two screens (`r.ok ?
+// r.contract : undefined`, the offline branch, a timeout), where flipping any
+// one of them to `null` printed "Estimate (no signed contract yet)" over a
+// dead network with every guard green. It is here now, pure, and
+// scripts/validate-payfix.ts runs it: the screens only hand it a loader.
+//
+//   row        the active contract
+//   null       the project has none on file (or it is a sample job, which has
+//              no server contract)
+//   undefined  not read: offline, a failed read, a thrown read, or no answer
+//              within the timeout
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** How long a screen waits for the contract read before it says "not checked". */
+export const CONTRACT_READ_TIMEOUT_MS = 6000;
+
+export type ContractReadEvent<T> =
+  | { kind: 'sample' }
+  | { kind: 'offline' }
+  | { kind: 'timeout' }
+  | { kind: 'threw' }
+  | { kind: 'loaded'; result: { ok: boolean; contract?: T | null } };
+
+/** What one read event says about the contract — see the table above. */
+export function contractReadOutcome<T>(event: ContractReadEvent<T>): T | null | undefined {
+  if (event.kind === 'sample') return null;
+  if (event.kind === 'loaded') return event.result.ok ? (event.result.contract ?? null) : undefined;
+  return undefined;
+}
+
+/** A screen's contract read: which project it is for, and what it answered. */
+export interface ContractReadState<T> {
+  projectId: string;
+  contract: T | null | undefined;
+}
+
+/**
+ * Fold one outcome into a screen's read state. An ANSWER (a row or `null`) is
+ * never replaced by "not read": a device that drops offline after a good read
+ * keeps the contract it has.
+ */
+export function nextContractRead<T>(
+  prev: ContractReadState<T> | null,
+  projectId: string,
+  contract: T | null | undefined,
+): ContractReadState<T> {
+  if (prev && prev.projectId === projectId && prev.contract !== undefined && contract === undefined) return prev;
+  return { projectId, contract };
+}
+
+/**
+ * Run one bounded contract read and report every outcome through `onSettle`.
+ * It always settles: at once for a sample job or an offline device (the loader
+ * is never called), otherwise on the answer or on the timeout, whichever comes
+ * first. A LATE answer after a timeout is still delivered, so a screen that
+ * settled as "not checked" corrects itself. Returns the cancel.
+ */
+export function watchContractRead<T>(opts: {
+  sample: boolean;
+  offline: boolean;
+  load: () => Promise<{ ok: boolean; contract?: T | null }>;
+  onSettle: (contract: T | null | undefined) => void;
+  timeoutMs?: number;
+}): () => void {
+  if (opts.sample) { opts.onSettle(contractReadOutcome<T>({ kind: 'sample' })); return () => {}; }
+  if (opts.offline) { opts.onSettle(contractReadOutcome<T>({ kind: 'offline' })); return () => {}; }
+  let live = true;
+  const timer = setTimeout(() => {
+    if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'timeout' }));
+  }, opts.timeoutMs ?? CONTRACT_READ_TIMEOUT_MS);
+  let read: Promise<{ ok: boolean; contract?: T | null }>;
+  try { read = opts.load(); } catch (err) { read = Promise.reject(err); }
+  read.then(
+    (result) => { clearTimeout(timer); if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'loaded', result })); },
+    () => { clearTimeout(timer); if (live) opts.onSettle(contractReadOutcome<T>({ kind: 'threw' })); },
+  );
+  return () => { live = false; clearTimeout(timer); };
+}
+
+/**
+ * WHAT A SCREEN'S READ STATE SAYS ABOUT THIS PROJECT'S CONTRACT — the one place
+ * a read state is turned into the value the rule above takes (lane PAYFIX, fix
+ * round 2). contractSumView, the pay app's payAppLineOneView and the pay-app
+ * screen's seeder all go through it; no screen opens a read state itself.
+ *
+ *   settled   the read for THIS project has reported (an answer, or "not read")
+ *   contract  the row; `null` = none on file; `undefined` = NOT READ
+ *
+ * `undefined` comes back whenever there is no answer for this project: nothing
+ * has reported yet, the state belongs to another project, or the read settled
+ * as "not read". It is NEVER turned into `null` here — `null` means "this job
+ * has no contract on file", and only an answer may say that. The pay-app
+ * screen used to derive these two values by hand, where one `?? null` handed
+ * the seeder "no contract" for a dead network with every guard green.
+ */
+export function contractOfRead<T>(
+  read: ContractReadState<T> | null | undefined,
+  projectId: string | null | undefined,
+): { settled: boolean; contract: T | null | undefined } {
+  const settled = !!projectId && !!read && read.projectId === projectId;
+  return { settled, contract: settled ? read!.contract : undefined };
+}
+
+/**
+ * Everything a screen shows about an original contract sum, from its read
+ * state: the figure, its basis, and the caption. THE CAPTION IS NULL UNTIL THE
+ * READ FOR THIS PROJECT HAS SETTLED — a screen renders `caption` and nothing
+ * else, so it cannot state a source it has not checked — and `settled` is what
+ * a screen gates Save / Send on, so an uncaptioned figure is never stamped
+ * onto a document. `onDocument` is the figure the document already carries
+ * (see contractSumBasis): until the read ANSWERS, it stays.
+ */
+export function contractSumView<T extends SignedContractLike>(
+  project: Project | null | undefined,
+  read: ContractReadState<T> | null | undefined,
+  projectId: string | null | undefined,
+  onDocument?: number | null,
+): { value: number; basis: ContractSumBasis; estimateTotal: number; settled: boolean; contract: T | null | undefined; caption: string | null } {
+  const { settled, contract } = contractOfRead(read, projectId);
+  const r = contractSumBasis(project, contract, onDocument);
+  return { ...r, settled, contract, caption: settled ? CONTRACT_SUM_BASIS_LABEL[r.basis] : null };
+}
+
+/**
+ * The original contract sum a SAVED change order was built on: its stored
+ * "contract sum prior to this CO" less the approved changes frozen with it
+ * (the live figure for a record saved before that was frozen). This is the
+ * `onDocument` a change order hands to contractSumView. Null for a new change
+ * order, or a record with no usable base.
+ */
+export function savedChangeOrderOriginalSum(
+  co: { originalContractValue?: number; priorApprovedChangesTotal?: number } | null | undefined,
+  livePriorApprovedChanges: number,
+): number | null {
+  const base = co?.originalContractValue;
+  if (typeof base !== 'number' || !Number.isFinite(base) || base <= 0) return null;
+  const frozen = co?.priorApprovedChangesTotal;
+  const prior = typeof frozen === 'number' && Number.isFinite(frozen) ? frozen : livePriorApprovedChanges;
+  const sum = cents(base - (Number.isFinite(prior) ? prior : 0));
+  return sum > 0 ? sum : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SAVED BASE AND THE SCREEN (lane PAYFIX, fix rounds 3 and 4).
+//
+// A saved change order carries a stamp: `originalContractValue`, the contract
+// sum just before this change order. Every document that leaves the
+// change-order screen prints THAT stamp — Share PDF, the proof packet and the
+// client portal build from the saved record. The screen's rows are live: once
+// the contract read answers, they show the signed contract. So a saved stamp
+// built on the estimate printed $100,000 on the PDF while the screen said
+// "$92,500 · Signed contract", with nothing on screen saying so.
+//
+// ONE RULE: the figure on screen and the figure a document prints agree, or
+// the document does not leave.
+//   * An EDITABLE change order whose saved stamp differs from the screen's
+//     figure (coSavedBaseDiffers) is held at every exit — Share PDF, the proof
+//     packet, the portal share, the email send AND EVERY APPROVE on the screen
+//     — with a reason that names both figures and says to save first
+//     (coSavedBaseHold). Saving restamps the base. Nothing prints a stale base
+//     silently, and nothing restamps it without a save the contractor made.
+//     Approving is an exit too: it does not restamp the base, and it turns the
+//     change order into a record nobody can save again, so a stale stamp
+//     approved is a stale stamp for good.
+//   * A LOCKED change order (approved, declined, void) cannot be saved, so its
+//     rows are the rows its PDF prints, from the record alone
+//     (changeOrderRecordRows). Nothing live is read for it.
+//
+// The comparison has no other condition. It needs none for a contract read
+// that has not answered: until it answers, the screen's original contract sum
+// IS the figure the saved change order was built on (contractSumBasis keeps
+// it), so the two can only differ when the approved changes before this one
+// moved — and those are on the device, known with or without the read.
+//
+// The other change-order draft writers — components/UniversalMicButton.tsx,
+// utils/fieldTicketCore.ts, utils/brain/leakCoDraft.ts and
+// utils/brain/scopeCoDraft.ts — still stamp the ESTIMATE on the drafts they
+// write, and need no edit: they cannot read the signed contract where they
+// run, and every draft they write is reconciled on the change-order screen
+// before a document can leave it or an approve can be made on it. So is any
+// draft saved before this build, and any draft saved while the contract read
+// had not answered. (An approval made somewhere else — the project screen, or
+// the client in the portal — does not pass through this rule.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const wholeCents = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) : 0);
+
+/**
+ * Does the SAVED change order's stamped base differ from the base the screen
+ * shows now? Compared in whole cents, and nothing else is asked. False for a
+ * change order that has never been saved.
+ */
+export function coSavedBaseDiffers(
+  saved: { originalContractValue?: number } | null | undefined,
+  liveOriginalContractValue: number,
+): boolean {
+  if (!saved) return false;
+  return wholeCents(saved.originalContractValue) !== wholeCents(liveOriginalContractValue);
+}
+
+/**
+ * Why a change-order document may not leave yet — and why the change order may
+ * not be approved yet — in the contractor's words: both figures, and what to
+ * do. Null when the saved stamp and the screen agree. States no cause — the
+ * difference can be a contract signed since the save, or another change order
+ * approved since — only the two figures, which are known.
+ */
+export function coSavedBaseHold(
+  saved: { originalContractValue?: number } | null | undefined,
+  liveOriginalContractValue: number,
+  money: (n: number) => string,
+): string | null {
+  if (!coSavedBaseDiffers(saved, liveOriginalContractValue)) return null;
+  const savedBase = wholeCents(saved!.originalContractValue) / 100;
+  const liveBase = wholeCents(liveOriginalContractValue) / 100;
+  return `The saved copy of this change order was built on a contract sum of ${money(savedBase)}. This screen now shows ${money(liveBase)}. Tap Save to Project to update the saved copy, then share, send or approve it.`;
+}
+
+/** A change order nobody can edit any more — approved, declined or void — is a
+ *  record of what the client was shown. */
+export function changeOrderIsRecord(status: string | null | undefined): boolean {
+  return status === 'approved' || status === 'rejected' || status === 'void';
+}
+
+/** The caption under the first base row of a locked change order. */
+export const CO_RECORD_SUM_CAPTION = 'As recorded on this change order';
+
+/** The base rows of a locked change order. `originalContractSum` and
+ *  `priorApprovedChanges` are null together: the record does not carry them. */
+export interface ChangeOrderRecordRows {
+  /** The stamp: "Contract sum prior to this CO". */
+  originalContractValue: number;
+  /** The approved changes FROZEN on the record, or null when it carries none. */
+  priorApprovedChanges: number | null;
+  /** The stamp less the frozen changes, or null with them. */
+  originalContractSum: number | null;
+}
+
+/**
+ * THE ROWS A LOCKED CHANGE ORDER SHOWS ARE THE ROWS ITS PDF PRINTS, from the
+ * record alone — the same branch as utils/pdfGenerator's `buildUp`
+ * (scripts/validate-payfix.ts pins the two together):
+ *   * the record carries its frozen prior approved changes → the original
+ *     contract sum (stamp less frozen), the frozen changes, and the stamp;
+ *   * it does not (a draft written by the mic, a field ticket or the brain and
+ *     approved without a save here; a sample change order; anything locked
+ *     before the changes were frozen) → the stamp ALONE, as "Contract sum
+ *     prior to this CO". There is no original contract sum on such a record,
+ *     and none is worked out from today's approved changes: that figure would
+ *     be on no document, and it is wrong whenever those changes moved.
+ * Takes no live figure, so it cannot read one. Null for a change order that
+ * can still be edited: its rows are live.
+ */
+export function changeOrderRecordRows(
+  co: { status?: string; originalContractValue?: number; priorApprovedChangesTotal?: number } | null | undefined,
+): ChangeOrderRecordRows | null {
+  if (!co || !changeOrderIsRecord(co.status)) return null;
+  const base = wholeCents(co.originalContractValue) / 100;
+  const frozen = co.priorApprovedChangesTotal;
+  if (typeof frozen !== 'number' || !Number.isFinite(frozen)) {
+    return { originalContractValue: base, priorApprovedChanges: null, originalContractSum: null };
+  }
+  return { originalContractValue: base, priorApprovedChanges: frozen, originalContractSum: cents(base - frozen) };
+}
+
+/** Why Save / Send wait, in the user's words, while the contract read for this
+ *  document has not settled. It always settles within CONTRACT_READ_TIMEOUT_MS. */
+export const CONTRACT_READ_PENDING_REASON =
+  'MAGE ID is still checking whether this job has a signed contract, so the original contract sum is not confirmed yet. Try again in a few seconds.';
+
+/**
+ * SENDING A FIGURE MAGE COULD NOT CHECK (lane PAYFIX, fix round 2). Once the
+ * read has settled as "not read", the contractor sees the caption "…(signed
+ * contract not checked)" under the row. His client does not: the change-order
+ * email prints the figure as "Original contract sum", plain. So the send asks
+ * him first, naming the figure. Null for an ANSWERED basis — the signed
+ * contract, or the estimate when the answer was "none on file" — where there
+ * is nothing to ask.
+ */
+export function uncheckedContractSumSendNotice(
+  basis: ContractSumBasis,
+  value: number,
+  money: (n: number) => string,
+): { title: string; message: string } | null {
+  if (basis !== 'estimate_unread' && basis !== 'saved_unread') return null;
+  return {
+    title: 'Signed contract not checked',
+    message: `MAGE ID could not check the signed contract. This change order will show ${money(value)} as the original contract sum. Send anyway?`,
+  };
 }
 
 /**

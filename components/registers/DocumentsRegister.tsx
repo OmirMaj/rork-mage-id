@@ -42,7 +42,7 @@ import {
 import type { CertificateOfInsurance, SavedAIAPayApp } from '@/types';
 
 /** The page's one-line sub-copy. No contracts: they are not in this feed. */
-export const DOCUMENTS_REGISTER_META = 'Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Click a row to open it where it lives.';
+export const DOCUMENTS_REGISTER_META = 'Your COIs, permits, submittals and AIA-style pay apps across your projects — in one feed. Click a row to open it where it lives.';
 
 const STATUS_TONE: Readonly<Record<DocumentTone, StatusTone>> = {
   danger: 'error',

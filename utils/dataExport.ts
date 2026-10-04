@@ -464,7 +464,7 @@ export function payloadToCsvs(
 const CSV_ENTITY_LABELS: Record<string, string> = {
   projects: 'projects', invoices: 'invoices', changeOrders: 'change orders',
   dailyReports: 'daily reports', punchItems: 'punch items', contacts: 'contacts', rfis: 'RFIs',
-  submittals: 'submittals', photos: 'photo records', aiaPayApps: 'AIA pay apps',
+  submittals: 'submittals', photos: 'photo records', aiaPayApps: 'AIA-style pay apps',
   commitments: 'commitments / POs', fieldTickets: 'T&M field tickets', timeEntries: 'time entries',
   safetyIncidents: 'safety incidents', managedProperties: 'managed properties', workOrders: 'work orders',
 };
@@ -668,7 +668,7 @@ export function buildReadmeText(
   lines.push(`  Submittals:      ${payload.submittals.length}`);
   lines.push(`  Photo records:   ${payload.photos.length}`);
   lines.push(`  Contacts:        ${payload.contacts.length}`);
-  lines.push(`  AIA pay apps:    ${payload.aiaPayApps.length}`);
+  lines.push(`  Pay apps:        ${payload.aiaPayApps.length}`);
   lines.push(`  Commitments/POs: ${payload.commitments.length}`);
   lines.push(`  T&M tickets:     ${payload.fieldTickets.length}`);
   lines.push(`  Time entries:    ${payload.timeEntries.length}`);
