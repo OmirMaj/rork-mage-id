@@ -30,15 +30,28 @@
 // paths would then have traded an SSRF surface for a worse one.
 //
 // So every path is checked twice before a single byte is read:
-//   • SHAPE — folder[1] must be a uuid. That is the same segment the storage
-//     policy evaluates (`can_access_project((storage.foldername(name))[1])`),
-//     and it rejects traversal, absolute paths and shared literal prefixes such
-//     as the old `tmp/`.
+//   • SHAPE — the WHOLE key must be exactly what a plan-sheets writer produces:
+//     `<project id>/<file>.png|jpg` (_shared/storagePath.ts, PLAN_SHEET_PATH).
+//     The first segment is the one the storage policy evaluates
+//     (`can_access_project((storage.foldername(name))[1])`); the rule refuses
+//     traversal in every spelling, absolute paths and shared literal prefixes
+//     such as the old `tmp/`.
 //   • ACCESS — that project must be one the CALLER owns or is an accepted
 //     collaborator on. This mirrors public.can_access_project's SQL, which we
 //     cannot call here because a service-role connection has no auth.uid().
+//
+// ── THE HOLE THE SHAPE CHECK USED TO LEAVE (security review 2026-10-04) ─────
+// The shape check looked at the FIRST segment and refused a segment that was
+// exactly '..'. The storage client splices the path into a URL unencoded, and
+// the URL parser reads `%2e%2e` (and `.%2E`, a backslash, a dot segment with a
+// tab inside it) as a real `..` — so `<my project>/%2e%2e/<your project>/f.png`
+// passed the check on MY project and downloaded YOUR sheet with the service
+// role. The check now covers every byte of the key, the access check reads the
+// project id out of the validated string, and the download is handed that same
+// string — validated again at the call, where the guard can see it.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { PLAN_SHEET_PATH, requestStoragePath, storagePathSegment } from './storagePath.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -58,28 +71,22 @@ export interface InlineImagePart {
   inlineData: { mimeType: string; data: string };
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
- * The project id a plan-sheet path belongs to, or '' when the path is not a
- * project-scoped plan-sheet key.
+ * The project id a plan-sheet path belongs to, or '' when the path is not
+ * exactly a project-scoped plan-sheet key.
  *
- * Rejects, in order: empty, absolute (`/a/b` — a leading empty segment is not
- * the project), traversal (`..`), a single-segment key with no folder, and a
- * first segment that is not a uuid. The last one is what makes a shared prefix
- * such as `tmp/` unusable: `can_access_project('tmp')` is false in Postgres, so
- * an object there is unreadable by every client, and we refuse to pretend
- * otherwise by reading it with the service role.
+ * The whole key is checked by the one rule in _shared/storagePath.ts — two
+ * segments, a project id then a file name, no byte a URL parser could rewrite.
+ * It is NOT trimmed first: a trimmed copy would be a different string from the
+ * one a caller goes on to use. A first segment that is not a project id is
+ * what makes a shared prefix such as `tmp/` unusable:
+ * `can_access_project('tmp')` is false in Postgres, so an object there is
+ * unreadable by every client, and we refuse to pretend otherwise by reading it
+ * with the service role.
  */
 export function planSheetProjectId(rawPath: unknown): string {
-  if (typeof rawPath !== 'string') return '';
-  const path = rawPath.trim();
-  if (!path || path.startsWith('/')) return '';
-  const segments = path.split('/');
-  if (segments.length < 2) return '';
-  if (segments.some(seg => seg === '' || seg === '.' || seg === '..')) return '';
-  const first = segments[0];
-  return UUID_RE.test(first) ? first : '';
+  const key = requestStoragePath(rawPath, PLAN_SHEET_PATH);
+  return key ? storagePathSegment(key, 0) : '';
 }
 
 /**
@@ -144,11 +151,14 @@ export async function loadPlanSheetImageParts(
   }
 
   // 1. Shape check on every path first, so nothing unvalidated reaches a query.
+  //    `checked` holds the strings the rule returned; nothing below reads `paths` again.
+  const checked: string[] = [];
   const projectIds = new Set<string>();
   for (const p of paths) {
-    const pid = planSheetProjectId(p);
-    if (!pid) throw new PlanSheetAccessError();
-    projectIds.add(pid);
+    const key = requestStoragePath(p, PLAN_SHEET_PATH);
+    if (!key) throw new PlanSheetAccessError();
+    checked.push(key);
+    projectIds.add(storagePathSegment(key, 0));
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -157,7 +167,7 @@ export async function loadPlanSheetImageParts(
 
   // 2. Access check. `.in()` splices its values into a PostgREST filter string
   //    without escaping them, which is why the uuid shape check above runs
-  //    FIRST and not as a nicety — every id here matched UUID_RE.
+  //    FIRST and not as a nicety — every id here is a lowercase canonical uuid.
   const ids = [...projectIds];
   const reachable = new Set<string>();
 
@@ -188,7 +198,12 @@ export async function loadPlanSheetImageParts(
   }
 
   // 3. Read the bytes. Parallel, but the RESULT ORDER is the input order.
-  return await Promise.all(paths.map(async (path) => {
+  //    The rule runs AGAIN here, pinned to a project that passed the access
+  //    check, so the string given to download() is provably the one that was
+  //    checked — whatever happens to the code between step 1 and this line.
+  return await Promise.all(checked.map(async (entry) => {
+    const path = requestStoragePath(entry, PLAN_SHEET_PATH);
+    if (!path || !reachable.has(storagePathSegment(path, 0))) throw new PlanSheetAccessError();
     const { data, error } = await supabase.storage.from(PLAN_SHEET_BUCKET).download(path);
     if (error || !data) {
       throw new Error(`Could not read a plan sheet page (${error?.message ?? 'no data'}).`);
@@ -227,8 +242,12 @@ export async function mintLegacyViewUrl(
   path: string,
   ttlSeconds: number,
 ): Promise<string> {
+  // createSignedUrl() puts the path in a URL, so it gets the same rule as a
+  // download. Today the only caller passes a key planSheetPagePath built.
+  const key = requestStoragePath(path, PLAN_SHEET_PATH);
+  if (!key) return '';
   try {
-    const { data } = await storage.createSignedUrl(path, ttlSeconds);
+    const { data } = await storage.createSignedUrl(key, ttlSeconds);
     const url = data?.signedUrl ?? '';
     if (!url) return '';
     if (url.includes('/object/public/')) return '';

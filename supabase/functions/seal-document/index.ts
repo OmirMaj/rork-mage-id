@@ -13,6 +13,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { requireTier } from '../_shared/auth.ts';
+import { contractPdfPath } from '../_shared/storagePath.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -74,13 +75,6 @@ serve(async (req) => {
     }
     if (!isHex64(client_hash)) return json({ ok: false, error: 'client_hash must be 64 hex chars (SHA-256)' }, 400);
 
-    // Defense-in-depth: the storage path must start with the caller's userId/
-    // (the bucket RLS also enforces this; we re-check before any service-role
-    // download to avoid leaking another user's bytes into a hash comparison).
-    if (!storage_path.startsWith(`${auth.userId}/`)) {
-      return json({ ok: false, error: 'storage_path is not owned by the caller' }, 403);
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     if (!supabaseUrl || !serviceKey) {
@@ -99,8 +93,24 @@ serve(async (req) => {
     if (ownRes.data.user_id !== auth.userId) return json({ ok: false, error: 'not your contract' }, 403);
     log('ownership_ok');
 
+    // The ONE key this contract's sealed PDF can live at:
+    // `<caller>/<contract id>.pdf`, rebuilt here from the verified caller and the
+    // contract row just read — never taken from the request.
+    //
+    // Security review 2026-10-04: this was `storage_path.startsWith("<userId>/")`
+    // and the raw request string went to download(). The storage client splices
+    // the path into a URL unencoded, so "<userId>/../<other user>/<id>.pdf" (or
+    // %2e%2e) passed the prefix check and had the service role read another
+    // tenant's contract into the hash comparison. The request's storage_path
+    // must now EQUAL the rebuilt key, and the rebuilt key is what is downloaded
+    // and stored. The app has always sent exactly this (utils/contractSealing.ts).
+    const sealedKey = contractPdfPath(auth.userId, ownRes.data.id);
+    if (!sealedKey || storage_path !== sealedKey) {
+      return json({ ok: false, error: 'storage_path is not owned by the caller' }, 403);
+    }
+
     // 2. Download the uploaded bytes (service-role bypasses Storage RLS).
-    const dl = await supa.storage.from('secure-contracts').download(storage_path);
+    const dl = await supa.storage.from('secure-contracts').download(sealedKey);
     if (dl.error || !dl.data) {
       return json({ ok: false, error: `download failed: ${dl.error?.message ?? 'no data'}` }, 404);
     }
@@ -119,7 +129,7 @@ serve(async (req) => {
     const sealedAt = new Date().toISOString();
     const upd = await supa
       .from('project_contracts')
-      .update({ signed_pdf_url: storage_path, document_hash: serverHash, updated_at: sealedAt })
+      .update({ signed_pdf_url: sealedKey, document_hash: serverHash, updated_at: sealedAt })
       .eq('id', contract_id)
       .eq('user_id', auth.userId);
     if (upd.error) return json({ ok: false, error: `update failed: ${upd.error.message}` }, 500);
@@ -127,7 +137,7 @@ serve(async (req) => {
 
     return json({
       ok: true,
-      signed_pdf_url: storage_path,
+      signed_pdf_url: sealedKey,
       document_hash: serverHash,
       sealed_at: sealedAt,
     });

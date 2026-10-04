@@ -74,6 +74,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from '../_shared/auth.ts';
 import { mintLegacyViewUrl } from '../_shared/planSheetBytes.ts';
+import { PDF_UPLOAD_PATH, planSheetPagePath, requestStoragePath } from '../_shared/storagePath.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -216,10 +217,19 @@ serve(async (req) => {
     // must scope to the caller explicitly. Without these checks a paid user
     // could pass another user's pdfStoragePath (read + DELETE their drawings)
     // or another user's projectId (write PNGs into their plan folder).
-    //   - pdf-uploads is laid out as "<userId>/<uuid>.pdf"; require that prefix.
+    //   - pdf-uploads is laid out as "<userId>/<uuid>-<name>.pdf"; the WHOLE
+    //     key must be exactly that, in the caller's folder.
     //   - the target project must belong to the caller.
-    if (!pdfStoragePath.startsWith(`${auth.userId}/`)) {
-      log('idor_blocked_path', { pdfStoragePath, userId: auth.userId });
+    //
+    // Security review 2026-10-04: this was `startsWith("<userId>/")`, and the
+    // raw string went to the storage client, which splices it into a URL
+    // unencoded — so "<userId>/../<other user>/x.pdf" (or %2e%2e) passed the
+    // prefix check and read another folder with the service role. The rule in
+    // _shared/storagePath.ts checks every segment and returns the SAME string;
+    // `pdfPath` is the only spelling used from here on.
+    const pdfPath = requestStoragePath(pdfStoragePath, PDF_UPLOAD_PATH, { 0: auth.userId });
+    if (!pdfPath) {
+      log('idor_blocked_path', { userId: auth.userId });
       return json({ success: false, error: 'forbidden: storage path not owned by caller' }, 403);
     }
     const { data: ownedProject, error: ownErr } = await supabase
@@ -248,7 +258,7 @@ serve(async (req) => {
     //     and Deno-Deploy-safe (pure JS, no WASM).
     const { data: pdfBlob, error: dlErr } = await supabase.storage
       .from(PDF_BUCKET)
-      .download(pdfStoragePath);
+      .download(pdfPath);
     if (dlErr || !pdfBlob) {
       log('download_failed', { err: dlErr?.message });
       return json({
@@ -327,7 +337,7 @@ serve(async (req) => {
     //     second.
     const { data: signed, error: signErr } = await supabase.storage
       .from(PDF_BUCKET)
-      .createSignedUrl(pdfStoragePath, 600);
+      .createSignedUrl(pdfPath, 600);
     if (signErr || !signed?.signedUrl) {
       log('sign_failed', { err: signErr?.message });
       return json({
@@ -471,7 +481,15 @@ serve(async (req) => {
         return json({ success: false, error: `could not read PNG dimensions for page ${pageNumber}` }, 502);
       }
 
-      const outPath = `${projectId}/${baseId}-page-${pageNumber}.png`;
+      // Built from the project row this function READ (ownedProject.id, as
+      // Postgres prints it), never from the request's spelling of the id: an
+      // uppercase or braced uuid matches the same row but is a different
+      // storage folder, one no reader would ever be admitted to.
+      const outPath = planSheetPagePath(ownedProject.id, baseId, pageNumber);
+      if (!outPath) {
+        log(`page_${pageNumber}_path_failed`);
+        return json({ success: false, error: `could not store page ${pageNumber}` }, 500);
+      }
       const { error: upErr } = await supabase.storage
         .from(PNG_BUCKET)
         .upload(outPath, pngBytes, { contentType: 'image/png', upsert: false });
@@ -511,7 +529,7 @@ serve(async (req) => {
 
     // 7. Best-effort delete the source PDF — PNGs are the system of record now
     //    and storage costs compound. We don't fail the request if this errors.
-    supabase.storage.from(PDF_BUCKET).remove([pdfStoragePath]).catch(() => {});
+    supabase.storage.from(PDF_BUCKET).remove([pdfPath]).catch(() => {});
 
     log('done', { totalMs: Date.now() - t0, pagesRendered: outputs.length });
     return json({
