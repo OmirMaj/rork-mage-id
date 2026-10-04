@@ -141,6 +141,10 @@ export interface ReviewedSheet {
   sheet: PlanSheet;
   reasons: SweepReason[];
   findings: PlanCodeFindingRaw[];
+  /** Code cards: the sheet's "look right" rows (cards only; never an RFI or a
+   *  punch item). [] on an older function. Optional in the type so nothing that
+   *  builds a reviewed sheet by hand has to change. */
+  lookRight?: PlanCodeFindingRaw[];
 }
 
 export interface ReviewSweepResult {
@@ -193,9 +197,9 @@ export async function reviewSweepSheets(opts: {
         location: opts.location,
         projectType: opts.projectType,
         jurisdictionBlock: opts.jurisdictionBlock,
-        sweep: { scopeTargets: reasons.map(r => r.topic) },
+        sweep: { scopeTargets: reasons.map(r => r.topic), codeCards: true },
       });
-      reviewed.push({ sheet, reasons, findings: res.findings });
+      reviewed.push({ sheet, reasons, findings: res.findings, lookRight: res.lookRight ?? [] });
     } catch (e) {
       // AI turned off mid-sweep: every sheet left would be refused the same way.
       if (aiConsentErrorText(e)) { stoppedWhy = AI_CONSENT_OFF_MESSAGE; stopRest('review_stopped', AI_CONSENT_OFF_MESSAGE); break; }

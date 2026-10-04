@@ -17,6 +17,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import EmptyState from '@/components/EmptyState';
 import { documentTypeInfo } from '@/mocks/documents';
+import { PAY_APP_TYPE_TAG } from '@/utils/registers/documentRows';
 import type { DocumentType } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
@@ -124,6 +125,9 @@ function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfoMap = documentTypeInfo(themeColors);
   const typeInfo = typeInfoMap[doc.type] ?? typeInfoMap.other;
+  // Lane PAYFIX: a pay app's tag is "Pay app" — the short word, in place of
+  // the mock table's "AIA-style billing". Never an official AIA form.
+  const typeLabel = doc.type === 'aia_billing' ? PAY_APP_TYPE_TAG : typeInfo.label;
   const statusInfo = toneConfig(themeColors)[doc.status.tone];
   const StatusIcon = BUCKET_ICON[doc.status.bucket];
 
@@ -139,7 +143,7 @@ function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
         style={styles.docCardInner}
       >
         <View style={[styles.docTypeTag, { backgroundColor: typeInfo.bgColor }]}>
-          <Text style={[styles.docTypeTagText, { color: typeInfo.color }]}>{typeInfo.label}</Text>
+          <Text style={[styles.docTypeTagText, { color: typeInfo.color }]}>{typeLabel}</Text>
         </View>
 
         <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
@@ -301,7 +305,9 @@ export default function DocumentsScreen() {
         projectId: a.projectId,
         projectName: projectById.get(a.projectId) ?? a.projectName,
         type: 'aia_billing',
-        title: `AIA G702 · App #${a.applicationNumber}`,
+        // "-style" (lane PAYFIX): MAGE ID drafts an AIA-STYLE pay application,
+        // never the official AIA document.
+        title: `AIA-style G702 · App #${a.applicationNumber}`,
         status: payAppDocStatus(a.paidAt, a.invoiceId ? invoiceStatusById.get(a.invoiceId) : undefined, a.portalState),
         createdAt: a.applicationDate ?? a.savedAt ?? new Date().toISOString(),
         notes: a.payLinkUrl ? 'Pay link active' : undefined,
@@ -407,7 +413,7 @@ export default function DocumentsScreen() {
               {/* No contracts here: contracts are not aggregated into this feed,
                   so the old 'Every contract, …' promise was false (#161). */}
               <Text style={styles.docsHeroSub}>
-                Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Tap any card to open it where it lives.
+                Your COIs, permits, submittals and AIA-style pay apps across your projects — in one feed. Tap any card to open it where it lives.
               </Text>
             </View>
             <View style={styles.alertsRow}>

@@ -40,6 +40,7 @@ import {
 import { inspectionHistoryFactsFor, type InspectionHistoryGrounding } from '@/utils/permitInspectionFacts';
 import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import { ROADMAP_FEATURE } from '@/utils/automation/roadmapToScheduleWork';
+import type { CodePin, CodeStage } from '@/utils/codeCard/types';
 import {
   issuingAuthorityForAddress,
   jurisdictionQueryForProject,
@@ -79,7 +80,8 @@ export interface UpcomingInspection {
   taskName: string | null;
 }
 
-export type PrepGroup = 'history' | 'scope' | 'recall' | 'verify';
+/** 'pinned' = a code card pinned to this inspection's stage (lane CCWIRE). */
+export type PrepGroup = 'history' | 'scope' | 'recall' | 'verify' | 'pinned';
 
 export interface PrepItem {
   id: string;
@@ -89,6 +91,8 @@ export interface PrepItem {
   quoteDate?: string;
   codeRef?: string;
   confidence?: 'high' | 'med' | 'low';
+  /** 'pinned' only: the pinned code card's own id, so the sheet can unpin it. */
+  pinItemId?: string;
 }
 
 export interface RecallAnswer {
@@ -421,6 +425,8 @@ export function buildRecallPrompt(a: {
     '- Mark confidence low when unsure.',
     '- Ask at most 3 follow-up questions, each with 2-4 short tap options, only when the answer changes the list (e.g. "Any basement bedrooms?" Yes / No / Not sure).',
     '- Each item: text (what the inspector checks, one short line), codeRef, confidence (high, med or low), why (one short line).',
+    // Copyright: the same sentence every code prompt carries.
+    '- Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.',
   ];
   const prompt = lines.join('\n');
   const cacheKey = `inspection_prep::${inspection.key}::${jurisdiction.cacheKey}::${digest(covered.map((c) => c.text).join('\n'))}::${JSON.stringify(sortedAnswers)}`;
@@ -588,4 +594,101 @@ export function punchForPrepItem(item: PrepItem, inspection: UpcomingInspection,
 /** The key one inspection's prep state is stored under. */
 export function prepStateKey(inspection: UpcomingInspection): string {
   return inspection.key;
+}
+
+// ─── Pinned from code cards (lane CCWIRE) ─────────────────────────────────────
+//
+// A code card's "Checklist" action pins the card to one inspection stage on
+// one job (utils/codeCard/pins.ts, device-local). Inspection Ready shows the
+// job's pins for the inspection it is preparing, in their own group, BELOW
+// the inspector's words and the job's scope (trust order holds: a pin is MAGE's
+// paraphrase of a requirement whose section is usually AI recall).
+//
+// THE MATCH RULE (the simplest provable one): an inspection's stage is read
+// off its NAME only (stageForInspectionName). A pin shows when its stage is
+// that stage. A pin whose stage is 'other' shows on every inspection of the
+// job, labelled as having no stage. An inspection whose name names no stage
+// shows only the 'other' pins: MAGE never guesses which inspection a framing
+// item belongs to from a vague name.
+
+/**
+ * The code-card stage an inspection is, from its name, or null when the name
+ * names none. Order matters: "Final electrical" is a final, "Rough framing"
+ * is framing (framing is checked before rough), "Foundation/footing" is a
+ * footing (the earlier inspection).
+ */
+export function stageForInspectionName(name: string | null | undefined): Exclude<CodeStage, 'other'> | null {
+  const n = (name ?? '').toLowerCase();
+  if (/\bfinal\b|certificate of occupancy/.test(n)) return 'final';
+  if (/footing/.test(n)) return 'footing';
+  if (/foundation|\bslab\b|\brebar\b/.test(n)) return 'foundation';
+  if (/fram/.test(n)) return 'framing';
+  if (/insulat|energy/.test(n)) return 'insulation';
+  if (/\brough\b|rough-in|\bmep\b|electric|plumb|mechanic|hvac|\bgas\b/.test(n)) return 'rough';
+  return null;
+}
+
+/** The pin group's one-line source note (fixed; never model text). */
+export const PINNED_NOTE = 'Pinned from code cards. In MAGE’s words; section from AI recall unless marked. Confirm with your building department.';
+
+/**
+ * The job's pins for this inspection, as prep items in the 'pinned' group,
+ * newest first. Pure: the caller reads the pins store.
+ */
+export function pinnedPrepItems(pins: readonly CodePin[], inspection: Pick<UpcomingInspection, 'projectId' | 'name'>): PrepItem[] {
+  const stage = stageForInspectionName(inspection.name);
+  const seen = new Set<string>();
+  return pins
+    .filter((p) => p.projectId === inspection.projectId && (p.stage === 'other' || (stage !== null && p.stage === stage)))
+    .slice()
+    .sort((a, b) => (a.pinnedAt < b.pinnedAt ? 1 : a.pinnedAt > b.pinnedAt ? -1 : 0))
+    .flatMap((p) => {
+      const text = (p.item.summary ?? '').trim();
+      if (!text) return [];
+      const id = itemId('pinned', `${p.id}|${text}`);
+      if (seen.has(id)) return [];
+      seen.add(id);
+      const ref = [(p.item.citedEdition ?? '').trim(), (p.item.section ?? '').trim()].filter(Boolean).join(' ');
+      const item: PrepItem = {
+        id,
+        group: 'pinned',
+        text,
+        why: p.stage === 'other' ? 'Pinned from a code card · no inspection stage set' : 'Pinned from a code card',
+        pinItemId: p.item.id,
+      };
+      if (ref) item.codeRef = ref;
+      return [item];
+    });
+}
+
+/**
+ * The next booked inspection day per code-card stage on one job, for the plan
+ * check's "By inspection" view: from each permit's booked head (not yet
+ * passed or failed) and its still-'scheduled' history rows, on or after
+ * `today`, staged by name with stageForInspectionName. A stage with no booked
+ * day is absent (the list then says "Not booked"). Never a schedule guess.
+ */
+export function bookedStageDays(permits: readonly Permit[], projectId: string, today: string): Partial<Record<CodeStage, string>> {
+  const out: Partial<Record<CodeStage, string>> = {};
+  const take = (name: string, day: string) => {
+    const d = (day ?? '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < today) return;
+    const stage = stageForInspectionName(name);
+    if (!stage) return;
+    const prev = out[stage];
+    if (!prev || d < prev) out[stage] = d;
+  };
+  for (const permit of permits) {
+    if (permit.projectId !== projectId) continue;
+    const phase = (permit.phase ?? '').trim();
+    if (permit.inspectionDate && permit.status !== 'inspection_passed' && permit.status !== 'inspection_failed') {
+      take(phase, permit.inspectionDate);
+    }
+    for (const row of decodePermitInspectionNotes(permit.inspectionNotes).inspections) {
+      if (row.result !== 'scheduled') continue;
+      const rowName = (row.name ?? '').trim();
+      take(rowName && rowName !== 'Inspection' ? rowName : phase, row.scheduledFor);
+    }
+  }
+  return out;
 }

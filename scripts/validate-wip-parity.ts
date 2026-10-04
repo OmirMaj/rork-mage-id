@@ -516,7 +516,7 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     // disagree) and which knocked $100,000 off a certified contract. The
     // disagreement is disclosed in words instead —
     // utils/wip.payAppContractHistoryNote, pinned in scripts/validate-wip.ts.
-    ['pay_app_contract_sum', /LATEST saved AIA pay application/],
+    ['pay_app_contract_sum', /LATEST saved AIA-style pay application/],
     // And the ETC branch has to say the GC entered it, because on that branch
     // the cost at completion is his forecast rather than anything MAGE derived.
     ['cost_to_complete_entered', /cost to complete you entered/],

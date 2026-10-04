@@ -44,28 +44,37 @@ jest.mock('@/utils/useResponsiveLayout', () => ({
 }));
 
 const CO_ID = 'co-unsigned-7';
+// Lane PAYFIX (fix round 4): the saved base is the contract sum this screen
+// shows for the fixture world (its estimate; no approved change order before
+// this one). It used to be an arbitrary 48,000, which is exactly the stale
+// stamp the screen now refuses to approve — the second test below.
+const SCREEN_BASE = 155172;
 const SUBMITTED = {
   id: CO_ID, number: 7, projectId: PROJECT_ID, date: '2026-09-20T12:00:00.000Z',
   description: 'Add a pantry cabinet run', reason: 'Owner request',
   lineItems: [{ id: 'l1', name: 'Pantry cabinets', description: '', quantity: 1, unit: 'ea', unitPrice: 4200, total: 4200, isNew: true }],
-  originalContractValue: 48000, changeAmount: 4200, newContractTotal: 52200, scheduleImpactDays: 0,
+  originalContractValue: SCREEN_BASE, changeAmount: 4200, newContractTotal: SCREEN_BASE + 4200, scheduleImpactDays: 0,
   status: 'submitted', createdAt: '2026-09-20T12:00:00.000Z', updatedAt: '2026-09-20T12:00:00.000Z',
 };
 
+/** The same change order saved on a stale base: a draft stamped on some other figure. */
+const STALE = { ...SUBMITTED, originalContractValue: 48000, newContractTotal: 52200 };
+
 /** The same CO as the server row the change-order list reads (a synced CO is on the server too). */
-const SERVER_ROW = {
-  id: SUBMITTED.id, number: SUBMITTED.number, project_id: SUBMITTED.projectId, date: SUBMITTED.date,
-  description: SUBMITTED.description, reason: SUBMITTED.reason, line_items: SUBMITTED.lineItems,
-  original_contract_value: SUBMITTED.originalContractValue, change_amount: SUBMITTED.changeAmount,
-  new_contract_total: SUBMITTED.newContractTotal, status: SUBMITTED.status, schedule_impact_days: 0,
-  created_at: SUBMITTED.createdAt, updated_at: SUBMITTED.updatedAt,
-};
+const serverRow = (co: typeof SUBMITTED) => ({
+  id: co.id, number: co.number, project_id: co.projectId, date: co.date,
+  description: co.description, reason: co.reason, line_items: co.lineItems,
+  original_contract_value: co.originalContractValue, change_amount: co.changeAmount,
+  new_contract_total: co.newContractTotal, status: co.status, schedule_impact_days: 0,
+  created_at: co.createdAt, updated_at: co.updatedAt,
+});
 // The repo mock answers every SELECT empty, and an empty answer to the live
 // bearer is the server's truth (the list is cleared). Answer the change_orders
 // list with the synced CO; everything else stays the mock's.
 const sb = supabase as unknown as { from: (t: string) => unknown };
 const origFrom = sb.from;
-function serveChangeOrder() {
+function serveChangeOrder(co: typeof SUBMITTED = SUBMITTED) {
+  const SERVER_ROW = serverRow(co);
   sb.from = (t: string) => {
     const b = origFrom.call(sb, t) as object;
     if (t !== 'change_orders') return b;
@@ -165,5 +174,36 @@ describe('"Client approved without signing" is the approve slide', () => {
     expect(seen).toMatch(/^CO #\d+ approved, unsigned · /);
     expect(mockNailIt).not.toHaveBeenCalled();
     expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  // Lane PAYFIX (fix round 4). Approving does not restamp the saved base and
+  // locks the record, so a change order whose saved base differs from the
+  // figure on screen is not approved: the tap says why, with both figures,
+  // and opens nothing.
+  it('a saved base that differs from the screen is NOT approved: the tap names both figures and says to save; no sheet, no write', async () => {
+    const approvals: Record<string, unknown>[] = [];
+    const real = offlineQueue.supabaseWriteDetailed;
+    jest.spyOn(offlineQueue, 'supabaseWriteDetailed').mockImplementation(((table: string, op: string, data: Record<string, unknown>, opts?: unknown) => {
+      if (table === 'change_orders' && data.status === 'approved') approvals.push(data);
+      return real(table, op as never, data, opts as never);
+    }) as typeof offlineQueue.supabaseWriteDetailed);
+
+    await primeWorld('populated');
+    await AsyncStorage.setItem('mageid_change_orders', JSON.stringify([STALE]));
+    serveChangeOrder(STALE);
+    await mountRouteChecked(`/change-order?projectId=${PROJECT_ID}&coId=${CO_ID}`);
+    for (let i = 0; i < 30 && !screen.queryByTestId('co-approve-unsigned-btn'); i++) await pump(1);
+
+    await act(async () => { fireEvent.press(screen.getByTestId('co-approve-unsigned-btn')); });
+    await pump(2);
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    expect(alertSpy.mock.calls[0][0]).toBe('Not yet');
+    expect(alertSpy.mock.calls[0][1]).toBe(
+      'The saved copy of this change order was built on a contract sum of $48,000.00. This screen now shows $155,172.00. Tap Save to Project to update the saved copy, then share, send or approve it.',
+    );
+    expect(screen.queryByText(/there is no client signature on this path/)).toBeNull();
+    expect(screen.queryByTestId('co-approve-slide-track')).toBeNull();
+    expect(approvals).toHaveLength(0);
+    expect(mockNailIt).not.toHaveBeenCalled();
   });
 });

@@ -23,11 +23,16 @@
 import type { Project } from '@/types';
 import type { BuildingRecord, BuildingRecordRow, BuildingRecordSummary } from '@/utils/buildingRecord';
 import {
+  departmentFor,
   jobsiteAddressForProject,
+  resolveCodeJurisdiction,
   type BuildingDepartment,
   type DepartmentChannel,
   type DepartmentQuestionStage,
 } from '@/utils/codeJurisdiction';
+import { isMdJobsite } from '@/utils/buildingRecord';
+import { placeQueryForProject } from '@/utils/permitOffices';
+import { sectionIsBacked } from '@/utils/codeCard/evidence';
 
 /** Where the filing is in its life, read off DOB's status text verbatim. */
 export function questionStageFor(filing: BuildingRecordRow | null | undefined): DepartmentQuestionStage {
@@ -560,4 +565,129 @@ Rules:
 
   const cacheKey = `dept_question::${hash(prompt)}`;
   return { prompt, cacheKey };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// New York, New Jersey and Connecticut towns (code cards, lane CCWIRE)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Outside New York City and Maryland the office comes from
+// utils/permitOffices.ts permitOfficeFor(): a hand-verified Long Island /
+// Westchester card, the NJ DCA roster, the CT DAS list, or a NAME-ONLY card
+// (the name from Census geography, nothing else verified). The same rules as
+// above hold, word for word:
+//   - NOTHING IS SENT. The routing only fills the draft; he sends it from his
+//     own Mail.
+//   - NO INVENTED RECIPIENT. No person is ever named (none of those lists names
+//     one MAGE may show). An email appears only when the office row carries
+//     one; a name-only office has none, and the card says MAGE hasn't verified
+//     its contact details.
+//   - THE WHY IS THE ROW'S OWN WORDS: the row's own source label, or the fixed
+//     name-only note.
+//   - NO FILING CLAIM. MAGE reads no town's permit records, so the prompt says
+//     "not checked" and forbids saying whether anything has been filed.
+
+/** The fields of utils/permitOffices.ts PermitOffice this file reads. */
+export interface TownOfficeLike {
+  title: string;
+  jurisdiction: string;
+  email: string | null;
+  phone: string | null;
+  verification: 'hand-verified' | 'state-list' | 'name-only';
+  sourceLabel: string;
+}
+
+/** The fixed line a name-only office shows (utils/permitOffices NAME_ONLY_NOTE, verbatim). */
+export const TOWN_NAME_ONLY_NOTE = "Derived from Census geography; MAGE hasn't verified this office's contact details.";
+
+/** The prompt's filing line for a town job: MAGE never reads a town's permits. */
+export const TOWN_FILING_FACT =
+  "- Filing: not checked. MAGE did not read this town's permit records, so do not say whether anything has been filed.";
+
+/**
+ * Routing for a NY / NJ / CT town office. Never names a person; the office's
+ * own email only when the row carries one; the why in the row's own words.
+ */
+export function routeOfficeQuestion(office: TownOfficeLike): QuestionRouting {
+  const named = clean(office.title) || clean(office.jurisdiction);
+  const title = named || 'building department';
+  const nameOnly = office.verification === 'name-only';
+  return {
+    toName: null,
+    toDetail: null,
+    toEmail: nameOnly ? null : (clean(office.email) || null),
+    toFallback: nameOnly
+      ? `Address it to the ${title}. MAGE hasn't verified this office's contact details, so look up their email before you send.`
+      : `Address it to the ${title}.`,
+    channel: null,
+    whyThisChannel: nameOnly ? TOWN_NAME_ONLY_NOTE : `From ${clean(office.sourceLabel) || 'the office list'}.`,
+    filingState: 'not_checked',
+    filingReason: null,
+    filing: null,
+    filingAsOf: null,
+    filingFacts: [TOWN_FILING_FACT],
+    addressedTo: named || 'the building department',
+  };
+}
+
+/**
+ * Which "Draft a question" a job gets, decided from its address alone (pure,
+ * synchronous, so a code card can say why Ask town is blocked BEFORE any
+ * lookup runs):
+ *   'md'   — a Maryland job (MdDraftQuestion, which opens from its own button);
+ *   'nyc'  — a verified department row (New York City);
+ *   'town' — any other New York, New Jersey or Connecticut job with an address
+ *            (the place lookup then names the office);
+ *   null   — no job, or a job outside those states, or no address.
+ */
+export type AskTownKind = 'md' | 'nyc' | 'town';
+export function askTownKind(project: (Parameters<typeof placeQueryForProject>[0]) | null | undefined): AskTownKind | null {
+  if (!project) return null;
+  const addr = jobsiteAddressForProject(project);
+  if (isMdJobsite(addr)) return 'md';
+  if (departmentFor(resolveCodeJurisdiction(addr))) return 'nyc';
+  const q = placeQueryForProject(project);
+  if (q && q.state !== 'MD') return 'town';
+  return null;
+}
+
+/** Why Ask town is blocked for this job, or null when it can open. Every
+ *  blocked button says why. */
+export function askTownBlockedReason(project: (Parameters<typeof placeQueryForProject>[0]) | null | undefined): string | null {
+  if (!project) return 'Link a project first. The question goes to that project’s town.';
+  const kind = askTownKind(project);
+  if (kind === 'md') return 'For a Maryland project, use Draft a question on its permit card.';
+  if (!kind) return 'Draft a question works for New York, New Jersey and Connecticut projects with an address.';
+  return null;
+}
+
+/**
+ * The question a code card pre-fills, in MAGE's own words: the card's summary
+ * (our paraphrase, already echo-checked), its section and the edition, and
+ * the ask. Never any code text. He edits it before anything is drafted.
+ *
+ *  - `noWords`: the card has no requirement in words (its line was withheld or
+ *    missing), so the question asks what the section requires instead of
+ *    repeating MAGE's stand-in line.
+ *  - The "AI recall" sentence is said whenever the CARD says recall: the same
+ *    test the card's own label uses (sectionIsBacked). Only a government
+ *    record of the cited section itself ('amended' / 'named') takes it off; a
+ *    PARENT match (the record names R312 for a cited R312.1.3) is still recall.
+ */
+export function codeCardQuestion(
+  item: { summary: string; section: string; citedEdition?: string | null; evidence?: { rung: string; parentMatch?: boolean } | null },
+  opts: { noWords?: boolean } = {},
+): string {
+  const ref = [clean(item.citedEdition), clean(item.section)].filter(Boolean).join(' ');
+  const summary = opts.noWords ? '' : clean(item.summary).replace(/[.\s]+$/, '');
+  const government = sectionIsBacked(item.evidence);
+  const ask = summary
+    ? `Does this apply here, and does the town amend it? ${summary}${ref ? ` (${ref})` : ''}.`
+    : ref
+      ? `What does ${ref} require here, and does the town amend it?`
+      : 'Which code section covers this work here, and does the town amend it?';
+  const confirm = government
+    ? 'Can you confirm the section and edition you enforce?'
+    : 'MAGE marked the section as AI recall. Can you confirm the section and edition you enforce?';
+  return `${ask} ${confirm}`;
 }

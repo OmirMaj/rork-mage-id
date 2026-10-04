@@ -50,7 +50,7 @@ export const MOCK_DOCUMENTS: ProjectDocument[] = [
     projectId: 'p-2',
     projectName: 'Bathroom Remodel - Johnson',
     type: 'aia_billing',
-    title: 'AIA G702 Application #1',
+    title: 'AIA-style G702 Application #1',
     status: 'draft',
     createdAt: '2026-02-01T00:00:00Z',
   },
@@ -99,7 +99,7 @@ export const documentTypeInfo = (t: ThemeColors): Record<string, { label: string
     coi: { label: 'COI', color: t.info, bgColor: t.info + '1F' },
     contract: { label: 'Contract', color: t.success, bgColor: t.successSoft },
     proposal: { label: 'Proposal', color: dark ? '#CE93D8' : '#6A1B9A', bgColor: dark ? 'rgba(206,147,216,0.16)' : 'rgba(106,27,154,0.10)' },
-    aia_billing: { label: 'AIA Billing', color: dark ? '#F48FB1' : '#AD1457', bgColor: dark ? 'rgba(244,143,177,0.16)' : 'rgba(173,20,87,0.10)' },
+    aia_billing: { label: 'AIA-style billing', color: dark ? '#F48FB1' : '#AD1457', bgColor: dark ? 'rgba(244,143,177,0.16)' : 'rgba(173,20,87,0.10)' },
     permit: { label: 'Permit', color: dark ? '#4DB6AC' : '#00695C', bgColor: dark ? 'rgba(77,182,172,0.16)' : 'rgba(0,105,92,0.10)' },
     other: { label: 'Other', color: t.textSecondary, bgColor: t.surfaceAlt },
   };

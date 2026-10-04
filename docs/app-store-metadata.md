@@ -1,5 +1,7 @@
 # App Store Connect — listing copy + demo script (launch-ready)
 
+**Last updated: 2026-10-04** (the App Privacy table and the processor list below follow `marketing/privacy.html` as last updated October 4, 2026).
+
 Profit-first ASO, aligned with the homepage rewrite ("Win the bid. Keep the profit."). Paste into **App Store Connect → My Apps → MAGE ID → iOS App → [version] → App Information / Version Information**. Char counts are approximate — **re-verify in App Store Connect**, which counts `•`/`—`/`→` as one character each.
 
 **Submit reference:** app `6762229238` · team `HKT2J284D2` · bundle `com.mageid.app` · Support URL `https://mageid.app/support` · Marketing URL `https://mageid.app` · Privacy Policy URL `https://mageid.app/privacy` · Terms of Use `https://mageid.app/terms`.
@@ -134,7 +136,7 @@ Questions or feedback? Tap Help in Settings — a real person replies.
 
 ## Privacy Nutrition Label (App Store Connect → App Privacy)
 
-Declare these to match the privacy policy at mageid.app/privacy (updated 2026-10-03 with Location, Voice recordings, Crash reports and session replay, AI providers and Purchases sections). For each, Apple asks: collected? linked to identity? used for tracking?
+Declare these to match the privacy policy at mageid.app/privacy (last updated October 4, 2026: Location, Voice recordings, Crash reports and session replay, AI providers and Purchases sections, and a Third-Party Services list that names every processor below). For each, Apple asks: collected? linked to identity? used for tracking?
 
 **Tracking: No.** We do not track across other companies' apps or websites, and there is no ad SDK, so answer "No" to "Do you or your third-party partners use data for tracking?" and "Used for Tracking: No" on every row below.
 
@@ -146,10 +148,11 @@ Declare these to match the privacy policy at mageid.app/privacy (updated 2026-10
 | Contact Info → Other User Contact Info | Yes | Yes | App Functionality | Client / subcontractor / crew phone numbers and addresses you enter |
 | Health & Fitness → Health | Yes | Yes | App Functionality | Safety incident reports: injury, injury description, treatment (first aid / medical), OSHA illness type |
 | Location → Precise Location | Yes | Yes | App Functionality | GPS stamp on jobsite photos, field-verified takeoff rows and signed field tickets, only when allowed and only on a tap (when-in-use only; never in the background) |
-| User Content → Photos or Videos | Yes | Yes | App Functionality | Jobsite photos, plan sheets |
+| User Content → Photos or Videos | Yes | Yes | App Functionality | Jobsite photos, plan sheets (a plan PDF you upload is converted into page images by CloudConvert) |
 | User Content → Audio Data | Yes | Yes | App Functionality | Voice dictation and meeting audio, sent for transcription (Rork speech-to-text), not stored on our servers |
-| User Content → Other User Content | Yes | Yes | App Functionality | Projects, estimates, invoices, daily reports, RFIs, documents, AI prompts (sent to Google Gemini / Anthropic Claude); card numbers never reach us (Stripe / Apple) |
+| User Content → Other User Content | Yes | Yes | App Functionality | Projects, estimates, invoices, daily reports, RFIs, documents, AI prompts (sent to Google Gemini / Anthropic Claude); the location you enter for a project (an address or a city), sent to OpenStreetMap (Nominatim) to find its map position; that map position, sent to OpenWeather for the forecast; a project's address, sent to the U.S. Census Bureau geocoder and city and state open-data services to match its city and county and, when you ask for them, to look up its public permit and building records; customer, invoice and payment records sent to Intuit QuickBooks only if you connect your QuickBooks company; the text of a push notification (sent through Expo); card numbers never reach us (Stripe / Apple) |
 | Identifiers → User ID | Yes | Yes | App Functionality, Analytics | Account ID (also keys PostHog events and RevenueCat) |
+| Identifiers → Device ID | Yes | Yes | App Functionality | The device's push token, saved on your profile only after you allow notifications and sent to Expo to deliver them |
 | Purchases → Purchase History | Yes | Yes | App Functionality | Subscription status via RevenueCat / App Store |
 | Usage Data → Product Interaction | Yes | Yes | Analytics | PostHog events |
 | Diagnostics → Crash Data | Yes | Yes | App Functionality | Sentry crash reports (IP collection off, no `Sentry.setUser`, but each report carries recent console log lines that can include an email) |
@@ -158,7 +161,7 @@ Declare these to match the privacy policy at mageid.app/privacy (updated 2026-10
 
 "Linked to user: Yes" on the three Sentry rows is the conservative answer to what the code does today. `app/_layout.tsx` sets `sendDefaultPii: false` and never calls `Sentry.setUser`, but `enableLogs: false` only turns off the separate Sentry Logs product: @sentry/react-native 7.2.0 still adds `breadcrumbsIntegration()` with `console: true` and `xhr: true` by default, so recent console.log/warn lines and request URLs ride along on every error event, and the codebase logs emails in `[Auth]` / `[RC]` / `[Subscription]` lines (the `_layout.tsx` comment says so). The policy discloses this. These rows may go back to "No" only after `Sentry.init` passes `Sentry.breadcrumbsIntegration({ console: false })` (owner of `app/_layout.tsx`) and the logs are checked, and nobody has added `Sentry.setUser`.
 
-Processors to keep consistent with the policy: Supabase, Stripe, RevenueCat, PostHog, Resend, Sentry, Apple/Google, Google (Gemini) and Anthropic (Claude) for in-app AI, Rork for speech-to-text. **Account deletion** is in-app (Settings → Delete Account) — Apple requires this and it's already wired.
+Processors to keep consistent with the policy (the Third-Party Services list on the page, in its order): Supabase (authentication and database hosting), Stripe (payment processing), RevenueCat (subscription management, alongside the Apple App Store and Google Play), PostHog (product analytics), Resend (transactional email), Expo (push notifications: the device's push token and the notification text), Intuit QuickBooks (only if you connect your QuickBooks company), Sentry (crash reports and session replay), Apple / Google (app distribution and in-app purchases), CloudConvert (plan PDFs into page images), OpenStreetMap (Nominatim) (the map position of a project's location and of a public bid's city and state), OpenWeather (the forecast for a project's map position), the U.S. Census Bureau geocoder and city and state open-data services (a project's city and county, and public permit and building records for its address), and Google (Gemini), Anthropic (Claude) and Rork (speech-to-text) for in-app AI. **Account deletion** is in-app (Settings → Delete Account) — Apple requires this and it's already wired.
 
 ---
 

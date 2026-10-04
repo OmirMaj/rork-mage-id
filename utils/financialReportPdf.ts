@@ -171,7 +171,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
     ${pdfTitle({
       eyebrow: 'Financial report',
       title:   'Work in progress',
-      subtitle: 'Bank-ready WIP across active projects.',
+      subtitle: 'WIP across active projects.',
       meta,
     })}
     ${tableHtml}

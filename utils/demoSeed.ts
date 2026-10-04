@@ -523,6 +523,7 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
   ], [40.6228, -74.0290]);
 
   // 4 change orders — owner-driven + field-condition mix.
+  let runningContractValue: number = meta.total;
   ([
     {
       number: 1, daysAgo: 110,
@@ -580,7 +581,14 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
       ],
     },
   ]).forEach(co => {
-    let runningContractValue = meta.total;
+    // The base a change order is stamped with is the contract sum BEFORE it:
+    // the original sum plus the APPROVED change orders numbered below it —
+    // the same figure app/change-order.tsx shows and re-stamps on Save
+    // (coPriorApprovedChanges). A pending change order moves nothing. The
+    // running figure lives OUTSIDE this loop: declared inside, every change
+    // order was stamped with the original total, and the screen held Share
+    // PDF, the portal share and approve on sample #3 and #4 until Save
+    // (lane PAYFIX; scripts/validate-payfix.ts runs this seed).
     ctx.addChangeOrder({
       id: generateUUID(),
       projectId,
@@ -591,13 +599,14 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
       status: co.status,
       scheduleImpactDays: co.scheduleImpactDays,
       originalContractValue: runningContractValue,
+      priorApprovedChangesTotal: runningContractValue - meta.total,
       changeAmount: co.changeAmount,
       newContractTotal: runningContractValue + co.changeAmount,
       lineItems: co.lineItems.map(li => ({ id: generateUUID(), ...li })),
       createdAt: isoDaysAgo(co.daysAgo),
       updatedAt: isoNow,
     } as unknown as ChangeOrder);
-    runningContractValue += co.changeAmount;
+    if (co.status === 'approved') runningContractValue += co.changeAmount;
   });
 
   return { projectId };

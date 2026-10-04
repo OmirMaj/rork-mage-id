@@ -785,12 +785,253 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       { pattern: /Everyone else charges \$99 to \$199/i, why: 'refutable — Contractor Foreman Basic is $49/mo for one user on annual billing' },
       { pattern: /ASC\s*606[^)]{0,40}loss/i, why: 'ASC 606 has no onerous-contract provision; the construction full-loss rule is ASC 605-35 (utils/wip.ts:139-141 gets this right)' },
       { pattern: /the only construction app that/i, why: 'an exhaustive negative claim across a category with hundreds of products — use the checkable "cheapest we could find" form' },
+      // Lane PAYFIX: the portal offers a Pay button on a pay application and
+      // nothing else — its only signing actions are change orders, proposals
+      // and budgets. features/financials.html promised both of these.
+      { pattern: /Owner e-signature via client portal/i, why: 'the portal has no signing action for pay applications — only a Pay button' },
+      { pattern: /client portal for owner signature/i, why: 'same — a pay application is paid in the portal, never signed there' },
+      // Lane PAYFIX, fix round 3: features/financials.html sold the pay app as
+      // "what the architect expects". MAGE ID cannot know what an architect,
+      // a lender or a bank will take; the standing notice says some require
+      // the official forms. The layout is one they are used to — that is all.
+      { pattern: /what (?:the|your|an?|every|most) (?:architect|lender|bank|banker|surety)s? (?:expects?|accepts?|wants?|requires?|needs?)/i, why: 'a promise about what an architect or lender accepts — say what the document is, not what they will take' },
+      { pattern: /(?:lender|architect)[- ](?:ready|approved|accepted)/i, why: 'same — nobody at MAGE ID can promise a lender or an architect accepts a document' },
     ];
     for (const { pattern, why } of FALSE_CLAIMS) {
       const hits = pages.filter(p => pattern.test(prose(p)));
       ok(`no page claims /${pattern.source.slice(0, 32)}/`, hits.length === 0,
         hits.length ? `${why} — found in: ${hits.join(', ')}` : undefined);
     }
+
+    // THE PROMISE ITSELF, NOT TWO WORDINGS OF IT (lane PAYFIX, fix round 4).
+    // The two patterns above read "what the architect expects" and
+    // "lender-ready". "The layout your architect will accept" and "accepted by
+    // lenders and architects" passed both — and support.html was live with
+    // "a PDF package your bank or GC can accept". So, one pattern (the same
+    // one scripts/validate-payfix.ts runs on the app's document files):
+    // somebody who is not MAGE ID — an architect, a lender, a bank, a surety —
+    // within one sentence of accept / expect / approve / require, in either
+    // order. What may stand is taken out first, by exact text.
+    const TAKER = String.raw`(?:architect|lender|bank|banker|suret(?:y|ies))s?`;
+    const TAKE_VERBS = 'accept|expect|approv|requir';
+    const TAKES = new RegExp(String.raw`\b${TAKER}\b[^.<]{0,40}\b(?:${TAKE_VERBS})\w*|\b(?:${TAKE_VERBS})\w*\b[^.<]{0,40}\b${TAKER}\b`, 'i');
+    const TAKES_ALLOWED: string[] = [
+      // The standing notice, which says the opposite: they may NOT take it.
+      // (Cut before "Documents": the portal page builds the sentence in two strings.)
+      'Some lenders and architects require the official AIA Contract',
+      // Two live sentences about submittals and RFIs, each only as written.
+      '"approved" with revision numbers and architect comments preserved', // features/field.html
+      'assigned to (Architect), required date (this Friday)',             // playbook.html
+    ];
+    const flat = (t: string) => t.replace(/\s+/g, ' ');
+    const takesClaim = (raw: string): string | null => {
+      const t = TAKES_ALLOWED.reduce((acc, a) => acc.split(a).join('·'), flat(raw));
+      const m = TAKES.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 20) : null;
+    };
+    const takesHits = [...pages, 'marketing/app-store-screenshots/builder.html']
+      .map(p => ({ p, m: takesClaim(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) says what an architect, lender, bank or surety accepts, expects, approves or requires',
+      takesHits.length === 0, takesHits.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    const TAKES_MUST_MATCH = [
+      '<p>Progress billing in the G702/G703 layout your architect will accept.</p>',
+      '<p>Progress billing accepted by lenders and architects.</p>',
+      '<p>Export the pay application as a PDF package your bank or GC can accept.</p>',
+      '<p>Progress billing that actually looks like what the architect expects.</p>',
+      '<li>The G702 your lender requires, in one tap</li>',
+      '<li>Draws your bank approves faster</li>',
+      '<li>Approved by sureties</li>',
+      '<p>Some lenders and architects accept these in place of the official AIA Contract Documents.</p>',
+    ];
+    ok('…and that check sees the promise in either order, with any of the four verbs',
+      TAKES_MUST_MATCH.every(t => takesClaim(t) != null), TAKES_MUST_MATCH.filter(t => takesClaim(t) == null).join(' | '));
+    const TAKES_TRUE_COPY = [
+      '<p>Progress billing in the G702/G703 layout architects and lenders are used to.</p>',
+      '<p>Some lenders and architects require the official AIA Contract Documents &mdash; check with yours.</p>',
+      '<p>Export the pay application as a PDF package to send to your bank or GC.</p>',
+      '<p>Your client approves the change order. Send the PDF to your lender.</p>',
+    ];
+    ok('…and leaves true copy alone (what they are used to; the standing notice; a full stop in between)',
+      TAKES_TRUE_COPY.every(t => takesClaim(t) == null), TAKES_TRUE_COPY.filter(t => takesClaim(t) != null).join(' | '));
+    ok('the allow-list is three exact phrases, each live where it was found',
+      TAKES_ALLOWED.length === 3
+      && pages.filter(p => flat(prose(p)).includes(TAKES_ALLOWED[0])).length >= 10
+      && flat(prose('marketing/features/field.html')).split(TAKES_ALLOWED[1]).length === 2
+      && flat(prose('marketing/playbook.html')).split(TAKES_ALLOWED[2]).length === 2);
+    ok('support.html says where the PDF package goes, not who accepts it',
+      /Export the pay application as a PDF package to send to your bank or GC\./.test(prose('marketing/support.html')));
+
+    // THE CLAIM ITSELF, NOT TWO SENTENCES OF IT (lane PAYFIX, fix round 1).
+    // The two patterns above match only the exact strings features/
+    // financials.html used. The same false claim was live in two table cells
+    // of features/vs-competitors.html ("owner e-sign via portal", "e-sign
+    // export") and in the App Store screenshot source, and both patterns
+    // passed. So: a pay application (or a G702 / G703) may not sit in the same
+    // block as an e-signature. Nothing in the product e-signs a pay
+    // application: the portal offers Pay, and the PDF prints blank signature
+    // lines for a pen. "Same block" = no closing tr / li / div / section in
+    // between, within 240 characters of whitespace-collapsed text, in either
+    // order — close enough to be one claim (a heading and the paragraph under
+    // it; two cells of one table row), and it leaves a page free to sell
+    // contract and change-order e-signature in its own block. A printed
+    // "signature line" or "signature block" is true and is not matched.
+    const PAY_APP_NOUN = String.raw`(?:pay[\s-]*app(?:lication)?s?\b|G70[23]\b)`;
+    // Fix round 3 — THE SIMPLEST RULE THAT CAN BE PROVEN. Rounds 1 and 2 listed
+    // the ways the claim can be worded ("e-sign", then "signs", "signed by",
+    // "digital signature") and each list was beaten by the next wording: a
+    // bare "signature", "sign-off", "DocuSign". So the rule no longer reads
+    // the wording at all: inside one block with a pay-app noun, ANY "sign"
+    // (three letters, any case, inside any word) fails. What may stand is a
+    // short list of exact phrases, taken out of the text before the test.
+    const SIGN_ALLOWED: string[] = [
+      'signature line',   // what the PDF really prints: a blank line for a pen
+      'signature block',  // the same
+      'signed contract',  // line 1 comes from the signed contract — not a signature on the pay app
+      'sign in to',       // logging in ("sign in the portal" is NOT this, and fails)
+      '>sign in<',        // the nav link's own label
+      'sign up',
+      'design',           // designed, designer, redesign
+      // Two live strings, each allowed only as written (their homes are pinned below):
+      'whoever signs off on your draws', // proof.html — a person with a pen, after the PDF is exported
+      'Object.assign(',                  // portal/index.html — script, not copy
+    ];
+    const escRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const stripAllowedSign = (t: string) => SIGN_ALLOWED.reduce((acc, a) => acc.replace(new RegExp(escRe(a), 'gi'), '·'), t);
+    const SAME_BLOCK = String.raw`(?:(?!<\/(?:tr|li|div|section)>)[\s\S]){0,240}?`;
+    const PAY_APP_SIGN = new RegExp(`${PAY_APP_NOUN}${SAME_BLOCK}sign|sign${SAME_BLOCK}${PAY_APP_NOUN}`, 'i');
+    const oneLine = (t: string) => t.replace(/\s+/g, ' ');
+    // Fix round 4 — THE 240 CHARACTERS WERE THE NEXT HOLE. A card whose
+    // heading names the pay app and whose paragraph says "your owner signs it"
+    // 300 characters later passed. So the distance is no longer the only
+    // reading. Two more, neither of which measures anything:
+    //   WHOLE ELEMENT  a table row, list item or paragraph that names a pay
+    //                  app has no "sign" anywhere in it;
+    //   TITLE BLOCK    a title that names a pay app — a heading, or a bold /
+    //                  summary / dt / th label — owns everything under it up
+    //                  to the next heading (for a label: or the end of its
+    //                  container), and none of it says "sign".
+    const NOUN_RE = new RegExp(PAY_APP_NOUN, 'i');
+    const wholeElementSign = (t: string): string | null => {
+      for (const m of t.matchAll(/<(tr|li|p)\b[^>]*>[\s\S]*?<\/\1>/gi)) {
+        if (NOUN_RE.test(m[0]) && /sign/i.test(m[0])) return m[0];
+      }
+      return null;
+    };
+    const titleBlockSign = (t: string): string | null => {
+      for (const m of t.matchAll(/<(h[1-6]|strong|b|summary|dt|th)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+        if (!NOUN_RE.test(m[2])) continue;
+        const rest = t.slice(m.index! + m[0].length);
+        const stop = /^h[1-6]$/i.test(m[1]) ? /<h[1-6]\b/i : /<h[1-6]\b|<\/(?:tr|li|div|section|dl|details)>/i;
+        const end = rest.search(stop);
+        const block = m[0] + (end < 0 ? rest : rest.slice(0, end));
+        if (/sign/i.test(block)) return block;
+      }
+      return null;
+    };
+    /** The offending text, or null. */
+    const payAppSign = (raw: string): string | null => {
+      const t = stripAllowedSign(oneLine(raw));
+      return PAY_APP_SIGN.exec(t)?.[0] ?? wholeElementSign(t) ?? titleBlockSign(t);
+    };
+    // The App Store screenshot source is not a public page (publicPages skips
+    // the folder), but its captions become the store listing's images.
+    const STORE_SCREENSHOTS = 'marketing/app-store-screenshots/builder.html';
+    const eSignPages = [...pages, STORE_SCREENSHOTS];
+    const eSignHits = eSignPages
+      .map(p => ({ p, m: payAppSign(prose(p)) }))
+      .filter(x => x.m);
+    ok('no page (or App Store screenshot caption) puts a signature of any kind on a pay application',
+      eSignHits.length === 0,
+      eSignHits.map(x => `${x.p}: "${x.m!.slice(0, 140)}"`).join(' | '));
+    // The page that made the claim, read whole: the section that sells the pay
+    // application says nothing about signing at all — whatever the distance
+    // between its heading and the word.
+    {
+      const fin = oneLine(prose('marketing/features/financials.html'));
+      const from = fin.indexOf('AIA-style Pay Applications <span class="tier-chip');
+      const to = fin.indexOf('</section>', from);
+      const section = from > 0 && to > from ? stripAllowedSign(fin.slice(from, to)) : '';
+      const at = section.search(/sign/i);
+      ok('features/financials.html: the pay-application section has no "sign" in it anywhere',
+        section.length > 800 && /G702 & G703, one tap away\./.test(section) && /with a Pay button/.test(section) && at < 0,
+        !section ? 'section not found' : at >= 0 ? `…${section.slice(Math.max(0, at - 80), at + 40)}…` : 'section anchors moved');
+    }
+    // The guard has to be able to see the claim it guards: every form the
+    // claim was live in, and every wording a review slipped past it.
+    const WAS_LIVE = [
+      '<td>AIA-style G702 / G703 pay apps</td><td>Native — full SOV editing, retainage, prior-billings, owner e-sign via portal</td>',
+      '<td>AIA-style G702/G703 pay app generator</td>\n<td>One screen — schedule of values, retainage math, change-order roll-up, e-sign export</td>',
+      `eyebrow: 'AIA PAY APP', title: "G702 / G703.", subtitle: "Schedule of values, retainage math, change orders, e-sign export."`,
+      '<h2>G702 & G703, one tap away.</h2> <p> Progress billing that actually looks like what the architect expects. Retainage, stored materials, prior billings — all calculate correctly. Export as PDF or push straight to the client portal for owner signature. </p>',
+      '<li>AIA-style G702 pay app with owner e-signature via client portal</li>',
+      // Fix round 2 — the same claim without the word "e-sign".
+      '<li>Pay applications signed by the owner in the client portal</li>',
+      '<p>Your owner signs each pay app right in the portal.</p>',
+      '<li>Pay apps with digital signature from the owner</li>',
+      '<li>G703 continuation sheet, e-signed by the owner</li>',
+      '<p>Send the G702 and the owner can sign it from a phone.</p>',
+      '<li>Pay apps, electronically signed</li>',
+      '<p>Architects countersign your pay app in the portal.</p>',
+      // Fix round 3 — the bare noun, "sign-off", a brand name, and the lead
+      // paragraph of the pay-app section.
+      '<li>Owner approval and signature on every pay application</li>',
+      '<li>G702/G703 with owner sign-off in the portal</li>',
+      '<li>Pay apps with a signature from the owner, captured in the portal</li>',
+      '<li>Pay applications with DocuSign built in</li>',
+      '<h2>G702 & G703, one tap away.</h2> <p> Progress billing in the G702/G703 layout architects and lenders are used to. Retainage, stored materials, prior billings — all calculate correctly. Export as PDF or send it to the client portal, where your client can review it, add a signature &mdash; and pay it online when you take payments through MAGE ID. </p>',
+      '<li>Pay apps your owner can SIGN from a phone</li>',
+      '<p>Your owner can sign in the portal, right on the pay app.</p>',
+      '<li>G702 with Adobe Sign and HelloSign support</li>',
+      '<li>Pay applications, cosigned by the architect</li>',
+      '<li>G702 signature lines your owner fills in online with a signature pad</li>',
+      // Fix round 4 — the claim more than 240 characters from the noun: under
+      // a heading, under a bold label, and at the far end of one table row.
+      `<div class="card"><h4>AIA-style pay applications</h4><p>${'Schedule of values, retainage and stored materials, worked out for you each period. '.repeat(4)}Then your owner signs it right in the client portal.</p></div>`,
+      `<div class="faq-item"><strong>AIA-style pay apps</strong><p>${'Set up the schedule of values once on the billing screen. '.repeat(6)}</p><p>Your owner signs it in the portal.</p></div>`,
+      `<div class="head"><h2>G702 &amp; G703, one tap away.</h2></div><div class="body"><p>${'Retainage and prior billings calculate correctly. '.repeat(6)}</p><p>Owner e-signature included.</p></div>`,
+      `<tr><td>AIA-style pay apps</td><td>${'Full schedule-of-values editing with retainage and prior billings. '.repeat(5)}Owner signature in the portal.</td></tr>`,
+    ];
+    ok('…and that check matches every form the claim was live in, and every wording that got past an earlier version of it',
+      WAS_LIVE.every(t => payAppSign(t) != null),
+      WAS_LIVE.filter(t => payAppSign(t) == null).join(' | '));
+    const TRUE_COPY = [
+      '<li>G702 cover sheet with signature lines for the contractor and the architect</li>',
+      '<div><p>Pay apps go to the portal with a Pay button.</p></div><div><p>Change orders are approved with an e-signature.</p></div>',
+      '<li>AIA-style G702 summary</li><li>Change orders approved with an e-signature</li>',
+      '<tr><td>AIA-style pay apps</td><td>PDF export</td></tr><tr><td>Contract e-signature</td><td>Yes</td></tr>',
+      '<li>AIA-style G702 with a signature block for the architect</li>',
+      '<p>Line 1 of the pay app comes from your signed contract.</p>',
+      '<p>Sign in to build an AIA-style pay app.</p>',
+      '<p>Sign up free and send your first pay application this week.</p>',
+      '<p>Designed for the G702/G703 layout, redesigned for a phone.</p>',
+      '<li>Export the G702 and the G703 continuation sheet, and send the PDF to whoever signs off on your draws.</li>',
+      // A title block ends at the next heading; a label's block at the end of its container.
+      '<div class="card"><h4>AIA-style pay applications</h4><p>PDF export, with a Pay button in the portal.</p></div><div class="card"><h4>Change orders</h4><p>Approved with an e-signature.</p></div>',
+      '<div class="faq-item"><strong>AIA-style pay apps</strong><p>Export the PDF.</p></div><div class="faq-item"><strong>Contracts</strong><p>Signed in the portal.</p></div>',
+    ];
+    ok('…and leaves true copy alone (printed signature lines; e-signature in its own block; signing in; the signed contract)',
+      TRUE_COPY.every(t => payAppSign(t) == null),
+      TRUE_COPY.filter(t => payAppSign(t) != null).join(' | '));
+    // An allow-list is a hiding place unless it is exact. The two phrases that
+    // are on it only because they are live are counted where they live, and a
+    // near-miss of any phrase still fails.
+    ok('the two page-specific phrases on the allow-list are live exactly where they were found',
+      oneLine(prose('marketing/proof.html')).split('whoever signs off on your draws').length === 2
+      && /Object\.assign\(/.test(prose('marketing/portal/index.html')));
+    const NEAR_MISS = [
+      '<li>Pay apps with a signature pad</li>',
+      '<li>Pay app signatures, lined up for you</li>',
+      '<li>Pay apps: sign in the portal</li>',
+      '<li>Pay app, signed. Contract, done.</li>',
+      '<li>Pay apps whoever signs them</li>',
+      '<li>Pay apps your owner signs off on</li>',
+    ];
+    ok('…and a near-miss of an allowed phrase still fails',
+      NEAR_MISS.every(t => payAppSign(t) != null), NEAR_MISS.filter(t => payAppSign(t) == null).join(' | '));
+    ok('the allow-list stays short', SIGN_ALLOWED.length === 9 && SIGN_ALLOWED.every(a => a.length >= 6));
+    ok('the App Store screenshot caption says AIA-style',
+      !/AIA\s+(G70[23]|pay\s*app)/i.test(prose(STORE_SCREENSHOTS).replace(/AIA-style/gi, '')),
+      'an App Store image that says "AIA PAY APP" tells a buyer the document is an official AIA form');
     // AIA appears on 11 pages. Wherever it appears it must be hedged, because
     // the generated document itself is (utils/aiaBilling.ts:937) and the
     // largest published-price competitor uses the same hedge on its own
@@ -821,6 +1062,84 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       `still exempting ${AIA_HEDGE_EXEMPT.join(', ')} — every page listed here is a page that tells `
       + 'a GC or an owner they are getting an official AIA form. The last one (portal/index.html) was '
       + 'closed on 2026-09-11; it does not get reopened.');
+
+    // THE APP'S OWN PATTERN, ON THE SITE (lane SWEEP). The check above reads
+    // "AIA pay app" and "AIA G702". "AIA pay-app" — one hyphen — passed it, and
+    // houzz-pro-alternative.html was live with exactly that in its footnote.
+    // This is the UNHEDGED rule of scripts/validate-payfix.ts, the same
+    // regular expression (pinned to that file below), on every public page and
+    // on the App Store screenshot captions. What is taken out first: the hedge
+    // itself, and the trademark notice, which names the mark in quotation
+    // marks in order to disclaim it (cut before "registered": the portal page
+    // builds the sentence in two strings).
+    const UNHEDGED_AIA = /AIA (G70[23]|[Pp][Aa][Yy][\s-]?[Aa][Pp][Pp][Ss]?\b|[Pp]ay [Aa]pplications?|[Bb]illing|[Dd]ocuments?\b|[Pp]rogress\b|[Ff]orms?\b|[Cc]adence\b)/;
+    const AIA_MARK_NAMED = /(?:&ldquo;|&quot;|"|“)AIA Document G702\/G703(?:&rdquo;|&quot;|"|”) are/g;
+    const plain = (raw: string) => flat(raw
+      .replace(/<sup>&reg;<\/sup>|&reg;|®|&trade;|™/g, '')
+      .replace(/&nbsp;|&#160;| /g, ' ')
+      .replace(/&#8209;|&#x2011;|‑|&ndash;|–/g, '-'));
+    const unhedgedAia = (raw: string): string | null => {
+      const t = plain(raw).replace(/AIA-style/gi, '·').replace(AIA_MARK_NAMED, '·');
+      const m = UNHEDGED_AIA.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 20) : null;
+    };
+    const everyPage = [...pages, STORE_SCREENSHOTS];
+    const unhedgedPages = everyPage.map(p => ({ p, m: unhedgedAia(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) names an AIA pay app, form, document, G702 / G703 or billing without "AIA-style", in any spelling',
+      unhedgedPages.length === 0, unhedgedPages.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    ok('…that pattern is the one scripts/validate-payfix.ts runs on the app, character for character',
+      readFileSync('scripts/validate-payfix.ts', 'utf8').includes(`const UNHEDGED = ${UNHEDGED_AIA.toString()};`));
+    const UNHEDGED_MUST_MATCH = [
+      '<p>Cost-learning, margin-alert, and AIA pay-app capabilities describe MAGE ID features.</p>',
+      '<li>AIA pay apps</li>', '<li>AIA payapp</li>', '<h4>AIA Pay Application</h4>', '<td>AIA G702</td>', '<td>AIA&reg; G702 / G703</td>',
+      '<p>AIA&nbsp;billing, built in.</p>', '<p>Official AIA forms, filled in for you.</p>', '<p>AIA Document G702 is what this prints.</p>',
+      '<p>AIA progress billing on your phone.</p>',
+    ];
+    ok('…and it sees the label with a hyphen, a space, a non-breaking space, the registered mark, or any of the other nouns',
+      UNHEDGED_MUST_MATCH.every(t => unhedgedAia(t) != null), UNHEDGED_MUST_MATCH.filter(t => unhedgedAia(t) == null).join(' | '));
+    const UNHEDGED_TRUE_COPY = [
+      '<p>Cost-learning, margin-alert, and AIA-style pay-app capabilities describe MAGE ID features.</p>',
+      '<td>AIA-style G702 / G703 pay apps</td>',
+      'MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are\n registered trademarks of The American Institute of Architects',
+      '<p>Some lenders and architects require the official AIA Contract Documents.</p>',
+    ];
+    ok('…and leaves the hedge, the trademark notice and the standing notice alone',
+      UNHEDGED_TRUE_COPY.every(t => unhedgedAia(t) == null), UNHEDGED_TRUE_COPY.filter(t => unhedgedAia(t) != null).join(' | '));
+    ok('the Houzz Pro page’s footnote says "AIA-style pay-app capabilities"',
+      /Cost-learning, margin-alert, and AIA-style pay-app capabilities describe MAGE ID features\./.test(prose('marketing/houzz-pro-alternative.html')));
+
+    // "-READY" IS A PROMISE (lane SWEEP, the founder's call of 2026-10-04).
+    // "Bank-ready WIP", "Bank-ready PDFs in three taps": MAGE ID builds the
+    // report; whether a bank, a lender, an architect or a surety finds it
+    // ready is theirs to say. The pages say what the thing is — a WIP report,
+    // a PDF, for your bank — and no page may say "-ready" of any of the four.
+    const READY_FOR_WHOM = /\b(?:bank|banker|lender|architect|suret(?:y|ies))s?[\s-]+ready\b/i;
+    const readyClaim = (raw: string): string | null => {
+      const t = plain(raw);
+      const m = READY_FOR_WHOM.exec(t);
+      return m ? t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30) : null;
+    };
+    const readyPages = everyPage.map(p => ({ p, m: readyClaim(prose(p)) })).filter(x => x.m);
+    ok('no page (or App Store screenshot caption) says bank-ready, lender-ready, architect-ready or surety-ready',
+      readyPages.length === 0, readyPages.map(x => `${x.p}: "…${x.m}…"`).join(' | '));
+    const READY_MUST_MATCH = [
+      '<h2>Bank-ready PDFs in three taps.</h2>', '<td class="compare-row-feature">Bank-ready WIP report</td>', '<p>\n        Bank-ready WIP. Live profit margin.</p>',
+      '<p>lender ready draws</p>', '<li>Architect-ready pay apps</li>', '<li>Surety-ready financials</li>', '<li>BANK&#8209;READY</li>',
+      '<li>bank&nbsp;ready reports</li>', '<p>Banker-ready, every month.</p>', '<p>bank-\n ready</p>',
+    ];
+    ok('…that check sees it in any casing, with a hyphen, a space, a line break or a non-breaking one',
+      READY_MUST_MATCH.every(t => readyClaim(t) != null), READY_MUST_MATCH.filter(t => readyClaim(t) == null).join(' | '));
+    const READY_TRUE_COPY = [
+      '<h2>PDFs for your bank in three taps.</h2>', '<td class="compare-row-feature">WIP report for your bank</td>',
+      '<p>WIP report for your bank. Live profit margin.</p>', '<p>Send it to your bank. Ready in three taps.</p>', '<p>Already built.</p>',
+    ];
+    ok('…and leaves alone the copy that says what the thing is',
+      READY_TRUE_COPY.every(t => readyClaim(t) == null), READY_TRUE_COPY.filter(t => readyClaim(t) != null).join(' | '));
+    ok('the three pages that said "Bank-ready" say what the report is: a WIP report, and PDFs, for your bank',
+      /<td class="compare-row-feature">WIP report for your bank<\/td>/.test(prose('marketing/features/vs-competitors.html'))
+      && /<h2>PDFs for your bank in three taps\.<\/h2>/.test(prose('marketing/features/financials.html'))
+      && /\n\s+WIP report for your bank\. Live profit margin\. AIA-style pay apps\./.test(prose('marketing/features/financials.html'))
+      && /A\/R aging, cash flow projection\. PDFs for your bank in three taps\.<\/p>/.test(prose('marketing/features/index.html')));
 
     // Hedging the noun is half of it. The generated PDF carries a
     // non-affiliation notice (utils/aiaBilling.ts:937) and app/aia-pay-app.tsx

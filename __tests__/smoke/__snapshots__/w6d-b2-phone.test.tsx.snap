@@ -3,35 +3,35 @@
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports (default tab) 1`] = `
 {
   "lines": 487,
-  "sha256": "63ce312bb9469a8093b51ee37281b260148c5106e4b43fe51afca236cbae4c69",
+  "sha256": "7051bf947a7561b7a47f255bc74ef0df49401bc7849b502cb1a98cec04db96d2",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging 1`] = `
 {
   "lines": 398,
-  "sha256": "5cb79de21a21b7ee53aa1f130a01cf8e81a7198cd32fe5b5ad89b2b5ef4d74dd",
+  "sha256": "615033e06d10ec1779287f6c3aaee175448d5bf33654a1ed9b3fdb7a5cde9526",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging with three issued invoices (the aging rows drawn) 1`] = `
 {
   "lines": 553,
-  "sha256": "2bbc509b52ef4d8b0981c496e78473963109af2e012703ea580388563160f2ef",
+  "sha256": "4098fc16f58527964fd38ff489106dc8749a4fab07e4599df2f7e8d2e6fde12e",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports default tab with three issued invoices (billed figures on the WIP rows) 1`] = `
 {
   "lines": 487,
-  "sha256": "9badf871d44e8fec12b038204d75df912307d44c59ac2d61c812cd46a5cd83f8",
+  "sha256": "1f59e22bc957afdc2c975f9ff5c08180382425c6b301648efa116761e4982160",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports: Profit pressed 1`] = `
 {
   "lines": 431,
-  "sha256": "c1f648187841e79df1835a0392f7429c037ed82604d858fa38d1107aca9cb16a",
+  "sha256": "9a7f5cb6e44762b30e7e4145efffbbad292088908e2bf78660082824f105ed7b",
 }
 `;
 

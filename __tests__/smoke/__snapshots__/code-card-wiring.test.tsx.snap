@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (a) Code Check result sheet, two citations, no linked job 1`] = `
+{
+  "lines": 1064,
+  "sha256": "cef2320c0f21581f051db4adf40dbd8c85749d2c6369c7f1dfecb8e1bd0b5000",
+}
+`;
+
+exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (b) Ask, prose answer, no requirements (the fallback) 1`] = `
+{
+  "lines": 849,
+  "sha256": "d148897a8c7afea97ab5da83e533cfccd027ef792f1754679b01bceabca48452",
+}
+`;
+
+exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (c) Plan Review, three saved findings on one sheet 1`] = `
+{
+  "lines": 724,
+  "sha256": "e989060c59d8fc294e24016e2c85ac2c65e90b9102fecf3f1c63775d492f236a",
+}
+`;
+
+exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (d) Inspection Ready sheet, no pinned code cards 1`] = `
+{
+  "lines": 68,
+  "sha256": "a8d705b8bf9f10ba4bc0ff4309575c59067086156a46f9f2be54f26a33f26853",
+}
+`;

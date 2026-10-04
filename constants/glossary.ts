@@ -33,9 +33,9 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   pay_app: {
     key: 'pay_app',
-    term: 'Pay app (AIA G702/G703)',
+    term: 'Pay app (AIA-style G702/G703)',
     what: 'The standard progress-billing form showing how much of each line item is complete and what you are owed this period.',
-    why: 'It is what most owners and lenders require before releasing payment. Getting it right means getting paid on time.',
+    why: 'It is how one period of work gets billed, so the contractor and the owner can check the amount line by line before it is paid.',
   },
   lien_waiver: {
     key: 'lien_waiver',

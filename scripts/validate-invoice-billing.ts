@@ -2372,11 +2372,15 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       /<span class="rule" style="min-width:120px">/.test(
         buildAIAPayAppHtml(app(), { companyName: 'GC' } as never)), true);
     eq('…which prints the figure once it is recorded', /\$ 4,000\.00/.test(html), true);
+    // Lane PAYFIX: both were AIA's G702 wording (the closing clause word for
+    // word); they are MAGE's plain words now with the same meaning, and
+    // scripts/validate-payfix.ts refuses the old sentences.
     eq('…the instruction to attach an explanation and initial changed figures',
-      /Attach an explanation if the amount certified differs/.test(html)
-      && /Initial every figure on this Application and on the Continuation Sheet/.test(html), true);
-    eq('…and the closing non-negotiability clause',
-      /This Certificate is not negotiable\. The AMOUNT CERTIFIED is payable only to the Contractor named herein/.test(html), true);
+      /attach a note saying why/.test(html)
+      && /put your initials beside each figure on this page or the Continuation Sheet/.test(html), true);
+    eq('…and the closing clause: payable only to the named contractor, not transferable, no rights waived',
+      /Only the Contractor named on this page can be paid the AMOUNT CERTIFIED; this certificate cannot be signed over/.test(html)
+      && /does not give up any right the Owner or the Contractor has under their contract/.test(html), true);
     eq('the notary jurat prints when the GC asks for it',
       /Subscribed and sworn to before me this/.test(html)
       && /Notary Public/.test(html)
@@ -3217,9 +3221,10 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
         totalAdditions: 54_000, totalDeductions: 20_000, netChange: 34_000,
       },
     }), { companyName: 'GC' } as never);
+    // Lane PAYFIX: the two row labels were AIA's words; they are MAGE's now.
     eq('the printed G702 carries the form’s four change-order rows',
-      /Total changes approved in previous months by Owner/.test(withSummary)
-      && /Total approved this month/.test(withSummary)
+      /Changes the Owner approved in earlier months/.test(withSummary)
+      && /Changes approved this month/.test(withSummary)
       && />TOTAL</.test(withSummary)
       && /NET CHANGES by Change Order/.test(withSummary), true);
     eq('…with this month’s figures, not last month’s',

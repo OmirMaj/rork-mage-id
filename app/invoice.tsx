@@ -3717,9 +3717,9 @@ function InvoiceInner() {
                 <FileSpreadsheet size={20} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.aiaCtaTitle}>Generate AIA G702/G703</Text>
+                <Text style={styles.aiaCtaTitle}>Generate AIA-style G702/G703</Text>
                 <Text style={styles.aiaCtaSub}>
-                  Create a lender- and architect-ready progress pay application from this invoice.
+                  Build a draft progress pay application from this invoice. Some lenders and architects require their own or the official AIA forms.
                 </Text>
               </View>
               <Text style={styles.aiaCtaArrow}>›</Text>

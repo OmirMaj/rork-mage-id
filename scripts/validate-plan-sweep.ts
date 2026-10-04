@@ -192,9 +192,14 @@ ok(`${FN} marks the prompt and normalizePlanResult as pure blocks`, !!promptBloc
 // hint. Re-recorded after proving each new prompt equals the 4a5f6eb7 prompt
 // (4b32b603… / 633bd733…) with exactly those two edits and nothing else.
 // scripts/validate-code-copyright-prompts.ts pins the rule itself.
+// Moved a SECOND time on purpose (code cards, 2026-10-04): one line after the
+// paraphrase rule tells the model to write requirement and observed as short
+// plain sentences with no quotation marks and inches as "in.", because the
+// app's own-words gate withholds a quoted line. scripts/validate-code-card-server.ts
+// proves each prompt is the ca7cdf2f… / a8f9948d… prompt plus exactly that line.
 const BASE_PROMPT_SHA = [
-  'ca7cdf2f908b5373b3bbfa73ba861bea1657d96e1cb2b76928eddaf48c273968',
-  'a8f9948d8d6742596f5e253ab6bc9b2d513a6481587bf18c2cba20f0d1ea118a',
+  '742c854b31cc314bec0482bd56b38e49b0760772172935e095b12cb6b03e6efe',
+  '0ac123f2d4a4ebfd85c9c1e3e109a8f9dc7f8e889b397be5217410ad158199e9',
 ];
 const BASE_NORM_SHA = 'babbc66c341c2d9978e465a890d99573eeb2caea063dd391d922aaab0a3a338c';
 const REQS = [
@@ -311,7 +316,7 @@ console.log('\n6. the two stages, and a refusal in the function\'s own words');
     };
     const three = [...rf.selected, { sheet: sheet('a3', 'A-301'), score: 0.6, reasons: [{ topic: 'egress', snippet: 's' }] }];
     const b = await RUN.reviewSweepSheets({ selected: three, limit: 6 });
-    ok('stage B sends each sheet its own matched topics as sweep.scopeTargets', JSON.stringify(scoped[0]) === '{"scopeTargets":["egress"]}');
+    ok('stage B sends each sheet its own matched topics as sweep.scopeTargets, and asks for the code-card rows', JSON.stringify(scoped[0]) === '{"scopeTargets":["egress"],"codeCards":true}');
     ok('monthly_cap_reached mid-run stops the loop', calls === 2 && b.reviewed.length === 1);
     ok('…and the rest are listed as not reviewed with the monthly-limit reason',
       b.notReviewed.length === 2 && b.notReviewed.every(x => x.why === 'Your monthly plan-review limit was reached — not reviewed'));
