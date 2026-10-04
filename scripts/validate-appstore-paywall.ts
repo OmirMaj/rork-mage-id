@@ -261,5 +261,26 @@ ok(`${MODAL}: StorePlansUnavailable prints the message and a Retry button`,
   /function StorePlansUnavailable\([\s\S]{0,900}\{message\}[\s\S]{0,400}label="Retry"/.test(modalCode));
 ok(`${MODAL}: the honest state is drawn in warning tokens`, /storeUnavailableBox: \{[^}]*backgroundColor: t\.warningSoft/.test(modalCode) && /storeUnavailableText: \{[^}]*color: t\.warningLabel/.test(modalCode));
 
+// ── 8. "AIA-style", never an AIA document ───────────────────────────────────
+// MAGE's pay app is styled after the AIA G702/G703 forms; it is not an AIA
+// document, and a purchase screen is the last place to imply one. Every
+// G702/G703 a buyer READS on the three screens says "AIA-style". The one
+// allowed bare form is a lookup KEY: components/Paywall.tsx keys FEATURE_PITCH /
+// FEATURE_TITLE on the `feature` string app/aia-pay-app.tsx passes
+// ('AIA G702/G703 Pay Applications'), and FEATURE_TITLE gives it the words shown.
+const AIA_KEY = "'AIA G702/G703 Pay Applications':";
+for (const { f, c } of [{ f: MODAL, c: modalCode }, { f: SCREEN, c: screenCode }, { f: ONBOARD, c: onboardCode }]) {
+  const shown = c.split(AIA_KEY).join('');
+  const bare = [...shown.matchAll(/G70[23]/g)].filter((m) => {
+    const before = shown.slice(Math.max(0, (m.index ?? 0) - 16), m.index ?? 0);
+    return !/AIA-style (G702\/)?$/.test(before);
+  });
+  ok(`${f}: every G702/G703 a buyer reads says "AIA-style"`, bare.length === 0,
+    bare.map((m) => shown.slice(Math.max(0, (m.index ?? 0) - 30), (m.index ?? 0) + 30).replace(/\s+/g, ' ')).join(' | '));
+}
+ok(`${MODAL}: the pay-app feature KEY has a display title that says "AIA-style"`,
+  new RegExp(`${AIA_KEY.replace(/[/]/g, '\\/')}\\s*'AIA-style G702\\/G703 pay apps'`).test(modalCode));
+ok(`${MODAL}: the heading prints the display title, not the raw key`, /const featureTitle = FEATURE_TITLE\[feature\] \?\? feature;/.test(modalCode));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

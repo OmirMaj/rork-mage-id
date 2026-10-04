@@ -134,7 +134,7 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   { label: 'AI photo triage', key: 'photo_documentation' },
   { label: 'AI punch items from photos', key: 'punch_list_closeout' },
   { label: 'Cash flow and EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
-  { label: 'AIA G702/G703 pay apps', key: 'aia_pay_app' },
+  { label: 'AIA-style G702/G703 pay apps', key: 'aia_pay_app' },
   { label: 'Change orders and invoicing', key: 'change_orders_invoicing' },
   { label: 'Equipment tracking', key: 'equipment_rental' },
   { label: 'Client portal (custom branded)', key: 'client_portal' },

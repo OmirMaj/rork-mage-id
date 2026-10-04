@@ -43,12 +43,14 @@ import {
   AiConsentDeclinedError,
   aiConsentAlertMessage,
   aiConsentErrorText,
+  aiFailureError,
   createAiConsentGate,
   isAiConsentDeclinedError,
   parseAiConsent,
   type AiConsentStorage,
 } from '../utils/aiConsentCore';
 import { APP_STORAGE_PREFIXES, DEVICE_SCOPED_KEYS } from '../utils/localCacheKeys';
+import { describeError } from '../utils/errorCopy';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -571,6 +573,93 @@ function statementAt(text: string, i: number, end: number): string {
   return text.slice(i, end);
 }
 
+/** One statement starting at i: up to its `;`, or through the `}` that closes
+ *  a block it opened (`if (x) { … }`), or the bracket that closes its parent. */
+function stmtFrom(text: string, i: number): string {
+  let depth = 0;
+  for (let j = i; j < text.length; j++) {
+    const c = text[j];
+    if (c === '(' || c === '{' || c === '[') depth++;
+    else if (c === ')' || c === ']' || c === '}') {
+      if (depth === 0) return text.slice(i, j);
+      depth--;
+      if (c === '}' && depth === 0) return text.slice(i, j + 1);
+    } else if (c === ';' && depth === 0) return text.slice(i, j);
+  }
+  return text.slice(i);
+}
+
+/** Does the code after a mageAI call USE its consent check — does the refusal
+ *  reach the person as the sentence — or does it only mention the check?
+ *  (Round-2 review: with toolbox's `if (consentRefused) throw …` deleted, the
+ *  caller still read as "aware" while filing template notes as AI-written.)
+ *  A use is one of:
+ *   • `throw aiFailureError(res, …)` — the typed rethrow;
+ *   • `aiConsentReason(res) ?? …` / `return aiConsentReason(res)` — the
+ *     sentence flows into the value shown;
+ *   • `name = aiConsentReason(res)` and `name` is read afterwards;
+ *   • `isAiConsentRefusal(res) ? … : …` whose statement carries the sentence;
+ *   • `if (isAiConsentRefusal(res)) …` whose body throws AiConsentDeclinedError
+ *     or carries AI_CONSENT_OFF_MESSAGE — or sets a flag that a LATER statement
+ *     reads to do so;
+ *   • `flag = isAiConsentRefusal(res)` and a later statement reads `flag` to
+ *     throw AiConsentDeclinedError / carry AI_CONSENT_OFF_MESSAGE.
+ *  A check whose result goes nowhere is not a use. */
+export function consentCheckIsUsed(windowText: string): boolean {
+  if (/\bthrow\s+aiFailureError\s*\(/.test(windowText)) return true;
+  const SENTENCE = /\bthrow new AiConsentDeclinedError\b|\bAI_CONSENT_OFF_MESSAGE\b|\bthrow\s+aiFailureError\s*\(/;
+  const closeParen = (open: number): number => {
+    let depth = 0;
+    for (let i = open; i < windowText.length; i++) {
+      if (windowText[i] === '(') depth++;
+      else if (windowText[i] === ')') { depth--; if (depth === 0) return i; }
+    }
+    return windowText.length;
+  };
+  /** `name` read (not assigned) after `from`; with needsSentence, only in a statement that carries the sentence. */
+  const readLater = (name: string, from: number, needsSentence: boolean): boolean => {
+    const re = new RegExp(`\\b${name.replace(/\$/g, '\\$')}\\b(?!\\s*=[^=])`, 'g');
+    re.lastIndex = from;
+    for (let r = re.exec(windowText); r; r = re.exec(windowText)) {
+      if (!needsSentence) return true;
+      const lineStart = windowText.lastIndexOf('\n', r.index) + 1;
+      if (SENTENCE.test(stmtFrom(windowText, lineStart))) return true;
+    }
+    return false;
+  };
+  for (const m of windowText.matchAll(/\b(isAiConsentRefusal|aiConsentReason)\s*\(/g)) {
+    const at = m.index ?? 0;
+    const close = closeParen(at + m[0].length - 1);
+    const before = windowText.slice(Math.max(0, at - 120), at);
+    const afterCall = windowText.slice(close + 1);
+    const assigned = (before.match(/\b([A-Za-z_$][\w$]*)\s*=\s*$/) ?? [])[1];
+    if (m[1] === 'aiConsentReason') {
+      if (/^\s*\?\?/.test(afterCall) || /\?\?\s*$/.test(before) || /\breturn\s+$/.test(before)) return true;
+      if (assigned && readLater(assigned, close + 1, false)) return true;
+      continue;
+    }
+    // isAiConsentRefusal: a ternary, an if-condition, or a stored flag.
+    if (/^\s*\?(?!\?)/.test(afterCall)) {
+      const stmtStart = windowText.lastIndexOf('\n', at) + 1;
+      if (SENTENCE.test(stmtFrom(windowText, stmtStart))) return true;
+      continue;
+    }
+    if (/\bif\s*\(\s*$/.test(before)) {
+      // the condition's own `)` then the body: a block or one statement
+      const condClose = windowText.indexOf(')', close + 1);
+      let b = condClose + 1;
+      while (b < windowText.length && /\s/.test(windowText[b])) b++;
+      const bodyEnd = windowText[b] === '{' ? matchBrace(windowText, b) : b + stmtFrom(windowText, b).length;
+      const body = windowText.slice(b, bodyEnd + 1);
+      if (SENTENCE.test(body)) return true;
+      for (const f of body.matchAll(/\b([A-Za-z_$][\w$]*)\s*=\s*true\b/g)) if (readLater(f[1], bodyEnd + 1, true)) return true;
+      continue;
+    }
+    if (assigned && readLater(assigned, close + 1, true)) return true;
+  }
+  return false;
+}
+
 export function mageAICallerVerdict(code: string, callIdx: number, v: string | null): 'aware' | 'passes' | 'own-words' {
   // The window: the call's own arguments, then the 45 lines after it closes,
   // never reaching into the next mageAI call.
@@ -584,7 +673,7 @@ export function mageAICallerVerdict(code: string, callIdx: number, v: string | n
   const after = code.slice(argClose).split('\n').slice(0, 46).join('\n');
   const next = code.indexOf('mageAI(', argClose);
   const windowText = code.slice(argClose, next < 0 ? argClose + after.length : Math.min(next, argClose + after.length));
-  if (/\b(isAiConsentRefusal|aiConsentReason)\s*\(|\bAI_CONSENT_DECLINED_CODE\b/.test(windowText)) return 'aware';
+  if (consentCheckIsUsed(windowText)) return 'aware';
   if (!v) return 'own-words';
   const ifRe = new RegExp(`if\\s*\\(\\s*!\\s*${v}\\.success[^)]*\\)\\s*`);
   const m = windowText.match(ifRe);
@@ -687,10 +776,10 @@ function partC3(files: string[]) {
 //
 // THE RULE, provable by following the throw: from every place a refusal is
 // thrown (requireAiConsent(), throw new AiConsentDeclinedError, a util's
-// `throw new Error(<mageAI result>.error…)`), find where it lands:
+// `throw aiFailureError(<mageAI result>, …)`), find where it lands:
 //   • a catch / .catch(…) whose body checks aiConsentErrorText /
-//     isAiConsentDeclinedError / ownSentence (all three return the sentence)
-//     → carried;
+//     isAiConsentDeclinedError / ownSentence, or shows describeError copy
+//     (all four return the sentence) → carried;
 //   • a catch that rethrows, or no catch in a util/hook/context → the
 //     enclosing function throws it too: follow every call of that function;
 //   • the call's own handler asked first (`!(await ensureAiConsent())` above
@@ -740,7 +829,10 @@ function closeOf(code: string, open: number): number {
   return c < 0 ? code.length : c;
 }
 
-const CONSENT_CATCH = /\b(aiConsentErrorText|isAiConsentDeclinedError|ownSentence)\s*\(|\bAI_CONSENT_DECLINED_CODE\b/;
+// describeError counts since the integration round: utils/errorCopy reads the
+// refusal FIRST and returns { title: 'AI features are off', body: the sentence }
+// (run for real in the root checks below), so a catch that shows its copy is honest.
+const CONSENT_CATCH = /\b(aiConsentErrorText|isAiConsentDeclinedError|ownSentence|describeError)\s*\(|\bAI_CONSENT_DECLINED_CODE\b/;
 
 /** Where a throw at idx lands: the innermost catch around it, a `.catch(…)` on
  *  its statement, or nothing (it leaves the function). */
@@ -881,7 +973,7 @@ function partC5(files: string[]) {
 
   for (const [file, code] of codeOf) {
     const mageVars = new Set([...code.matchAll(/(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+mageAI\(/g)].map((m) => m[1]));
-    const SRC = /\brequireAiConsent\(\)|\bthrow new AiConsentDeclinedError\b|\bthrow new Error\(\s*([A-Za-z_$][\w$]*)\??\.error\b/g;
+    const SRC = /\brequireAiConsent\(\)|\bthrow new AiConsentDeclinedError\b|\bthrow aiFailureError\(|\bthrow new Error\(\s*([A-Za-z_$][\w$]*)\??\.error\b/g;
     for (const m of code.matchAll(SRC)) {
       if (m[1] && !mageVars.has(m[1])) continue;
       if (/^\s*import\b/.test(code.slice(code.lastIndexOf('\n', m.index ?? 0) + 1, (m.index ?? 0) + 1))) continue;
@@ -924,17 +1016,53 @@ function partC5(files: string[]) {
   ok('no stale C5_QUIET entry', staleQ.length === 0, staleQ.join(', '));
 
   // The rule on fixtures: the AIScheduleRisk shape is caught; the fixed one passes.
-  const generic = `async function run() {\n  try {\n    const data = await analyzeScheduleRisk(s);\n    setResult(data);\n  } catch (err) {\n    setError(describeError(err, { action: 'run the risk forecast' }).body);\n  }\n}`;
-  const fixed = generic.replace('setError(describeError(', 'setError(aiConsentErrorText(err) ?? describeError(');
+  const generic = `async function run() {\n  try {\n    const data = await analyzeScheduleRisk(s);\n    setResult(data);\n  } catch (err) {\n    setError('AI search unavailable right now. Try again in a moment.');\n  }\n}`;
+  const fixed = generic.replace("setError('AI search", "setError(aiConsentErrorText(err) ?? 'AI search");
+  const viaCopy = generic.replace("setError('AI search unavailable right now. Try again in a moment.')", "setError(describeError(err, { action: 'run the risk forecast' }).body)");
   const rethrow = `async function a() {\n  try { await analyzeScheduleRisk(s); } catch (e) { log(e); throw e; }\n}`;
   const at = (src: string) => src.indexOf('analyzeScheduleRisk(');
-  ok('fixture: describeError-only catch → swallowed', landingVerdict(landingOf(generic, at(generic))) === 'swallowed');
+  ok('fixture: a catch with its own failure words → swallowed', landingVerdict(landingOf(generic, at(generic))) === 'swallowed');
+  ok('fixture: a catch that shows describeError copy → carried', landingVerdict(landingOf(viaCopy, at(viaCopy))) === 'carried');
   ok('fixture: aiConsentErrorText first → carried', landingVerdict(landingOf(fixed, at(fixed))) === 'carried');
   ok('fixture: a catch that rethrows → followed up', landingVerdict(landingOf(rethrow, at(rethrow))) === 'rethrows');
   ok('fixture: helper reads the typed error and a util’s new Error(res.error)',
     aiConsentErrorText(new AiConsentDeclinedError()) === AI_CONSENT_OFF_MESSAGE
     && aiConsentErrorText(new Error(AI_CONSENT_OFF_MESSAGE)) === AI_CONSENT_OFF_MESSAGE
     && aiConsentErrorText(new Error('Schedule risk analysis unavailable')) === null);
+  // ── THE ROOT (integration round). A util never throws a mageAI result's
+  // error as a plain Error: aiFailureError() rethrows the refusal TYPED, and
+  // describeError() — the copy path nearly every AI catch already shows —
+  // reads it first. Run for real, then pinned across every client file.
+  const refusal = { success: false, data: null, error: AI_CONSENT_OFF_MESSAGE, errorKind: 'unknown', errorCode: AI_CONSENT_DECLINED_CODE };
+  const typed = aiFailureError(refusal, 'Weekly summary unavailable');
+  ok('aiFailureError: a refusal becomes the typed AiConsentDeclinedError (code + sentence)',
+    typed instanceof AiConsentDeclinedError && isAiConsentDeclinedError(typed) && typed.message === AI_CONSENT_OFF_MESSAGE);
+  const plain = aiFailureError({ error: 'Gemini 503' }, 'Weekly summary unavailable');
+  ok('aiFailureError: any other failure stays a plain Error with its own text, or the fallback',
+    !(plain instanceof AiConsentDeclinedError) && plain.message === 'Gemini 503'
+    && aiFailureError({}, 'Weekly summary unavailable').message === 'Weekly summary unavailable'
+    && aiFailureError(null, 'fb').message === 'fb' && !isAiConsentDeclinedError(aiFailureError({ error: AI_CONSENT_OFF_MESSAGE + ' x' }, 'fb')));
+  const shown = describeError(typed, { action: 'run the risk forecast', keptLocally: true, title: "Couldn't write the client update" });
+  ok('describeError(refusal): title "AI features are off", body the exact sentence — no "try again", no reference code',
+    shown.title === 'AI features are off' && shown.body === AI_CONSENT_OFF_MESSAGE && shown.code === null
+    && describeError(new Error(AI_CONSENT_OFF_MESSAGE), { action: 'x' }).body === AI_CONSENT_OFF_MESSAGE);
+  const other = describeError(plain, { action: 'run the risk forecast' });
+  ok('describeError(any other failure): unchanged copy, and never the raw text',
+    other.title === "That didn't go through" && other.body.startsWith("MAGE couldn't run the risk forecast.") && !other.body.includes('Gemini 503'));
+  const untyped: string[] = [];
+  let typedThrows = 0;
+  for (const [file, code] of codeOf) {
+    const mageVars = new Set([...code.matchAll(/(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+mageAI\(/g)].map((m) => m[1]));
+    for (const m of code.matchAll(/\bthrow new [A-Za-z]*Error\(\s*`?[^;\n]*?\b([A-Za-z_$][\w$]*)\??\.error\b/g)) {
+      if (mageVars.has(m[1])) untyped.push(`${file}:${code.slice(0, m.index).split('\n').length}`);
+    }
+    typedThrows += [...code.matchAll(/\bthrow aiFailureError\(/g)].length;
+  }
+  ok('no util throws a mageAI result\u2019s error as a plain Error (use `throw aiFailureError(res, fallback)`)', untyped.length === 0, untyped.join(', '));
+  ok('the typed rethrow is in use (aiService \u00d713 and the six other utils; no silent zero)', typedThrows >= 20, `throw aiFailureError: ${typedThrows}`);
+  const svc = codeOf.get('utils/aiService.ts') ?? '';
+  ok('utils/aiService.ts: every failed mageAI result is rethrown through aiFailureError',
+    [...svc.matchAll(/\bthrow aiFailureError\(aiResult, '[^']+'\);/g)].length >= 13 && !/throw new Error\(aiResult/.test(svc));
 }
 
 // ── C4. a plan upload waits for the yes ───────────────────────────────────

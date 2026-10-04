@@ -296,7 +296,7 @@ const FEATURE_PITCH: Record<string, string> = {
   'Change Orders':
     'Price extra work, send it for approval and keep the signed trail, so the change that gets argued about later is in writing.',
   'AIA G702/G703 Pay Applications':
-    'G702/G703 pay apps filled from your invoices and schedule of values instead of retyped into a spreadsheet.',
+    'AIA-style G702/G703 pay apps filled from your invoices and schedule of values instead of retyped into a spreadsheet.',
   'Lien Waiver Manager':
     'Conditional and unconditional waivers generated and tracked per payment, so a missing waiver never holds a draw.',
   'Contracts':
@@ -433,7 +433,9 @@ const FEATURE_TITLE: Record<string, string> = {
   'WIP Reporting': 'WIP reporting',
   'Full Budget Dashboard (EVM)': 'Full budget dashboard (EVM)',
   'Change Orders': 'Change orders',
-  'AIA G702/G703 Pay Applications': 'AIA G702/G703 pay apps',
+  // The KEY is the string app/aia-pay-app.tsx passes; only the words shown change.
+  // MAGE's pay app is styled after the AIA forms, it is not an AIA document.
+  'AIA G702/G703 Pay Applications': 'AIA-style G702/G703 pay apps',
   'Lien Waiver Manager': 'Lien waivers',
   'Client Portal': 'Client portal',
   'Subcontractor Portals': 'Sub portals',

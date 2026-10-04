@@ -1,4 +1,5 @@
 import { mageAI } from '@/utils/mageAI';
+import { aiFailureError } from '@/utils/aiConsentCore';
 import { z } from 'zod';
 import type { DailyFieldReport, ProjectPhoto } from '@/types';
 import { getLang } from '@/i18n/core';
@@ -67,7 +68,7 @@ export async function parseDFRFromTranscript(
 
     if (!aiResult.success) {
       console.log('[VoiceDFR] AI failed:', aiResult.error);
-      throw new Error(aiResult.error || 'AI unavailable');
+      throw aiFailureError(aiResult, 'AI unavailable');
     }
 
     const result = aiResult.data;
@@ -139,7 +140,7 @@ Produce a draft DFR. The "workPerformed" field should read like a professional s
     tier: 'fast',
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'AI unavailable');
+    throw aiFailureError(aiResult, 'AI unavailable');
   }
   const result = aiResult.data;
   const partial: Partial<DailyFieldReport> = {};

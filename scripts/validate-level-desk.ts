@@ -409,8 +409,11 @@ if (sm) {
   check('H WEB_LAUNCH_DARK = Theme.dark.bg, BRAND_ACCENT_ON_DARK (what the dark app paints as accent), Theme.dark.text',
     !!WD && WD.bg === C.Theme.dark.bg && WD.accent === C.BRAND_ACCENT_ON_DARK && WD.cap === C.Theme.dark.text && WD.fg === C.Theme.dark.text
     && WD.accent === C.deriveAccentPalette(C.BRAND_ACCENT, 'dark').accent, JSON.stringify(WD));
-  check('H the web launch is never the native splash orange', W.accent.toUpperCase() !== L.NATIVE_SPLASH_ACCENT.toUpperCase()
-    && W.bg.toUpperCase() !== L.NATIVE_SPLASH_BG.toUpperCase() && !!WD && WD.accent.toUpperCase() !== L.NATIVE_SPLASH_ACCENT.toUpperCase());
+  // Build 18 bakes the native splash in BRAND_ACCENT_ON_DARK, so the DARK web
+  // launch now shares the splash green on purpose; the light launch and the
+  // ground still never borrow the native splash.
+  check('H the light web launch never borrows the native splash accent or ink', W.accent.toUpperCase() !== L.NATIVE_SPLASH_ACCENT.toUpperCase()
+    && W.bg.toUpperCase() !== L.NATIVE_SPLASH_BG.toUpperCase() && !!WD && WD.bg.toUpperCase() !== L.NATIVE_SPLASH_BG.toUpperCase());
   // webLaunchScheme: the data-theme tag wins when it is light / dark, else the OS.
   const SCHEMES: [string | null | undefined, boolean, string][] = [
     [null, false, 'light'], [null, true, 'dark'], [undefined, true, 'dark'], ['', true, 'dark'], ['bogus', false, 'light'],

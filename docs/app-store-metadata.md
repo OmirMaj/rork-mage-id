@@ -70,7 +70,7 @@ RUN THE FIELD
 • Plans & markup — calibrate scale, drop pins, link photos and RFIs to drawing locations.
 
 GET PAID
-• AIA G702/G703 pay apps — schedule of values, retention, change-order roll-up, e-sign export. One screen.
+• AIA-style G702/G703 pay apps — schedule of values, retention, change-order roll-up, e-sign export. One screen.
 • Change orders with an approval trail; invoicing with Stripe; lien waivers built in.
 
 YOUR CLIENT, KEPT IN THE LOOP
@@ -120,7 +120,7 @@ Welcome to MAGE ID — the app that helps you win the bid and keep the profit.
 • Margin Risk — a live score that warns you before a job loses money.
 • AI estimate from a sentence or a plan PDF, plus on-screen quantity takeoff.
 • Scheduling with critical path, weather auto-reschedule, and Last Planner pull planning.
-• AIA G702/G703 pay apps, change orders, invoicing, and lien waivers.
+• AIA-style G702/G703 pay apps, change orders, invoicing, and lien waivers.
 • Voice-to-log daily reports, RFIs, punch lists — offline-first.
 • Live homeowner portal with a plain-English daily digest in six languages.
 • One flat price. Subcontractors are free. No per-seat fees.
@@ -192,7 +192,7 @@ Recommended 10, in order — lead with the moat:
 4. **Quantity takeoff** — "Measured off the sheet."
 5. **Schedule + weather reschedule** — "Rain moves the job for you."
 6. **Cash-flow dashboard** — "Know which job is making money."
-7. **AIA pay app** — "G702/G703, one screen."
+7. **AIA-style pay app** — "AIA-style G702/G703, one screen."
 8. **Daily report (voice)** — "Voice-to-log in 30 seconds."
 9. **Client portal** — "Six languages. Zero app to install."
 10. **Pricing/onboarding** — "Free to start. Subs free."

@@ -25,6 +25,7 @@ export {
   AiConsentDeclinedError,
   aiConsentAlertMessage,
   aiConsentErrorText,
+  aiFailureError,
   aiConsentReason,
   isAiConsentDeclinedError,
   isAiConsentRefusal,

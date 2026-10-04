@@ -1191,7 +1191,6 @@ const GATE_ALLOWLIST: AllowEntry[] = [
   // has no native splash to match), so its LIGHT still needs no entry. On a dark
   // page the still recolours to WEB_LAUNCH_DARK, whose caps are Theme.dark.text:
   { path: 'public/index.html', match: /^\s*(html:not\(\[data-theme='light'\]\)|html\[data-theme='dark'\]) #mage-prejs-level \.mpl-cap-l, \1 #mage-prejs-level \.mpl-cap-r \{ background-color: #F4EFE6; \}$/i, reason: 'pre-JS level caps on a DARK page = WEB_LAUNCH_DARK.cap (Theme.dark.text): light ink on the green-black ground, not a cream ground (validate-level-desk rule H)' },
-  { path: 'utils/levelTimeline.ts', match: '#FF6A1A', reason: 'NATIVE_SPLASH_ACCENT: replica of the ORANGE splash builds 1-17 baked. Build 18 bakes green (assets/images/splash-icon.png, validate-level-splash re-baselined): delete THIS entry in the same commit that flips NATIVE_SPLASH_ACCENT to the baked green (#5DB36E)' },
   { path: 'utils/levelTimeline.ts', match: '#F4EFE6', reason: 'NATIVE_SPLASH_CAP / NATIVE_SPLASH_FG: the baked splash caps are cream at alpha 64 — unchanged by the build-18 green splash, so this replica stays (validate-level-splash rule C)' },
 ];
 

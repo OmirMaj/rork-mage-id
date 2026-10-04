@@ -79,6 +79,16 @@ export function aiConsentErrorText(e: unknown): string | null {
   return typeof msg === 'string' && msg.trim() === AI_CONSENT_OFF_MESSAGE ? AI_CONSENT_OFF_MESSAGE : null;
 }
 
+/** The error a util THROWS for a failed mageAI result. A consent refusal is
+ *  rethrown as the typed AiConsentDeclinedError (code ai_consent_declined), so
+ *  every catch — and utils/errorCopy describeError, which reads the code —
+ *  shows "AI features are off…" instead of "That didn't go through, try
+ *  again". Anything else stays the plain Error it always was:
+ *  `if (!aiResult.success) throw aiFailureError(aiResult, 'Weekly summary unavailable');` */
+export function aiFailureError(r: { error?: string | null; errorCode?: string } | null | undefined, fallback: string): Error {
+  return isAiConsentRefusal(r) ? new AiConsentDeclinedError() : new Error(r?.error || fallback);
+}
+
 /** What a stored value means. Anything unreadable is 'unknown' (ask again). */
 export function parseAiConsent(raw: string | null | undefined): AiConsentState {
   return raw === 'granted' || raw === 'declined' ? raw : 'unknown';
