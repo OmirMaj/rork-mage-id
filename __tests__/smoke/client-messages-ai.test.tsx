@@ -262,6 +262,20 @@ function threadFingerprint(json: unknown): { lines: number; sha256: string } {
   return { lines: out.length, sha256 };
 }
 
+// ── The sentences lane ATT3 keeps apart ─────────────────────────────────────
+
+const ASKS_NONE = 'MAGE found no request in the message or the files it read.';
+const DRAFT_NONE = 'No draft, because MAGE found no request.';
+const ASKS_HIDDEN = 'MAGE hid what it wrote here because the wording read like building-code text. The original message and files are unchanged.';
+const DRAFT_HIDDEN = 'No draft, because MAGE hid wording that read like building-code text. The original message and files are unchanged.';
+const DRAFT_NOT_WRITTEN = 'MAGE wrote no draft for this message.';
+const SHEET_CUT_SHORT = 'MAGE\'s reading stops partway. Open the files to check the rest.';
+const ASK_CUT_SHORT = 'MAGE\'s answer stops partway. Try a narrower question.';
+// Made-up code-shaped text: long, with the phrasing the gate looks for.
+const CODE_SHAPED = 'Guards shall be provided for those portions of open-sided walking surfaces, including stairs, ramps and landings, '
+  + 'that are located more than 30 inches measured vertically to the floor or grade below at any point within 36 inches '
+  + 'horizontally to the edge of the open side.';
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const THREAD_URL = `/client-messages?id=${PROJECT_ID}`;
@@ -721,8 +735,15 @@ describe('flag on: the sheet', () => {
     await settle();
     await openSheet(CLIENT_MSG_ID);
     await press('message-ai-start');
+    expect(screen.getByTestId('message-ai-asks-empty').props.children).toBe(ASKS_NONE);
+    expect(screen.getByTestId('message-ai-draft-empty').props.children).toBe(DRAFT_NONE);
     expect(screen.getByText('MAGE found no request in the message or the files it read.')).toBeTruthy();
     expect(screen.getByText('No draft, because MAGE found no request.')).toBeTruthy();
+    // Nothing was hidden, so nothing says so.
+    expect(screen.queryByText(ASKS_HIDDEN)).toBeNull();
+    expect(screen.queryByText(DRAFT_HIDDEN)).toBeNull();
+    expect(screen.queryByText(DRAFT_NOT_WRITTEN)).toBeNull();
+    expect(screen.queryByText(/read like building-code text/)).toBeNull();
     expect(screen.queryByTestId('message-ai-draft')).toBeNull();
     expect(disabledOf('message-ai-co')).toBe(true);
     expect(disabledOf('message-ai-rfi')).toBe(true);
@@ -767,8 +788,88 @@ describe('flag on: the sheet', () => {
     await settle();
     await openSheet(CLIENT_MSG_ID);
     await press('message-ai-start');
-    expect(screen.getByText('MAGE\'s answer stops partway. Try a narrower question.')).toBeTruthy();
+    // The sheet's own line: there is no question here to narrow, so Ask's line is never drawn.
+    expect(screen.getByTestId('message-ai-truncated').props.children).toBe(SHEET_CUT_SHORT);
+    expect(screen.getAllByText(SHEET_CUT_SHORT)).toHaveLength(1);
+    expect(screen.queryByText(ASK_CUT_SHORT)).toBeNull();
+    expect(screen.queryByText(/narrower question/)).toBeNull();
     expect(within(screen.getByTestId('ask-what-i-read')).getByText('MAGE may not have got through all of it.')).toBeTruthy();
+  });
+
+  it('a reading that is not cut short draws no cut-short line at all', async () => {
+    mockAskFiles.mockResolvedValue(reading());
+    await mountRouteChecked(THREAD_URL);
+    await settle();
+    await openSheet(CLIENT_MSG_ID);
+    await press('message-ai-start');
+    expect(screen.getByTestId('message-ai-summary')).toBeTruthy();
+    expect(screen.queryByTestId('message-ai-truncated')).toBeNull();
+    expect(screen.queryByText(SHEET_CUT_SHORT)).toBeNull();
+    expect(screen.queryByText(ASK_CUT_SHORT)).toBeNull();
+    // Asks and a draft are drawn: no empty-state line of any kind.
+    expect(screen.queryByTestId('message-ai-asks-empty')).toBeNull();
+    expect(screen.queryByTestId('message-ai-draft-empty')).toBeNull();
+  });
+
+  it('found but withheld: every ask line and the draft read like code text, so the sheet says the wording was hidden, never that MAGE found no request', async () => {
+    mockAskFiles.mockResolvedValue(reading({
+      summary: 'The client sent a photo of the stair guard and a page from IRC R312.1 about guards.',
+      asks: [CODE_SHAPED, CODE_SHAPED],
+      draft: { title: 'Stair guard', description: CODE_SHAPED },
+    }));
+    await mountRouteChecked(THREAD_URL);
+    await settle();
+    await openSheet(CLIENT_MSG_ID);
+    await press('message-ai-start');
+    expect(screen.queryByText(/Guards shall be provided/)).toBeNull();
+    expect(screen.queryByTestId('message-ai-ask-0')).toBeNull();
+    expect(screen.queryByTestId('message-ai-draft')).toBeNull();
+    expect(screen.getByTestId('message-ai-asks-empty').props.children).toBe(ASKS_HIDDEN);
+    expect(screen.getByTestId('message-ai-draft-empty').props.children).toBe(DRAFT_HIDDEN);
+    // A request was found; the gate hid it. Neither "found no request" sentence is drawn.
+    expect(screen.queryByText(ASKS_NONE)).toBeNull();
+    expect(screen.queryByText(DRAFT_NONE)).toBeNull();
+    expect(screen.queryByText(/found no request/)).toBeNull();
+    expect(screen.queryByText(DRAFT_NOT_WRITTEN)).toBeNull();
+    // With no draft, nothing can be started.
+    expect(disabledOf('message-ai-co')).toBe(true);
+    expect(disabledOf('message-ai-rfi')).toBe(true);
+    expect(disabledOf('message-ai-punch')).toBe(true);
+    await press('message-ai-co');
+    expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  it('asks hidden, the draft kept: the asks say the wording was hidden and the draft is drawn with its own note', async () => {
+    mockAskFiles.mockResolvedValue(reading({
+      summary: 'The client sent a photo of the stair guard and a page from IRC R312.1 about guards.',
+      asks: [CODE_SHAPED],
+      draft: { title: 'Stair guard', description: 'Client asks to confirm the guard.' },
+    }));
+    await mountRouteChecked(THREAD_URL);
+    await settle();
+    await openSheet(CLIENT_MSG_ID);
+    await press('message-ai-start');
+    expect(screen.getByTestId('message-ai-asks-empty').props.children).toBe(ASKS_HIDDEN);
+    expect(screen.queryByText(ASKS_NONE)).toBeNull();
+    expect(within(screen.getByTestId('message-ai-draft')).getByText('Client asks to confirm the guard.')).toBeTruthy();
+    expect(screen.queryByTestId('message-ai-draft-empty')).toBeNull();
+    expect(screen.getByText("Drafted by MAGE from the client's message. Check it against the files before you save.")).toBeTruthy();
+    expect(disabledOf('message-ai-co')).toBe(false);
+  });
+
+  it('requests listed but no draft came back: the draft line does not claim MAGE found no request', async () => {
+    mockAskFiles.mockResolvedValue(reading({ draft: null }));
+    await mountRouteChecked(THREAD_URL);
+    await settle();
+    await openSheet(CLIENT_MSG_ID);
+    await press('message-ai-start');
+    expect(screen.getByTestId('message-ai-ask-0').props.children).toBe('Move the vanity light up');
+    expect(screen.queryByTestId('message-ai-asks-empty')).toBeNull();
+    expect(screen.getByTestId('message-ai-draft-empty').props.children).toBe(DRAFT_NOT_WRITTEN);
+    expect(screen.queryByText(DRAFT_NONE)).toBeNull();
+    expect(screen.queryByText(DRAFT_HIDDEN)).toBeNull();
+    expect(screen.queryByText(/found no request/)).toBeNull();
+    expect(disabledOf('message-ai-co')).toBe(true);
   });
 
   it('text that reads like quoted building-code is left out before it is drawn, and the sheet says so once', async () => {
@@ -784,8 +885,14 @@ describe('flag on: the sheet', () => {
     expect(screen.getByTestId('message-ai-summary').props.children).toBe('The photo shows a stair with open risers.');
     expect(screen.queryByText(/made-up quoted words/)).toBeNull();
     expect(screen.getAllByText('MAGE left out a part that read like building-code text. Read the section in the code itself.')).toHaveLength(1);
-    // The draft's description was emptied by the gate, so there is no draft.
+    // The draft's description was emptied by the gate, so there is no draft,
+    // and the line under it says the wording was hidden: a request WAS found.
     expect(screen.queryByTestId('message-ai-draft')).toBeNull();
+    expect(screen.getByTestId('message-ai-draft-empty').props.children).toBe(DRAFT_HIDDEN);
+    expect(screen.queryByText(DRAFT_NONE)).toBeNull();
+    // The ask line of his own words is still drawn, so the asks have no empty line.
+    expect(screen.getByTestId('message-ai-ask-0').props.children).toBe('Close the risers');
+    expect(screen.queryByTestId('message-ai-asks-empty')).toBeNull();
     expect(disabledOf('message-ai-co')).toBe(true);
   });
 

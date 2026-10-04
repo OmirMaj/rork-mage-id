@@ -60,7 +60,10 @@ export interface AskCopy {
     menuPlanPage: string;
     menuPlanPageNoJob: string;
     menuPlanPageNotOwner: string;
+    /** The role check completed and he has no seat on the job. No "try again": a retry gives the same answer. */
+    menuPlanPageNotOnJob: string;
     menuPlanPageChecking: string;
+    /** The role check did not complete (a failed read, or one waiting for a network). */
     menuPlanPageUnknown: string;
     lockedTitle: string;
     lockedBody: string;
@@ -107,6 +110,8 @@ export interface AskCopy {
     errSignIn: string;
     errOff: string;
     errGeneric: string;
+    /** Ask's own cut-short line: Ask has a question to narrow. The portal sheet has none and
+     *  says its own (useMessageAttachmentCopy().ai.truncated). */
     truncated: string;
     codeWithheld: string;
     readTitle: string;
@@ -166,6 +171,7 @@ export function useAskCopy(): AskCopy {
       menuPlanPage: t('ai.ask.files.menu.planPage', 'Plan page'),
       menuPlanPageNoJob: t('ai.ask.files.menu.planPageNoJob', 'Open Ask from a job to pick one of its plan pages.'),
       menuPlanPageNotOwner: t('ai.ask.files.menu.planPageNotOwner', 'Only the account that owns this job can attach its plan pages.'),
+      menuPlanPageNotOnJob: t('ai.ask.files.menu.planPageNotOnJob', 'You are not on this job, so its plan pages can\'t be read here.'),
       menuPlanPageChecking: t('ai.ask.files.menu.planPageChecking', 'Checking your access to this job.'),
       menuPlanPageUnknown: t('ai.ask.files.menu.planPageUnknown', 'MAGE couldn\'t check your access to this job. Try again in a minute.'),
       lockedTitle: t('ai.ask.files.locked.title', 'Reading files is on the Pro plan'),

@@ -296,24 +296,47 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
 
   // Who is offered the Plan page row: the job's owner, and nobody else.
   {
-    const st = (role: string | null | undefined, isLoading = false, isError = false, hasJob = true) => core.askPlanRowBlock({ hasJob, role, isLoading, isError });
+    const st = (role: string | null | undefined, isLoading = false, isError = false, hasJob = true, isPaused = false) =>
+      core.askPlanRowBlock({ hasJob, role, isLoading, isError, isPaused });
     ok('askPlanRowBlock: the owner of the anchored job can pick a page', st('owner') === null);
     ok("askPlanRowBlock: with no job the row is off as 'noJob', whatever the role says",
-      st('owner', false, false, false) === 'noJob' && st(null, true, false, false) === 'noJob' && st('editor', false, true, false) === 'noJob');
+      st('owner', false, false, false) === 'noJob' && st(null, true, false, false) === 'noJob' && st('editor', false, true, false) === 'noJob'
+      && st(null, false, false, false) === 'noJob');
     ok("askPlanRowBlock: an editor, a viewer and a field seat are 'notOwner'",
       ['editor', 'viewer', 'field'].every((r) => st(r) === 'notOwner'));
-    ok("askPlanRowBlock: a role still loading is 'checking', never the owner", st(null, true) === 'checking' && st(undefined, true) === 'checking');
-    ok("askPlanRowBlock: a role that could not be read, or a settled no-role, is 'unknown'",
-      st(null, false, true) === 'unknown' && st(null) === 'unknown' && st(undefined) === 'unknown' && st('') === 'unknown' && st('editor', false, true) === 'unknown');
+    // The three states of the role check (lane ATT3). Each has its own sentence.
+    ok("askPlanRowBlock, still loading: 'checking', never the owner and never 'notOnJob'",
+      st(null, true) === 'checking' && st(undefined, true) === 'checking' && st(null, true, false, true, true) === 'checking');
+    ok("askPlanRowBlock, the check did not complete (the read failed): 'unknown', never 'notOnJob'",
+      st(null, false, true) === 'unknown' && st('editor', false, true) === 'unknown' && st(null, false, true, true, true) === 'unknown');
+    ok("askPlanRowBlock, the check did not complete (the read is waiting for a network): 'unknown', never 'notOnJob'",
+      st(null, false, false, true, true) === 'unknown');
+    ok("askPlanRowBlock, a SETTLED no (role null, not loading, no error, not paused): 'notOnJob', not 'unknown'",
+      st(null) === 'notOnJob' && st(null, false, false, true, false) === 'notOnJob');
+    ok("askPlanRowBlock, a settled yes: the owner is allowed (null), and a seat that is not the owner's is 'notOwner'",
+      st('owner') === null && st('editor') === 'notOwner' && st('field', false, false, true, true) === 'notOwner');
+    ok("askPlanRowBlock: a state the rule does not know (no role value, an empty one, a flag that is not a boolean) is 'unknown', never 'notOnJob'",
+      st(undefined) === 'unknown' && st('') === 'unknown'
+      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: false, isError: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
+      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: undefined, isError: false, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
+      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: false, isError: undefined, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown');
     ok("askPlanRowBlock: 'owner' is matched exactly ('Owner', ' owner' and a truthy non-string are not the owner)",
       st('Owner') === 'notOwner' && st(' owner') === 'notOwner' && st(true as unknown as string) === 'unknown');
     ok('askPlanRowBlock: the owner stamp wins over a failed or running collaborator read (his own job is never locked on a blip)',
-      st('owner', true) === null && st('owner', false, true) === null);
+      st('owner', true) === null && st('owner', false, true) === null && st('owner', false, false, true, true) === null);
     const rows = [true, false].flatMap((hasJob) => ['owner', 'editor', 'viewer', 'field', null].flatMap((role) =>
-      [true, false].flatMap((isLoading) => [true, false].map((isError) => ({ hasJob, role, isLoading, isError })))));
+      [true, false].flatMap((isLoading) => [true, false].flatMap((isError) => [true, false].map((isPaused) => ({ hasJob, role, isLoading, isError, isPaused }))))));
     const open = rows.filter((r) => core.askPlanRowBlock(r) === null);
     ok(`askPlanRowBlock: of all ${rows.length} states, the row is on only for an owner with a job`,
-      rows.length === 40 && open.length === 4 && open.every((r) => r.hasJob && r.role === 'owner'));
+      rows.length === 80 && open.length === 8 && open.every((r) => r.hasJob && r.role === 'owner'));
+    const notOn = rows.filter((r) => core.askPlanRowBlock(r) === 'notOnJob');
+    ok(`askPlanRowBlock: of all ${rows.length} states, exactly one is 'notOnJob': a job, role null, not loading, no error, not paused`,
+      notOn.length === 1 && notOn[0].hasJob && notOn[0].role === null && !notOn[0].isLoading && !notOn[0].isError && !notOn[0].isPaused,
+      JSON.stringify(notOn));
+    const tryAgain = rows.filter((r) => core.askPlanRowBlock(r) === 'unknown');
+    ok(`askPlanRowBlock: "couldn't check, try again" ('unknown') is only ever said when the read failed or is paused (${tryAgain.length} states)`,
+      tryAgain.length > 0 && tryAgain.every((r) => r.hasJob && !r.isLoading && r.role !== 'owner' && (r.isError || (r.isPaused && r.role === null))),
+      JSON.stringify(tryAgain.filter((r) => !(r.isError || r.isPaused))));
   }
 
   // The same strings through the server's own functions, when its file is here.
@@ -439,7 +462,7 @@ const fakeCopy = Object.fromEntries(accessors.map(({ name, fn }) => [
 {
   const SHARED = ['fileFallback', 'refuseType', 'refuseCount', 'refusePages', 'errOffline', 'errTimeout', 'errNetwork', 'errPlan',
     'errUnavailable', 'errTooLarge', 'errTooLargeTogether', 'errUnreadable', 'errBlocked', 'errNoAnswer', 'errService',
-    'errSignIn', 'errOff', 'errGeneric', 'truncated', 'codeWithheld', 'readTitle', 'readPhoto', 'readPlan', 'readPdf',
+    'errSignIn', 'errOff', 'errGeneric', 'codeWithheld', 'readTitle', 'readPhoto', 'readPlan', 'readPdf',
     'readPdfNoCount', 'readCaution', 'readPartial', 'readA11y'];
   const missing = SHARED.filter((n) => !accessors.some((a) => a.name === n));
   ok('useAskCopy().files carries every accessor the portal sheet imports', missing.length === 0, missing.join(', '));
@@ -769,6 +792,29 @@ for (const f of [...NEW_FILES, CONV]) ok(`${f} exists`, code[f].trim().length > 
   }
   ok('AskConversation: the cut-short and code-withheld lines are behind the flag too',
     /\{ASK_FILES_ENABLED && t\.truncated && <Text/.test(conv) && /\{ASK_FILES_ENABLED && t\.codeWithheld && <Text/.test(conv));
+  {
+    // The cut-short line, one per surface (lane ATT3). Ask has a question to
+    // narrow; the portal sheet has none, so it never borrows Ask's line.
+    const ASK_LINE = "MAGE's answer stops partway. Try a narrower question.";
+    const SHEET_LINE = "MAGE's reading stops partway. Open the files to check the rest.";
+    const sheet = stripComments(read('components/messages/MessageAiSheet.tsx'));
+    const askHook = read('hooks/useAskCopy.ts');
+    const sheetHook = read('hooks/useMessageAttachmentCopy.ts');
+    ok("Ask's cut-short line is Ask's own string (it tells him to narrow the question), drawn once in AskConversation",
+      askHook.includes("truncated: t('ai.ask.files.truncated', 'MAGE\\'s answer stops partway. Try a narrower question.'),")
+      && (conv.match(/askCopy\.files\.truncated/g) ?? []).length === 1
+      && conv.includes('{ASK_FILES_ENABLED && t.truncated && <Text style={styles.fileNote}>{askCopy.files.truncated}</Text>}')
+      && read('i18n/catalog/en/ai.ask.generated.ts').includes(`"ai.ask.files.truncated": "${ASK_LINE}"`));
+    ok("the portal sheet's cut-short line is its own string (open the files to check the rest), and names no question",
+      sheetHook.includes(`truncated: t('office.clientMessages.ai.truncated', "${SHEET_LINE}"),`)
+      && !/question|narrow/i.test(SHEET_LINE)
+      && read('i18n/catalog/en/office.client-messages.generated.ts').includes(`"office.clientMessages.ai.truncated": "${SHEET_LINE}"`));
+    ok("the portal sheet draws its own cut-short line and never Ask's; Ask never draws the sheet's",
+      sheet.includes('{reading.truncated ? <Text style={styles.note} testID="message-ai-truncated">{copy.ai.truncated}</Text> : null}')
+      && (sheet.match(/\.truncated\}/g) ?? []).length === 2 && !/files\.truncated/.test(sheet)
+      && !/useMessageAttachmentCopy|clientMessages/.test(conv)
+      && !askHook.includes('Open the files to check the rest') && !sheetHook.includes('narrower question'));
+  }
   const branch = conv.indexOf('if (ASK_FILES_ENABLED && attachedRef.current.length > 0) { await askWithFiles(q); return; }');
   const guard = conv.indexOf('if (!q || busy) return;');
   const demo = conv.indexOf('const demo =');
@@ -872,13 +918,30 @@ for (const f of [...NEW_FILES, CONV]) ok(`${f} exists`, code[f].trim().length > 
     const from = a.indexOf('const pickPlan = useCallback((sheet: PlanSheet) => {');
     const fn = from >= 0 ? a.slice(from, a.indexOf('}, [copy, onAdd, close, planBlock]);', from)) : '';
     ok('AskAttach: the Plan page row is for the job\'s owner (the server reads a plan page for nobody else): the role state, loading and error included, decides it',
-      a.includes('const { role, isLoading, isError } = useProjectRoleState(anchorProjectId ?? undefined);')
-      && a.includes('const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError });')
+      a.includes('const { role, isLoading, isError, isPaused } = useProjectRoleState(anchorProjectId ?? undefined);')
+      && a.includes('const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError, isPaused });')
       && a.includes('{ off: !!planBlock, why: planWhy, chevron: !planBlock });'));
     ok('AskAttach: every reason the row is off has its own sentence, and the list is drawn and a page added only while it is not off',
-      ['noJob', 'notOwner', 'checking', 'unknown'].every((r) => a.includes(`planBlock === '${r}' ? copy.menuPlanPage`))
+      ['noJob', 'notOwner', 'notOnJob', 'checking', 'unknown'].every((r) => a.includes(`planBlock === '${r}' ? copy.menuPlanPage`))
+      && a.includes("planBlock === 'notOnJob' ? copy.menuPlanPageNotOnJob") && a.includes("planBlock === 'unknown' ? copy.menuPlanPageUnknown")
+      && a.includes("planBlock === 'checking' ? copy.menuPlanPageChecking") && a.includes("planBlock === 'notOwner' ? copy.menuPlanPageNotOwner")
+      && a.includes("planBlock === 'noJob' ? copy.menuPlanPageNoJob")
       && a.includes("const showPlan = view === 'plan' && !planBlock;") && a.includes('{!showPlan ? (')
       && fn.indexOf('if (planBlock) return;') > 0 && fn.indexOf('if (planBlock) return;') < fn.indexOf('onAdd(['));
+    {
+      // The sentences (lane ATT3): only "couldn't check" asks him to try again.
+      const hook = read('hooks/useAskCopy.ts');
+      const line = (key: string) => (hook.match(new RegExp(`t\\('ai\\.ask\\.files\\.menu\\.${key}', '((?:[^'\\\\]|\\\\.)*)'\\)`))?.[1] ?? '').replace(/\\'/g, "'");
+      const notOnJob = line('planPageNotOnJob');
+      const unknown = line('planPageUnknown');
+      ok("the 'notOnJob' sentence says he is not on the job and that its plan pages can't be read here, and never asks him to try again",
+        notOnJob === "You are not on this job, so its plan pages can't be read here."
+        && !/try again|couldn't check|in a minute|retry/i.test(notOnJob)
+        && read('i18n/catalog/en/ai.ask.generated.ts').includes(`"ai.ask.files.menu.planPageNotOnJob": "${notOnJob}"`));
+      ok("the 'unknown' sentence is the only plan-row sentence that says the check failed and to try again",
+        unknown === "MAGE couldn't check your access to this job. Try again in a minute."
+        && ['planPageNoJob', 'planPageNotOwner', 'planPageNotOnJob', 'planPageChecking'].every((k) => line(k) !== '' && !/try again|couldn't check/i.test(line(k))));
+    }
     if (server) {
       ok('parity: the server still reads plan pages for the owner only (PLAN_PAGES_OWNER_ONLY). If that is ever turned off, the row may open to collaborators too',
         server.PLAN_PAGES_OWNER_ONLY === true);

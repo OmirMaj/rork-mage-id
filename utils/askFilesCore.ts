@@ -66,7 +66,7 @@ export function isAskablePlanPath(path: unknown): boolean {
   return PLAN_FILE_RE.test(segments[1]) && PLAN_EXT_RE.test(segments[1]);
 }
 
-export type AskPlanRowBlock = 'noJob' | 'checking' | 'unknown' | 'notOwner';
+export type AskPlanRowBlock = 'noJob' | 'checking' | 'unknown' | 'notOnJob' | 'notOwner';
 
 /**
  * Why the "Plan page" row is off, or null when a page can be picked. The
@@ -75,15 +75,30 @@ export type AskPlanRowBlock = 'noJob' | 'checking' | 'unknown' | 'notOwner';
  * is offered to the owner alone: anyone else would attach a page, ask, and be
  * told the file is not available. A role still loading is not the owner, and
  * neither is one that could not be read.
+ *
+ * Each answer is a different sentence, so each is held to what is known:
+ *   'checking'  the role read is still running;
+ *   'unknown'   the check did NOT complete: the read failed, it is waiting for
+ *               a network (isPaused), or the state is not one this rule knows.
+ *               The only answer that says "try again";
+ *   'notOnJob'  the check DID complete and the answer is no: the role is null
+ *               with the read settled (not loading, no error, not paused), which
+ *               is how hooks/useProjectRole reports someone who is not on the
+ *               job. Nothing is asked to be tried again: a retry gives the
+ *               same answer. Said only on exactly that state; anything short
+ *               of it (a missing flag, a role that is not text) is 'unknown';
+ *   'notOwner'  he has a seat on the job (editor, viewer, field), not the owner's.
  */
 export function askPlanRowBlock(i: {
-  hasJob: boolean; role: string | null | undefined; isLoading: boolean; isError: boolean;
+  hasJob: boolean; role: string | null | undefined; isLoading: boolean; isError: boolean; isPaused: boolean;
 }): AskPlanRowBlock | null {
   if (i.hasJob !== true) return 'noJob';
   if (i.role === 'owner') return null;
   if (i.isLoading === true) return 'checking';
-  if (i.isError === true || typeof i.role !== 'string' || i.role === '') return 'unknown';
-  return 'notOwner';
+  if (i.isError === true) return 'unknown';
+  if (typeof i.role === 'string' && i.role !== '') return 'notOwner';
+  if (i.role === null && i.isLoading === false && i.isError === false && i.isPaused === false) return 'notOnJob';
+  return 'unknown';
 }
 
 // ── What Ask keeps of the files he just picked ──────────────────────────────

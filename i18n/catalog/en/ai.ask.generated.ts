@@ -54,6 +54,7 @@ export const EN: EnCatalog = {
   "ai.ask.files.menu.planPage": "Plan page",
   "ai.ask.files.menu.planPageChecking": "Checking your access to this job.",
   "ai.ask.files.menu.planPageNoJob": "Open Ask from a job to pick one of its plan pages.",
+  "ai.ask.files.menu.planPageNotOnJob": "You are not on this job, so its plan pages can't be read here.",
   "ai.ask.files.menu.planPageNotOwner": "Only the account that owns this job can attach its plan pages.",
   "ai.ask.files.menu.planPageUnknown": "MAGE couldn't check your access to this job. Try again in a minute.",
   "ai.ask.files.menu.takePhoto": "Take photo",

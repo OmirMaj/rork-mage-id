@@ -78,7 +78,7 @@ jest.mock('@/hooks/useTierAccess', () => {
 });
 
 // null = the real role hook (the fixture account owns the fixture job).
-let mockRoleState: { role: string | null; isLoading: boolean; isError: boolean } | null = null;
+let mockRoleState: { role: string | null; isLoading: boolean; isError: boolean; isPaused?: boolean } | null = null;
 jest.mock('@/hooks/useProjectRole', () => {
   const actual = jest.requireActual('@/hooks/useProjectRole');
   return {
@@ -186,7 +186,11 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     ['a field seat on the job', { role: 'field', isLoading: false, isError: false }, 'Only the account that owns this job can attach its plan pages.'],
     ['a role still loading', { role: null, isLoading: true, isError: false }, 'Checking your access to this job.'],
     ['a role that could not be read', { role: null, isLoading: false, isError: true }, 'MAGE couldn\'t check your access to this job. Try again in a minute.'],
-  ] as [string, { role: string | null; isLoading: boolean; isError: boolean }, string][])(
+    // The read is waiting for a network: it has not answered, so it is not a "no".
+    ['a role read that is waiting for a network', { role: null, isLoading: false, isError: false, isPaused: true }, 'MAGE couldn\'t check your access to this job. Try again in a minute.'],
+    // The read answered and he has no seat: a settled no, with nothing to try again.
+    ['someone who is not on the job (the role read answered)', { role: null, isLoading: false, isError: false, isPaused: false }, 'You are not on this job, so its plan pages can\'t be read here.'],
+  ] as [string, { role: string | null; isLoading: boolean; isError: boolean; isPaused?: boolean }, string][])(
     'the Plan page row is for the job\'s owner: %s sees it off, with the reason, and a tap opens no list',
     async (_who, state, why) => {
       mockRoleState = state;
@@ -200,6 +204,11 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
       expect(row.props.accessibilityState).toEqual({ disabled: true });
       expect(row.props.accessibilityHint).toBe(why);
       expect(screen.getByText(why)).toBeTruthy();
+      // One reason, and only the unfinished check asks him to try again.
+      const TRY_AGAIN = 'MAGE couldn\'t check your access to this job. Try again in a minute.';
+      const NOT_ON_JOB = 'You are not on this job, so its plan pages can\'t be read here.';
+      if (why !== TRY_AGAIN) expect(screen.queryByText(TRY_AGAIN)).toBeNull();
+      if (why !== NOT_ON_JOB) expect(screen.queryByText(NOT_ON_JOB)).toBeNull();
       // The other rows are untouched: his own photos and PDFs can still be attached.
       expect(screen.getByTestId('ask-attach-photos').props.accessibilityState).toEqual({ disabled: false });
       fireEvent.press(row);
@@ -333,6 +342,8 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     expect(Object.keys(invoke.mock.calls[1][1]?.body as object).sort()).toEqual(['files', 'mode', 'question']);
     expect(screen.getByText('The plan shows the kitchen and')).toBeTruthy();
     expect(screen.getByText('MAGE\'s answer stops partway. Try a narrower question.')).toBeTruthy();
+    // Ask's own line: the portal sheet's line (open the files) is never drawn here.
+    expect(screen.queryByText('MAGE\'s reading stops partway. Open the files to check the rest.')).toBeNull();
     expect(screen.getByText('MAGE may not have got through all of it.')).toBeTruthy();
     expect(screen.getAllByTestId('ask-what-i-read')).toHaveLength(2);
 

@@ -16,6 +16,9 @@
 //      messageAiBlock, refusalToNotRead.
 //   H  guardMessageReading: the own-words gate is asked once for the whole
 //      reading, so a code named in the summary holds code text in the draft.
+//      And why the asks or the draft are empty (lane ATT3): "MAGE found no
+//      request" only when the server sent none; lines the gate hid say the
+//      wording was hidden and that the message and files are unchanged.
 //   G  source pins: the dark state, the conditional spread, nothing posted or
 //      saved or logged, the gates in the sheet, the flag in front of every
 //      draft read in /rfi and /punch-list, the copy keys.
@@ -37,7 +40,8 @@ import {
 } from '../utils/askFilesCore';
 import {
   MESSAGE_AI_NOT_BEFORE, DRAFT_TEXT_MAX, aiReadableFiles, canReadWithAi, coDraftRoute, draftText, guardMessageReading,
-  isAfterNotice, messageAiBlock, noticeTimeMs, punchDraftRoute, refusalToNotRead, rfiDraftRoute, type NotReadReason,
+  asksEmptyReason, draftEmptyReason, isAfterNotice, messageAiBlock, noticeTimeMs, punchDraftRoute, refusalToNotRead,
+  rfiDraftRoute, type NotReadReason,
 } from '../utils/messageAiCore';
 import {
   DRAFT_HANDOFF_DESCRIPTION_MAX, DRAFT_HANDOFF_MAX_ENTRIES, DRAFT_HANDOFF_TITLE_MAX, DRAFT_HANDOFF_TTL_MS,
@@ -498,6 +502,22 @@ function partG() {
       && /const whole = \[str\(data\.summary\), \.\.\.rawAsks, str\(data\.draft\?\.title\), str\(data\.draft\?\.description\)\];/.test(guardBody)
       && /const summary = gate\(str\(data\.summary\)\);/.test(guardBody) && /rawAsks\.map\(gate\)\.filter\(/.test(guardBody)
       && /const title = gate\(str\(data\.draft\.title\)\);/.test(guardBody) && /const description = gate\(str\(data\.draft\.description\)\);/.test(guardBody));
+  ok('guardMessageReading: why the asks and the draft are empty comes from what the server sent BEFORE the gate (the two reason functions)',
+    /const asksFound = rawAsks\.filter\(\(line\) => line\.trim\(\)\.length > 0\)\.length;/.test(guardBody)
+      && /written = str\(data\.draft\.description\)\.trim\(\)\.length > 0;/.test(guardBody)
+      && /asksEmpty: asksEmptyReason\(asksFound, asks\.length\),/.test(guardBody)
+      && /draftEmpty: draftEmptyReason\(\{ shown: draft !== null, written, asksFound \}\),/.test(guardBody));
+  ok('MessageAiSheet: "MAGE found no request" is drawn only for the state \'none\'; asks the gate hid get the hidden-wording line',
+    /const asksEmptyLine = reading\?\.asksEmpty === 'withheld' \? copy\.ai\.asksWithheld\s*: reading\?\.asksEmpty === 'none' \? copy\.ai\.asksNone : null;/.test(sheet)
+      && /: asksEmptyLine \? <Text style=\{styles\.note\} testID="message-ai-asks-empty">\{asksEmptyLine\}<\/Text> : null\}/.test(sheet)
+      && count(sheet, /copy\.ai\.asksNone/g) === 1 && count(sheet, /copy\.ai\.asksWithheld/g) === 1);
+  ok('MessageAiSheet: "No draft, because MAGE found no request" is drawn only for the state \'none\'; a hidden draft and a draft that was not written have their own lines',
+    /const draftEmptyLine = reading\?\.draftEmpty === 'withheld' \? copy\.ai\.draftWithheld\s*: reading\?\.draftEmpty === 'notWritten' \? copy\.ai\.draftNotWritten\s*: reading\?\.draftEmpty === 'none' \? copy\.ai\.draftNone : null;/.test(sheet)
+      && /: draftEmptyLine \? <Text style=\{styles\.note\} testID="message-ai-draft-empty">\{draftEmptyLine\}<\/Text> : null\}/.test(sheet)
+      && count(sheet, /copy\.ai\.draftNone/g) === 1 && count(sheet, /copy\.ai\.draftWithheld/g) === 1 && count(sheet, /copy\.ai\.draftNotWritten/g) === 1);
+  ok("MessageAiSheet: a reading that stops partway gets the sheet's own line, never Ask's (there is no question here to narrow)",
+    /\{reading\.truncated \? <Text style=\{styles\.note\} testID="message-ai-truncated">\{copy\.ai\.truncated\}<\/Text> : null\}/.test(sheet)
+      && count(sheet, /copy\.ai\.truncated/g) === 1 && !/files\.truncated/.test(sheet));
   ok('MessageAiSheet: a refusal that names a file moves it to "Not read" and returns to the list',
     /const reason = refusalToNotRead\(out\.code\);/.test(readFiles) && /setExcluded\(\(prev\) => new Map\(prev\)\.set\(refused\.id, reason\)\);/.test(readFiles));
   ok('MessageAiSheet: the Files line is built from the server\'s read list',
@@ -551,7 +571,7 @@ function partG() {
   const blockKeys = [...block.matchAll(/\b(?:t|tn)\(\s*'([^']+)'/g)].map((m) => m[1]);
   const allAiKeys = [...hook.matchAll(/\b(?:t|tn)\(\s*'(office\.clientMessages\.ai\.[^']+)'/g)].map((m) => m[1]);
   ok(`every key of the ai block starts with office.clientMessages.ai. (${blockKeys.length} keys)`,
-    blockKeys.length === 34 && blockKeys.every((k) => k.startsWith('office.clientMessages.ai.')) && new Set(blockKeys).size === 34,
+    blockKeys.length === 38 && blockKeys.every((k) => k.startsWith('office.clientMessages.ai.')) && new Set(blockKeys).size === 38,
     blockKeys.filter((k) => !k.startsWith('office.clientMessages.ai.')).join(', '));
   ok('no office.clientMessages.ai.* key sits outside the ai block', allAiKeys.length === blockKeys.length);
   const shard = read('i18n/catalog/en/office.client-messages.generated.ts');
@@ -561,6 +581,27 @@ function partG() {
     /'The files and the message text go to Google Gemini to be read\. Nothing is sent to your client\.'/.test(block)
       && /'Nothing here is posted to the thread or sent to your client\.'/.test(block)
       && /'This reading is not saved\. Close it and it is gone\.'/.test(block));
+  {
+    // The empty-state and cut-short sentences (lane ATT3), each held to what it may claim.
+    const line = (key: string) => block.match(new RegExp(`t\\('office\\.clientMessages\\.ai\\.${key.replace(/\./g, '\\.')}', (?:'([^'\\n]*)'|"([^"\\n]*)")\\)`))?.slice(1).find((x) => x !== undefined) ?? '';
+    const NONE = [line('asks.none'), line('draft.none')];
+    const HIDDEN = [line('asks.withheld'), line('draft.withheld')];
+    ok('"found no request" is the sentence of the nothing-found case only (asks.none, draft.none)',
+      NONE[0] === 'MAGE found no request in the message or the files it read.' && NONE[1] === 'No draft, because MAGE found no request.');
+    ok('the hidden-wording sentences say MAGE hid wording that read like code text and that the original message and files are unchanged, and never "found no request"',
+      HIDDEN[0] === 'MAGE hid what it wrote here because the wording read like building-code text. The original message and files are unchanged.'
+        && HIDDEN[1] === 'No draft, because MAGE hid wording that read like building-code text. The original message and files are unchanged.'
+        && HIDDEN.every((h) => /\bhid\b/.test(h) && /read like building-code text/.test(h) && /The original message and files are unchanged\.$/.test(h)
+          && !/found no request|no request/i.test(h)));
+    ok('a draft that was not written, next to listed requests, never says "found no request"',
+      line('draft.notWritten') === 'MAGE wrote no draft for this message.' && !/no request/i.test(line('draft.notWritten')));
+    ok("the sheet's cut-short line says the reading stopped and to open the files; it names no question",
+      line('truncated') === "MAGE's reading stops partway. Open the files to check the rest." && !/question|narrow/i.test(line('truncated')));
+    const shardLine = (key: string, text: string) => shard.includes(`"office.clientMessages.ai.${key}": ${JSON.stringify(text)},`);
+    ok('the generated shard carries those five sentences word for word',
+      shardLine('asks.none', NONE[0]) && shardLine('draft.none', NONE[1]) && shardLine('asks.withheld', HIDDEN[0])
+        && shardLine('draft.withheld', HIDDEN[1]) && shardLine('draft.notWritten', line('draft.notWritten')) && shardLine('truncated', line('truncated')));
+  }
   ok('no limit number is typed into an ai string (they are variables)',
     !/'[^'\n]*\b(?:4|8|20) (?:MB|files|pages)[^'\n]*'/.test(block) && /'more than \{count\} files'/.test(block) && /'over \{mb\} MB'/.test(block)
       && /'over \{mb\} MB together'/.test(block) && /'more than \{limit\} pages'/.test(block));
@@ -599,10 +640,14 @@ function partH() {
     const r = guardMessageReading(messageData({ summary: NAMES_CODE, asks: [BODY, 'Confirm the guard height.'], draft: null }));
     ok('a code named in the summary, its text as an ask: that ask is dropped, the other stays',
       same(r.asks, ['Confirm the guard height.']) && r.withheld === true, JSON.stringify(r.asks));
+    ok("…an ask line is still drawn, so asksEmpty is null; no draft came back next to a listed request: draftEmpty is 'notWritten', not 'none'",
+      r.asksEmpty === null && r.draftEmpty === 'notWritten');
   }
   {
     const r = guardMessageReading(messageData({ summary: NAMES_CODE, asks: [], draft: { title: 'Stair guard', description: BODY } }));
     ok('a draft whose description is all code text is no draft', r.draft === null && r.withheld === true);
+    ok("…and that is 'withheld', not 'none': a draft was found and the gate hid it (the asks, with no line sent, are 'none')",
+      r.draftEmpty === 'withheld' && r.asksEmpty === 'none');
   }
   {
     const r = guardMessageReading(messageData({ summary: PLAIN, asks: ['Confirm the guard height.'], draft: { title: 'Guard per IRC R312.1', description: `${OWN} ${BODY}` } }));
@@ -617,6 +662,7 @@ function partH() {
     const r = guardMessageReading(data);
     ok('a reading that names no code passes unchanged, nothing withheld',
       r.withheld === false && r.summary === PLAIN && same(r.asks, data.asks) && same(r.draft, data.draft) && r.read === data.read && r.truncated === false);
+    ok('…with asks and a draft drawn, neither empty reason is set', r.asksEmpty === null && r.draftEmpty === null);
   }
   {
     const r = guardMessageReading(messageData({
@@ -630,9 +676,70 @@ function partH() {
     const odd = { success: true, mode: 'message', summary: 7, asks: 'no', draft: { title: null, description: undefined }, truncated: 1, read: null, usage: null } as unknown as MessageData;
     const r = guardMessageReading(odd);
     ok('fields that are not text are read as empty, never drawn as a value',
-      same(r, { summary: '', asks: [], draft: null, read: [], truncated: true, withheld: false }), JSON.stringify(r));
+      same(r, { summary: '', asks: [], draft: null, read: [], truncated: true, withheld: false, asksEmpty: 'none', draftEmpty: 'none' }), JSON.stringify(r));
     const mixed = guardMessageReading(messageData({ asks: ['Confirm the height.', 5 as unknown as string, '   '] }));
     ok('an ask that is not text, or is blank, is dropped', same(mixed.asks, ['Confirm the height.']));
+  }
+
+  // ── Why the asks or the draft are empty (lane ATT3) ──
+  {
+    const r = guardMessageReading(messageData({ summary: PLAIN, asks: [], draft: null }));
+    ok("nothing found (no ask line, no draft): both reasons are 'none', nothing withheld",
+      r.asksEmpty === 'none' && r.draftEmpty === 'none' && r.withheld === false && r.asks.length === 0 && r.draft === null);
+    const blank = guardMessageReading(messageData({ summary: PLAIN, asks: ['', '   ', 9 as unknown as string], draft: { title: 'x', description: '  ' } }));
+    ok("blank ask lines and a draft with a blank description are nothing found too ('none'), not hidden wording",
+      blank.asksEmpty === 'none' && blank.draftEmpty === 'none' && blank.withheld === false);
+  }
+  {
+    const r = guardMessageReading(messageData({ summary: NAMES_CODE, asks: [BODY], draft: { title: 'Stair guard', description: BODY } }));
+    ok("found but withheld: the gate took the only ask line and the draft's description, so both reasons are 'withheld'",
+      r.asks.length === 0 && r.draft === null && r.asksEmpty === 'withheld' && r.draftEmpty === 'withheld' && r.withheld === true, JSON.stringify(r));
+    const many = guardMessageReading(messageData({ summary: NAMES_CODE, asks: [BODY, '', BODY, BODY], draft: null }));
+    ok("found but withheld: every one of several ask lines taken is 'withheld'; the draft the server did not send is 'notWritten'",
+      many.asks.length === 0 && many.asksEmpty === 'withheld' && many.draftEmpty === 'notWritten' && many.withheld === true);
+  }
+  {
+    const r = guardMessageReading(messageData({ summary: NAMES_CODE, asks: ['Confirm the guard height.'], draft: { title: 'Stair guard', description: BODY } }));
+    ok("asks drawn, the draft hidden: asksEmpty null, draftEmpty 'withheld'",
+      same(r.asks, ['Confirm the guard height.']) && r.asksEmpty === null && r.draft === null && r.draftEmpty === 'withheld');
+    const r2 = guardMessageReading(messageData({ summary: NAMES_CODE, asks: [BODY], draft: { title: 'Stair guard', description: OWN } }));
+    ok("asks hidden, the draft drawn: asksEmpty 'withheld', draftEmpty null",
+      r2.asks.length === 0 && r2.asksEmpty === 'withheld' && r2.draft?.description === OWN && r2.draftEmpty === null);
+    const r3 = guardMessageReading(messageData({ summary: PLAIN, asks: [], draft: { title: 'Move outlet', description: OWN } }));
+    ok("no ask line sent, a draft drawn: asksEmpty 'none', draftEmpty null", r3.asksEmpty === 'none' && r3.draftEmpty === null && r3.draft?.description === OWN);
+  }
+  {
+    // 'withheld' is only ever said when the gate did take something.
+    const BODIES = [BODY, `${OWN} ${BODY}`, OWN, '', '  '];
+    const SUMMARIES = [NAMES_CODE, PLAIN, ''];
+    let cases = 0;
+    const wrong: string[] = [];
+    for (const summary of SUMMARIES) for (const a of BODIES) for (const d of [...BODIES, null]) {
+      cases++;
+      const r = guardMessageReading(messageData({ summary, asks: [a], draft: d === null ? null : { title: 'T', description: d } }));
+      const tag = `${SUMMARIES.indexOf(summary)}/${BODIES.indexOf(a)}/${d === null ? 'null' : BODIES.indexOf(d)}`;
+      if ((r.asksEmpty === 'withheld' || r.draftEmpty === 'withheld') && r.withheld !== true) wrong.push(`${tag}: 'withheld' with nothing withheld`);
+      if ((r.asksEmpty === null) !== (r.asks.length > 0)) wrong.push(`${tag}: asksEmpty does not match the asks drawn`);
+      if ((r.draftEmpty === null) !== (r.draft !== null)) wrong.push(`${tag}: draftEmpty does not match the draft drawn`);
+      if (r.asksEmpty === 'none' && a.trim() !== '') wrong.push(`${tag}: 'none' although an ask line was sent`);
+      if (r.draftEmpty === 'none' && (a.trim() !== '' || (d !== null && d.trim() !== ''))) wrong.push(`${tag}: draft 'none' although a request or a draft was sent`);
+    }
+    ok(`over ${cases} readings: 'none' is never said when a request or a draft was sent, 'withheld' never without the gate taking something, and a reason is set exactly when nothing is drawn`,
+      cases === 3 * 5 * 6 && wrong.length === 0, wrong.slice(0, 6).join('\n     '));
+  }
+  ok('asksEmptyReason, the whole table: a line drawn is null; none sent is \'none\'; sent and none left is \'withheld\'',
+    asksEmptyReason(0, 0) === 'none' && asksEmptyReason(1, 0) === 'withheld' && asksEmptyReason(5, 0) === 'withheld'
+      && asksEmptyReason(1, 1) === null && asksEmptyReason(3, 1) === null && asksEmptyReason(0, 1) === null);
+  {
+    const want = (shown: boolean, written: boolean, asksFound: number) => (shown ? null : written ? 'withheld' : asksFound > 0 ? 'notWritten' : 'none');
+    const bad: string[] = [];
+    for (const shown of [true, false]) for (const written of [true, false]) for (const asksFound of [0, 1, 4]) {
+      if (draftEmptyReason({ shown, written, asksFound }) !== want(shown, written, asksFound)) bad.push(`${shown}/${written}/${asksFound}`);
+    }
+    ok('draftEmptyReason, the whole table (12 rows): drawn is null; sent and hidden is \'withheld\'; not sent with requests is \'notWritten\'; not sent with none is \'none\'',
+      bad.length === 0 && draftEmptyReason({ shown: false, written: false, asksFound: 0 }) === 'none'
+        && draftEmptyReason({ shown: false, written: true, asksFound: 0 }) === 'withheld'
+        && draftEmptyReason({ shown: false, written: false, asksFound: 2 }) === 'notWritten', bad.join(', '));
   }
 }
 

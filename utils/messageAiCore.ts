@@ -141,6 +141,11 @@ export function punchDraftRoute(projectId: string, draftId: string) {
 
 // ─── What of the model's text is drawn ───────────────────────────────────────
 
+/** Why the sheet draws no ask line. */
+export type AsksEmpty = 'none' | 'withheld';
+/** Why the sheet draws no draft. */
+export type DraftEmpty = 'none' | 'withheld' | 'notWritten';
+
 /** What the model wrote, after the own-words gate, plus what the server read. */
 export interface MessageReadingView {
   summary: string;
@@ -150,6 +155,36 @@ export interface MessageReadingView {
   truncated: boolean;
   /** The gate took something out of the summary, the asks or the draft. */
   withheld: boolean;
+  /** null while an ask line is drawn; otherwise why there is none (asksEmptyReason). */
+  asksEmpty: AsksEmpty | null;
+  /** null while a draft is drawn; otherwise why there is none (draftEmptyReason). */
+  draftEmpty: DraftEmpty | null;
+}
+
+/**
+ * Why no ask line is drawn. `found` is how many lines with text the server
+ * sent, `shown` how many are left after the gate.
+ *   'none'      the server sent no line: the reading held no request;
+ *   'withheld'  it sent at least one and the gate on this phone took every
+ *               one. "MAGE found no request" would be false there.
+ */
+export function asksEmptyReason(found: number, shown: number): AsksEmpty | null {
+  if (shown > 0) return null;
+  return found > 0 ? 'withheld' : 'none';
+}
+
+/**
+ * Why no draft is drawn.
+ *   'withheld'    the server sent a draft with a description (`written`) and
+ *                 the gate on this phone emptied it;
+ *   'notWritten'  the server sent no draft although it listed requests
+ *                 (`asksFound`): "because MAGE found no request" would be false;
+ *   'none'        no draft and no request line: nothing was found.
+ */
+export function draftEmptyReason(i: { shown: boolean; written: boolean; asksFound: number }): DraftEmpty | null {
+  if (i.shown) return null;
+  if (i.written) return 'withheld';
+  return i.asksFound > 0 ? 'notWritten' : 'none';
 }
 
 /**
@@ -160,6 +195,10 @@ export interface MessageReadingView {
  * draft (the draft is the text that opens a change order, an RFI or a punch
  * item). The labels are the names of the files the server read, so a sheet or
  * invoice number in a file name is not mistaken for a code section.
+ *
+ * It also says WHY the asks or the draft are empty (asksEmpty, draftEmpty),
+ * from what the server sent before the gate: "nothing was found" and "the
+ * gate hid what was found" are different sentences in the sheet.
  */
 export function guardMessageReading(data: Extract<AskFilesSuccess, { mode: 'message' }>): MessageReadingView {
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -175,14 +214,23 @@ export function guardMessageReading(data: Extract<AskFilesSuccess, { mode: 'mess
   };
   const summary = gate(str(data.summary));
   const asks = rawAsks.map(gate).filter((line) => line.length > 0);
+  // A line with text that the gate returns empty was taken out by the gate:
+  // guardFileText answers '' only for blank text or for text it withheld.
+  const asksFound = rawAsks.filter((line) => line.trim().length > 0).length;
   let draft: MessageAiDraft | null = null;
+  let written = false;
   if (data.draft) {
     const title = gate(str(data.draft.title));
     const description = gate(str(data.draft.description));
+    written = str(data.draft.description).trim().length > 0;
     // A draft whose description the gate emptied is no draft.
     if (description.length > 0) draft = { title, description };
   }
-  return { summary, asks, draft, read, truncated: !!data.truncated, withheld: withheld > 0 };
+  return {
+    summary, asks, draft, read, truncated: !!data.truncated, withheld: withheld > 0,
+    asksEmpty: asksEmptyReason(asksFound, asks.length),
+    draftEmpty: draftEmptyReason({ shown: draft !== null, written, asksFound }),
+  };
 }
 
 // ─── The draft's text ────────────────────────────────────────────────────────

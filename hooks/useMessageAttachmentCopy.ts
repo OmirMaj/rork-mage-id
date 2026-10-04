@@ -47,7 +47,8 @@ export interface MessageAttachmentCopy {
   download: string;
   size(bytes: number): string;
   /** "Read with MAGE" on a client's message (lane ATTPORTAL). The failure
-   *  sentences and the "What I read" block come from useAskCopy().files. */
+   *  sentences and the "What I read" block come from useAskCopy().files. The
+   *  cut-short line is this sheet's own: it has no question to narrow. */
   ai: {
     read: string;
     readA11y: string;
@@ -66,11 +67,20 @@ export interface MessageAttachmentCopy {
     start: string;
     reading: string;
     summary: string;
+    truncated: string;
     asks: string;
+    /** The reading held no request at all. */
     asksNone: string;
+    /** It held at least one, and the own-words gate on this phone hid every line. */
+    asksWithheld: string;
     draft: string;
     draftNote: string;
+    /** No draft and no request found. */
     draftNone: string;
+    /** A draft came back and the own-words gate on this phone hid its description. */
+    draftWithheld: string;
+    /** Requests are listed, but no draft came back. */
+    draftNotWritten: string;
     startCo: string;
     startRfi: string;
     startPunch: string;
@@ -162,11 +172,15 @@ export function useMessageAttachmentCopy(): MessageAttachmentCopy {
         start: t('office.clientMessages.ai.start', 'Read files'),
         reading: t('office.clientMessages.ai.reading', 'Reading the files'),
         summary: t('office.clientMessages.ai.summary', 'Summary'),
+        truncated: t('office.clientMessages.ai.truncated', "MAGE's reading stops partway. Open the files to check the rest."),
         asks: t('office.clientMessages.ai.asks', 'What the client is asking for'),
         asksNone: t('office.clientMessages.ai.asks.none', 'MAGE found no request in the message or the files it read.'),
+        asksWithheld: t('office.clientMessages.ai.asks.withheld', 'MAGE hid what it wrote here because the wording read like building-code text. The original message and files are unchanged.'),
         draft: t('office.clientMessages.ai.draft', 'Draft'),
         draftNote: t('office.clientMessages.ai.draft.note', "Drafted by MAGE from the client's message. Check it against the files before you save."),
         draftNone: t('office.clientMessages.ai.draft.none', 'No draft, because MAGE found no request.'),
+        draftWithheld: t('office.clientMessages.ai.draft.withheld', 'No draft, because MAGE hid wording that read like building-code text. The original message and files are unchanged.'),
+        draftNotWritten: t('office.clientMessages.ai.draft.notWritten', 'MAGE wrote no draft for this message.'),
         startCo: t('office.clientMessages.ai.startCo', 'Start a change order'),
         startRfi: t('office.clientMessages.ai.startRfi', 'Start an RFI'),
         startPunch: t('office.clientMessages.ai.startPunch', 'Start a punch item'),

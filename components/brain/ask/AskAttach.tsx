@@ -2,7 +2,9 @@
 // (lane ATTASK): attach a photo, a PDF or one of the anchored job's plan pages
 // to the next question. A plan page is offered to the job's owner only: the
 // server reads one for nobody else, so anyone else sees the row off with the
-// reason under it.
+// reason under it. The reason is the true one: "couldn't check, try again" only
+// when the role read failed or is waiting for a network; a read that answered
+// "not on this job" says that, with nothing to try again.
 //
 // WHAT A TAP DOES.
 //   Free plan: an alert that says reading files is on Pro, with "See plans".
@@ -140,8 +142,10 @@ export function AskAttach({ files, onAdd, anchorProjectId, disabled }: AskAttach
   const { getPlanSheetsForProject } = useProjects();
   const web = Platform.OS === 'web';
   // Plan pages are for the job's owner (the server reads one for nobody else).
-  const { role, isLoading, isError } = useProjectRoleState(anchorProjectId ?? undefined);
-  const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError });
+  // isPaused: a read waiting for a network has not answered, so it is never
+  // read as "not on this job".
+  const { role, isLoading, isError, isPaused } = useProjectRoleState(anchorProjectId ?? undefined);
+  const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError, isPaused });
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'plan'>('menu');
@@ -315,8 +319,9 @@ export function AskAttach({ files, onAdd, anchorProjectId, disabled }: AskAttach
 
   const planWhy = planBlock === 'noJob' ? copy.menuPlanPageNoJob
     : planBlock === 'notOwner' ? copy.menuPlanPageNotOwner
-      : planBlock === 'checking' ? copy.menuPlanPageChecking
-        : planBlock === 'unknown' ? copy.menuPlanPageUnknown : undefined;
+      : planBlock === 'notOnJob' ? copy.menuPlanPageNotOnJob
+        : planBlock === 'checking' ? copy.menuPlanPageChecking
+          : planBlock === 'unknown' ? copy.menuPlanPageUnknown : undefined;
   const planRow = row('ask-attach-plan', MapIcon, copy.menuPlanPage, () => setView('plan'),
     { off: !!planBlock, why: planWhy, chevron: !planBlock });
   // The list is drawn only while a page can be picked.

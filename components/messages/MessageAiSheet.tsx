@@ -25,7 +25,12 @@
 // on the message. Files that were left out stay listed under "Not read", with
 // the reason, before the read and after it. Every text the model wrote passes
 // the own-words gate before it is drawn (utils/messageAiCore
-// guardMessageReading: one gate question for the whole reading).
+// guardMessageReading: one gate question for the whole reading). When the
+// gate takes every ask line, or the draft's description, the sheet says the
+// wording was hidden, never that MAGE found no request: "no request" is said
+// only when the server sent none (reading.asksEmpty / reading.draftEmpty).
+// A reading that stops partway gets this sheet's own line (open the files to
+// check the rest): there is no question here to narrow.
 //
 // The consent gate, the feature flag and the request itself are inside
 // utils/askFiles (the one file that names the edge function). Strings come
@@ -241,6 +246,14 @@ export default function MessageAiSheet({ visible, onClose, project, message }: M
     onClose();
   }, [reading, canPunch, router, project.id, draftBody, onClose]);
 
+  // Why there is no ask line, or no draft. "MAGE found no request" is said only
+  // when the server sent none; lines the gate hid get the hidden-wording line.
+  const asksEmptyLine = reading?.asksEmpty === 'withheld' ? copy.ai.asksWithheld
+    : reading?.asksEmpty === 'none' ? copy.ai.asksNone : null;
+  const draftEmptyLine = reading?.draftEmpty === 'withheld' ? copy.ai.draftWithheld
+    : reading?.draftEmpty === 'notWritten' ? copy.ai.draftNotWritten
+      : reading?.draftEmpty === 'none' ? copy.ai.draftNone : null;
+
   const notReadList = notRead.length > 0 ? (
     <View style={styles.group} testID="message-ai-not-read">
       <Text style={styles.heading}>{copy.ai.notRead}</Text>
@@ -311,7 +324,7 @@ export default function MessageAiSheet({ visible, onClose, project, message }: M
             <Text style={styles.heading}>{copy.ai.summary}</Text>
             {reading.summary ? <Text style={styles.text} selectable testID="message-ai-summary">{reading.summary}</Text> : null}
             {reading.withheld ? <Text style={styles.note}>{askCopy.files.codeWithheld}</Text> : null}
-            {reading.truncated ? <Text style={styles.note}>{askCopy.files.truncated}</Text> : null}
+            {reading.truncated ? <Text style={styles.note} testID="message-ai-truncated">{copy.ai.truncated}</Text> : null}
           </View>
 
           <View style={styles.group}>
@@ -320,7 +333,7 @@ export default function MessageAiSheet({ visible, onClose, project, message }: M
               ? reading.asks.map((line, i) => (
                 <Text key={`${i}-${line}`} style={styles.text} selectable testID={`message-ai-ask-${i}`}>{line}</Text>
               ))
-              : <Text style={styles.note}>{copy.ai.asksNone}</Text>}
+              : asksEmptyLine ? <Text style={styles.note} testID="message-ai-asks-empty">{asksEmptyLine}</Text> : null}
           </View>
 
           <WhatIRead files={toTurnFiles(reading.read)} partial={reading.truncated} copy={askCopy.files} />
@@ -334,7 +347,9 @@ export default function MessageAiSheet({ visible, onClose, project, message }: M
                 <Text style={styles.text} selectable>{reading.draft.description}</Text>
               </View>
             ) : null}
-            <Text style={styles.note}>{reading.draft ? copy.ai.draftNote : copy.ai.draftNone}</Text>
+            {reading.draft
+              ? <Text style={styles.note}>{copy.ai.draftNote}</Text>
+              : draftEmptyLine ? <Text style={styles.note} testID="message-ai-draft-empty">{draftEmptyLine}</Text> : null}
           </View>
 
           <View style={styles.actions}>
