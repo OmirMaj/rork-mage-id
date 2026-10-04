@@ -344,13 +344,13 @@ async function seedInspection() {
   await AsyncStorage.setItem('mageid_permits', JSON.stringify(Array.isArray(raw) ? next : { ...raw, data: next }));
 }
 
-async function runCodeCheck(sample: unknown = SAMPLE_CODE_CHECK) {
+async function runCodeCheck(sample: unknown = SAMPLE_CODE_CHECK, place: { city: string; state: string } = { city: 'Massapequa', state: 'NY' }) {
   mockCodeCheckData = sample;
   const tree = await phoneRoute('/construction-ai', async () => {
     await AsyncStorage.setItem('mageid_subscription_tier', 'enterprise');
   });
-  await act(async () => { fireEvent.changeText(screen.getByTestId('code-check-city'), 'Massapequa'); });
-  await act(async () => { fireEvent.changeText(screen.getByTestId('code-check-state'), 'NY'); });
+  await act(async () => { fireEvent.changeText(screen.getByTestId('code-check-city'), place.city); });
+  await act(async () => { fireEvent.changeText(screen.getByTestId('code-check-state'), place.state); });
   await act(async () => { fireEvent.changeText(screen.getByTestId('code-check-scenario'), 'Sample: a raised deck 34 in. above grade with a stair.'); });
   await pump(2);
   await act(async () => { fireEvent.press(screen.getByTestId('code-check-run')); });
@@ -1072,7 +1072,11 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
 // Every line here is a SAMPLE; the code-shaped ones are made up for the test.
 describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2019s own words only', () => {
   jest.setTimeout(150000);
-  const NOTICE = 'MAGE hid this line because it read like code text. Use Official text to read the section.';
+  // CARDS3: a paragraph or a list has no Official text button, so a prose
+  // surface carries its own notice, and points at the free viewer only where
+  // the viewer links are rendered right under it.
+  const NOTICE = 'MAGE hid wording here because it read like code text.';
+  const VIEWER = "Read the code in the publisher's free viewer, below.";
 
   it('Code Check summary: a code-shaped sentence is replaced by the notice with its section, once; the rest of the paragraph stays', async () => {
     await runCodeCheck({
@@ -1081,6 +1085,12 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     });
     expect(screen.getAllByText(`Sample summary: a raised deck needs guards. ${NOTICE} Section: R312.1. Sample: plan on a final inspection.`)).toHaveLength(1);
     expect(screen.queryAllByText(/shall be provided|not less than|Sample title/)).toHaveLength(0);
+    // (The cards keep their own Official text button; no NOTICE names it.)
+    expect(screen.queryAllByText(/Use Official text/)).toHaveLength(0);
+    // Massapequa, NY resolves to an edition, so the result has viewer links:
+    // the viewer line prints under the paragraph WITH the links it points at.
+    expect(screen.getByTestId('code-check-summary-withheld').props.children).toBe(VIEWER);
+    expect(within(screen.getByTestId('code-check-summary-withheld-viewer')).getAllByRole('link').length).toBeGreaterThan(0);
     // The cards under it are untouched.
     expect(screen.getByTestId('code-check-card-0')).toBeTruthy();
   });
@@ -1110,8 +1120,10 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     expect(screen.queryAllByText(/shall be not less than|Sample title|Exception:/)).toHaveLength(0);
     // The only failure bullet was withheld, so its heading has nothing under it and is not shown.
     expect(screen.queryAllByText('How jobs fail it')).toHaveLength(0);
-    expect(screen.getByTestId('code-detail-withheld-0').props.children).toBe(`${NOTICE} Section: 2025 RCNYS R312.1.`);
+    expect(screen.getByTestId('code-detail-withheld-0').props.children).toBe(`${NOTICE} Section: 2025 RCNYS R312.1. ${VIEWER}`);
+    expect(within(screen.getByTestId('code-detail-withheld-0-viewer')).getAllByRole('link').length).toBeGreaterThan(0);
     expect(screen.getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`))).toHaveLength(1);
+    expect(screen.queryAllByText(/Use Official text/)).toHaveLength(0);
   });
 
   it('Code Check drill-in: an answer in plain words prints as written, with no notice', async () => {
@@ -1159,6 +1171,13 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     const box = screen.getByTestId('inspection-prep-recall-withheld');
     const said = within(box).getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`));
     expect(said).toHaveLength(1);
+    // The notice points at the viewer exactly when viewer buttons are in the
+    // same box, and never names the card's Official text button.
+    const noticeText = String(said[0].props.children);
+    const viewerButtons = within(box).queryAllByRole('link');
+    expect(noticeText.endsWith(VIEWER)).toBe(viewerButtons.length > 0);
+    expect(/viewer|below|button|link/i.test(noticeText)).toBe(viewerButtons.length > 0);
+    expect(within(box).queryAllByText(/Official text/)).toHaveLength(0);
     expect(screen.getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`))).toHaveLength(1);
     expect(screen.queryAllByText('Nothing to add beyond the lists above.')).toHaveLength(0);
   });
@@ -1177,5 +1196,112 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     await pump(8);
     expect(screen.getAllByText('Sample: guard on every open side')).toHaveLength(1);
     expect(screen.queryByTestId('inspection-prep-recall-withheld')).toBeNull();
+  });
+});
+
+
+describe('CARDS3 — the Code Check lists, the prose notice and the glued inch mark', () => {
+  jest.setTimeout(150000);
+  const NOTICE = 'MAGE hid wording here because it read like code text.';
+  const VIEWER = "Read the code in the publisher's free viewer, below.";
+  const CODE_SHAPED = /shall be pulled|Sample title|not less than|Exception:|in accordance with/;
+
+  const LISTS_SAMPLE = {
+    ...SAMPLE_CODE_CHECK,
+    permitsRequired: ['Sample: building permit', 'Per R105.1 "Sample title", a sample permit shall be pulled.', 'Sample: electrical permit', 'Exception: sample sheds.'],
+    inspections: ['Sample: footing inspection', 'Sample: final inspection'],
+    commonViolations: ['Sample guards shall be not less than a sample height.'],
+    followUps: [
+      { id: 'q1', question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No'] },
+      { id: 'q2', question: 'Sample: is it built in accordance with R312.1?', options: ['Yes', 'No'] },
+    ],
+  };
+
+  it('Code Check lists: a code-shaped permit, violation or question never prints; each list says so once, where the hidden line was, with the viewer under it', async () => {
+    await runCodeCheck(LISTS_SAMPLE);
+    for (const k of ['permits', 'inspections', 'violations']) {
+      await act(async () => { fireEvent.press(screen.getByTestId(`code-check-accordion-${k}`)); });
+      await pump(2);
+      if (k === 'permits') {
+        // Two of four lines were hidden: the two plain ones print, the notice
+        // prints ONCE (not once per hidden line), with the section it named.
+        expect(screen.getAllByText('\u2022 Sample: building permit')).toHaveLength(1);
+        expect(screen.getAllByText('\u2022 Sample: electrical permit')).toHaveLength(1);
+        expect(screen.getAllByTestId('code-check-permits-withheld')).toHaveLength(1);
+        expect(screen.getByTestId('code-check-permits-withheld').props.children).toBe(`${NOTICE} Section: R105.1. ${VIEWER}`);
+        expect(within(screen.getByTestId('code-check-permits-withheld-viewer')).getAllByRole('link').length).toBeGreaterThan(0);
+      }
+      if (k === 'inspections') {
+        // A list in plain words is untouched and carries no notice.
+        expect(screen.getAllByText('\u2022 Sample: footing inspection')).toHaveLength(1);
+        expect(screen.getAllByText('\u2022 Sample: final inspection')).toHaveLength(1);
+        expect(screen.queryByTestId('code-check-inspections-withheld')).toBeNull();
+      }
+      if (k === 'violations') {
+        // Every line was hidden: the section still opens and says so.
+        expect(screen.getByTestId('code-check-violations-withheld').props.children).toBe(`${NOTICE} ${VIEWER}`);
+      }
+      expect(screen.queryAllByText(CODE_SHAPED)).toHaveLength(0);
+    }
+    // The follow-ups: the plain question is asked, the code-shaped one is not,
+    // and the questions say so once.
+    expect(screen.getAllByText('Sample: any stairs with four or more risers?')).toHaveLength(1);
+    expect(screen.queryByTestId('codethread-answer-q2-Yes')).toBeNull();
+    expect(screen.getAllByTestId('codethread-followups-withheld')).toHaveLength(1);
+    expect(screen.getByTestId('codethread-followups-withheld').props.children).toBe(`${NOTICE} Section: R312.1. ${VIEWER}`);
+    expect(screen.queryAllByText(CODE_SHAPED)).toHaveLength(0);
+    expect(screen.queryAllByText(/Use Official text/)).toHaveLength(0);
+  });
+
+  it('with no viewer link on the result (the jurisdiction is not known) every prose notice names no button, no link and no viewer', async () => {
+    mockCodeDetailData = {
+      plainEnglish: 'Sample: a guard goes on every open side. Sample guards shall be not less than a sample height.',
+      appliesBecause: 'Sample: the deck is 34 in. above grade.',
+      inspectorChecks: ['Sample: guard height at the low side'],
+      commonFailures: [],
+      ruleOfThumb: '',
+    };
+    await runCodeCheck({
+      ...LISTS_SAMPLE,
+      summary: 'Sample summary: a raised deck needs guards. R312.1 "Sample title" says sample guards shall be provided. Sample: plan on a final inspection.',
+    }, { city: 'Sampletown', state: 'ZZ' });
+    // No edition, so the result renders no viewer buttons at all.
+    expect(screen.queryByTestId('code-check-viewer-links-result')).toBeNull();
+    expect(screen.getAllByText(`Sample summary: a raised deck needs guards. ${NOTICE} Section: R312.1. Sample: plan on a final inspection.`)).toHaveLength(1);
+    expect(screen.queryByTestId('code-check-summary-withheld')).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByTestId('code-detail-toggle-0')); });
+    await pump(6);
+    // (Read the drill-in's notice before opening Permits: one section is open at a time.)
+    const drillSaid = String(screen.getByTestId('code-detail-withheld-0').props.children);
+    expect(screen.queryByTestId('code-detail-withheld-0-viewer')).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByTestId('code-check-accordion-permits')); });
+    await pump(2);
+    const said = [
+      drillSaid,
+      String(screen.getByTestId('code-check-permits-withheld').props.children),
+      String(screen.getByTestId('codethread-followups-withheld').props.children),
+    ];
+    for (const text of said) {
+      expect(text.startsWith(NOTICE)).toBe(true);
+      expect(/viewer|below|button|link|Official text|tap/i.test(text)).toBe(false);
+    }
+    expect(said[1]).toBe(`${NOTICE} Section: R105.1.`);
+    expect(screen.queryAllByText(VIEWER)).toHaveLength(0);
+    expect(screen.queryAllByText(/Use Official text/)).toHaveLength(0);
+    for (const id of ['code-check-permits-withheld-viewer', 'codethread-followups-withheld-viewer']) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
+  });
+
+  it('an inch mark glued to an abbreviation (12"o.c.) no longer hides the rest of the paragraph or a list line', async () => {
+    const summary = 'Sample summary: set the sample joists at 12"o.c. along the beam. Sample: the guard is 36"min at the stair. Sample: plan on a final inspection.';
+    await runCodeCheck({ ...SAMPLE_CODE_CHECK, summary, permitsRequired: ['Sample: deck permit for joists at 16"O.C.'] });
+    expect(screen.getAllByText(summary)).toHaveLength(1);
+    await act(async () => { fireEvent.press(screen.getByTestId('code-check-accordion-permits')); });
+    await pump(2);
+    expect(screen.getAllByText('\u2022 Sample: deck permit for joists at 16"O.C.')).toHaveLength(1);
+    expect(screen.queryAllByText(new RegExp(NOTICE.slice(0, 30)))).toHaveLength(0);
+    expect(screen.queryByTestId('code-check-summary-withheld')).toBeNull();
+    expect(screen.queryByTestId('code-check-permits-withheld')).toBeNull();
   });
 });

@@ -25,7 +25,14 @@
 //      5b. THE PHONE GATE IS THE SERVER GATE (utils/codeCard/echoCheck.ts): the
 //         phrase list, the quote rule (single-quote span included) and the
 //         inch-mark rule are read from BOTH files and must be equal, and both
-//         gates give the same answer on every probe line at every cap;
+//         gates give the same answer on every probe line at every cap.
+//         THE INCH RULE (lane CARDS3): a mark glued to a short exact list of
+//         construction abbreviations (12"o.c., 36"min) is an inch mark, on
+//         both sides; the list is read out of both regexes and pinned to the
+//         phone's INCH_ABBREVIATIONS. Until the server patch is applied
+//         (sweep3-specs/CARDS3-server-inch.diff) the server still has the old
+//         rule and this file is RED on purpose: the phone's rule never moves
+//         alone;
 //      6. normalizeRequirements: a section is required and only when the
 //         answer prints it, edition only when printed, a trigger / job value
 //         only when printed next to its unit, evidence null, stageIsGuess
@@ -243,6 +250,17 @@ console.log('\n4. analyze-plan-code handler');
 }
 
 // ═════ B. construction-answer ═══════════════════════════════════════════════
+// THE INCH RULE'S PROBES (lane CARDS3), shared by sections 5 and 5b. A mark
+// glued to one of the abbreviations is an inch mark; glued to anything else,
+// or to a section number, it is still a quotation mark.
+const INCH_GLUED = [
+  'Joists at 12"o.c. along the beam.', 'Studs at 16"O.C.', 'Studs at 16"oc.', 'Post 6"dia.', 'Guard 36"min.', 'Riser 7.75"max.', 'Gap 4"typ.', 'Leave 1"clr.', 'Slab 4"thk.',
+  'Door 36"wide.', 'Guard 36"HIGH at the stair.', 'Footing 12"deep.', 'Board 96"long.', 'Wall 96"tall.',
+];
+const NOT_INCH_GLUED = [
+  'A 36"guard rail.', 'Guard 36"minimum.', 'Joists 12"ocean side.', 'Joists 12"o.c.max.', 'Joists 12"o.c along.', 'Slab 4"thick.', 'Size 36"5 here.',
+  'R312.1"max height applies.', 'R312.1" then the rest.', 'See 1011.5.2"min tread.', 'E3902.16" applies.', 'R602.3(1)" is a table.',
+];
 console.log('\n5. summaryEchoCheck');
 {
   const e = CC.summaryEchoCheck;
@@ -252,14 +270,21 @@ console.log('\n5. summaryEchoCheck');
   ok('the why cap is 160 and a step cap is 100', e('a'.repeat(160), CC.WHY_CAP) && !e('a'.repeat(161), CC.WHY_CAP) && !e('a'.repeat(101), CC.STEP_CAP));
   ok('double quotes of any kind fail', !e('Guards "required" here') && !e('Guards “required” here') && !e('Guards «required»'));
   ok("a span in single quotes fails ('like this')", !e("Guards are 'required' here") && !e('Guards are ‘required’ here'));
-  // AN INCH MARK IS NOT A QUOTE: a " or a double prime directly after a digit
-  // or a fraction character, not followed by a letter (an x between sizes is fine).
-  const INCHES = ['Guard 36" high.', "Door 2'-8\" wide.", 'Riser at most 7-7/8".', 'Balusters 4½" apart at most.', 'Footing 12"x12" under each post.', 'Footing 12" x 12".', 'Guard 36\u2033 high.', 'Riser ≤ 7-3/4", tread ≥ 10".'];
-  const QUOTES = ['"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'Guards “at least 36” high.', 'A 36"high guard.', 'Note says "36" minimum.'];
+  // AN INCH MARK IS NOT A QUOTE: a " or a double prime directly after a
+  // measurement, followed by the end, anything that is not a letter or a
+  // digit, an x between sizes, or one of the construction abbreviations
+  // (o.c., oc, dia, min, max, typ, clr, thk, wide, high, deep, long, tall).
+  const INCHES = ['Guard 36" high.', "Door 2'-8\" wide.", 'Riser at most 7-7/8".', 'Balusters 4½" apart at most.', 'Footing 12"x12" under each post.', 'Footing 12" x 12".', 'Guard 36\u2033 high.', 'Riser ≤ 7-3/4", tread ≥ 10".',
+    'A 36"high guard.', 'Use (36") rails.', 'A gap of .5" at most.', 'Size 2x4" stock.', ...INCH_GLUED];
+  const QUOTES = ['"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'Guards “at least 36” high.', 'Note says "36" minimum.', ...NOT_INCH_GLUED];
   ok('an inch mark is not a quote: 36", 2\'-8", 7-7/8", 4½", 12"x12", a double prime all pass',
     INCHES.every(t => e(t)), INCHES.filter(t => !e(t)).join(' | '));
-  ok('…and every real quote still fails: "Guards…", reads "X", R312.1 "Guards, a quote glued to a section number, curly quotes, a mark glued to a word',
+  ok('…and every real quote still fails: "Guards…", reads "X", R312.1 "Guards, a quote glued to a section number, curly quotes, a mark glued to any other word',
     QUOTES.every(t => !e(t)), QUOTES.filter(t => e(t)).join(' | '));
+  ok(`CARDS3: a mark glued to a construction abbreviation is an inch mark, in any case (${INCH_GLUED.length} lines: 12"o.c., 16"O.C., 16"oc, 6"dia, 36"min, 7.75"max, 4"typ, 1"clr, 4"thk, 36"wide, 36"high, 12"deep, 96"long, 96"tall)`,
+    INCH_GLUED.every(t => e(t)), INCH_GLUED.filter(t => !e(t)).join(' | '));
+  ok('CARDS3: …and only those: a longer word (36"minimum, 12"ocean), an abbreviation with letters after it (12"o.c.max), a mark glued to a section number (R312.1"max, R312.1" , 1011.5.2"min) or to another number is still a quote',
+    NOT_INCH_GLUED.every(t => !e(t)), NOT_INCH_GLUED.filter(t => e(t)).join(' | '));
   ok('withoutInchMarks takes out the mark and nothing else', CC.withoutInchMarks('Door 2\'-8" wide, 36" high') === "Door 2'-8 wide, 36 high" && CC.withoutInchMarks('reads "X"') === 'reads "X"');
   ok('the phone’s gate agrees on every one of those lines (same rule, both sides)',
     INCHES.every(t => CLIENT.passesEchoCheck(t)) && QUOTES.every(t => !CLIENT.passesEchoCheck(t)), [...INCHES.filter(t => !CLIENT.passesEchoCheck(t)), ...QUOTES.filter(t => CLIENT.passesEchoCheck(t))].join(' | '));
@@ -369,7 +394,36 @@ console.log('\n5b. the phone gate is the server gate: the same phrases, the same
   const sq = literal(serverSrc, 'QUOTED'), pq = literal(phoneSrc, 'QUOTE_RE');
   ok('the quote rule is the same regex on both sides, single-quote span included', !!sq && !!pq && sq.body === pq.body && sq.flags === pq.flags && sq.body.includes("'[^']+'"), `${sq?.body} vs ${pq?.body}`);
   const si = literal(serverSrc, 'INCH_MARK'), pi = literal(phoneSrc, 'INCH_MARK_RE');
-  ok('the inch-mark rule is the same regex on both sides', !!si && !!pi && si.body === pi.body && si.flags === 'g' && pi.flags === 'g', `${si?.body} vs ${pi?.body}`);
+  ok('the inch-mark rule is the same regex on both sides (and case-insensitive on both: 12"O.C.)', !!si && !!pi && si.body === pi.body && si.flags === 'gi' && pi.flags === 'gi', `${si?.body} /${si?.flags} vs ${pi?.body} /${pi?.flags}`);
+  // THE ABBREVIATIONS (lane CARDS3), in the shape the phrases are pinned in:
+  // read out of BOTH regexes, and equal to the phone's exported list. The one
+  // group that ends the lookahead `…|(?:a|b|c)(?![a-z0-9]))` holds them.
+  /** The abbreviations inside an inch-mark regex body, unescaped, or null when the body is not in that shape. */
+  const inchAbbreviations = (body: string | undefined): string[] | null => {
+    const m = body?.match(/\|\(\?:([^()]+)\)\(\?!\[a-z0-9\]\)\)$/);
+    return m ? alternatives(m[1]).map((a) => a.replace(/\\\./g, '.')) : null;
+  };
+  const sa = inchAbbreviations(si?.body), pa = inchAbbreviations(pi?.body);
+  const SPEC_ABBREVIATIONS = ['o.c.', 'oc', 'dia', 'min', 'max', 'typ', 'clr', 'thk', 'wide', 'high', 'deep', 'long', 'tall'];
+  ok('CARDS3: the abbreviations an inch mark may be glued to are readable out of both regexes', !!sa && !!pa, `server ${JSON.stringify(sa)} phone ${JSON.stringify(pa)}`);
+  ok(`CARDS3: the server\u2019s list, the phone\u2019s list and the phone\u2019s INCH_ABBREVIATIONS are the SAME ${SPEC_ABBREVIATIONS.length}, in the same order, none twice: ${SPEC_ABBREVIATIONS.join(', ')}`,
+    !!sa && !!pa && [sa, pa, [...CLIENT.INCH_ABBREVIATIONS]].every((l) => l.length === SPEC_ABBREVIATIONS.length && l.every((x, i) => x === SPEC_ABBREVIATIONS[i]))
+      && new Set(SPEC_ABBREVIATIONS).size === SPEC_ABBREVIATIONS.length,
+    `server ${JSON.stringify(sa)} phone ${JSON.stringify(pa)} exported ${JSON.stringify(CLIENT.INCH_ABBREVIATIONS)}`);
+  ok('CARDS3: every abbreviation has a probe line that it alone lets through, and the phone\u2019s gate passes it',
+    SPEC_ABBREVIATIONS.every((a) => INCH_GLUED.some((t) => t.toLowerCase().includes(`"${a}`)))
+      && INCH_GLUED.every((t) => CLIENT.passesEchoCheck(t, 400)) && NOT_INCH_GLUED.every((t) => !CLIENT.passesEchoCheck(t, 400)),
+    [...INCH_GLUED.filter((t) => !CLIENT.passesEchoCheck(t, 400)), ...NOT_INCH_GLUED.filter((t) => CLIENT.passesEchoCheck(t, 400))].join(' | '));
+  // Fixture: the reader sees an abbreviation taken off or added on one side,
+  // and refuses a regex that is not in the shape it reads.
+  {
+    const body = pi?.body ?? '';
+    ok('fixture: an abbreviation taken out of one regex, one added, and the old rule (no list at all) are each seen by the reader',
+      body.includes('|dia|') && (inchAbbreviations(body.replace('|dia|', '|')) ?? []).join() === SPEC_ABBREVIATIONS.filter((a) => a !== 'dia').join()
+        && (inchAbbreviations(body.replace('|tall)', '|tall|nom)')) ?? []).slice(-1)[0] === 'nom'
+        && inchAbbreviations('([0-9\\u00bc-\\u00be\\u2150-\\u215e])["\\u2033](?![A-WYZa-wyz]|[xX][A-Za-z])') === null
+        && inchAbbreviations(undefined) === null);
+  }
   ok('the caps and the word run are the same numbers', CC.SUMMARY_CAP === CLIENT.SUMMARY_MAX && CC.WHY_CAP === CLIENT.WHY_MAX && CC.STEP_CAP === CLIENT.BUILD_LINE_MAX && CC.MAX_WORD_RUN === CLIENT.MAX_RUN_WORDS);
 
   // The same answers. One sample line per phrase (a phrase with no sample
@@ -390,6 +444,7 @@ console.log('\n5b. the phone gate is the server gate: the same phrases, the same
     "Door 2'-8\" wide.", "A 6' x 8' landing.", "The contractors' crew and the owners' rep.", "Rock 'n' roll", "4' wide, 'more or less', 8' long",
     'Guard 36" high.', 'Riser at most 7-7/8".', 'Balusters 4\u00bd" apart at most.', 'Footing 12"x12" under each post.', 'Guard 36\u2033 high.', 'Riser \u2264 7-3/4", tread \u2265 10".',
     '"Guards at least 36" high."', 'The note reads "X".', 'R312.1 "Guards', 'R312.1"Guards on open sides', 'A 36"high guard.', 'Note says "36" minimum.', 'Guard 36 " high.',
+    ...INCH_GLUED, ...NOT_INCH_GLUED, ...INCH_GLUED.map((t) => t.toUpperCase()), 'Use (36") rails.', 'A gap of .5" at most.', 'Size 2x4" stock.', 'Bolts at 4"-6" apart.', 'A **36"** guard.',
     words(25), words(26), `${words(20)}. ${words(20)}`, `${words(13)}\n${words(13)}`, `${words(13)}\t${words(13)}`, `${words(12)} \u2014 \u2014 ${words(12)}`, `${words(24)} \u2265`,
     '- - - - - - - - - - - - - - - - - - - - - - - - - - - -', `${words(20)}; ${words(20)}`, `${words(20)}: ${words(20)}`, `${words(20)}? ${words(20)}! ${words(26)}`,
     'a'.repeat(100), 'a'.repeat(101), 'a'.repeat(140), 'a'.repeat(141), 'a'.repeat(160), 'a'.repeat(161), 'a'.repeat(400), 'a'.repeat(401),

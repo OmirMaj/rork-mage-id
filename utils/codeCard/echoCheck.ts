@@ -17,13 +17,23 @@
 //                      quotes. Apostrophes (can't, doesn’t) and a foot mark
 //                      (2'-8) are fine.
 //                      AN INCH MARK IS NOT A QUOTE: a straight " (or a double
-//                      prime) that sits directly after a digit or a fraction
-//                      character, with no space, and is not followed by a
-//                      letter (an x between two sizes is fine: 2"x4") is
-//                      ignored by this test, so 36", 2'-8" and 7-7/8" pass.
-//                      Every other mark is still a quote: an opening quote
-//                      never follows a digit, so "Guards…", reads "X" and
-//                      R312.1 "Guards all still fail.
+//                      prime) that sits directly after a MEASUREMENT (a
+//                      number or a fraction character, with no space) is
+//                      ignored by this test when what follows it is
+//                        - the end, a space or punctuation (anything that is
+//                          not a letter or a digit),
+//                        - an x between two sizes (2"x4"), or
+//                        - one of INCH_ABBREVIATIONS, glued on and ending
+//                          there: o.c., oc, dia, min, max, typ, clr, thk,
+//                          wide, high, deep, long, tall (any case),
+//                      so 36", 2'-8", 7-7/8" and 12"o.c. pass. A mark glued
+//                      to a word a drawing does not abbreviate that way
+//                      (36"guards) is still a quote, and so is one glued to
+//                      a SECTION NUMBER: a number with a letter glued in
+//                      front of it (R312.1") or with two dots (1011.5.2") is
+//                      not a measurement. An opening quote never follows a
+//                      digit, so "Guards…", reads "X" and R312.1 "Guards all
+//                      still fail.
 //   4. code phrasing   "shall", "not less than", "not more than", "in
 //                      accordance with", "where required by", "Exception:",
 //                      "herein", "thereof", "notwithstanding", "comply with
@@ -56,8 +66,15 @@
 //              3), code phrasing (rule 4) and a section number followed by
 //              a quoted title (R312.1 "Guards"). A sentence that fails is
 //              taken out and the rest stays; the block says so ONCE, with the
-//              card's own notice (LINE_WITHHELD) and the section numbers the
-//              hidden sentences named, so he can still look them up.
+//              PROSE notice (PROSE_WITHHELD: prose has no Official text
+//              button, so its notice never names one) and the section numbers
+//              the hidden sentences named, so he can still look them up.
+//   LISTS      (ownWordsList / ownWordsQuestions): a list of short AI lines
+//              (the Code Check permits, inspections, common violations and
+//              follow-up questions). Each line is checked as prose and is
+//              shown WHOLE or not at all: half a permit name is not a permit.
+//              What was taken out is counted, with where the notice goes, so
+//              the list says so once, not once per line.
 //              A quotation that runs across several sentences hides every
 //              sentence it touches; one that never closes hides the rest of
 //              the block (nothing after an opening quote is shown unless the
@@ -82,8 +99,27 @@ export const MAX_RUN_WORDS = 25;
  * character for character (validate-code-card-server pins the two equal).
  */
 const QUOTE_RE = /["\u201c\u201d\u201e\u00ab\u00bb\u2018]|(^|[\s(])'[^']+'(?=$|[\s.,;:!?)])/;
-/** An inch mark: see rule 3 in the header. The digit (or fraction character) it follows is kept. */
-const INCH_MARK_RE = /([0-9\u00bc-\u00be\u2150-\u215e])["\u2033](?![A-WYZa-wyz]|[xX][A-Za-z])/g;
+/**
+ * An inch mark: see rule 3 in the header. Group 1 is the measurement it
+ * follows, with the character before it, and is kept.
+ *   - the measurement: digits, at most one decimal point, ending in a digit
+ *     or a fraction character, and NOT glued to a letter or a dot before it
+ *     (an x is fine: 12"x12"). So R312.1" and 1011.5.2" are not inch marks.
+ *   - what follows: the end, anything that is not a letter or a digit, an x
+ *     between two sizes, or one of the abbreviations below, ending there.
+ * THE SERVER'S INCH_MARK, character for character and flag for flag
+ * (validate-code-card-server pins the two equal, and reads the abbreviations
+ * out of both).
+ */
+const INCH_MARK_RE = /((?:^|[^A-WYZa-wyz0-9.])(?:[0-9]*\.)?[0-9]*[0-9\u00bc-\u00be\u2150-\u215e])["\u2033](?=$|[^A-Za-z0-9]|x(?![a-z])|(?:o\.c\.|oc|dia|min|max|typ|clr|thk|wide|high|deep|long|tall)(?![a-z0-9]))/gi;
+/**
+ * The construction abbreviations a drawing glues to an inch mark (12"o.c.,
+ * 36"min). The SAME list as the alternatives inside INCH_MARK_RE and inside
+ * the server's INCH_MARK (validate-code-card-server pins all three equal).
+ */
+export const INCH_ABBREVIATIONS: readonly string[] = Object.freeze([
+  'o.c.', 'oc', 'dia', 'min', 'max', 'typ', 'clr', 'thk', 'wide', 'high', 'deep', 'long', 'tall',
+]);
 
 /** The text with its inch marks taken out (36" → 36), for the quotation test only. */
 export function withoutInchMarks(text: string): string {
@@ -104,6 +140,28 @@ export const LINE_NO_TEXT = 'The AI gave no plain-English line for this one. Use
 export function isStandInLine(line: string | null | undefined): boolean {
   return line === LINE_WITHHELD || line === LINE_NO_TEXT;
 }
+
+/**
+ * THE NOTICE ON A PROSE SURFACE (the Code Check summary, its lists and its
+ * drill-in, Inspection Ready's recall list). A paragraph or a list has no
+ * Official text button (that is on a code card), so this notice never names
+ * one: it says what MAGE did, and withheldNotice adds the section numbers.
+ */
+export const PROSE_WITHHELD = 'MAGE hid wording here because it read like code text.';
+/**
+ * Added to the prose notice ONLY where the publisher's free viewer is rendered
+ * right under it (withheldNotice's `viewer`). With no viewer link on screen
+ * (the jurisdiction is not known) the notice names no button and no link.
+ */
+export const PROSE_VIEWER_LINE = "Read the code in the publisher's free viewer, below.";
+
+/**
+ * What every in-app prompt that asks the AI for code wording is told, so the
+ * gate has less to withhold. ONE SOURCE: the Code Check prompt, its drill-in
+ * and Inspection Ready's recall prompt all carry this sentence, straight
+ * after the no-verbatim sentence.
+ */
+export const PLAIN_SENTENCE_RULE = `Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
 
 /**
  * Phrasing that reads like model-code text rather than a contractor's words.
@@ -298,17 +356,26 @@ export function proseSentences(block: string): string[] {
 }
 
 /**
- * The card's withheld notice for a block of prose, with the section numbers
- * still shown so he can look them up in the publisher's free viewer.
+ * The notice a PROSE surface prints when the gate took something out:
+ * PROSE_WITHHELD, then the section numbers that are known (so he can still
+ * look them up), then, ONLY with `viewer: true`, the line that points at the
+ * publisher's free viewer. A caller passes `viewer: true` only where it
+ * renders a viewer link right under this notice; without it the notice names
+ * no button and no link.
  */
-export function withheldNotice(sections: readonly (string | null | undefined)[] = []): string {
+export function withheldNotice(
+  sections: readonly (string | null | undefined)[] = [],
+  opts: { viewer?: boolean } = {},
+): string {
   const list: string[] = [];
   for (const s of sections) {
     const t = oneLine(s);
     if (t && !list.includes(t)) list.push(t);
   }
-  if (list.length === 0) return LINE_WITHHELD;
-  return `${LINE_WITHHELD} ${list.length === 1 ? 'Section' : 'Sections'}: ${list.join(', ')}.`;
+  const said = list.length === 0
+    ? PROSE_WITHHELD
+    : `${PROSE_WITHHELD} ${list.length === 1 ? 'Section' : 'Sections'}: ${list.join(', ')}.`;
+  return opts.viewer === true ? `${said} ${PROSE_VIEWER_LINE}` : said;
 }
 
 /**
@@ -317,15 +384,23 @@ export function withheldNotice(sections: readonly (string | null | undefined)[] 
  * text is taken out and the rest stays as written.
  *
  * `notice` (default true): the FIRST withheld sentence is replaced, in place,
- * by the card's notice and the section numbers the withheld sentences named;
- * later ones are simply taken out, so the block says it once. Pass false when
- * several fields print together as one block and the screen shows the notice
- * once for all of them (ownWordsBlock).
+ * by the prose notice and the section numbers the withheld sentences named
+ * (withheldNotice with no viewer line: this text is saved and printed in
+ * places that render no viewer link); later ones are simply taken out, so the
+ * block says it once. Pass false when several fields print together as one
+ * block and the screen shows the notice once for all of them (ownWordsBlock).
  *
  * Gating the result again changes nothing, and never adds a second notice.
+ *
+ * A PARAGRAPH SAVED BEFORE THE PROSE NOTICE carries the card's line
+ * (LINE_WITHHELD, "Use Official text…") where a sentence was withheld. A
+ * paragraph has no such button, so that line is read as the prose notice
+ * wherever the paragraph prints.
  */
 export function ownWordsProse(text: unknown, opts: { notice?: boolean } = {}): ProseGate {
-  const block = typeof text === 'string' ? text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ').trim() : '';
+  const block = typeof text === 'string'
+    ? text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ').trim().split(LINE_WITHHELD).join(PROSE_WITHHELD)
+    : '';
   if (!block) return { text: '', withheld: 0, sections: [], reasons: [] };
   const spans = proseSpans(block);
   const parts: (string | null)[] = [];
@@ -347,7 +422,7 @@ export function ownWordsProse(text: unknown, opts: { notice?: boolean } = {}): P
   }
   // Nothing withheld: the block exactly as written.
   if (withheld === 0) return { text: block, withheld: 0, sections: [], reasons: [] };
-  const alreadySaid = parts.filter((p) => p !== null).join('').includes(LINE_WITHHELD);
+  const alreadySaid = parts.filter((p) => p !== null).join('').includes(PROSE_WITHHELD);
   const notice = opts.notice === false || alreadySaid ? '' : withheldNotice(sections);
   const shown = parts.map((p) => (p === null ? notice : p)).join('')
     .replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
@@ -393,4 +468,72 @@ export function ownWordsBlock<T extends Record<string, unknown>>(fields: T): Pro
     else value[key] = v;
   }
   return { value: value as T, withheld, sections };
+}
+
+// ── LISTS ────────────────────────────────────────────────────────────────────
+
+/** A list of short AI lines as it may be shown (see LISTS in the header). */
+export interface ProseList<T = string> {
+  /** The lines that passed WHOLE, in order, as the gate returned them. */
+  items: T[];
+  /** How many lines were taken out. 0 = nothing was hidden. */
+  withheld: number;
+  /** Section numbers the withheld lines named, in order, each once. */
+  sections: string[];
+  /**
+   * Where the notice prints, once: before `items[noticeAt]` (the place of the
+   * first line taken out; `items.length` = after the last line). -1 when
+   * nothing was withheld.
+   */
+  noticeAt: number;
+}
+
+/**
+ * A list of AI lines, gated line by line as prose. A line the gate would take
+ * anything out of is not shown at all (it is counted, and the notice goes
+ * where the first such line was). Anything that is not text, and an empty
+ * line, is left out without a notice: there was nothing to hide.
+ */
+export function ownWordsList(lines: unknown): ProseList<string> {
+  const out: ProseList<string> = { items: [], withheld: 0, sections: [], noticeAt: -1 };
+  if (!Array.isArray(lines)) return out;
+  for (const line of lines) {
+    const g = ownWordsProse(line, { notice: false });
+    if (g.withheld > 0) {
+      out.withheld += 1;
+      for (const s of g.sections) if (!out.sections.includes(s)) out.sections.push(s);
+      if (out.noticeAt < 0) out.noticeAt = out.items.length;
+    } else if (g.text) {
+      out.items.push(g.text);
+    }
+  }
+  return out;
+}
+
+/**
+ * A list of AI questions with tap options (the Code Check follow-ups). A
+ * question is asked WHOLE or not at all: when the gate would take anything out
+ * of the question or of any option, the whole question is left out and
+ * counted. A kept question is the same object with its question and options as
+ * the gate returned them.
+ */
+export function ownWordsQuestions<T extends { question?: unknown; options?: unknown }>(
+  list: readonly T[] | null | undefined,
+): ProseList<T> {
+  const out: ProseList<T> = { items: [], withheld: 0, sections: [], noticeAt: -1 };
+  if (!Array.isArray(list)) return out;
+  for (const item of list as readonly T[]) {
+    if (!item || typeof item !== 'object') continue;
+    const question = ownWordsProse(item.question, { notice: false });
+    const options = (Array.isArray(item.options) ? item.options : []).map((o) => ownWordsProse(o, { notice: false }));
+    if (question.withheld > 0 || options.some((o) => o.withheld > 0)) {
+      out.withheld += 1;
+      for (const s of [...question.sections, ...options.flatMap((o) => o.sections)]) if (!out.sections.includes(s)) out.sections.push(s);
+      if (out.noticeAt < 0) out.noticeAt = out.items.length;
+      continue;
+    }
+    if (!question.text) continue;
+    out.items.push({ ...item, question: question.text, options: options.map((o) => o.text).filter(Boolean) });
+  }
+  return out;
 }

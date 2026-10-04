@@ -45,7 +45,7 @@ import { inspectionHistoryFactsFor, type InspectionHistoryGrounding } from '@/ut
 import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import { ROADMAP_FEATURE } from '@/utils/automation/roadmapToScheduleWork';
 import type { CodePin, CodeStage } from '@/utils/codeCard/types';
-import { ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';
+import { PLAIN_SENTENCE_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';
 import {
   issuingAuthorityForAddress,
   jurisdictionQueryForProject,
@@ -458,6 +458,9 @@ export function buildChecklist(a: {
 
 // ─── The recall prompt ────────────────────────────────────────────────────────
 
+/** Moves with the prompt's wording: the last part of the recall cache key. */
+export const RECALL_PROMPT_VERSION = 'plain1';
+
 export function buildRecallPrompt(a: {
   inspection: UpcomingInspection;
   project: Project;
@@ -498,9 +501,15 @@ export function buildRecallPrompt(a: {
     '- Each item: text (what the inspector checks, one short line), codeRef, confidence (high, med or low), why (one short line).',
     // Copyright: the same sentence every code prompt carries.
     '- Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.',
+    // ...and the Code Check prompt's own next line (one source): short plain
+    // sentences, no quotation marks, in. and ft. The own-words gate withholds
+    // a line that carries a quotation mark, so the AI is told not to write one.
+    `- ${PLAIN_SENTENCE_RULE}`,
   ];
   const prompt = lines.join('\n');
-  const cacheKey = `inspection_prep::${inspection.key}::${jurisdiction.cacheKey}::${digest(covered.map((c) => c.text).join('\n'))}::${JSON.stringify(sortedAnswers)}`;
+  // `plain1`: an answer cached under the prompt as it was before that line is
+  // not replayed (the 24 h AI cache is keyed on this string).
+  const cacheKey = `inspection_prep::${inspection.key}::${jurisdiction.cacheKey}::${digest(covered.map((c) => c.text).join('\n'))}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;
   return { prompt, cacheKey };
 }
 

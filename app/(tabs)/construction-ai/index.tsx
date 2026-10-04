@@ -86,7 +86,11 @@ import { blockedAction, readyAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeStage } from '@/utils/codeCard/types';
 import { parseCodeCardItem } from '@/utils/codeCard/parse';
 import { saysNumberWithUnit } from '@/utils/codeCard/saysWithUnit';
-import { ownWordsBlock, ownWordsProse, passesEchoCheck, withheldNotice, type ProseBlock } from '@/utils/codeCard/echoCheck';
+import {
+  PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,
+  ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, withheldNotice,
+  type ProseBlock, type ProseList,
+} from '@/utils/codeCard/echoCheck';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { architectMessageFor, mailtoUrlFor } from '@/utils/codeCard/shareText';
 import { architectButtonLabel, ARCHITECT_BLOCKED } from '@/utils/codeCard/summary';
@@ -302,13 +306,14 @@ type CodeDetail = z.infer<typeof codeDetailSchema>;
  */
 type CodeDetailOwnWords = ProseBlock<CodeDetail>;
 /**
- * The drill-in's notice when something was taken out: the card's own words,
- * with the row's section (and any section the hidden sentences named) still
- * shown, so he can read it in the publisher's free viewer.
+ * The sections the drill-in's notice names when something was taken out: the
+ * row's own section, then any section the hidden sentences named, each once.
+ * (The notice itself is ProseWithheld, below: the prose words, never the
+ * card's "Use Official text".)
  */
-function detailWithheldNotice(c: { code: string; section: string }, sections: readonly string[]): string {
+function detailWithheldSections(c: { code: string; section: string }, sections: readonly string[]): string[] {
   const label = c.section.trim() ? [c.code, c.section].filter(Boolean).join(' ') : '';
-  return withheldNotice([label, ...sections.filter((s) => !label.includes(s))]);
+  return [label, ...sections.filter((s) => !label.includes(s))];
 }
 
 /** Per-code fetch state, keyed by `${code}::${section}`. */
@@ -1518,7 +1523,7 @@ ${followUpInstruction(answered)}
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
 Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.
 Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
-Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.`;
+${PLAIN_SENTENCE_RULE}`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
@@ -1541,7 +1546,13 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
       // the withheld notice everywhere, not just on the card).
       // THE SUMMARY PARAGRAPH is prose, so it goes through the gate's prose
       // mode here too: sentence by sentence, a sentence that reads like code
-      // text is replaced by the card's notice (once), the rest stays.
+      // text is replaced by the prose notice (once), the rest stays.
+      // THE FOUR LISTS (permits, inspections, common violations, follow-up
+      // questions) are gated line by line where they are SAVED (below) and
+      // where they PRINT (ResultModal), by the same functions over the same
+      // lines: a line that fails is in neither place, and the list says so
+      // once. validate-code-card-wiring fails on a read of any of them that
+      // is not the gate's own argument.
       const aiResult = res.data as CodeCheckResult;
       const data = { ...codeCheckOwnWords(aiResult, passesEchoCheck), summary: ownWordsProse(aiResult.summary).text };
       setResult(data);
@@ -1550,7 +1561,10 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
       setResultInspectionGrounding(inspectionGrounding);
       setResultJurisdiction(jurisdiction);
       setResultJobText(codeCheckJobText(scenario, answered));
-      setFollowUps(coerceFollowUps(data.followUps, answered));
+      // A follow-up question is asked whole or not at all (gated BEFORE the
+      // 3-question budget is counted, so a hidden question never uses a slot).
+      const asked = coerceFollowUps(ownWordsQuestions(data.followUps).items, answered);
+      setFollowUps(asked);
       // Save the run to the job: a snapshot of what was SENT and what came
       // back. Local to this device until sign-out (utils/codeThread/store.ts).
       if (codeCheckProject) {
@@ -1578,9 +1592,9 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
         const resultSnapshot: CodeCheckResultSnapshot = {
           summary: data.summary,
           applicableCodes: data.applicableCodes.map((c) => ({ code: c.code, section: c.section ?? '', requirement: c.requirement })),
-          permitsRequired: data.permitsRequired,
-          inspections: data.inspections,
-          commonViolations: data.commonViolations,
+          permitsRequired: ownWordsList(data.permitsRequired).items,
+          inspections: ownWordsList(data.inspections).items,
+          commonViolations: ownWordsList(data.commonViolations).items,
         };
         const record: CodeCheckRecord = {
           id,
@@ -1593,7 +1607,7 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
           scenario: scenario.trim(),
           address: addressLine || `${city.trim()}, ${stateCode.trim()}`,
           answers: answered,
-          followUps: coerceFollowUps(data.followUps, answered),
+          followUps: asked,
           grounding: snapshot,
           result: resultSnapshot,
           disclaimer: CODE_CHECK_DISCLAIMER,
@@ -2744,7 +2758,7 @@ Write each requirement as one short plain sentence of under 25 words, with no qu
         inspectionGrounding={resultInspectionGrounding}
         project={savedRecord ? projects.find((p) => p.id === savedRecord.projectId) ?? null : null}
         savedRecord={savedRecord}
-        followUps={followUps}
+        questions={followUps}
         answeredCount={answers.length}
         answers={answers}
         onAnswer={onAnswerFollowUp}
@@ -3234,7 +3248,7 @@ type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
   visible, result, onClose, location, scenario, grounding, jurisdiction, jobText, inspectionGrounding,
-  project = null, savedRecord = null, followUps = [], answeredCount = 0, answers = [], onAnswer, dailyCap,
+  project = null, savedRecord = null, questions = [], answeredCount = 0, answers = [], onAnswer, dailyCap,
   aiLocked = false,
 }: {
   /** The tutorial lock: the drill-in's AI call is refused while it holds. */
@@ -3266,8 +3280,9 @@ function ResultModal({
   project?: Project | null;
   /** The saved snapshot of this run; its actions show as done. */
   savedRecord?: CodeCheckRecord | null;
-  /** Answer-changing questions the model asked (at most 3 per thread). */
-  followUps?: CodeThreadFollowUp[];
+  /** Answer-changing questions the model asked (at most 3 per thread), as the
+   *  own-words gate let them through where the result came in. */
+  questions?: CodeThreadFollowUp[];
   answeredCount?: number;
   answers?: CodeThreadAnswer[];
   /** A tap re-runs the same check with the answer as a fact. */
@@ -3307,6 +3322,30 @@ function ResultModal({
     [result, evidence, jobText],
   );
   const anyCard = cards.some((c) => !!c);
+  // THE OWN-WORDS GATE, WHERE THE RESULT PRINTS. The summary and the four
+  // lists are AI text about a model code: each is read through the gate here
+  // and nowhere else in this sheet (validate-code-card-wiring sweeps for a
+  // read that is not the gate's argument). A list line is shown whole or not
+  // at all, and the list says so once, where the first hidden line was. A
+  // line's index here is its index in the saved check, which is built from
+  // the same call over the same lines.
+  const summaryShown = useMemo(() => ownWordsProse(result?.summary).text, [result]);
+  const permitList = useMemo(() => ownWordsList(result?.permitsRequired), [result]);
+  const inspectionList = useMemo(() => ownWordsList(result?.inspections), [result]);
+  const violationList = useMemo(() => ownWordsList(result?.commonViolations), [result]);
+  /** The questions he can tap (gated where the result came in, and again here). */
+  const askable = useMemo(() => ownWordsQuestions(questions), [questions]);
+  /** What the gate took out of the questions the AI asked on this run. */
+  const askedHidden = useMemo(() => ownWordsQuestions(result?.followUps), [result]);
+  const questionsHidden = askable.withheld + askedHidden.withheld;
+  const questionSections = useMemo(
+    () => [...askable.sections, ...askedHidden.sections.filter((x) => !askable.sections.includes(x))],
+    [askable, askedHidden],
+  );
+  /** His answers, each line whole: the question is the AI's wording. */
+  const answerLines = useMemo(() => ownWordsList(answers.map((a) => `${a.question} — ${a.answer}`)), [answers]);
+  /** The viewer links SENT with this result: what a prose notice may point at. */
+  const viewerLinks = useMemo(() => (grounding ? grounding.viewerLinks : []), [grounding]);
   const permitAnswer = usePermitOfficeAnswer(project, visible && anyCard);
   const cardInfo = useMemo(() => codeJurisdictionInfoFor(jurisdiction, permitAnswer, null), [jurisdiction, permitAnswer]);
   const wiring = useCodeCardWiring({ project, info: cardInfo, testID: 'code-check-cards' });
@@ -3347,10 +3386,13 @@ Return a JSON object with:
 - ruleOfThumb: one short field-usable rule of thumb for staying compliant, or '' if none applies.
 
 Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.
-Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.`;
+Write every requirement in your own words. Never quote or reproduce the text of any model code (ICC, NFPA) word for word.
+${PLAIN_SENTENCE_RULE}`;
 
     // The jurisdiction is in this prompt too, so it is in this key too.
-    const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
+    // `plain1`: an answer cached under the prompt as it was before its last
+    // line (the plain-sentence rule) is not replayed.
+    const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;
     try {
       const res = await mageAISmart(prompt, codeDetailSchema, cacheKey, 'ai_code_check');
       if (!res.success || !res.data) {
@@ -3461,7 +3503,13 @@ Write every requirement in your own words. Never quote or reproduce the text of 
               </View>
               {/* Gated at the door; gated again where it prints, so no
                   summary reaches the screen by any other road. */}
-              <Text style={styles.resultBody}>{ownWordsProse(result.summary).text}</Text>
+              <Text style={styles.resultBody}>{summaryShown}</Text>
+              {/* The paragraph carries the prose notice in its own text (so
+                  the saved check says it too). Here, and only when the viewer
+                  links are rendered right under it, it points at them. */}
+              {summaryShown.includes(PROSE_WITHHELD) ? (
+                <ProseWithheld said links={viewerLinks} testID="code-check-summary-withheld" />
+              ) : null}
             </View>
           ) : null}
 
@@ -3608,11 +3656,10 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                             )}
                             {/* Something in this answer read like code text and
                                 was taken out: said once, with the section still
-                                shown so he can read it in the free viewer. */}
+                                shown, and the free viewer under it when this
+                                result has one. */}
                             {st.data.withheld > 0 && (
-                              <Text style={styles.codeTapHint} testID={`code-detail-withheld-${i}`}>
-                                {detailWithheldNotice(c, st.data.sections)}
-                              </Text>
+                              <ProseWithheld sections={detailWithheldSections(c, st.data.sections)} links={viewerLinks} testID={`code-detail-withheld-${i}`} />
                             )}
                           </>
                         )}
@@ -3624,86 +3671,101 @@ Write every requirement in your own words. Never quote or reproduce the text of 
             </AccordionSection>
           )}
 
-          {result.permitsRequired.length > 0 && (
+          {(permitList.items.length > 0 || permitList.withheld > 0) && (
             <AccordionSection
               keyName="permits"
               title="Permits required"
-              count={result.permitsRequired.length}
+              count={permitList.items.length}
               Icon={ClipboardCheck}
               iconColor={Colors.primary}
               expanded={expanded === 'permits'}
               onToggle={toggle}
             >
-              {result.permitsRequired.map((p, i) => (
-                <View key={i}>
-                  <Text style={styles.bulletRow}>• {p}</Text>
-                  {savedRecord && project ? (
-                    <CodeThreadActions key={`permits-${i}-${p}`} record={savedRecord} project={project} section="permits" index={i} text={p} onBeforeNavigate={onClose} />
-                  ) : null}
-                </View>
+              {permitList.items.map((p, i) => (
+                <React.Fragment key={i}>
+                  <ListWithheld list={permitList} at={i} links={viewerLinks} testID="code-check-permits-withheld" />
+                  <View>
+                    <Text style={styles.bulletRow}>• {p}</Text>
+                    {savedRecord && project ? (
+                      <CodeThreadActions key={`permits-${i}-${p}`} record={savedRecord} project={project} section="permits" index={i} text={p} onBeforeNavigate={onClose} />
+                    ) : null}
+                  </View>
+                </React.Fragment>
               ))}
+              <ListWithheld list={permitList} at={permitList.items.length} links={viewerLinks} testID="code-check-permits-withheld" />
             </AccordionSection>
           )}
 
-          {result.inspections.length > 0 && (
+          {(inspectionList.items.length > 0 || inspectionList.withheld > 0) && (
             <AccordionSection
               keyName="inspections"
               title="Inspections"
-              count={result.inspections.length}
+              count={inspectionList.items.length}
               Icon={CheckCircle}
               iconColor={Colors.successLabel}
               expanded={expanded === 'inspections'}
               onToggle={toggle}
             >
-              {result.inspections.map((ins, i) => (
-                <View key={i}>
-                  <Text style={styles.bulletRow}>• {ins}</Text>
-                  {savedRecord && project ? (
-                    <CodeThreadActions key={`inspections-${i}-${ins}`} record={savedRecord} project={project} section="inspections" index={i} text={ins} onBeforeNavigate={onClose} />
-                  ) : null}
-                </View>
+              {inspectionList.items.map((ins, i) => (
+                <React.Fragment key={i}>
+                  <ListWithheld list={inspectionList} at={i} links={viewerLinks} testID="code-check-inspections-withheld" />
+                  <View>
+                    <Text style={styles.bulletRow}>• {ins}</Text>
+                    {savedRecord && project ? (
+                      <CodeThreadActions key={`inspections-${i}-${ins}`} record={savedRecord} project={project} section="inspections" index={i} text={ins} onBeforeNavigate={onClose} />
+                    ) : null}
+                  </View>
+                </React.Fragment>
               ))}
+              <ListWithheld list={inspectionList} at={inspectionList.items.length} links={viewerLinks} testID="code-check-inspections-withheld" />
             </AccordionSection>
           )}
 
-          {result.commonViolations.length > 0 && (
+          {(violationList.items.length > 0 || violationList.withheld > 0) && (
             <AccordionSection
               keyName="violations"
               title="Common violations"
-              count={result.commonViolations.length}
+              count={violationList.items.length}
               Icon={AlertTriangle}
               iconColor={Colors.warningLabel}
               expanded={expanded === 'violations'}
               onToggle={toggle}
             >
-              {result.commonViolations.map((v, i) => (
-                <View key={i}>
-                  <Text style={styles.bulletRow}>• {v}</Text>
-                  {savedRecord && project ? (
-                    <CodeThreadActions key={`violations-${i}-${v}`} record={savedRecord} project={project} section="violations" index={i} text={v} onBeforeNavigate={onClose} />
-                  ) : null}
-                </View>
+              {violationList.items.map((v, i) => (
+                <React.Fragment key={i}>
+                  <ListWithheld list={violationList} at={i} links={viewerLinks} testID="code-check-violations-withheld" />
+                  <View>
+                    <Text style={styles.bulletRow}>• {v}</Text>
+                    {savedRecord && project ? (
+                      <CodeThreadActions key={`violations-${i}-${v}`} record={savedRecord} project={project} section="violations" index={i} text={v} onBeforeNavigate={onClose} />
+                    ) : null}
+                  </View>
+                </React.Fragment>
               ))}
+              <ListWithheld list={violationList} at={violationList.items.length} links={viewerLinks} testID="code-check-violations-withheld" />
             </AccordionSection>
           )}
 
           {/* Code Thread: questions whose answer would change the result. */}
-          {followUps.length > 0 || answers.length > 0 ? (
+          {askable.items.length > 0 || answers.length > 0 || (questionsHidden > 0 && answeredCount < MAX_FOLLOW_UPS) ? (
             <View style={styles.historyChipWrap} testID="codethread-followups">
               {answers.length > 0 ? (
                 <View style={styles.threadAnswered}>
                   <Text style={styles.codeDetailHeading}>Your answers (sent as facts)</Text>
-                  {answers.map((a, k) => (
-                    <Text key={`${a.questionId}-${k}`} style={styles.codeDetailBullet}>{`• ${a.question} — ${a.answer}`}</Text>
+                  {answerLines.items.map((line, k) => (
+                    <Text key={`${k}-${line}`} style={styles.codeDetailBullet}>{`• ${line}`}</Text>
                   ))}
+                  {answerLines.withheld > 0 ? (
+                    <ProseWithheld sections={answerLines.sections} links={viewerLinks} testID="codethread-answers-withheld" />
+                  ) : null}
                 </View>
               ) : null}
               {answeredCount >= MAX_FOLLOW_UPS ? (
                 <Text style={styles.threadCaption}>You’ve answered 3 questions — the check won’t ask more.</Text>
-              ) : followUps.length > 0 ? (
+              ) : askable.items.length > 0 ? (
                 <>
                   <Text style={styles.codeDetailHeading}>A detail that changes the answer</Text>
-                  {followUps.map((fu) => (
+                  {askable.items.map((fu) => (
                     <View key={fu.id} style={styles.threadQuestion}>
                       <Text style={styles.codeReq}>{fu.question}</Text>
                       <View style={styles.chipWrap}>
@@ -3724,12 +3786,19 @@ Write every requirement in your own words. Never quote or reproduce the text of 
                       </View>
                     </View>
                   ))}
+                  {/* A question that read like code text is not asked: said
+                      once for the questions, after the ones he can answer. */}
+                  {questionsHidden > 0 ? (
+                    <ProseWithheld sections={questionSections} links={viewerLinks} testID="codethread-followups-withheld" />
+                  ) : null}
                   <Text style={styles.threadCaption}>
                     {dailyCap === undefined || dailyCap === Infinity
                       ? 'Each answer re-runs the check (it counts toward your AI requests).'
                       : `Each answer re-runs the check (uses 1 of today's ${dailyCap}).`}
                   </Text>
                 </>
+              ) : questionsHidden > 0 ? (
+                <ProseWithheld sections={questionSections} links={viewerLinks} testID="codethread-followups-withheld" />
               ) : null}
             </View>
           ) : null}
@@ -3748,6 +3817,60 @@ Write every requirement in your own words. Never quote or reproduce the text of 
       </SheetOverlay>
     </Modal>
   );
+}
+
+/**
+ * THE NOTICE ON A PROSE SURFACE of the Code Check result (the summary, the
+ * drill-in, the three lists, the follow-up questions): MAGE hid wording that
+ * read like code text, with the section numbers that are known.
+ *
+ * THE VIEWER RULE, in one place: the notice points at the publisher's free
+ * viewer exactly when the viewer links are rendered right under it, by the
+ * same test (`links.length > 0`). With no link (the jurisdiction is not
+ * known) it names no button and no link. It never says "Use Official text":
+ * that button is on a code card, not on a paragraph or a list.
+ *
+ * `said`: the notice is already in the text above (the summary carries it in
+ * the paragraph, so the saved check says it too); only the viewer line and
+ * the links print, or nothing when there is no link.
+ */
+function ProseWithheld({
+  sections = [], links, testID, said = false,
+}: {
+  sections?: readonly string[];
+  links: { label: string; url: string }[];
+  testID: string;
+  said?: boolean;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const viewer = links.length > 0;
+  if (said && !viewer) return null;
+  return (
+    <>
+      <Text style={styles.codeTapHint} testID={testID}>
+        {said ? PROSE_VIEWER_LINE : withheldNotice(sections, { viewer })}
+      </Text>
+      {viewer ? <ViewerLinks links={links} testID={`${testID}-viewer`} /> : null}
+    </>
+  );
+}
+
+/**
+ * A Code Check list's notice, at its place. The gate (ownWordsList) says where
+ * the first hidden line was (`noticeAt`: before that kept line, or after the
+ * last one); a list mounts this before every line and once after the last,
+ * and it prints at that one place only, so a list says it ONCE.
+ */
+function ListWithheld({
+  list, at, links, testID,
+}: {
+  list: ProseList<string>;
+  at: number;
+  links: { label: string; url: string }[];
+  testID: string;
+}) {
+  if (list.withheld === 0 || at !== list.noticeAt) return null;
+  return <ProseWithheld sections={list.sections} links={links} testID={testID} />;
 }
 
 function AccordionSection({

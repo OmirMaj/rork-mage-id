@@ -27,9 +27,12 @@
 //
 // Own words only (lane CARDS2): the recall list comes out of buildChecklist
 // already through the code cards' own-words gate. When the gate took anything
-// out, the recall group says so ONCE with the cards' own notice and the
-// section numbers of the hidden lines, and offers the publisher's free viewer
-// for the editions this job is under (volume links, through viewerUrlToOpen).
+// out, the recall group says so ONCE with the PROSE notice (a list has no
+// Official text button, so the notice names none) and the section numbers of
+// the hidden lines, and offers the publisher's free viewer for the editions
+// this job is under (volume links, through viewerUrlToOpen). The notice points
+// at the viewer ONLY when those links are rendered right under it: with no
+// link (the jurisdiction is not known) it names no button and no link.
 // Nothing withheld: the sheet is byte-identical to before.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -431,11 +434,12 @@ export default function InspectionReadySheet({
                     ? <Text style={s.empty}>Nothing to add beyond the lists above.</Text>
                     : null}
                   {/* The own-words gate took something out of the recall
-                      answer: said once, with the section numbers still shown
-                      and the free viewer one tap away. */}
+                      answer: said once, with the section numbers still shown.
+                      The notice points at the free viewer exactly when the
+                      viewer buttons below are rendered (the same test). */}
                   {full.recallWithheld.count > 0 ? (
                     <View style={s.proBox} testID="inspection-prep-recall-withheld">
-                      <Text style={s.empty}>{withheldNotice(jurisdictionKnown ? full.recallWithheld.codeRefs : [])}</Text>
+                      <Text style={s.empty}>{withheldNotice(jurisdictionKnown ? full.recallWithheld.codeRefs : [], { viewer: grounding.viewerLinks.length > 0 })}</Text>
                       {grounding.viewerLinks.map((l) => (
                         <TouchableOpacity
                           key={l.url}

@@ -70,8 +70,22 @@
 //      where the AI's answer comes in, and a second sweep fails any read of
 //      those AI strings that is not the gate's argument, a read off the gate's
 //      own output, or a listed line that prints nothing. When anything was
-//      withheld the surface says so once, with the cards' own notice and the
-//      section number still shown.
+//      withheld the surface says so once, with the PROSE notice (lane CARDS3:
+//      a paragraph has no Official text button, so its notice names none) and
+//      the section number still shown.
+//   4f. THE CODE CHECK LISTS AND THE PROSE NOTICE (lane CARDS3): the permits,
+//      inspections, common violations and follow-up questions of a Code Check
+//      result print and are saved only through the kit's list gate (a line
+//      whole or not at all, the notice once per list). The sweep reads the
+//      result's keys from its schema and fails any read of one, anywhere in
+//      the screen, that is not a gate's argument. The notice points at the
+//      publisher's free viewer ONLY where the viewer links are rendered right
+//      under it, by the same test; with no link it names no button and no link.
+//      THE PROMPTS: the drill-in and Inspection Ready's recall prompt carry
+//      the Code Check prompt's plain-sentence line from ONE source; each
+//      prompt is pinned against the sha256 of what it was before (the Code
+//      Check prompt reads the same; the other two differ by that line only),
+//      and the two changed prompts' cache keys moved (::plain1).
 //   5. The client opt-in: both functions send the code-card rows only when the
 //      request asks (`codeCards: true`), and the two request helpers are
 //      outside this lane. None of it applied = a loud notice (a failure under
@@ -83,14 +97,15 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createHash } from 'node:crypto';
 import {
   askTownBlockedReason, askTownKind, buildQuestionPrompt, codeCardQuestion, routeOfficeQuestion,
   TOWN_FILING_FACT, TOWN_NAME_ONLY_NOTE, type TownOfficeLike,
 } from '../utils/departmentQuestion';
 import { DEPARTMENTS, NAME_ONLY_NOTE } from '../utils/permitOffices';
 import {
-  bookedStageDays, buildChecklist, pinnedPrepItems, PINNED_NOTE, recallOwnWords, stageForInspectionName,
-  type RecallAnswer, type UpcomingInspection,
+  bookedStageDays, buildChecklist, buildRecallPrompt, pinnedPrepItems, PINNED_NOTE, RECALL_PROMPT_VERSION, recallOwnWords, stageForInspectionName,
+  type PrepItem, type RecallAnswer, type UpcomingInspection,
 } from '../utils/inspectionPrep';
 import { z } from 'zod';
 import { codeCardStoreBlockedReason, parseCodeCardItem, parseCodeCardItems, STORED_TEXT_MAX } from '../utils/codeCard/parse';
@@ -98,7 +113,10 @@ import { EMPTY_REMEASURES, keptIsShown, recordRemeasure, remeasureFor } from '..
 import { rfiFromSweepFinding, punchFromSweepFinding, sweepFindingView } from '../utils/plans/planSweep';
 import { canRecheck, effectiveVerdict, recheckOutcome, stepJobValue } from '../utils/codeCard/verdict';
 import { architectMessageFor, shareBlockedReason, shareTextFor, NO_WORDS_SEND } from '../utils/codeCard/shareText';
-import { isStandInLine, ownWordsBlock, ownWordsProse, passesEchoCheck, passesProseCheck, withheldNotice, LINE_NO_TEXT, LINE_WITHHELD } from '../utils/codeCard/echoCheck';
+import {
+  isStandInLine, ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, passesProseCheck, withheldNotice,
+  LINE_NO_TEXT, LINE_WITHHELD, PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,
+} from '../utils/codeCard/echoCheck';
 import { saysNumberWithUnit } from '../utils/codeCard/saysWithUnit';
 import { evidenceView, sectionIsBacked } from '../utils/codeCard/evidence';
 import { EMPTY_PINS, makePin, parsePinsState, pinnedStage, pinsReducer } from '../utils/codeCard/pins';
@@ -106,7 +124,7 @@ import { EMPTY_SAVED, isSaved, makeSaved, parseSavedState, savedReducer } from '
 import { followUpsZod } from '../utils/codeThread/followUps';
 import { inferSchema } from '../supabase/functions/_shared/inferSchema';
 import { citationEvidenceFor } from '../utils/codeAmendments';
-import { resolveCodeJurisdiction } from '../utils/codeJurisdiction';
+import { resolveCodeJurisdiction, type JurisdictionGrounding } from '../utils/codeJurisdiction';
 import { encodePermitInspectionNotes } from '../utils/permitInspectionHistory';
 import type { CodeCardItem, CodePin } from '../utils/codeCard/types';
 import type { Permit, Project } from '../types';
@@ -856,19 +874,83 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('the Code Check prompt says which way a comparison points, and that a minimum or a maximum is a "limit" whose sign is the side the job has to stay on (the Ask prompt’s sentence)',
     main.includes('how the job\'s number stands against it when the requirement applies (">", ">=", "<" or "<="): a guard needed once a deck is more than 30 in. up is ">" with 30.')
       && main.includes('A minimum or a maximum the work has to stay within is always verdict "limit", never "required", and its comparison is the side the job has to stay on: a guard at least 36 in. high is ">=" with 36, a gap at most 4 in. wide is "<=" with 4'));
+  // THE PLAIN-SENTENCE LINE (lanes CARDS2 and CARDS3). The Code Check prompt
+  // has carried it since CARDS2; CARDS3 added it to the drill-in and to
+  // Inspection Ready's recall prompt, FROM ONE SOURCE (PLAIN_SENTENCE_RULE in
+  // utils/codeCard/echoCheck.ts). Each prompt is pinned against the sha256 of
+  // what it was BEFORE that change (recorded from ae144a83, the untouched
+  // files), so the proof is exact: the Code Check prompt reads the same, and
+  // the other two differ from their old text by that one line and nothing else.
+  const PLAIN = 'Write each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or \' marks.';
+  const PLAIN_REF = '${PLAIN_SENTENCE_RULE}';
+  const sha256 = (t: string) => createHash('sha256').update(t).digest('hex');
+  /** A prompt's template source: from `const prompt = \`<first words>` to the closing backtick. */
+  const promptSrc = (firstWords: string) => between(index, `const prompt = \`${firstWords}`, '`;\n');
+  const MAIN_SHA_BEFORE = '6f971c02278343fe4273f8a5a45f2873ea634f83235d019fc62190a1d732462e';
+  const DRILL_SHA_BEFORE = '5ab91e45593c0b5baf93a234c1c5a4bdb3a7506bf8c8e975afb493d71f733165';
+  ok('the plain-sentence rule is ONE exported sentence (short plain sentences, no quotation marks, inches as in. and feet as ft), and the screen and the recall prompt import it from the kit',
+    PLAIN_SENTENCE_RULE === PLAIN && read('utils/codeCard/echoCheck.ts').split(PLAIN).length === 2
+      && !index.includes('one short plain sentence') && !read('utils/inspectionPrep.ts').includes('one short plain sentence')
+      && /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,\s/.test(index)
+      && read('utils/inspectionPrep.ts').includes("import { PLAIN_SENTENCE_RULE, ownWordsProse, sectionsIn } from '@/utils/codeCard/echoCheck';"));
   ok('the Code Check prompt asks for plain sentences with no quotation marks and inches as in. (the gate withholds a quoted line), straight after the no-verbatim sentence, as its last line',
-    main.includes(`\n${NO_VERBATIM}\nWrite each requirement as one short plain sentence of under 25 words, with no quotation marks. Write inches as in. and feet as ft (36 in., 6 ft 8 in.), never with the " or ' marks.\`;\n`));
-  ok('Inspection Ready’s recall prompt carries the no-verbatim sentence too, as one of its RULES',
-    read('utils/inspectionPrep.ts').includes(`'- ${NO_VERBATIM}',\n  ];\n  const prompt = lines.join('\\n');`));
+    main.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\`;\n`));
+  const mainSrc = promptSrc('A contractor is working on the following project and needs a building-code sanity check.');
+  ok('…and the Code Check prompt READS exactly as it did before the sentence moved to the kit: with the sentence put back in place of its name, its source has the sha256 recorded before the change',
+    mainSrc.split(PLAIN_REF).length === 2 && sha256(mainSrc.replace(PLAIN_REF, PLAIN)) === MAIN_SHA_BEFORE, sha256(mainSrc.replace(PLAIN_REF, PLAIN)));
+  ok('…so its cache key did not move (still cards2: answers written under an unchanged prompt may be replayed)',
+    /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !/::cards[013-9]/.test(index));
+
+  // Inspection Ready's recall prompt: run, not grepped.
+  {
+    const prepSrc = read('utils/inspectionPrep.ts');
+    ok('Inspection Ready’s recall prompt carries the no-verbatim sentence as one of its RULES, and the plain-sentence line straight after it, as its last rule',
+      /'- Write every requirement in your own words\. Never quote or reproduce the text of any model code \(ICC, NFPA\) word for word\.',\n(?:\s*\/\/[^\n]*\n)*\s*`- \$\{PLAIN_SENTENCE_RULE\}`,\n {2}\];\n {2}const prompt = lines\.join\('\\n'\);/.test(prepSrc)
+        && prepSrc.includes(`'- ${NO_VERBATIM}',\n`) && prepSrc.split(PLAIN_REF).length === 2);
+    const inspection: UpcomingInspection = {
+      key: 'p1:framing:2026-10-06', projectId: 'p1', name: 'Framing inspection', day: '2026-10-06', daysUntil: 2,
+      source: { kind: 'task', taskId: 't1' }, authority: 'Town of Sample', category: null, permitId: null, taskId: 't1', taskName: 'Framing inspection',
+    };
+    const covered: PrepItem[] = [
+      { id: 'h1', group: 'history', text: 'Sample: nail plates at the notched studs', why: 'From your inspection record' },
+      { id: 's1', group: 'scope', text: 'Sample: deck framing (240 sf)', why: 'From this project\u2019s estimate' },
+    ];
+    // sha256 of this fixture's prompt on the UNTOUCHED file (ae144a83), with an edition named and with none.
+    const RECALL_SHA_BEFORE: [boolean, string][] = [
+      [true, '30299efe4dd60c6ac6f047a165f46238966d0849c1d0070cdff8f8b693206843'],
+      [false, '0723072f00e703b8e1b214ea7ab9b221a3cd35f917ad5d853163f542c0c9ea01'],
+    ];
+    const KEY_BEFORE = 'inspection_prep::p1:framing:2026-10-06::sample-j::qgvzjp::[["Sample: any stairs?","Yes"]]';
+    const runs = RECALL_SHA_BEFORE.map(([grounded, before]) => {
+      const jurisdiction = { promptBlock: 'SAMPLE JURISDICTION BLOCK', cacheKey: 'sample-j', grounded, chipLabel: 'Sample', viewerLinks: [] } as unknown as JurisdictionGrounding;
+      const r = buildRecallPrompt({ inspection, project: { id: 'p1', name: 'Sample deck' } as unknown as Project, jurisdiction, covered, answers: { 'Sample: any stairs?': 'Yes' } });
+      return { before, lines: r.prompt.split('\n'), key: r.cacheKey };
+    });
+    ok('the recall prompt as RUN ends with the no-verbatim rule and then the plain-sentence rule (with an edition named, and with none)',
+      runs.every((r) => r.lines[r.lines.length - 1] === `- ${PLAIN}` && r.lines[r.lines.length - 2] === `- ${NO_VERBATIM}`), runs.map((r) => r.lines.slice(-2).join(' / ')).join(' | '));
+    ok('…and that line is the ONLY change: without its last line the prompt has the sha256 recorded on the untouched file, on both paths',
+      runs.every((r) => sha256(r.lines.slice(0, -1).join('\n')) === r.before), runs.map((r) => sha256(r.lines.slice(0, -1).join('\n'))).join(' | '));
+    ok('an answer cached under the old recall prompt is not replayed: the cache key is the old key plus the prompt version (plain1), and nothing else moved',
+      RECALL_PROMPT_VERSION === 'plain1' && runs.every((r) => r.key === `${KEY_BEFORE}::plain1`)
+        && prepSrc.includes("}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;") && prepSrc.includes("export const RECALL_PROMPT_VERSION = 'plain1';"), runs.map((r) => r.key).join(' | '));
+  }
   ok('an answer cached before the limit rule is not replayed (the cache key moved to cards2)',
     /::\$\{answersCacheFragment\(answered\)\}::cards2`;/.test(index) && !index.includes('::cards1'));
   const drill = between(index, 'A contractor ran a code check and wants to understand ONE specific code citation in depth.', 'const cacheKey = `code_detail::');
   ok('the drill-in prompt carries the sentence too', drill.includes(NO_VERBATIM));
   const detailSchema = between(index, 'const codeDetailSchema = z.object({', '\ntype CodeDetail');
   ok('the drill-in asks for NOTHING its schema cannot carry (prose fields only; no card fields)',
-    drill.includes(`\n${NO_VERBATIM}\`;\n`) && !/verdict|whatToBuild|\btrigger\b|triggerValue|jobNumber|structured fields/.test(drill)
+    drill.includes(`\n${NO_VERBATIM}\n${PLAIN_REF}\`;\n`) && !/verdict|whatToBuild|\btrigger\b|triggerValue|jobNumber|structured fields/.test(drill)
       && ['plainEnglish', 'appliesBecause', 'inspectorChecks', 'commonFailures', 'ruleOfThumb'].every((k) => drill.includes(`- ${k}:`) && detailSchema.includes(`${k}: z.`)),
     drill.slice(-200));
+  const drillSrc = promptSrc('A contractor ran a code check and wants to understand ONE specific code citation in depth.');
+  ok('the drill-in prompt carries the plain-sentence line, straight after the no-verbatim sentence, as its last line: the same sentence the Code Check prompt carries, by name',
+    drillSrc.endsWith(`\n${NO_VERBATIM}\n${PLAIN_REF}`) && index.split(PLAIN_REF).length === 3);
+  ok('…and that line is the ONLY change to the drill-in prompt: without it, its source has the sha256 recorded on the untouched file',
+    drillSrc.split(`\n${PLAIN_REF}`).length === 2 && sha256(drillSrc.replace(`\n${PLAIN_REF}`, '')) === DRILL_SHA_BEFORE, sha256(drillSrc.replace(`\n${PLAIN_REF}`, '')));
+  ok('an answer cached under the old drill-in prompt is not replayed: the cache key is the old key plus ::plain1',
+    index.includes("const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;")
+      && (index.match(/`code_detail::/g) ?? []).length === 1);
 
   const viewer = between(index, 'function ViewerLinks(', 'function RungBadge(');
   ok("the ICC line sits inside ViewerLinks, after the buttons", viewer.indexOf('<Text style={styles.viewerLinkNote}>{ICC_VIEWER_NOTE}</Text>') > viewer.indexOf('{links.map('));
@@ -1151,7 +1233,7 @@ console.log('\n4b. The withhold rule covers every place the line can appear');
         'the check saved to the job: `data` is the gated result (pinned below)'],
       ["Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}",
         'the drill-in PROMPT (sent to the AI, not shown); `c` is a row of the gated result, and a stand-in line is never sent as a requirement'],
-      ["const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;",
+      ["const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}::plain1`;",
         'a cache key, never shown'],
       ['<CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={codeCheckPlainLine(c.requirement, passesEchoCheck)} onBeforeNavigate={onClose} />',
         'a React key (never shown); the text the permit / punch item / RFI is built from is the gated line'],
@@ -1468,9 +1550,12 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
       /const aiResult = res\.data as CodeCheckResult;\s+const data = \{ \.\.\.codeCheckOwnWords\(aiResult, passesEchoCheck\), summary: ownWordsProse\(aiResult\.summary\)\.text \};/.test(index)
         && (index.match(/\baiResult\b/g) ?? []).length === 3
         && between(index, 'const resultSnapshot: CodeCheckResultSnapshot = {', '};').includes('summary: data.summary,')
-        && index.includes('<Text style={styles.resultBody}>{ownWordsProse(result.summary).text}</Text>')
-        && (index.match(/styles\.resultBody\}/g) ?? []).length === 1);
-    ok('the summary gate carries its notice in the text (default mode), so the saved check says it too', !/ownWordsProse\((?:aiResult|result)\.summary, /.test(index));
+        && index.includes('const summaryShown = useMemo(() => ownWordsProse(result?.summary).text, [result]);')
+        && index.includes('<Text style={styles.resultBody}>{summaryShown}</Text>')
+        && (index.match(/styles\.resultBody\}/g) ?? []).length === 1 && (index.match(/\bconst summaryShown\b/g) ?? []).length === 1);
+    ok('the summary gate carries its notice in the text (default mode), so the saved check says it too', !/ownWordsProse\((?:aiResult|result)\??\.summary, /.test(index));
+    ok('CARDS3: under a summary that carries the notice, the screen points at the free viewer only through ProseWithheld (its `said` mode: the viewer line and the links together, or nothing)',
+      /\{summaryShown\.includes\(PROSE_WITHHELD\) \? \(\s*<ProseWithheld said links=\{viewerLinks\} testID="code-check-summary-withheld" \/>\s*\) : null\}/.test(index));
   }
 
   // (b) the drill-in
@@ -1485,13 +1570,13 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
         && index.includes('type CodeDetailOwnWords = ProseBlock<CodeDetail>;') && /type CodeDetailState = \{\s+loading: boolean;\s+data: CodeDetailOwnWords \| null;/.test(index)
         && index.includes('const [details, setDetails] = useState<Record<string, CodeDetailState>>({});') && index.includes('const st = details[key];')
         && (index.match(/\bconst st = /g) ?? []).length === 1);
-    ok('a drill-in with something taken out says so ONCE, with the card’s notice and the row’s section still shown',
-      /\{st\.data\.withheld > 0 && \(\s*<Text style=\{styles\.codeTapHint\} testID=\{`code-detail-withheld-\$\{i\}`\}>\s*\{detailWithheldNotice\(c, st\.data\.sections\)\}\s*<\/Text>\s*\)\}/.test(index)
-        && (index.match(/detailWithheldNotice\(/g) ?? []).length === 2
+    ok('a drill-in with something taken out says so ONCE, with the PROSE notice (ProseWithheld) and the row’s section still shown',
+      /\{st\.data\.withheld > 0 && \(\s*<ProseWithheld sections=\{detailWithheldSections\(c, st\.data\.sections\)\} links=\{viewerLinks\} testID=\{`code-detail-withheld-\$\{i\}`\} \/>\s*\)\}/.test(index)
+        && (index.match(/detailWithheldSections\(/g) ?? []).length === 2 && !/detailWithheldNotice/.test(index)
         && index.includes("const label = c.section.trim() ? [c.code, c.section].filter(Boolean).join(' ') : '';")
-        && index.includes('return withheldNotice([label, ...sections.filter((s) => !label.includes(s))]);'));
+        && index.includes('return [label, ...sections.filter((s) => !label.includes(s))];'));
     ok('the kit’s prose gate is the one the screen imports',
-      index.includes("import { ownWordsBlock, ownWordsProse, passesEchoCheck, withheldNotice, type ProseBlock } from '@/utils/codeCard/echoCheck';"));
+      /import \{\s+PLAIN_SENTENCE_RULE, PROSE_VIEWER_LINE, PROSE_WITHHELD,\s+ownWordsBlock, ownWordsList, ownWordsProse, ownWordsQuestions, passesEchoCheck, withheldNotice,\s+type ProseBlock, type ProseList,\s+\} from '@\/utils\/codeCard\/echoCheck';/.test(index));
     // What the screen then holds, with the real gate.
     const answer = {
       plainEnglish: 'A guard goes on every open side once the deck is more than 30 in. up. Guards shall be not less than 36 in. high. Keep the gaps tight.',
@@ -1506,7 +1591,9 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
         && held.value.inspectorChecks.join('|') === 'Guard height at the low side|Baluster spacing' && held.value.commonFailures.length === 0 && held.value.ruleOfThumb === answer.ruleOfThumb
         && held.withheld === 3 && held.sections.join() === 'R312.1'
         && [held.value.plainEnglish, held.value.appliesBecause, ...held.value.inspectorChecks, ...held.value.commonFailures, held.value.ruleOfThumb].every((t) => passesProseCheck(t)));
-    ok('…its notice is the card’s line with the section after it', withheldNotice(['IRC R312.1']) === `${LINE_WITHHELD} Section: IRC R312.1.`);
+    ok('…its notice is the PROSE line with the section after it (never the card’s "Use Official text"), and the viewer line only when a link is under it',
+      withheldNotice(['IRC R312.1']) === `${PROSE_WITHHELD} Section: IRC R312.1.` && withheldNotice(['IRC R312.1'], { viewer: true }) === `${PROSE_WITHHELD} Section: IRC R312.1. ${PROSE_VIEWER_LINE}`
+        && !withheldNotice(['IRC R312.1'], { viewer: true }).includes('Official text'));
     const clean = ownWordsBlock({ ...answer, plainEnglish: 'A guard goes on every open side.', inspectorChecks: ['Guard height'], commonFailures: ['Guard left off the stair side'] });
     ok('a drill-in in plain words is held exactly as the AI wrote it, with no notice', clean.withheld === 0 && clean.value.plainEnglish === 'A guard goes on every open side.' && clean.value.commonFailures.length === 1);
   }
@@ -1543,13 +1630,17 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
     ok('what the sheet prints from recall comes from buildChecklist’s gated lists only',
       sheetSrc.includes("recall: full.items.filter((i) => i.group === 'recall'),") && sheetSrc.includes("verify: full.items.filter((i) => i.group === 'verify'),")
         && sheetSrc.includes('{full.followUps.map((q) => (') && (sheetSrc.match(/\bfollowUps\b/g) ?? []).length === 1);
-    ok('when the gate took anything out, the recall group says so ONCE with the cards’ notice and the hidden lines’ section numbers, and offers the free viewer',
-      /\{full\.recallWithheld\.count > 0 \? \(\s*<View style=\{s\.proBox\} testID="inspection-prep-recall-withheld">\s*<Text style=\{s\.empty\}>\{withheldNotice\(jurisdictionKnown \? full\.recallWithheld\.codeRefs : \[\]\)\}<\/Text>/.test(sheetSrc)
+    ok('when the gate took anything out, the recall group says so ONCE with the PROSE notice and the hidden lines’ section numbers, and offers the free viewer',
+      /\{full\.recallWithheld\.count > 0 \? \(\s*<View style=\{s\.proBox\} testID="inspection-prep-recall-withheld">\s*<Text style=\{s\.empty\}>\{withheldNotice\(jurisdictionKnown \? full\.recallWithheld\.codeRefs : \[\], \{ viewer: grounding\.viewerLinks\.length > 0 \}\)\}<\/Text>/.test(sheetSrc)
         && (sheetSrc.match(/withheldNotice\(/g) ?? []).length === 1 && sheetSrc.includes("import { withheldNotice } from '@/utils/codeCard/echoCheck';")
         && sheetSrc.includes('const href = viewerUrlToOpen(l.url);') && !/Linking\.openURL\((?!href\))/.test(sheetSrc)
         && sheetSrc.includes('{grounding.viewerLinks.length > 0 ? <Text style={s.groundingChip}>{RECALL_VIEWER_NOTE}</Text> : null}')
         && sheetSrc.includes(`export const RECALL_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";`)
         && index.includes(`const ICC_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";`));
+    ok('CARDS3, Inspection Ready: the notice points at the viewer by the SAME test that renders the viewer buttons, and the buttons are the next thing in the same box; the sheet never says "Official text"',
+      /<Text style=\{s\.empty\}>\{withheldNotice\([^\n]*\{ viewer: grounding\.viewerLinks\.length > 0 \}\)\}<\/Text>\s*\{grounding\.viewerLinks\.map\(\(l\) => \(\s*<TouchableOpacity/.test(sheetSrc)
+        && (sheetSrc.match(/grounding\.viewerLinks\.length > 0/g) ?? []).length === 2 && (sheetSrc.match(/grounding\.viewerLinks\.map\(/g) ?? []).length === 1
+        && !/Official text|LINE_WITHHELD|PROSE_VIEWER_LINE/.test(code(sheetSrc)));
     ok('…and "Nothing to add" is not said when lines were hidden',
       sheetSrc.includes('{!recallBusy && !recallError && entry.recall && byGroup.recall.length === 0 && full.recallWithheld.count === 0'));
 
@@ -1595,7 +1686,9 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
       recallRows.map((i) => `${i.group}:${i.text}`).join('|') === 'recall:Guard on every open side of the deck|recall:Check the baluster spacing.|verify:Handrail on the stair|verify:Ledger flashing behind the siding'
         && recallRows[1].codeRef === 'R312.1.3' && recallRows[2].why === '' && built.followUps.length === 1
         && built.recallWithheld.count === 6 && built.recallWithheld.codeRefs.join('|') === '2025 RCNYS R312.1.1|R312.1.3'
-        && withheldNotice(built.recallWithheld.codeRefs) === `${LINE_WITHHELD} Sections: 2025 RCNYS R312.1.1, R312.1.3.`, JSON.stringify(recallRows));
+        && withheldNotice(built.recallWithheld.codeRefs) === `${PROSE_WITHHELD} Sections: 2025 RCNYS R312.1.1, R312.1.3.`
+        && withheldNotice(built.recallWithheld.codeRefs, { viewer: true }) === `${PROSE_WITHHELD} Sections: 2025 RCNYS R312.1.1, R312.1.3. ${PROSE_VIEWER_LINE}`
+        && withheldNotice([], { viewer: false }) === PROSE_WITHHELD, JSON.stringify(recallRows));
     const plain = buildChecklist({ inspection, project: job({}), permits: [], recall: { items: [recall.items[0], recall.items[4]], followUps: [recall.followUps[0]] } });
     ok('…and with nothing hidden the count is 0 (no notice), and with no recall at all too',
       plain.recallWithheld.count === 0 && plain.items.length === 2 && buildChecklist({ inspection, project: job({}), permits: [], recall: null }).recallWithheld.count === 0);
@@ -1625,11 +1718,181 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
   {
     const summary = 'This deck is more than 30 in. above grade, so it needs a guard on every open side. R312.1 "Guards" says guards shall be provided. Plan on a building permit and a final inspection.';
     const shown = ownWordsProse(summary);
-    ok('the summary: the code-shaped sentence is replaced by the card’s notice with its section number, and the rest of the paragraph stays',
-      shown.text === `This deck is more than 30 in. above grade, so it needs a guard on every open side. ${LINE_WITHHELD} Section: R312.1. Plan on a building permit and a final inspection.` && shown.withheld === 1);
+    ok('the summary: the code-shaped sentence is replaced by the PROSE notice with its section number (no "Use Official text", no viewer line: this text is saved), and the rest of the paragraph stays',
+      shown.text === `This deck is more than 30 in. above grade, so it needs a guard on every open side. ${PROSE_WITHHELD} Section: R312.1. Plan on a building permit and a final inspection.` && shown.withheld === 1
+        && !shown.text.includes('Official text') && !shown.text.includes(PROSE_VIEWER_LINE) && LINE_WITHHELD.includes('Use Official text'));
+    const savedBefore = `Sample: plan on a guard. ${LINE_WITHHELD} Section: R312.1. Sample: book the final.`;
+    ok('…and a summary SAVED with the card’s line in it (a check run before the prose notice) prints the prose notice in its place, on every screen that prints it through the gate',
+      ownWordsProse(savedBefore).text === `Sample: plan on a guard. ${PROSE_WITHHELD} Section: R312.1. Sample: book the final.` && ownWordsProse(savedBefore).withheld === 0);
     ok('…a long plain paragraph is shown whole (no word cap on prose), and gating the gated text again changes nothing',
       ownWordsProse(`${'This is an ordinary long sentence about the job that keeps going with plain words '.repeat(6)}and then it ends.`).withheld === 0
         && ownWordsProse(shown.text).text === shown.text && ownWordsProse(shown.text).withheld === 0 && !isStandInLine(shown.text));
+  }
+
+  // ── 4f. The Code Check LISTS and the prose notice (lane CARDS3) ───────────
+  //
+  // COPYRIGHT. Four more places printed AI text about a model code with only
+  // the prompt between the model and the screen: the result's PERMITS,
+  // INSPECTIONS and COMMON VIOLATIONS lists and its FOLLOW-UP QUESTIONS. Each
+  // line now goes through the kit's list gate (ownWordsList /
+  // ownWordsQuestions: prose mode, a line whole or not at all), where it
+  // prints AND where it is saved to the job, and a list says so once.
+  //
+  // THE SWEEP. Every AI string of the Code Check result is a top-level key of
+  // codeCheckSchema. The keys are READ FROM THE SCHEMA, so a key added to the
+  // schema later is swept from the day it is added: anywhere in the screen, a
+  // read of one of them must be the argument of a gate (ownWordsProse for the
+  // paragraph, ownWordsList / ownWordsQuestions for the lists), a trusted
+  // receiver pinned below to be something that is not an AI answer, or a
+  // listed line that prints nothing. `applicableCodes` is the one key left to
+  // section 4b: its rows' requirement lines have their own sweep there.
+  console.log('\n4f. The Code Check lists, the follow-up questions and the prose notice (lane CARDS3)');
+  {
+    const schemaSrc = between(index, 'const codeCheckSchema = z.object({', '\ntype CodeCheckResult');
+    const schemaKeys = [...schemaSrc.matchAll(/^ {2}([A-Za-z]+): /gm)].map((m) => m[1]);
+    ok('the Code Check result’s keys are read from its schema: the paragraph, the rows, three lists, the disclaimer and the follow-ups',
+      schemaKeys.join() === 'summary,applicableCodes,permitsRequired,inspections,commonViolations,disclaimer,followUps', schemaKeys.join());
+    const LIST_GATE = /(?:ownWordsList|ownWordsQuestions)\(\s*$/;
+    // `roadmap` / `newRoadmap` are the permit roadmap (its own `.inspections`,
+    // records with ids and statuses), and `styles` is the stylesheet
+    // (`styles.disclaimer`): neither is a Code Check answer. Pinned below.
+    const LISTS: Surface = {
+      keys: schemaKeys.filter((k) => k !== 'summary' && k !== 'applicableCodes'),
+      gate: LIST_GATE,
+      trusted: ['roadmap', 'newRoadmap', 'styles'],
+      allowed: [],
+    };
+    // What the result sheet prints of a follow-up or of an answer: the question,
+    // its options, the answer. `fu` is a question out of the gate's own list.
+    const rm3 = between(index, 'function ResultModal(', 'function ProseWithheld(');
+    const ASKED: Surface = {
+      keys: ['question', 'options', 'answer'],
+      gate: LIST_GATE,
+      trusted: ['fu'],
+      allowed: [
+        ['const answerLines = useMemo(() => ownWordsList(answers.map((a) => `${a.question} — ${a.answer}`)), [answers]);',
+          'his answers, each line built and handed to the list gate in the same expression; only answerLines.items prints'],
+      ],
+    };
+    // Fixtures first: the sweep finds each kind of ungated read of a list and passes a gated one.
+    {
+      const cases: [string, Surface, number][] = [
+        ['<Text>{result.permitsRequired[0]}</Text>', LISTS, 1], ['{result.inspections.map((x) => <Text>{x}</Text>)}', LISTS, 1], ['count={result.commonViolations.length}', LISTS, 1],
+        ['{result.permitsRequired.map((p, i) => (', LISTS, 1], ['<Text>{result.disclaimer}</Text>', LISTS, 1], ['permitsRequired: data.permitsRequired,', LISTS, 1],
+        ['followUps: coerceFollowUps(data.followUps, answered),', LISTS, 1], ['setFollowUps(coerceFollowUps(data.followUps, answered));', LISTS, 1],
+        ['<Text>{ownWordsList(a).items[0] + result.inspections[0]}</Text>', LISTS, 1], ['<Text>{isCardPlaceholder(a) ? result.commonViolations[0] : null}</Text>', LISTS, 1],
+        ["<Text>{result['permitsRequired'][0]}</Text>", LISTS, 1], ["const l = ownWordsList(result['inspections']);", LISTS, 1], ['const { permitsRequired } = result;', LISTS, 1],
+        ['function show({ commonViolations }: R) { return commonViolations; }', LISTS, 1], ['<Text>{x.roadmap.inspections.length}</Text>', LISTS, 1],
+        ['const permitList = useMemo(() => ownWordsList(result?.permitsRequired), [result]);', LISTS, 0], ['permitsRequired: ownWordsList(data.permitsRequired).items,', LISTS, 0],
+        ['const asked = coerceFollowUps(ownWordsQuestions(data.followUps).items, answered);', LISTS, 0], ['{roadmap.inspections.length === 0 ? (', LISTS, 0],
+        ['inspections: newRoadmap.inspections.map((i) => {', LISTS, 0], ['<Text style={styles.disclaimer}>', LISTS, 0], ['// {result.permitsRequired[0]}\n{/* {result.inspections} */}', LISTS, 0],
+        ['<Text style={styles.codeReq}>{f.question}</Text>', ASKED, 1], ['{followUps.map((f) => f.options.map((o) => <Text>{o}</Text>))}', ASKED, 1], ['<Text>{`${a.question} — ${a.answer}`}</Text>', ASKED, 2],
+        ['<Text>{result.followUps[0].question}</Text>', ASKED, 1], ['<Text>{x.fu.question}</Text>', ASKED, 1], ["<Text>{fu['question']}</Text>", ASKED, 1], ['followUps.map(({ question }) => question)', ASKED, 1],
+        ['<Text style={styles.codeReq}>{fu.question}</Text>', ASKED, 0], ['{fu.options.map((opt) => (', ASKED, 0], ['accessibilityLabel={`${fu.question} ${opt}`}', ASKED, 0],
+      ];
+      const wrong = cases.filter(([src, surface, n]) => proseUngated(src, surface).length !== n).map(([src, surface, n]) => `${src} → ${proseUngated(src, surface).length}, expected ${n}`);
+      ok(`fixture: the list sweep finds a printed line, a count, a saved list, a bracket read and a destructured read of a result list, a question or an answer printed off the wrong object, and passes the gate’s argument and the roadmap’s own inspections (${cases.length} cases)`,
+        wrong.length === 0, wrong.join(' | '));
+    }
+    const bad = proseUngated(index, LISTS);
+    ok(`${INDEX}: every read of a Code Check list, of its follow-ups or of its disclaimer, ANYWHERE in the screen, is the argument of the list gate`, index.length > 0 && bad.length === 0, bad.join(' | '));
+    const badAsked = proseUngated(rm3, ASKED);
+    ok('the result sheet prints a question, its options and an answer only off the gate’s own lists', rm3.length > 0 && badAsked.length === 0, badAsked.join(' | '));
+    ok('…its one listed line is really there, once', stale(rm3, ASKED).length === 0, stale(rm3, ASKED).join(' | '));
+    ok('the trusted receivers are not a Code Check answer: `roadmap` / `newRoadmap` are the permit roadmap, `fu` is a question out of the gate’s list and nothing else',
+      index.includes('const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;') && index.includes('let newRoadmap = res.roadmap;')
+        && (index.match(/\b(?:const|let|var)\s+(?:roadmap|newRoadmap)\b/g) ?? []).length === 2
+        && rm3.includes('{askable.items.map((fu) => (') && (rm3.match(/\(fu\) =>/g) ?? []).length === 1 && !/\b(?:const|let|var)\s+fu\b/.test(rm3)
+        && rm3.includes('const askable = useMemo(() => ownWordsQuestions(questions), [questions]);') && (rm3.match(/\bconst askable\b/g) ?? []).length === 1
+        && index.includes('        questions={followUps}\n') && /\bquestions = \[\], answeredCount = 0,/.test(rm3) && rm3.includes('  questions?: CodeThreadFollowUp[];'));
+    ok('WHERE THE LISTS PRINT: the three lists are held only as the gate’s output, each from its own key of the result',
+      rm3.includes('const permitList = useMemo(() => ownWordsList(result?.permitsRequired), [result]);')
+        && rm3.includes('const inspectionList = useMemo(() => ownWordsList(result?.inspections), [result]);')
+        && rm3.includes('const violationList = useMemo(() => ownWordsList(result?.commonViolations), [result]);')
+        && ['permitList', 'inspectionList', 'violationList', 'answerLines', 'askedHidden'].every((n) => (rm3.match(new RegExp(`\\bconst ${n}\\b`, 'g')) ?? []).length === 1)
+        && rm3.includes('const askedHidden = useMemo(() => ownWordsQuestions(result?.followUps), [result]);'));
+    const lists: [string, string, string, string][] = [['permitList', 'permits', 'Permits required', 'p'], ['inspectionList', 'inspections', 'Inspections', 'ins'], ['violationList', 'violations', 'Common violations', 'v']];
+    /** One list's section in the result sheet: from its condition to the end of its AccordionSection. */
+    const listBlock = (name: string) => between(rm3, `{(${name}.items.length > 0 || ${name}.withheld > 0) && (`, '</AccordionSection>');
+    ok('…each list’s section shows when it has a line OR a hidden line, and counts only the lines it shows',
+      lists.every(([name, section, title]) => new RegExp(`^\\{\\(${name}\\.items\\.length > 0 \\|\\| ${name}\\.withheld > 0\\) && \\(\\s*<AccordionSection\\s+keyName="${section}"\\s+title="${title}"\\s+count=\\{${name}\\.items\\.length\\}`).test(listBlock(name))));
+    ok('…every bullet and every action text is a line of the gate’s own list (the map variable over <list>.items, and nothing else), and the bullet style is used nowhere else',
+      lists.every(([name, section, , v]) => {
+        const blk = listBlock(name);
+        return blk.includes(`{${name}.items.map((${v}, i) => (`) && blk.includes(`<Text style={styles.bulletRow}>• {${v}}</Text>`)
+          && blk.includes(`<CodeThreadActions key={\`${section}-\${i}-\${${v}}\`} record={savedRecord} project={project} section="${section}" index={i} text={${v}} onBeforeNavigate={onClose} />`)
+          && (blk.match(/\.map\(/g) ?? []).length === 1 && (blk.match(/styles\.bulletRow\}/g) ?? []).length === 1 && !new RegExp(`\\b(?:const|let|var)\\s+${v}\\b`).test(blk)
+          && !/\bresult\b/.test(blk);
+      }) && (index.match(/styles\.bulletRow\}/g) ?? []).length === 3);
+    ok('a list says it ONCE, where the first hidden line was: ListWithheld is mounted before every line and once after the last, and prints only at the place the gate named',
+      lists.every(([name, section]) => {
+        const blk = listBlock(name);
+        return blk.includes(`<ListWithheld list={${name}} at={i} links={viewerLinks} testID="code-check-${section}-withheld" />`)
+          && blk.includes(`<ListWithheld list={${name}} at={${name}.items.length} links={viewerLinks} testID="code-check-${section}-withheld" />`)
+          && (blk.match(/<ListWithheld\b/g) ?? []).length === 2;
+      }) && (index.match(/<ListWithheld\b/g) ?? []).length === 6
+        && /function ListWithheld\(\{\s+list, at, links, testID,\s+\}: \{\s+list: ProseList<string>;\s+at: number;[\s\S]{0,120}?\}\) \{\s+if \(list\.withheld === 0 \|\| at !== list\.noticeAt\) return null;\s+return <ProseWithheld sections=\{list\.sections\} links=\{links\} testID=\{testID\} \/>;\s+\}/.test(index));
+    // The place rule, run: for every list shape exactly ONE of the mounts (before line 0..n-1, after the last) prints.
+    {
+      const shapes = [['A', 'B'], ['Guards shall be there.', 'A', 'B'], ['A', 'Guards shall be there.', 'B', 'Exception: none.'], ['A', 'B', 'Guards shall be there.'], ['Guards shall be there.'], []];
+      const printsAt = (l: { items: string[]; withheld: number; noticeAt: number }) => Array.from({ length: l.items.length + 1 }, (_, at) => at).filter((at) => !(l.withheld === 0 || at !== l.noticeAt));
+      ok('…run on six list shapes: no notice when nothing was hidden, otherwise exactly one, at the first hidden line’s place (before a kept line, or after the last)',
+        shapes.map((sh) => printsAt(ownWordsList(sh)).join()).join('|') === '|0|1|2|0|');
+    }
+    const door = between(index, 'const aiResult = res.data as CodeCheckResult;', 'void saveCodeCheck(record);');
+    ok('WHERE THE LISTS ARE SAVED: the check saved to the job holds only the lines the gate let through (the same call the sheet prints from, so a line’s index is the same in both)',
+      door.includes('permitsRequired: ownWordsList(data.permitsRequired).items,') && door.includes('inspections: ownWordsList(data.inspections).items,')
+        && door.includes('commonViolations: ownWordsList(data.commonViolations).items,') && (code(index).match(/\bownWordsList\(/g) ?? []).length === 7);
+    ok('a follow-up question is gated BEFORE the 3-question budget is counted, and the gated list is the one he can tap and the one saved',
+      door.includes('const asked = coerceFollowUps(ownWordsQuestions(data.followUps).items, answered);') && door.includes('setFollowUps(asked);') && door.includes('followUps: asked,')
+        && (code(index).match(/\bcoerceFollowUps\(/g) ?? []).length === 1 && (index.match(/\bsetFollowUps\(/g) ?? []).length === 2 && /\bsetFollowUps\(\[\]\);/.test(index)
+        && (code(index).match(/\bownWordsQuestions\(/g) ?? []).length === 3);
+    ok('his answers print as the gated lines; a hidden question is said once after the ones he can answer (or alone when there is none), never once the 3 questions are used up',
+      rm3.includes('{answerLines.items.map((line, k) => (') && rm3.includes('<Text key={`${k}-${line}`} style={styles.codeDetailBullet}>{`• ${line}`}</Text>')
+        && rm3.includes('const questionsHidden = askable.withheld + askedHidden.withheld;')
+        && rm3.includes('{askable.items.length > 0 || answers.length > 0 || (questionsHidden > 0 && answeredCount < MAX_FOLLOW_UPS) ? (')
+        && (rm3.match(/<ProseWithheld sections=\{questionSections\} links=\{viewerLinks\} testID="codethread-followups-withheld" \/>/g) ?? []).length === 2
+        && /\) : questionsHidden > 0 \? \(\s*<ProseWithheld sections=\{questionSections\}/.test(rm3)
+        && rm3.includes('<ProseWithheld sections={answerLines.sections} links={viewerLinks} testID="codethread-answers-withheld" />'));
+
+    // THE NOTICE ON A PROSE SURFACE, and the viewer rule.
+    const notice = between(index, 'function ProseWithheld(', 'function ListWithheld(');
+    ok('THE VIEWER RULE, in one place: ProseWithheld points at the free viewer by the same test that renders the viewer links right under it; with no link it names none (and its `said` mode prints nothing)',
+      notice.includes('const viewer = links.length > 0;') && notice.includes('if (said && !viewer) return null;')
+        && notice.includes('{said ? PROSE_VIEWER_LINE : withheldNotice(sections, { viewer })}')
+        && /<\/Text>\s*\{viewer \? <ViewerLinks links=\{links\} testID=\{`\$\{testID\}-viewer`\} \/> : null\}\s*<\/>/.test(notice)
+        && (notice.match(/\bconst viewer\b/g) ?? []).length === 1);
+    ok('…and it is the ONLY place the screen builds the notice or names the viewer line: one withheldNotice call, one PROSE_VIEWER_LINE, and the card’s line is not in this screen at all',
+      (code(index).match(/\bwithheldNotice\(/g) ?? []).length === 1 && (code(index).match(/\bPROSE_VIEWER_LINE\b/g) ?? []).length === 2
+        && (code(index).match(/\bPROSE_WITHHELD\b/g) ?? []).length === 2 && !/LINE_WITHHELD/.test(code(index)));
+    const callers = [...code(index).matchAll(/<ProseWithheld\b[^>]*\/>/g)].map((m) => m[0]);
+    ok(`every ProseWithheld on the result (${callers.length}) is handed the viewer links SENT with this result, the ones the sheet’s own viewer buttons come from`,
+      callers.length === 6 && callers.every((c) => /\blinks=\{(?:viewerLinks|links)\}/.test(c)) && callers.filter((c) => c.includes('links={links}')).length === 1
+        && [...code(index).matchAll(/<ListWithheld\b[^>]*\/>/g)].every((m) => m[0].includes('links={viewerLinks}'))
+        && rm3.includes('const viewerLinks = useMemo(() => (grounding ? grounding.viewerLinks : []), [grounding]);') && (rm3.match(/\bconst viewerLinks\b/g) ?? []).length === 1
+        && rm3.includes('<ViewerLinks links={grounding.viewerLinks} testID="code-check-viewer-links-result" />'));
+    ok('no prose surface of the result says "Use Official text" (that button is on a code card), in code or in a string',
+      rm3.length > 0 && notice.length > 0 && !/Official text/.test(code(rm3)) && !/Official text/.test(code(notice))
+        && !/Official text/.test(code(between(index, 'function ListWithheld(', 'function AccordionSection('))));
+
+    // The real functions, on a result the way the door and the sheet read it.
+    const result = {
+      permitsRequired: ['Sample: building permit', 'Per R105.1 "Sample title", a sample permit shall be pulled.', 'Sample: electrical permit'],
+      inspections: ['Sample: footing inspection', 'Sample: final inspection'],
+      commonViolations: ['Sample guards shall be not less than a sample height.', 'Exception: sample decks.'],
+      followUps: [
+        { id: 'a', question: 'Sample: any stairs with four or more risers?', options: ['Yes', 'No'] },
+        { id: 'b', question: 'Sample: is it built in accordance with R312.1?', options: ['Yes', 'No'] },
+      ],
+    };
+    const printed = { permits: ownWordsList(result.permitsRequired), inspections: ownWordsList(result.inspections), violations: ownWordsList(result.commonViolations), asked: ownWordsQuestions(result.followUps) };
+    ok('the lists as printed AND as saved: a code-shaped line is in neither, the notice goes where it was, a clean list is untouched, a list with nothing left still says so',
+      printed.permits.items.join('|') === 'Sample: building permit|Sample: electrical permit' && printed.permits.withheld === 1 && printed.permits.noticeAt === 1 && printed.permits.sections.join() === 'R105.1'
+        && printed.inspections.items.join('|') === result.inspections.join('|') && printed.inspections.withheld === 0 && printed.inspections.noticeAt === -1
+        && printed.violations.items.length === 0 && printed.violations.withheld === 2 && printed.violations.noticeAt === 0
+        && printed.asked.items.map((q) => q.id).join() === 'a' && printed.asked.withheld === 1 && printed.asked.sections.join() === 'R312.1'
+        && [...printed.permits.items, ...printed.inspections.items, ...printed.asked.items.flatMap((q) => [q.question, ...q.options])].every((t) => passesProseCheck(t))
+        && withheldNotice(printed.permits.sections, { viewer: false }) === `${PROSE_WITHHELD} Section: R105.1.`);
   }
 }
 

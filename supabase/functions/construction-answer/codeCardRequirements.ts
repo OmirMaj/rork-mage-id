@@ -124,12 +124,21 @@ const CODE_PHRASING = /\bshall\b|\bnot less than\b|\bnot more than\b|\bin accord
  *  span in paired straight single quotes. An apostrophe in "don't" / "don’t"
  *  (a RIGHT single quote) is not a quote. */
 const QUOTED = /["\u201c\u201d\u201e\u00ab\u00bb\u2018]|(^|[\s(])'[^']+'(?=$|[\s.,;:!?)])/;
-/** AN INCH MARK IS NOT A QUOTE (the same rule as the client's echoCheck.ts): a
- *  straight " or a double prime directly after a digit or a fraction character,
- *  with no space, and not followed by a letter (an x between two sizes is
- *  fine: 2"x4"), is taken out before the quotation test, so 36", 2'-8" and
- *  7-7/8" pass. An opening quote never follows a digit, so real quotes still fail. */
-const INCH_MARK = /([0-9\u00bc-\u00be\u2150-\u215e])["\u2033](?![A-WYZa-wyz]|[xX][A-Za-z])/g;
+/** AN INCH MARK IS NOT A QUOTE (the same rule as the client's echoCheck.ts,
+ *  character for character and flag for flag: validate-code-card-server pins
+ *  the two equal). A straight " or a double prime directly after a MEASUREMENT
+ *  (digits, at most one decimal point, ending in a digit or a fraction
+ *  character, with no space) is taken out before the quotation test when what
+ *  follows it is the end, anything that is not a letter or a digit, an x
+ *  between two sizes (2"x4"), or one of a short exact list of construction
+ *  abbreviations glued on and ending there: o.c., oc, dia, min, max, typ, clr,
+ *  thk, wide, high, deep, long, tall (any case). So 36", 2'-8", 7-7/8" and
+ *  12"o.c. pass. A mark glued to any other word (36"guards) is still a quote,
+ *  and so is one glued to a SECTION NUMBER: a number with a letter glued in
+ *  front of it (R312.1") or with two dots (1011.5.2") is not a measurement.
+ *  An opening quote never follows a digit, so real quotes still fail.
+ *  Group 1 is the measurement with the character before it, and is kept. */
+const INCH_MARK = /((?:^|[^A-WYZa-wyz0-9.])(?:[0-9]*\.)?[0-9]*[0-9\u00bc-\u00be\u2150-\u215e])["\u2033](?=$|[^A-Za-z0-9]|x(?![a-z])|(?:o\.c\.|oc|dia|min|max|typ|clr|thk|wide|high|deep|long|tall)(?![a-z0-9]))/gi;
 export function withoutInchMarks(text: string): string {
   return text.replace(INCH_MARK, "$1");
 }
