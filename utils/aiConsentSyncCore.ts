@@ -14,6 +14,11 @@
 //     who answered, when, whether the account has heard it). Every push is
 //     built fresh from them, so it always carries the answer's real age.
 //   - A no is sent even when nothing else is known about it (fail closed).
+//   - A no the person gave this session is sent WHATEVER THE PHONE'S STORAGE
+//     SAYS. When the storage write of that no fails, the stored answer still
+//     reads yes; the account must hear the no all the same. The wiring keeps
+//     the unheard no in memory (`unsentNo`) from the answer event until the
+//     account has heard a no.
 //   - A yes is sent only when it is tied to the signed-in person and to a time.
 //     A yes left on the phone by someone else, or one with no record, is never
 //     sent: the account is asked again instead.
@@ -161,13 +166,23 @@ export function decideReconcile(input: {
   device: AiConsentState;
   meta: AiConsentMeta | null;
   nowMs: number;
+  /** A no THIS person gave on this phone this session that the account has not
+   *  heard yet (at: Date.now() at the answer). Held in memory by
+   *  utils/aiConsentAccount, never read back from storage. Absent = none. */
+  unsentNo?: { at: number } | null;
 }): ReconcileDecision {
-  const { userId, supabaseConfigured, account, device, meta, nowMs } = input;
+  const { userId, supabaseConfigured, account, device, meta, nowMs, unsentNo } = input;
   // 1
   if (!supabaseConfigured) return { push: null, reason: 'not_configured' };
   if (!userId) return { push: null, reason: 'signed_out' };
   // 2 — the column is not there, so the function is not there either.
   if (account === 'missing_column') return { push: null, reason: 'missing_column' };
+  // 2b — a no given this session goes to the account whether or not the stored
+  // answer matches it: the storage write may have failed, and then the stored
+  // answer (still yes) and its record would send nothing and the account would
+  // keep its yes. A no is the fail-closed direction, and the server keeps
+  // answers in order.
+  if (unsentNo) return { push: { answer: 'declined', ageMs: nowMs >= unsentNo.at ? nowMs - unsentNo.at : null } };
   // 3
   if (device === 'unknown') return { push: null, reason: 'no_device_answer' };
   // 4 — someone else's answer survived on this phone; it is never sent to this account.
@@ -192,7 +207,11 @@ export function decideReconcile(input: {
 /** The note on a job's Client portal screen. OWNER ONLY: the server gates on
  *  the project OWNER's answer and a phone knows only its own user's, so a
  *  collaborator's screen says nothing about it. yesNotTold: the note is the
- *  "you allowed AI on this phone, but your account has not been told yet" one. */
+ *  "you allowed AI on this phone, but your account has not been told yet" one.
+ *  accountAllows: the ACCOUNT's own answer is yes, read for the owner himself.
+ *  The screen says "AI writes the recap" only while this is true; in every
+ *  other state (the account could not be read, a collaborator's screen, a first
+ *  yes still on its way, a no, never told) it is false. */
 export function portalAccountNote(input: {
   owner: boolean;
   isWeb: boolean;
@@ -201,14 +220,16 @@ export function portalAccountNote(input: {
   account: AccountAiConsent | 'unread';
   pending: AiAnswer | null;
   sendFailed: boolean;
-}): { note: 'none' | 'not_allowed' | 'web_allowed'; action: 'allow' | 'turn_off' | null; yesNotTold: boolean } {
+}): { note: 'none' | 'not_allowed' | 'web_allowed'; action: 'allow' | 'turn_off' | null; yesNotTold: boolean; accountAllows: boolean } {
   const { owner, isWeb, ready, device, account, pending, sendFailed } = input;
-  const none = { note: 'none', action: null, yesNotTold: false } as const;
+  const none = { note: 'none', action: null, yesNotTold: false, accountAllows: false } as const;
   if (!owner || !ready) return none;
   // "The account allows AI" is said ONLY from the account's own answer (a read
   // of it, or what it answered to a write). A yes on this phone never says it.
   if (account === 'granted') {
-    return isWeb ? { note: 'web_allowed', action: 'turn_off', yesNotTold: false } : none;
+    return isWeb
+      ? { note: 'web_allowed', action: 'turn_off', yesNotTold: false, accountAllows: true }
+      : { note: 'none', action: null, yesNotTold: false, accountAllows: true };
   }
   if (account === 'declined' || account === null) {
     if (device === 'granted' && pending === 'granted') {
@@ -217,9 +238,9 @@ export function portalAccountNote(input: {
       // has not been told: a yes that did not arrive must not look saved. No
       // button: he already said yes, and the phone sends it again by itself.
       // Only the exact value true counts: a missing flag says nothing.
-      return sendFailed === true ? { note: 'not_allowed', action: null, yesNotTold: true } : none;
+      return sendFailed === true ? { note: 'not_allowed', action: null, yesNotTold: true, accountAllows: false } : none;
     }
-    return { note: 'not_allowed', action: 'allow', yesNotTold: false };
+    return { note: 'not_allowed', action: 'allow', yesNotTold: false, accountAllows: false };
   }
   return none;
 }

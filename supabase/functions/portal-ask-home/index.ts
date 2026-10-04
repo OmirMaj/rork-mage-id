@@ -261,7 +261,9 @@ serve(async (req: Request) => {
     return json({ success: false, error: "No answer right now — try again in a moment." }, 502);
   }
   if (!aiConsentAllows(consent)) {
-    return json({ success: true, answer: ASK_AI_OFF_LINE, refs: [], code: "ai_off" });
+    // The machine code is neutral on purpose: the reader is a portal visitor, and it must not
+    // tell him WHY the question box is off (that is the contractor's own AI setting).
+    return json({ success: true, answer: ASK_AI_OFF_LINE, refs: [], code: "typed_off" });
   }
 
   // Per-portal daily cap: increment this hour's bucket, then sum today.

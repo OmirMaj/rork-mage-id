@@ -2204,7 +2204,11 @@ function ClientPortalSetupScreenInner() {
             Defaults off — opt in here. */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Weekly recap email</Text>
-          {accountAi.note === 'not_allowed'
+          {/* The sentence that says AI rewrites the recap is shown only while the
+              ACCOUNT's own answer is yes (the server uses AI on nothing else). An
+              account that could not be read, a collaborator's screen and a first
+              yes still on its way all get the plain subtitle. */}
+          {!accountAi.accountAllows
             ? <Text style={styles.sectionSubtitle}>{AI_ACCOUNT_COPY.recapSubtitlePlain}</Text>
             : (
           <Text style={styles.sectionSubtitle}>

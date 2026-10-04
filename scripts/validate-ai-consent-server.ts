@@ -13,7 +13,8 @@
 //   S1  THE SERVER HELPER, executed with a fake fetch
 //       (supabase/functions/_shared/aiConsent.ts): only the exact string
 //       'granted' on the owner's own row is a yes; everything else, including
-//       a failed read (tried twice), is "no AI".
+//       a failed read (tried twice) and a read that does not come back within
+//       8 seconds, is "no AI".
 //   S2  THE SWEEP, derived, not listed: every function that can run with no
 //       user tap (verify_jwt = false, or a cron / service-role marker) and
 //       reaches an AI provider (directly, through a _shared file, or by
@@ -24,7 +25,9 @@
 //   S4  portal-ask-home: the gate sits before the counter and before the
 //       embedding call; a not-yes is a normal 200 answer, a failed read is 502.
 //   S5  delete-account switches AI off before its first delete.
-//   S6  The migration's text (the PGlite proof executes it; this pins it).
+//   S6  The migrations' text (the PGlite proofs execute them; this pins them):
+//       the first one, and the hardening one (the guard is an allow-list, and a
+//       question version outside smallint is stored as NULL, never raised on).
 //   C1  The phone gate's "the person answered" event, executed.
 //   C2  utils/aiConsentSyncCore, executed: every rule of what the phone sends
 //       and what the screens say.
@@ -41,7 +44,8 @@
 //       answered and did not take it; a yes that was not delivered never looks
 //       saved; a wiped answer brings the account's line back; the web buttons
 //       send exactly what was answered, after asking; "Allow" on a phone
-//       always asks.
+//       always asks; a NO reaches the account even when the phone's storage
+//       write of it THROWS (it is kept in memory until the account has heard).
 //
 // MUTATION PROOF: set AI_CONSENT_SERVER_MUT_DIR to a directory that mirrors
 // repo-relative paths; any file present there is read (and executed) instead of
@@ -110,8 +114,8 @@ const UID_B = '7f3e9a10-2b6c-4d8e-8f01-a1b2c3d4e5f6';
 // ════════════════════════════════════════════════════════════════════════════
 type OwnerAiConsent = 'granted' | 'not_granted' | 'unavailable';
 type FakeResponse = { ok: boolean; json(): Promise<unknown> };
-type FakeFetch = (url: string, init: { headers: Record<string, string> }) => Promise<FakeResponse>;
-type ReadOwner = (url: string, key: string, ownerId: string | null | undefined, fetchImpl?: FakeFetch) => Promise<OwnerAiConsent>;
+type FakeFetch = (url: string, init: { headers: Record<string, string>; signal?: AbortSignal }) => Promise<FakeResponse>;
+type ReadOwner = (url: string, key: string, ownerId: string | null | undefined, fetchImpl?: FakeFetch, timeoutMs?: number) => Promise<OwnerAiConsent>;
 
 function fakeFetch(script: (unknown | (() => never))[]) {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -131,10 +135,12 @@ async function partS1(): Promise<void> {
   console.log('\nS1. _shared/aiConsent.ts (executed with a fake fetch)');
   let readOwner: ReadOwner | null = null;
   let allows: ((v: unknown) => boolean) | null = null;
+  let readTimeoutMs: unknown;
   try {
-    const mod = await import(srcPath('supabase/functions/_shared/aiConsent.ts')) as { readOwnerAiConsent?: ReadOwner; aiConsentAllows?: (v: unknown) => boolean };
+    const mod = await import(srcPath('supabase/functions/_shared/aiConsent.ts')) as { readOwnerAiConsent?: ReadOwner; aiConsentAllows?: (v: unknown) => boolean; AI_CONSENT_READ_TIMEOUT_MS?: unknown };
     readOwner = typeof mod.readOwnerAiConsent === 'function' ? mod.readOwnerAiConsent : null;
     allows = typeof mod.aiConsentAllows === 'function' ? mod.aiConsentAllows : null;
+    readTimeoutMs = mod.AI_CONSENT_READ_TIMEOUT_MS;
   } catch (e) { ok('the helper imports under bun (no Deno global, no imports)', false, String(e)); }
   if (!ok('readOwnerAiConsent and aiConsentAllows are exported', !!readOwner && !!allows) || !readOwner || !allows) return;
   const URL_ = 'https://x.supabase.co';
@@ -201,6 +207,110 @@ async function partS1(): Promise<void> {
     const got: string[] = [];
     for (const id of ['not-a-uuid', `${UID_A}&select=*`, `eq.${UID_A}`, '', null, undefined]) got.push(await readOwner(URL_, KEY, id, f.impl));
     ok('an id that is not a uuid (or is missing) → not_granted, and NO request', got.every((g) => g === 'not_granted') && f.calls.length === 0, `${got.join(',')} ${f.calls.length} request(s)`);
+  }
+
+  // ── the time bound ───────────────────────────────────────────────────────
+  // A database that takes the connection and never answers must not hold the
+  // Friday recap run or a portal visitor's question open. The read is over
+  // within the bound; out of time is 'unavailable' = no AI.
+  console.log('\nS1b. the consent read is bounded in time (8 seconds; out of time = no AI)');
+  ok('AI_CONSENT_READ_TIMEOUT_MS is exported and is 8000 (8 seconds)', readTimeoutMs === 8000, String(readTimeoutMs));
+  /** The read, or 'HUNG' when it has not come back after `capMs` (so a missing bound is a red check, not a stuck run). */
+  const bounded = async (p: Promise<OwnerAiConsent>, capMs = 1500): Promise<OwnerAiConsent | 'HUNG'> =>
+    Promise.race([p, new Promise<'HUNG'>((r) => setTimeout(() => r('HUNG'), capMs))]);
+  type SignalFetch = { calls: number; signals: (AbortSignal | undefined)[]; impl: FakeFetch };
+  /** A fetch that never answers; with `honorAbort` it rejects when its signal aborts (as the runtime's fetch does). */
+  const hangingFetch = (honorAbort: boolean): SignalFetch => {
+    const f: SignalFetch = {
+      calls: 0,
+      signals: [],
+      impl: (_url, init) => {
+        f.calls += 1;
+        f.signals.push(init.signal);
+        return new Promise<FakeResponse>((_resolve, reject) => {
+          if (honorAbort && init.signal) init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      },
+    };
+    return f;
+  };
+  {
+    const f = hangingFetch(true);
+    const t0 = Date.now();
+    const r = await bounded(readOwner(URL_, KEY, UID_A, f.impl, 40));
+    const took = Date.now() - t0;
+    ok('a read that never answers → unavailable once the bound has passed (here 40 ms), not before and not much after',
+      r === 'unavailable' && took >= 35 && took < 1000, `${r} after ${took} ms`);
+    ok('…the request in flight is ABORTED (the fetch is handed a signal, and it is aborted at the bound)',
+      f.signals.length >= 1 && f.signals.every((sg) => !!sg && sg.aborted === true), `${f.signals.length} signal(s), aborted: ${f.signals.map((sg) => sg?.aborted).join(',')}`);
+    ok('…and a read that ran out of time is not tried again (ONE request: there is no time left to try in)', f.calls === 1, `${f.calls} request(s)`);
+  }
+  {
+    const f = hangingFetch(false);
+    const t0 = Date.now();
+    const r = await bounded(readOwner(URL_, KEY, UID_A, f.impl, 40));
+    ok('a fetch that IGNORES the abort signal still cannot hold the caller: unavailable at the bound (the clock decides, not the fetch)',
+      r === 'unavailable' && Date.now() - t0 < 1000, `${r} after ${Date.now() - t0} ms`);
+  }
+  {
+    // The first try fails at once, the retry hangs: ONE bound covers both tries.
+    let calls = 0;
+    const impl: FakeFetch = (_url, init) => {
+      calls += 1;
+      if (calls === 1) return Promise.resolve(notOk);
+      return new Promise<FakeResponse>((_resolve, reject) => { init.signal?.addEventListener('abort', () => reject(new Error('aborted'))); });
+    };
+    const t0 = Date.now();
+    const r = await bounded(readOwner(URL_, KEY, UID_A, impl, 200));
+    const took = Date.now() - t0;
+    ok('fail once, then a retry that never answers → unavailable, two requests, and the bound covers BOTH tries together (200 ms here; one bound each would be 400)',
+      r === 'unavailable' && calls === 2 && took >= 190 && took < 380, `${r}, ${calls} request(s), ${took} ms`);
+  }
+  {
+    // A yes that arrives AFTER the bound is not a yes.
+    const impl: FakeFetch = () => new Promise<FakeResponse>((resolve) => setTimeout(() => resolve(rows([{ id: UID_A, ai_consent: 'granted' }])), 120));
+    const r = await bounded(readOwner(URL_, KEY, UID_A, impl, 30));
+    await new Promise<void>((res) => setTimeout(res, 130));
+    ok("a 'granted' that arrives after the bound is never a yes (unavailable, and it stays that)", r === 'unavailable', String(r));
+  }
+  {
+    // A slow body: the response arrives, its json() does not.
+    const impl: FakeFetch = async () => ({ ok: true, json: () => new Promise<unknown>(() => {}) });
+    const r = await bounded(readOwner(URL_, KEY, UID_A, impl, 40));
+    ok('a response whose body never arrives is bounded too → unavailable', r === 'unavailable', String(r));
+  }
+  {
+    // What the two callers get (they pass no bound): the timer asked for is 8000 ms, and it is
+    // cleared as soon as the read answers (no 8-second timer is left behind after every read).
+    const realSet = globalThis.setTimeout;
+    const realClear = globalThis.clearTimeout;
+    const asked: { ms: number; id: unknown }[] = [];
+    const cleared: unknown[] = [];
+    (globalThis as unknown as { setTimeout: unknown }).setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...rest: unknown[]) => {
+      const id = realSet(fn, ms, ...rest);
+      asked.push({ ms: Number(ms), id });
+      return id;
+    }) as unknown as typeof setTimeout;
+    (globalThis as unknown as { clearTimeout: unknown }).clearTimeout = ((id?: unknown) => { cleared.push(id); return realClear(id as never); }) as unknown as typeof clearTimeout;
+    let r: OwnerAiConsent | 'HUNG' = 'HUNG';
+    try {
+      const f = fakeFetch([rows([{ id: UID_A, ai_consent: 'granted' }])]);
+      r = await readOwner(URL_, KEY, UID_A, f.impl);
+    } finally {
+      (globalThis as unknown as { setTimeout: unknown }).setTimeout = realSet;
+      (globalThis as unknown as { clearTimeout: unknown }).clearTimeout = realClear;
+    }
+    const bound = asked.filter((a) => a.ms === 8000);
+    ok('with no bound passed (what both functions do) the read arms ONE 8000 ms timer, and a read that answers in time is unchanged (granted)',
+      r === 'granted' && bound.length === 1 && asked.length === 1, `${r}; timers asked: ${asked.map((a) => a.ms).join(',') || '(none)'}`);
+    ok('…and that timer is cleared when the read answers', bound.length === 1 && cleared.includes(bound[0].id), `${cleared.length} cleared`);
+  }
+  {
+    const src = strip(readOr('supabase/functions/_shared/aiConsent.ts'));
+    ok('the bound is the default of the last parameter, and both tries share one AbortController',
+      src.includes('timeoutMs: number = AI_CONSENT_READ_TIMEOUT_MS,') && count(src, 'new AbortController()') === 1
+      && count(src, 'readOnce(supabaseUrl, serviceRoleKey, ownerId, fetchImpl, abort.signal)') === 2
+      && src.includes('return await Promise.race([read, outOfTime]);'));
   }
 }
 
@@ -351,7 +461,7 @@ const proveAskHome: Proof = () => {
   const counterAt = src.indexOf('rateLimitCount(`askhome:portal:');
   const embedAt = src.indexOf('geminiEmbed(');
   const genAt = src.indexOf(':generateContent');
-  const OFF = /if \(!aiConsentAllows\(consent\)\) \{\s*return json\(\{ success: true, answer: ASK_AI_OFF_LINE, refs: \[\], code: "ai_off" \}\);\s*\}/;
+  const OFF = /if \(!aiConsentAllows\(consent\)\) \{\s*return json\(\{ success: true, answer: ASK_AI_OFF_LINE, refs: \[\], code: "typed_off" \}\);\s*\}/;
   const UNAVAILABLE = /if \(consent === "unavailable"\) \{\s*console\.error\("\[portal-ask-home\] ai consent read failed"\);\s*return json\(\{ success: false, error: "No answer right now — try again in a moment\." \}, 502\);\s*\}/;
   const offAt = src.search(OFF);
   const all = [
@@ -376,7 +486,29 @@ const proveAskHome: Proof = () => {
       return count(emb, 'fetch(') === 1 && topLevelBlock(emb, 'export async function geminiEmbed(').includes('fetch(') && !OTHER_VENDOR.test(emb);
     })()),
     ok("a failed read ('unavailable') returns 502 \"No answer right now — try again in a moment.\"", UNAVAILABLE.test(src)),
-    ok('a not-yes returns json({ success: true, answer: ASK_AI_OFF_LINE, refs: [], code: "ai_off" }) with no status argument', OFF.test(src)),
+    ok('a not-yes returns json({ success: true, answer: ASK_AI_OFF_LINE, refs: [], code: "typed_off" }) with no status argument', OFF.test(src)),
+    // The reader of this body is a portal visitor. The machine code must not tell him WHY the
+    // question box is off (the contractor's own AI setting); "typed_off" says only what he sees.
+    ok('…the refusal code is the neutral "typed_off": no response in this function carries a code that names AI or consent', (() => {
+      const codes = [...src.matchAll(/\bcode: "([^"]+)"/g)].map((m) => m[1]);
+      return codes.includes('typed_off') && codes.every((c) => !/(^|_)ai(_|$)|consent/i.test(c));
+    })(), [...src.matchAll(/\bcode: "([^"]+)"/g)].map((m) => m[1]).join(', ')),
+    ok('…and nothing reads the old code: the portal page and the app name neither "ai_off" nor "typed_off" (the page shows the answer text and nothing else)', (() => {
+      const QUOTED = /['"`](?:ai_off|typed_off)['"`]/;
+      const page = readOr('marketing/portal/index.html');
+      const readers: string[] = [];
+      if (page.length === 0 || QUOTED.test(page)) readers.push('marketing/portal/index.html');
+      const walkApp = (rel: string) => {
+        for (const f of readdirSync(join(ROOT, rel))) {
+          if (f === 'node_modules' || f.startsWith('.')) continue;
+          const child = join(rel, f);
+          if (statSync(join(ROOT, child)).isDirectory()) walkApp(child);
+          else if (/\.(ts|tsx|js|jsx)$/.test(f) && QUOTED.test(readOr(child))) readers.push(child);
+        }
+      };
+      for (const d of ['app', 'components', 'contexts', 'hooks', 'lib', 'utils']) if (existsSync(join(ROOT, d))) walkApp(d);
+      return readers.length === 0 && /if \(!j \|\| !j\.success \|\| !j\.answer\)/.test(page);
+    })()),
     ok('…and both returns sit between the read and the counter (a refused question spends none of the 20 a day, and is not embedded)',
       offAt > readAt && offAt < counterAt && src.search(UNAVAILABLE) > readAt && src.search(UNAVAILABLE) < offAt),
     ok('ASK_AI_OFF_LINE is the exact sentence',
@@ -598,6 +730,80 @@ function partS6(): void {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// S6b — the hardening migration's text
+// ════════════════════════════════════════════════════════════════════════════
+function partS6b(): void {
+  console.log('\nS6b. migration 20261004100000_ai_consent_hardening.sql (text; its PGlite proof executes it)');
+  const noComments = (raw: string) => raw.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+  const raw = readOr('supabase/migrations/20261004100000_ai_consent_hardening.sql');
+  const sql = noComments(raw);
+  const first = noComments(readOr('supabase/migrations/20261004090000_ai_consent.sql'));
+  ok('the file exists and sorts after 20261004090000_ai_consent.sql', raw.length > 0 && '20261004100000_ai_consent_hardening.sql' > '20261004090000_ai_consent.sql');
+  ok('its header says what, why, who can write, the deploy order and the reverse path',
+    ['WHAT CHANGES.', 'WHO CAN WRITE THE FOUR COLUMNS AFTER THIS.', 'DEPLOY ORDER.', 'Idempotent', 'Reverse path:'].every((h) => raw.includes(h)));
+  ok('it refuses to run without the first migration ("apply 20261004090000_ai_consent.sql first")',
+    /if \(select count\(\*\) from information_schema\.columns[\s\S]{0,400}to_regprocedure\('public\.set_my_ai_consent\(text,bigint,integer\)'\) is null[\s\S]{0,200}raise exception '\[ai-consent-hardening\] apply 20261004090000_ai_consent\.sql first/.test(sql));
+
+  // 1 — the guard
+  const guard = sql.slice(sql.indexOf('create or replace function public.profiles_keep_ai_consent()'), sql.indexOf('revoke execute on function public.profiles_keep_ai_consent()'));
+  ok('the guard is an ALLOW-list: only service_role, postgres and supabase_admin are named, and each passes',
+    /begin\s*if current_user in \('service_role', 'postgres', 'supabase_admin'\) then\s*return new;\s*end if;/.test(guard)
+    && count(guard, 'current_user in (') === 1);
+  ok('…plus the owner of set_my_ai_consent(text, bigint, integer), LOOKED UP (its SECURITY DEFINER write runs as that role); the lookup cannot raise',
+    /begin\s*select r\.rolname into v_owner\s*from pg_catalog\.pg_proc p\s*join pg_catalog\.pg_roles r on r\.oid = p\.proowner\s*where p\.oid = pg_catalog\.to_regprocedure\('public\.set_my_ai_consent\(text,bigint,integer\)'\);\s*exception when others then\s*v_owner := null;\s*end;\s*if v_owner is not null and current_user = v_owner then\s*return new;\s*end if;/.test(guard));
+  ok("it names neither 'authenticated' nor 'anon' (a deny-list of two roles is what it replaces), and has exactly three ways out: the named roles, the owner, the pinned row",
+    guard.length > 0 && !/authenticated|anon/.test(guard) && count(guard, 'return new;') === 3 && !/current_user not in|current_user <>|current_user !=/.test(guard));
+  ok('everyone else is pinned: all four columns, on INSERT (emptied) and on UPDATE (kept), after the two ways through',
+    ['ai_consent', 'ai_consent_at', 'ai_consent_version', 'ai_consent_recorded_at'].every((c) => guard.includes(`new.${c} := null;`) && guard.includes(`new.${c} := old.${c};`))
+    && guard.indexOf('current_user = v_owner') > 0 && guard.indexOf("if tg_op = 'INSERT' then") > guard.indexOf('current_user = v_owner')
+    && /end if;\s*return new;\s*end\s*\$function\$;\s*$/.test(guard));
+  ok("the guard stays SECURITY INVOKER with set search_path to '' (current_user is the role the statement runs as)",
+    guard.length > 0 && !/security definer/i.test(guard) && guard.includes("set search_path to ''"));
+  ok('the two triggers are not touched (no create / drop trigger), and nothing else on the table is (no alter table, no column, no policy, no table grant)',
+    !/\b(create|drop) trigger\b/i.test(sql) && !/alter table/i.test(sql) && !/add column/i.test(sql) && !/create (table|policy)/i.test(sql)
+    && !/\b(grant|revoke)\b[^;]*\bon\s+(table\s+)?public\.profiles\b/i.test(sql) && !/insert into public\.profiles/i.test(sql));
+
+  // 2 — the function: the first migration's, plus the clamp and nothing else
+  const fnOf = (text: string) => text.slice(text.indexOf('create or replace function public.set_my_ai_consent('), text.indexOf('revoke all on function public.set_my_ai_consent'));
+  const fn = fnOf(sql);
+  const CLAMP = `  if p_version is not null and p_version between 0 and 32767 then
+    v_version := p_version;
+  end if;
+`;
+  ok('the stored version is clamped to the smallint column: only 0 to 32767 is stored, anything else is NULL (declared smallint, never assigned elsewhere)',
+    fn.includes('  v_version smallint;\n') && fn.includes(CLAMP) && (fn.match(/v_version\s*:=/g) ?? []).length === 1);
+  ok("both branches store the clamped version: 'ai_consent_version = v_version' twice, and p_version is written to no column",
+    count(fn, 'ai_consent_version = v_version,') === 2 && !/ai_consent_version = p_version/.test(fn));
+  ok('the clamp sits before the row is locked, so it is in place for the no branch and the yes branch alike',
+    fn.indexOf(CLAMP) > 0 && fn.indexOf(CLAMP) < fn.indexOf('select p.ai_consent, p.ai_consent_at into v_old, v_old_at'));
+  // "Keep every existing rule": undo the three edits and the text must be the first migration's function, to the character.
+  const undone = fn
+    .replace('  v_version smallint;\n', '')
+    .replace(CLAMP, '')
+    .replace(/ai_consent_version = v_version,/g, 'ai_consent_version = p_version,');
+  const squeeze = (t: string) => t.split('\n').map((l) => l.trimEnd()).filter((l) => l.length > 0).join('\n');
+  ok('apart from the clamp the function is the first migration’s, line for line (signature, SECURITY DEFINER, every order rule, every return)',
+    fn.length > 0 && squeeze(undone) === squeeze(fnOf(first)), (() => {
+      const a = squeeze(undone).split('\n'), b = squeeze(fnOf(first)).split('\n');
+      const i = a.findIndex((l, k) => l !== b[k]);
+      return i < 0 ? `lengths ${a.length} / ${b.length}` : `first difference at line ${i + 1}: "${a[i]}" vs "${b[i]}"`;
+    })());
+  ok('the signature and the grants are kept: (text, bigint, integer); revoke all from public, anon; execute to authenticated only',
+    /create or replace function public\.set_my_ai_consent\(\s*p_answer text,\s*p_age_ms bigint default null,\s*p_version integer default null\s*\)\s*returns jsonb\s*language plpgsql\s*security definer\s*set search_path to ''/.test(fn)
+    && sql.includes('revoke all on function public.set_my_ai_consent(text, bigint, integer) from public, anon;')
+    && sql.includes('grant execute on function public.set_my_ai_consent(text, bigint, integer) to authenticated;')
+    && count(sql, 'grant execute') === 1);
+  const check = sql.slice(sql.lastIndexOf('do $$'));
+  ok('it ends with a self-check block (the allow-list is in place, both triggers call the guard, the function is not owned by a client role, anon cannot call it)',
+    check.includes("position('current_user in (''service_role'', ''postgres'', ''supabase_admin'')' in v_src) = 0")
+    && check.includes("position('current_user in (''authenticated'', ''anon'')' in v_src) > 0")
+    && check.includes("if v_owner in ('authenticated', 'anon') then")
+    && check.includes("has_function_privilege('anon', 'public.set_my_ai_consent(text, bigint, integer)', 'execute')")
+    && count(check, 'raise exception') >= 7);
+  ok("…and with notify pgrst, 'reload schema';", sql.trim().endsWith("notify pgrst, 'reload schema';"));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // C1 — the gate's answer event, executed
 // ════════════════════════════════════════════════════════════════════════════
 type Answer = 'granted' | 'declined';
@@ -619,6 +825,7 @@ interface CoreModule {
   AI_CONSENT_STORAGE_KEY: string;
   AI_CONSENT_META_KEY: string;
   AI_CONSENT_QUESTION_VERSION: number;
+  AI_CONSENT_HEADLESS_SWITCH: string;
   AI_CONSENT_COPY: { title: string; autoHeading: string; auto: readonly string[]; use: string; allow: string; notNow: string; privacyLink: string; intro: string; providersHeading: string; providers: readonly string[]; sentHeading: string; sent: readonly string[] };
   AI_CONSENT_OFF_ROW: string;
   AI_ACCOUNT_COPY: Record<string, unknown>;
@@ -740,9 +947,25 @@ async function partC1(core: CoreModule): Promise<void> {
     ok('the web host never fires (and stores nothing)', yes === true && t.heard.length === 0 && !t.s.map.has(KEY));
   }
   {
-    const t = make();
-    const yes = await t.gate.ensure();
-    ok('no host (not the app) never fires', yes === true && t.heard.length === 0);
+    // No host and no stored answer. As the app (the switch says "not headless"): refused, and
+    // refusing is not an answer: nothing fires, nothing is stored. As a validator: let through.
+    const SWITCH = core.AI_CONSENT_HEADLESS_SWITCH;
+    const g = globalThis as unknown as Record<string, unknown>;
+    const had = Object.prototype.hasOwnProperty.call(g, SWITCH);
+    const before = g[SWITCH];
+    try {
+      g[SWITCH] = false;
+      const app = make();
+      const no = await app.gate.ensure();
+      ok('no host, as the app: refused, and it never fires (the person was not asked, so the account is told nothing)',
+        no === false && app.heard.length === 0 && !app.s.map.has(KEY) && app.gate.getState() === 'unknown', `${no} ${app.heard.join(',')}`);
+      g[SWITCH] = true;
+      const headless = make();
+      const yes = await headless.gate.ensure();
+      ok('no host, headless (a validator): let through, and it never fires', yes === true && headless.heard.length === 0 && !headless.s.map.has(KEY));
+    } finally {
+      if (had) g[SWITCH] = before; else delete g[SWITCH];
+    }
   }
   {
     const t = make();
@@ -771,9 +994,9 @@ interface SyncModule {
   isMissingAiConsentFunction(m: string | null | undefined): boolean;
   accountAiConsentFromRead(r: unknown): Account;
   parseSetConsentResult(d: unknown): { ok: true; account: Answer | null; applied: boolean } | { ok: false; reason: string };
-  decideReconcile(i: { userId: string | null | undefined; supabaseConfigured: boolean; account: Account; device: GateState; meta: Meta | null; nowMs: number }):
+  decideReconcile(i: { userId: string | null | undefined; supabaseConfigured: boolean; account: Account; device: GateState; meta: Meta | null; nowMs: number; unsentNo?: { at: number } | null }):
     { push: { answer: Answer; ageMs: number | null } | null; reason?: string };
-  portalAccountNote(i: { owner: boolean; isWeb: boolean; ready: boolean; device: GateState; account: Account; pending: Answer | null; sendFailed: boolean }): { note: string; action: string | null; yesNotTold: boolean };
+  portalAccountNote(i: { owner: boolean; isWeb: boolean; ready: boolean; device: GateState; account: Account; pending: Answer | null; sendFailed: boolean }): { note: string; action: string | null; yesNotTold: boolean; accountAllows?: boolean };
   AI_CONSENT_RETRY_STEPS_MS: readonly number[];
   aiConsentRetryDelayMs(failures: number): number;
   aiConsentSendMayRetry(res: { status?: unknown; code?: unknown } | null | undefined): boolean;
@@ -823,6 +1046,25 @@ async function partC2(): Promise<void> {
     dec({ device: 'granted', account: 'granted', meta: meta({ answer: 'granted' }) }), 'push granted 60000');
   row('…and when the account could not be read', dec({ device: 'granted', account: 'unavailable', meta: meta({ answer: 'granted', at: NOW }) }), 'push granted 0');
 
+  // 2b — A NO REACHES THE ACCOUNT EVEN WHEN THE PHONE'S STORAGE WRITE FAILS. The no the person
+  // gave this session is held in memory (unsentNo) and is sent whatever the stored answer says.
+  const NO = { at: NOW - 250 };
+  row('2b the storage write of a no FAILED: the stored answer still says yes (its record: delivered) → the no is sent anyway, with its real age',
+    dec({ device: 'granted', meta: meta({ answer: 'granted', delivered: true }), unsentNo: NO }), 'push declined 250');
+  row('2b …the same when the stored yes is still waiting to be delivered (the no wins: it is never the yes that goes out)',
+    dec({ device: 'granted', meta: meta({ answer: 'granted', delivered: false }), unsentNo: NO }), 'push declined 250');
+  row('2b …when the phone holds no stored answer at all (the read failed, or it was wiped)', dec({ device: 'unknown', meta: null, unsentNo: NO }), 'push declined 250');
+  row('2b …when the stored no is marked delivered (an OLDER no was heard; this one was not)', dec({ meta: meta({ delivered: true }), unsentNo: NO }), 'push declined 250');
+  row('2b …when the record on the phone is someone else’s (this no is this person’s, given this session)', dec({ meta: meta({ uid: UID_B }), unsentNo: NO }), 'push declined 250');
+  row('2b …given this instant → age 0', dec({ device: 'granted', meta: null, unsentNo: { at: NOW } }), 'push declined 0');
+  row('2b …the clock moved back since → sent with no age (never a negative one)', dec({ device: 'granted', meta: null, unsentNo: { at: NOW + 9 } }), 'push declined null');
+  row('2b it never overrides rule 1: signed out → nothing', dec({ userId: null, unsentNo: NO }), 'none signed_out');
+  row('2b it never overrides rule 1: supabase not configured → nothing', dec({ supabaseConfigured: false, unsentNo: NO }), 'none not_configured');
+  row('2b it never overrides rule 2: the column (and so the function) is not there → nothing', dec({ account: 'missing_column', unsentNo: NO }), 'none missing_column');
+  row('2b no unheard no (null) changes nothing: a stored yes with a delivered record sends nothing', dec({ device: 'granted', meta: meta({ answer: 'granted', delivered: true }), unsentNo: null }), 'none delivered');
+  ok('decideReconcile: it never sends a YES from memory (there is no such input: only a no is kept)',
+    !/unsentYes|unsentAnswer/.test(src) && src.includes("if (unsentNo) return { push: { answer: 'declined', ageMs: nowMs >= unsentNo.at ? nowMs - unsentNo.at : null } };"));
+
   const note = (over: Partial<Parameters<SyncModule['portalAccountNote']>[0]>) => {
     const r = m.portalAccountNote({ owner: true, isWeb: false, ready: true, device: 'declined', account: null, pending: null, sendFailed: false, ...over });
     return `${r.note}/${r.action}${r.yesNotTold === true ? '/yes_not_told' : r.yesNotTold === false ? '' : '/?'}`;
@@ -858,11 +1100,37 @@ async function partC2(): Promise<void> {
     for (const account of accounts) for (const device of devices) for (const pending of pendings) for (const sendFailed of [true, false]) for (const isWeb of [true, false]) {
       const n = m.portalAccountNote({ owner: true, isWeb, ready: true, device, account, pending, sendFailed });
       const l = m.settingsAccountLine({ ready: true, device, seen: device, account, pending, sendFailed });
-      if (n.note === 'web_allowed' || l.line === 'also_allowed' || l.line === 'allowed') saysAllowed.push(`${String(account)}/${device}/${String(pending)}/${sendFailed}/${isWeb}`);
+      if (n.note === 'web_allowed' || n.accountAllows !== false || l.line === 'also_allowed' || l.line === 'allowed') saysAllowed.push(`${String(account)}/${device}/${String(pending)}/${sendFailed}/${isWeb}`);
     }
     ok('no screen says "your account allows AI" unless the ACCOUNT\'s own answer is yes (216 states of the phone, none does)', saysAllowed.length === 0, saysAllowed.slice(0, 5).join(' '));
   }
   noteRow('account not yes, this phone says yes but nothing is pending (a refused or unrecorded yes) → the note with Allow', note({ account: 'declined', device: 'granted', pending: null }), 'not_allowed/allow');
+
+  // accountAllows: the Client portal screen says "AI strips the contractor jargon" only while
+  // this is true, and it is true ONLY for the owner, once ready, when the ACCOUNT's own answer is yes.
+  {
+    const allows = (over: Partial<Parameters<SyncModule['portalAccountNote']>[0]>) =>
+      m.portalAccountNote({ owner: true, isWeb: false, ready: true, device: 'granted', account: 'granted', pending: null, sendFailed: false, ...over }).accountAllows;
+    ok('portalAccountNote.accountAllows: the owner, ready, the account says yes → true (phone and web)', allows({}) === true && allows({ isWeb: true, device: 'unknown' }) === true);
+    ok('portalAccountNote.accountAllows: a collaborator’s screen → false, even when HIS OWN account says yes (the server asks the owner’s)',
+      allows({ owner: false }) === false && allows({ owner: false, isWeb: true }) === false);
+    ok('portalAccountNote.accountAllows: not ready (the account not looked at yet) → false', allows({ ready: false }) === false);
+    ok('portalAccountNote.accountAllows: the account could not be read (unread, unavailable, missing_column, no_profile) → false',
+      (['unread', 'unavailable', 'missing_column', 'no_profile'] as const).every((a) => allows({ account: a }) === false));
+    ok('portalAccountNote.accountAllows: a first yes still on its way (the phone says yes, the account has not answered) → false, and false when that send failed',
+      allows({ account: null, pending: 'granted' }) === false && allows({ account: null, pending: 'granted', sendFailed: true }) === false && allows({ account: 'declined', pending: 'granted' }) === false);
+    ok('portalAccountNote.accountAllows: the account says no, or was never told → false', allows({ account: 'declined' }) === false && allows({ account: null }) === false);
+    const accounts: Account[] = ['granted', 'declined', null, 'no_profile', 'missing_column', 'unavailable', 'unread'];
+    const wrong: string[] = [];
+    let states = 0;
+    for (const account of accounts) for (const device of ['granted', 'declined', 'unknown'] as GateState[]) for (const pending of ['granted', 'declined', null] as (Answer | null)[])
+      for (const sendFailed of [true, false]) for (const isWeb of [true, false]) for (const owner of [true, false]) for (const ready of [true, false]) {
+        states += 1;
+        const got = m.portalAccountNote({ owner, isWeb, ready, device, account, pending, sendFailed }).accountAllows;
+        if (got !== (owner && ready && account === 'granted')) wrong.push(`${String(account)}/${device}/${String(pending)}/${sendFailed}/${isWeb}/${owner}/${ready}=${String(got)}`);
+      }
+    ok(`portalAccountNote.accountAllows is exactly "owner, ready, and the account's own answer is yes" in every state (${states} states), always a boolean`, wrong.length === 0 && states === 1008, wrong.slice(0, 4).join(' '));
+  }
   for (const a of ['unread', 'unavailable', 'missing_column', 'no_profile'] as const) noteRow(`account ${a} → nothing`, note({ account: a }), 'none/null');
 
   // `seen` defaults to the phone's answer: the sync has weighed the answer the phone has now.
@@ -1006,6 +1274,26 @@ function partC3(): void {
   ok('the only storage write is the record (AI_CONSENT_META_KEY); the device answer is read with getItem(AI_CONSENT_STORAGE_KEY) in a try/catch',
     count(acct, 'setItem(') === 1 && acct.includes('AsyncStorage.setItem(AI_CONSENT_META_KEY, JSON.stringify(m))')
     && /try \{\s*return parseAiConsent\(await AsyncStorage\.getItem\(AI_CONSENT_STORAGE_KEY\)\);\s*\} catch \{\s*return 'unknown';\s*\}/.test(acct));
+  // A no reaches the account even when the phone's storage write of it fails: it is kept in
+  // MEMORY from the answer event (never read back from storage) until the account has heard a no.
+  {
+    const noteAt = acct.indexOf('export function noteAiAnswer(');
+    const noteFn = topLevelBlock(acct, 'export function noteAiAnswer(');
+    const HOLD = "unsentNo = answer === 'declined' && userId ? { userId, at } : null;";
+    ok('a no is remembered in memory by the answer event, before any storage is touched or anything is awaited (and a yes takes it back)',
+      noteAt > 0 && noteFn.includes(HOLD) && noteFn.indexOf(HOLD) < noteFn.indexOf('writeMeta(') && noteFn.indexOf(HOLD) < noteFn.indexOf('enqueue(')
+      && !/await/.test(noteFn.slice(0, noteFn.indexOf(HOLD))) && count(acct, HOLD) === 1);
+    ok('every run hands it to the rule (decideReconcile … unsentNo), for the signed-in person only',
+      acct.includes('const heldNo = unsentNo && unsentNo.userId === userId ? unsentNo : null;') && acct.includes('unsentNo: heldNo,')
+      && acct.includes('unsentNo: unsentNo && unsentNo.userId === userId ? unsentNo : null,') && count(acct, 'decideReconcile({') === 2 && (acct.match(/^\s*unsentNo: /gm) ?? []).length === 2);
+    ok('it is set by the answer event alone (a yes there clears it) and cleared in exactly three other places: a no the account HEARD (the same one that was sent), "Turn off for my account" heard, someone else signing in',
+      count(acct, 'unsentNo = null;') === 3 && (acct.match(/\bunsentNo\s*=[^=]/g) ?? []).length === 4
+      && acct.indexOf("if (answer === 'declined' && unsentNo === heldNo) unsentNo = null;") > acct.indexOf('if (r.again) armRetry(userId); else stopRetry();')
+      && acct.includes('if (heldNo && heldNo.userId === userId && unsentNo === heldNo) unsentNo = null;')
+      && acct.includes('if (unsentNo && unsentNo.userId !== userId) unsentNo = null;'),
+      `"unsentNo = null;" x${count(acct, 'unsentNo = null;')}, assignments x${(acct.match(/\bunsentNo\s*=[^=]/g) ?? []).length} (the answer event and three clears)`);
+    ok('it lives in memory only: never written to storage', !/setItem\([^)]*unsentNo|stringify\(unsentNo/.test(acct));
+  }
   ok('the pre-sign-out run sends a no only (onlyDeclined stops a yes)', acct.includes("if (opts?.onlyDeclined && d.push.answer !== 'declined') return;")
     && acct.indexOf("if (opts?.onlyDeclined && d.push.answer !== 'declined') return;") < acct.indexOf('const r = await sendAnswer(userId, answer, d.push.ageMs);'));
 
@@ -1153,8 +1441,16 @@ function partC3(): void {
     setup.includes('if (val) await ensureAiConsent();') && !/val && !\(await ensureAiConsent\(\)\)/.test(setup));
   ok('client-portal-setup: const accountAi = usePortalAccountNote(isOwner); and <AiAccountNote owner={isOwner} />',
     setup.includes('const accountAi = usePortalAccountNote(isOwner);') && count(setup, '<AiAccountNote owner={isOwner} />') === 1);
-  ok('client-portal-setup: the "AI strips the contractor jargon" subtitle is replaced while the account has not allowed AI',
-    /\{accountAi\.note === 'not_allowed'\s*\? <Text style=\{styles\.sectionSubtitle\}>\{AI_ACCOUNT_COPY\.recapSubtitlePlain\}<\/Text>\s*: \(/.test(setup));
+  // The AI sentence is shown ONLY while the account's own answer is yes (accountAllows, executed
+  // in C2). An account that could not be read, a collaborator's screen and a first yes still on
+  // its way all get the plain subtitle: the screen never says AI rewrites a recap the server
+  // would send as a plain summary.
+  ok('client-portal-setup: the "AI strips the contractor jargon" subtitle is shown only when the account’s own answer is yes; otherwise the plain subtitle',
+    /\{!accountAi\.accountAllows\s*\? <Text style=\{styles\.sectionSubtitle\}>\{AI_ACCOUNT_COPY\.recapSubtitlePlain\}<\/Text>\s*: \(\s*<Text style=\{styles\.sectionSubtitle\}>\s*We email your client a plain-English recap every Friday — what got done this week, what&apos;s coming next\. AI strips the contractor jargon\. Off until you toggle it on\.\s*<\/Text>\s*\)\}/.test(setup));
+  ok('…that is the ONE place either subtitle is rendered, the note’s state no longer picks it, and the hook hands the rule’s whole result to the screen',
+    count(setup, 'AI strips the contractor jargon') === 1 && count(setup, 'AI_ACCOUNT_COPY.recapSubtitlePlain') === 1 && count(setup, 'accountAi.accountAllows') === 1
+    && !/accountAi\.note === 'not_allowed'\s*\?/.test(setup)
+    && /return \{\s*\.\.\.portalAccountNote\(\{/.test(portalHook));
   const gateAt = setup.indexOf('if (!(await ensureAiConsent())) { showAlert(AI_CONSENT_OFF_TITLE, AI_CONSENT_OFF_MESSAGE); return; }');
   const settleAt = setup.indexOf('await settleAiConsentSync();');
   const invokeAt = setup.indexOf("supabase.functions.invoke('homeowner-weekly-digest'");
@@ -1395,11 +1691,13 @@ async function partC5(core: CoreModule): Promise<void> {
   const store = new Map<string, string>();
   const written: string[] = [];
   let throwOnGet: string | null = null;
+  /** While true EVERY storage write throws (a full or broken disk): nothing is stored. */
+  let throwOnSet = false;
   /** Every storage read, counted: a run that happens at all reads the phone's answer. */
   let gets = 0;
   const storage = {
     getItem: async (k: string) => { gets += 1; if (throwOnGet === k) throw new Error('storage read failed'); return store.has(k) ? (store.get(k) as string) : null; },
-    setItem: async (k: string, v: string) => { written.push(k); store.set(k, v); },
+    setItem: async (k: string, v: string) => { if (throwOnSet) throw new Error('storage write failed'); written.push(k); store.set(k, v); },
     removeItem: async (k: string) => { store.delete(k); },
   };
   let sessionUser: string | null = U;
@@ -1462,9 +1760,10 @@ async function partC5(core: CoreModule): Promise<void> {
     acct.setAiConsentRetryMsForTests(null); // the app's own 30 s: no timed retry fires inside a case that does not ask for one
     await wrapper.resetAiConsent();
     store.clear(); written.length = 0; rpc.length = 0; order.length = 0; reads.length = 0;
-    throwOnGet = null; sessionUser = U; eventUser = U; prompts = 0; promptAnswer = true;
+    throwOnGet = null; throwOnSet = false; sessionUser = U; eventUser = U; prompts = 0; promptAnswer = true;
     rpcImpl = OFFLINE;
     profileRead = async () => ({ data: { ai_consent: null }, error: null });
+    acct.resetAccountAi(null); // a no still held in memory from the case before goes with its person
     acct.resetAccountAi(user);
   };
   const deferred = () => { let release: () => void = () => {}; const gate = new Promise<void>((r) => { release = r; }); return { gate, release }; };
@@ -1745,12 +2044,14 @@ async function partC5(core: CoreModule): Promise<void> {
     ok('a run that lands clears the armed retry (no left-over run later)', sent === 2 && rpc.length === 2 && meta()?.delivered === true && gets === readsAfter, `${rpc.length} send(s), ${gets - readsAfter} storage read(s) after`);
   }
   {
-    // Nothing is waiting any more (the phone's answer is gone): the armed retry is cleared too.
+    // Nothing is waiting any more (the phone's yes is gone): the armed retry is cleared too.
+    // A YES, on purpose: an unheard no is still waiting when the stored answer is gone (see
+    // "a no reaches the account even when the storage write fails" below).
     await fresh();
     acct.setAiConsentRetryMsForTests(120);
-    store.set(KEY, 'declined');
+    store.set(KEY, 'granted');
     rpcImpl = NETWORK_DOWN;
-    await acct.noteAiAnswer(U, 'declined');
+    await acct.noteAiAnswer(U, 'granted');
     store.delete(KEY);
     await acct.reconcileAiConsent(U);
     const readsAfter = gets;
@@ -1842,6 +2143,110 @@ async function partC5(core: CoreModule): Promise<void> {
     }
   } finally {
     (globalThis as unknown as { setTimeout: unknown }).setTimeout = realSetTimeout;
+  }
+
+  // ── a no reaches the account even when the phone's storage write fails ───
+  // The person turns AI off; the storage write THROWS while a stored yes (already delivered)
+  // exists. A run built from storage alone re-reads the old yes and sends nothing, so the account
+  // would keep its yes. The no is kept in memory from the answer event and sent anyway.
+  {
+    const storedYes = async () => {
+      await fresh();
+      store.set(KEY, 'granted'); putMeta({ answer: 'granted', delivered: true });
+      profileRead = async () => ({ data: { ai_consent: 'granted' }, error: null });
+      await acct.refreshAccountAiConsent(U);
+      await wrapper.loadAiConsent();
+      await acct.reconcileAiConsent(U);
+    };
+    await storedYes();
+    ok('before: the phone and the account both say yes, and nothing is waiting', rpc.length === 0 && snap().account === 'granted' && snap().pending === null && wrapper.getAiConsentState() === 'granted');
+    throwOnSet = true; // from here every storage write throws
+    rpcImpl = HEARD;
+    await wrapper.declineAiConsent(); // Settings → AI features Off, through the real gate
+    await acct.settleAiConsentSync(500);
+    ok('AI switched Off while the storage write THROWS: the stored answer still says yes and its record still says "delivered yes" (the write really failed)…',
+      store.get(KEY) === 'granted' && meta()?.answer === 'granted' && meta()?.delivered === true && wrapper.getAiConsentState() === 'declined', `${store.get(KEY)} ${JSON.stringify(meta())}`);
+    ok('…and the no is SENT to the account all the same: one send, declined, given just now, question version 2',
+      rpc.length === 1 && rpc[0].args.p_answer === 'declined' && rpc[0].args.p_version === 2
+      && typeof rpc[0].args.p_age_ms === 'number' && (rpc[0].args.p_age_ms as number) >= 0 && (rpc[0].args.p_age_ms as number) < 1000, JSON.stringify(rpc.map((c) => c.args)));
+    ok('…the account says no, nothing is waiting, and no failure is claimed', snap().account === 'declined' && snap().pending === null && snap().sendFailed === false, JSON.stringify(snap()));
+    await acct.reconcileAiConsent(U);
+    await acct.reconcileAiConsent(U);
+    ok('…once heard it is not sent again, and the stale stored yes is never sent in its place', rpc.length === 1, rpc.map((c) => c.args.p_answer).join(','));
+
+    // The same, with no signal: it stays waiting IN MEMORY and the app's own clock delivers it.
+    await storedYes();
+    acct.setAiConsentRetryMsForTests(30);
+    throwOnSet = true;
+    rpcImpl = NETWORK_DOWN;
+    await wrapper.declineAiConsent();
+    await acct.settleAiConsentSync(500);
+    ok('storage write throws AND no signal: one try, the no is still waiting, the screen says the send failed (the stored answer still says yes)',
+      rpc.length === 1 && rpc[0].args.p_answer === 'declined' && snap().pending === 'declined' && snap().sendFailed === true && store.get(KEY) === 'granted', `${rpc.length} ${JSON.stringify(snap())}`);
+    rpcImpl = HEARD; // the signal returns; nobody touches the phone
+    await tick(120);
+    ok('…with nothing else happening the timed retry sends the no again, with its real age, and the account hears it',
+      rpc.length === 2 && rpc[1].args.p_answer === 'declined' && typeof rpc[1].args.p_age_ms === 'number' && (rpc[1].args.p_age_ms as number) >= 25
+      && snap().account === 'declined' && snap().pending === null && snap().sendFailed === false, `${JSON.stringify(rpc.map((c) => c.args))} ${JSON.stringify(snap())}`);
+    const sent = rpc.length;
+    await tick(150);
+    await acct.reconcileAiConsent(U);
+    ok('…and then the clock stops and nothing more is sent', rpc.length === sent, `${rpc.length - sent} more send(s)`);
+
+    // The foreground run and the pre-sign-out run send it too.
+    await storedYes();
+    throwOnSet = true;
+    await wrapper.declineAiConsent(); // offline: refused
+    await acct.settleAiConsentSync(500);
+    rpcImpl = HEARD;
+    await acct.reconcileAiConsent(U, { onlyDeclined: true });
+    ok('the pre-sign-out run (a no only) sends an unheard no the phone could not store', rpc.length === 2 && rpc[1].args.p_answer === 'declined' && snap().account === 'declined', JSON.stringify(rpc.map((c) => c.args)));
+
+    // He changes his mind: a yes on this phone takes the unheard no back.
+    await storedYes();
+    throwOnSet = true;
+    await wrapper.declineAiConsent(); // offline: refused, the no is waiting in memory
+    await acct.settleAiConsentSync(500);
+    throwOnSet = false;
+    rpcImpl = HEARD;
+    store.set(KEY, 'granted');
+    await acct.noteAiAnswer(U, 'granted');
+    await acct.reconcileAiConsent(U);
+    ok('a yes given on this phone AFTER an unheard no takes that no back: from then on only the yes is sent',
+      rpc.map((c) => c.args.p_answer).join(',') === 'declined,granted' && snap().account === 'granted' && snap().pending === null, rpc.map((c) => c.args.p_answer).join(','));
+
+    // Someone else signs in: the unheard no does not ride on his account.
+    await storedYes();
+    throwOnSet = true;
+    await wrapper.declineAiConsent(); // offline: refused
+    await acct.settleAiConsentSync(500);
+    throwOnSet = false;
+    acct.resetAccountAi(UID_B);
+    sessionUser = UID_B;
+    store.delete(KEY); store.delete(META); // the tenant sweep
+    rpcImpl = HEARD;
+    await acct.reconcileAiConsent(UID_B);
+    ok('someone else signs in: the first person’s unheard no is forgotten, and nothing is sent to the new account', rpc.length === 1 && snap().userId === UID_B && snap().pending === null, `${rpc.length} send(s) ${JSON.stringify(snap())}`);
+
+    // The same person again (app start / a re-mount): the unheard no is still his, and still goes.
+    await storedYes();
+    throwOnSet = true;
+    await wrapper.declineAiConsent(); // offline: refused
+    await acct.settleAiConsentSync(500);
+    acct.resetAccountAi(U);
+    rpcImpl = HEARD;
+    await acct.reconcileAiConsent(U);
+    ok('a reset for the SAME person keeps his unheard no, and the next run delivers it', rpc.length === 2 && rpc[1].args.p_answer === 'declined' && snap().account === 'declined', JSON.stringify(rpc.map((c) => c.args)));
+
+    // "Turn off for my account" heard: the no in memory is covered by it.
+    await storedYes();
+    throwOnSet = true;
+    await wrapper.declineAiConsent(); // offline: refused
+    await acct.settleAiConsentSync(500);
+    rpcImpl = HEARD;
+    const off = await acct.turnOffAiForAccount(U);
+    await acct.reconcileAiConsent(U);
+    ok('"Turn off for my account" heard by the account covers the no kept in memory: it is not sent a second time', off === true && rpc.length === 2 && snap().account === 'declined', `${off} ${rpc.length} send(s)`);
   }
 
   // ── 4b: a yes that could not be delivered never looks saved ──────────────
@@ -2109,6 +2514,7 @@ await partS1();
 partS2();
 partS5();
 partS6();
+partS6b();
 const core = await loadCore();
 if (core) await partC1(core);
 await partC2();

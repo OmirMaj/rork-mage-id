@@ -16,7 +16,11 @@
 //      host is asked once (two racing calls share the question) and the answer
 //      is stored; granted → called; the web host → always yes, nothing asked
 //      or stored; a stored "no" holds even with no host; require() throws the
-//      honest sentence.
+//      honest sentence. A NO THE PHONE COULD NOT STORE STILL HOLDS: after a
+//      write that failed, a stored yes is not read back over it. NO HOST AND
+//      NO STORED ANSWER IS A NO (fail closed):
+//      the yes-without-a-host path exists only for a headless run, behind a
+//      named switch that no app file sets and no runtime implies (pinned in C2).
 //   A2. THE THREE ANSWERS, pressed for real on a fake alert (askAiConsentOnce):
 //      only "Allow AI features" is a yes; "Not now" and a dismissed alert are
 //      no; "Privacy policy" opens the policy and asks again; the first answer
@@ -47,6 +51,7 @@ import { fileURLToPath } from 'node:url';
 import {
   AI_CONSENT_COPY,
   AI_CONSENT_DECLINED_CODE,
+  AI_CONSENT_HEADLESS_SWITCH,
   AI_CONSENT_OFF_MESSAGE,
   AI_CONSENT_OFF_ROW,
   AI_CONSENT_PRIVACY_URL,
@@ -54,6 +59,7 @@ import {
   AiConsentDeclinedError,
   aiConsentAlertMessage,
   aiConsentErrorText,
+  aiConsentHeadless,
   aiFailureError,
   askAiConsentOnce,
   createAiConsentGate,
@@ -81,12 +87,13 @@ function fakeStorage(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
   const log: string[] = [];
   let throwOnRead = false;
+  let throwOnWrite = false;
   const storage: AiConsentStorage = {
     async getItem(k) { log.push(`get:${k}`); if (throwOnRead) throw new Error('storage refused'); return map.has(k) ? map.get(k)! : null; },
-    async setItem(k, v) { log.push(`set:${k}=${v}`); map.set(k, v); },
-    async removeItem(k) { log.push(`rm:${k}`); map.delete(k); },
+    async setItem(k, v) { log.push(`set:${k}=${v}`); if (throwOnWrite) throw new Error('storage refused the write'); map.set(k, v); },
+    async removeItem(k) { log.push(`rm:${k}`); if (throwOnWrite) throw new Error('storage refused the write'); map.delete(k); },
   };
-  return { storage, map, log, failReads: () => { throwOnRead = true; } };
+  return { storage, map, log, failReads: () => { throwOnRead = true; }, failWrites: (on = true) => { throwOnWrite = on; } };
 }
 
 /** The shape every entry point has: gate, then the network call. */
@@ -204,12 +211,59 @@ async function partA() {
     ok('web host registered mid-read: allowed, never asked, nothing stored',
       r === true && asked === 0 && !s.map.has(AI_CONSENT_STORAGE_KEY));
   }
-  // no host (a bun validator / unit test importing a util): unanswered → through
+  // NO HOST AND NO STORED ANSWER. The host (components/AiConsentSheet) is mounted at the app
+  // root, so the app does not get here; if it ever did, the App Store control must fail CLOSED.
+  // The yes-without-a-host path is for a headless run only (a bun validator importing an AI
+  // util on its own), decided by aiConsentHeadless(): the named switch, and nothing else.
   {
-    const s = fakeStorage();
-    const gate = createAiConsentGate({ storage: s.storage });
-    ok('no host + unknown: not the app, the call goes through', (await gate.ensure()) === true);
-    ok('…and nothing is stored on its behalf', !s.map.has(AI_CONSENT_STORAGE_KEY));
+    const g = globalThis as unknown as Record<string, unknown>;
+    const had = Object.prototype.hasOwnProperty.call(g, AI_CONSENT_HEADLESS_SWITCH);
+    const before = g[AI_CONSENT_HEADLESS_SWITCH];
+    try {
+      // As the app sees it: the switch is not set. This run is under Bun, and that changes nothing.
+      delete g[AI_CONSENT_HEADLESS_SWITCH];
+      ok('the switch not set: not headless, on any runtime (this run is under Bun)', aiConsentHeadless() === false && typeof g.Bun === 'object');
+      const s = fakeStorage();
+      const gate = createAiConsentGate({ storage: s.storage });
+      const heard: string[] = [];
+      gate.onAnswer((a) => heard.push(a));
+      const { call, sent } = makeAiCall(gate);
+      let err: unknown = null;
+      try { await call('my scope'); } catch (e) { err = e; }
+      ok('no host + no stored answer, as the app: REFUSED (fail closed): the transport is never called', sent.length === 0 && (await gate.ensure()) === false);
+      ok('…the refusal is the honest sentence with its machine code', err instanceof AiConsentDeclinedError && isAiConsentDeclinedError(err));
+      ok('…and it is not an answer: nothing is stored, the state stays unknown, no answer event fires (the account is told nothing)',
+        !s.map.has(AI_CONSENT_STORAGE_KEY) && gate.getState() === 'unknown' && heard.length === 0 && !s.log.some((l) => l.startsWith('set:') || l.startsWith('rm:')), s.log.join(' '));
+      let asked = 0;
+      gate.setHost({ isWeb: false, prompt: async () => { asked++; return true; } });
+      ok('…so once the host is there the person is ASKED (the earlier refusal did not answer for him)', (await gate.ensure()) === true && asked === 1 && heard.join(',') === 'granted');
+      {
+        // A mount-time call that starts before AiConsentSheet's own mount effect: the host
+        // registers while the stored answer is being read. It is asked, not refused.
+        const s2 = fakeStorage();
+        const gate2 = createAiConsentGate({ storage: s2.storage });
+        let asked2 = 0;
+        const p = gate2.ensure();
+        gate2.setHost({ isWeb: false, prompt: async () => { asked2++; return true; } });
+        ok('a phone host registered mid-read: the question is asked (not a refusal)', (await p) === true && asked2 === 1);
+      }
+      {
+        const s3 = fakeStorage({ [AI_CONSENT_STORAGE_KEY]: 'granted' });
+        const gate3 = createAiConsentGate({ storage: s3.storage });
+        ok('no host + a stored yes, as the app: allowed (the person answered; nobody needs to be asked)', (await gate3.ensure()) === true);
+      }
+      // A headless run that says so: let through, nothing stored.
+      g[AI_CONSENT_HEADLESS_SWITCH] = true;
+      const h = fakeStorage();
+      const headless = createAiConsentGate({ storage: h.storage });
+      ok('no host + no stored answer, HEADLESS (the switch set to true): the call goes through', aiConsentHeadless() === true && (await headless.ensure()) === true);
+      ok('…and nothing is stored on its behalf', !h.map.has(AI_CONSENT_STORAGE_KEY));
+      // Only the exact value true opens it.
+      const ignored = ['true', 'false', 1, 0, null, {}, false].every((val) => { g[AI_CONSENT_HEADLESS_SWITCH] = val; return aiConsentHeadless() === false; });
+      ok('a switch value that is not exactly true ("true", "false", 1, 0, null, {}, false) is "not headless"', ignored);
+    } finally {
+      if (had) g[AI_CONSENT_HEADLESS_SWITCH] = before; else delete g[AI_CONSENT_HEADLESS_SWITCH];
+    }
   }
   // unreadable storage keeps this session's answer
   {
@@ -219,6 +273,55 @@ async function partA() {
     await gate.grant();
     s.failReads();
     ok('storage refuses a read: this session\u2019s answer holds', (await gate.ensure()) === true);
+  }
+  // A NO THE PHONE COULD NOT STORE STILL HOLDS ON THIS PHONE. AI is switched off, the write is
+  // refused, and storage keeps the older yes. ensure() re-reads storage first; before this rule
+  // that read put the yes back, and this app's own AI buttons went on sending after the no.
+  {
+    const s = fakeStorage({ [AI_CONSENT_STORAGE_KEY]: 'granted' });
+    const gate = createAiConsentGate({ storage: s.storage });
+    let asked = 0;
+    gate.setHost({ isWeb: false, prompt: async () => { asked++; return true; } });
+    const heard: string[] = [];
+    gate.onAnswer((a) => heard.push(a));
+    const { call, sent } = makeAiCall(gate);
+    await call('before');
+    ok('a stored yes: sent (the starting point)', sent.length === 1 && asked === 0);
+    s.failWrites();
+    await gate.decline();
+    ok('AI switched off, the write refused: storage still holds the old yes, and the answer event fired (the account is told)',
+      s.map.get(AI_CONSENT_STORAGE_KEY) === 'granted' && s.log.includes(`set:${AI_CONSENT_STORAGE_KEY}=declined`) && heard.join(',') === 'declined');
+    let err: unknown = null;
+    try { await call('after the no'); } catch (e) { err = e; }
+    ok('…the NEXT AI request is refused: the stale stored yes does not come back, nothing is sent, nobody is asked',
+      sent.length === 1 && isAiConsentDeclinedError(err) && asked === 0 && gate.getState() === 'declined', `sent ${sent.length}, asked ${asked}, state ${gate.getState()}`);
+    ok('…and a re-read (a screen mounting, a foreground) says no as well, every time',
+      (await gate.load()) === 'declined' && (await gate.load()) === 'declined' && (await gate.ensure()) === false);
+    // The person turns AI back on: a yes is a yes, stored or not (storage already says yes).
+    await gate.grant();
+    ok('…a yes given afterwards is honored (the person changed his mind): sent again', (await gate.ensure()) === true && heard.join(',') === 'declined,granted');
+    // Reset with the removal refused: the person is asked again, not waved through on the old yes.
+    await gate.reset();
+    ok('reset() with the removal refused: the stored yes is not taken back; the question is asked',
+      s.map.get(AI_CONSENT_STORAGE_KEY) === 'granted' && gate.getState() === 'unknown' && (await gate.ensure()) === true && asked === 1);
+  }
+  // …a stored NO, or no stored answer, is still read after a failed write (neither can open the
+  // gate), and once a write lands storage is the truth again.
+  {
+    const s = fakeStorage({ [AI_CONSENT_STORAGE_KEY]: 'declined' });
+    const gate = createAiConsentGate({ storage: s.storage });
+    s.failWrites();
+    await gate.grant();
+    ok('a YES the phone could not store, over a stored no: the stored no is read, refused (fail closed, as before)', (await gate.ensure()) === false && gate.getState() === 'declined');
+    s.map.delete(AI_CONSENT_STORAGE_KEY);
+    let asked = 0;
+    gate.setHost({ isWeb: false, prompt: async () => { asked++; return false; } });
+    ok('…and with the stored answer gone (the sign-out sweep) the question is asked', (await gate.ensure()) === false && asked === 1);
+    s.failWrites(false);
+    await gate.decline();
+    ok('a write that lands ends it: declined is stored', s.map.get(AI_CONSENT_STORAGE_KEY) === 'declined');
+    s.map.set(AI_CONSENT_STORAGE_KEY, 'granted');
+    ok('…and storage is the truth again (a stored yes is read)', (await gate.load()) === 'granted' && (await gate.ensure()) === true);
   }
   // reset / revoke
   {
@@ -422,6 +525,14 @@ function stripComments(src: string): string {
     out += c; i++;
   }
   return out;
+}
+
+/** From `header` to the end of that top-level declaration (the first line that is just `}`). */
+function topBlock(src: string, header: string): string {
+  const at = src.indexOf(header);
+  if (at < 0) return '';
+  const end = src.indexOf('\n}\n', at);
+  return src.slice(at, end < 0 ? src.length : end + 2);
 }
 
 function listClientFiles(): string[] {
@@ -675,6 +786,35 @@ function partC() {
   const layout = stripComments(read('app/_layout.tsx'));
   ok('app/_layout.tsx imports and mounts <AiConsentSheet />',
     /import AiConsentSheet from "@\/components\/AiConsentSheet";/.test(layout) && /<AiConsentSheet \/>/.test(layout));
+
+  // THE HEADLESS SWITCH IS NEVER SET BY THE APP. With no host and no stored answer the gate
+  // refuses (executed in A). The only way through is aiConsentHeadless(): the named switch. So
+  // no app file may name the switch (to set it, or at all), and the gate file reads no runtime
+  // global. `files` is every .ts / .tsx under app/, components/, utils/, hooks/, contexts/ and
+  // lib/.
+  {
+    const CORE = 'utils/aiConsentCore.ts';
+    const core = stripComments(read(CORE));
+    ok('the gate fails closed: "if (!host) return aiConsentHeadless();" (and no "if (!host) return true;")',
+      core.includes('if (!host) return aiConsentHeadless();') && !/if \(!host\) return true;/.test(core) && (core.match(/\baiConsentHeadless\(\)/g) ?? []).length === 2);
+    ok(`the switch is the global '${AI_CONSENT_HEADLESS_SWITCH}', and ${CORE} only READS it (one read, inside aiConsentHeadless; no assignment)`,
+      AI_CONSENT_HEADLESS_SWITCH === '__MAGEID_AI_CONSENT_HEADLESS__'
+      && (core.match(/AI_CONSENT_HEADLESS_SWITCH/g) ?? []).length === 2
+      && core.includes('const flag = g[AI_CONSENT_HEADLESS_SWITCH];')
+      && !/\[AI_CONSENT_HEADLESS_SWITCH\]\s*=[^=]/.test(core)
+      && (core.match(/__MAGEID_AI_CONSENT_HEADLESS__/g) ?? []).length === 1);
+    ok('…only the exact value true is headless, and no runtime is (the gate file names no Bun, process or navigator); anything unreadable is "not headless"',
+      core.includes('return flag === true;')
+      && !/\b(Bun|process|navigator)\b/.test(core)
+      && /\} catch \{\s*return false;\s*\}/.test(topBlock(core, 'export function aiConsentHeadless(): boolean {')));
+    const SWITCH_NAME = /__MAGEID_AI_CONSENT_HEADLESS__|AI_CONSENT_HEADLESS_SWITCH|aiConsentHeadless/;
+    const naming = files.filter((f) => f !== CORE && SWITCH_NAME.test(read(f)));
+    ok('no file under app/, components/, hooks/, contexts/, lib/ or utils/ sets the headless switch: none even names it (comments included)',
+      files.includes(CORE) && files.length > 300 && naming.length === 0, naming.join(', '));
+    const wrapper = stripComments(read('utils/aiConsent.ts'));
+    ok('utils/aiConsent.ts (the app’s gate) builds the gate with storage only: createAiConsentGate({ storage: AsyncStorage })',
+      wrapper.includes('const gate = createAiConsentGate({ storage: AsyncStorage });'));
+  }
   const settings = stripComments(read('app/(tabs)/settings/index.tsx'));
   ok('Settings → AI features: On/Off from the stored answer, Off → decline',
     /<Text style=\{styles\.rowLabel\}>AI features<\/Text>/.test(settings)

@@ -29,10 +29,19 @@
 // WHERE THE GUARANTEE LIVES. components/AiConsentSheet is the "host": mounted once at the app
 // root (app/_layout.tsx, pinned by scripts/validate-ai-consent.ts), it tells
 // the gate how to ask and whether this is the web build. A stored "no" is
-// honored everywhere. A runtime with NO host at all is not the app — a bun
-// validator or a unit test that imports an AI util on its own — and there an
-// unanswered gate lets the call through, so those suites keep exercising the
-// util instead of every one of them stubbing this module.
+// honored everywhere, and so is a "no" the phone could not store: after a
+// write that failed, the older stored yes is not read back over it while the
+// app stays open (createAiConsentGate, writeFailed).
+//
+// NO HOST = NO. With no stored answer and no host registered there is nobody
+// to ask, so the request is REFUSED: on a phone, in the web app and under jest
+// alike. (The host is mounted at the root, so the app does not get here; if it
+// ever did, the App Store control must fail closed, not open.) The one
+// exception is a HEADLESS run: a bun validator that imports an AI util on its
+// own, with no app around it. There an unanswered gate lets the call through,
+// so those suites keep exercising the util instead of every one of them
+// stubbing this module. Headless is decided by aiConsentHeadless() below: a
+// named switch that such a validator sets itself and that no app file sets.
 
 export type AiConsentState = 'unknown' | 'granted' | 'declined';
 
@@ -56,6 +65,28 @@ export const AI_CONSENT_META_KEY = 'mageid_ai_consent_meta_v2';
  *  first question that names the weekly client recap and Ask Your Home. The server refuses a
  *  yes below 2 (migration 20261004090000). Bump BOTH this and the key suffix together. */
 export const AI_CONSENT_QUESTION_VERSION = 2;
+
+/** THE HEADLESS SWITCH: the name of a global. Exactly `true` = this run is
+ *  headless (a validator), so an unanswered gate with no host lets the call
+ *  through; anything else, or not set = behave like the app. NO APP FILE SETS
+ *  IT: scripts/validate-ai-consent.ts fails if any file under app/,
+ *  components/, hooks/, contexts/, lib/ or utils/ names it (this file, which
+ *  only reads it, is the one exception). A validator that calls an AI util
+ *  with no stored answer sets it on its first line after the imports. */
+export const AI_CONSENT_HEADLESS_SWITCH = '__MAGEID_AI_CONSENT_HEADLESS__';
+
+/** True only in a headless run: the switch is exactly `true`. Nothing else
+ *  opens the path, on any runtime. Never throws; anything it cannot read is
+ *  false. */
+export function aiConsentHeadless(): boolean {
+  try {
+    const g = globalThis as unknown as Record<string, unknown>;
+    const flag = g[AI_CONSENT_HEADLESS_SWITCH];
+    return flag === true;
+  } catch {
+    return false;
+  }
+}
 
 /** The honest blocked message every refused AI request carries. */
 export const AI_CONSENT_OFF_MESSAGE = 'AI features are off. Turn them on in Settings → AI features.';
@@ -137,7 +168,8 @@ export interface AiConsentHost {
 
 export interface AiConsentGate {
   getState(): AiConsentState;
-  /** Re-read the stored answer (storage is the truth when it can be read). */
+  /** Re-read the stored answer (storage is the truth when it can be read; after a write that
+   *  failed, a stored yes is not taken: this session's answer stands). */
   load(): Promise<AiConsentState>;
   subscribe(fn: (s: AiConsentState) => void): () => void;
   /** Fires only when the PERSON answers: the question, grant() or decline(). Never on a storage
@@ -160,6 +192,10 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
   let pending: Promise<boolean> | null = null;
   const listeners = new Set<(s: AiConsentState) => void>();
   const answerListeners = new Set<(a: 'granted' | 'declined') => void>();
+  // True while the LAST write of an answer did not reach storage. Storage is
+  // then known to be out of date, and a yes read back from it is not this
+  // person's current answer: load() does not take it.
+  let writeFailed = false;
 
   const set = (s: AiConsentState) => {
     if (s === state) return;
@@ -169,7 +205,13 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
 
   const load = async (): Promise<AiConsentState> => {
     try {
-      set(parseAiConsent(await deps.storage.getItem(AI_CONSENT_STORAGE_KEY)));
+      const stored = parseAiConsent(await deps.storage.getItem(AI_CONSENT_STORAGE_KEY));
+      // Storage is the truth when it can be read, with ONE exception: after a
+      // write that failed, a stored yes is the answer from BEFORE that write.
+      // Taking it would turn a "no" given this session (AI switched off, the
+      // write refused) back into a yes on the very next AI request. A stored
+      // no, or no stored answer, is still taken: neither can open the gate.
+      if (!(writeFailed && stored === 'granted')) set(stored);
     } catch {
       // Unreadable storage: keep this session's answer (or 'unknown').
     }
@@ -181,8 +223,14 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
     try {
       if (s === 'unknown') await deps.storage.removeItem(AI_CONSENT_STORAGE_KEY);
       else await deps.storage.setItem(AI_CONSENT_STORAGE_KEY, s);
+      writeFailed = false;
     } catch {
-      // The answer still holds for this session; it is asked again next launch.
+      // Storage did not take it. A no (or a reset) stands for as long as the
+      // app stays open: load() above no longer takes the older stored yes. A
+      // yes that could not be stored is not kept this way: the next request
+      // reads what storage holds (a no refuses, no answer asks again). After a
+      // restart nothing in memory is left and storage is read as it is.
+      writeFailed = true;
     }
     // The person answered (never reset()). After the storage write, and not awaited: the gate
     // is never blocked by whoever listens (the account sync talks to the network).
@@ -199,8 +247,10 @@ export function createAiConsentGate(deps: AiConsentDeps): AiConsentGate {
     if (s === 'granted') return true;
     if (s === 'declined') return false;
     if (pending) return pending;
-    // No host: not the app (see the header). The app always has one.
-    if (!host) return true;
+    // No host and no stored answer: nobody to ask, so the answer is NO (fail
+    // closed). Nothing is stored and no answer event fires: the person was not
+    // asked. Only a headless run (a bun validator) is let through.
+    if (!host) return aiConsentHeadless();
     const ask = host.prompt;
     pending = (async () => {
       let yes = false;

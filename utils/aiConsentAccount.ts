@@ -35,6 +35,16 @@
 // online/offline events), so a clock is the only trigger that is real on an
 // iPhone while the app stays open.
 //
+// A NO REACHES THE ACCOUNT EVEN WHEN THE PHONE'S STORAGE WRITE FAILS. When the
+// person turns AI off and the storage write throws, the stored answer still
+// reads yes, and a run built from storage alone would send nothing: the account
+// would keep its yes. So a no is also remembered in MEMORY (`unsentNo`) from the
+// answer event until the account has heard a no, and every run sends it first,
+// whatever storage says (utils/aiConsentSyncCore decideReconcile, rule 2b). A
+// later yes on this phone takes it back; someone else signing in forgets it.
+// It lasts as long as the app stays open, which is as long as anything can
+// last when storage does not take the write.
+//
 // A YES ON THE ACCOUNT IS NEVER COPIED ONTO A PHONE. This module never grants
 // on the phone's gate and never writes the phone's answer key; the device
 // answer is read straight from storage (the gate keeps its in-memory answer
@@ -107,6 +117,12 @@ let host: AccountAiHost | null = null;
 /** Bumped whenever the account's value is set from a write's answer, so a read
  *  that started earlier cannot overwrite it with what the account said before. */
 let accountSeq = 0;
+/** A no this person gave on this phone that the account has not heard yet
+ *  (null = none). In memory on purpose: it must not depend on the storage
+ *  write that may have failed. Set by the answer event; cleared when the
+ *  account has heard a no, when the person says yes, or when someone else
+ *  signs in. */
+let unsentNo: { userId: string; at: number } | null = null;
 
 /** The FIRST wait before a failed send is tried again while the app stays open.
  *  The waits after it grow: utils/aiConsentSyncCore AI_CONSENT_RETRY_STEPS_MS. */
@@ -202,6 +218,8 @@ export function resetAccountAi(userId: string | null): void {
   functionMissing = false;
   accountSeq += 1;
   stopRetry();
+  // An unheard no belongs to the person who gave it: it never rides on another account.
+  if (unsentNo && unsentNo.userId !== userId) unsentNo = null;
   setSnap({ userId, account: 'unread', pending: null, ready: false, seen: null, sendFailed: false });
 }
 
@@ -269,6 +287,7 @@ async function noteAccountAnswered(userId: string, account: 'granted' | 'decline
     device,
     meta: await readMeta(),
     nowMs: Date.now(),
+    unsentNo: unsentNo && unsentNo.userId === userId ? unsentNo : null,
   });
   if (snap.userId !== userId) return;
   accountSeq += 1;
@@ -287,6 +306,8 @@ async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boole
   if (!opts?.fromTimer && snap.userId === userId) retryFailures = 0;
   const device = await readDeviceAnswer();
   const meta = await readMeta();
+  // The no this run would send from memory, if there is one for this person.
+  const heldNo = unsentNo && unsentNo.userId === userId ? unsentNo : null;
   const d = decideReconcile({
     userId,
     supabaseConfigured: isSupabaseConfigured,
@@ -294,6 +315,7 @@ async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boole
     device,
     meta,
     nowMs: Date.now(),
+    unsentNo: heldNo,
   });
   const pending = d.push ? d.push.answer : null;
   // A failure is remembered only for the answer it happened to: a new answer
@@ -316,6 +338,9 @@ async function runReconcile(userId: string | null, opts?: { onlyDeclined?: boole
     return;
   }
   if (snap.userId === userId) stopRetry();
+  // The account has heard a no: the one kept in memory is no longer waiting
+  // (unless a newer no was given while this one was in flight).
+  if (answer === 'declined' && unsentNo === heldNo) unsentNo = null;
   // The account heard it (applied, or refused as stale: both are "heard"). Mark
   // the record delivered ONLY IF it still describes the answer just pushed.
   const after = await readMeta();
@@ -341,7 +366,12 @@ function enqueue<T>(job: () => Promise<T>, fallback: T): Promise<T> {
 /** The person answered on this phone (the gate's answer event): write the
  *  record, then one reconcile run. Never throws. */
 export function noteAiAnswer(userId: string | null, answer: AiAnswer): Promise<void> {
-  const meta = metaForAnswer(answer, userId, Date.now());
+  const at = Date.now();
+  const meta = metaForAnswer(answer, userId, at);
+  // A no is remembered in memory at once, before any storage is touched: it is
+  // sent to the account even if the phone could not store it. A yes takes an
+  // unheard no back (the person changed his mind on this phone).
+  unsentNo = answer === 'declined' && userId ? { userId, at } : null;
   // Before anything is awaited: this answer is the one waiting now. Settings
   // then goes straight to saying nothing until the account has answered,
   // instead of describing the account against an answer it has not weighed.
@@ -413,8 +443,11 @@ export async function askAiConsentForAccount(userId: string | null): Promise<'al
 export async function turnOffAiForAccount(userId: string | null): Promise<boolean> {
   if (!userId) return false;
   try {
+    const heldNo = unsentNo;
     const r = await enqueue<SendResult>(() => sendAnswer(userId, 'declined', 0), { ok: false, again: false });
     if (!r.ok) return false;
+    // The account heard a no given now: an earlier one kept in memory is covered by it.
+    if (heldNo && heldNo.userId === userId && unsentNo === heldNo) unsentNo = null;
     const meta = await readMeta();
     if (meta && meta.uid === userId && meta.answer === 'declined' && !meta.delivered) {
       await writeMeta({ ...meta, delivered: true });

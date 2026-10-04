@@ -10,13 +10,15 @@
  * `select('ai_consent') … maybeSingle()` is scripted to give the account a
  * value; every other read still goes to the smoke mock.
  *
- *   T1  default harness: /client-portal-setup shows no note and the usual
- *       "AI strips the contractor jargon" subtitle.
+ *   T1  default harness (the account cannot be read: no profile row):
+ *       /client-portal-setup shows no note and the PLAIN recap subtitle. The
+ *       "AI strips the contractor jargon" sentence is shown only while the
+ *       account's own answer is yes (T3), never on a guess.
  *   T2  the account was never told (NULL): the note, the plain subtitle, and
  *       the "Allow AI features" button. Nothing is sent (the harness seeds the
  *       phone's yes with no record of who gave it, and a yes with no record is
  *       never sent).
- *   T3  the account says yes: no note (a phone).
+ *   T3  the account says yes: no note (a phone), and the AI subtitle.
  *   T4  the account says yes and this phone has no answer: /settings shows
  *       "Your account allows AI on our server…" and "Turn off for my account".
  *   T5  "Allow AI features" ALWAYS asks first; "Allow AI features" on the
@@ -43,6 +45,13 @@
  *   T12 The stored answer is WIPED with no sign-in run (what a same-user
  *       magic-link or password-reset sign-in does): Settings still says what
  *       the account says, with "Turn off for my account".
+ *   T13 A NO REACHES THE ACCOUNT EVEN WHEN THE PHONE CANNOT STORE IT: AI is
+ *       switched Off while every storage write fails. The stored answer still
+ *       says yes, and the account hears the no all the same. On the phone the
+ *       no holds as well: the next AI request is refused, the switch stays Off.
+ *   T14 NO HOST = NO: with no stored answer and nobody to ask (no question
+ *       host registered) the gate refuses. Under jest the runtime is Node, as
+ *       far from a validator's Bun as the phone is, so this is the app's rule.
  * THE WEB WRITE PATH (the only way the web app changes the account), with the
  * web host injected:
  *   T10 "Not now" sends a no (never a yes) and only after the question; "Allow"
@@ -58,8 +67,16 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
 import { supabase } from '@/lib/supabase';
-import { loadAiConsent } from '@/utils/aiConsent';
-import { AI_ACCOUNT_COPY, AI_CONSENT_COPY, AI_CONSENT_META_KEY, AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
+import { ensureAiConsent, getAiConsentState, loadAiConsent, resetAiConsent } from '@/utils/aiConsent';
+import {
+  AI_ACCOUNT_COPY,
+  AI_CONSENT_COPY,
+  AI_CONSENT_HEADLESS_SWITCH,
+  AI_CONSENT_META_KEY,
+  AI_CONSENT_STORAGE_KEY,
+  aiConsentHeadless,
+  createAiConsentGate,
+} from '@/utils/aiConsentCore';
 import { AI_CONSENT_RETRY_MS, askAiConsentForAccount, getAccountAiSnapshot, resetAccountAi, setAccountAiHost } from '@/utils/aiConsentAccount';
 
 // ── The layout gate: a width + a web flag, exactly like the app's hook ──────
@@ -315,11 +332,16 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(Platform.OS).toBe('ios');
   });
 
-  it('T1 default harness: no note, and the usual recap subtitle', async () => {
+  it('T1 default harness (the account cannot be read): no note, and the PLAIN recap subtitle, never the AI sentence', async () => {
     await openPortalScreen();
+    // The smoke mock answers the profiles read with no row: nothing is known about the account.
+    expect(getAccountAiSnapshot().account).toBe('no_profile');
     expect(screen.queryByTestId('ai-account-note')).toBeNull();
-    expect(screen.queryByText(JARGON)).not.toBeNull();
-    expect(screen.queryByText(AI_ACCOUNT_COPY.recapSubtitlePlain)).toBeNull();
+    // The phone itself says yes (the harness seeds it), and still the screen does not say AI
+    // rewrites the recap: only the account's own yes says that.
+    expect(await AsyncStorage.getItem(AI_CONSENT_STORAGE_KEY)).toBe('granted');
+    expect(screen.queryByText(AI_ACCOUNT_COPY.recapSubtitlePlain)).not.toBeNull();
+    expect(screen.queryByText(JARGON)).toBeNull();
     expect(rpcCalls).toHaveLength(0);
   });
 
@@ -338,11 +360,12 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(await AsyncStorage.getItem(AI_CONSENT_META_KEY)).toBeNull();
   });
 
-  it('T3 the account says yes: no note on a phone', async () => {
+  it('T3 the account says yes: no note on a phone, and the AI subtitle', async () => {
     accountRow = { ai_consent: 'granted' };
     await openPortalScreen();
     expect(screen.queryByTestId('ai-account-note')).toBeNull();
     expect(screen.queryByText(JARGON)).not.toBeNull();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.recapSubtitlePlain)).toBeNull();
   });
 
   it('T4 the account says yes, this phone has no answer: Settings says so and offers "Turn off for my account"', async () => {
@@ -598,6 +621,95 @@ describe('AICONSENT: the account’s AI answer on the phone (iOS 390)', () => {
     expect(screen.queryByText(AI_ACCOUNT_COPY.turnOffForAccount)).not.toBeNull();
     expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).toBeNull();
     expect(rpcCalls).toHaveLength(1);
+  });
+
+  it('T13 AI switched Off while the phone cannot store it: the stored answer still says yes, and the account hears the no', async () => {
+    accountRow = { ai_consent: 'granted' };
+    stubSetConsent();
+    await openSettings();
+    expect(screen.queryByText(AI_ACCOUNT_COPY.settingsAlso)).not.toBeNull();
+    expect(await AsyncStorage.getItem(AI_CONSENT_STORAGE_KEY)).toBe('granted');
+
+    // From here every write of the answer or of its record fails (a full or broken disk). The
+    // harness's AsyncStorage.setItem is itself a jest mock: its own implementation is kept and
+    // put back at the end, so no other case inherits the failure.
+    const setItemMock = AsyncStorage.setItem as unknown as jest.Mock;
+    const realSetItem = setItemMock.getMockImplementation() as (key: string, value: string) => Promise<void>;
+    expect(typeof realSetItem).toBe('function');
+    const failed: string[] = [];
+    setItemMock.mockImplementation((key: string, value: string) => {
+      if (key === AI_CONSENT_STORAGE_KEY || key === AI_CONSENT_META_KEY) {
+        failed.push(key);
+        return Promise.reject(new Error('storage write failed'));
+      }
+      return realSetItem(key, value);
+    });
+    try {
+      await runStorageFailureCase(failed);
+    } finally {
+      setItemMock.mockImplementation(realSetItem);
+      // A write that lands ends the gate's "storage is out of date" state, so no later case in
+      // this file inherits it (the gate is one module for the whole suite).
+      await act(async () => { await resetAiConsent(); });
+    }
+  });
+
+  async function runStorageFailureCase(failed: string[]): Promise<void> {
+    switchAiOff();
+    await pump();
+    // The write really failed: the phone still holds the old yes, and no record of the no.
+    expect(failed).toContain(AI_CONSENT_STORAGE_KEY);
+    expect(await AsyncStorage.getItem(AI_CONSENT_STORAGE_KEY)).toBe('granted');
+    expect(await storedMeta()).toBeNull();
+    // The account was told all the same: one send, a no, given just now.
+    expect(rpcCalls).toHaveLength(1);
+    expectAnswerSent(rpcCalls[0].args, 'declined', { atLeast: 0, under: 5_000 });
+    expect(accountRow).toEqual({ ai_consent: 'declined' });
+    expect(getAccountAiSnapshot().account).toBe('declined');
+    // And the phone does not send the stale stored yes afterwards.
+    await leaveTheAppOpen(360_000);
+    expect(rpcCalls).toHaveLength(1);
+    expect(accountRow).toEqual({ ai_consent: 'declined' });
+    // ON THIS PHONE the no holds too: the next AI request re-reads storage (still yes) and is
+    // refused all the same, with no question asked; the switch stays Off.
+    const alertsBefore = mockAlerts.length;
+    let allowed: boolean | null = null;
+    await act(async () => { allowed = await ensureAiConsent(); });
+    expect(allowed).toBe(false);
+    await act(async () => { await loadAiConsent(); });
+    expect(getAiConsentState()).toBe('declined');
+    expect(await AsyncStorage.getItem(AI_CONSENT_STORAGE_KEY)).toBe('granted');
+    expect(mockAlerts).toHaveLength(alertsBefore);
+    expect(screen.getByTestId('ai-features-switch').props.value).toBe(false);
+  }
+
+  it('T14 no host and no stored answer: the gate refuses (fail closed), and stores nothing', async () => {
+    // jest runs under Node: not a validator's Bun, and nothing sets the headless switch.
+    expect((globalThis as unknown as Record<string, unknown>)[AI_CONSENT_HEADLESS_SWITCH]).toBeUndefined();
+    expect(aiConsentHeadless()).toBe(false);
+    const map = new Map<string, string>();
+    const writes: string[] = [];
+    const gate = createAiConsentGate({
+      storage: {
+        getItem: async (k) => (map.has(k) ? (map.get(k) as string) : null),
+        setItem: async (k, v) => { writes.push(k); map.set(k, v); },
+        removeItem: async (k) => { writes.push(k); map.delete(k); },
+      },
+    });
+    const heard: string[] = [];
+    gate.onAnswer((a) => heard.push(a));
+    // Nobody to ask: refused. It is not an answer, so nothing is stored and the account is told nothing.
+    expect(await gate.ensure()).toBe(false);
+    await expect(gate.require()).rejects.toMatchObject({ code: 'ai_consent_declined' });
+    expect(gate.getState()).toBe('unknown');
+    expect(writes).toEqual([]);
+    expect(heard).toEqual([]);
+    // With the host there, the same gate asks.
+    let asked = 0;
+    gate.setHost({ isWeb: false, prompt: async () => { asked += 1; return true; } });
+    expect(await gate.ensure()).toBe(true);
+    expect(asked).toBe(1);
+    expect(heard).toEqual(['granted']);
   });
 
   it('T10 the web write path: "Not now" sends a no after the question, "Allow" a yes, a failed write changes nothing', async () => {
