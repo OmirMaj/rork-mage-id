@@ -34,7 +34,11 @@ import {
   maskPortalLinkToken, PORTAL_BASE_URL, proposalBlockReason,
   buildPortalDocuments, closeoutIsShared,
   PORTAL_PROPOSAL_ACCEPTANCE_LIVE, PROPOSAL_ACCEPTANCE_OFF_REASON,
+  PORTAL_PASSCODE_MIN_LENGTH, PORTAL_PASSCODE_MAX_LENGTH,
+  portalInviteSectionsSentence, portalInviteFallbackText,
 } from '@/utils/portalSnapshot';
+import { isSampleProject } from '@/utils/sampleGuard';
+import { isOfflineNow } from '@/hooks/useOnline';
 import { PENDING_CO_STATUSES } from '@/utils/portalOwnerCore';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import type { BakedHomePassport } from '@/utils/passport/types';
@@ -85,6 +89,14 @@ const UNTIL_HANDOVER_PREF = 'until_handover';
  * sentinel — nobody's remembered choice silently falls back to a fixed clock.
  */
 const LEGACY_NO_EXPIRY_PREF = 'none';
+
+/**
+ * Why a Sample project's portal stays shut (PORTALFIX). utils/sampleGuard.ts
+ * promises "no client-portal post" for a sample: nothing on it may reach anyone
+ * but the user. So Save, Copy, Share, invites, a new link and a reset all stop
+ * here with this reason, and the screen says it at the top.
+ */
+const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
 
 /**
  * Who this account is to the project, for the purpose of the share link.
@@ -329,6 +341,14 @@ function ClientPortalSetupScreenInner() {
   const id = pickedProjectId ?? paramId ?? '';
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+  // PORTALFIX: a Sample project never gets a portal (utils/sampleGuard.ts).
+  const sampleJob = !!project && isSampleProject(project);
+  /** Returns true when it took over (a sample), so callers bail. */
+  const warnIfSample = useCallback((): boolean => {
+    if (!sampleJob) return false;
+    showAlert('Sample job', SAMPLE_PORTAL_NOTE);
+    return true;
+  }, [sampleJob]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramId ? paramId : undefined;
   const proposalQ = usePortalBudgetProposals(id);
@@ -779,6 +799,10 @@ function ClientPortalSetupScreenInner() {
     () => (publishPortal ? buildSnapshotFor(publishPortal) : null),
     [buildSnapshotFor, publishPortal],
   );
+  // What the client's page actually shows: the SAVED portal, or (never saved
+  // yet) the switches on screen. Invites describe THIS, so an email never
+  // lists a section the page does not have (PORTALFIX).
+  const livePortal = publishPortal ?? portal;
   // #18: are the switches on screen different from what is saved (= live)?
   // Drives the "Unsaved changes" line and the leave-without-saving prompt.
   const hasUnsavedPortalChanges = useMemo(
@@ -1016,6 +1040,8 @@ function ClientPortalSetupScreenInner() {
   useEffect(() => {
     if (!publishedSnapshot || !publishPortal || !project?.id || !publishPortal.portalId) return;
     if (!isSupabaseConfigured) return;
+    // PORTALFIX: no client-portal post from a sample (utils/sampleGuard.ts).
+    if (sampleJob) return;
     // #16: this is a FULL replace built from the device's lists. Never from
     // lists the server has not confirmed since the last foreground (a stale
     // cache would pull shared invoices / COs off the homeowner's page), never
@@ -1078,7 +1104,7 @@ function ClientPortalSetupScreenInner() {
         }, () => setPublishState('refused'));
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [publishedSnapshot, publishPortal, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, richReadsReady, portalListsServerRead, settingsLoaded, isOwner]);
+  }, [publishedSnapshot, publishPortal, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, richReadsReady, portalListsServerRead, settingsLoaded, isOwner, sampleJob]);
 
   // The hash link carries the snapshot itself and has no ?t= token, so the
   // page never refreshes it from the server. On a GMP / open-book job, one
@@ -1152,11 +1178,12 @@ function ClientPortalSetupScreenInner() {
   }, [proposalQ]);
 
   const handleSave = useCallback(async () => {
+    if (warnIfSample()) return;
     if (!id) return;
     // #19: never "Saved" for a save that reaches no one.
     if (ownerOnlyReason) { showAlert('Not saved', ownerOnlyReason); return; }
-    if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
-      showAlert('Add a passcode', 'Enter a passcode of at least 4 characters, or turn off "Ask for a passcode".');
+    if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < PORTAL_PASSCODE_MIN_LENGTH)) {
+      showAlert('Add a passcode', `Enter a passcode of ${PORTAL_PASSCODE_MIN_LENGTH} to ${PORTAL_PASSCODE_MAX_LENGTH} characters, or turn off "Ask for a passcode".`);
       return;
     }
     setIsSaving(true);
@@ -1169,6 +1196,9 @@ function ClientPortalSetupScreenInner() {
       updateProject(id, {
         clientPortal: {
           ...portal,
+          // Saved trimmed: the client's page and the server both compare the
+          // TRIMMED entry, so a stray space here would be a code nobody can type.
+          ...(portal.passcode ? { passcode: portal.passcode.trim() } : {}),
           shareSupplierNames: project?.clientPortal?.shareSupplierNames,
           shareTradeContacts: project?.clientPortal?.shareTradeContacts,
         },
@@ -1183,7 +1213,7 @@ function ClientPortalSetupScreenInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [id, portal, project?.clientPortal?.shareSupplierNames, project?.clientPortal?.shareTradeContacts, updateProject, ownerOnlyReason, requestPortalPublish, portalListsServerRead]);
+  }, [id, portal, project?.clientPortal?.shareSupplierNames, project?.clientPortal?.shareTradeContacts, updateProject, ownerOnlyReason, requestPortalPublish, portalListsServerRead, warnIfSample]);
 
   // Send modal state — replaces the old web "Share" Alert that just
   // showed the message text and couldn't actually dispatch anything.
@@ -1221,8 +1251,10 @@ function ClientPortalSetupScreenInner() {
     const companyName = settings?.branding?.companyName ?? 'MAGE ID';
     // The PERMISSION_TOGGLES list ↔ enabled portal flag mapping — used
     // to give the recipient a concrete "you can see X" preview.
+    // PORTALFIX: the SAVED portal's switches (what the page shows), not the
+    // unsaved ones on screen.
     const visibleSections: string[] = PERMISSION_TOGGLES
-      .filter(t => !!(portal as any)[t.key])
+      .filter(t => !!livePortal[t.key])
       .map(t => t.label);
     return buildPortalInviteEmailHtml({
       companyName,
@@ -1238,7 +1270,7 @@ function ClientPortalSetupScreenInner() {
       contactEmail: settings?.branding?.email,
       contactPhone: settings?.branding?.phone,
     });
-  }, [project?.name, settings, portal, portalLink]);
+  }, [project?.name, settings, portal, livePortal, portalLink]);
 
   const handlePickDuration = useCallback((days: PortalLinkDuration) => {
     durationTouchedRef.current = true;
@@ -1265,6 +1297,7 @@ function ClientPortalSetupScreenInner() {
   // the database on the next push anyway; storing the real date keeps the
   // label on this screen honest in the meantime.
   const handleGenerateLink = useCallback(() => {
+    if (warnIfSample()) return;
     const nextExpiry = expiresAtForPolicy({
       linkDurationDays: durationChoice,
       linkExpiresAt: expiresAtFromDuration(durationChoice),
@@ -1300,7 +1333,7 @@ function ClientPortalSetupScreenInner() {
             ? `This project was closed out, so an until-handover link is already closed (${nextState.label}). Pick 7, 30 or 90 days to reopen it for your client.`
             : `Same URL — the job is closed out, so it stays open until then: ${nextState.label}.`,
     );
-  }, [durationChoice, portal, id, updateProject, project?.status, project?.closedAt]);
+  }, [durationChoice, portal, id, updateProject, project?.status, project?.closedAt, warnIfSample]);
 
   // Stop an expired link from being handed out silently. This is the in-app
   // half of "the contractor should be notified" — the background notification
@@ -1327,6 +1360,7 @@ function ClientPortalSetupScreenInner() {
     // web the Alert fired before the write actually happened (or
     // silently failed in non-secure contexts) and the user saw "Copied"
     // over an empty clipboard.
+    if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     const ok = await copyToClipboard(portalLink);
@@ -1337,7 +1371,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink, warnIfLinkPending, warnIfExpired]);
+  }, [portalLink, warnIfLinkPending, warnIfExpired, warnIfSample]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
@@ -1349,11 +1383,17 @@ function ClientPortalSetupScreenInner() {
     // Send-by-email modal could dispatch a token-less `portalLink` during the
     // sync window — the one door where the client, not the GC, discovers the
     // link cannot approve a change order.
+    if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     setShowSendModal(true);
     if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
-  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending]);
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample]);
+  // The reset's "Send new link" runs on a LATER tap, after the fresh key has
+  // re-rendered into portalLink — so it calls the newest handleShare, never
+  // the one the reset closed over (which still holds the dead link).
+  const handleShareRef = useRef(handleShare);
+  handleShareRef.current = handleShare;
 
   // Auto-send a branded portal invite email through Resend (via the
   // send-email edge function). The homeowner gets a polished email with
@@ -1367,6 +1407,7 @@ function ClientPortalSetupScreenInner() {
     // PORTAL-07: and the same token guard, for exactly that reason — an
     // emailed link with no `?t=` opens the portal but silently cannot approve
     // a change order.
+    if (warnIfSample()) return;
     if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
@@ -1381,20 +1422,29 @@ function ClientPortalSetupScreenInner() {
     // in the same message as the link protects nothing. We prompt the GC to
     // deliver it separately (SMS/call) after the invite sends — matching the
     // on-screen "share it separately" guidance.
-    const passcodeHint = portal.requirePasscode && portal.passcode
+    // The SAVED portal decides what the email may say (the page shows it).
+    const livePasscodeOn = !!(livePortal.requirePasscode && livePortal.passcode);
+    const passcodeHint = livePasscodeOn
       ? `<p style="margin:14px 0 0;padding:12px 14px;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal asks for a passcode. ${escapeHtml(recipientFirstName ?? 'You')} will receive it from your contractor in a separate message.</p>`
       : '';
     const welcomeBlock = portal.welcomeMessage
       ? emailQuote(portal.welcomeMessage)
       : '';
+    // PORTALFIX: only the sections switched on (this listed "daily updates,
+    // photos, budget, schedule, contract, and any decisions that need your
+    // sign-off" whatever was on), and no "stays at this URL for the life of
+    // the project" for a link that can expire or be reset.
+    const sectionsLine = portalInviteSectionsSentence(livePortal);
     const bodyHtml = `
       ${welcomeBlock}
-      <p style="margin:0 0 8px;">We've set up a private portal where you can follow along with the project in real time — daily updates, photos, budget, schedule, contract, and any decisions that need your sign-off.</p>
+      <p style="margin:0 0 8px;">${sectionsLine
+        ? `We've set up a private portal where you can follow along with the project: ${escapeHtml(sectionsLine)}, plus messages with your contractor.`
+        : 'We\'ve set up a private portal where you can follow along with the project and message your contractor.'}</p>
       ${passcodeHint}
-      <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer — that's it. The portal stays at this URL for the life of the project.</p>
+      <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer — that's it. Keep this email so the link is easy to find.</p>
     `;
     const html = wrapEmailHtml({
-      preheader: `Your live portal for ${projectName} — daily photos, schedule, decisions, and the contract.`,
+      preheader: `Your private project portal for ${projectName} is ready.`,
       eyebrow: 'Project portal',
       title: `${projectName}`,
       subtitle: `Hi ${recipientFirstName ?? 'there'} — your live project view is ready.`,
@@ -1432,7 +1482,15 @@ function ClientPortalSetupScreenInner() {
     // Fallback: if Resend is down, drop into the native composer with
     // the short link so the GC can verify + send manually. Passcode is
     // deliberately omitted here too — the GC delivers it separately.
-    const fallbackBody = `${invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,'}\n\nWe've set up a private portal for ${projectName} so you can follow along with the build.\n\nOpen it here:\n${link}\n\nNo app to install, no password to remember. Open on your phone or computer.\n\n— ${companyName}`;
+    // PORTALFIX: says a passcode exists when one is set (it said "no password
+    // to remember"), and never carries the code itself.
+    const fallbackBody = portalInviteFallbackText({
+      firstName: invite.name ? invite.name.split(' ')[0] : null,
+      projectName,
+      link,
+      companyName,
+      passcodeOn: !!(livePortal.requirePasscode && livePortal.passcode),
+    });
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined') {
         window.open(`mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(fallbackBody)}`);
@@ -1449,7 +1507,7 @@ function ClientPortalSetupScreenInner() {
       console.warn('[ClientPortal] email fallback failed:', fallback.error);
       showAlert('Email not sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample, livePortal]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -1497,7 +1555,10 @@ function ClientPortalSetupScreenInner() {
   }, [inviteEmail, inviteName, portal.invites]);
 
   const handleRemoveInvite = useCallback((inviteId: string) => {
-    showAlert('Remove access?', 'This client can no longer open the portal.', [
+    // PORTALFIX: this said "This client can no longer open the portal", but a
+    // project has ONE link shared by everyone invited, so removing a name
+    // cuts nobody off. Reset link is what does.
+    showAlert('Remove from the list?', 'They come off this list. Everyone you invited shares one link, so they can still open the portal with it. To cut off the old link, use Reset link under Portal link, then send the new one to the people who should keep access.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive', onPress: () => {
@@ -1506,6 +1567,73 @@ function ClientPortalSetupScreenInner() {
       },
     ]);
   }, []);
+
+  // ── Reset link (PORTALFIX) ────────────────────────────────────────────────
+  //
+  // A leaked link used to be impossible to cut off: Turn off + on hands back
+  // the same key, and a new passcode leaves the link working. The owner-only
+  // RPC portal_rotate_access_token (20260904100800; reworked onto
+  // portal_credentials in 20260923170000, both live) mints a fresh key on the
+  // server and the old one stops working at once — which is what the client
+  // page's "Your contractor may have reset the link" screen has always said.
+  //
+  // It is NEVER queued for later: it changes who can open the client's page,
+  // so it happens on the server now or not at all, and offline says so.
+  const [resettingLink, setResettingLink] = useState(false);
+  const performLinkReset = useCallback(async () => {
+    if (!id || !project?.clientPortal?.enabled) return;
+    if (isOfflineNow()) {
+      showAlert('You\u2019re offline', 'Resetting the link needs a connection. Nothing changed: your client\u2019s current link still works.');
+      return;
+    }
+    setResettingLink(true);
+    try {
+      const { data, error } = await supabase.rpc('portal_rotate_access_token', { p_project_id: id });
+      if (error || typeof data !== 'string' || !data) {
+        showAlert('Link not reset', 'The server didn\u2019t confirm the reset, so your client\u2019s old link still works. Check your connection and try again.');
+        return;
+      }
+      // The RPC's contract: the fresh key replaces the old one on this device
+      // (screen state AND the saved portal) before the next project sync, so
+      // nothing here pushes the dead key back or keeps showing it.
+      const saved = project.clientPortal;
+      const adoptRotated = (serverToken: string) => {
+        setPortal(p => ({ ...p, accessToken: serverToken }));
+        updateProject(id, { clientPortal: { ...saved, accessToken: serverToken } });
+      };
+      adoptRotated(data);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAlert(
+        'Link reset',
+        'The old link no longer opens your client\u2019s portal. Send them the new one.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Send new link', onPress: () => handleShareRef.current() },
+        ],
+      );
+    } catch {
+      showAlert('Link not reset', 'The server didn\u2019t confirm the reset, so your client\u2019s old link still works. Check your connection and try again.');
+    } finally {
+      setResettingLink(false);
+    }
+  }, [id, project?.clientPortal, updateProject]);
+
+  const handleResetLink = useCallback(() => {
+    if (warnIfSample()) return;
+    if (ownerOnlyReason) { showAlert('Link not reset', ownerOnlyReason); return; }
+    if (!id || !project?.clientPortal?.enabled) {
+      showAlert('Save this portal first', 'There is no client link to reset until the portal is saved.');
+      return;
+    }
+    if (isOfflineNow()) {
+      showAlert('You\u2019re offline', 'Resetting the link needs a connection. It changes who can open your client\u2019s portal, so it happens on the server right away and is never saved to send later. Try again when you\u2019re back online.');
+      return;
+    }
+    showAlert('Reset the link?', 'Your client’s old link stops working. Send them the new one.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reset link', style: 'destructive', onPress: () => { void performLinkReset(); } },
+    ]);
+  }, [warnIfSample, ownerOnlyReason, id, project?.clientPortal?.enabled, performLinkReset]);
 
   const handleDisablePortal = useCallback(() => {
     showAlert('Turn off the portal?', 'Every client loses access to the portal.', [
@@ -1585,6 +1713,11 @@ function ClientPortalSetupScreenInner() {
       >
         {/* #19 / #16 / #18: why a control is blocked, or why the client's page
             has not changed yet — said on the page, never a silent hold. */}
+        {sampleJob && (
+          <View style={styles.linkCard} testID="portal-setup-sample">
+            <Text style={styles.expiryHint}>{SAMPLE_PORTAL_NOTE}</Text>
+          </View>
+        )}
         {!!ownerOnlyReason && (
           <View style={styles.linkCard} testID="portal-setup-owner-only">
             <Text style={styles.expiryHint}>{ownerOnlyReason}</Text>
@@ -1773,6 +1906,31 @@ function ClientPortalSetupScreenInner() {
                 ? 'Only the project owner can change how long the client link stays open.'
                 : 'Same URL either way — generating only resets the clock, so nobody you\u2019ve already sent it to loses access.'}
             </Text>
+
+            {/* PORTALFIX: the way to cut off a link that reached the wrong
+                person. Only for a saved portal (there is no link before). */}
+            {!!project?.clientPortal?.enabled && (
+              <>
+                <TouchableOpacity
+                  style={[styles.generateLinkBtn, (isCollaborator || resettingLink) && styles.generateLinkBtnDisabled]}
+                  onPress={handleResetLink}
+                  disabled={isCollaborator || resettingLink}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset link"
+                  accessibilityState={{ disabled: isCollaborator || resettingLink, busy: resettingLink }}
+                  testID="portal-reset-link-btn"
+                >
+                  <Lock size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
+                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resettingLink ? 'Resetting\u2026' : 'Reset link'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.expiryHint} testID="portal-reset-link-hint">
+                  {isCollaborator
+                    ? 'Only the project owner can reset the client link.'
+                    : 'Makes a new link and the old one stops working. Use it if the link reached someone it shouldn\u2019t have, then send the new one to your client. Needs a connection.'}
+                </Text>
+              </>
+            )}
           </View>
         </View>
 
@@ -1812,10 +1970,11 @@ function ClientPortalSetupScreenInner() {
                 value={portal.passcode ?? ''}
                 onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
                 editable={!ownerOnlyReason}
-                placeholder="Passcode (4 to 12 characters)"
+                placeholder={`Passcode (${PORTAL_PASSCODE_MIN_LENGTH} to ${PORTAL_PASSCODE_MAX_LENGTH} characters)`}
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="none"
-                maxLength={20}
+                autoCorrect={false}
+                maxLength={PORTAL_PASSCODE_MAX_LENGTH}
               />
               <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} disabled={!!ownerOnlyReason} activeOpacity={0.8}>
                 <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />

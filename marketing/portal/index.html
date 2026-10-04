@@ -98,7 +98,7 @@
   }
   .gate p { color: var(--text-2); font-size: 14px; margin-bottom: 26px; line-height: 1.5; }
   .gate input {
-    width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 10px;
+    width: 100%; padding: 16px; font-size: 20px; text-align: center; letter-spacing: 2px;
     font-weight: 700; border: 2px solid var(--bone); border-radius: var(--radius-md);
     background: var(--concrete-2); outline: none; transition: border-color 0.15s, background 0.15s;
     font-family: 'Inter', sans-serif;
@@ -2793,8 +2793,12 @@
     <div class="gate">
       <div class="gate-logo">M</div>
       <h1>Enter passcode</h1>
-      <p>This portal is private. Enter the 4-digit code your contractor shared with you.</p>
-      <input id="gate-input" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
+      <p>Enter the passcode your contractor shared with you. It can include letters and numbers.</p>
+      <!-- PORTALFIX: accepts exactly what the contractor can set in the app
+           (app/client-portal-setup.tsx: 4 to 20 characters, letters allowed).
+           This box used to take 4 digits on a number pad, so any longer code
+           locked the client out for good. -->
+      <input id="gate-input" type="text" minlength="4" maxlength="20" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Passcode" placeholder="Passcode" />
       <button id="gate-submit">Unlock portal</button>
       <div class="err" id="gate-err"></div>
     </div>
@@ -2853,10 +2857,15 @@
 
       <div class="referral-cta" style="margin:30px 0 10px;padding:22px 20px;border:1px solid rgba(0,0,0,0.09);border-radius:18px;background:rgba(0,0,0,0.02);text-align:center">
         <div style="font-size:16px;font-weight:800;margin-bottom:5px">Like being kept in the loop?</div>
-        <div style="font-size:13px;opacity:.72;margin-bottom:16px;line-height:1.5">This live portal was built with MAGE ID. Share it with someone planning a project — or set one up for yours.</div>
+        <div style="font-size:13px;opacity:.72;margin-bottom:16px;line-height:1.5">This live portal was built with MAGE ID. Know a contractor who'd want one? Share a link to MAGE ID. This page is private to you, so the button never shares it.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <a href="https://mageid.app/?ref=portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="display:inline-block;padding:11px 18px;border-radius:11px;background:var(--brand);color:#fff;font-weight:700;font-size:14px;text-decoration:none">Get MAGE ID</a>
-          <button type="button" onclick="var b=this;var u=location.href;if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u);b.textContent='Link copied';}" style="padding:11px 18px;border-radius:11px;background:transparent;border:1px solid rgba(0,0,0,0.15);color:inherit;font-weight:700;font-size:14px;cursor:pointer">Share this portal</button>
+          <!-- PORTALFIX: this button used to share location.href, which carries
+               ?t= (the key that opens the money, the contract and change-order
+               signing as the client). It now shares the plain public MAGE ID
+               link and nothing read from this page's address.
+               scripts/validate-portalfix.ts pins that. -->
+          <button type="button" id="share-mageid" onclick="var b=this;var u='https://mageid.app/?ref=portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with';if(navigator.share){navigator.share({title:'MAGE ID',url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){b.textContent='MAGE ID link copied';},function(){});}" style="padding:11px 18px;border-radius:11px;background:transparent;border:1px solid rgba(0,0,0,0.15);color:inherit;font-weight:700;font-size:14px;cursor:pointer">Share MAGE ID</button>
         </div>
       </div>
 
@@ -4297,7 +4306,7 @@
     fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_choose_selection',
       { method: 'POST', headers: headers, body: JSON.stringify({
           p_portal_id: api.portalId, p_category_id: selCat.id, p_option_id: selOpt.id,
-          p_access_token: (new URLSearchParams(window.location.search).get('t') || null) }) })
+          p_access_token: (getPortalToken() || null) }) })
     .then(function (r) {
       if (!r.ok) throw new Error('selection_denied');
       var totalCost = selOpt ? selOpt.total : null;
@@ -4510,7 +4519,7 @@
         p_contract_id: contractId,
         p_signer_name: typedName,
         p_passcode: (data && data.passcode) || null,
-        p_access_token: (new URLSearchParams(window.location.search).get('t') || null),
+        p_access_token: (getPortalToken() || null),
       }),
     })
     .then(function (r) {
@@ -4996,6 +5005,7 @@
     e.preventDefault();
     document.body.classList.add('printing-binder');
     setTimeout(function () {
+      hideKeyFromAddress();
       window.print();
       setTimeout(function () { document.body.classList.remove('printing-binder'); }, 100);
     }, 50);
@@ -5879,7 +5889,7 @@
     openDrawer('AIA-style G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
 
     var btn = document.getElementById('aia-print');
-    if (btn) btn.addEventListener('click', function () { window.print(); });
+    if (btn) btn.addEventListener('click', function () { hideKeyFromAddress(); window.print(); });
   }
 
   // ───────── Client budget proposal ─────────
@@ -5903,10 +5913,51 @@
   // the 192-bit client_portal.accessToken (same secret the sign/selection RPCs
   // already require); portal reads/writes now go through token-gated RPCs so the
   // guessable portalId alone can no longer dump or forge tenant data.
+  //
+  // PORTALFIX: the key is read ONCE, when the page loads, and every read on
+  // this page goes through getPortalToken(). That is what lets a print take the
+  // key out of the address bar for its length (see "The key never prints"
+  // below) without a message poll or a signature in flight losing it.
+  var PORTAL_KEY_AT_LOAD = (function () {
+    try { return new URLSearchParams(window.location.search).get('t') || ''; }
+    catch (e) { return ''; }
+  })();
   function getPortalToken() {
+    if (PORTAL_KEY_AT_LOAD) return PORTAL_KEY_AT_LOAD;
     try { return new URLSearchParams(window.location.search).get('t') || ''; }
     catch (e) { return ''; }
   }
+
+  // ───────── The key never prints (PORTALFIX) ─────────
+  // Browsers print the page address in the header or footer by default, and
+  // this page's address carries ?t=, the key to the whole portal. A printed
+  // closeout binder or pay application is paper that gets handed on (a buyer,
+  // a lender), so for the length of a print the address bar shows this page
+  // WITHOUT the key, and gets it back as soon as printing ends. Covers the
+  // page's Print buttons and the browser's own Print alike.
+  var addressWithKey = null;
+  function hideKeyFromAddress() {
+    try {
+      if (addressWithKey) return;
+      var u = new URL(window.location.href);
+      if (!u.searchParams.has('t')) return;
+      addressWithKey = window.location.href;
+      u.searchParams.delete('t');
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    } catch (e) { /* the address stays as it was */ }
+  }
+  function restoreKeyToAddress() {
+    if (!addressWithKey) return;
+    var back = addressWithKey;
+    addressWithKey = null;
+    try { history.replaceState(history.state, '', back); } catch (e) {}
+  }
+  window.addEventListener('beforeprint', hideKeyFromAddress);
+  window.addEventListener('afterprint', restoreKeyToAddress);
+  // Belt for a browser that never fires afterprint: the next touch on the page
+  // puts the key back, so a reload or a bookmark still opens the portal.
+  window.addEventListener('pointerdown', restoreKeyToAddress, true);
+  window.addEventListener('pagehide', restoreKeyToAddress);
 
   async function postBudgetProposal(cfg, body) {
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
@@ -9104,15 +9155,13 @@
                 sealed: !!res.document_hash,
               });
               sessionCODecisions[coId] = { decision: decision, signer: result.signerName, at: signedAt, hash: stamp };
-              notifyEvent(decision === 'approved' ? 'change_order_signed' : 'change_order_declined', {
-                project_id: data.project && data.project.id,
-                portal_id: data.portalApi.portalId,
-                project_name: data.project && data.project.name,
-                change_order_id: coId,
-                change_order_number: c.number,
-                signer_name: result.signerName,
-                document_hash: stamp,
-              });
+              // No notifyEvent() here (PORTALFIX). The page used to post
+              // change_order_signed / change_order_declined to `notify`, which
+              // refuses both from the page (ANON_ALLOWED_EVENTS in
+              // supabase/functions/_shared/notifyGuards.ts): a call that looked
+              // like a push and was not one. The contractor IS told, by the
+              // database: the change_order_approvals row this signature just
+              // wrote fires trg_notify_co_approval (supabase/schema.sql).
               var redraw = function () {
                 ui.close();
                 var sectionEl = document.getElementById('sec-changeOrders');
@@ -9747,11 +9796,12 @@
     }
 
     // ─── Activity feed reactions ────────────────────────────────
-    // Each activity row has a ❤️ button that fires a portal_reaction
-    // event back to the GC via the notify edge function. Optimistic
-    // UI: heart fills immediately, server roundtrip happens in
-    // background. localStorage tracks which events have been hearted
-    // so the UI persists across page loads.
+    // Each activity row has a heart the client can tap to keep track of
+    // updates they liked. It is PRIVATE to this browser (localStorage) and
+    // tells nobody: it used to post a portal_reaction event that the notify
+    // function refuses from the page (ANON_ALLOWED_EVENTS in
+    // supabase/functions/_shared/notifyGuards.ts), while the heart said
+    // "Your contractor was notified." (PORTALFIX).
     wireActivityReactions(data);
 
     document.getElementById('portal').style.display = 'block';
@@ -9771,7 +9821,7 @@
         var portalId = api && api.portalId;
         // Access token is in the ?t= query param (same source used by
         // portal_sign_contract / portal_choose_selection).
-        var accessToken = new URLSearchParams(window.location.search).get('t');
+        var accessToken = getPortalToken();
         if (!portalId || !accessToken) return;
 
         // Collect rendered item IDs from data-item-id attributes added to
@@ -10029,7 +10079,8 @@
 
   function wireActivityReactions(data) {
     // Find every activity row, add a heart button, persist taps via
-    // localStorage (since the portal is unauthenticated).
+    // localStorage (since the portal is unauthenticated). Private: nothing
+    // is sent anywhere, and the label says so.
     var portalId = (data.portalApi && data.portalApi.portalId) || 'unknown';
     var keyPrefix = 'portal_reactions_' + portalId + '_';
 
@@ -10044,7 +10095,7 @@
       var HEART_ON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
       var HEART_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
       btn.innerHTML = hearted ? HEART_ON : HEART_OFF;
-      btn.title = hearted ? 'Liked. Your contractor was notified.' : 'Like this update';
+      btn.title = hearted ? 'Liked. Only you can see this.' : 'Like this update (only you can see this)';
       btn.setAttribute('aria-label', btn.title);
 
       btn.addEventListener('click', function (e) {
@@ -10053,43 +10104,16 @@
         btn.classList.toggle('active', nowActive);
         btn.innerHTML = nowActive ? HEART_ON : HEART_OFF;
         try { localStorage.setItem(key, nowActive ? '1' : '0'); } catch (err) {}
+        btn.title = nowActive ? 'Liked. Only you can see this.' : 'Like this update (only you can see this)';
+        btn.setAttribute('aria-label', btn.title);
         // Pulse animation
         btn.classList.remove('pulse');
         // Force reflow so the animation re-fires
         void btn.offsetWidth;
         btn.classList.add('pulse');
-        // Fire-and-forget the notify event when activating (not when removing)
-        if (nowActive) {
-          fireReactionEvent(data, idx, row);
-        }
       });
       row.appendChild(btn);
     });
-  }
-
-  function fireReactionEvent(data, idx, rowEl) {
-    var cfg = data.portalApi || {};
-    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return;
-    var titleEl = rowEl.querySelector('.activity-title');
-    var titleText = titleEl ? titleEl.textContent : 'an update';
-    fetch(cfg.supabaseUrl.replace(/\/+$/, '') + '/functions/v1/notify', {
-      method: 'POST',
-      headers: {
-        'apikey': cfg.supabaseAnonKey,
-        'Authorization': 'Bearer ' + cfg.supabaseAnonKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        event: 'portal_reaction',
-        payload: {
-          portal_id: cfg.portalId,
-          project_id: cfg.projectId,
-          activity_index: idx,
-          activity_title: titleText,
-          reaction: 'heart',
-        },
-      }),
-    }).catch(function () { /* silent */ });
   }
 
   // ───────── Passcode gate ─────────

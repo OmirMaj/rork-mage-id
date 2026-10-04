@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PORTALFIX golden — the phone (390 x 844 iOS) (a) /client-portal-setup, the fixture job (portal on, key present, no passcode) 1`] = `
+{
+  "lines": 835,
+  "sha256": "aaaa0bbd984ea6986defc7f8832932116293bca978290a219c6d59085e96c931",
+}
+`;
+
+exports[`PORTALFIX golden — the phone (390 x 844 iOS) (b) /client-portal-setup, passcode on with one invitee 1`] = `
+{
+  "lines": 876,
+  "sha256": "75ee538e84b9607f57c712212b7303e056463041660cbd67eb116f079f6e0142",
+}
+`;
+
+exports[`PORTALFIX golden — the phone (390 x 844 iOS) (c) /client-portal-setup, a Sample project with a portal on 1`] = `
+{
+  "lines": 824,
+  "sha256": "70691c2ddd7e9f21bfd99fd5923e670f608fa7fc339ac362cdcea1df30a838b0",
+}
+`;
+
+exports[`PORTALFIX golden — the phone (390 x 844 iOS) (d) /client-portal-setup, a job whose portal was never saved 1`] = `
+{
+  "lines": 827,
+  "sha256": "8886fccab54df6a90d7842d1accc22bb3c2764b9b8a17298d2185fb94142b44a",
+}
+`;
