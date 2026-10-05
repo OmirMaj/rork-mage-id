@@ -184,9 +184,11 @@ console.log('\nmoney:');
   });
   ok('45 days past due is over 30', row(edge, 'p').arOver30 === true);
   ok('20 days past due is overdue but not over 30', row(edge, 'q').arOver30 === false && row(edge, 'q').ar === 1000);
-  // Exactly on the line: getDaysPastDue floors whole days, so due 30 days and
-  // an hour ago is 30 (not over 30) and 31 days and an hour ago is 31.
-  const agoMs = (d: number) => new Date(Date.now() - d * 86400000 - 3600000).toISOString();
+  // Exactly on the line: getDaysPastDue counts LOCAL calendar days since
+  // 2026-10-05 (calendarDate daysPastDue), so the fixture is a calendar day —
+  // local noon 30 and 31 days back. "30 days and an hour ago" was a different
+  // calendar distance depending on the hour the gate ran (31 before 1 am).
+  const agoMs = (d: number) => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate() - d, 12).toISOString(); };
   const line = build([proj('p30'), proj('p31')], {
     invoices: [inv('i30', 'p30', 1000, 'sent', agoMs(30)), inv('i31', 'p31', 1000, 'sent', agoMs(31))],
     burnByProject: burn([['p30', { invoicedToDate: 1000, revisedContract: 10000 }], ['p31', { invoicedToDate: 1000, revisedContract: 10000 }]]),

@@ -11,6 +11,7 @@
 // get stuck, they get a clear checklist.
 
 import type { PrequalPacket, PrequalCriteria, PrequalLicense } from '@/types';
+import { todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 
 export interface PrequalFinding {
   criterion: string;
@@ -130,7 +131,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   const insurance = asObject<PrequalPacket['insurance']>(packet.insurance);
   const findings: PrequalFinding[] = [];
   const missingFields: string[] = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayCalendarDay();
 
   // ─── Insurance ────────────────────────────────────────────────
   const cglOcc = insurance.cglPerOccurrence ?? 0;
@@ -381,13 +382,15 @@ export function prequalTokenFromBytes(bytes: Uint8Array): string | null {
  * one-year default it always had.
  */
 export function computePrequalExpiry(reviewedAtIso: string, coiExpiryIso?: string): string {
+  // The review DAY is the reviewer's local day (an approval tapped at 9 pm in
+  // New York is today's, though its ISO text starts with tomorrow's UTC date).
   const reviewDate = new Date(reviewedAtIso);
-  const oneYearOut = new Date(Date.UTC(reviewDate.getUTCFullYear() + 1, reviewDate.getUTCMonth(), reviewDate.getUTCDate()));
-  const oneYearIso = oneYearOut.toISOString().slice(0, 10);
+  const reviewDay = toCalendarDayString(reviewDate);
+  const oneYearIso = toCalendarDayString(new Date(reviewDate.getFullYear() + 1, reviewDate.getMonth(), reviewDate.getDate()));
   const raw = typeof coiExpiryIso === 'string' ? coiExpiryIso.trim() : '';
   if (!raw) return oneYearIso;
   const coi = parsePrequalDate(raw);
-  if (!coi) return reviewDate.toISOString().slice(0, 10);
+  if (!coi) return reviewDay;
   // Both are YYYY-MM-DD, so string order is date order.
   return coi < oneYearIso ? coi : oneYearIso;
 }
@@ -412,7 +415,7 @@ export function prequalApprovalRisk(reviewedAtIso: string, coiExpiry?: string): 
   if (!raw) return null;
   const coi = parsePrequalDate(raw);
   if (!coi) return { kind: 'unreadable', typed: raw };
-  const today = new Date(reviewedAtIso).toISOString().slice(0, 10);
+  const today = toCalendarDayString(new Date(reviewedAtIso));
   if (coi <= today) return { kind: 'lapsed', coi, today: coi === today };
   return null;
 }
@@ -421,7 +424,7 @@ export function prequalApprovalRisk(reviewedAtIso: string, coiExpiry?: string): 
  * Days-until-expiry → renewal cadence bucket used by the reminder system.
  */
 export function renewalBucket(expiresAt: string): '60d' | '30d' | '7d' | 'expired' | 'ok' {
-  const days = daysBetween(expiresAt, new Date().toISOString().slice(0, 10));
+  const days = daysBetween(expiresAt, todayCalendarDay());
   if (days < 0) return 'expired';
   if (days <= 7) return '7d';
   if (days <= 30) return '30d';

@@ -15,7 +15,7 @@ import { formatMoney } from './formatters';
 // Reused, not re-derived: classifyDelivery is the single source of truth for
 // late / unconfirmed, pinned by test:delivery-schedule.
 import { classifyDelivery, type Delivery } from './deliverySchedule';
-import { daysUntilCalendarDay } from './calendarDate';
+import { daysUntilCalendarDay, daysPastDue } from './calendarDate';
 import {
   findAccessConflicts,
   type BuildingAccessRules, type AccessReservation,
@@ -139,10 +139,9 @@ export function invoiceAttention(
     if (!unpaidStatuses.has(inv.status)) continue;
     if (!inv.dueDate) continue;
 
-    const dueMs = Date.parse(inv.dueDate);
-    if (Number.isNaN(dueMs)) continue;
+    if (Number.isNaN(Date.parse(inv.dueDate))) continue;
 
-    const overdueDays = daysBetween(nowMs, dueMs);
+    const overdueDays = daysPastDue(inv.dueDate, new Date(nowMs));
     if (overdueDays <= 7) continue; // grace window
 
     // MONEY-F5: net of held retention. An invoice whose only open balance is

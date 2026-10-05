@@ -9,6 +9,7 @@
 
 import type { CertificateOfInsurance, ClientPortalSettings, COICoverage, CrewMember, PaymentSplit, Project, ProjectCollaborator, ProjectPhoto, PrequalPacket, SavedAIAPayApp, Subcontractor } from '@/types';
 import { isValidStamp, sameSplit } from '@/utils/paymentTerms';
+import { toCalendarDayString } from '@/utils/calendarDate';
 import { invoiceIsSettled } from '@/utils/invoiceBilling';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import type { ProjectRole } from '@/utils/projectRole';
@@ -816,7 +817,7 @@ export function earliestCoverageExpiry(
     const ms = Date.parse(c.expiresAt);
     if (!Number.isFinite(ms) || ms >= bestMs) continue;
     bestMs = ms;
-    best = DATE_PREFIX.test(c.expiresAt) ? c.expiresAt.slice(0, 10) : new Date(ms).toISOString().slice(0, 10);
+    best = DATE_PREFIX.test(c.expiresAt) ? c.expiresAt.slice(0, 10) : toCalendarDayString(new Date(ms));
   }
   return best;
 }

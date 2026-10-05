@@ -137,6 +137,11 @@ function mkCert(over: Partial<Certification & { status: 'expiring' | 'expired' }
 }
 
 const NOW_MS = Date.parse('2025-01-20T00:00:00Z'); // fixed reference
+// Invoices are overdue by LOCAL calendar day since 2026-10-05 (utils/calendarDate
+// daysPastDue: overdue from the start of the local day after the due day), so
+// their fixture clock is local noon on Jan 20, like PERMIT_NOW_MS below — the
+// UTC-midnight NOW_MS is still Jan 19 west of Greenwich, one day fewer.
+const INVOICE_NOW_MS = new Date(2025, 0, 20, 12).getTime();
 
 // ─── scheduleAttention ───────────────────────────────────────────────────────
 
@@ -209,14 +214,14 @@ console.log('\ninvoiceAttention:');
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-14' }); // 6 days overdue from Jan 20
-  ok('6d overdue → empty (grace)', invoiceAttention(p, [inv], NOW_MS).length === 0);
+  ok('6d overdue → empty (grace)', invoiceAttention(p, [inv], INVOICE_NOW_MS).length === 0);
 }
 
 // 8 days overdue → medium
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-12' }); // 8d overdue
-  const items = invoiceAttention(p, [inv], NOW_MS);
+  const items = invoiceAttention(p, [inv], INVOICE_NOW_MS);
   ok('8d overdue → 1 item', items.length === 1);
   ok('8d overdue → medium', items[0].severity === 'medium');
   ok('8d overdue → invoice kind', items[0].kind === 'invoice');
@@ -231,35 +236,35 @@ console.log('\ninvoiceAttention:');
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-05' }); // 15d overdue
-  ok('15d overdue → high', invoiceAttention(p, [inv], NOW_MS)[0].severity === 'high');
+  ok('15d overdue → high', invoiceAttention(p, [inv], INVOICE_NOW_MS)[0].severity === 'high');
 }
 
 // 31 days overdue → critical
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2024-12-20' }); // 31d overdue
-  ok('31d overdue → critical', invoiceAttention(p, [inv], NOW_MS)[0].severity === 'critical');
+  ok('31d overdue → critical', invoiceAttention(p, [inv], INVOICE_NOW_MS)[0].severity === 'critical');
 }
 
 // paid invoice → empty
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-05', status: 'paid' });
-  ok('paid invoice → empty', invoiceAttention(p, [inv], NOW_MS).length === 0);
+  ok('paid invoice → empty', invoiceAttention(p, [inv], INVOICE_NOW_MS).length === 0);
 }
 
 // draft invoice → empty
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-05', status: 'draft' });
-  ok('draft invoice → empty', invoiceAttention(p, [inv], NOW_MS).length === 0);
+  ok('draft invoice → empty', invoiceAttention(p, [inv], INVOICE_NOW_MS).length === 0);
 }
 
 // wrong projectId → empty
 {
   const p = mkProject({ id: 'p2' });
   const inv = mkInvoice({ dueDate: '2025-01-05' }); // belongs to p1
-  ok('wrong projectId → empty', invoiceAttention(p, [inv], NOW_MS).length === 0);
+  ok('wrong projectId → empty', invoiceAttention(p, [inv], INVOICE_NOW_MS).length === 0);
 }
 
 // multiple overdue → multiple items
@@ -301,7 +306,7 @@ console.log('\ninvoiceAttention:');
     retentionAmount: 4063.23125,
     amountPaid: 0,
   });
-  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  const msg = invoiceAttention(p, [inv], INVOICE_NOW_MS)[0].message;
   ok('overdue amount is thousands-separated', msg.includes('$77,485'));
   ok('overdue amount is NOT raw digits (MONEY-03)', !msg.includes('$77485'));
   ok('overdue amount carries no stray cents', !/\$77,485\.\d/.test(msg));
@@ -317,7 +322,7 @@ console.log('\ninvoiceAttention:');
 {
   const p = mkProject();
   const inv = mkInvoice({ dueDate: '2025-01-08', totalDue: 950, amountPaid: 0 });
-  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  const msg = invoiceAttention(p, [inv], INVOICE_NOW_MS)[0].message;
   ok('sub-$1K overdue amount renders exactly', msg.includes('$950'));
 }
 

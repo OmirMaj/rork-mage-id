@@ -7,6 +7,7 @@
 // it. Ordering follows dependency-of-computation: scope → start → deadline →
 // size → site → crew → calendar → procurement → weather → risk.
 import type { Project } from '@/types';
+import { addCalendarDays, calendarDayStart, toCalendarDayString } from '@/utils/calendarDate';
 
 export interface ScheduleBuilderAnswers {
   scope: string;                 // free-text — the seed for the activity list
@@ -129,9 +130,11 @@ export function defaultAnswers(project: Project | null): ScheduleBuilderAnswers 
     if (!isNaN(weeks) && weeks > 0) {
       // Base deadline on project.startDate when already set; otherwise today.
       // We deliberately do NOT set/write startDate — deadline value only.
-      const base = (project as any)?.startDate ? new Date((project as any).startDate) : new Date();
-      const deadline = new Date(base.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
-      derivedDeadline = deadline.toISOString().slice(0, 10);
+      // Calendar days from the LOCAL start day (or local today): the UTC date
+      // of `now + weeks` was a day late for anyone answering in the evening
+      // west of Greenwich.
+      const base = calendarDayStart((project as any)?.startDate) ?? new Date();
+      derivedDeadline = toCalendarDayString(addCalendarDays(base, Math.floor(weeks * 7)));
     }
   }
 

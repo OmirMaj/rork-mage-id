@@ -19,6 +19,7 @@ import { calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { createId } from '@/utils/scheduleEngine';
 import { paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { stableHash } from '@/utils/stableHash';
+import { toCalendarDayString } from '@/utils/calendarDate';
 
 // Every call here is the Schedule Pro AI drawer, which gates its quota on
 // 'scheduleCopilot'. Untagged, the relay counted them as 'general'.
@@ -386,7 +387,7 @@ export async function aiAskSchedule(
   dayScale?: ScheduleAIDayScale,
 ): Promise<{ ok: boolean; answer: string; cached?: boolean }> {
   const serialized = serializeSchedule(tasks, cpm, dayScale);
-  const startStr = projectStartDate.toISOString().slice(0, 10);
+  const startStr = toCalendarDayString(projectStartDate);
   const prompt = `Answer the user's question using ONLY the schedule data below.
 Be concrete — cite task names, day numbers, and actual calendar dates (project
 starts ${startStr}, day N = ${startStr} + (N-1) days). If the answer isn't

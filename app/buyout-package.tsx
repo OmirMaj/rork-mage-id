@@ -31,7 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { MageAIMark } from '@/components/icons';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -925,7 +925,7 @@ export default function BuyoutPackageScreen() {
       // — one that does not hold the commitment just created — so it dropped
       // the new commitment from the device until the next reload.
       const overrideNote = isRisky
-        ? `[risk-override ${new Date().toISOString().slice(0, 10)}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`
+        ? `[risk-override ${todayCalendarDay()}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`
         : undefined;
       const commitmentId = awardBidPackage(pkg.id, bid.id, { overrideNote });
       if (!commitmentId) {

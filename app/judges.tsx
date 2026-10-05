@@ -51,6 +51,7 @@ import { resolveTargetMargin } from '@/utils/judges/targetMargin';
 import { MARKUP_CHOICES, marginOf } from '@/utils/estimateMarkup';
 import { ChipRail, desktopCta, segmentedDesktop } from '@/components/ui';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { todayCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -138,10 +139,7 @@ function JudgesInner() {
     const weeks = parseInt(weeksStr, 10);
     if (!Number.isFinite(weeks) || weeks <= 0) return undefined;
     const start = new Date();
-    const end = new Date();
-    end.setDate(end.getDate() + weeks * 7);
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    return { startISO: toISO(start), endISO: toISO(end) };
+    return { startISO: todayCalendarDay(start), endISO: toCalendarDayString(addCalendarDays(start, weeks * 7)) };
   }
 
   // ── Describe path: draft + judge ─────────────────────────────────────

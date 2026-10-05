@@ -770,6 +770,10 @@ console.log('\nno surface re-invents the anchor:');
   const CREATION_ANCHORS = new Set([
     'app/(tabs)/schedule/index.tsx',
     'components/schedule/mobile/MobileScheduleScreen.tsx',
+    // Importing a schedule file into a job is the same act. It always was a
+    // today-anchor here; the sweep could not see it while it was spelled
+    // `todayISO()` (the UTC day — fixed 2026-10-05 to todayCalendarDay()).
+    'app/schedule-import.tsx',
   ]);
   // Not a schedule at all — a warranty's own start date.
   const NOT_A_SCHEDULE_ANCHOR = new Set([

@@ -22,6 +22,7 @@ import type {
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { nextChangeOrderNumber } from '@/utils/coNumbering';
+import { addCalendarDays, calendarDayOf, toCalendarDayString } from '@/utils/calendarDate';
 
 /** Whole cents (same rule as the CO screen's coRoundCents). */
 function centsOf(n: number): number {
@@ -101,9 +102,10 @@ export function collectDraftableLeaks(opts: {
   const { dailyReports, projects, changeOrders, processedReportIds, userId } = opts;
   if (!userId) return [];
   const now = opts.now ?? new Date();
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - 14);
-  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  // LOCAL calendar days on both sides: the cutoff is 14 days before the
+  // device's today, and a report is the local day it was filed on (an 9 pm
+  // report's ISO text already starts with tomorrow's UTC date).
+  const cutoffISO = toCalendarDayString(addCalendarDays(now, -14));
 
   // Build a map from projectId → COs for that project (fast lookup).
   const cosByProject = new Map<string, ChangeOrder[]>();
@@ -117,7 +119,7 @@ export function collectDraftableLeaks(opts: {
 
   for (const report of dailyReports) {
     // 1. Age check (14-day window).
-    const reportDate = report.date?.slice(0, 10) ?? '';
+    const reportDate = calendarDayOf(report.date) ?? '';
     if (!reportDate || reportDate < cutoffISO) continue;
 
     // 3. Priced items check.

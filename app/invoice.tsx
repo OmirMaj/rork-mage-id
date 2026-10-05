@@ -3740,7 +3740,7 @@ function InvoiceInner() {
                   projectId: existingInvoice.projectId,
                   prefillFromInvoice: existingInvoice.id,
                   prefillAmount: String(existingInvoice.amountPaid ?? existingInvoice.totalDue ?? 0),
-                  prefillThroughDate: (existingInvoice as any).paidDate ?? existingInvoice.issueDate ?? new Date().toISOString().slice(0, 10),
+                  prefillThroughDate: (existingInvoice as any).paidDate ?? existingInvoice.issueDate ?? todayCalendarDay(),
                 },
               })}
               activeOpacity={0.85}

@@ -38,7 +38,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { groupReadyPunchItems, permitExpiryState } from '@/utils/brainWatch';
-import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, daysPastDue } from '@/utils/calendarDate';
 import { tasksStartingOn, scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildNoticeStatus } from '@/utils/noticeClock';
@@ -174,10 +174,11 @@ export function useSmartInbox(): SmartInboxResult {
 
     for (const inv of store.invoices as Invoice[]) {
       if (inv.status === 'paid' || inv.status === 'draft') continue;
-      const due = parseISODate(inv.dueDate);
-      if (due === null) continue;
-      if (due < today) {
-        const daysLate = Math.floor((today - due) / MS_PER_DAY);
+      // The one overdue rule (calendarDate daysPastDue): late from the start of
+      // the local day after the due day. This used to read the due day off the
+      // stored instant's UTC date, a day late for an evening-issued invoice.
+      const daysLate = daysPastDue(inv.dueDate, now);
+      if (daysLate > 0) {
         // MONEY-F5: net of held retention — a balance that is only retention
         // the client may hold is not "late".
         const outstanding = invoiceOutstanding(inv);

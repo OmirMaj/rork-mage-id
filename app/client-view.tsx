@@ -30,7 +30,7 @@ import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
 import { openGrowthLink } from '@/utils/growthAttribution';
 import { formatMoney } from '@/utils/formatters';
-import { calendarDayStart } from '@/utils/calendarDate';
+import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, ChangeOrderStatus, RFIStatus, DocumentStatus } from '@/types';
 import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
@@ -388,7 +388,7 @@ export default function ClientViewScreen() {
     if (isSnapshotMode) return remote.snapshot?.ownerDecisions ?? [];
     const contract = contractQ.data;
     return buildOwnerDecisions({
-      today: new Date().toISOString().slice(0, 10),
+      today: todayCalendarDay(),
       contract: contract && contract.status === 'sent'
         ? {
             status: 'sent',

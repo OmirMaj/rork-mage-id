@@ -52,6 +52,7 @@ import type {
 } from '@/types';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { daysPastDue } from '@/utils/calendarDate';
 // Reused, not re-derived: buildReadyToBill is the single definition of "a
 // change order that is drafted and unsent", shared with the home ReadyToBill
 // card so the two surfaces can never disagree.
@@ -322,7 +323,6 @@ function buildChaseLeg(
   now: Date,
 ): WeekCloseLeg {
   const items: BriefItem[] = [];
-  const todayISO = localDateISO(now);
 
   // Overdue invoices: dueDate in the past, balance > 0. NO cadence gate.
   //
@@ -351,9 +351,7 @@ function buildChaseLeg(
   const overdueInvoices = invoices.filter(inv => {
     const balance = invoiceOutstanding(inv);
     if (balance <= 0) return false;
-    const due = toLocalDay(inv.dueDate);
-    if (!due) return false;
-    return due < todayISO && inv.status !== 'paid';
+    return daysPastDue(inv.dueDate, now) > 0 && inv.status !== 'paid';
   });
 
   // Build prediction lookup for landing dates
@@ -368,9 +366,7 @@ function buildChaseLeg(
     const proj = projects.find(p => p.id === inv.projectId);
     const balance = invoiceOutstanding(inv);
 
-    const daysOverdue = Math.round(
-      (now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,
-    );
+    const daysOverdue = daysPastDue(inv.dueDate, now);
 
     // Now that the leg is ungated, an invoice can outlive the project row it
     // points at (deleted job, a record that has not synced yet). The old

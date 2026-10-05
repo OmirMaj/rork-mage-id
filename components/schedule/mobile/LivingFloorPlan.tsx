@@ -42,7 +42,7 @@ import { zoneStateAsOf, type ZoneState } from '@/utils/planZoneStatus';
 import { TimelineScrubber } from './TimelineScrubber';
 import EmptyState from '@/components/EmptyState';
 import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 
@@ -91,7 +91,7 @@ export function LivingFloorPlan({
   // clientMode is strictly stronger than readOnly — a caller that passes
   // clientMode never has to remember to also pass readOnly.
   const locked = !!readOnly || !!clientMode;
-  const startDate = scheduleStartDate ?? new Date().toISOString().slice(0, 10);
+  const startDate = scheduleStartDate ?? todayCalendarDay();
   // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
   // midnight and floors to the PREVIOUS local day at negative offsets, so every
   // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /

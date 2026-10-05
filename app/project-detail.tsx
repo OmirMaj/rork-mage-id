@@ -118,7 +118,7 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
-import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf, toCalendarDayString } from '@/utils/calendarDate';
 import { pdfFailureMessage } from '@/utils/platformFile';
 // Wave 6c, lane E — the desktop workspace (see the render's `isDesktop ?`).
 import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
@@ -3689,7 +3689,7 @@ export default function ProjectDetailScreen() {
                   const monday = new Date(d);
                   monday.setDate(d.getDate() - (day - 1));
                   monday.setHours(0, 0, 0, 0);
-                  const key = monday.toISOString().slice(0, 10);
+                  const key = toCalendarDayString(monday);
                   const label = `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
                   if (!buckets.has(key)) {
                     buckets.set(key, { label, weekStart: monday.getTime(), reports: [] });

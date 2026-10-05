@@ -39,6 +39,7 @@ import {
 import type { Delivery } from '@/utils/deliverySchedule';
 import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import { aggregateAttention, computeWeekLoad } from '@/utils/summaryBriefing';
+import { daysPastDue } from '@/utils/calendarDate';
 import type { CashFlowSummary } from '@/utils/cashFlowEngine';
 import type { DidForYouEntry } from '@/utils/brain/didForYou';
 import type { AccuracyReport } from '@/utils/brain/accuracyReport';
@@ -269,9 +270,9 @@ function buildLeakItem(leaks: OpenLeakSummary): BriefItem | null {
  *  predicate): any non-paid, non-draft invoice past due — ALL projects, no
  *  grace window. Wider than the per-invoice brainWatch lines, which only
  *  cover ACTIVE projects and >7-day overdues. */
-function countAggregateOverdueInvoices(invoices: Invoice[], nowMs: number): number {
+function countAggregateOverdueInvoices(invoices: Invoice[], now: Date): number {
   return invoices.filter(
-    i => i.status !== 'paid' && i.status !== 'draft' && i.dueDate && new Date(i.dueDate).getTime() < nowMs,
+    i => i.status !== 'paid' && i.status !== 'draft' && daysPastDue(i.dueDate, now) > 0,
   ).length;
 }
 
@@ -293,7 +294,7 @@ function buildNeedsYou(input: ComposeBriefInput, now: Date): BriefItem[] {
   // per-invoice population is a strict subset of the rollup's, so a plain
   // count comparison decides coverage.
   const watchInvoiceCount = watch.filter(i => i.kind === 'invoice').length;
-  const aggregateOverdueCount = countAggregateOverdueInvoices(input.invoices, now.getTime());
+  const aggregateOverdueCount = countAggregateOverdueInvoices(input.invoices, now);
   for (const a of aggregateAttention(input.projects, input.invoices, input.punchItems, input.changeOrders, now)) {
     if (a.id === 'overdue-invoices' && watchInvoiceCount >= aggregateOverdueCount) continue;
     items.push({
