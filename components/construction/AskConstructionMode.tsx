@@ -75,6 +75,7 @@ import { CodeCardSheet } from '@/components/codeCard/CodeCardSheet';
 import { JurisdictionBlock } from '@/components/codeCard/JurisdictionBlock';
 import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
+import { CODE_RESULT_NOTE, codeAckKnown, ensureCodeAck } from '@/utils/codeAck';
 import { attachEvidence, codeCardStoreBlockedReason, parseCodeCardItems } from '@/utils/codeCard/parse';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { codePinStore, makePin, pinsFor } from '@/utils/codeCard/pins';
@@ -836,6 +837,9 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     }
     if (!canAsk) { setShowPaywall(true); return; }
     if (!canSubmit) return;
+    // One-time notice before a code answer is relied on (utils/codeAck). An
+    // answer already on screen stays; only the next request waits on it.
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     setResult(null);
@@ -997,7 +1001,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     <View style={styles.honestyBanner} testID="construction-ask-ahj">
       <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
       <Text style={styles.honestyText}>
-        {result.disclaimer || 'General guidance — confirm details with your local building department (AHJ).'}
+        {result.disclaimer || 'General guidance. The model did not mark this answer as verified.'}
       </Text>
     </View>
   ) : null;
@@ -1207,6 +1211,12 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
           {honestyBanner ? (
             tutorialOn ? <TutorialTarget id="cai.honesty">{honestyBanner}</TutorialTarget> : honestyBanner
           ) : null}
+
+          {/* The standing line under every code result. With cards, the list's
+              own closing block carries it, so it is never shown twice. */}
+          {cards.length > 0 && cardInfo ? null : (
+            <Text style={styles.codeNote} testID="construction-ask-code-note">{CODE_RESULT_NOTE}</Text>
+          )}
         </ChatTurn>
       ) : null}
       </MaybeScrollAnchor>
@@ -1426,6 +1436,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     backgroundColor: `${Colors.warning}14`, borderWidth: 1, borderColor: `${Colors.warning}40`,
   },
   honestyText: { flex: 1, fontSize: Type.footnote.fontSize, color: c.textSecondary, lineHeight: 19 },
+  codeNote: { fontSize: Type.footnote.fontSize, color: c.textSecondary, lineHeight: 19 },
   // The tutorial's wrappers and its sample-question chip (alt surface — the
   // accent is never the background), in the same hole as the box.
   sampleWrap: { gap: 8 },

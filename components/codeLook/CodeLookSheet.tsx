@@ -35,6 +35,7 @@ import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { cardSurface } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
+import { codeAckKnown, ensureCodeAck } from '@/utils/codeAck';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { analyzePhotoCodeLook } from '@/utils/photoAnalyzer';
 import {
@@ -132,6 +133,9 @@ export default function CodeLookSheet({
   // ONLY from the explicit tap — never on mount (no auto-spend).
   const look = useCallback(async () => {
     if (!canAI) { setPaywallOpen(true); return; }
+    // One-time notice before a code answer is relied on (utils/codeAck). An
+    // answer already on screen stays; only the next request waits on it.
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     const mine = ++seq.current;
     setRun({ kind: 'busy' });
     try {

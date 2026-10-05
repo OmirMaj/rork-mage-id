@@ -355,7 +355,7 @@ function DrawingAnalyzerInner() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Estimator depth</Text>
             <Text style={styles.cardHelper}>
-              Standard returns a directional estimate fast — even from rough drawings. Pro Estimator reasons more carefully and stays conservative when plans are incomplete.
+              Standard returns a directional estimate fast, even from rough drawings. Pro Estimator is a slower model with room for a longer answer. Both follow the same instructions.
             </Text>
             <View style={styles.modelRow}>
               <ModelOption
@@ -377,7 +377,7 @@ function DrawingAnalyzerInner() {
               <View style={styles.upsell}>
                 <Crown size={12} color={Colors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.upsellText}>
-                  Pro Estimator is included with the Business tier — deeper reasoning, larger output budget, more conservative on incomplete drawings.
+                  Pro Estimator is included with the Business tier: a slower model with a larger output budget.
                 </Text>
               </View>
             )}

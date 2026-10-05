@@ -41,7 +41,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     key: 'lien_waiver',
     term: 'Lien waiver',
     what: 'A signed document where you (or a sub) give up the right to file a lien in exchange for getting paid.',
-    why: 'Owners will not release funds without it. Tracking waivers keeps payments flowing and closeout clean.',
+    why: 'Many owners ask for it before they release a payment. Tracking waivers keeps payments flowing and closeout clean.',
   },
   rfi: {
     key: 'rfi',

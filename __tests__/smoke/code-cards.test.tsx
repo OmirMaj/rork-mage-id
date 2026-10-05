@@ -332,7 +332,7 @@ describe('code cards — behaviour', () => {
     render(<CodeCardList items={ANSWER} info={INFO} sample />);
     expect(screen.getAllByText('Model recall · confirm')).toHaveLength(3);
     expect(screen.getAllByText('Sample')).toHaveLength(3);
-    expect(screen.getByText('Confirm with your building department.')).toBeTruthy();
+    expect(screen.getByText('Not a substitute for the adopted code. Confirm with your building department.')).toBeTruthy();
     expect(screen.getByText(/MAGE ID is not affiliated with ICC\./)).toBeTruthy();
   });
 

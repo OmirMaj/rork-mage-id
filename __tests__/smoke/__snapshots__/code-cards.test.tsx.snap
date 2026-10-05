@@ -6922,7 +6922,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
             }
           }
         >
-          Confirm with your building department.
+          Not a substitute for the adopted code. Confirm with your building department.
         </Text>
         <Text
           style={
@@ -13877,7 +13877,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
             }
           }
         >
-          Confirm with your building department.
+          Not a substitute for the adopted code. Confirm with your building department.
         </Text>
         <Text
           style={
@@ -19810,7 +19810,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
             }
           }
         >
-          Confirm with your building department.
+          Not a substitute for the adopted code. Confirm with your building department.
         </Text>
         <Text
           style={
@@ -25682,7 +25682,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
             }
           }
         >
-          Confirm with your building department.
+          Not a substitute for the adopted code. Confirm with your building department.
         </Text>
         <Text
           style={
@@ -31754,7 +31754,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
             }
           }
         >
-          Confirm with your building department.
+          Not a substitute for the adopted code. Confirm with your building department.
         </Text>
         <Text
           style={
@@ -36285,7 +36285,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    Confirm with your building department.
+                    Not a substitute for the adopted code. Confirm with your building department.
                   </Text>
                   <Text
                     style={

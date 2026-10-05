@@ -109,7 +109,7 @@ console.log('\n2. headline + trust label');
   ok('trust high', trustLabel('high') === 'Clearly visible');
   ok('trust med', trustLabel('med') === 'Probably visible');
   ok('trust low', trustLabel('low') === 'Hard to see — check on site');
-  ok('disclaimer is exact', CODE_LOOK_DISCLAIMER === 'Visual pre-check, not an inspection. The inspector and the AHJ decide.');
+  ok('disclaimer is exact', CODE_LOOK_DISCLAIMER === 'Visual pre-check, not an inspection. Not a substitute for the adopted code. Confirm with your building department.');
 }
 
 // ═══ 3. punch + prep ════════════════════════════════════════════════════════

@@ -29,6 +29,7 @@ import { store as routerStore } from 'expo-router/build/global-state/router-stor
 import * as Sentry from '@sentry/react-native';
 import * as reactQuery from '@tanstack/react-query';
 import { AI_CONSENT_STORAGE_KEY } from '@/utils/aiConsentCore';
+import { CODE_ACK_STORAGE_KEY, serializeCodeAck } from '@/utils/codeAckCore';
 import type { QueryClient } from '@tanstack/react-query';
 import { __setSmokeSession } from '@/__tests__/mocks/supabase';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
@@ -138,6 +139,13 @@ export async function primeWorld(state: WorldState): Promise<void> {
   // it is the subject: __tests__/smoke/appset-phone.test.tsx removes this key
   // and records Settings → AI features as it reads before any answer.
   await AsyncStorage.setItem(AI_CONSENT_STORAGE_KEY, 'granted');
+
+  // "Before you rely on a code answer" (utils/codeAck): a one-time notice in
+  // front of the first building-code AI request, seeded as acknowledged for
+  // the same reason as the consent above (nobody taps a system alert under
+  // jest). The unacknowledged state is covered where it is the subject:
+  // __tests__/guards/code-ack.test.ts.
+  await AsyncStorage.setItem(CODE_ACK_STORAGE_KEY, serializeCodeAck(SMOKE_USER.id, new Date('2026-10-04T12:00:00.000Z')));
 
   if (state === 'populated') {
     await seedWorld();

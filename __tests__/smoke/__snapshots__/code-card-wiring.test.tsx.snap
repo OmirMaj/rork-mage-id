@@ -3,27 +3,27 @@
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (a) Code Check result sheet, two citations, no linked job 1`] = `
 {
   "lines": 1064,
-  "sha256": "cef2320c0f21581f051db4adf40dbd8c85749d2c6369c7f1dfecb8e1bd0b5000",
+  "sha256": "3371c7ab9ad7aeb37f82f8f825dffabd90e85166e270805914b7ce847be8b85a",
 }
 `;
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (b) Ask, prose answer, no requirements (the fallback) 1`] = `
 {
-  "lines": 849,
-  "sha256": "d148897a8c7afea97ab5da83e533cfccd027ef792f1754679b01bceabca48452",
+  "lines": 851,
+  "sha256": "6eae9cc8f4316a3890c252e216799aa6c1eafa4c5feea19fcc36f44da20f1e91",
 }
 `;
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (c) Plan Review, three saved findings on one sheet 1`] = `
 {
   "lines": 724,
-  "sha256": "e989060c59d8fc294e24016e2c85ac2c65e90b9102fecf3f1c63775d492f236a",
+  "sha256": "9113452200b83cf18baf61c3031f6e492ce5b959963490af5b5c972d800ead72",
 }
 `;
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (d) Inspection Ready sheet, no pinned code cards 1`] = `
 {
   "lines": 68,
-  "sha256": "a8d705b8bf9f10ba4bc0ff4309575c59067086156a46f9f2be54f26a33f26853",
+  "sha256": "bdbc17210ca7f90af12d0fc9e464428f58f5aae6e88c3b5d966521764d0a311e",
 }
 `;

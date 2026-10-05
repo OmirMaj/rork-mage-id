@@ -52,6 +52,7 @@ import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import AiConsentSheet from "@/components/AiConsentSheet";
+import CodeAckHost from "@/components/CodeAckHost";
 import { AiConsentAccountSync } from "@/components/AiConsentAccountSync";
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { Colors, setCustomPrimary, legacyChrome } from "@/constants/colors";
@@ -2014,6 +2015,8 @@ export default Sentry.wrap(function RootLayout() {
                               <AlertHost />
                               {/* App Store 5.1.2(i): asks once before any AI request sends data. Renders nothing. */}
                               <AiConsentSheet />
+                              {/* Shows "Before you rely on a code answer" once per account, before a code request. Renders nothing. */}
+                              <CodeAckHost />
                               {/* Tells the account the answer to the AI question; the server reads it. Renders nothing. */}
                               <AiConsentAccountSync />
                               <NailItToastHost />

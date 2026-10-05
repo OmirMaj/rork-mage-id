@@ -49,7 +49,7 @@ export interface CodeLookResult {
 
 // ─── Fixed copy (never model text) ────────────────────────────────────────────
 
-export const CODE_LOOK_DISCLAIMER = 'Visual pre-check, not an inspection. The inspector and the AHJ decide.';
+export const CODE_LOOK_DISCLAIMER = 'Visual pre-check, not an inspection. Not a substitute for the adopted code. Confirm with your building department.';
 export const CODE_LOOK_NOTHING_FLAGGED = "Nothing flagged in what's visible.";
 /** The same words as InspectionReadySheet's RECALL_CHIP (validator-checked;
  *  not imported — that would be a component → util → component cycle). */

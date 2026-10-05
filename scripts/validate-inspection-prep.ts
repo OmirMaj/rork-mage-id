@@ -500,7 +500,7 @@ console.log('\n8. punch item');
 // ═══ 9-11. source pins ══════════════════════════════════════════════════════
 console.log('\n9-11. source pins');
 {
-  ok('PREP_DISCLAIMER is exact', PREP_DISCLAIMER === 'Prep list, not a code review. The inspector and the AHJ decide.');
+  ok('PREP_DISCLAIMER is exact', PREP_DISCLAIMER === 'Prep list, not a code review. Not a substitute for the adopted code. Confirm with your building department.');
   const sheet = readFileSync(join(ROOT, 'components/inspectionPrep/InspectionReadySheet.tsx'), 'utf8');
   ok('the sheet renders {PREP_DISCLAIMER}', /<Text[^>]*>\{PREP_DISCLAIMER\}<\/Text>/.test(sheet));
   ok('the sheet never renders a model disclaimer', !/\b(recall|answer|res|data|result)\??\.disclaimer\b/.test(sheet));
