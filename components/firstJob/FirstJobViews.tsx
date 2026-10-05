@@ -134,7 +134,9 @@ function PathLine({ filled, live, delayMs }: { filled: boolean; live: boolean; d
       useNativeDriver: nativeDriver,
     });
     run.start();
-    return () => run.stop();
+    // Stopped early (another step ticked, or the card went away): the line
+    // must never be left part-filled under a step that is done.
+    return () => { run.stop(); v.setValue(1); };
   }, [filled, live, reduce, delayMs, v]);
   return (
     <View style={styles.lineTrack} pointerEvents="none">
