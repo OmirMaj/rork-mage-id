@@ -156,4 +156,23 @@ export const AnalyticsEvents = {
   TUTORIAL_EXITED: 'tutorial_exited',
   TUTORIAL_COMPLETED: 'tutorial_completed',
   TUTORIAL_HANDOFF_CLICKED: 'tutorial_handoff_clicked',
+  // ── Your First Job (components/FirstJobPath.tsx, utils/firstJobPath.ts) ──
+  // Where new contractors stall on the starter path. No personal data: only
+  // step ids, the answer id and counts.
+  // FIRST_JOB_QUESTION_ANSWERED {answer: price|schedule|bill|site|unsure}
+  // FIRST_JOB_STEP_OPENED {step, position, by: auto|tap}
+  // FIRST_JOB_STEP_DONE {step, position, out_of_order, done_count} — fired when
+  //   Home SEES the step done from real data, never from a tap on the card
+  // FIRST_JOB_STEP_SKIPPED {step, position}
+  // FIRST_JOB_HIDDEN {done_count} / FIRST_JOB_REOPENED {done_count}
+  // FIRST_JOB_REMOVED {done_count}
+  // FIRST_JOB_FINISHED {done_count, skipped_count}
+  FIRST_JOB_QUESTION_ANSWERED: 'first_job_question_answered',
+  FIRST_JOB_STEP_OPENED: 'first_job_step_opened',
+  FIRST_JOB_STEP_DONE: 'first_job_step_done',
+  FIRST_JOB_STEP_SKIPPED: 'first_job_step_skipped',
+  FIRST_JOB_HIDDEN: 'first_job_hidden',
+  FIRST_JOB_REOPENED: 'first_job_reopened',
+  FIRST_JOB_REMOVED: 'first_job_removed',
+  FIRST_JOB_FINISHED: 'first_job_finished',
 } as const;

@@ -42,7 +42,7 @@ import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import ErrorState from '@/components/ErrorState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
-import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { FirstJobPath } from '@/components/FirstJobPath';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
 import { capProjectCount, countsTowardFreeCap, isSampleProjectName } from '@/utils/projectCap';
@@ -1099,8 +1099,11 @@ export default function HomeScreen() {
   // dismissed. ONE element for the phone header and the desktop cards column;
   // it stays a full mounted card at every width (its 'Show me first' entry
   // starts the tutorial — validate-tutorial-entry-points).
+  // FirstJobPath takes the old card's props and renders "Your First Job" for a
+  // contractor, or the old card itself (FIRST_JOB_PATH_ENABLED off, or an
+  // invited field seat).
   const onboardingChecklistCard = (
-    <OnboardingChecklist
+    <FirstJobPath
       companyInfoDone={companyInfoDone}
       // realProjectCount, not projects.length (polish audit 2026-09-10,
       // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"

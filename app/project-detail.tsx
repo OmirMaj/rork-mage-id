@@ -96,6 +96,7 @@ import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters
 import { canViewFinancials, isFinancialsBlinded, ROLE_LABELS } from '@/utils/roleBlinding';
 import { pricingRoleFor } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
+import { markEstimateSent } from '@/utils/firstJobStore';
 import { getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold, coPriorApprovedChanges } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled, roundCents } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
@@ -1372,6 +1373,9 @@ export default function ProjectDetailScreen() {
           }
         : project;
       await generateAndSharePDF(projectForPdf, branding, 'share');
+      // Your First Job: this share leaves nothing saved on the project, so it
+      // leaves a local mark (never for a sample job).
+      void markEstimateSent(project.name);
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
       showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));

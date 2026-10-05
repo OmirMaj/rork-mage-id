@@ -45,6 +45,7 @@ import { EN as EN_SCHEDULE_LATENESS } from './schedule.lateness.generated';
 import { EN as EN_FIELD_PUNCH_SEAL } from './field.punch-seal.generated';
 import { EN as EN_OFFICE_PERMIT_PATH } from './office.permit-path.generated';
 import { EN as EN_OFFICE_WHOSON } from './office.whoson.generated';
+import { EN as EN_OFFICE_FIRST_JOB } from './office.first-job.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -79,6 +80,7 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'field.punch-seal': EN_FIELD_PUNCH_SEAL,
   'office.permit-path': EN_OFFICE_PERMIT_PATH,
   'office.whoson': EN_OFFICE_WHOSON,
+  'office.first-job': EN_OFFICE_FIRST_JOB,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

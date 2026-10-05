@@ -168,3 +168,15 @@ export const ASK_FILES_ENABLED = false;
 // MESSAGE_SOURCE_ENABLED = true and MESSAGE_SOURCE_NOT_BEFORE set, deployed,
 // and (4) utils/messageAiCore.ts MESSAGE_AI_NOT_BEFORE carries the same time.
 export const PORTAL_MESSAGE_AI_ENABLED = false;
+
+// YOUR FIRST JOB: the interactive starter path on Home (2026-10-05).
+//
+// True: a contractor's Home shows "Your First Job" (components/FirstJobPath.tsx)
+// where the old "Get up and running" card sat: one opening question, seven
+// steps in the order of a real job, one step open at a time, each one ticked
+// only from the account's real data.
+//
+// False: Home renders the old card (components/OnboardingChecklist.tsx)
+// exactly as before, for everyone. The old component stays in the repo until a
+// later lane deletes it, so this switch is a full way back.
+export const FIRST_JOB_PATH_ENABLED = true;

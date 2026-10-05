@@ -29,6 +29,7 @@ import { ES_FIELD_CHROME } from './field/chrome';
 import { ES_FIELD_DELIVERY } from './field/delivery';
 import { ES_FIELD_PHOTO } from './field/photo';
 import { ES_FIELD_VOICE } from './field/voice';
+import { ES_OFFICE_FIRST_JOB } from './office/firstJob';
 
 /** Every Spanish file by its path under es/ (validate-i18n checks a key never sits in two). */
 export const ES_SHARDS: Record<string, EsCatalog> = {
@@ -51,6 +52,7 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'field/delivery': ES_FIELD_DELIVERY,
   'field/photo': ES_FIELD_PHOTO,
   'field/voice': ES_FIELD_VOICE,
+  'office/firstJob': ES_OFFICE_FIRST_JOB,
 };
 
 export const ES_CATALOG: EsCatalog = Object.assign({}, ...Object.values(ES_SHARDS)) as EsCatalog;

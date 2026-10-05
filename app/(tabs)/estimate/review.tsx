@@ -51,6 +51,7 @@ import { showAlert } from '@/utils/alert';
 // gesture), and a dynamic import is an await before it.
 import { copyToClipboard } from '@/utils/clipboard';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { markEstimateSent } from '@/utils/firstJobStore';
 
 // Redesigned estimate REVIEW — the approved ink+amber summary view reading the
 // live material cart. Non-destructive: the catalog/cart estimator at
@@ -311,6 +312,8 @@ export default function EstimateReviewScreen() {
       source: 'estimate_review',
       grand_total: clientView?.projectTotal ?? 0,
     });
+    // Your First Job: a copied proposal link leaves nothing saved, so it leaves a local mark.
+    void markEstimateSent();
     return { url, copied };
   }, [clientView, settings]);
 

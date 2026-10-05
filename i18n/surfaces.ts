@@ -239,6 +239,11 @@ export const SURFACES: Surface[] = [
   // block, the roster row lines, the question card and the switch. Every
   // string of the feature lives in the one copy hook.
   { id: 'office.whoson', phase: 2, state: 'pending', keyPrefixes: ['office.whoson.'], files: ['hooks/useWhosOnCopy.ts'], lane: 'WHOKIT' },
+  // Your First Job: the interactive starter path on Home (the question, the
+  // seven steps, the stage pills, hide / remove, the finish state). Every
+  // string lives in the one copy hook. Complete: each key has Spanish
+  // (i18n/catalog/es/office/firstJob.ts), and validate-i18n fails without it.
+  { id: 'office.first-job', phase: 2, state: 'complete', keyPrefixes: ['office.firstJob.'], files: ['hooks/useFirstJobCopy.ts'], lane: 'FIRSTJOB' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

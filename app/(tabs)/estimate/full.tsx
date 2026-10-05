@@ -81,6 +81,7 @@ import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
 import { buildEstimateEmailBody, type EmailEstimateRow } from '@/utils/estimateEmailBody';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { markEstimateSent } from '@/utils/firstJobStore';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -1349,6 +1350,8 @@ export default function EstimateScreen() {
       const pdfMissing = !pdfUri || (result.attachmentsDropped ?? 0) > 0;
 
       if (result.success) {
+        // Your First Job: an emailed estimate leaves nothing saved, so it leaves a local mark.
+        void markEstimateSent();
         track(AnalyticsEvents.ESTIMATE_SHARED, {
           method: 'email',
           source: 'estimate_full',
