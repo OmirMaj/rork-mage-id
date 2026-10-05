@@ -45,6 +45,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import * as core from '../utils/askFilesCore';
 import * as flags from '../constants/featureFlags';
+import { resolveRoleState } from '../utils/projectRole';
 import type { AskAttachedFile, AskFileRead } from '../types';
 import type { AskCopy } from '../hooks/useAskCopy';
 
@@ -296,8 +297,24 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
 
   // Who is offered the Plan page row: the job's owner, and nobody else.
   {
-    const st = (role: string | null | undefined, isLoading = false, isError = false, hasJob = true, isPaused = false) =>
-      core.askPlanRowBlock({ hasJob, role, isLoading, isError, isPaused });
+    const st = (role: string | null | undefined, isLoading = false, isError = false, hasJob = true, isPaused = false, hasUser = true) =>
+      core.askPlanRowBlock({ hasJob, hasUser, role, isLoading, isError, isPaused });
+    // A MISSING USER ID. utils/projectRole resolveRoleState answers a settled
+    // null for no uid without reading anything, which used to be said as "You
+    // are not on this job" to somebody whose session had not loaded yet.
+    const noUid = resolveRoleState({ projectId: P, uid: undefined, collaborators: [], isLoading: false, isError: false, isPending: false });
+    ok('the role rule really does answer a settled null for a missing user id (the state this guards against)',
+      noUid.role === null && noUid.isLoading === false && noUid.isError === false && noUid.isPaused === false
+      && JSON.stringify(resolveRoleState({ projectId: P, uid: null, ownerUserId: 'someone', collaborators: [], isLoading: true, isError: true, isPending: true })) === JSON.stringify(noUid));
+    ok("askPlanRowBlock, NO USER ID: that settled null is 'unknown' (couldn't check), never 'notOnJob'; with a user id the same state is 'notOnJob'",
+      st(null, false, false, true, false, false) === 'unknown' && st(null, false, false, true, false, true) === 'notOnJob'
+      && core.askPlanRowBlock({ hasJob: true, hasUser: false, role: noUid.role, isLoading: noUid.isLoading, isError: noUid.isError, isPaused: noUid.isPaused }) === 'unknown');
+    ok("askPlanRowBlock, no user id: only the boolean true counts as knowing who is asking (a missing flag, 'true', 1 and an id string are 'unknown')",
+      [undefined, null, 'true', 1, 'user-id', {}].every((hasUser) =>
+        core.askPlanRowBlock({ hasJob: true, hasUser, role: null, isLoading: false, isError: false, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'));
+    ok('askPlanRowBlock, no user id: every other answer is unchanged (no job, checking, a failed read, a seat, the owner)',
+      st('owner', false, false, false, false, false) === 'noJob' && st(null, true, false, true, false, false) === 'checking' && st(null, false, true, true, false, false) === 'unknown'
+      && st('editor', false, false, true, false, false) === 'notOwner' && st('owner', false, false, true, false, false) === null);
     ok('askPlanRowBlock: the owner of the anchored job can pick a page', st('owner') === null);
     ok("askPlanRowBlock: with no job the row is off as 'noJob', whatever the role says",
       st('owner', false, false, false) === 'noJob' && st(null, true, false, false) === 'noJob' && st('editor', false, true, false) === 'noJob'
@@ -317,26 +334,26 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
       st('owner') === null && st('editor') === 'notOwner' && st('field', false, false, true, true) === 'notOwner');
     ok("askPlanRowBlock: a state the rule does not know (no role value, an empty one, a flag that is not a boolean) is 'unknown', never 'notOnJob'",
       st(undefined) === 'unknown' && st('') === 'unknown'
-      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: false, isError: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
-      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: undefined, isError: false, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
-      && core.askPlanRowBlock({ hasJob: true, role: null, isLoading: false, isError: undefined, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown');
+      && core.askPlanRowBlock({ hasJob: true, hasUser: true, role: null, isLoading: false, isError: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
+      && core.askPlanRowBlock({ hasJob: true, hasUser: true, role: null, isLoading: undefined, isError: false, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown'
+      && core.askPlanRowBlock({ hasJob: true, hasUser: true, role: null, isLoading: false, isError: undefined, isPaused: false } as unknown as Parameters<typeof core.askPlanRowBlock>[0]) === 'unknown');
     ok("askPlanRowBlock: 'owner' is matched exactly ('Owner', ' owner' and a truthy non-string are not the owner)",
       st('Owner') === 'notOwner' && st(' owner') === 'notOwner' && st(true as unknown as string) === 'unknown');
     ok('askPlanRowBlock: the owner stamp wins over a failed or running collaborator read (his own job is never locked on a blip)',
       st('owner', true) === null && st('owner', false, true) === null && st('owner', false, false, true, true) === null);
     const rows = [true, false].flatMap((hasJob) => ['owner', 'editor', 'viewer', 'field', null].flatMap((role) =>
-      [true, false].flatMap((isLoading) => [true, false].flatMap((isError) => [true, false].map((isPaused) => ({ hasJob, role, isLoading, isError, isPaused }))))));
+      [true, false].flatMap((isLoading) => [true, false].flatMap((isError) => [true, false].flatMap((isPaused) => [true, false].map((hasUser) => ({ hasJob, hasUser, role, isLoading, isError, isPaused })))))));
     const open = rows.filter((r) => core.askPlanRowBlock(r) === null);
     ok(`askPlanRowBlock: of all ${rows.length} states, the row is on only for an owner with a job`,
-      rows.length === 80 && open.length === 8 && open.every((r) => r.hasJob && r.role === 'owner'));
+      rows.length === 160 && open.length === 16 && open.every((r) => r.hasJob && r.role === 'owner'));
     const notOn = rows.filter((r) => core.askPlanRowBlock(r) === 'notOnJob');
-    ok(`askPlanRowBlock: of all ${rows.length} states, exactly one is 'notOnJob': a job, role null, not loading, no error, not paused`,
-      notOn.length === 1 && notOn[0].hasJob && notOn[0].role === null && !notOn[0].isLoading && !notOn[0].isError && !notOn[0].isPaused,
+    ok(`askPlanRowBlock: of all ${rows.length} states, exactly one is 'notOnJob': a job, a known user, role null, not loading, no error, not paused`,
+      notOn.length === 1 && notOn[0].hasJob && notOn[0].hasUser && notOn[0].role === null && !notOn[0].isLoading && !notOn[0].isError && !notOn[0].isPaused,
       JSON.stringify(notOn));
     const tryAgain = rows.filter((r) => core.askPlanRowBlock(r) === 'unknown');
-    ok(`askPlanRowBlock: "couldn't check, try again" ('unknown') is only ever said when the read failed or is paused (${tryAgain.length} states)`,
-      tryAgain.length > 0 && tryAgain.every((r) => r.hasJob && !r.isLoading && r.role !== 'owner' && (r.isError || (r.isPaused && r.role === null))),
-      JSON.stringify(tryAgain.filter((r) => !(r.isError || r.isPaused))));
+    ok(`askPlanRowBlock: "couldn't check, try again" ('unknown') is only ever said when the read failed, is paused, or there is no user id to check for (${tryAgain.length} states)`,
+      tryAgain.length > 0 && tryAgain.every((r) => r.hasJob && !r.isLoading && r.role !== 'owner' && (r.isError || (r.isPaused && r.role === null) || (!r.hasUser && r.role === null))),
+      JSON.stringify(tryAgain.filter((r) => !(r.isError || r.isPaused || !r.hasUser))));
   }
 
   // The same strings through the server's own functions, when its file is here.
@@ -414,7 +431,7 @@ const planFile = (id: string): AskAttachedFile => ({ id, source: 'plan', name: `
 // The codes of PLAN 2.6, and the app's own.
 const CODE_KEY: Record<string, core.AskFilesErrKey> = {
   too_many_files: 'count', unsupported_type: 'type', file_too_large: 'tooLarge', files_too_large: 'tooLargeTogether',
-  too_many_pages: 'pages', unreadable_file: 'unreadable', blocked: 'blocked', feature_off: 'off',
+  too_many_pages: 'pages', unreadable_file: 'unreadable', blocked: 'blocked', cut_off: 'cutOff', feature_off: 'off',
   unauthenticated: 'signIn', tier_required: 'plan', body_too_large: 'tooLargeTogether',
   rate_limiter_unavailable: 'service', hourly_limit: 'generic', bad_request: 'generic', account_ai_off: 'generic',
   ai_check_unavailable: 'service', not_configured: 'service', monthly_cap_reached: 'generic',
@@ -461,7 +478,7 @@ const fakeCopy = Object.fromEntries(accessors.map(({ name, fn }) => [
 ])) as unknown as AskCopy['files'];
 {
   const SHARED = ['fileFallback', 'refuseType', 'refuseCount', 'refusePages', 'errOffline', 'errTimeout', 'errNetwork', 'errPlan',
-    'errUnavailable', 'errTooLarge', 'errTooLargeTogether', 'errUnreadable', 'errBlocked', 'errNoAnswer', 'errService',
+    'errUnavailable', 'errTooLarge', 'errTooLargeTogether', 'errUnreadable', 'errBlocked', 'errCutOff', 'errNoAnswer', 'errService',
     'errSignIn', 'errOff', 'errGeneric', 'codeWithheld', 'readTitle', 'readPhoto', 'readPlan', 'readPdf',
     'readPdfNoCount', 'readCaution', 'readPartial', 'readA11y'];
   const missing = SHARED.filter((n) => !accessors.some((a) => a.name === n));
@@ -501,6 +518,7 @@ const fakeCopy = Object.fromEntries(accessors.map(({ name, fn }) => [
     && core.askFilesSentence({ code: 'tier_required', message: '' }, fakeCopy, names) === '<errPlan>'
     && core.askFilesSentence({ code: 'file_unavailable', message: '' }, fakeCopy, names) === '<errUnavailable>'
     && core.askFilesSentence({ code: 'blocked', message: '' }, fakeCopy, names) === '<errBlocked>'
+    && core.askFilesSentence({ code: 'cut_off', message: '' }, fakeCopy, names) === '<errCutOff>'
     && core.askFilesSentence({ code: 'no_answer', message: '' }, fakeCopy, names) === '<errNoAnswer>'
     && core.askFilesSentence({ code: 'upstream_error', message: '' }, fakeCopy, names) === '<errService>'
     && core.askFilesSentence({ code: 'unauthenticated', message: '' }, fakeCopy, names) === '<errSignIn>'
@@ -919,7 +937,8 @@ for (const f of [...NEW_FILES, CONV]) ok(`${f} exists`, code[f].trim().length > 
     const fn = from >= 0 ? a.slice(from, a.indexOf('}, [copy, onAdd, close, planBlock]);', from)) : '';
     ok('AskAttach: the Plan page row is for the job\'s owner (the server reads a plan page for nobody else): the role state, loading and error included, decides it',
       a.includes('const { role, isLoading, isError, isPaused } = useProjectRoleState(anchorProjectId ?? undefined);')
-      && a.includes('const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError, isPaused });')
+      && a.includes('const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, hasUser: !!user?.id, role, isLoading, isError, isPaused });')
+      && a.includes('const { user } = useAuth();') && a.includes("import { useAuth } from '@/contexts/AuthContext';")
       && a.includes('{ off: !!planBlock, why: planWhy, chevron: !planBlock });'));
     ok('AskAttach: every reason the row is off has its own sentence, and the list is drawn and a page added only while it is not off',
       ['noJob', 'notOwner', 'notOnJob', 'checking', 'unknown'].every((r) => a.includes(`planBlock === '${r}' ? copy.menuPlanPage`))

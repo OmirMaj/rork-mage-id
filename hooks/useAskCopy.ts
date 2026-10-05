@@ -105,6 +105,7 @@ export interface AskCopy {
     errTooLargeTogether: (mb: number) => string;
     errUnreadable: (name: string) => string;
     errBlocked: string;
+    errCutOff: string;
     errNoAnswer: string;
     errService: string;
     errSignIn: string;
@@ -216,6 +217,7 @@ export function useAskCopy(): AskCopy {
       errTooLargeTogether: (mb: number) => t('ai.ask.files.err.tooLargeTogether', 'These files are too large to read together. The limit is {mb} MB. Send fewer files.', { mb }),
       errUnreadable: (name: string) => t('ai.ask.files.err.unreadable', '{name} could not be read. It may be damaged, locked with a password, or not the type it says it is.', { name }),
       errBlocked: t('ai.ask.files.err.blocked', 'The AI service declined to read these files. This read was not counted.'),
+      errCutOff: t('ai.ask.files.err.cutOff', 'MAGE ran out of room before it could answer. Ask about fewer pages or ask a shorter question. This read was not counted.'),
       errNoAnswer: t('ai.ask.files.err.noAnswer', 'MAGE couldn\'t get an answer out of these files. Try a clearer photo or fewer pages. This read was counted.'),
       errService: t('ai.ask.files.err.service', 'The AI service didn\'t answer. Try again in a minute.'),
       errSignIn: t('ai.ask.files.err.signIn', 'Sign in to have MAGE read files.'),

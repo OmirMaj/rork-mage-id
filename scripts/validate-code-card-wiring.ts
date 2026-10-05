@@ -122,6 +122,7 @@ import { evidenceView, sectionIsBacked } from '../utils/codeCard/evidence';
 import { EMPTY_PINS, makePin, parsePinsState, pinnedStage, pinsReducer } from '../utils/codeCard/pins';
 import { EMPTY_SAVED, isSaved, makeSaved, parseSavedState, savedReducer } from '../utils/codeCard/saved';
 import { followUpsZod } from '../utils/codeThread/followUps';
+import { savedOwnWordsLines } from '../utils/codeThread/savedLines';
 import { inferSchema } from '../supabase/functions/_shared/inferSchema';
 import { citationEvidenceFor } from '../utils/codeAmendments';
 import { resolveCodeJurisdiction, type JurisdictionGrounding } from '../utils/codeJurisdiction';
@@ -1405,7 +1406,7 @@ console.log('\n4b. The withhold rule covers every place the line can appear');
       const bad = ungated(SAVED_SHEET, savedSheet);
       ok(`${SAVED_SHEET}: every requirement line of a saved check passes the own-words gate before it is shown or filed`, bad.length === 0, bad.join(' | '));
       ok('…through the kit’s gate at the card’s cap, and never a stand-in: words that pass print and file; anything else is the citation alone',
-        /import \{ isStandInLine, (?:ownWordsProse, )?passesEchoCheck \} from '@\/utils\/codeCard\/echoCheck';/.test(savedSheet)
+        /import \{ isStandInLine, (?:ownWordsProse, )?passesEchoCheck(?:, withheldNotice)? \} from '@\/utils\/codeCard\/echoCheck';/.test(savedSheet)
           && savedSheet.includes("return line.trim() && !isStandInLine(line.trim()) && passesEchoCheck(line, 400) ? line : '';")
           && savedSheet.includes('const words = savedRequirementWords(c.requirement);')
           && savedSheet.includes("return [c.code, c.section].filter(Boolean).join(' ') + (words ? `: ${words}` : '');")
@@ -1953,6 +1954,113 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
         && printed.asked.items.map((q) => q.id).join() === 'a' && printed.asked.withheld === 1 && printed.asked.sections.join() === 'R312.1'
         && [...printed.permits.items, ...printed.inspections.items, ...printed.asked.items.flatMap((q) => [q.question, ...q.options])].every((t) => passesProseCheck(t))
         && withheldNotice(printed.permits.sections, { viewer: false }) === `${PROSE_WITHHELD} Section: R105.1.`);
+  }
+
+  // ── 4g. A SAVED Code Check prints through the same gates (lane HARD4) ─────
+  //
+  // COPYRIGHT. The saved check sheet printed the permits, inspections and
+  // violations lines and the question / answer lines of a saved check as they
+  // were stored. A check saved before the list gate (or synced from an older
+  // build) holds the AI's raw lines. Every one of them is gated where it
+  // PRINTS (utils/codeThread/savedLines: the kit's list gate, one line at a
+  // time, keeping the line's stored position for its actions), a list says
+  // once that MAGE hid wording, with the section numbers, and what is stored
+  // is never changed.
+  console.log('\n4g. A saved Code Check prints its lists and its question / answer lines through the own-words gate (lane HARD4)');
+  {
+    const SAVED = 'components/codeThread/SavedCodeCheckSheet.tsx';
+    const LINES = 'utils/codeThread/savedLines.ts';
+    const saved = read(SAVED);
+    const linesSrc = read(LINES);
+    const SAVED_GATE = /(?:ownWordsProse|savedOwnWordsLines)\(\s*$/;
+    // Every AI string a saved check holds: the result's keys (read from the
+    // Code Check schema, so a key added later is swept here too) and the
+    // follow-up / answer fields. `applicableCodes` is section 4b's.
+    const schemaKeys = [...between(index, 'const codeCheckSchema = z.object({', '\ntype CodeCheckResult').matchAll(/^ {2}([A-Za-z]+): /gm)].map((m) => m[1]);
+    const SAVED_SURFACE: Surface = {
+      keys: [...schemaKeys.filter((k) => k !== 'applicableCodes'), 'question', 'options', 'answer'],
+      gate: SAVED_GATE,
+      trusted: [],
+      allowed: [
+        ['{record.result?.summary ? (', 'a test for whether there is a summary at all: it prints nothing (the paragraph prints through ownWordsProse, pinned in 4e)'],
+        ['return savedOwnWordsLines((rec.answers ?? []).map((a) => `${a.question} ${a.answer}`));', 'the question / answer lines, each built and handed to the gate in the same expression; only its items print'],
+        ['{record.disclaimer ? <Text style={styles.fine}>{record.disclaimer}</Text> : null}', "the RECORD's disclaimer, which is MAGE's own constant (pinned below), never the AI's"],
+      ],
+    };
+    {
+      const cases: [string, number][] = [
+        ["plain('permits', 'Permits', r?.permitsRequired),", 1], ['<Text>{record.result.inspections[0]}</Text>', 1], ['{r.commonViolations.map((v) => <Text>{v}</Text>)}', 1],
+        ['<Text key={a.questionId} style={styles.body}>{`${a.question} ${a.answer}`}</Text>', 2], ['{record.followUps.map((f) => f.question)}', 2],
+        ["const l = savedOwnWordsLines(r['inspections']);", 1], ['const { permitsRequired } = r;', 1], ['<Text>{record.result.summary}</Text>', 1],
+        ['<Text>{savedOwnWordsLines(a).items[0] + r.inspections[0]}</Text>', 1],
+        ["gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),", 0], ['<Text style={styles.body}>{ownWordsProse(record.result.summary).text}</Text>', 0],
+        ['// {r.permitsRequired[0]}\n{/* {r.inspections} */}', 0], ['{s.section === \'codes\' ? s.sections.join() : null}', 0],
+      ];
+      const wrong = cases.filter(([src, n]) => proseUngated(src, SAVED_SURFACE).length !== n).map(([src, n]) => `${src} → ${proseUngated(src, SAVED_SURFACE).length}, expected ${n}`);
+      ok(`fixture: the saved-sheet sweep finds a list handed on raw, a printed line, a question / answer printed raw, a bracket read and a destructured read, and passes the gate’s argument (${cases.length} cases)`,
+        wrong.length === 0, wrong.join(' | '));
+    }
+    const bad = proseUngated(saved, SAVED_SURFACE);
+    ok(`${SAVED}: every read of a saved check’s summary, lists, follow-ups, questions and answers is the argument of a gate`, saved.length > 0 && bad.length === 0, bad.join(' | '));
+    ok('…its three listed lines are really there, once each', stale(saved, SAVED_SURFACE).length === 0, stale(saved, SAVED_SURFACE).join(' | '));
+    ok('…and the record’s disclaimer is MAGE’s constant where the check is saved (never the AI’s `disclaimer`)',
+      (code(index).match(/\bdisclaimer: CODE_CHECK_DISCLAIMER,/g) ?? []).length === 1 && !/\bdisclaimer: (?:data|aiResult|result|res)\b/.test(code(index)));
+    ok('the three lists and the answers are held only as the gate’s output, each from its own stored key',
+      saved.includes("gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),")
+        && saved.includes("gated('inspections', 'Inspections', savedOwnWordsLines(r?.inspections)),")
+        && saved.includes("gated('violations', 'Common violations', savedOwnWordsLines(r?.commonViolations)),")
+        && saved.includes('{ section, title, ...lines, actionTexts: lines.items }')
+        && saved.includes('const answerLines = savedAnswerLines(record);') && (code(saved).match(/\bsavedOwnWordsLines\(/g) ?? []).length === 4
+        && saved.includes("import { savedOwnWordsLines, type SavedLines } from '@/utils/codeThread/savedLines';"));
+    ok('the gate behind them is the kit’s list gate, one stored line at a time (so a kept line keeps its stored position), and it writes nothing',
+      linesSrc.includes("import { ownWordsList } from '@/utils/codeCard/echoCheck';") && linesSrc.includes('const one = ownWordsList([line]);')
+        && linesSrc.includes('out.items.push(one.items[0]);') && linesSrc.includes('out.indexes.push(index);')
+        && linesSrc.includes('if (out.noticeAt < 0) out.noticeAt = out.items.length;') && (code(linesSrc).match(/\bimport\b/g) ?? []).length === 1
+        && !/AsyncStorage|supabase|saveCodeCheck|setItem/.test(code(linesSrc)) && !/saveCodeCheck|supabaseWrite|setItem|\.result\s*=[^=]/.test(code(saved)));
+    ok('a list’s block shows when it has a line OR a hidden line; every bullet is a line of the gate’s list; an action is recorded against the line’s STORED position',
+      saved.includes('s.items.length === 0 && s.withheld === 0 ? null : (') && saved.includes('<Text style={styles.body}>{`• ${text}`}</Text>')
+        && saved.includes('index={s.indexes[i] ?? i}') && !/\bindex=\{i\}/.test(saved) && (saved.match(/styles\.body\}>\{`• /g) ?? []).length === 1
+        && saved.includes('{recordSections(record).map((s) =>') && saved.includes('{s.items.map((text, i) => ('));
+    ok('a saved list says it ONCE, where the first hidden line was: the notice is mounted before every line and once after the last, and prints only at the place the gate named',
+      saved.includes('<SavedWithheld lines={s} at={i} testID={`codethread-saved-${s.section}-withheld`} />')
+        && saved.includes('<SavedWithheld lines={s} at={s.items.length} testID={`codethread-saved-${s.section}-withheld`} />')
+        && saved.includes('<SavedWithheld lines={answerLines} at={k} testID="codethread-saved-answers-withheld" />')
+        && saved.includes('<SavedWithheld lines={answerLines} at={answerLines.items.length} testID="codethread-saved-answers-withheld" />')
+        && (code(saved).match(/<SavedWithheld\b/g) ?? []).length === 4
+        && saved.includes('{answerLines.items.length > 0 || answerLines.withheld > 0 ? (') && saved.includes('<Text style={styles.body}>{line}</Text>'));
+    ok('the notice is the live result’s own (withheldNotice with the hidden lines’ section numbers), with no viewer line and no "Use Official text": this sheet renders neither',
+      saved.includes("return lines.withheld === 0 || at !== lines.noticeAt ? '' : withheldNotice(lines.sections);")
+        && saved.includes('const said = savedWithheldNotice(lines, at);') && saved.includes('return said ? <Text style={styles.fine} testID={testID}>{said}</Text> : null;')
+        && (code(saved).match(/\bwithheldNotice\(/g) ?? []).length === 1 && !/viewer|Official text|LINE_WITHHELD|PROSE_VIEWER_LINE/.test(code(saved)));
+
+    // The real gate, on a check the way an older build stored it.
+    const stored = {
+      permitsRequired: ['Sample: building permit', 'Per R105.1 "Sample title", a sample permit shall be pulled.', 'Sample: electrical permit'],
+      inspections: ['Sample: footing inspection', 'Sample: final inspection'],
+      commonViolations: ['Sample guards shall be not less than a sample height per R312.1.2.', 'Exception: sample decks.'],
+      answers: ['Sample: any stairs with four or more risers? Yes', 'Sample: is it built in accordance with Section R312.1? No'],
+    };
+    const frozen = JSON.stringify(stored);
+    const p = savedOwnWordsLines(stored.permitsRequired);
+    const ins = savedOwnWordsLines(stored.inspections);
+    const v = savedOwnWordsLines(stored.commonViolations);
+    const a = savedOwnWordsLines(stored.answers);
+    const noticeAt = (l: { items: string[]; withheld: number; sections: string[]; noticeAt: number }) =>
+      Array.from({ length: l.items.length + 1 }, (_, at) => at).filter((at) => !(l.withheld === 0 || at !== l.noticeAt));
+    ok('run on a check stored raw: a code-shaped line is not printed, the notice goes where it was with its section number, a kept line keeps its STORED index, a clean list is untouched, a list with nothing left still says so, and the stored lists are unchanged',
+      p.items.join('|') === 'Sample: building permit|Sample: electrical permit' && p.indexes.join() === '0,2' && p.withheld === 1 && p.noticeAt === 1 && p.sections.join() === 'R105.1'
+        && noticeAt(p).join() === '1' && withheldNotice(p.sections) === `${PROSE_WITHHELD} Section: R105.1.`
+        && ins.items.join('|') === stored.inspections.join('|') && ins.indexes.join() === '0,1' && ins.withheld === 0 && ins.noticeAt === -1 && noticeAt(ins).length === 0
+        && v.items.length === 0 && v.withheld === 2 && v.noticeAt === 0 && v.sections.join() === 'R312.1.2' && noticeAt(v).join() === '0'
+        && a.items.join('|') === stored.answers[0] && a.withheld === 1 && a.noticeAt === 1 && a.sections.join() === 'R312.1' && noticeAt(a).join() === '1'
+        && [...p.items, ...ins.items, ...a.items].every((t) => passesProseCheck(t)) && JSON.stringify(stored) === frozen);
+    ok('…a list that is not a list, an empty line and a line that is not text print nothing and hide nothing; the same lines as ownWordsList, line for line',
+      savedOwnWordsLines(undefined).items.length === 0 && savedOwnWordsLines(null).noticeAt === -1 && savedOwnWordsLines('x').withheld === 0
+        && savedOwnWordsLines(['', '  ', 7, null, 'Sample: a line']).items.join() === 'Sample: a line' && savedOwnWordsLines(['', 7, 'Sample: a line']).indexes.join() === '2'
+        && [stored.permitsRequired, stored.inspections, stored.commonViolations, stored.answers, []].every((l) => {
+          const mine = savedOwnWordsLines(l); const kit = ownWordsList(l);
+          return mine.items.join('|') === kit.items.join('|') && mine.withheld === kit.withheld && mine.noticeAt === kit.noticeAt && mine.sections.join() === kit.sections.join();
+        }));
   }
 }
 

@@ -138,6 +138,46 @@ describe('L4 — the job page shows Code checks', () => {
     expect(within(actions).getByText('Ask the architect (RFI)')).toBeTruthy();
   });
 
+  it('a check saved before the list gate prints its lists through it: a code-shaped line is hidden, the list says so once with the section number, and an action stays on its stored line', async () => {
+    await jobPage([record({
+      answers: [
+        { questionId: 'q1', question: 'Height above grade?', answer: 'About 4 ft' },
+        { questionId: 'q2', question: 'Is it built in accordance with Section R507.2?', answer: 'Yes' },
+      ],
+      result: {
+        summary: 'Guards are required above 30 inches.',
+        applicableCodes: [{ code: 'BC', section: '1015.2', requirement: 'Guards where the drop exceeds 30 in.' }],
+        permitsRequired: ['Alteration permit for the deck'],
+        inspections: ['Footing inspection'],
+        commonViolations: ['Guards shall be provided in accordance with R312.1.', 'Missing guard on the stair landing'],
+      },
+      // Recorded against the STORED position of the second line.
+      actions: [{ kind: 'punch', section: 'violations', index: 1, createdId: 'punch-x', at: '2026-09-21T12:00:00.000Z' }],
+    })]);
+    fireEvent.press(screen.getByTestId(`codethread-check-row-${CHECK_ID}`));
+    await pump(3);
+    const sheet = screen.getByTestId('codethread-saved-sheet');
+    expect(within(sheet).queryByText(/shall be provided/)).toBeNull();
+    expect(within(sheet).queryByText(/in accordance with/)).toBeNull();
+    expect(within(sheet).getAllByTestId('codethread-saved-violations-withheld')).toHaveLength(1);
+    expect(within(sheet).getByTestId('codethread-saved-violations-withheld').props.children)
+      .toBe('MAGE hid wording here because it read like code text. Section: R312.1.');
+    expect(within(sheet).getByTestId('codethread-saved-answers-withheld').props.children)
+      .toBe('MAGE hid wording here because it read like code text. Section: R507.2.');
+    expect(within(sheet).getByText('Height above grade? About 4 ft')).toBeTruthy();
+    expect(within(sheet).getByText('• Missing guard on the stair landing')).toBeTruthy();
+    // The clean lists carry no notice.
+    expect(within(sheet).queryByTestId('codethread-saved-permits-withheld')).toBeNull();
+    expect(within(sheet).queryByTestId('codethread-saved-inspections-withheld')).toBeNull();
+    // The kept line is still stored line 1: its action shows Added there, and no line 0 is drawn.
+    const actions = within(sheet).getByTestId('codethread-actions-violations-1');
+    expect(within(actions).getByText('Added to the punch list (internal)')).toBeTruthy();
+    expect(within(sheet).queryByTestId('codethread-actions-violations-0')).toBeNull();
+    // Nothing was rewritten on disk.
+    const stored = JSON.parse((await AsyncStorage.getItem('mageid_code_checks')) ?? '{}') as Record<string, CodeCheckRecord[]>;
+    expect(stored[PROJECT_ID][0].result.commonViolations).toEqual(['Guards shall be provided in accordance with R312.1.', 'Missing guard on the stair landing']);
+  });
+
   it('"Add to Permits" cannot land twice', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const recordSpy = jest.spyOn(codeThreadStore, 'recordCodeThreadAction');

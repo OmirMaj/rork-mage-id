@@ -51,7 +51,10 @@ import { findWeatherRisk } from '../utils/weatherService';
 import { buildFeedbackAsk } from '../utils/portalSnapshot';
 import { addWorkingDays } from '../utils/scheduleEngine';
 import { setLang, getLang } from '../i18n/core';
-import { buildPortalSnapshot } from '../utils/portalSnapshot';
+import { buildPortalSnapshot, scheduleOrdinalDay, scheduleFinishDate } from '../utils/portalSnapshot';
+import { buildPipelineHorizon } from '../utils/portfolio/pipelineHorizon';
+import { icsInvoiceDueDay, icsWarrantyEndDay, icsAddDays, icsCompactDate } from '../utils/icsDays';
+import { formatCellValue, dateCellDay } from '../utils/dataTable';
 import type { ClientPortalSettings, DailyFieldReport, Project } from '../types';
 
 const ROOT = join(__dirname, '..');
@@ -769,10 +772,206 @@ function localDayChecks() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// THE LEFTOVERS (2026-10-06). Five sites the DAY RULE sweep had to list as
+// UNRESOLVED because none of them reads "now" — each mixed two bases on a
+// STORED day instead:
+//   1. portal milestone dates   UTC-midnight anchor, LOCAL weekday walk, UTC read-back
+//   2. backlog horizon date     the same walk (plus the ordinal added as a count)
+//   3. .ics export              a stored instant exported on its UTC date
+//   4. the generic table cell   a raw Date printed on its UTC date
+//   5. the client portal page   "Expired" decided on the UTC date of now
+// Every expectation below is ONE literal that must hold in all four zones —
+// a walk that only works east (or west) of Greenwich fails in the other.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** The walk sites 1 and 2 used to do, kept ONLY to prove these cases can see
+ *  it: where it is wrong the fixed answer must differ from it. */
+function oldMixedWalk(startDate: string, ordinal: number, wpw = 5, closed?: string[]): string {
+  return addWorkingDays(new Date(`${startDate}T00:00:00Z`), Math.max(0, ordinal - 1), wpw, closed).toISOString().slice(0, 10);
+}
+
+/** A top-level function of the portal page's one script, by name. They are
+ *  all written at two-space indent and closed by a two-space `}`. */
+function portalPageFunction(page: string, name: string): string {
+  const from = page.indexOf(`\n  function ${name}(`);
+  const to = from < 0 ? -1 : page.indexOf('\n  }\n', from);
+  if (from < 0 || to < 0) {
+    console.error(`\n  FAIL could not find function ${name} in marketing/portal/index.html — the "Expired" day would go unpinned.`);
+    process.exit(1);
+  }
+  return page.slice(from, to + 4);
+}
+
+function leftoverChecks() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const westOfGreenwich = new Date(2026, 0, 15).getTimezoneOffset() > 0;
+
+  console.log(`[TZ=${tz}] a schedule's working-day ordinal lands on one calendar day in every zone (portal milestones):`);
+  {
+    const sch = (startDate: string, over: { workingDaysPerWeek?: number; nonWorkingDates?: string[] } = {}) =>
+      ({ startDate, workingDaysPerWeek: 5, ...over }) as Parameters<typeof scheduleOrdinalDay>[0];
+    const mar = sch('2026-03-02'); // a Monday; US clocks go forward Sun Mar 8
+    eq('day 1 is the start date itself', scheduleOrdinalDay(mar, 1), '2026-03-02');
+    eq('day 5 is that Friday', scheduleOrdinalDay(mar, 5), '2026-03-06');
+    eq('day 6 is the NEXT MONDAY (the weekend the old walk landed inside)', scheduleOrdinalDay(mar, 6), '2026-03-09');
+    eq('…and day 11 the Monday after, across the spring clock change', scheduleOrdinalDay(mar, 11), '2026-03-16');
+    eq('day 30 (six weeks on) is Fri Apr 10', scheduleOrdinalDay(mar, 30), '2026-04-10');
+    const oct = sch('2026-10-26'); // a Monday; US clocks go back Sun Nov 1
+    eq('across the autumn clock change: day 5 is Fri Oct 30', scheduleOrdinalDay(oct, 5), '2026-10-30');
+    eq('…day 6 is Mon Nov 2', scheduleOrdinalDay(oct, 6), '2026-11-02');
+    eq('…day 11 is Mon Nov 9', scheduleOrdinalDay(oct, 11), '2026-11-09');
+    const dec = sch('2026-12-28'); // a Monday
+    eq('year end: day 4 is Thu Dec 31', scheduleOrdinalDay(dec, 4), '2026-12-31');
+    eq('…day 5 is Fri Jan 1 2027', scheduleOrdinalDay(dec, 5), '2027-01-01');
+    eq('…day 6 is Mon Jan 4 2027', scheduleOrdinalDay(dec, 6), '2027-01-04');
+    const leap = sch('2028-02-28'); // a Monday in a leap year
+    eq('leap day: day 2 is Tue Feb 29 2028', scheduleOrdinalDay(leap, 2), '2028-02-29');
+    eq('…day 3 is Wed Mar 1', scheduleOrdinalDay(leap, 3), '2028-03-01');
+    eq('a Friday start: day 2 is the Monday', scheduleOrdinalDay(sch('2026-03-06'), 2), '2026-03-09');
+    eq('a 6-day week counts the Saturday', scheduleOrdinalDay(sch('2026-03-02', { workingDaysPerWeek: 6 }), 6), '2026-03-07');
+    eq('…and skips only the Sunday', scheduleOrdinalDay(sch('2026-03-02', { workingDaysPerWeek: 6 }), 7), '2026-03-09');
+    eq('a logged closure on the Friday pushes day 5 to the Monday', scheduleOrdinalDay(sch('2026-03-02', { nonWorkingDates: ['2026-03-06'] }), 5), '2026-03-09');
+    eq('a closure on the last day of the year pushes day 4 to Jan 1', scheduleOrdinalDay(sch('2026-12-28', { nonWorkingDates: ['2026-12-31'] }), 4), '2027-01-01');
+    eq('no start date → no date (never today)', scheduleOrdinalDay(sch(''), 3), null);
+    eq('no schedule → no date', scheduleOrdinalDay(undefined, 3), null);
+    eq('a non-number ordinal → no date', scheduleOrdinalDay(mar, NaN), null);
+    // One walk: the milestone on the last working day IS the hero's finish.
+    const tasks = [{ startDay: 1, durationDays: 5 }, { startDay: 6, durationDays: 6 }];
+    eq('the last ordinal\'s day equals scheduleFinishDate (hero and milestone agree)',
+      scheduleOrdinalDay(mar, 11), scheduleFinishDate({ ...mar, tasks, totalDurationDays: 11 } as unknown as Parameters<typeof scheduleFinishDate>[0]));
+    // The cases above can SEE the old walk: west of Greenwich it put day 6 on
+    // the Saturday and slid a day early after the clock change.
+    if (westOfGreenwich) {
+      eq('[west] the old mixed walk dated day 6 the SATURDAY', oldMixedWalk('2026-03-02', 6), '2026-03-07');
+      ok('[west] …and was a day EARLY after the spring clock change', oldMixedWalk('2026-03-02', 11) < '2026-03-16', oldMixedWalk('2026-03-02', 11));
+      ok('[west] …so the fixed walk differs from it', scheduleOrdinalDay(mar, 6) !== oldMixedWalk('2026-03-02', 6));
+    } else {
+      eq('[east/UTC] the old walk agreed here — which is why it survived', oldMixedWalk('2026-03-02', 6), '2026-03-09');
+    }
+  }
+
+  console.log(`[TZ=${tz}] the backlog horizon is the schedule's own finish day:`);
+  {
+    const NOW = new Date(2026, 6, 25, 12);
+    const p = (id: string, schedule: unknown): Project => ({
+      id, name: id, status: 'in_progress', estimate: null, ownerUserId: 'me',
+      linkedEstimate: { id: `e-${id}`, items: [], globalMarkup: 0, baseTotal: 100_000, markupTotal: 0, grandTotal: 100_000, createdAt: '2026-01-01' },
+      createdAt: '2026-01-01', updatedAt: '2026-01-01', schedule,
+    } as unknown as Project);
+    const s = (startDate: string, lastDay: number, over: Record<string, unknown> = {}) =>
+      ({ id: 's', startDate, workingDaysPerWeek: 5, tasks: [{ id: 't', startDay: 1, durationDays: lastDay }], ...over });
+    const horizon = (...projects: Project[]) => buildPipelineHorizon({
+      leads: [], projects, invoices: [], changeOrders: [], commitments: [], bidResponses: [], now: NOW,
+    }).backlog.horizonDate;
+    eq('a 5-day job from Mon Mar 2 ends Fri Mar 6 (it read Mon Mar 9 — the ordinal added as a count)', horizon(p('a', s('2026-03-02', 5))), '2026-03-06');
+    eq('a 6-day job ends Mon Mar 9, never the Saturday', horizon(p('a', s('2026-03-02', 6))), '2026-03-09');
+    eq('an 11-day job ends Mon Mar 16, across the spring clock change', horizon(p('a', s('2026-03-02', 11))), '2026-03-16');
+    eq('across the autumn clock change: 6 days from Mon Oct 26 ends Mon Nov 2', horizon(p('a', s('2026-10-26', 6))), '2026-11-02');
+    eq('year end: 5 days from Mon Dec 28 ends Fri Jan 1 2027', horizon(p('a', s('2026-12-28', 5))), '2027-01-01');
+    eq('a logged closure moves it, as it moves the schedule screen', horizon(p('a', s('2026-03-02', 5, { nonWorkingDates: ['2026-03-06'] }))), '2026-03-09');
+    eq('a start date that came back as a timestamp keeps its day', horizon(p('a', s('2026-03-02T00:00:00.000Z', 5))), '2026-03-06');
+    eq('the horizon is the LATEST finish across the active jobs', horizon(p('a', s('2026-03-02', 5)), p('b', s('2026-12-28', 5)), p('c', s('2026-10-26', 6))), '2027-01-01');
+    eq('an undated schedule contributes no date', horizon(p('a', s('', 5))), null);
+    eq('…and the horizon equals the portal walk for the same schedule', horizon(p('a', s('2026-10-26', 11))), scheduleOrdinalDay({ startDate: '2026-10-26', workingDaysPerWeek: 5 }, 11));
+  }
+
+  console.log(`[TZ=${tz}] an exported calendar event falls on the day the app shows:`);
+  {
+    // Invoice.dueDate is an instant. 9 pm local is already the next UTC day in
+    // the Americas; 8 am local is still the previous UTC day in Tokyo.
+    const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min).toISOString();
+    eq('an invoice due at 9 pm local on Oct 4 is an Oct 4 event', icsInvoiceDueDay(at(2026, 10, 4, 21)), '2026-10-04');
+    eq('…and one due at 8 am local on Oct 4 is too', icsInvoiceDueDay(at(2026, 10, 4, 8)), '2026-10-04');
+    eq('…at 11:59 pm on the last day of the year', icsInvoiceDueDay(at(2026, 12, 31, 23, 59)), '2026-12-31');
+    eq('…at 12:01 am on New Year\'s Day', icsInvoiceDueDay(at(2027, 1, 1, 0, 1)), '2027-01-01');
+    eq('…at 11:30 pm the night the clocks go forward', icsInvoiceDueDay(at(2026, 3, 8, 23, 30)), '2026-03-08');
+    eq('…at 11:30 pm the night the clocks go back', icsInvoiceDueDay(at(2026, 11, 1, 23, 30)), '2026-11-01');
+    eq('…at 11 pm on a Friday stays on the Friday', icsInvoiceDueDay(at(2026, 10, 9, 23)), '2026-10-09');
+    eq('a bare due day is exported as written', icsInvoiceDueDay('2026-10-04'), '2026-10-04');
+    eq('a due date that is not a date exports nothing', icsInvoiceDueDay('soon'), null);
+    eq('…nor does an empty one', icsInvoiceDueDay(''), null);
+    const utcDay = at(2026, 10, 4, 21).slice(0, 10);
+    if (westOfGreenwich) eq('[west] the old export put the 9 pm invoice on the NEXT day', utcDay, '2026-10-05');
+    eq('the export agrees with THE OVERDUE RULE\'s due day (calendarDayOf)', icsInvoiceDueDay(at(2026, 10, 4, 21)), calendarDayOf(at(2026, 10, 4, 21)));
+    // Warranty.endDate is a calendar day, however the server hands it back.
+    eq('a warranty end day is exported as written', icsWarrantyEndDay('2026-08-30'), '2026-08-30');
+    eq('…and as that same day when it comes back as UTC midnight', icsWarrantyEndDay('2026-08-30T00:00:00.000Z'), '2026-08-30');
+    eq('…on the last day of the year', icsWarrantyEndDay('2026-12-31T00:00:00.000Z'), '2026-12-31');
+    eq('…on a leap day', icsWarrantyEndDay('2028-02-29'), '2028-02-29');
+    eq('a written-out end date is its own local day', icsWarrantyEndDay('Aug 30, 2026'), '2026-08-30');
+    eq('an end date that is not a date exports nothing', icsWarrantyEndDay('lifetime'), null);
+    // The exclusive all-day DTEND is the next CALENDAR day.
+    eq('DTEND after Sat Mar 7 is Sun Mar 8 (clocks go forward that night)', icsAddDays('2026-03-07', 1), '2026-03-08');
+    eq('…after Sun Mar 8 is Mon Mar 9', icsAddDays('2026-03-08', 1), '2026-03-09');
+    eq('…after Sat Oct 31 is Sun Nov 1 (clocks go back)', icsAddDays('2026-10-31', 1), '2026-11-01');
+    eq('…after Sun Nov 1 is Mon Nov 2', icsAddDays('2026-11-01', 1), '2026-11-02');
+    eq('…after Dec 31 is Jan 1', icsAddDays('2026-12-31', 1), '2027-01-01');
+    eq('…after Feb 28 2026 is Mar 1', icsAddDays('2026-02-28', 1), '2026-03-01');
+    eq('…after Feb 28 2028 is Feb 29', icsAddDays('2028-02-28', 1), '2028-02-29');
+    eq('…and zero days is the same day', icsAddDays('2026-10-04', 0), '2026-10-04');
+    eq('a day that does not exist is refused, not rolled over', icsAddDays('2026-02-30', 1), null);
+    eq('an instant is refused — DTEND is built from a day', icsAddDays('2026-10-04T21:00:00.000Z', 1), null);
+    eq('the DATE value is the day with no punctuation', icsCompactDate('2026-10-04'), '20261004');
+  }
+
+  console.log(`[TZ=${tz}] a raw date cell in the generic table prints one day:`);
+  {
+    eq('a pure calendar date (new Date("2026-03-14")) prints as that day', formatCellValue(new Date('2026-03-14')), '2026-03-14');
+    eq('…and a date column that came back as UTC midnight', formatCellValue(new Date('2026-12-31T00:00:00.000Z')), '2026-12-31');
+    eq('…the first of a year', formatCellValue(new Date('2027-01-01')), '2027-01-01');
+    eq('…a leap day', formatCellValue(new Date('2028-02-29')), '2028-02-29');
+    eq('…the day the clocks go forward', formatCellValue(new Date('2026-03-08')), '2026-03-08');
+    eq('an instant at 9:30 pm local prints on the viewer\'s day', formatCellValue(new Date(2026, 2, 14, 21, 30)), '2026-03-14');
+    eq('…at 12:30 am local', formatCellValue(new Date(2026, 2, 14, 0, 30)), '2026-03-14');
+    eq('…at 8:15 am local', formatCellValue(new Date(2026, 2, 14, 8, 15)), '2026-03-14');
+    eq('…at 11:30 pm on New Year\'s Eve', formatCellValue(new Date(2026, 11, 31, 23, 30)), '2026-12-31');
+    eq('…at 11:30 pm on a Friday (not the Saturday)', formatCellValue(new Date(2026, 9, 9, 23, 30)), '2026-10-09');
+    eq('…at 11:30 pm the night the clocks go back', formatCellValue(new Date(2026, 10, 1, 23, 30)), '2026-11-01');
+    eq('local midnight of a day (parseCalendarDay) prints that day', formatCellValue(parseCalendarDay('2026-03-14')), '2026-03-14');
+    eq('…and of the last day of the year', formatCellValue(parseCalendarDay('2026-12-31')), '2026-12-31');
+    eq('a bare day STRING is printed as written', formatCellValue('2026-03-14'), '2026-03-14');
+    eq('an Invalid Date is the unknown dash', formatCellValue(new Date('x')), '—');
+    eq('dateCellDay is what the cell prints', dateCellDay(new Date(2026, 2, 14, 21, 30)), '2026-03-14');
+    if (westOfGreenwich) eq('[west] the old cell printed the 9:30 pm instant as the NEXT day', new Date(2026, 2, 14, 21, 30).toISOString().slice(0, 10), '2026-03-15');
+    else if (tz !== 'UTC') eq('[east] the old cell printed the 8:15 am instant as the day BEFORE', new Date(2026, 2, 14, 8, 15).toISOString().slice(0, 10), '2026-03-13');
+  }
+
+  console.log(`[TZ=${tz}] the client portal page calls a document "Expired" on the READER'S day:`);
+  {
+    // The page's own functions, lifted out of the shipped HTML and run here.
+    const page = read('marketing/portal/index.html');
+    const src = ['todayISO', 'calendarDate', 'documentLapsed'].map(n => portalPageFunction(page, n)).join('\n');
+    const fns = new Function(`${src}\nreturn { todayISO: todayISO, documentLapsed: documentLapsed };`)() as
+      { todayISO: () => string; documentLapsed: (expiresOn: string, today: string) => boolean };
+    const lapsedAt = (now: Date, expiresOn: string) => withNow(now, () => fns.documentLapsed(expiresOn, fns.todayISO()));
+    eq('the page\'s "today" at 9 pm local on Oct 5 is Oct 5', withNow(new Date(2026, 9, 5, 21), () => fns.todayISO()), '2026-10-05');
+    eq('…and at 8 am local on Oct 6 is Oct 6', withNow(new Date(2026, 9, 6, 8), () => fns.todayISO()), '2026-10-06');
+    eq('a permit good through Oct 5 is NOT expired at 9 pm on Oct 5', lapsedAt(new Date(2026, 9, 5, 21), '2026-10-05'), false);
+    eq('…nor at 11:59 pm', lapsedAt(new Date(2026, 9, 5, 23, 59), '2026-10-05'), false);
+    eq('…it is from 12:01 am on Oct 6', lapsedAt(new Date(2026, 9, 6, 0, 1), '2026-10-05'), true);
+    eq('…and at 8 am on Oct 6 (still Oct 5 in UTC for a reader in Tokyo)', lapsedAt(new Date(2026, 9, 6, 8), '2026-10-05'), true);
+    eq('the same when the date came back as a timestamp', lapsedAt(new Date(2026, 9, 5, 21), '2026-10-05T00:00:00.000Z'), false);
+    eq('…and lapsed the next morning', lapsedAt(new Date(2026, 9, 6, 8), '2026-10-05T00:00:00.000Z'), true);
+    eq('good through Dec 31: in force at 11:30 pm on New Year\'s Eve', lapsedAt(new Date(2026, 11, 31, 23, 30), '2026-12-31'), false);
+    eq('…expired at 12:10 am on Jan 1', lapsedAt(new Date(2027, 0, 1, 0, 10), '2026-12-31'), true);
+    eq('good through Fri Oct 9: in force at 11 pm that Friday', lapsedAt(new Date(2026, 9, 9, 23), '2026-10-09'), false);
+    eq('…expired on the Saturday', lapsedAt(new Date(2026, 9, 10, 9), '2026-10-09'), true);
+    eq('good through Sun Mar 8 (clocks forward): in force at 11:30 pm', lapsedAt(new Date(2026, 2, 8, 23, 30), '2026-03-08'), false);
+    eq('good through Sun Nov 1 (clocks back): in force at 11:30 pm', lapsedAt(new Date(2026, 10, 1, 23, 30), '2026-11-01'), false);
+    eq('…expired at 12:30 am on Nov 2', lapsedAt(new Date(2026, 10, 2, 0, 30), '2026-11-01'), true);
+    if (westOfGreenwich) {
+      const utcToday = withNow(new Date(2026, 9, 5, 21), () => new Date().toISOString().slice(0, 10));
+      ok('[west] the old UTC "today" already called it expired at 9 pm on its last day', '2026-10-05' < utcToday, utcToday);
+    }
+  }
+}
+
 if (process.env[TZ_CHILD_FLAG]) {
   runtimeChecks();
   weekBoundaryChecks();
   localDayChecks();
+  leftoverChecks();
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }
@@ -1409,7 +1608,6 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
     // midnight/noon from 'YYYY-MM-DD' and read back in UTC, so no zone enters.
     { file: 'utils/portalOwnerCore.ts', line: 'return new Date(dayMs(calendarDate) + offsetDays * DAY_MS).toISOString().slice(0, 10);', reason: 'UTC day grid: dayMs() parses the bare day at UTC, so the UTC read-back is the same calendar' },
     { file: 'utils/copilot/dateMath.ts', line: 'return out.toISOString().slice(0, 10);', reason: 'UTC day grid: built with Date.UTC from a bare day\'s components' },
-    { file: 'utils/icsGenerator.ts', line: 'return d.toISOString().slice(0, 10);', reason: 'UTC day grid: `${base}T12:00:00Z` + setUTCDate' },
     { file: 'app/aia-pay-app.tsx', line: '? new Date(new Date(priorAIA.periodTo).getTime() + 86400000).toISOString().slice(0, 10)', reason: 'UTC day grid: periodTo is a bare \'YYYY-MM-DD\' (parsed at UTC midnight) plus one day' },
     // The JOBSITE's day, not the device's and not UTC: the instant is shifted
     // by OpenWeather's city.timezone first, then read on the UTC grid.
@@ -1417,11 +1615,10 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
     // Not a jobsite day at all.
     { file: 'components/schedule/mobile/WeekStrip.tsx', line: 'keyExtractor={(d) => d.toISOString().slice(0, 10)}', reason: 'a React list key — unique per day in any zone, never shown or stored' },
     { file: 'utils/dataExport.ts', line: "const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');", reason: 'a to-the-second UTC timestamp in a backup file name — an instant, not a day key' },
-    // KNOWN, NOT YET FIXED (reported 2026-10-05; none of these reads "now"):
-    { file: 'utils/icsGenerator.ts', line: 'return new Date(t).toISOString().slice(0, 10);', reason: 'UNRESOLVED: a schedule date stored as a full instant is exported on its UTC day; bare days (the normal shape) return before this line' },
-    { file: 'utils/dataTable.ts', line: 'if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.toISOString().slice(0, 10) : UNKNOWN_CELL;', reason: 'UNRESOLVED: the generic table prints a raw Date cell on its UTC day; no column passes "now"' },
-    { file: 'utils/portalSnapshot.ts', line: '.toISOString().slice(0, 10);', reason: 'UNRESOLVED: milestone dates walk a UTC-midnight anchor through addWorkingDays (which reads the LOCAL weekday) — a separate, older defect in the walk, not in "today"' },
-    { file: 'utils/portfolio/pipelineHorizon.ts', line: 'return d.toISOString().slice(0, 10);', reason: 'UNRESOLVED: same UTC-anchor / local-weekday walk as the portal milestones (backlog horizon date only; the load windows are local since 2026-10-05)' },
+    // The four UNRESOLVED entries that sat here (the .ics export, the generic
+    // table cell, the portal milestones, the backlog horizon) were FIXED and
+    // removed 2026-10-06 — see leftoverChecks() and the pins below. A listed
+    // entry with no live line fails this run.
   ];
   const UTC_PARTS_ALLOWED: Record<string, string> = {
     'utils/aiRateLimiterCore.ts': 'when the server\'s UTC-day and UTC-month AI caps reset',
@@ -1431,7 +1628,7 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
     'utils/crossProjectLoad.ts': 'UTC day grid over bare schedule days; no "now"',
     'utils/cpm.ts': 'UTC day grid over bare schedule days; no "now"',
     'utils/copilot/dateMath.ts': 'UTC day grid over a bare day',
-    'utils/icsGenerator.ts': 'UTC day grid over a bare day',
+    'utils/dataTable.ts': 'dateCellDay: a Date at exactly UTC midnight IS a bare calendar day (new Date("YYYY-MM-DD")) and prints as that day; every other Date prints on the local day',
     'utils/prequalEngine.ts': 'parsePrequalDate round-trips a typed day\'s components on the UTC grid',
     'utils/permitPath/deptAnswers.ts': 'round-trips a bare day\'s components on the UTC grid',
     'utils/tutorial/learn/fixturesD.ts': 'round-trips a bare day\'s components on the UTC grid',
@@ -1500,6 +1697,38 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
   const stalePartFiles = Object.keys(UTC_PARTS_ALLOWED).filter(f => !partFiles.has(f));
   ok('every UTC_PARTS_ALLOWED file still reads UTC date parts', stalePartFiles.length === 0, stalePartFiles.join(', '));
   ok('the AI caps are the only allowed "UTC day of now"', UTC_DAY_ALLOWED.filter(a => /new Date\(\)\.toISOString\(\)\.(?:split|slice\(0, 10\))/.test(a.line)).every(a => /^utils\/ai(RateLimiter|Service)\.ts$/.test(a.file)));
+
+  // THE LEFTOVERS (2026-10-06), pinned where they are called — the runtime
+  // half is leftoverChecks(), under all four zones.
+  const codeOf = (file: string) => stripComments(read(file));
+  const snap = codeOf('utils/portalSnapshot.ts');
+  ok('the portal\'s period milestones are dated by scheduleOrdinalDay', /const dateISO = scheduleOrdinalDay\(sch, endDay\) \?\? undefined;/.test(snap));
+  ok('…and no UTC-midnight anchor is left in the snapshot builder', !/T00:00:00Z/.test(snap), (snap.match(/.*T00:00:00Z.*/g) ?? []).join('\n       '));
+  const horizonSrc = codeOf('utils/portfolio/pipelineHorizon.ts');
+  ok('the backlog horizon is the schedule\'s own finish day (taskCalendarDay)', /const endISO = taskCalendarDay\(scheduleCalendarOf\(sched\), maxEnd\);/.test(horizonSrc));
+  ok('…with no UTC anchor and no private working-day walk', !/T00:00:00Z|addWorkingDays|toISOString/.test(horizonSrc));
+  const icsSrc = codeOf('utils/icsGenerator.ts');
+  ok('the .ics takes an invoice\'s day from icsInvoiceDueDay', /const iso = icsInvoiceDueDay\(inv\.dueDate\);/.test(icsSrc));
+  ok('…a warranty\'s from icsWarrantyEndDay', /const iso = icsWarrantyEndDay\(w\.endDate\);/.test(icsSrc));
+  ok('…and a task\'s from the local parts of its placement', /const startIso = toCalendarDayString\(start\);\s*\n\s*const endIso = toCalendarDayString\(end\);/.test(icsSrc));
+  ok('every event is written all-day, as DATE values', /`DTSTART;VALUE=DATE:\$\{icsCompactDate\(ev\.startDate\)\}`/.test(icsSrc) && /`DTEND;VALUE=DATE:\$\{icsCompactDate\(endExclusive\)\}`/.test(icsSrc)
+    && !/DTSTART:|DTEND:|DTSTART;TZID|DTEND;TZID/.test(icsSrc));
+  ok('…with the exclusive end one CALENDAR day on', /const endExclusive = icsAddDays\(ev\.endDate, 1\) \?\? ev\.endDate;/.test(icsSrc));
+  ok('no private date helper is left in the .ics generator', !/function (?:toIsoDate|addDays|toCompactDate)\(/.test(icsSrc) && !/setUTCDate|getUTCDate/.test(icsSrc));
+  ok('the generic table prints a Date cell through dateCellDay', /if \(v instanceof Date\) return Number\.isFinite\(v\.getTime\(\)\) \? dateCellDay\(v\) : UNKNOWN_CELL;/.test(codeOf('utils/dataTable.ts')));
+  // The client's browser. Not TypeScript, so the directory walk above never
+  // reads it; its documents list is held here by name.
+  {
+    const page = read('marketing/portal/index.html');
+    const from = page.indexOf('\n  function renderDocuments(docs) {');
+    const body = from < 0 ? '' : page.slice(from, page.indexOf('\n  }\n', from)).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    ok('the portal page still has its documents list', body.length > 200);
+    ok('…which takes "today" from the page\'s local-day helper', /var today = todayISO\(\);/.test(body));
+    ok('…decides "Expired" with documentLapsed(expiresOn, today)', /meta\.push\(documentLapsed\(d\.expiresOn, today\)\s*\n\s*\? 'Expired ' \+ esc\(fmtDate\(d\.expiresOn\)\)/.test(body));
+    ok('…and reads no UTC date', !/toISOString|getUTC/.test(body), (body.match(/.*(?:toISOString|getUTC).*/g) ?? []).join('\n       '));
+    const helper = portalPageFunction(page, 'todayISO');
+    ok('the page\'s todayISO() is built from LOCAL parts', /d\.getFullYear\(\)/.test(helper) && /d\.getMonth\(\) \+ 1/.test(helper) && /d\.getDate\(\)/.test(helper) && !/toISOString|getUTC/.test(helper));
+  }
 
   // The call sites that SAVE a date, pinned to the one helper.
   const pins: [string, string, RegExp][] = [

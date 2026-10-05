@@ -34,9 +34,12 @@
 //
 // METERING. The caller is the only meter: Pro and up, one unit of the monthly
 // analyze_photos allowance per answered ask whatever the file count, charged
-// only once the model answered. A refusal, a provider block, a timeout and a
-// provider error are free. An answer with nothing usable in it is charged (the
-// spend was real). A per-user hourly bucket, fail closed, runs before the body
+// only once the model answered. A refusal, a timeout and a provider error are
+// free. An answer with nothing usable in it is charged (the spend was real).
+// A provider block, and an answer that hit the token limit before it wrote
+// anything, are free a few times an hour (UNCHARGED_HOURLY_LIMIT, their own
+// per-user bucket, fail closed) and charged after that: the model call was
+// made either way. A per-user hourly bucket, fail closed, runs before the body
 // is read, so a malformed request still spends a slot.
 //
 // CONSENT. Mode 'ask' is a tap in the app after the phone's own AI question.
@@ -49,7 +52,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { aiCallerOf, inlineImageCount, logGeminiCall, noteAiCaller } from "../_shared/aiCallLog.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
-import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFContext, PDFDocument, PDFRawStream, decodePDFRawStream } from "https://esm.sh/pdf-lib@1.17.1";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { loadPlanSheetImageParts } from "../_shared/planSheetBytes.ts";
 import { readOwnerAiConsent } from "../_shared/aiConsent.ts";
@@ -95,8 +98,10 @@ import {
   type AskFileRead,
   type ErrorCode,
   type InlinePart,
+  unchargedOutcome,
   type ModelRequest,
 } from "./core.ts";
+import { makePdfPageCounter } from "./pdfGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -179,16 +184,12 @@ async function readCappedBody(req: Request, max: number): Promise<Uint8Array | n
   return out;
 }
 
-/** Pages in a PDF, or null when it will not open (a password-protected PDF does not). */
-async function countPdfPages(bytes: Uint8Array): Promise<number | null> {
-  try {
-    const doc = await PDFDocument.load(bytes, { updateMetadata: false });
-    const pages = doc.getPageCount();
-    return Number.isInteger(pages) && pages >= 1 ? pages : null;
-  } catch {
-    return null;
-  }
-}
+// Pages in a PDF, or null when it will not open (a password-protected PDF does
+// not), when opening it would decode more than a fixed ceiling, or when the
+// count does not finish in time (./pdfGuard.ts: a small PDF can inflate to
+// tens of megabytes inside pdf-lib). null is the ordinary unreadable_file
+// refusal: before the allowance is read, before any model call, never charged.
+const countPdfPages = makePdfPageCounter({ PDFDocument, PDFContext, PDFRawStream, decodePDFRawStream });
 
 /** The service client, or null when the server has no storage settings. */
 function serviceClient() {
@@ -440,7 +441,21 @@ serve(async (req) => {
 
     step = "answer";
     const result = readGeminiAnswer(modelJson);
-    if (result.kind === "blocked") return refuse("blocked");
+    if (result.kind === "blocked" || result.kind === "cut") {
+      // The provider declined, or the answer ran out of room before it said
+      // anything: not charged. The model call was still made, so these are
+      // counted in their own hourly bucket, fail closed: past
+      // UNCHARGED_HOURLY_LIMIT in the hour (or with the counter unreachable)
+      // the read is charged and answered as no_answer, whose sentence says it
+      // was counted.
+      step = "uncharged";
+      const uncharged = await rateLimitCount(`ask-files:uncharged:${auth.userId}`);
+      if (unchargedOutcome(uncharged) !== "free") {
+        await aiUsageIncrement(auth.userId, METER_KEY);
+        return fail("no_answer", 502);
+      }
+      return refuse(result.kind === "blocked" ? "blocked" : "cut_off");
+    }
     if (result.kind === "empty") {
       await aiUsageIncrement(auth.userId, METER_KEY);
       return fail("no_answer", 502);

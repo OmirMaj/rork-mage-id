@@ -5574,7 +5574,11 @@
    *  contractor for. See buildPortalDocuments in utils/portalSnapshot.ts. */
   function renderDocuments(docs) {
     if (!docs || !docs.length) return emptyState('No documents shared.');
-    var todayISO = new Date().toISOString().slice(0, 10);
+    // The READER'S calendar day (todayISO(), the helper the "waiting on you"
+    // list uses) — not the UTC date, which is already tomorrow from 8 pm in
+    // New York (7 pm in winter): a permit good through today read "Expired"
+    // all evening on its last day.
+    var today = todayISO();
     // Tone for the snapshot's plain-language status words. Anything this does
     // not recognise stays muted — a grey pill states the word without the page
     // asserting it is good news or bad.
@@ -5592,7 +5596,7 @@
       // that can cost them money, so it is stated as "Expired", never as a
       // neutral future-tense date.
       if (d.expiresOn) {
-        meta.push(d.expiresOn < todayISO
+        meta.push(documentLapsed(d.expiresOn, today)
           ? 'Expired ' + esc(fmtDate(d.expiresOn))
           : 'Expires ' + esc(fmtDate(d.expiresOn)));
       }
@@ -9916,6 +9920,13 @@
     if (m) return m[1];
     var d = new Date(v);
     return isNaN(d) ? null : d.toISOString().slice(0, 10);
+  }
+  // A document has lapsed once the reader's day is PAST the day it runs
+  // through; on that day itself it is still in force. Both sides are calendar
+  // days (the stored date's own date part against todayISO()).
+  function documentLapsed(expiresOn, today) {
+    var day = calendarDate(expiresOn) || String(expiresOn);
+    return day < today;
   }
   function daysUntil(fromISO, toISO) {
     var a = Date.parse(fromISO + 'T00:00:00Z');
