@@ -304,9 +304,12 @@ console.log('\nux-doors validation (Lane D):');
     /const lineupProjectId = pickDefaultProjectId\(\{ activeProjectId, recentProjectIds, projects \}\);/.test(ts)
     && /const \{ canAccess, requiredTierFor \} = useProjectAccess\(lineupProjectId \?\? undefined\);/.test(ts)
     && /canAccess: canAccess\('schedule_gantt_pdf'\),/.test(ts) && /requiredTier: requiredTierFor\('schedule_gantt_pdf'\),/.test(ts));
-  ok('ToolsSheet: a locked tap explains the plan with a See plans path (/paywall); the row shows a Lock',
+  // Plain trade (2026-10-05): a locked row is no longer a Lock glyph swapped in
+  // for the tool's own — it keeps its glyph, hatched and muted (NavRow `locked`,
+  // components/ui/toolList.tsx), and still says why in its subtitle.
+  ok('ToolsSheet: a locked tap explains the plan with a See plans path (/paywall); the row is hatched as locked and says why',
     /showAlert\(lineupDoor\.title, lineupDoor\.message, \[\s*\{ text: 'Not now', style: 'cancel' \},\s*\{ text: 'See plans', onPress: \(\) => onNavigate\('\/paywall'\) \},\s*\]\);/.test(ts)
-    && /Icon=\{locked \? Lock : row\.Icon\}/.test(ts) && /subtitle=\{locked \? locked\.subtitle : row\.subtitle\}/.test(ts));
+    && /Icon=\{row\.Icon\}\s+locked=\{!!locked\}/.test(ts) && /subtitle=\{locked \? locked\.subtitle : row\.subtitle\}/.test(ts));
   ok('ToolsSheet: every other row still navigates by the registry route', /if \(row\.feature !== 'tomorrow-lineup'\) \{ onNavigate\(featureFor\(row\.feature\)\.route\); return; \}/.test(ts));
 }
 
@@ -368,7 +371,7 @@ console.log('\nux-doors validation (Lane D):');
   // panel knows the key and titles it, and both headers read sectionTitle.
   ok('D5 desktop: the Subs & pay tile is not gated off desktop',
     !/!isDesktop \? \[\{ key: 'subsPay'/.test(pd)
-    && /\n\s*\{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor\('subsPay'\), count: subsPayRowList\.length as number \| null \},/.test(pd));
+    && /\n\s*\{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, count: subsPayRowList\.length as number \| null \},/.test(pd));
   ok("D5 desktop: SECTION_TITLES.subsPay === 'Subs & pay' and sectionTitle reads it",
     SECTION_TITLES.subsPay === 'Subs & pay' && sectionTitle('subsPay') === 'Subs & pay', SECTION_TITLES.subsPay);
   ok("D5 desktop: PANEL_SECTION_KEYS has 'subsPay', so the desktop row opens the side panel",

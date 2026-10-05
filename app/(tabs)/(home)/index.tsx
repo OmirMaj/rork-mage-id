@@ -14,6 +14,10 @@ import {
   Wallet, CloudOff, MapPin,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import {
+  ToolGroupHeader, toolListStyles,
+  TOOL_GLYPH_SIZE, TOOL_GLYPH_STROKE, TOOL_CHEVRON_SIZE, TOOL_CHEVRON_OPACITY,
+} from '@/components/ui/toolList';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -894,25 +898,23 @@ export default function HomeScreen() {
     // Ask MAGE — whole-business conversational agent. Entry point lives in
     // the home AI section; opens the /ask chat.
     askMage: (
+      // Plain trade: a row on the page ground, not a green-washed card — the
+      // accent never becomes a background. The only green left is the mark's
+      // spark. (components/ui/toolList.tsx owns the numbers.)
       <TouchableOpacity
         onPress={() => { if (isDesktopWeb) { openAsk(); return; } router.push('/ask' as never); }}
-        activeOpacity={0.85}
+        activeOpacity={0.6}
         testID="home-ask-mage"
-        style={[{
-          flexDirection: 'row', alignItems: 'center', gap: 10,
-          backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg,
-          paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
-          borderWidth: 1, borderColor: themeColors.accent,
-        }, responsive.isDesktop && styles.launcherDesktop]}
+        style={[styles.launcherRow, responsive.isDesktop && styles.launcherDesktop]}
       >
-        <MageAIMark size={18} color={themeColors.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
-          <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+        <MageAIMark size={TOOL_GLYPH_SIZE} color={themeColors.text} accentColor={themeColors.accent} />
+        <View style={styles.launcherBody}>
+          <Text style={styles.launcherName} numberOfLines={1}>Ask MAGE anything</Text>
+          <Text style={styles.launcherDesc} numberOfLines={2}>
             What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
           </Text>
         </View>
-        <ChevronRight size={16} color={themeColors.accent} strokeWidth={2} />
+        <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.launcherChevron} />
       </TouchableOpacity>
     ),
     // Copilot Hub — voice-driven workflow builder. Cross-link from home so
@@ -921,23 +923,18 @@ export default function HomeScreen() {
     copilot: (
       <TouchableOpacity
         onPress={() => router.push('/copilot-hub' as never)}
-        activeOpacity={0.85}
+        activeOpacity={0.6}
         testID="home-copilot-hub"
-        style={[{
-          flexDirection: 'row', alignItems: 'center', gap: 10,
-          backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg,
-          paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
-          borderWidth: 1, borderColor: themeColors.line,
-        }, responsive.isDesktop && styles.launcherDesktop]}
+        style={[styles.launcherRow, responsive.isDesktop && styles.launcherDesktop]}
       >
-        <MageAIMark size={18} color={themeColors.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: Type.footnote.fontSize }}>MAGE Copilot</Text>
-          <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+        <MageAIMark size={TOOL_GLYPH_SIZE} color={themeColors.text} accentColor={themeColors.accent} />
+        <View style={styles.launcherBody}>
+          <Text style={styles.launcherName} numberOfLines={1}>MAGE Copilot</Text>
+          <Text style={styles.launcherDesc} numberOfLines={2}>
             Say what you need — build schedules, write change orders, create reports by voice
           </Text>
         </View>
-        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+        <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.launcherChevron} />
       </TouchableOpacity>
     ),
     briefing: (
@@ -974,9 +971,12 @@ export default function HomeScreen() {
     if (projects.length === 0) return null;
     return (
       <View style={styles.footerExtras}>
-        {aiEntries.askMage}
-
-        {aiEntries.copilot}
+        {/* The Ask section: a title block, then the two doors as plain rows. */}
+        <View style={styles.launcherSection}>
+          <ToolGroupHeader index="AI" label="Ask" />
+          {aiEntries.askMage}
+          {aiEntries.copilot}
+        </View>
         {aiEntries.briefing}
         <QuickFieldUpdate />
       </View>
@@ -1147,7 +1147,7 @@ export default function HomeScreen() {
                 accessibilityLabel="Notifications"
                 testID="notifications-inbox-btn"
               >
-                <Bell size={20} color={themeColors.accent} strokeWidth={2} />
+                <Bell size={TOOL_GLYPH_SIZE} color={themeColors.text} strokeWidth={TOOL_GLYPH_STROKE} />
                 {notifFeed.unreadCount > 0 && (
                   <View style={styles.notifBadge}>
                     <Text style={styles.notifBadgeText}>
@@ -1168,7 +1168,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Create something else"
               >
-                <Plus size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
+                <Plus size={20} color={Colors.textOnAccent} strokeWidth={2.5} />
               </TouchableOpacity>
             </>
           }
@@ -1338,23 +1338,23 @@ export default function HomeScreen() {
                 <>
                   {responsive.isPhone && (
                     <TouchableOpacity
-                      style={[styles.addButton, { backgroundColor: themeColors.surfaceAlt }]}
+                      style={styles.headerGlyphButton}
                       onPress={openSearch}
                       activeOpacity={0.7}
                       testID="universal-search-btn"
                       accessibilityRole="button"
                       accessibilityLabel="Search"
                     >
-                      <Search size={20} color={themeColors.accent} strokeWidth={2} />
+                      <Search size={TOOL_GLYPH_SIZE} color={themeColors.text} strokeWidth={TOOL_GLYPH_STROKE} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: themeColors.surfaceAlt }]}
+                    style={styles.headerGlyphButton}
                     onPress={() => router.push('/notifications-inbox' as any)}
                     activeOpacity={0.7}
                     testID="notifications-inbox-btn"
                   >
-                    <Bell size={20} color={themeColors.accent} strokeWidth={2} />
+                    <Bell size={TOOL_GLYPH_SIZE} color={themeColors.text} strokeWidth={TOOL_GLYPH_STROKE} />
                     {notifFeed.unreadCount > 0 && (
                       <View style={styles.notifBadge}>
                         <Text style={styles.notifBadgeText}>
@@ -1371,7 +1371,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Add"
                   >
-                    <Plus size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
+                    <Plus size={20} color={Colors.textOnAccent} strokeWidth={2.5} />
                   </TouchableOpacity>
                 </>
               }
@@ -2084,6 +2084,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   launcherDesktop: {
     marginBottom: 0,
   },
+  // ── Plain trade (components/ui/toolList.tsx) ──
+  // The Ask / Copilot doors: rows on the page ground under one title block.
+  launcherSection: { marginHorizontal: 16, marginTop: 14, marginBottom: 12 },
+  launcherRow: toolListStyles(t).row,
+  launcherBody: toolListStyles(t).body,
+  launcherName: toolListStyles(t).name,
+  launcherDesc: toolListStyles(t).desc,
+  launcherChevron: { opacity: TOOL_CHEVRON_OPACITY },
+  // Search and the bell: a bare ink glyph in a 40 pt target — no grey disc,
+  // no green. The one filled green control in the header is Add.
+  headerGlyphButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // The footer slot already sits on the page gutter.
   aiBriefingWrapDesktop: {
     marginHorizontal: 0,
@@ -2131,8 +2147,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   notifBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
+    top: 1,
+    right: 0,
     minWidth: 18,
     height: 18,
     borderRadius: 9,

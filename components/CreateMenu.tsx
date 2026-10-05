@@ -41,7 +41,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus,
   Camera,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, Ruler, Lock, FileCheck, Zap, Mic, PenTool,
+  Wallet, Ruler, FileCheck, Zap, Mic, PenTool,
   Clock, Truck, ShieldCheck, CalendarCheck, Plus, HardHat,
 } from 'lucide-react-native';
 import {
@@ -61,6 +61,7 @@ import { Tokens, Layout, Shadow } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useIsDesktopWeb, useDesktopShellInset } from '@/components/ui/desktop';
 import { useRiseOnOpen, useSwapFade, webMotion } from '@/components/ui';
+import { ToolGlyph, ToolGroupHeader, ToolLockTag, toolListStyles, TOOL_CHEVRON_SIZE, TOOL_CHEVRON_OPACITY } from '@/components/ui/toolList';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { movePaletteSelection } from '@/utils/paletteRows';
@@ -596,9 +597,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                     activeOpacity={0.55}
                     testID={`createmenu-pick-sub-${sb.id}`}
                   >
-                    <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
-                      <HardHat size={18} color={themeColors.textSecondary} strokeWidth={2} />
-                    </View>
+                    <ToolGlyph Icon={HardHat} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>{sb.companyName}</Text>
                       <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
@@ -636,9 +635,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                   accessibilityRole="button"
                   testID="createmenu-new-job"
                 >
-                  <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
-                    <Plus size={18} color={themeColors.accent} strokeWidth={2} />
-                  </View>
+                  <ToolGlyph Icon={Plus} color={themeColors.accentLabel} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[Type.headline, { color: themeColors.accent }]} numberOfLines={1}>
                       {defaultJob ? 'New project instead' : 'New project'}
@@ -663,9 +660,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                     activeOpacity={0.55}
                     testID={`createmenu-pick-project-${p.id}`}
                   >
-                    <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
-                      <FolderPlus size={18} color={themeColors.textSecondary} strokeWidth={2} />
-                    </View>
+                    <ToolGlyph Icon={FolderPlus} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
                         {lead && p.id === lead.id ? `${pickFor.label} for ${p.name}` : p.name}
@@ -736,9 +731,9 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
               )}
               {grouped.map(g => (
                 <View key={g.key} style={styles.group}>
-                  <Text style={[Type.eyebrow, { color: themeColors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
-                    {g.label}
-                  </Text>
+                  {/* Plain trade: a title block per group (sheet letter, name,
+                      how many things it holds), then bare rows. */}
+                  <ToolGroupHeader index={g.label.charAt(0).toUpperCase()} label={g.label} count={g.items.length} style={styles.groupHeader} />
                   {g.items.map(opt => (
                     <TouchableOpacity
                       key={opt.label}
@@ -747,30 +742,23 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                       activeOpacity={0.55}
                       testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
-                        <opt.Icon size={18} color={themeColors.textSecondary} strokeWidth={2} />
-                      </View>
+                      <ToolGlyph Icon={opt.Icon} locked={!!lockedTier(opt)} />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
+                        <Text style={styles.rowName} numberOfLines={1}>
                           {opt.label}
                         </Text>
-                        <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
+                        <Text style={styles.rowDesc} numberOfLines={1}>
                           {opt.subtitle}
                         </Text>
                       </View>
                       {(() => {
                         const lt = lockedTier(opt);
-                        return lt ? (
-                          <View style={styles.tierChip}>
-                            <Lock size={10} color={themeColors.textSecondary} strokeWidth={2.5} />
-                            <Text style={styles.tierChipText}>{lt === 'pro' ? 'Pro' : 'Business'}</Text>
-                          </View>
-                        ) : null;
+                        return lt ? <ToolLockTag label={lt === 'pro' ? 'Pro' : 'Business'} /> : null;
                       })()}
                       {isDesktopWeb && jobShortcut && opt.scoped && !alwaysPicksJob(opt.label) ? (
                         <Text style={[Type.footnote, styles.rowJob]} numberOfLines={1}>{jobShortcut.name}</Text>
                       ) : null}
-                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                      <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.rowChevron} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -832,37 +820,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.text,
     padding: 0,
   },
-  group: { marginBottom: 8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  iconSquare: {
-    width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: t.surfaceAlt,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  // Plain trade (components/ui/toolList.tsx): each group is a title block and
+  // bare rows — no chip behind the glyph, a hairline between rows.
+  group: { marginTop: 8, marginBottom: 8 },
+  groupHeader: { marginHorizontal: 16 },
+  // The row carries the 16 pt inset itself: the sub and job pickers reuse it
+  // without a group around them.
+  row: { ...toolListStyles(t).row, ...toolListStyles(t).rowTight, marginHorizontal: 16 },
+  rowName: { ...toolListStyles(t).name, ...toolListStyles(t).nameTight },
+  rowDesc: toolListStyles(t).desc,
+  rowChevron: { opacity: TOOL_CHEVRON_OPACITY },
   emptyResult: {
     paddingVertical: 32,
     paddingHorizontal: 24,
-  },
-  tierChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: Tokens.radius.sm,
-    backgroundColor: t.surfaceAlt,
-  },
-  tierChipText: {
-    fontSize: 10,
-    fontWeight: '700' as const,
-    color: t.textSecondary,
-    letterSpacing: 0.3,
   },
 
   // ── Desktop web: the popover (every entry gated `isDesktopWeb &&`) ──
@@ -885,8 +855,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...Shadow.heavy,
   },
   rowDesktop: { paddingVertical: 0, minHeight: Layout.control.row },
-  rowHighlightDesktop: { backgroundColor: t.surfaceAlt },
-  iconSquareDesktop: { width: 28, height: 28 },
+  rowHighlightDesktop: { backgroundColor: t.surfaceAlt, marginHorizontal: 8, paddingHorizontal: 10 },
   rowJob: { color: t.textMuted, maxWidth: Layout.menu.minWidth / 2 },
   jobBar: {
     flexDirection: 'row',

@@ -146,17 +146,17 @@ exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alon
 
 exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolsSheet, dark 1`] = `
 {
-  "lines": 191,
+  "lines": 202,
   "modalCount": 1,
-  "sha256": "0285ace44aad86ca9908d1c4e812a99c14d231541422610283938fc40925b4e8",
+  "sha256": "aa817d0bc1ed8a6e8feef77b84063850b15f49296cc9fe3f81bb911c3469db0e",
 }
 `;
 
 exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolsSheet, light 1`] = `
 {
-  "lines": 191,
+  "lines": 202,
   "modalCount": 1,
-  "sha256": "74b78429afcbcecc9ef41cebd4cec64ed8065784f4160b2e12652b2543630abb",
+  "sha256": "4230d97df735b513b532f11909282da5d97e0e6af82f880d9e3140a1faf5a608",
 }
 `;
 

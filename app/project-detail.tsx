@@ -123,6 +123,10 @@ import { pdfFailureMessage } from '@/utils/platformFile';
 // Wave 6c, lane E — the desktop workspace (see the render's `isDesktop ?`).
 import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
 import { TileGrid } from '@/components/ui/TileGrid';
+import {
+  ToolGlyph, ToolGroupHeader, ToolLockTag, toolListStyles, toolGlyphInk,
+  TOOL_CHEVRON_SIZE, TOOL_CHEVRON_OPACITY, TOOL_GLYPH_STROKE,
+} from '@/components/ui/toolList';
 import { segmentedDesktop } from '@/components/ui/SegmentedControl';
 import { useSheetFrame, useSheetPrimaryHotkey, useSheetDialogScope, SheetOverlay, SheetScrim } from '@/components/ui/Sheet';
 import { canOpenSchedulePro, proFitsWindow, scheduleDestination, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
@@ -218,7 +222,7 @@ const LIFECYCLE_STAGES = PROJECT_STAGES.map(key => ({ key, ...STAGE_LABELS[key] 
 const statusToStage = stageForStatus;
 
 /** A hub tile (the phone grid and the desktop section index draw the same list). */
-type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
+type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; count: number | null };
 
 // ── Pure hub rules ───────────────────────────────────────────────────────
 // Module-level and free of React so scripts/validate-project-hub-rules.ts can
@@ -2487,100 +2491,65 @@ export default function ProjectDetailScreen() {
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
   // ── The hub's tiles: the phone grid and the desktop section index ──
-  // Tile icons are intentionally NEUTRAL (themeColors.textSecondary).
-  // Color earns its way onto the screen by communicating STATE,
-  // not by decorating workflow categories. The status badge under
-  // each tile is the only colored thing — that's what the user
-  // should scan for "what needs me right now?". Group headers keep
-  // their soft category tint to differentiate workflow domains.
-  const NEUTRAL = themeColors.textSecondary;
-  // Tile color = group color. May 2026: replaced a 24-color
-  // bespoke palette (the audit called it a sticker-sheet rainbow
-  // — "color carried no meaning, just noise"). Now every tile
-  // inherits the color of its group header. Color SIGNALS which
-  // workflow domain the tile belongs to (Field / Money / Docs /
-  // People) instead of being decorative.
-  //
-  // Same 4 colors used by the group headers below. Defined here
-  // because `allTiles` is built before `groups` and needs the
-  // per-tile color at construction time.
-  const FIELD_COLOR  = themeColors.accent;   // brand
-  const MONEY_COLOR  = themeColors.success;  // teal (success)
-  const DOCS_COLOR   = themeColors.info;     // blue
-  const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
-  const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
-    // field
-    dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR, safety: FIELD_COLOR,
-    punchList: FIELD_COLOR, photos: FIELD_COLOR,
-    plans: FIELD_COLOR, schedule: FIELD_COLOR,
-    // money
-    budget: MONEY_COLOR, contract: MONEY_COLOR, selections: MONEY_COLOR,
-    linkedEstimate: MONEY_COLOR, changeOrders: MONEY_COLOR,
-    invoices: MONEY_COLOR, lienWaivers: MONEY_COLOR,
-    closeoutBinder: MONEY_COLOR, handover: MONEY_COLOR, subsPay: MONEY_COLOR,
-    // docs
-    rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
-    projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
-    scope: DOCS_COLOR, jobFacts: DOCS_COLOR,
-    // people
-    collaborators: PEOPLE_COLOR, clientPortal: PEOPLE_COLOR,
-    oacMeetings: PEOPLE_COLOR, communications: PEOPLE_COLOR,
-  };
-  const colorFor = (k: SectionKey): string => GROUP_BY_KEY[k] ?? NEUTRAL;
+  // PLAIN TRADE (2026-10-05): a tile has no colour. Tiles used to inherit a
+  // hue from their group (Field green, Money teal, Docs and People blue) and
+  // draw it as a tinted chip; the hue said nothing a contractor could act on.
+  // Every glyph is single ink now (components/ui/toolList.tsx) and the only
+  // coloured thing on a row is its status WORD — "what needs me right now".
   const allTiles: Tile[] = [
-    ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
-    ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
+    ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, count: linkedItems.length || estimate?.materials.length || 0 }] : []),
+    ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
     // #173: no number while the roster is loading / failed, or for a
     // collaborator (who can read only his own row) — never a guessed 1.
-    { key: 'collaborators', label: teamCount ? `Team (${teamCount})` : 'Team', icon: Users, color: colorFor('collaborators'), count: null as number | null },
-    { key: 'contract', label: 'Contract', icon: MageContract, color: colorFor('contract'), count: null as number | null },
-    { key: 'selections', label: 'Selections', icon: PenTool, color: colorFor('selections'), count: null as number | null },
-    { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
-    { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
-    { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
+    { key: 'collaborators', label: teamCount ? `Team (${teamCount})` : 'Team', icon: Users, count: null as number | null },
+    { key: 'contract', label: 'Contract', icon: MageContract, count: null as number | null },
+    { key: 'selections', label: 'Selections', icon: PenTool, count: null as number | null },
+    { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, count: null as number | null },
+    { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, count: null as number | null },
+    { key: 'handover', label: 'Handover Checklist', icon: Footprints, count: null as number | null },
     // Lane FACTS: the read-only job facts link. Owner-only (the link table's RLS is owner-only).
-    ...(hubPerms.showClientPortal ? [{ key: 'jobFacts' as SectionKey, label: 'Job Facts', icon: FileCheck, color: colorFor('jobFacts'), count: null as number | null }] : []),
-    { key: 'permitPath' as SectionKey, label: 'Permit Path', icon: MapPin, color: colorFor('permits'), count: null as number | null },
-    { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
-    { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
+    ...(hubPerms.showClientPortal ? [{ key: 'jobFacts' as SectionKey, label: 'Job Facts', icon: FileCheck, count: null as number | null }] : []),
+    { key: 'permitPath' as SectionKey, label: 'Permit Path', icon: MapPin, count: null as number | null },
+    { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, count: changeOrders.length },
+    { key: 'invoices', label: 'Invoices', icon: MageInvoice, count: projectInvoices.length },
     // W1 UXDOORS (D5): who is on this job, what they are owed and paid, and
     // the Pay / Get waiver doors. Every layout: the section sheet on phone and
     // tablet, and on desktop a Money-column row (after Invoices, in the
     // group's tileKeys order) that opens the side panel (PANEL_SECTION_KEYS).
     // Owner-only everywhere (hubTileVisible / showSubsPay).
-    { key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor('subsPay'), count: subsPayRowList.length as number | null },
-    { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
+    { key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, count: subsPayRowList.length as number | null },
+    { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, count: dailyReports.length },
     // T&M ticket — extra work signed for on site. The badge counts
     // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
     // has already earned and not yet asked for.
-    { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, color: colorFor('fieldTickets'), count: projectFieldTickets.filter(x => x.status === 'signed').length },
+    { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, count: projectFieldTickets.filter(x => x.status === 'signed').length },
     // PRODUCT-F4 / UX-F16: Deliveries had no entry point on iPhone at all.
-    { key: 'deliveries', label: 'Deliveries', icon: Truck, color: colorFor('deliveries'), count: null as number | null },
-    { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
+    { key: 'deliveries', label: 'Deliveries', icon: Truck, count: null as number | null },
+    { key: 'timeTracking', label: 'Time Tracking', icon: Clock, count: null as number | null },
     // #81: Safety had no way in from the job. The hub and its project
     // picker are app/safety.tsx's; this only opens it on this job.
-    { key: 'safety', label: 'Safety', icon: HardHat, color: colorFor('safety'), count: null as number | null },
-    { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
-    { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
-    { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
-    { key: 'oacMeetings', label: 'OAC Meetings', icon: Presentation, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
-    { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
-    { key: 'projectFiles', label: 'Project Files', icon: Archive, color: colorFor('projectFiles'), count: null as number | null },
-    { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
-    ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, color: colorFor('budget'), count: null as number | null }] : []),
-    { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
-    { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
-    { key: 'clientPortal', label: 'Client portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
-    { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
-    { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },
-    { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: colorFor('calendar'), count: null as number | null },
+    { key: 'safety', label: 'Safety', icon: HardHat, count: null as number | null },
+    { key: 'punchList', label: 'Punch List', icon: MagePunch, count: punchItems.length },
+    { key: 'rfis', label: 'RFIs', icon: MageRFI, count: projectRFIs.length },
+    { key: 'submittals', label: 'Submittals', icon: MageSubmittal, count: projectSubmittals.length },
+    { key: 'oacMeetings', label: 'OAC Meetings', icon: Presentation, count: projectOACMeetings.length },
+    { key: 'permits', label: 'Permits', icon: Shield, count: projectPermits.length },
+    { key: 'projectFiles', label: 'Project Files', icon: Archive, count: null as number | null },
+    { key: 'scope', label: 'Scope', icon: ClipboardList, count: null as number | null },
+    ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, count: null as number | null }] : []),
+    { key: 'photos', label: 'Photos', icon: Camera, count: projectPhotos.length },
+    { key: 'plans', label: 'Plans', icon: MagePlans, count: projectPlans.length },
+    { key: 'clientPortal', label: 'Client portal', icon: Globe, count: null as number | null },
+    { key: 'communications', label: 'Communications', icon: Mail, count: commEvents.length },
+    { key: 'activity', label: 'Activity', icon: Activity, count: null as number | null },
+    { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, count: null as number | null },
   ];
 
-  const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-    { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
-    { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'] },
-    { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'permitPath', 'projectFiles', 'scope', 'jobFacts', 'activity', 'calendar'] },
-    { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
+  const groups: { key: TileGroupKey; label: string; /** Title-block sheet letter. */ sheet: string; icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; tileKeys: SectionKey[] }[] = [
+    { key: 'field', label: 'Field Ops', sheet: 'F', icon: HardHat, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
+    { key: 'money', label: 'Money', sheet: 'M', icon: DollarSign, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'] },
+    { key: 'docs', label: 'Documentation', sheet: 'D', icon: FolderOpen, tileKeys: ['rfis', 'submittals', 'permits', 'permitPath', 'projectFiles', 'scope', 'jobFacts', 'activity', 'calendar'] },
+    { key: 'people', label: 'People & Communication', sheet: 'P', icon: Users, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
   ];
 
   // #92: the tiles follow the role. Money (and Financial Health) only
@@ -4873,9 +4842,7 @@ export default function ProjectDetailScreen() {
                 accessibilityRole="button"
                 testID="project-weekly-snapshot-btn"
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                  <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
-                </View>
+                <ToolGlyph Icon={CalendarDays} />
                 <Text style={styles.quickActionLabel}>This Week</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -4885,9 +4852,7 @@ export default function ProjectDetailScreen() {
                 accessibilityRole="button"
                 testID="project-cash-flow-btn"
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
-                  <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
-                </View>
+                <ToolGlyph Icon={Wallet} />
                 <Text style={styles.quickActionLabel}>Cash Flow</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -4899,9 +4864,7 @@ export default function ProjectDetailScreen() {
                 accessibilityRole="button"
                 testID={hasAnyEstimate ? 'project-view-estimate-btn' : 'project-create-estimate-btn'}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                  <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
-                </View>
+                <ToolGlyph Icon={Receipt} />
                 <Text style={styles.quickActionLabel}>Estimate</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -4911,9 +4874,7 @@ export default function ProjectDetailScreen() {
                 accessibilityRole="button"
                 testID={project.schedule ? 'project-view-schedule-btn' : 'project-create-schedule-btn'}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                  <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
-                </View>
+                <ToolGlyph Icon={CalendarDays} />
                 <Text style={styles.quickActionLabel}>Schedule</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -4923,9 +4884,7 @@ export default function ProjectDetailScreen() {
                 accessibilityRole="button"
                 testID="project-payment-forecast-btn"
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                  <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
-                </View>
+                <ToolGlyph Icon={TrendingDown} />
                 <Text style={styles.quickActionLabel}>Forecast</Text>
               </TouchableOpacity>
             </TileGrid>
@@ -4956,7 +4915,7 @@ export default function ProjectDetailScreen() {
                     <View key={group.key} style={isDesktop && styles.indexColDesktop}>
                       <TutorialTarget id={`hub.group.${group.key}`}>
                         <View style={isDesktop && styles.indexHeadDesktop} testID={`tile-group-${group.key}`} accessibilityRole="header">
-                          <GroupIcon size={16} color={group.color} />
+                          <GroupIcon size={16} color={themeColors.textSecondary} strokeWidth={TOOL_GLYPH_STROKE} {...toolGlyphInk(GroupIcon, themeColors.textSecondary)} />
                           <Text style={styles.indexHeadLabel} numberOfLines={1}>{group.label}</Text>
                           {groupCountSum > 0 ? <Text style={styles.indexCount}>{groupCountSum}</Text> : null}
                         </View>
@@ -4974,7 +4933,7 @@ export default function ProjectDetailScreen() {
                           const rowStyle = [isDesktop && styles.indexRowDesktop, { width: indexRowWidth }];
                           const body = (
                             <>
-                              <TileIcon size={16} color={tile.color} />
+                              <TileIcon size={16} color={themeColors.text} strokeWidth={TOOL_GLYPH_STROKE} {...toolGlyphInk(TileIcon, themeColors.text)} />
                               <Text style={styles.indexRowLabel} numberOfLines={1}>{tile.label}</Text>
                               <View style={styles.indexRowTrail}>
                                 {lockReason ? (
@@ -5052,23 +5011,29 @@ export default function ProjectDetailScreen() {
           ];
           return (
             <View style={styles.fieldActionRow} testID="project-field-actions">
-              {actions.map(a => (
+              {actions.map((a, i) => {
+                // Plain trade: one strip under a 2 pt rule, hairlines between
+                // the columns. The first door (Daily report) is this screen's
+                // ONE primary action — a green rule over it and green ink.
+                // A locked door is hatched and says what unlocks it.
+                const primary = i === 0 && !a.lock;
+                return (
                 <TouchableOpacity
                   key={a.key}
-                  style={[styles.quickActionBtn, styles.fieldActionBtn]}
+                  style={[styles.fieldActionBtn, i === 0 && styles.fieldActionBtnFirst]}
                   onPress={a.onPress}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={a.lock ? `${a.label}. ${a.lock}` : a.label}
                   testID={`project-field-${a.key}-btn`}
                 >
-                  <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                    {a.lock ? <Lock size={16} color={themeColors.textMuted} strokeWidth={2} /> : <a.Icon size={18} color={themeColors.accent} strokeWidth={1.75} />}
-                  </View>
-                  <Text style={styles.fieldActionLabel} numberOfLines={2}>{a.label}</Text>
+                  {primary ? <View style={styles.fieldActionPrimaryRule} /> : null}
+                  <ToolGlyph Icon={a.Icon} locked={!!a.lock} color={primary ? themeColors.accentLabel : undefined} />
+                  <Text style={[styles.fieldActionLabel, primary && { color: themeColors.accentLabel }]} numberOfLines={2}>{a.label}</Text>
                   {a.lock ? <Text style={styles.fieldActionLock} numberOfLines={2}>{a.lock}</Text> : null}
                 </TouchableOpacity>
-              ))}
+                );
+              })}
             </View>
           );
         })() : null}
@@ -5318,9 +5283,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-weekly-snapshot-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
+            <ToolGlyph Icon={CalendarDays} />
             <Text style={styles.quickActionLabel}>This Week</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -5329,9 +5292,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-cash-flow-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
-              <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
-            </View>
+            <ToolGlyph Icon={Wallet} />
             <Text style={styles.quickActionLabel}>Cash Flow</Text>
           </TouchableOpacity>
           {!hasAnyEstimate && (
@@ -5341,9 +5302,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-create-estimate-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
-              </View>
+              <ToolGlyph Icon={Receipt} />
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
           )}
@@ -5354,9 +5313,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-create-schedule-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
-              </View>
+              <ToolGlyph Icon={CalendarDays} />
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
           )}
@@ -5371,9 +5328,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-view-schedule-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
-              </View>
+              <ToolGlyph Icon={CalendarDays} />
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
           )}
@@ -5384,9 +5339,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
-              </View>
+              <ToolGlyph Icon={Receipt} />
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
           )}
@@ -5396,9 +5349,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-payment-forecast-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
+            <ToolGlyph Icon={TrendingDown} />
             <Text style={styles.quickActionLabel}>Forecast</Text>
           </TouchableOpacity>
           </>
@@ -5410,9 +5361,7 @@ export default function ProjectDetailScreen() {
             disabled={generatingCloseout}
             testID="project-closeout-packet-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <Archive size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
+            <ToolGlyph Icon={Archive} />
             <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
             {/* Concrete-pour progress bar appears under the button while
                 generation is in flight. Indeterminate-ish — we don't have
@@ -5454,7 +5403,7 @@ export default function ProjectDetailScreen() {
               <TutorialTarget key={tile.key} id={`hub.tile.${tile.key}`} style={layout.isDesktop ? styles.tileTargetDesktop : undefined}>
               <HardHatTap
                 style={styles.sectionTile}
-                hatColor={tile.color}
+                hatColor={themeColors.text}
                 accessibilityRole="button"
                 accessibilityLabel={a11yLabel}
                 accessibilityState={{ disabled: false }}
@@ -5462,9 +5411,7 @@ export default function ProjectDetailScreen() {
                 onPress={() => pressTile(tile)}
                 testID={`section-tile-${tile.key}`}
               >
-                <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
-                  <TileIcon size={20} color={tile.color} />
-                </View>
+                <ToolGlyph Icon={TileIcon} locked={isLocked} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
                   {tileBadges[tile.key] ? (
@@ -5481,14 +5428,10 @@ export default function ProjectDetailScreen() {
                   ) : null}
                 </View>
                 {tile.count !== null && tile.count !== undefined && (
-                  <View style={styles.sectionTileBadge}>
-                    <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
-                  </View>
+                  <Text style={styles.sectionTileCount}>{tile.count}</Text>
                 )}
-                {lockedTileKeys.has(tile.key) && (
-                  <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} />
-                )}
-                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                {lockedTileKeys.has(tile.key) && <ToolLockTag />}
+                <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.sectionTileChevron} />
               </HardHatTap>
               </TutorialTarget>
             );
@@ -5534,29 +5477,26 @@ export default function ProjectDetailScreen() {
                 if (groupTiles.length === 0) return null;
                 const groupCountSum = groupTiles.reduce((acc, t) => acc + (t.count ?? 0), 0);
                 const collapsed = collapsedGroups.has(group.key);
-                const GroupIcon = group.icon;
                 return (
                   <View key={group.key} style={styles.tileGroup}>
                     <TutorialTarget id={`hub.group.${group.key}`}>
                     <TouchableOpacity
                       style={styles.tileGroupHeader}
                       onPress={() => toggleGroup(group.key)}
+                      hitSlop={{ top: 4, bottom: 4 }}
                       activeOpacity={0.7}
                       testID={`tile-group-${group.key}`}
                     >
-                      <View style={[styles.tileGroupHeaderIcon, { backgroundColor: group.color + '15' }]}>
-                        <GroupIcon size={18} color={group.color} />
-                      </View>
-                      <Text style={styles.tileGroupHeaderLabel}>{group.label}</Text>
-                      {group.key === 'docs' && collapsed && docsRfiLine ? (
-                        <Text style={styles.tileGroupRfiLine} numberOfLines={1} testID="tile-group-docs-rfis">{docsRfiLine}</Text>
-                      ) : null}
-                      {groupCountSum > 0 && (
-                        <View style={styles.tileGroupBadge}>
-                          <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
-                        </View>
-                      )}
-                      <CollapseChevron pair="downUp" open={!collapsed} size={18} color={themeColors.textMuted} strokeWidth={1.75} />
+                      <ToolGroupHeader
+                        index={group.sheet}
+                        label={group.label}
+                        style={styles.tileGroupTitleBlock}
+                        note={group.key === 'docs' && collapsed && docsRfiLine ? (
+                          <Text style={styles.tileGroupRfiLine} numberOfLines={1} testID="tile-group-docs-rfis">{docsRfiLine}</Text>
+                        ) : null}
+                        count={groupCountSum > 0 ? groupCountSum : undefined}
+                        trailing={<CollapseChevron pair="downUp" open={!collapsed} size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
+                      />
                     </TouchableOpacity>
                     </TutorialTarget>
                     {/* No wrapper — conditional render only. LayoutAnimation
@@ -5577,17 +5517,15 @@ export default function ProjectDetailScreen() {
                             accessibilityLabel={r.lock ? `${r.label}. ${r.lock}` : r.label}
                             testID={r.testID}
                           >
-                            <View style={[styles.sectionTileIcon, { backgroundColor: group.color + '15' }]}>
-                              <r.Icon size={20} color={group.color} strokeWidth={1.75} />
-                            </View>
+                            <ToolGlyph Icon={r.Icon} locked={!!r.lock} />
                             <View style={{ flex: 1, minWidth: 0 }}>
                               <Text style={styles.sectionTileLabel} numberOfLines={1}>{r.label}</Text>
                               {r.lock ? (
                                 <Text style={[styles.sectionTileStatus, { color: themeColors.textMuted }]} numberOfLines={1}>{r.lock}</Text>
                               ) : null}
                             </View>
-                            {r.lock ? <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} /> : null}
-                            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                            {r.lock ? <ToolLockTag /> : null}
+                            <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.sectionTileChevron} />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -6620,7 +6558,11 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
   );
 }
 
-const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => {
+  // Plain trade: the tool rows / title blocks / field strip take their numbers
+  // from the shared rule, not from this file.
+  const tool = toolListStyles(themeColors);
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
@@ -7071,11 +7013,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   quickActionBtnFull: { flexBasis: '100%' as const },
   // UX wave, Lane D (D2): a live job's field row — five equal columns, each a
   // 72 pt gloved-thumb target. Layout only: the surface is quickActionBtn's.
-  fieldActionRow: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 8 },
-  fieldActionBtn: { flexDirection: 'column' as const, justifyContent: 'center' as const, gap: 6, flexBasis: 0, flexGrow: 1, paddingHorizontal: 4, paddingVertical: 10, minHeight: 72 },
-  fieldActionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.text, textAlign: 'center' as const },
+  // Plain trade: one strip, five equal columns under a 2 pt ink rule with
+  // hairlines between them — no card per button, no chip. Each column is still
+  // a 72 pt gloved-thumb target. Numbers: components/ui/toolList.tsx.
+  fieldActionRow: { ...tool.strip, marginHorizontal: 16, marginTop: 12 },
+  fieldActionBtn: { ...tool.stripCell, minHeight: 72 },
+  fieldActionBtnFirst: tool.stripCellFirst,
+  fieldActionPrimaryRule: tool.stripPrimaryRule,
+  fieldActionLabel: tool.stripLabel,
   fieldActionLock: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center' as const },
-  tileGroupRfiLine: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent, flexShrink: 1 },
+  // A status line, so it takes the state colour (warning ink), not the brand.
+  tileGroupRfiLine: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.warningLabel, flexShrink: 1 },
   // ── Wave 6c desktop workspace (layout only; colours stay on the phone styles) ──
   containerDesktop: { flexDirection: 'row' as const },
   pageDesktop: {
@@ -7100,20 +7048,18 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   indexRowTrail: { marginLeft: 'auto' as const, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 1, minWidth: 0 },
   indexCount: { marginLeft: 'auto' as const, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, fontVariant: ['tabular-nums' as const] },
   indexRowNote: { maxWidth: 120, fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
-  quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
   // Tight, predictable spacing: collapsed groups stack snugly. The body
   // has no marginBottom — separation between groups comes ONLY from
   // sectionGroups.gap, so collapsing a group never leaves phantom space.
-  sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 6 },
-  tileGroup: { gap: 6 },
-  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
-  tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
-  tileGroupHeaderLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  tileGroupBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
-  tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
-  tileGroupBody: { gap: 8 },
+  sectionGroups: { paddingHorizontal: 16, marginTop: 22, gap: 22 },
+  tileGroup: { gap: 0 },
+  // The pressable around the title block (it folds the group). The block is
+  // 37 pt tall; hitSlop on the pressable makes the target 45.
+  tileGroupHeader: { alignSelf: 'stretch' as const },
+  tileGroupTitleBlock: { flexGrow: 1 },
+  tileGroupBody: { gap: 0 },
   // Unreachable since wave 6c (the phone grid only renders when !isDesktop;
   // desktop draws the section index). Kept, with its `layout.isDesktop &&`
   // use, so the phone's style array stays byte-identical to the golden
@@ -7122,12 +7068,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // The hub.tile.* tutorial wrapper in the desktop section index (row-only,
   // so the row-wrap list stretches it as it would the row itself).
   tileTargetDesktop: { flexDirection: 'row' as const },
-  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
-  sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
-  sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
-  sectionTileStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
-  sectionTileBadge: { backgroundColor: themeColors.line, borderRadius: Tokens.radius.md, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
-  sectionTileBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  // Plain trade row: no card, no chip — glyph column, name, hairline on top.
+  sectionTile: { ...tool.row, ...tool.rowTight, minHeight: 44 },
+  sectionTileLabel: { ...tool.name, ...tool.nameTight },
+  sectionTileStatus: tool.status,
+  sectionTileCount: tool.count,
+  sectionTileChevron: { opacity: TOOL_CHEVRON_OPACITY },
   sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: themeColors.line },
   sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
   sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: themeColors.accent },
@@ -7156,7 +7102,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   revDetailTabTextActive: { color: themeColors.text },
   revRestoreBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accentFill },
   revRestoreBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
-});
+  });
+};
 
 const makeDetailStyles = (themeColors: ThemeColors) => StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: themeColors.bg },

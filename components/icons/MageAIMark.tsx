@@ -42,4 +42,7 @@ const MageAIMark = React.forwardRef<React.ComponentRef<typeof Svg>, MageAIMarkPr
   },
 );
 
-export default MageAIMark;
+// Same flag as the glyph set (components/icons/glyphs.tsx): a tool list's
+// ToolGlyph passes the row's ink as `accentColor`, so the spark is not a second
+// colour there. Everywhere else the spark keeps the brand default above.
+export default Object.assign(MageAIMark, { acceptsAccent: true as const });

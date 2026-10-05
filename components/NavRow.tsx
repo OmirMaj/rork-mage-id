@@ -8,31 +8,39 @@
 // once and locks consistency forever.
 //
 // Variants:
-//   - "list"  (default): full-width row inside a grouped list, with a
-//             leading icon-square and trailing chevron. iOS Settings vibe.
-//   - "card":            same content, rendered as a card with rounded
-//             corners and a subtle border. Used in dashboards.
+//   - "list"  (default): a Plain-trade row — glyph column, name, one-line
+//             description, hairline on top. No surface of its own: it sits on
+//             whatever ground the list is on.
+//   - "card":            the same content as one standalone bordered link
+//             (a door from one screen to another, not a row in a tool list).
 //
-// Tone:
-//   `tone` controls the icon-square color tint. Defaults to neutral
-//   — color earns its way onto the screen by communicating status, not
-//   decoration. Pass a specific tone only when the row represents a
-//   stateful thing (e.g., Field Ops with active work today gets
-//   `tone="primary"`; Money with overdue invoices gets `tone="warning"`).
+// PLAIN TRADE (2026-10-05, components/ui/toolList.tsx owns the numbers). The
+// leading icon is a 24 pt single-ink glyph at stroke 2 with no chip behind it.
+// A row can NOT choose a hue: `tone` used to pick the chip tint, each caller
+// set it by hand, and on Tools that made "Photo triage" blue and "Punch list"
+// green for no reason a contractor could read. The prop is still accepted so
+// callers compile, and it is ignored. Green shows only while the row is
+// pressed (glyph + name turn `accentLabel`, the row fills `surfaceAlt`).
+// A locked row is hatched and carries its tier as a mono tag at the right.
+// Pinned by scripts/validate-tool-list.ts.
 
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
-import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  ToolGlyph, ToolLockTag, toolListStyles, toolChevronColor,
+  TOOL_CHEVRON_SIZE, TOOL_CHEVRON_OPACITY,
+} from '@/components/ui/toolList';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 
 export type NavRowTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'accent';
 
 export interface NavRowProps {
-  /** Icon component rendered in the leading icon square. Accepts lucide icons
+  /** Icon component rendered in the leading glyph column. Accepts lucide icons
    *  AND the bespoke Mage glyph set — those are plain function components, so
    *  the narrower `LucideIcon` ForwardRef type rejected them and every caller
    *  of this row was forced back onto stock lucide. Same widening, for the
@@ -46,8 +54,12 @@ export interface NavRowProps {
   meta?: string;
   /** Pill-shaped badge to the right of the title (e.g. "3 new"). Optional. */
   badge?: string;
-  /** Tone for the icon square. Defaults to neutral grayscale. */
+  /** IGNORED. Kept so existing callers compile; a row never picks a hue. */
   tone?: NavRowTone;
+  /** Locked behind a plan or a role: the glyph is hatched and muted, and
+   *  `meta` (the tier) is drawn as a mono tag with a lock. The row still
+   *  opens — its destination is the gate. */
+  locked?: boolean;
   /** Visual variant. */
   variant?: 'list' | 'card';
   /** Show the trailing chevron? Defaults to true. */
@@ -62,32 +74,13 @@ export interface NavRowProps {
   testID?: string;
 }
 
-function toneColor(t: ThemeColors, tone: NavRowTone): string {
-  switch (tone) {
-    case 'primary':
-    case 'accent':
-      return t.accent;
-    case 'success':
-      return t.success;
-    case 'warning':
-      return t.accent;
-    case 'error':
-      return t.danger;
-    case 'info':
-      return t.info;
-    case 'neutral':
-    default:
-      return t.textSecondary;
-  }
-}
-
 function NavRowImpl({
   Icon,
   title,
   subtitle,
   meta,
   badge,
-  tone = 'neutral',
+  locked = false,
   variant = 'list',
   chevron = true,
   onPress,
@@ -97,66 +90,69 @@ function NavRowImpl({
 }: NavRowProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const tint = toneColor(colors, tone);
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      activeOpacity={0.6}
       disabled={disabled}
-      style={[
+      style={({ pressed }) => [
         variant === 'card' ? styles.card : styles.list,
+        pressed && (variant === 'card' ? styles.cardPressed : styles.listPressed),
         disabled && styles.disabled,
         style,
       ]}
       testID={testID}
     >
-      <View style={[styles.iconSquare, { backgroundColor: tint + '15' }]}>
-        <Icon size={20} color={tint} strokeWidth={2} />
-      </View>
+      {({ pressed }) => (
+        <>
+          <ToolGlyph Icon={Icon} locked={locked} color={pressed ? colors.accentLabel : undefined} />
 
-      <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={[Type.headline, { color: colors.text }]} numberOfLines={1}>{title}</Text>
-          {!!badge && (
-            <View style={[styles.badge, { backgroundColor: tint + '15' }]}>
-              <Text style={[Type.caption2, { color: tint, fontWeight: '700' }]}>{badge}</Text>
+          <View style={styles.body}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, pressed && { color: colors.accentLabel }]} numberOfLines={1}>{title}</Text>
+              {!!badge && (
+                <Text style={[Type.caption2, styles.badge]}>{badge}</Text>
+              )}
             </View>
-          )}
-        </View>
-        {!!subtitle && (
-          <Text style={[Type.footnote, { color: colors.textSecondary }]} numberOfLines={2}>
-            {subtitle}
-          </Text>
-        )}
-      </View>
+            {!!subtitle && (
+              <Text style={styles.subtitle} numberOfLines={2}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
 
-      {!!meta && (
-        <Text style={[Type.subhead, { color: colors.textSecondary, marginRight: chevron ? 4 : 0 }]}>
-          {meta}
-        </Text>
+          {!!meta && (locked ? (
+            <ToolLockTag label={meta} />
+          ) : (
+            <Text style={[Type.subhead, { color: colors.textSecondary, marginRight: chevron ? 4 : 0 }]}>
+              {meta}
+            </Text>
+          ))}
+          {chevron && (
+            <ChevronRight
+              size={TOOL_CHEVRON_SIZE}
+              color={toolChevronColor(colors)}
+              strokeWidth={1.75}
+              style={{ opacity: TOOL_CHEVRON_OPACITY }}
+            />
+          )}
+        </>
       )}
-      {chevron && <ChevronRight size={18} color={colors.textMuted} strokeWidth={1.75} />}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 export const NavRow = memo(NavRowImpl);
 
-const makeStyles = (t: ThemeColors) =>
-  StyleSheet.create({
-    list: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      backgroundColor: t.surface,
-    },
+const makeStyles = (t: ThemeColors) => {
+  const tool = toolListStyles(t);
+  return StyleSheet.create({
+    list: tool.row,
+    listPressed: tool.rowPressed,
     card: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      gap: 12,
+      gap: 14,
       paddingVertical: 14,
       paddingHorizontal: 14,
       backgroundColor: t.surface,
@@ -164,19 +160,13 @@ const makeStyles = (t: ThemeColors) =>
       borderWidth: 1,
       borderColor: t.line,
     },
-    iconSquare: {
-      width: 36,
-      height: 36,
-      borderRadius: Tokens.radius.md,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    body: { flex: 1, minWidth: 0 },
+    cardPressed: { backgroundColor: t.surfaceAlt },
+    body: tool.body,
     titleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
-    badge: {
-      paddingHorizontal: 7,
-      paddingVertical: 2,
-      borderRadius: Tokens.radius.full,
-    },
+    title: tool.name,
+    subtitle: tool.desc,
+    // A word beside the name ("3 new"): mono-weight ink, no pill behind it.
+    badge: { color: t.textSecondary, fontWeight: '700' as const },
     disabled: { opacity: 0.45 },
   });
+};

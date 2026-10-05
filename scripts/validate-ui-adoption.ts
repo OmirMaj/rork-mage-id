@@ -48,8 +48,12 @@ const UI = join(ROOT, 'components', 'ui');
  * spreading `cardSurface(t, …)`. Lower it as recipes convert — the top clusters
  * are radius.card with no padding (73), radius.lg with padding 14 (50) and
  * radius.md with no padding (44).
+ *
+ * 678 → 677 (2026-10-05, Plain trade): the Tools section card, NavRow's list
+ * surface and the project page's per-tile card are gone — a tool row has no
+ * surface of its own (components/ui/toolList.tsx).
  */
-const HANDROLLED_CEILING = 678;
+const HANDROLLED_CEILING = 677;
 
 /**
  * Files importing the barrel. NEVER LOWER THIS. It was 0 before the barrel

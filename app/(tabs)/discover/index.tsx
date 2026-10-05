@@ -18,6 +18,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { ToolGlyph, type ToolIcon } from '@/components/ui/toolList';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 // Single source of truth for whether the homeowner-RFP feed is readable.
 // app/nearby-rfps.tsx imports it from the same place.
@@ -131,17 +132,14 @@ const TABS: TabDef[] = [
 
 function NavigationCard({
   icon: Icon,
-  iconColor,
-  iconBg,
   title,
   subtitle,
   count,
   countColor,
   onPress,
 }: {
-  icon: React.ElementType;
-  iconColor: string;
-  iconBg: string;
+  /** Drawn as a 24 pt single-ink glyph (Plain trade) — a card can not pick a hue. */
+  icon: ToolIcon;
   title: string;
   subtitle: string;
   count?: number;
@@ -163,9 +161,7 @@ function NavigationCard({
         accessibilityRole="button"
         accessibilityLabel={count !== undefined ? `${title}, ${count}. ${subtitle}` : `${title}. ${subtitle}`}
       >
-        <View style={[styles.navIconWrap, { backgroundColor: iconBg }]}>
-          <Icon size={22} color={iconColor} />
-        </View>
+        <ToolGlyph Icon={Icon} />
         <View style={styles.navInfo}>
           <Text style={styles.navTitle}>{title}</Text>
           <Text style={styles.navSubtitle}>{subtitle}</Text>
@@ -274,9 +270,7 @@ export default function DiscoverScreen() {
             accessibilityRole="button"
             accessibilityLabel="Post bid"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
-            </View>
+            <ToolGlyph Icon={Plus} />
             <Text style={styles.quickActionLabel}>Post bid</Text>
           </TouchableOpacity>
           {HIRE_ENABLED && (
@@ -287,9 +281,7 @@ export default function DiscoverScreen() {
               accessibilityRole="button"
               accessibilityLabel="Post job"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-                <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
-              </View>
+              <ToolGlyph Icon={Plus} />
               <Text style={styles.quickActionLabel}>Post job</Text>
             </TouchableOpacity>
           )}
@@ -300,15 +292,13 @@ export default function DiscoverScreen() {
             accessibilityRole="button"
             accessibilityLabel="My profile"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
+            {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
                   magnifying glass over the label "My Profile", so it read as
                   a search box — a contractor looking for search tapped it and
                   landed in Settings, and one looking for their profile walked
                   past it. UserCircle is the icon Settings itself uses for the
                   profile row this tile opens. */}
-              <UserCircle size={16} color={Colors.accent} strokeWidth={1.75} />
-            </View>
+              <ToolGlyph Icon={UserCircle} />
             <Text style={styles.quickActionLabel}>My profile</Text>
           </TouchableOpacity>
         </View>
@@ -327,8 +317,6 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Wrench}
-          iconColor={Colors.accent}
-          iconBg={Colors.accent + '15'}
           title="Tools"
           subtitle="Takeoffs, RFIs and punch lists across all your projects"
           onPress={() => navigateTo('/(tabs)/discover/tools')}
@@ -348,8 +336,6 @@ export default function DiscoverScreen() {
             decoration — color carried no meaning, just noise. */}
         <NavigationCard
           icon={MageAIMark}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
           title="Estimator"
           subtitle="Quick estimate, takeoff, risk, calibration and every other estimating tool"
           onPress={() => navigateTo('/(tabs)/discover/estimate')}
@@ -357,8 +343,6 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Gavel}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
           title="Construction AI"
           subtitle="Ask building code questions and get answers"
           onPress={() => navigateTo('/(tabs)/construction-ai')}
@@ -366,8 +350,6 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={CalendarDays}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
           title="Schedule maker"
           subtitle="Build a schedule with AI or from a template"
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
@@ -408,8 +390,6 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={MageAIMark}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
           title="MAGE ID Bids"
           subtitle={RFP_BROWSE_ENABLED
             ? 'Browse nearby private projects · post your own'
@@ -434,8 +414,6 @@ export default function DiscoverScreen() {
             screen shows the real count; these cards just route there. */}
         <NavigationCard
           icon={Gavel}
-          iconColor={Colors.infoLabel}
-          iconBg={Colors.info + '15'}
           title="Public bids"
           subtitle="Government and private bid opportunities"
           onPress={() => navigateTo('/(tabs)/discover/bids')}
@@ -444,8 +422,6 @@ export default function DiscoverScreen() {
         {COMPANIES_DIRECTORY_ENABLED && (
           <NavigationCard
             icon={Building2}
-            iconColor={Colors.infoLabel}
-            iconBg={Colors.info + '15'}
             title="Companies"
             subtitle="Public Google business listings, 9 metros"
             onPress={() => navigateTo('/(tabs)/discover/companies')}
@@ -455,8 +431,6 @@ export default function DiscoverScreen() {
         {HIRE_ENABLED && (
           <NavigationCard
             icon={Briefcase}
-            iconColor={Colors.infoLabel}
-            iconBg={Colors.info + '15'}
             title="Job listings"
             subtitle="Construction jobs and direct hire openings"
             onPress={() => navigateTo('/(tabs)/discover/hire')}
@@ -623,14 +597,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: t.accentSoft,
-  },
-  quickActionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Tokens.radius.md,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    borderColor: t.line,
   },
   quickActionLabel: {
     fontSize: Type.caption1.fontSize,
@@ -676,13 +643,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     padding: 16,
     gap: 14,
-  },
-  navIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: Tokens.radius.lg,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
   },
   navInfo: { flex: 1, gap: 2 },
   navTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },

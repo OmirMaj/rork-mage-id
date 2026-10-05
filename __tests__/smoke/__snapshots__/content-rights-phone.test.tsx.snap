@@ -2,21 +2,21 @@
 
 exports[`content rights golden — hidden doors (390 x 844 iOS) (a) discover overview 1`] = `
 {
-  "lines": 918,
-  "sha256": "43f7600577aaeeb3b237f9e6d2aca392e18b6a8ead988c5e272d040e70d3aade",
+  "lines": 926,
+  "sha256": "90cd33c6b92d25f16c44e3c9ea3430e4855340b7ce16d79646e3e3ceed5ca711",
 }
 `;
 
 exports[`content rights golden — hidden doors (390 x 844 iOS) (b) discover/tools 1`] = `
 {
-  "lines": 1427,
-  "sha256": "7ff8044045c30aa9c8410ecf7462aa2ff9f0fc2417359b5a91c4427094f3e6cc",
+  "lines": 1472,
+  "sha256": "56d1168f792342d99210278dbac8d26d85880d8015a49ffe1b34c6c780e9f917",
 }
 `;
 
 exports[`content rights golden — hidden doors (390 x 844 iOS) (c) construction-news 1`] = `
 {
-  "lines": 918,
-  "sha256": "43f7600577aaeeb3b237f9e6d2aca392e18b6a8ead988c5e272d040e70d3aade",
+  "lines": 926,
+  "sha256": "90cd33c6b92d25f16c44e3c9ea3430e4855340b7ce16d79646e3e3ceed5ca711",
 }
 `;

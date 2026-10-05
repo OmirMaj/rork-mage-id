@@ -7,6 +7,14 @@
 // each is a drop-in for a lucide icon — JSX or icon-reference. `color` draws the
 // structure, `accentColor` the brand-accent detail. Stroke 1.75 to match the app.
 //
+// SINGLE INK IN TOOL LISTS (2026-10-05). The brand-green detail made every
+// glyph two-colour wherever it sat: a blue Tools chip carried a green question
+// mark. In a tool list green now means one thing (the primary action / the
+// pressed state), so ToolGlyph draws the detail in the row's own ink. The
+// DEFAULT below is unchanged on purpose: the tab bar is in every route, so
+// flipping it moves every route golden in the repo — that is its own change
+// (make the default `color`, re-record once).
+//
 // The accent default is `Colors.primary`, not a literal: a default parameter is
 // evaluated on every render, and that getter resolves the brand per theme —
 // #2F6B3A on a light ground, #5DB36E on dark, where the light green is 2.80:1 —
@@ -33,7 +41,11 @@ function glyph(render: (args: RenderArgs) => React.ReactNode) {
     ),
   );
   C.displayName = 'MageGlyph';
-  return C;
+  // Tool lists draw every glyph in ONE ink (Plain trade, components/ui/
+  // toolList.tsx): ToolGlyph reads this flag and passes the row's ink as
+  // `accentColor`, so the detail stops being a second colour there. Lucide
+  // icons carry no flag and are never handed the prop.
+  return Object.assign(C, { acceptsAccent: true as const });
 }
 
 const cap = { strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };

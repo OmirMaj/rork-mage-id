@@ -41,6 +41,23 @@ export {
 } from './motion';
 
 // Colour decisions a chip cannot get right by eye — see ./ink.ts.
+export {
+  ToolGlyph,
+  ToolGroupHeader,
+  ToolLockTag,
+  toolListStyles,
+  toolRule,
+  toolGlyphInk,
+  toolChevronColor,
+  TOOL_GLYPH_SIZE,
+  TOOL_GLYPH_STROKE,
+  TOOL_CHEVRON_SIZE,
+  TOOL_CHEVRON_OPACITY,
+  type ToolIcon,
+  type ToolGlyphProps,
+  type ToolGroupHeaderProps,
+} from './toolList';
+
 export { labelOn, neutralInk, taskStatusInk, INK_ON_LIGHT_FILL, CHIP_TINT_SUFFIX } from './ink';
 
 // ── Desktop-web primitives (wave 6b) ────────────────────────────────────────

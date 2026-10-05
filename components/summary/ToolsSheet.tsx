@@ -19,7 +19,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge, Library, PenTool, BellRing,
-  Hourglass, ShieldCheck, CalendarCheck, Lock, type LucideIcon,
+  Hourglass, ShieldCheck, CalendarCheck, type LucideIcon,
 } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -117,13 +117,14 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fX.card]} testID="summary-tools-sheet">
         {fX.showHandle && <View style={styles.handle} />}
         <Text style={styles.title}>Tools</Text>
-        <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={styles.rows} showsVerticalScrollIndicator={false}>
           {SHEET_ROWS.map(row => {
             const locked = row.feature === 'tomorrow-lineup' && lineupDoor.kind === 'locked' ? lineupDoor : null;
             return (
               <NavRow
                 key={row.feature}
-                Icon={locked ? Lock : row.Icon}
+                Icon={row.Icon}
+                locked={!!locked}
                 title={row.title}
                 subtitle={locked ? locked.subtitle : row.subtitle}
                 onPress={() => go(row)}
@@ -143,4 +144,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sheet: { backgroundColor: t.surface, borderTopLeftRadius: Tokens.radius.xl, borderTopRightRadius: Tokens.radius.xl, paddingHorizontal: 8, paddingTop: 8 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: t.line, alignSelf: 'center' as const, marginVertical: 8 },
   title: { fontSize: 18, fontWeight: '800' as const, color: t.text, paddingHorizontal: 12, marginBottom: 6, letterSpacing: -0.3 },
+  // NavRow no longer pads itself or paints a surface (Plain trade): the list
+  // owns the column, aligned with the title.
+  rows: { paddingHorizontal: 12 },
 });
