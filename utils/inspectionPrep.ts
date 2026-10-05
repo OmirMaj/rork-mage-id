@@ -57,7 +57,7 @@ import {
 /** Local calendar days 0..N ahead that count as "coming up". */
 export const PREP_WINDOW_DAYS = 3;
 /** Rendered as a fixed <Text> by the sheet. Never model text. */
-export const PREP_DISCLAIMER = 'Prep list, not a code review. The inspector and the AHJ decide.';
+export const PREP_DISCLAIMER = 'Prep list, not a code review. Not a substitute for the adopted code. Confirm with your building department.';
 /** Device-local prep state (N/A marks, linked punch ids, answers, recall). */
 export const PREP_STORAGE_KEY = 'mageid_inspection_prep_v1';
 

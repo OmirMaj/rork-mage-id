@@ -139,6 +139,7 @@ import {
   type CitationEvidence,
 } from '@/utils/codeAmendments';
 import { CODE_CHECK_DISCLAIMER } from '@/utils/codeCheckCopy';
+import { ensureCodeAck } from '@/utils/codeAck';
 import { useJobBuildingRecord } from '@/hooks/useJobBuildingRecord';
 import { useReviewBenchmark } from '@/hooks/useReviewBenchmark';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
@@ -1301,6 +1302,9 @@ function ConstructionAIScreenInner() {
     if (!planProject || !planSheet) return;
     // TUTORIAL AI GUARD (validate-tutorial-learn-b).
     if (tutorialLock) { tutorialBlockedAlert(); return; }
+    // One-time notice before a code answer is relied on (utils/codeAck). An
+    // answer already on screen stays; only the next request waits on it.
+    if (!(await ensureCodeAck())) return;
     const used = await getPlanReviewMonthUsage(user?.id);
     if (used >= planMonthlyCap) { setPlanOverLimit(true); return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1476,6 +1480,9 @@ function ConstructionAIScreenInner() {
     if (!canSubmit) return;
     // TUTORIAL AI GUARD (validate-tutorial-learn-b).
     if (tutorialLock) { tutorialBlockedAlert(); return; }
+    // One-time notice before a code answer is relied on (utils/codeAck). An
+    // answer already on screen stays; only the next request waits on it.
+    if (!(await ensureCodeAck())) return;
     const answered = answeredOverride ?? answers;
     const used = await getTodayUsage(user?.id);
     if (used >= dailyCap) {
@@ -3366,6 +3373,9 @@ function ResultModal({
       setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.') } }));
       return;
     }
+    // One-time notice before a code answer is relied on (utils/codeAck). An
+    // answer already on screen stays; only the next request waits on it.
+    if (!(await ensureCodeAck())) return;
     setDetails(prev => ({ ...prev, [key]: { loading: true, data: null, error: null } }));
 
     const label = [c.code, c.section].filter(Boolean).join(' ');

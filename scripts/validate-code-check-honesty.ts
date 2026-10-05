@@ -88,7 +88,7 @@ ok('drill-in prompt says it explains from memory',
 // ── 2. Fixed disclaimer ───────────────────────────────────────────────────
 console.log('\n2. The disclaimer is a constant');
 ok('the constant is exact',
-  CODE_CHECK_DISCLAIMER === 'AI guidance from model recall, not a code lookup and not legal advice. The local Authority Having Jurisdiction (AHJ) governs — verify before work begins.');
+  CODE_CHECK_DISCLAIMER === 'AI guidance from model recall, not a code lookup and not legal advice. Not a substitute for the adopted code. Confirm with your building department.');
 ok('index.tsx renders {CODE_CHECK_DISCLAIMER}', index.includes('{CODE_CHECK_DISCLAIMER}'));
 ok('index.tsx renders no model-written result.disclaimer', !/result\.disclaimer/.test(index));
 ok('the prompt no longer asks the model for a disclaimer', !/- disclaimer:/.test(index));

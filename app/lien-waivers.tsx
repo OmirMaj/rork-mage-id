@@ -853,11 +853,11 @@ function LienWaiversScreenInner() {
       </View>
       <FeatureHeader
         eyebrow="Lien waivers"
-        title="Sign-offs your bank wants"
-        subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Most lenders require these on every draw. We auto-fill from the invoice — you just pick the type."
+        title="Signed proof each sub was paid"
+        subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Many lenders and owners ask for these with a draw. We auto-fill from the invoice — you just pick the type."
         explainer={{
           term: 'Lien Waiver',
-          definition: 'A lien waiver is a legal document a contractor or subcontractor signs giving up their right to file a mechanic\'s lien against the property for the amount they\'ve been paid. Banks require these on most draws to make sure no sub will come back later claiming they weren\'t paid.',
+          definition: 'A lien waiver is a legal document a contractor or subcontractor signs giving up their right to file a mechanic\'s lien against the property for the amount they\'ve been paid. Lenders and owners often ask for them with a draw, as a record that each sub was paid.',
           whenToUse: [
             'Every time you pay a sub on a bank-financed project',
             'Before issuing the next progress draw to the lender',
