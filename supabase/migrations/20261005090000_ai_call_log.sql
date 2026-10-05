@@ -111,21 +111,16 @@ create table if not exists public.ai_call_log (
   http_status        integer,
   est_cost_micros    bigint,
   price_version      text,
-  constraint ai_call_log_outcome_check
-    check (outcome in ('ok', 'blocked', 'empty', 'error', 'timeout', 'refused')),
+  constraint ai_call_log_outcome_check check (outcome in ('ok', 'blocked', 'empty', 'error', 'timeout', 'refused')),
   -- Identifiers, not prose: short, and nothing but the characters a key uses.
-  constraint ai_call_log_identifiers_check
-    check (feature  ~ '^[A-Za-z0-9._:/-]{1,80}$'
-       and function ~ '^[A-Za-z0-9._:/-]{1,80}$'
-       and provider ~ '^[A-Za-z0-9._:/-]{1,80}$'
-       and model    ~ '^[A-Za-z0-9._:/-]{1,80}$'
-       and (price_version is null or price_version ~ '^[A-Za-z0-9._:/-]{1,40}$')),
-  constraint ai_call_log_counts_check
-    check (coalesce(input_tokens, 0) >= 0 and coalesce(output_tokens, 0) >= 0
-       and coalesce(thinking_tokens, 0) >= 0 and coalesce(cached_tokens, 0) >= 0
-       and coalesce(cache_write_tokens, 0) >= 0 and coalesce(tool_calls, 0) >= 0
-       and coalesce(images, 0) >= 0 and coalesce(pdf_pages, 0) >= 0
-       and coalesce(duration_ms, 0) >= 0 and coalesce(est_cost_micros, 0) >= 0)
+  constraint ai_call_log_feature_check  check (feature  ~ '^[A-Za-z0-9._:/-]{1,80}$'),
+  constraint ai_call_log_function_check check (function ~ '^[A-Za-z0-9._:/-]{1,80}$'),
+  constraint ai_call_log_provider_check check (provider ~ '^[A-Za-z0-9._:/-]{1,80}$'),
+  constraint ai_call_log_model_check    check (model    ~ '^[A-Za-z0-9._:/-]{1,80}$'),
+  constraint ai_call_log_price_version_check check (price_version is null or price_version ~ '^[A-Za-z0-9._:/-]{1,40}$'),
+  -- No negative count (NULL = unknown, and passes).
+  constraint ai_call_log_counts_check check (least(input_tokens, output_tokens, thinking_tokens, cached_tokens, cache_write_tokens, tool_calls, images, pdf_pages, duration_ms, http_status) >= 0),
+  constraint ai_call_log_cost_check check (est_cost_micros >= 0)
 );
 
 comment on table public.ai_call_log is
