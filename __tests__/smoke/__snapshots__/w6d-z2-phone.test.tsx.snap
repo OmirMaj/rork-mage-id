@@ -51,8 +51,8 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
-  "lines": 2071,
-  "sha256": "a5883f96f71e26307d6c1441a47357761285645dbd8025dca8fd3cc06939bb3b",
+  "lines": 2060,
+  "sha256": "6a03916483133ec7db5da8f637a34677cdc23902e7dd323317eb1eb88748bf31",
 }
 `;
 
