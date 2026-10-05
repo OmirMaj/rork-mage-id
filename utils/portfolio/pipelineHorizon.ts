@@ -16,14 +16,10 @@ import type { Project, Invoice, ChangeOrder, Commitment, Lead, SavedAIAPayApp } 
 import type { HomeownerBidResponse } from '@/types';
 import { computeCapacityLoad } from '@/utils/judges/capacityLoad';
 import { computeWIPReport } from '@/utils/financialReports';
-import { addWorkingDays } from '@/utils/scheduleEngine';
+import { scheduleCalendarOf, taskCalendarDay } from '@/utils/scheduleCalendarDate';
 import { outboundBidRecordsFromResponses, bidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { statedBudgetOf } from '@/utils/widgetLeadCore';
 import { toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
-
-function toISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 export interface WinRates {
   /** CRM: % of won+lost leads that were won. null when < 3 decided. */
@@ -180,17 +176,23 @@ export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHoriz
     if (!activeIds.has(p.id)) continue;
     const sched = p.schedule;
     if (!sched?.startDate || !sched.tasks?.length) continue;
-    const start = new Date(sched.startDate + 'T00:00:00Z');
-    if (!Number.isFinite(start.getTime())) continue;
-    const wd = sched.workingDaysPerWeek ?? 5;
-    // Latest end day across all tasks
+    // Latest end day across all tasks — a WORKING-day ordinal (day 1 is the
+    // start date).
     const maxEnd = sched.tasks.reduce(
       (m, t) => Math.max(m, (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1)),
       0,
     );
     if (maxEnd <= 0) continue;
-    const endDate = addWorkingDays(start, maxEnd, wd);
-    const endISO = toISO(endDate);
+    // THE SCHEDULE'S OWN FINISH DAY (2026-10-06). This used to anchor at UTC
+    // midnight (`startDate + 'T00:00:00Z'`), walk with addWorkingDays — which
+    // reads the LOCAL weekday — and read the answer back in UTC, so west of
+    // Greenwich the date could land on a Saturday or a day early after a
+    // clock change. It also added the ordinal as a COUNT (one working day
+    // past the plan) and ignored the schedule's logged closures. It is now
+    // the walk every schedule screen uses (utils/scheduleCalendarDate): local
+    // anchor, working days, closures skipped, local read-back.
+    const endISO = taskCalendarDay(scheduleCalendarOf(sched), maxEnd);
+    if (!endISO) continue;
     if (horizonDate === null || endISO > horizonDate) horizonDate = endISO;
   }
 

@@ -16,7 +16,7 @@ import type {
 } from '@/types';
 import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
-import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
@@ -1432,6 +1432,34 @@ export function scheduleFinishDate(
 }
 
 /**
+ * The calendar day ('YYYY-MM-DD') that WORKING-day ordinal `ordinal` of a
+ * schedule lands on — day 1 is the start date itself. The same walk as
+ * {@link scheduleFinishDate}: the anchor is the plain start day at LOCAL
+ * midnight, addWorkingDays steps LOCAL days (skipping the schedule's weekends
+ * and `nonWorkingDates`), and the answer is read back from LOCAL parts. One
+ * basis end to end, so the day does not depend on the device's time zone.
+ * Null when the schedule has no usable start date.
+ */
+export function scheduleOrdinalDay(
+  schedule: Pick<ProjectSchedule, 'startDate' | 'workingDaysPerWeek' | 'nonWorkingDates'> | null | undefined,
+  ordinal: number,
+): string | null {
+  if (!schedule || !Number.isFinite(ordinal)) return null;
+  const start = parseCalendarDay(toCalendarDate(schedule.startDate));
+  if (!start) return null;
+  try {
+    return toCalendarDayString(addWorkingDays(
+      start,
+      Math.max(0, Math.floor(ordinal) - 1),
+      schedule.workingDaysPerWeek ?? 5,
+      schedule.nonWorkingDates,
+    ));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Is the closeout binder one the homeowner can see?
  *
  * Extracted because TWO sections now depend on the answer: the `closeout`
@@ -2314,17 +2342,20 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       const sch = project.schedule;
       const anchor = toCalendarDate(sch?.startDate);
       if (!sch?.tasks?.length || !anchor) return [];
-      const wpw = sch.workingDaysPerWeek ?? 5;
-      const start = new Date(`${anchor}T00:00:00Z`);
       return placedTasks
         .filter(t => t.isMilestone)
         .map(t => {
           const endDay = (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1);
-          let dateISO: string | undefined;
-          try {
-            dateISO = addWorkingDays(start, Math.max(0, endDay - 1), wpw, sch.nonWorkingDates)
-              .toISOString().slice(0, 10);
-          } catch { dateISO = undefined; }
+          // ONE BASIS (2026-10-06). This used to anchor at UTC midnight
+          // (`${anchor}T00:00:00Z`), walk with addWorkingDays — which reads the
+          // LOCAL weekday — and read the result back in UTC. West of Greenwich
+          // the anchor is the previous local evening, so the walk counted a
+          // local Friday that was already Saturday in UTC: a milestone on
+          // working day 6 of a Monday start was dated the SATURDAY, not the
+          // next Monday, and after the spring clock change every date slid a
+          // further day early. scheduleOrdinalDay is local in, local out — the
+          // hero's own walk (scheduleFinishDate).
+          const dateISO = scheduleOrdinalDay(sch, endDay) ?? undefined;
           return {
             id: t.id,
             title: t.title,
