@@ -23,6 +23,7 @@
 
 import { csvCell } from '@/utils/punchExportCore';
 import { MAX_PASTE_ROWS } from '@/utils/pasteRows';
+import { toCalendarDayString } from '@/utils/calendarDate';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Values
@@ -320,11 +321,40 @@ export function visibleColumnKeys(
     .map((c) => c.key);
 }
 
+/**
+ * The 'YYYY-MM-DD' a raw Date cell prints (2026-10-06). It used to be the UTC
+ * date of the instant, whatever the Date was — so a "created" time of 9 pm in
+ * Denver printed as tomorrow, and 8 am in Tokyo as yesterday.
+ *
+ *  • A Date at EXACTLY UTC midnight is a pure calendar date: it is what
+ *    `new Date('2026-03-14')` gives, and what a `date` column that came back
+ *    as '2026-03-14T00:00:00.000Z' parses to. It names a day, not a moment,
+ *    and prints as that same day in every time zone.
+ *  • Any other Date is an instant and prints on the VIEWER'S local day — the
+ *    day every other screen puts it on (utils/calendarDate).
+ *
+ * A local-midnight Date (parseCalendarDay) is never caught by the first rule
+ * wrongly: local midnight is UTC midnight only where the offset is zero, and
+ * there both rules name the same day. The one thing the first rule misreads
+ * is a true instant that happens to sit on UTC midnight to the millisecond
+ * (6:00:00.000 pm in Denver in summer) — it prints as the UTC day. That is
+ * the price of not being able to tell it from a calendar date, and no column
+ * hands this function a timed instant today.
+ *
+ * A string cell is not touched — a bare 'YYYY-MM-DD' already prints as
+ * written.
+ */
+export function dateCellDay(d: Date): string {
+  const utcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
+  if (!utcMidnight) return toCalendarDayString(d);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 /** The text a cell shows when the column has no render(): unknown → '—'. */
 export function formatCellValue(v: unknown): string {
   if (v === null || v === undefined) return UNKNOWN_CELL;
   if (typeof v === 'number') return Number.isFinite(v) ? String(v) : UNKNOWN_CELL;
-  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.toISOString().slice(0, 10) : UNKNOWN_CELL;
+  if (v instanceof Date) return Number.isFinite(v.getTime()) ? dateCellDay(v) : UNKNOWN_CELL;
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';
   const s = String(v).trim();
   return s ? s : UNKNOWN_CELL;

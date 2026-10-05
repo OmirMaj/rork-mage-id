@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { toCalendarDayString } from '@/utils/calendarDate';
+import { icsInvoiceDueDay, icsWarrantyEndDay, icsAddDays, icsCompactDate } from '@/utils/icsDays';
 import { resolveScheduleAnchor, scheduledPlacements, scheduledTaskRange, type ScheduledPlacement } from '@/utils/scheduleOps';
 import { runCpm } from '@/utils/cpm';
 import { roundHalfAwayFromZero } from '@/utils/formatters';
@@ -109,7 +110,9 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
     if (inv.projectId !== project.id) continue;
     if (inv.status === 'paid') continue;
     if (!inv.dueDate) continue;
-    const iso = toIsoDate(inv.dueDate);
+    // The LOCAL day the app calls this invoice due — not the UTC date of the
+    // stored instant (utils/icsDays).
+    const iso = icsInvoiceDueDay(inv.dueDate);
     if (!iso) continue;
     const amountRemaining = invoiceOutstanding(inv); // MONEY-F5: net of held retention
     const label = amountRemaining > 0 ? ` — ${formatMoney(amountRemaining)} due` : '';
@@ -134,7 +137,7 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
     if (w.projectId !== project.id) continue;
     if (w.status === 'expired' || w.status === 'void') continue;
     if (!w.endDate) continue;
-    const iso = toIsoDate(w.endDate);
+    const iso = icsWarrantyEndDay(w.endDate);
     if (!iso) continue;
     events.push({
       uid: `mageid-warranty-${w.id}@mageid.app`,
@@ -235,10 +238,10 @@ export function buildIcsText(input: BuildIcsTextInput): string {
     lines.push('BEGIN:VEVENT');
     lines.push(`UID:${ev.uid}`);
     lines.push(`DTSTAMP:${nowStamp}`);
-    lines.push(`DTSTART;VALUE=DATE:${toCompactDate(ev.startDate)}`);
+    lines.push(`DTSTART;VALUE=DATE:${icsCompactDate(ev.startDate)}`);
     // All-day DTEND is exclusive — add 1 day to the inclusive endDate.
-    const endExclusive = addDays(ev.endDate, 1) ?? ev.endDate;
-    lines.push(`DTEND;VALUE=DATE:${toCompactDate(endExclusive)}`);
+    const endExclusive = icsAddDays(ev.endDate, 1) ?? ev.endDate;
+    lines.push(`DTEND;VALUE=DATE:${icsCompactDate(endExclusive)}`);
     lines.push(`SUMMARY:${escapeText(ev.summary)}`);
     if (ev.description) {
       lines.push(`DESCRIPTION:${escapeText(ev.description)}`);
@@ -318,30 +321,6 @@ export async function exportProjectIcs(input: BuildProjectEventsInput): Promise<
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function toIsoDate(input: string): string | null {
-  // Accept "YYYY-MM-DD" or ISO datetime; normalize to "YYYY-MM-DD".
-  if (!input) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
-  const t = Date.parse(input);
-  if (Number.isNaN(t)) return null;
-  return new Date(t).toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, days: number): string | null {
-  const base = toIsoDate(iso);
-  if (!base) return null;
-  // Build at noon UTC to sidestep DST edge cases when re-serializing.
-  const d = new Date(`${base}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function toCompactDate(iso: string): string {
-  // "2026-04-24" → "20260424"
-  return iso.replace(/-/g, '');
-}
 
 function icsTimestamp(isoString: string): string {
   // "2026-04-24T12:34:56.789Z" → "20260424T123456Z"
