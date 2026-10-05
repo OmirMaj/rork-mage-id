@@ -306,6 +306,42 @@ describe('lane P1 — android 1100 (isDesktop true, desktopWeb false)', () => {
   });
 });
 
+// ── 2b. LANDSCAPE-0: the one screen that turns ────────────────────────────
+// The viewer is the only route on the landscape allow-list
+// (scripts/validate-landscape-lock.ts). An iPhone on its side is 852 × 393:
+// the tools become a column on the right edge so the drawing keeps the height,
+// and nothing desktop appears (it is still a phone: utils/nativePhone).
+describe('LANDSCAPE-0 — the plan viewer on an iPhone held sideways (852 × 393)', () => {
+  jest.setTimeout(120000);
+  it('upright it is the bottom row it always was', async () => {
+    await mountAt('ios', 393, 852, `/plan-viewer?sheetId=${A101_R2}`);
+    const toolbar = hostParent(screen.getByTestId('plan-viewer-tool-draw') as unknown as { parent: unknown });
+    const st = flat(toolbar!.props.style);
+    expect(st.flexDirection).toBe('row');
+    expect(st.position).toBeUndefined();
+  });
+  it('sideways the tools are a 72 pt column pinned to the right, and there is no rail', async () => {
+    await mountAt('ios', 852, 393, `/plan-viewer?sheetId=${A101_R2}`);
+    expect(screen.getByTestId('plan-viewer-revision-row')).toBeTruthy();
+    expect(screen.queryByTestId('plan-viewer-rail-toggle')).toBeNull();
+    expect(screen.queryAllByTestId(/^plan-rail-/)).toHaveLength(0);
+    const toolbar = hostParent(screen.getByTestId('plan-viewer-tool-draw') as unknown as { parent: unknown });
+    const st = flat(toolbar!.props.style);
+    expect(st.flexDirection).toBe('column');
+    expect(st.position).toBe('absolute');
+    expect(st.width).toBe(72);
+    expect(st.bottom).toBe(0);
+    // Every tool is still there, and each shares the column's height.
+    for (const id of ['plan-viewer-tool-draw', 'plan-viewer-tool-calibrate']) {
+      expect(flat((screen.getByTestId(id) as unknown as { props: { style: unknown } }).props.style).flex).toBe(1);
+    }
+  });
+  it('sideways with the pin sheet open: the sheet accepts landscape', async () => {
+    await mountAt('ios', 852, 393, `/plan-viewer?sheetId=${A101_R2}&punchId=punch-1`);
+    expect(screen.getByTestId('pin-raise-rfi')).toBeTruthy();
+  });
+});
+
 // ── 3. Desktop web: the grid, the chips, the rail (behaviour, not pixels) ────
 // useIsDesktopWeb() is forced on at 1512 × 945 (see the mock above). The
 // arrow-key flips cannot run here (no DOM, so useHotkeys registers nothing);

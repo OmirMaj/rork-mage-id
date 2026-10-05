@@ -34,8 +34,8 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { X } from 'lucide-react-native';
 import { Button, Card } from '@/components/ui';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
@@ -55,7 +55,7 @@ const noop = () => {};
 export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const wide = width >= WIDE_BREAKPOINT;
 
   // The last open step, kept so the closing slide shows what he just answered

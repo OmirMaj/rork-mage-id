@@ -29,7 +29,8 @@
 //     Phase 7 — snapshot-URL pattern already proven with the client portal.
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal, ActivityIndicator, AppState, type TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, Modal, ActivityIndicator, AppState, type TextInput } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -282,7 +283,7 @@ function ScheduleProScreenInner() {
   // unhandled GO_BACK and the control silently does nothing — see
   // hooks/useSafeBack.ts (audit UX-F18).
   const goBack = useSafeBack();
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const {
     projectId: paramProjectId, taskId: paramTaskId, editSeed: paramEditSeed, focus: paramFocus,
   } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string }>();

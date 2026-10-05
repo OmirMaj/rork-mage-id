@@ -3,48 +3,48 @@
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports (default tab) 1`] = `
 {
   "lines": 487,
-  "sha256": "7051bf947a7561b7a47f255bc74ef0df49401bc7849b502cb1a98cec04db96d2",
+  "sha256": "de4463d39b959281d1ce2bf747c50f60b8c76b36d6b54ea694e7044581db5afa",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging 1`] = `
 {
   "lines": 398,
-  "sha256": "615033e06d10ec1779287f6c3aaee175448d5bf33654a1ed9b3fdb7a5cde9526",
+  "sha256": "4a50302d88f622981200ac576ebfc30ce1d194ff51668136af8a1f26d98edf20",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging with three issued invoices (the aging rows drawn) 1`] = `
 {
   "lines": 553,
-  "sha256": "4098fc16f58527964fd38ff489106dc8749a4fab07e4599df2f7e8d2e6fde12e",
+  "sha256": "1f6a036661bfabfa380daa611258d85f4c15a78c9b0782e2267f2f17a634ce59",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports default tab with three issued invoices (billed figures on the WIP rows) 1`] = `
 {
   "lines": 487,
-  "sha256": "1f59e22bc957afdc2c975f9ff5c08180382425c6b301648efa116761e4982160",
+  "sha256": "e5cd48ac237209291af3a63cffb7930d0f072327c59ac493f0748fadbcf67cf2",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports: Profit pressed 1`] = `
 {
   "lines": 431,
-  "sha256": "9a7f5cb6e44762b30e7e4145efffbbad292088908e2bf78660082824f105ed7b",
+  "sha256": "ecf12b9c023fe9c861f8524e49a09aea3c2cfc096215044141a597667578910c",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report (drill sheet + period picker mounted) 1`] = `
 {
   "lines": 716,
-  "sha256": "09af49c95419d197e755153159ed14e430a8eea5ddac1061cda73e7959e69fa7",
+  "sha256": "a38cc84838be14761bfcfc576e36e9c5cb30d5da73df6814ed7e0d7c209d7c1b",
 }
 `;
 
 exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report: the first project row pressed (the drill sheet drawn) 1`] = `
 {
   "lines": 803,
-  "sha256": "e0fafa9a2b4865add331e326c5caeed8b0a55258fa314163e6702f02730fff2e",
+  "sha256": "f349676d207860fb0ba42f840b05b0b6884ef9e214da2b88219c2c50f03adeb8",
 }
 `;

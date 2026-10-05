@@ -8,9 +8,10 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, useWindowDimensions,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
   type LayoutChangeEvent,
 } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -94,7 +95,7 @@ export default function ScheduleReviewScreen() {
   const { getProject, updateProject, projects, subcontractors, contacts, delayEvents } = useProjects();
   const projectRole = useProjectRole(projectId);
   const { tier } = useSubscription();
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const { canAccess } = useTierAccess();
   const { isDesktop } = useResponsiveLayout();
   const isDesktopWeb = useIsDesktopWeb();

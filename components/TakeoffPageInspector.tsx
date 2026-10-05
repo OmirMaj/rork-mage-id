@@ -15,6 +15,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Image, Platform, Dimensions, ActivityIndicator,
 } from 'react-native';
+import { breakpointWidth } from '@/utils/nativePhone';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Ruler, Square, DoorOpen, AppWindow, Paintbrush, Wrench, Boxes, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -147,7 +148,8 @@ function TakeoffPageInspectorImpl({
   // content box (less its 24 px padding) on desktop, so the page image is sized
   // to the panel rather than to the whole window behind it.
   const frameW = fP.isDesktop ? Math.min(screenW, Layout.sheet.panel) - 48 : screenW;
-  const isWide = frameW >= 760;
+  // A native phone turned sideways keeps the stacked phone layout (utils/nativePhone).
+  const isWide = breakpointWidth(Platform.OS, frameW, screenH) >= 760;
   const imgMaxH = screenH - insets.top - insets.bottom - 220;
 
   return (

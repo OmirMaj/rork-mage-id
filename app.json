@@ -25,6 +25,11 @@
         "NSPhotoLibraryAddUsageDescription": "MAGE ID saves project photos and rendered PDFs to your photo library when you tap Save / Share.",
         "NSLocationWhenInUseUsageDescription": "MAGE ID uses your location only in response to something you tap, and never in the background. It reads a position when you add a jobsite photo or field-verify a takeoff row, so the record carries GPS proof; when you sign a field ticket, so the signature is stamped where it was signed; and when you tap \"Use my location\" or \"Near me\" to sort nearby projects, jobs and companies by distance. It also asks for this permission when you tap \"Verify\" on a project address you are posting, which looks the address up rather than reading where you are.",
         "NSFaceIDUsageDescription": "MAGE ID uses Face ID to sign you back in without re-typing your password.",
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
         "UIApplicationShortcutItems": [
           {
             "UIApplicationShortcutItemType": "com.mageid.app.shortcut.new-photo",
