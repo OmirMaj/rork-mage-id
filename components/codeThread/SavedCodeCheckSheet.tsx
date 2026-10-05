@@ -28,7 +28,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCodeChecks, useCodeCheckSyncState } from '@/hooks/useCodeChecks';
 import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
-import { isStandInLine, ownWordsProse, passesEchoCheck } from '@/utils/codeCard/echoCheck';
+import { isStandInLine, ownWordsProse, passesEchoCheck, withheldNotice } from '@/utils/codeCard/echoCheck';
+import { savedOwnWordsLines, type SavedLines } from '@/utils/codeThread/savedLines';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
 import type { CodeCheckRecord, CodeThreadSection, CodeThreadSourceKind } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
@@ -73,16 +74,31 @@ export function savedRequirementWords(requirement: string | null | undefined): s
  * 'codes' that is the bare requirement, the same as the result sheet: the
  * recalled code + section number stays on the bullet (labelled by the recall
  * note) and never lands unlabelled in a draft RFI to the architect.
+ *
+ * THE LISTS (permits, inspections, common violations) are AI lines. A check
+ * saved before the list gate holds them raw, so each is gated HERE, at print
+ * (utils/codeThread/savedLines: the kit's list gate, a line whole or not at
+ * all). `withheld` / `sections` / `noticeAt` say what was hidden and where the
+ * one notice goes; `indexes[i]` is the stored position of `items[i]`, which is
+ * what an action is recorded against. The stored record is never changed.
  */
-export function recordSections(
-  rec: CodeCheckRecord,
-): { section: CodeThreadSection; title: string; items: string[]; actionTexts: string[] }[] {
+export interface SavedSection {
+  section: CodeThreadSection;
+  title: string;
+  items: string[];
+  actionTexts: string[];
+  indexes: number[];
+  withheld: number;
+  sections: string[];
+  noticeAt: number;
+}
+
+export function recordSections(rec: CodeCheckRecord): SavedSection[] {
   const r = rec.result;
   const codes = r?.applicableCodes ?? [];
-  const plain = (section: CodeThreadSection, title: string, list: string[] | undefined) => {
-    const items = list ?? [];
-    return { section, title, items, actionTexts: items };
-  };
+  const gated = (section: CodeThreadSection, title: string, lines: SavedLines): SavedSection => (
+    { section, title, ...lines, actionTexts: lines.items }
+  );
   return [
     {
       section: 'codes',
@@ -92,11 +108,34 @@ export function recordSections(
         return [c.code, c.section].filter(Boolean).join(' ') + (words ? `: ${words}` : '');
       }),
       actionTexts: codes.map((c) => c.requirement ?? '').map(savedRequirementWords),
+      // A code row is never left out (it prints its citation alone), so nothing moves.
+      indexes: codes.map((_, i) => i),
+      withheld: 0,
+      sections: [],
+      noticeAt: -1,
     },
-    plain('permits', 'Permits', r?.permitsRequired),
-    plain('inspections', 'Inspections', r?.inspections),
-    plain('violations', 'Common violations', r?.commonViolations),
+    gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),
+    gated('inspections', 'Inspections', savedOwnWordsLines(r?.inspections)),
+    gated('violations', 'Common violations', savedOwnWordsLines(r?.commonViolations)),
   ];
+}
+
+/**
+ * "What you told it": each line is the AI's QUESTION and his answer, so the
+ * line is gated whole, the same way the live result prints it.
+ */
+export function savedAnswerLines(rec: CodeCheckRecord): SavedLines {
+  return savedOwnWordsLines((rec.answers ?? []).map((a) => `${a.question} ${a.answer}`));
+}
+
+/**
+ * The notice a saved list prints ONCE, at the place of its first hidden line:
+ * the live Code Check result's own words (withheldNotice) with the section
+ * numbers the hidden lines named. This sheet renders no viewer link, so the
+ * notice names none.
+ */
+export function savedWithheldNotice(lines: Pick<SavedLines, 'withheld' | 'sections' | 'noticeAt'>, at: number): string {
+  return lines.withheld === 0 || at !== lines.noticeAt ? '' : withheldNotice(lines.sections);
 }
 
 export function SavedCodeCheckSheet({ record: recordProp, project, visible, onClose }: SavedCodeCheckSheetProps): React.ReactElement {
@@ -109,6 +148,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
   const syncState = useCodeCheckSyncState(recordProp.projectId);
   const record = checks.find((c) => c.id === recordProp.id) ?? recordProp;
   const g = record.grounding;
+  const answerLines = savedAnswerLines(record);
 
   const runAgain = () => {
     onClose();
@@ -149,12 +189,16 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
             </Text>
             {recordLine ? <Text style={styles.body}>{recordLine}</Text> : null}
 
-            {record.answers?.length ? (
+            {answerLines.items.length > 0 || answerLines.withheld > 0 ? (
               <View style={styles.block}>
                 <Text style={styles.blockTitle}>What you told it</Text>
-                {record.answers.map((a) => (
-                  <Text key={a.questionId} style={styles.body}>{`${a.question} ${a.answer}`}</Text>
+                {answerLines.items.map((line, k) => (
+                  <React.Fragment key={`answer-${k}`}>
+                    <SavedWithheld lines={answerLines} at={k} testID="codethread-saved-answers-withheld" />
+                    <Text style={styles.body}>{line}</Text>
+                  </React.Fragment>
                 ))}
+                <SavedWithheld lines={answerLines} at={answerLines.items.length} testID="codethread-saved-answers-withheld" />
               </View>
             ) : null}
 
@@ -168,11 +212,12 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
             ) : null}
 
             {recordSections(record).map((s) =>
-              s.items.length === 0 ? null : (
+              s.items.length === 0 && s.withheld === 0 ? null : (
                 <View key={s.section} style={styles.block}>
                   <Text style={styles.blockTitle}>{s.title}</Text>
                   {s.items.map((text, i) => (
                     <View key={`${s.section}-${i}`} style={styles.item}>
+                      <SavedWithheld lines={s} at={i} testID={`codethread-saved-${s.section}-withheld`} />
                       <Text style={styles.body}>{`• ${text}`}</Text>
                       {/* A code row with no requirement in words has nothing to
                           put in a permit, a punch item or an RFI: it says why. */}
@@ -183,7 +228,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
                           record={record}
                           project={project}
                           section={s.section}
-                          index={i}
+                          index={s.indexes[i] ?? i}
                           text={s.actionTexts[i] ?? text}
                           onBeforeNavigate={onClose}
                           key={`${s.section}-${i}-${s.actionTexts[i] ?? ''}`}
@@ -191,6 +236,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
                       )}
                     </View>
                   ))}
+                  <SavedWithheld lines={s} at={s.items.length} testID={`codethread-saved-${s.section}-withheld`} />
                 </View>
               ),
             )}
@@ -212,6 +258,13 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
       </SheetOverlay>
     </Modal>
   );
+}
+
+/** A saved list's notice, at its place: mounted before every line and once after the last, it prints at one of them only. */
+function SavedWithheld({ lines, at, testID }: { lines: Pick<SavedLines, 'withheld' | 'sections' | 'noticeAt'>; at: number; testID: string }) {
+  const styles = useThemedStyles(makeStyles);
+  const said = savedWithheldNotice(lines, at);
+  return said ? <Text style={styles.fine} testID={testID}>{said}</Text> : null;
 }
 
 const makeStyles = (t: ThemeColors) =>

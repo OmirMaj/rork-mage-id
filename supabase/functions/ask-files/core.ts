@@ -42,6 +42,23 @@ export const MESSAGE_SOURCE_ENABLED = false;     // mode 'message' (a client's p
  * 2026-10-10T11:00:00-04:00. A date alone, or a time with no zone, is read as
  * unset (every message is refused as before_notice), and the validator fails
  * on it. The app's MESSAGE_AI_NOT_BEFORE carries the same string.
+ *
+ * WHAT THIS CUT-OFF DOES NOT BIND (security check, 2026-10-04). It is compared
+ * with the created_at of the portal_messages row the file hangs on, and that
+ * row is trusted to be the client's own message. It is not always: the project
+ * OWNER may insert rows with author_type = 'client' in his own portal (the
+ * policy "gc records client message in own portal", migration
+ * 20260713150001, kept for the in-app client preview; created_at is whatever
+ * the insert says, or now()). So an owner can re-file a file a client sent
+ * BEFORE the notice under a new message dated after it, and this function
+ * will read it. The cut-off therefore binds a client's message as the client
+ * sent it, not an owner who re-files one. Nothing in this function can tell
+ * the two apart.
+ * Closing it is a database change (tighten that INSERT policy so only the
+ * portal's own writer can create author_type = 'client' rows, and force
+ * created_at to now() on insert). It is NOT made here: it is a listed
+ * decision that must be taken before MESSAGE_SOURCE_ENABLED is ever true
+ * (attach-specs/GO-LIVE.md, "Before switch B").
  */
 export const MESSAGE_SOURCE_NOT_BEFORE = '';
 /**
@@ -63,6 +80,27 @@ export const BODY_MAX_BYTES = 9437184;
 export const PDF_MAX_PAGES = 20;
 export const QUESTION_MAX = 2000;
 export const MAX_OUTPUT_TOKENS = 8192;
+/**
+ * The most tokens the model may spend thinking before it answers.
+ * gemini-2.5-flash thinks by default with a budget it picks itself
+ * (thinkingBudget -1, "dynamic"), and what it thinks is taken out of
+ * maxOutputTokens: on a long PDF the thinking could use the whole 8,192 and
+ * the answer came back empty with finishReason MAX_TOKENS. A fixed budget
+ * leaves at least MAX_OUTPUT_TOKENS - THINKING_BUDGET tokens for the answer.
+ * Field: generationConfig.thinkingConfig.thinkingBudget (an integer; 2.5 Flash
+ * takes 0 to 24576, 0 turns thinking off, -1 is dynamic).
+ * Source: https://ai.google.dev/gemini-api/docs/generate-content/thinking
+ * (read 2026-10-05).
+ */
+export const THINKING_BUDGET = 1024;
+/**
+ * Model calls that are NOT charged (the provider declined, or the answer ran
+ * out of room before it said anything) are free this many times per user per
+ * hour. Past it, or when the counter cannot be read, the next one is charged
+ * like an empty answer (unchargedOutcome below), so a caller cannot make
+ * model calls for free without end.
+ */
+export const UNCHARGED_HOURLY_LIMIT = 5;
 export const ANSWER_MAX = 8000;
 export const SUMMARY_MAX = 1200;
 export const ASKS_MAX = 5;
@@ -107,6 +145,7 @@ export const ERROR_TEXT = {
   too_many_pages: `A PDF has more than ${PDF_MAX_PAGES} pages.`,
   unreadable_file: 'A file could not be read.',
   blocked: 'The AI service declined to read these files. This read was not counted.',
+  cut_off: 'The AI ran out of room before it answered. Ask about fewer pages or ask a shorter question. This read was not counted.',
 } as const;
 export type ErrorCode = keyof typeof ERROR_TEXT;
 
@@ -136,7 +175,7 @@ export function monthlyCapText(cap: number, tier: string): string {
 // as the two writers spell them, the rule's own length limits); the validators
 // run both against one corpus and fail when they disagree.
 // deno-lint-ignore no-control-regex
-export const PLAN_KEY_FORBIDDEN = /[%\\?#\s\u0000-\u001f\u007f-￿]/;
+export const PLAN_KEY_FORBIDDEN = /[%\\?#\s\u0000-\u001f\u007f-\uffff]/;
 export const PLAN_KEY_MAX = 256;
 const PLAN_PROJECT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PLAN_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -443,7 +482,7 @@ export function messageText(files: ReadonlyArray<PromptFile>, body: unknown): st
 export interface ModelRequest {
   systemInstruction: { parts: [{ text: string }] };
   contents: [{ role: 'user'; parts: Array<InlinePart | { text: string }> }];
-  generationConfig: { temperature: number; maxOutputTokens: number; responseMimeType?: 'application/json' };
+  generationConfig: { temperature: number; maxOutputTokens: number; thinkingConfig: { thinkingBudget: number }; responseMimeType?: 'application/json' };
 }
 
 const fileParts = (parts: ReadonlyArray<InlinePart>): InlinePart[] =>
@@ -454,7 +493,7 @@ export function buildAskRequest(parts: ReadonlyArray<InlinePart>, files: Readonl
   return {
     systemInstruction: { parts: [{ text: ASK_SYSTEM }] },
     contents: [{ role: 'user', parts: [...fileParts(parts), { text: askText(files, question) }] }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS },
+    generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS, thinkingConfig: { thinkingBudget: THINKING_BUDGET } },
   };
 }
 
@@ -463,7 +502,7 @@ export function buildMessageRequest(parts: ReadonlyArray<InlinePart>, files: Rea
   return {
     systemInstruction: { parts: [{ text: MESSAGE_SYSTEM }] },
     contents: [{ role: 'user', parts: [...fileParts(parts), { text: messageText(files, body) }] }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS, responseMimeType: 'application/json' },
+    generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS, thinkingConfig: { thinkingBudget: THINKING_BUDGET }, responseMimeType: 'application/json' },
   };
 }
 
@@ -472,14 +511,19 @@ const BLOCKED_FINISH = ['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT
 
 export type GeminiAnswer =
   | { kind: 'blocked' }
+  | { kind: 'cut' }
   | { kind: 'empty' }
   | { kind: 'text'; text: string; truncated: boolean };
 
 /**
- * 'blocked' when the provider declined (never charged), 'empty' when it
- * answered with nothing usable (charged: the spend was real), else the text
- * of the first candidate. A part marked as the model's own reasoning is not
- * part of the answer.
+ * 'blocked' when the provider declined, 'cut' when it stopped at the token
+ * limit before it wrote any answer (finishReason MAX_TOKENS and no text: the
+ * room went on thinking), 'empty' when it answered with nothing usable
+ * (charged: the spend was real), else the text of the first candidate. A part
+ * marked as the model's own reasoning is not part of the answer.
+ *
+ * 'blocked' and 'cut' are not charged while the caller is under
+ * UNCHARGED_HOURLY_LIMIT for the hour (unchargedOutcome).
  *
  * `truncated` is true whenever the provider gave a reason for stopping other
  * than STOP (the token limit, or a stop part-way for safety or recitation):
@@ -499,8 +543,24 @@ export function readGeminiAnswer(json: unknown): GeminiAnswer {
   for (const p of parts) {
     if (isPlainObject(p) && typeof p.text === 'string' && p.thought !== true) text += p.text;
   }
-  if (text.trim() === '') return BLOCKED_FINISH.includes(finish) ? { kind: 'blocked' } : { kind: 'empty' };
+  if (text.trim() === '') {
+    if (BLOCKED_FINISH.includes(finish)) return { kind: 'blocked' };
+    return finish === 'MAX_TOKENS' ? { kind: 'cut' } : { kind: 'empty' };
+  }
   return { kind: 'text', text, truncated: finish !== '' && finish !== 'STOP' };
+}
+
+/**
+ * Whether a model call that gave nothing to charge for ('blocked', 'cut') is
+ * free. `count` is what the rate limiter answered for this caller's
+ * uncharged bucket AFTER counting this one: 1 for the first this hour. Free
+ * up to `limit`; past it 'charged'. A count that is not a whole number of 1
+ * or more (the limiter answers -1 when it cannot be reached) is 'charged':
+ * fail closed.
+ */
+export function unchargedOutcome(count: unknown, limit: number = UNCHARGED_HOURLY_LIMIT): 'free' | 'charged' {
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) return 'charged';
+  return count <= limit ? 'free' : 'charged';
 }
 
 /** The answer as the app shows it: trimmed, cut to ANSWER_MAX characters. */

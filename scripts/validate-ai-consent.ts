@@ -550,6 +550,55 @@ function listClientFiles(): string[] {
   return out;
 }
 
+/**
+ * Top-level directories Metro can never put in the app bundle, each with why.
+ * EVERY OTHER top-level directory is swept by listBundledFiles (the list is
+ * read from the disk, so a source directory added later is covered the day it
+ * is added, with nobody remembering to list it).
+ */
+const NOT_BUNDLED: Record<string, string> = {
+  node_modules: 'third-party packages (the switch is this repo\'s own global; a package cannot be edited in a commit)',
+  __tests__: 'jest suites: never imported by app code; a suite may set the switch for its own run',
+  scripts: 'bun validators: never imported by app code; a validator may set the switch for its own run',
+  supabase: 'the server (Deno edge functions and SQL): another runtime, never bundled',
+  docs: 'documents',
+  marketing: 'the static marketing site: its own pages, not the app bundle',
+  android: 'native project',
+  ios: 'native project',
+};
+/**
+ * Every source file Metro COULD bundle: .ts / .tsx / .js / .jsx / .mjs / .cjs
+ * under every top-level directory that is not in NOT_BUNDLED (constants/,
+ * i18n/, modules/, mocks/, stubs/, types/, plugins/, … and whatever is added
+ * later), plus the source files at the repo root (the Metro and Babel config
+ * and any entry file). Metro bundles what an import resolves to, not what a
+ * list says, so a file in any of them can end up in the app.
+ */
+function listBundledFiles(): { files: string[]; dirs: string[] } {
+  const out: string[] = [];
+  const dirs: string[] = [];
+  const SOURCE = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
+  const walk = (d: string) => {
+    for (const f of readdirSync(join(ROOT, d))) {
+      if (f === 'node_modules' || f === '__tests__' || f.startsWith('.')) continue;
+      const rel = join(d, f);
+      const st = statSync(join(ROOT, rel));
+      if (st.isDirectory()) walk(rel);
+      else if (SOURCE.test(f) && !/\.d\.ts$/.test(f)) out.push(rel);
+    }
+  };
+  for (const f of readdirSync(ROOT).sort()) {
+    if (f.startsWith('.')) continue;
+    const st = statSync(join(ROOT, f));
+    if (st.isDirectory()) {
+      if (Object.prototype.hasOwnProperty.call(NOT_BUNDLED, f)) continue;
+      dirs.push(f);
+      walk(f);
+    } else if (SOURCE.test(f) && !/\.d\.ts$/.test(f)) out.push(f);
+  }
+  return { files: out, dirs };
+}
+
 /** Edge functions whose code reaches an AI vendor (derived, not listed). */
 function aiFunctions(): Set<string> {
   const FN_DIR = join(ROOT, 'supabase', 'functions');
@@ -808,9 +857,24 @@ function partC() {
       && !/\b(Bun|process|navigator)\b/.test(core)
       && /\} catch \{\s*return false;\s*\}/.test(topBlock(core, 'export function aiConsentHeadless(): boolean {')));
     const SWITCH_NAME = /__MAGEID_AI_CONSENT_HEADLESS__|AI_CONSENT_HEADLESS_SWITCH|aiConsentHeadless/;
-    const naming = files.filter((f) => f !== CORE && SWITCH_NAME.test(read(f)));
-    ok('no file under app/, components/, hooks/, contexts/, lib/ or utils/ sets the headless switch: none even names it (comments included)',
-      files.includes(CORE) && files.length > 300 && naming.length === 0, naming.join(', '));
+    // EVERY directory Metro bundles from, not six named ones: a file under
+    // constants/, i18n/, modules/, mocks/, stubs/ (or a directory added next
+    // month) is bundled the moment something imports it.
+    const bundled = listBundledFiles();
+    const naming = bundled.files.filter((f) => f !== CORE && SWITCH_NAME.test(read(f)));
+    ok(`no file Metro could bundle sets the headless switch: none even names it, comments included (${bundled.files.length} files under ${bundled.dirs.length} top-level directories and the repo root)`,
+      bundled.files.includes(CORE) && bundled.files.length > 300 && naming.length === 0, naming.join(', '));
+    const mustSweep = ['app', 'components', 'hooks', 'contexts', 'lib', 'utils', 'constants', 'i18n', 'modules', 'mocks', 'stubs', 'types'];
+    ok('…the sweep is read from the disk: every top-level directory is swept unless it is one of the eight that can never be bundled, and the six it used to stop at plus constants/, i18n/, modules/, mocks/, stubs/ and types/ are all in it',
+      mustSweep.filter((d) => existsSync(join(ROOT, d))).every((d) => bundled.dirs.includes(d)) && ['constants', 'i18n', 'modules', 'mocks', 'stubs'].every((d) => existsSync(join(ROOT, d)))
+      && Object.keys(NOT_BUNDLED).sort().join() === '__tests__,android,docs,ios,marketing,node_modules,scripts,supabase' && bundled.dirs.every((d) => !(d in NOT_BUNDLED))
+      && readdirSync(ROOT).filter((f) => !f.startsWith('.') && statSync(join(ROOT, f)).isDirectory()).every((d) => bundled.dirs.includes(d) !== (d in NOT_BUNDLED))
+      && files.every((f) => bundled.files.includes(f))
+      && ['constants/featureFlags.ts', 'i18n/index.ts', 'mocks/bids.ts', 'stubs/react-native-reanimated-absent.js', 'metro.config.js'].every((f) => bundled.files.includes(f)),
+      `swept: ${bundled.dirs.join(', ')}`);
+    ok('…and the sweep is live: the switch’s name is found in a file that names it, spelled any of the three ways',
+      SWITCH_NAME.test(read(CORE)) && ['globalThis.__MAGEID_AI_CONSENT_HEADLESS__ = true;', '(globalThis as any)[AI_CONSENT_HEADLESS_SWITCH] = true;', 'if (aiConsentHeadless()) run();'].every((t) => SWITCH_NAME.test(t))
+      && !SWITCH_NAME.test('const headless = true;'));
     const wrapper = stripComments(read('utils/aiConsent.ts'));
     ok('utils/aiConsent.ts (the app’s gate) builds the gate with storage only: createAiConsentGate({ storage: AsyncStorage })',
       wrapper.includes('const gate = createAiConsentGate({ storage: AsyncStorage });'));

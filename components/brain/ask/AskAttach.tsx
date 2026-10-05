@@ -45,6 +45,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useAskCopy } from '@/hooks/useAskCopy';
@@ -145,7 +146,10 @@ export function AskAttach({ files, onAdd, anchorProjectId, disabled }: AskAttach
   // isPaused: a read waiting for a network has not answered, so it is never
   // read as "not on this job".
   const { role, isLoading, isError, isPaused } = useProjectRoleState(anchorProjectId ?? undefined);
-  const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, role, isLoading, isError, isPaused });
+  // With no user id the role hook answers a settled null without asking
+  // anybody: that is "couldn't check", never "you are not on this job".
+  const { user } = useAuth();
+  const planBlock = askPlanRowBlock({ hasJob: !!anchorProjectId, hasUser: !!user?.id, role, isLoading, isError, isPaused });
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'plan'>('menu');

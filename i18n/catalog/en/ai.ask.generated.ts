@@ -27,6 +27,7 @@ export const EN: EnCatalog = {
   "ai.ask.files.attach.a11y": "Attach a photo, PDF or plan page",
   "ai.ask.files.codeWithheld": "MAGE left out a part that read like building-code text. Read the section in the code itself.",
   "ai.ask.files.err.blocked": "The AI service declined to read these files. This read was not counted.",
+  "ai.ask.files.err.cutOff": "MAGE ran out of room before it could answer. Ask about fewer pages or ask a shorter question. This read was not counted.",
   "ai.ask.files.err.daily": "You've used today's advanced AI calls. {reset}.",
   "ai.ask.files.err.dailyUpgrade": "Today's advanced AI calls are used up. More are on a higher plan. Opening plans.",
   "ai.ask.files.err.generic": "Something went wrong reading the files. Try again.",

@@ -86,18 +86,23 @@ export type AskPlanRowBlock = 'noJob' | 'checking' | 'unknown' | 'notOnJob' | 'n
  *               is how hooks/useProjectRole reports someone who is not on the
  *               job. Nothing is asked to be tried again: a retry gives the
  *               same answer. Said only on exactly that state; anything short
- *               of it (a missing flag, a role that is not text) is 'unknown';
+ *               of it (a missing flag, a role that is not text) is 'unknown'.
+ *               AND ONLY WHEN WE KNOW WHO IS ASKING (`hasUser`): with no user
+ *               id (the session has not loaded yet, or it just ended)
+ *               utils/projectRole resolveRoleState answers the same settled
+ *               null without asking anybody, so that state is "couldn't
+ *               check" ('unknown'), never "you are not on this job";
  *   'notOwner'  he has a seat on the job (editor, viewer, field), not the owner's.
  */
 export function askPlanRowBlock(i: {
-  hasJob: boolean; role: string | null | undefined; isLoading: boolean; isError: boolean; isPaused: boolean;
+  hasJob: boolean; hasUser: boolean; role: string | null | undefined; isLoading: boolean; isError: boolean; isPaused: boolean;
 }): AskPlanRowBlock | null {
   if (i.hasJob !== true) return 'noJob';
   if (i.role === 'owner') return null;
   if (i.isLoading === true) return 'checking';
   if (i.isError === true) return 'unknown';
   if (typeof i.role === 'string' && i.role !== '') return 'notOwner';
-  if (i.role === null && i.isLoading === false && i.isError === false && i.isPaused === false) return 'notOnJob';
+  if (i.hasUser === true && i.role === null && i.isLoading === false && i.isError === false && i.isPaused === false) return 'notOnJob';
   return 'unknown';
 }
 
@@ -188,7 +193,7 @@ export function withoutFileTurns<T extends { files?: unknown; read?: unknown }>(
 
 export type AskFilesErrKey =
   | 'offline' | 'timeout' | 'network' | 'plan' | 'unavailable' | 'tooLarge' | 'tooLargeTogether'
-  | 'pages' | 'unreadable' | 'count' | 'type' | 'blocked' | 'noAnswer' | 'service' | 'signIn'
+  | 'pages' | 'unreadable' | 'count' | 'type' | 'blocked' | 'cutOff' | 'noAnswer' | 'service' | 'signIn'
   | 'off' | 'generic';
 
 const ERR_KEY: Readonly<Record<string, AskFilesErrKey>> = {
@@ -205,6 +210,7 @@ const ERR_KEY: Readonly<Record<string, AskFilesErrKey>> = {
   too_many_files: 'count',
   unsupported_type: 'type',
   blocked: 'blocked',
+  cut_off: 'cutOff',
   no_answer: 'noAnswer',
   upstream_timeout: 'service',
   upstream_error: 'service',
@@ -255,6 +261,7 @@ export function askFilesSentence(outcome: AskFilesFailure, copy: AskCopy['files'
     case 'plan': out = copy.errPlan; break;
     case 'unavailable': out = copy.errUnavailable; break;
     case 'blocked': out = copy.errBlocked; break;
+    case 'cutOff': out = copy.errCutOff; break;
     case 'noAnswer': out = copy.errNoAnswer; break;
     case 'service': out = copy.errService; break;
     case 'signIn': out = copy.errSignIn; break;
