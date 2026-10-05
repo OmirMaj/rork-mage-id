@@ -16,6 +16,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { latestGuardIsAllowList } from './guard-allowlist-check';
 
 type TranspilerCtor = new (o: { loader: string }) => { transformSync(s: string): string };
 const Transpiler = (globalThis as unknown as { Bun: { Transpiler: TranspilerCtor } }).Bun.Transpiler;
@@ -110,6 +111,17 @@ ok('an unreachable server with a remembered (seeded) number reads confirmed', ((
   const blk = src.slice(start, end);
   return /return o\.remembered != null \? \{ state: 'confirmed', number: o\.remembered \} : \{ state: 'unverified' \};/.test(blk);
 })());
+
+console.log('\nthe number guard today (latest definition)');
+// The number guard pinned above was a deny-list (two client role names: a role added later passed).
+// 20261005110000_guard_allowlists.sql replaced it; a later migration must not put it back.
+{
+  const r = latestGuardIsAllowList(ROOT, 'change_orders_keep_number_fn', 'public.change_orders_assign_number_fn()');
+  ok('change_orders_keep_number_fn: its latest definition is an allow-list (service_role, postgres, supabase_admin, the owner of change_orders_assign_number_fn) and names no client role', r.ok, r.detail);
+  const first = { '20260920050000_change_order_numbers.sql': read('supabase/migrations/20260920050000_change_order_numbers.sql') };
+  ok('…and this check is not vacuous: the 20260920050000 definition alone is refused',
+    !latestGuardIsAllowList(ROOT, 'change_orders_keep_number_fn', 'public.change_orders_assign_number_fn()', first).ok);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

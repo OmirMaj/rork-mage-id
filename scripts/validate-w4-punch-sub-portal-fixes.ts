@@ -21,6 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { latestGuardIsAllowList } from './guard-allowlist-check';
 import { buildSubPortalSnapshot, portalPunchLocation } from '../utils/subPortalSnapshot';
 import type { PunchItem } from '../types';
 
@@ -287,6 +288,17 @@ console.log('\nmarketing/sub-portal/index.html — boot (#50):');
   check('a loading card shows while the server read is in flight', /if \(subPortalIdFromPath && getSubToken\(\)\) \{\s*showCard\('loading'\);/.test(boot));
   check('the old "Sub portal link expired" heading is gone', !/Sub portal link expired/.test(html));
 }
+
+console.log('the guard today (latest definition):');
+// The guard pinned above was a deny-list (two client role names: a role added later passed).
+// 20261005110000_guard_allowlists.sql replaced it; a later migration must not put it back.
+{
+  const r = latestGuardIsAllowList(ROOT, 'punch_items_guard', 'public.sub_portal_mark_punch_ready(text,text,text,text)');
+  check('punch_items_guard: its latest definition is an allow-list (service_role, postgres, supabase_admin, the owner of sub_portal_mark_punch_ready) and names no client role', r.ok, r.detail);
+  check('…and this check is not vacuous: the 20260920120000 definition alone is refused',
+    !latestGuardIsAllowList(ROOT, 'punch_items_guard', 'public.sub_portal_mark_punch_ready(text,text,text,text)', { '20260920120000_punch_sub_portal_v2.sql': sql }).ok);
+}
+
 
 console.log(fail ? `\n✗ validate-w4-punch-sub-portal-fixes: ${fail} failure(s)` : `\nall w4 punch-sub-portal checks passed (${pass})`);
 if (fail) process.exit(1);
