@@ -62,12 +62,12 @@ export async function storedPortalKey(projectId: unknown, clientPortal: unknown)
   const portalId = typeof cp.portalId === 'string' ? cp.portalId.trim() : '';
   const pid = typeof projectId === 'string' ? projectId.trim() : '';
   if (!pid || !portalId || cp.enabled === false) return null;
-  const url = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '');
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '');
   const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
-  if (!url || !service) return null;
+  if (!supabaseUrl || !service) return null;
   try {
     const res = await fetch(
-      `${url}/rest/v1/portal_credentials?project_id=eq.${encodeURIComponent(pid)}&select=portal_id,access_token&limit=1`,
+      `${supabaseUrl}/rest/v1/portal_credentials?project_id=eq.${encodeURIComponent(pid)}&select=portal_id,access_token&limit=1`,
       { headers: { apikey: service, Authorization: `Bearer ${service}` } },
     );
     if (!res.ok) return null;
