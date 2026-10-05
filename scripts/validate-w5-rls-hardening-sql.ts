@@ -15,7 +15,7 @@
 //
 // Run via: bun run scripts/validate-w5-rls-hardening-sql.ts
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SEALED_FIELD_TICKET_PRICE_FIELDS } from '../utils/fieldTicketCore';
@@ -163,6 +163,153 @@ ok('held strips every row, rotates each live key once, and asserts none is left'
   && /'held\/20260923171000'/.test(held) && /still carry accessToken \/ passcode/i.test(held));
 ok('held rotates each key that sat on the readable row (new random token into portal_credentials)',
   /v_new := encode\(extensions\.gen_random_bytes\(24\), 'hex'\);\s+update public\.portal_credentials\s+set access_token = v_new, rotated_at = now\(\)\s+where project_id = r\.project_id;/i.test(held));
+
+// ── #82 strip (20261005100000) — the file that is applied ───────────────────
+// The held file above stays where it is and is never applied; these pins are on
+// the migration that supersedes it. What they hold in place: the client's
+// portal key can never again rest on projects.client_portal, which every
+// accepted collaborator can read. Behaviour is proven in PGlite
+// (tools/pgq/portal-token-strip.mjs, 14 planted mutations); this is the static
+// half, and it fails the build if a later migration puts the mirror back.
+console.log('\n#82 strip (20261005100000)');
+{
+  const STRIP_FILE = '20261005100000_portal_token_strip.sql';
+  const MIG_DIR = join(ROOT, 'supabase/migrations');
+  const rawStrip = existsSync(join(MIG_DIR, STRIP_FILE)) ? read(`supabase/migrations/${STRIP_FILE}`) : '';
+  const strip = stripSql(rawStrip);
+  ok('the strip migration exists at the top level and names its PGlite proof', rawStrip.length > 0 && /tools\/pgq\/portal-token-strip\.mjs/.test(rawStrip));
+  ok('held/README.md says the held file is superseded by it', /20260923171000_portal_token_strip\.sql[^\n]*SUPERSEDED by `\.\.\/20261005100000_portal_token_strip\.sql`/.test(read('supabase/migrations/held/README.md')));
+  ok('it is gated: refuses without mageid.portal_key_fix_ready, and without portal_credentials',
+    /current_setting\('mageid\.portal_key_fix_ready', true\)/.test(strip) && /raise exception '\[portal-key\] held:/.test(strip)
+    && /to_regclass\('public\.portal_credentials'\) is null/.test(strip)
+    && strip.indexOf("raise exception '[portal-key] held:") < strip.indexOf('create or replace function'));
+  const sSet = fnBody(strip, 'portal_set_access_token');
+  ok('trigger: SECURITY DEFINER, pinned search_path, strips accessToken as its last act on every object write',
+    /security definer/i.test(sSet) && /set search_path to 'pg_catalog', 'public'/i.test(sSet)
+    && /new\.client_portal := new\.client_portal - 'accessToken';\s+return new;\s+end;/i.test(sSet));
+  ok('trigger: never mirrors the key onto the row and never reads one from the write',
+    !/jsonb_build_object\('accessToken'/i.test(sSet) && !/client_portal->>'accessToken'/i.test(sSet) && !/\|\|\s*jsonb_build_object/i.test(sSet));
+  ok('trigger: the key is the stored one for this portal id, else minted — nothing else',
+    /v_tok := coalesce\(\s*case when v_cred_pid is not distinct from v_pid then nullif\(v_cred_tok, ''\) end,\s*encode\(extensions\.gen_random_bytes\(24\), 'hex'\)\);/i.test(sSet));
+  ok('trigger: only the stored owner or the service role writes the credentials row',
+    /v_may_write := v_caller is null or v_caller = v_owner;/i.test(sSet) && /select p\.user_id into v_owner from public\.projects p where p\.id = new\.id;/i.test(sSet)
+    && sSet.indexOf('if v_may_write then') > 0 && sSet.indexOf('if v_may_write then') < sSet.indexOf('insert into public.portal_credentials'));
+  ok('trigger: the PASSCODE is left on the row (validate-portal-passcode and portal_sign_contract read it there)',
+    !/-\s*'passcode'/i.test(strip) && /nullif\(new\.client_portal->>'passcode', ''\)/i.test(sSet));
+  const sRot = fnBody(strip, 'portal_rotate_access_token');
+  ok('Reset link: owner-only (42501), writes portal_credentials only, same signature',
+    /portal_rotate_access_token\(p_project_id uuid\)\s+returns text/i.test(sRot) && /v_owner is null or v_owner <> auth\.uid\(\)/i.test(sRot)
+    && /errcode = '42501'/i.test(sRot) && !/update public\.projects/i.test(sRot) && !/accessToken/.test(sRot));
+  for (const n of ['portal_project_for_token', 'portal_project_for_token_any', 'portal_get_owner_token']) {
+    const b = fnBody(strip, n);
+    ok(`${n}: reads portal_credentials only (no left join, no fallback to the row)`,
+      b.length > 0 && /public\.portal_credentials pc/i.test(b) && !/left join/i.test(b) && !/accessToken/.test(b));
+  }
+  ok('the gate still compares the key and still refuses an ended link',
+    /and pc\.access_token = p_access_token\s+and not exists \(\s*select 1 from public\.portal_snapshots ps/i.test(fnBody(strip, 'portal_project_for_token')));
+  ok('getter: owner-only (42501); anon cannot execute it or Reset link; no client role calls the gate functions',
+    /v_owner is null or v_owner <> auth\.uid\(\)/i.test(fnBody(strip, 'portal_get_owner_token'))
+    && /revoke all on function public\.portal_get_owner_token\(uuid\) from public, anon;/i.test(strip)
+    && /revoke execute on function public\.portal_rotate_access_token\(uuid\) from public, anon;/i.test(strip)
+    && /revoke execute on function public\.portal_project_for_token\(text, text\)\s+from public, anon, authenticated;/i.test(strip)
+    && /revoke execute on function public\.portal_project_for_token_any\(text, text\) from public, anon, authenticated;/i.test(strip));
+  ok('every key found on a row is replaced by a new random one and audited; then every row is stripped',
+    /nullif\(p\.client_portal->>'accessToken', ''\) is not null/i.test(strip)
+    && /v_new := encode\(extensions\.gen_random_bytes\(24\), 'hex'\);/i.test(strip)
+    && /jsonb_build_object\('by', '20261005100000'/i.test(strip)
+    && /set client_portal = client_portal - 'accessToken'\s+where jsonb_typeof\(client_portal\) = 'object'\s+and client_portal \? 'accessToken';/i.test(strip)
+    && strip.indexOf("jsonb_build_object('by', '20261005100000'") < strip.indexOf("set client_portal = client_portal - 'accessToken'"));
+  ok('no key is copied from a row into portal_credentials (a key that was readable is never kept)',
+    // the only read of a row's key is the WHERE that finds the rows to rotate
+    !/->>\s*'accessToken'/i.test(strip.replace(/nullif\(p\.client_portal->>'accessToken', ''\) is not null/g, ''))
+    && (strip.match(/nullif\(p\.client_portal->>'accessToken', ''\) is not null/g) ?? []).length === 1
+    && !/access_token\s*=\s*[a-z_.]*client_portal/i.test(strip));
+  ok('self-check: no row carries a key, every enabled portal has one stored, grants and policy as they must be',
+    /verify: % projects row\(s\) still carry accessToken/.test(strip) && /verify: % enabled portal\(s\) have no portal_credentials row/.test(strip)
+    && /verify: portal_set_access_token must strip accessToken on every write/.test(strip)
+    && /verify: portal_credentials must not be readable by anon nor writable by anon \/ authenticated/.test(strip)
+    && /verify: portal_credentials must carry exactly one policy, the owner-only SELECT/.test(strip)
+    && /verify: anon must not call the owner RPCs/.test(strip));
+
+  // THE PIN. In apply order (every top-level migration, by name), the newest
+  // definition of each key function must be the strip's or a later one that
+  // still keeps the key off the row.
+  const files = readdirSync(MIG_DIR).filter(f => f.endsWith('.sql')).sort();
+  const STRIP_LINE = /new\.client_portal := new\.client_portal - 'accessToken';/g;
+  const newest = (name: string): { file: string; body: string } => {
+    let out = { file: '', body: '' };
+    for (const f of files) {
+      const src = stripSql(read(`supabase/migrations/${f}`));
+      const re = new RegExp(`create or replace function public\\.${name}\\(`, 'gi');
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(src))) out = { file: f, body: fnBody(src.slice(m.index), name) };
+    }
+    return out;
+  };
+  const KEY_FNS = ['portal_set_access_token', 'portal_rotate_access_token', 'portal_project_for_token', 'portal_project_for_token_any', 'portal_get_owner_token'];
+  const late = KEY_FNS.map(newest);
+  ok('in apply order, the newest definition of each of the five key functions is the strip or a later dated file',
+    late.every(d => d.file >= STRIP_FILE && /^\d{14}_/.test(d.file)), late.map(d => d.file).join(', '));
+  const dirty = late.filter(d => d.body.length === 0 || /accessToken/.test(d.body.replace(STRIP_LINE, '')));
+  ok('and none of those newest definitions writes or reads an accessToken on client_portal (the strip line aside)',
+    dirty.length === 0, dirty.map(d => d.file).join(', '));
+  ok('the newest trigger function still ends by stripping the key', STRIP_LINE.test(late[0].body));
+  const laterFiles = files.filter(f => f > STRIP_FILE && /^\d{14}_/.test(f));
+  const mirrors = laterFiles.filter(f => /jsonb_build_object\(\s*'accessToken'|client_portal\s*\|\|[^;]*accessToken|'\{accessToken\}'/i.test(stripSql(read(`supabase/migrations/${f}`))));
+  ok('no migration after the strip writes an accessToken into client_portal', mirrors.length === 0, mirrors.join(', '));
+  const opened = laterFiles.filter(f => /grant[^;]*on (table )?public\.portal_credentials[^;]*to[^;]*\b(anon|public)\b|grant (all|insert|update|delete)[^;]*on (table )?public\.portal_credentials[^;]*to[^;]*authenticated|create policy[^;]*on public\.portal_credentials/i.test(stripSql(read(`supabase/migrations/${f}`))));
+  ok('no migration after the strip opens portal_credentials (a grant to anon, a write grant, another policy)', opened.length === 0, opened.join(', '));
+}
+
+// ── #82 · the app and the e-mail functions read the key from portal_credentials ──
+console.log('\n#82 readers of the key');
+{
+  const links = read('supabase/functions/_shared/portalLinks.ts');
+  ok('edge: storedPortalKey reads portal_credentials with the service role, by project id, and matches the portal id',
+    /export async function storedPortalKey\(projectId: unknown, clientPortal: unknown\): Promise<string \| null>/.test(links)
+    && /portal_credentials\?project_id=eq\.\$\{encodeURIComponent\(pid\)\}&select=portal_id,access_token&limit=1/.test(links)
+    && /if \(!row \|\| row\.portal_id !== portalId\) return null;/.test(links));
+  ok('edge: _shared/portalLinks.ts never logs', !/console\./.test(links));
+  ok('edge: portalUrlFor takes the stored key first, the row\'s copy only as the fallback',
+    /export function portalUrlFor\(clientPortal: unknown, storedKey\?: string \| null\): string \| null/.test(links)
+    && /const token = stored \|\| \(typeof cp\.accessToken === 'string' \? cp\.accessToken\.trim\(\) : ''\);/.test(links));
+  const callers: [string, RegExp][] = [
+    ['homeowner-weekly-digest', /const portalKey = portalUnpublished \? null : await storedPortalKey\(project\.id, portal\);/],
+    ['invoice-dunning', /portalUrlFor\(project\.client_portal, await storedPortalKey\(project\.id, project\.client_portal\)\)/],
+    ['notify', /portalUrlFor\(projectCtx\.client_portal, await storedPortalKey\(projectCtx\.id, projectCtx\.client_portal\)\)/],
+    ['portal-link-expiry-notice', /portalUrlFor\(proj\.client_portal, await storedPortalKey\(p\.project_id, proj\.client_portal\)\)/],
+  ];
+  for (const [fn, re] of callers) {
+    const src = read(`supabase/functions/${fn}/index.ts`);
+    const calls = (src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').match(/\bportalUrlFor\(/g) ?? []).length;
+    ok(`edge: ${fn} builds its portal link with the stored key (its only portalUrlFor call)`, re.test(src) && calls === 1, `calls: ${calls}`);
+  }
+  // No edge function may read the key off the projects row any other way.
+  const fnRoot = join(ROOT, 'supabase/functions');
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!e.name.endsWith('.ts') || full.endsWith('_shared/portalLinks.ts')) continue;
+      const code = readFileSync(full, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+      if (/client_portal\??\.accessToken|client_portal->>accessToken|clientPortal\??\.accessToken|\bcp\.accessToken|\bportal\??\.accessToken/.test(code)) offenders.push(full.slice(fnRoot.length + 1));
+    }
+  };
+  walk(fnRoot);
+  ok('edge: no function reads accessToken off a client_portal blob (only _shared/portalLinks.ts, as the fallback)', offenders.length === 0, offenders.join(', '));
+
+  const ctx = read('contexts/ProjectContext.tsx');
+  ok('app: the project loader reads the OWNER\'s keys from portal_credentials and lays them over the row for owned jobs only',
+    /\.from\('portal_credentials'\)\s*\.select\('project_id, portal_id, access_token'\)/.test(ctx)
+    && /clientPortal: \(owned\s*\? ownerClientPortalAfterLoad\(r\.client_portal as Project\['clientPortal'\] \| null, portalKeyById\.get\(rid\), portalKeysReadOk, cached\?\.clientPortal\)\s*: stripPortalCredentials\(r\.client_portal as Project\['clientPortal'\] \| null\)\)/.test(ctx));
+  ok('app: the loader never logs a key', !/console\.log\([^)]*(keyRows|access_token|portalKeyById)/.test(ctx));
+  ok('app: the owner upsert still never sends the key', /client_portal: ownerClientPortalForWrite\(project\.clientPortal\) as unknown,/.test(ctx));
+  const setup = read('app/client-portal-setup.tsx');
+  ok('app: Client portal setup checks the key it holds against the server\'s once per visit and adopts a different one',
+    /if \(readBack\.ok && readBack\.token && readBack\.token !== heldKey\) adoptRotatedRef\.current\(readBack\.token\);/.test(setup)
+    && /if \(!id \|\| sampleJob \|\| localOwnership !== 'owner' \|\| !persistedPortalEnabled \|\| !heldKey\) return;/.test(setup));
+}
 
 // ── #85 ─────────────────────────────────────────────────────────────────────
 console.log('\n#85 ownership freeze');

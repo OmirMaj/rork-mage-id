@@ -33,7 +33,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // that does it differently.
 import { isValidCron } from "../_shared/cronAuth.ts";
 // EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
-import { portalUrlFor } from "../_shared/portalLinks.ts";
+import { portalUrlFor, storedPortalKey } from "../_shared/portalLinks.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -130,7 +130,10 @@ serve(async (req) => {
     // portal disabled / no token → omitted, never a dead /portal/<project.id>.
     // An EXPIRED link is not re-shareable — it opens nothing — so the notice
     // carries it only while it still works (the "expiring" warning).
-    const portalUrl = kind === "portal_link_expired" ? null : portalUrlFor(proj.client_portal);
+    // #82: the key comes from portal_credentials, not the projects row.
+    const portalUrl = kind === "portal_link_expired"
+      ? null
+      : portalUrlFor(proj.client_portal, await storedPortalKey(p.project_id, proj.client_portal));
 
     const daysLeft = Math.max(0, Math.ceil((expMs - nowMs) / 86_400_000));
     const title = kind === "portal_link_expired"

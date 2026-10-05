@@ -29,7 +29,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   subcontractorExtrasFromRow, subcontractorExtraColumns, photoGeoFromRow, photoGeoColumns,
-  crewMemberUpdateRow, CREW_MEMBER_COLUMNS, prequalReviewRow, ownerClientPortalForWrite, stripPortalCredentials,
+  crewMemberUpdateRow, CREW_MEMBER_COLUMNS, prequalReviewRow, ownerClientPortalForWrite, ownerClientPortalAfterLoad, stripPortalCredentials,
   localOnlyOwnedProjectIds, localOnlyProjectInsertRow, localOnlyProjectLineId, LOCAL_ONLY_PROJECT_REASON, withServerConfirmed,
   coiSaveStampsVerified,
 } from '../utils/projectContextPure';
@@ -142,6 +142,35 @@ console.log('\n#82 the owner upsert never carries the portal key');
   ok('accessToken is dropped; the passcode still rides (until validate-portal-passcode reads portal_credentials)', !('accessToken' in out) && out.passcode === '1234' && out.portalId === 'pt1');
   ok('stripPortalCredentials (a collaborator\'s copy) still drops both', same(Object.keys(stripPortalCredentials(cp) ?? {}).sort(), ['enabled', 'portalId']));
   ok('the owner upsert sends ownerClientPortalForWrite(project.clientPortal)', /client_portal: ownerClientPortalForWrite\(project\.clientPortal\) as unknown,/.test(PC) && !/client_portal: project\.clientPortal as unknown/.test(PC));
+}
+
+// ── #82 · the key comes back to the OWNER's copy from portal_credentials ─────
+console.log('\n#82 the owner\'s loaded portal carries the stored key');
+{
+  type Cp = Parameters<typeof ownerClientPortalAfterLoad>[0];
+  const row = { enabled: true, portalId: 'pt1', passcode: '1234' } as unknown as Cp;       // the row after 20261005100000
+  const mirrored = { enabled: true, portalId: 'pt1', accessToken: 'on-row' } as unknown as Cp; // the row before it
+  const key = (cp: unknown) => (cp as { accessToken?: string } | null | undefined)?.accessToken;
+  const stored = { project_id: 'p1', portal_id: 'pt1', access_token: 'stored' };
+  ok('a stored key for this portal id is laid over a key-less row; nothing else changes',
+    key(ownerClientPortalAfterLoad(row, stored, true, undefined)) === 'stored'
+    && same(Object.keys(ownerClientPortalAfterLoad(row, stored, true, undefined) ?? {}).sort(), ['accessToken', 'enabled', 'passcode', 'portalId']));
+  ok('the stored key outranks a copy still on the row (after a Reset link the row\'s copy is the dead one)',
+    key(ownerClientPortalAfterLoad(mirrored, stored, true, undefined)) === 'stored');
+  ok('a stored key for ANOTHER portal id is not used',
+    key(ownerClientPortalAfterLoad(row, { ...stored, portal_id: 'pt-old' }, true, undefined)) === undefined);
+  ok('the read worked and has no row: the server\'s blob as it is — the cached key is NOT kept (it may be the rotated one)',
+    key(ownerClientPortalAfterLoad(row, undefined, true, { enabled: true, portalId: 'pt1', accessToken: 'cached' } as unknown as Cp)) === undefined
+    && key(ownerClientPortalAfterLoad(mirrored, undefined, true, undefined)) === 'on-row');
+  ok('the read FAILED: the row\'s copy, else the key this device held for the same portal id',
+    key(ownerClientPortalAfterLoad(mirrored, undefined, false, { enabled: true, portalId: 'pt1', accessToken: 'cached' } as unknown as Cp)) === 'on-row'
+    && key(ownerClientPortalAfterLoad(row, undefined, false, { enabled: true, portalId: 'pt1', accessToken: 'cached' } as unknown as Cp)) === 'cached'
+    && key(ownerClientPortalAfterLoad(row, undefined, false, { enabled: true, portalId: 'pt-old', accessToken: 'cached' } as unknown as Cp)) === undefined);
+  ok('no portal, or a portal with no id: passed through untouched',
+    ownerClientPortalAfterLoad(null, stored, true, undefined) === null && ownerClientPortalAfterLoad(undefined, stored, true, undefined) === undefined
+    && key(ownerClientPortalAfterLoad({ enabled: true } as unknown as Cp, stored, true, undefined)) === undefined);
+  ok('it never mutates the server row or the stored row', key(row) === undefined && stored.access_token === 'stored');
+  ok('a blank stored key is no key', key(ownerClientPortalAfterLoad(row, { ...stored, access_token: '  ' }, true, undefined)) === undefined);
 }
 
 // ── #24 ──────────────────────────────────────────────────────────────────────

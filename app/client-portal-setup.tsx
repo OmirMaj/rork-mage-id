@@ -1666,6 +1666,43 @@ function ClientPortalSetupScreenInner() {
     showAlert('Reset not confirmed', PORTAL_RESET_UNKNOWN_NOTE);
   }, [id, adoptRotated, announceLinkReset, forgetHeldKey]);
 
+  // ── #82: the key this device holds is checked against the server's ────────
+  //
+  // 20261005100000 gave every portal a new key on the server (the old one had
+  // been readable by collaborators), and a Reset link done on another device
+  // does the same. A phone that loaded its jobs before either still holds the
+  // OLD key, and the link it shows, copies and shares opens nothing. So once
+  // per visit, for an owner who holds a key, this asks the server which key it
+  // holds NOW and takes that one when it differs — the same adoption a reset
+  // on this device makes, with nothing written to the server (the owner's
+  // project write never carries the key). A failed read changes nothing: the
+  // held key may well be right, and Reset link is one tap away.
+  const adoptRotatedRef = useRef(adoptRotated);
+  adoptRotatedRef.current = adoptRotated;
+  const keyCheckedForRef = useRef<string | null>(null);
+  const keyCheckAliveRef = useRef(true);
+  useEffect(() => {
+    keyCheckAliveRef.current = true;
+    return () => { keyCheckAliveRef.current = false; };
+  }, []);
+  const heldKey = portal.accessToken;
+  useEffect(() => {
+    if (!id || sampleJob || localOwnership !== 'owner' || !persistedPortalEnabled || !heldKey) return;
+    if (!isSupabaseConfigured || isOfflineNow()) return;
+    if (keyCheckedForRef.current === id) return;
+    keyCheckedForRef.current = id;
+    void (async () => {
+      let readBack: PortalKeyReadBack = { ok: false };
+      try {
+        readBack = await readServerPortalToken(id);
+      } catch {
+        // stays a failed read
+      }
+      if (!keyCheckAliveRef.current) return;
+      if (readBack.ok && readBack.token && readBack.token !== heldKey) adoptRotatedRef.current(readBack.token);
+    })();
+  }, [id, sampleJob, localOwnership, persistedPortalEnabled, heldKey]);
+
   const performLinkReset = useCallback(async () => {
     if (!id || !project?.clientPortal?.enabled) return;
     if (isOfflineNow()) {

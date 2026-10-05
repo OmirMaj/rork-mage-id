@@ -2644,6 +2644,52 @@ export function ownerClientPortalForWrite(cp: ClientPortalSettings | null | unde
   return rest;
 }
 
+/** One row of public.portal_credentials, as the owner's own SELECT returns it. */
+export interface PortalKeyRow {
+  project_id?: string | null;
+  portal_id?: string | null;
+  access_token?: string | null;
+}
+
+/**
+ * #82 · The homeowner portal blob an OWNER's device keeps after a load: the
+ * server's `client_portal` with the key laid in from portal_credentials.
+ *
+ * The key left the projects row with 20261005100000_portal_token_strip.sql
+ * (every accepted collaborator can read that row). The owner's own key is one
+ * SELECT away — portal_credentials has a single policy, "the project's owner"
+ * — and every screen that builds a client link (the portal card on the project
+ * page, a change order's or a contract's e-mail, Client portal setup) reads
+ * `project.clientPortal.accessToken`, so the loader puts it back there for the
+ * owner and for nobody else. Never written to the server: the owner's upsert
+ * drops it again (ownerClientPortalForWrite).
+ *
+ *   • a stored key for THIS portal id   → that key (it outranks a copy still on
+ *     the row: after a Reset link the row's copy is the dead one);
+ *   • the keys read FAILED              → the row's copy, else the key this
+ *     device already held for the same portal id (a link that worked a minute
+ *     ago is better than none while offline; the next good read replaces it);
+ *   • the read worked and has no row    → the server's blob as it is (a portal
+ *     whose key is not minted yet: Client portal setup's fetch handles it).
+ */
+export function ownerClientPortalAfterLoad(
+  serverCp: ClientPortalSettings | null | undefined,
+  keyRow: PortalKeyRow | null | undefined,
+  keysReadOk: boolean,
+  cachedCp: ClientPortalSettings | null | undefined,
+): ClientPortalSettings | null | undefined {
+  if (serverCp == null || typeof serverCp !== 'object') return serverCp;
+  const portalId = typeof serverCp.portalId === 'string' ? serverCp.portalId : '';
+  if (!portalId) return serverCp;
+  const stored = keyRow && keyRow.portal_id === portalId && typeof keyRow.access_token === 'string'
+    ? keyRow.access_token.trim() : '';
+  if (stored) return { ...serverCp, accessToken: stored };
+  if (keysReadOk || serverCp.accessToken) return serverCp;
+  const held = cachedCp && cachedCp.portalId === portalId && typeof cachedCp.accessToken === 'string'
+    ? cachedCp.accessToken.trim() : '';
+  return held ? { ...serverCp, accessToken: held } : serverCp;
+}
+
 /**
  * #1 (CONTRACT 21) · The Not-saved reason for a job that exists only on this
  * phone: its create never reached MAGE (the old free-plan cap refused it, or

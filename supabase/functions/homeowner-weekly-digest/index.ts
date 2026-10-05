@@ -40,7 +40,7 @@ import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 // The portal link must carry the minted portal id + access token (audit
 // EDGE-F6 / AUTH-F4 sibling) — a `/portal/<project.id>` link is dead.
-import { portalUrlFor } from '../_shared/portalLinks.ts';
+import { portalUrlFor, storedPortalKey } from '../_shared/portalLinks.ts';
 import { GEMINI_TEXT_MODEL } from '../_shared/models.ts';
 import { rateLimitCount } from '../_shared/auth.ts';
 import { aiConsentAllows, readOwnerAiConsent } from '../_shared/aiConsent.ts';
@@ -606,7 +606,11 @@ async function sendForProject(
   // Built by the shared helper (portal id + access token); null when the portal
   // is disabled or has no minted link — then the CTA is omitted entirely rather
   // than pointing at a dead page (audit EDGE-F6 / AUTH-F4).
-  const portalUrl = portalUnpublished ? undefined : (portalUrlFor(portal) ?? undefined);
+  // #82: the key is read from portal_credentials — it is no longer on the
+  // projects row (20261005100000). Never written back: `portal` is what the
+  // stamp below saves, and it stays key-less.
+  const portalKey = portalUnpublished ? null : await storedPortalKey(project.id, portal);
+  const portalUrl = portalUnpublished ? undefined : (portalUrlFor(portal, portalKey) ?? undefined);
 
   const today = new Date();
   const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
