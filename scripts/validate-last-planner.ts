@@ -129,7 +129,10 @@ check('an unparseable start date yields null', taskWindow(task(), 'not-a-date') 
 {
   // Starts 12 calendar days BEFORE the as-of Monday, 10 working days long.
   // Calendar math ends it before the horizon opens; working-day math does not.
-  const asOf = new Date('2026-09-14T00:00:00Z'); // a Monday
+  // LOCAL noon of Monday Sep 14: the lookahead's "this week" is the device's
+  // local week (utils/calendarDate localWeekStart), and '…T00:00:00Z' is still
+  // Sunday evening anywhere west of Greenwich — the gate runs in New York.
+  const asOf = new Date(2026, 8, 14, 12, 0, 0);
   const t = task({ id: 'reach', startDay: 3, durationDays: 10 });
   const la = buildLookahead([t], START, [], {
     weeks: 3, asOf, calendar: { workingDaysPerWeek: 5 },

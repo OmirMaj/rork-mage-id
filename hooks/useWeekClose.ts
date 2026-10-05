@@ -148,10 +148,9 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
         const allCommitments = Object.values(store).flatMap(b => b?.commitments ?? []);
 
         // PPC for the current (ending) week, on the SAME week key the Last
-        // Planner screen writes commitments under (currentWeekStart). Caveat:
-        // composeWeekClose.buildCloseLeg recomputes PPC on a LOCAL-time Monday,
-        // while currentWeekStart is a UTC Monday; on a US Sunday evening the two
-        // keys differ and compose falls back to this value (handed off).
+        // Planner screen writes commitments under: currentWeekStart, the LOCAL
+        // Monday (utils/calendarDate localWeekStart). composeWeekClose's
+        // buildCloseLeg asks the same function, so the two cannot differ.
         const ppcRecord = computePpc(allCommitments, currentWeekStart());
         next.wwp = {
           commitments: allCommitments,

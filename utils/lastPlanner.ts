@@ -32,6 +32,7 @@ import type { QueryClient } from '@tanstack/react-query';
 // The same working-day predicate the CPM engine uses, so the lookahead and the
 // Gantt cannot disagree about which days count.
 import { isWorkingDay, runCpm } from '@/utils/cpm';
+import { localWeekStart } from '@/utils/calendarDate';
 
 // ── Constraint log (the "make ready" list) ──────────────────────────────────
 export type ConstraintCategory =
@@ -89,7 +90,19 @@ export interface PpcRecord {
   ppc: number; // 0..1
 }
 
-// ── Date helpers (UTC, ISO yyyy-mm-dd to avoid TZ drift) ─────────────────────
+// ── Date helpers ─────────────────────────────────────────────────────────────
+// TWO different things live here and must not be mixed:
+//   • CALENDAR DAYS ('yyyy-mm-dd': a schedule start date, a week key, a task's
+//     first day) are placed on a UTC-midnight DAY GRID so arithmetic on them
+//     never crosses a DST hour and never moves with the reader's zone.
+//     `isoDate`, `atUtcMidnight`, `toMonday`, `addWeeks`, `weeksBetween` work
+//     on that grid.
+//   • "NOW" is an instant, and which calendar day it is depends on where the
+//     phone is. It enters the grid through `currentWeekStart` ONLY — the local
+//     Monday (utils/calendarDate localWeekStart). `toMonday(new Date())` reads
+//     the UTC date of the instant instead, which is next week on a New York
+//     Sunday evening; that was this screen's rule until 2026-10-04 and is why
+//     it disagreed with /summary.
 const DAY_MS = 86_400_000;
 
 function isoDate(d: Date): string {
@@ -99,15 +112,24 @@ function atUtcMidnight(d: Date): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-/** ISO Monday (yyyy-mm-dd) of the week containing `d`. */
+/**
+ * ISO Monday (yyyy-mm-dd) of the week containing a DAY-GRID date — a Date at
+ * UTC midnight of a calendar day (`new Date('2026-10-05')`, a taskWindow ms).
+ * NEVER pass `new Date()` / an instant: use {@link currentWeekStart}.
+ */
 export function toMonday(d: Date): string {
   const ms = atUtcMidnight(d);
   const dow = new Date(ms).getUTCDay(); // 0 Sun .. 6 Sat
   const shift = dow === 0 ? -6 : 1 - dow;
   return isoDate(new Date(ms + shift * DAY_MS));
 }
+/**
+ * The week `asOf` falls in, as its Monday: the LOCAL calendar week of the
+ * device (the one rule, utils/calendarDate localWeekStart). The key the week
+ * view opens on and commitments are written under.
+ */
 export function currentWeekStart(asOf: Date = new Date()): string {
-  return toMonday(asOf);
+  return localWeekStart(asOf);
 }
 export function addWeeks(weekStartIso: string, n: number): string {
   return isoDate(new Date(atUtcMidnight(new Date(weekStartIso)) + n * 7 * DAY_MS));
@@ -286,7 +308,7 @@ export function buildLookahead(
 ): LookaheadResult {
   const weeks = Math.max(1, opts?.weeks ?? 3);
   const asOf = opts?.asOf ?? new Date();
-  const thisMonday = toMonday(asOf);
+  const thisMonday = currentWeekStart(asOf);
   const horizonEndMs = atUtcMidnight(new Date(addWeeks(thisMonday, weeks))) - DAY_MS; // last day of the window
   const thisMondayMs = atUtcMidnight(new Date(thisMonday));
 

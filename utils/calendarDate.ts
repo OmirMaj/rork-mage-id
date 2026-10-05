@@ -97,6 +97,39 @@ export function todayCalendarDay(now: Date = new Date()): string {
 }
 
 /**
+ * THE WEEK RULE (2026-10-04). A jobsite week runs Monday → Sunday on the
+ * DEVICE'S LOCAL calendar, and "this week" is the week the local day falls
+ * in. LOCAL midnight of that Monday.
+ *
+ * One copy, because there were three: Last Planner took the Monday of the UTC
+ * date (utils/lastPlanner `toMonday(new Date())`), while the Summary strip
+ * (utils/summaryBriefing computeWeekLoad) and the Friday close
+ * (utils/weekClose/composeWeekClose) took the local one. Whenever the local
+ * day and the UTC day differ the screens named different weeks — in New York
+ * every Sunday from 8 pm (7 pm in winter) to midnight Last Planner had
+ * already moved to next week while Summary was still on this one; east of
+ * Greenwich (Tokyo) it was Monday from midnight to 9 am, with Last Planner
+ * still on LAST week. Every "which week is it now" question asks here.
+ *
+ * Built from local components, so the week DST starts or ends in is still
+ * seven calendar days (never `getTime() - n * 86_400_000`).
+ */
+export function mondayOfLocalWeek(now: Date = new Date()): Date {
+  const sinceMonday = (now.getDay() + 6) % 7; // Mon 0 … Sun 6
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
+}
+
+/**
+ * The 'YYYY-MM-DD' of {@link mondayOfLocalWeek} — the key a week is stored
+ * and compared under (last_planner_commitments.week_start, dispatches). A
+ * calendar day, so it is moved with calendar arithmetic (lastPlanner
+ * `addWeeks`), never re-derived from an instant in another zone.
+ */
+export function localWeekStart(now: Date = new Date()): string {
+  return toCalendarDayString(mondayOfLocalWeek(now));
+}
+
+/**
  * `months` calendar months after the day named by `value`, as a calendar day.
  * The day-of-month is CLAMPED to the target month's length: Jan 31 + 1 month
  * is Feb 28 (Feb 29 in a leap year), not Mar 3 — which is what a bare

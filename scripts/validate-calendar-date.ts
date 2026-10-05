@@ -27,7 +27,7 @@
 // only when a reviewer reads them — app/documents.tsx's expiresAt is one that
 // was, and is now normalised at its source.
 //
-// Runtime checks run under THREE timezones (Denver, UTC, Tokyo) by re-spawning
+// Runtime checks run under FOUR timezones (Denver, New York, UTC, Tokyo) by re-spawning
 // this script with TZ set, so a helper that only works east or west of
 // Greenwich cannot pass on the developer's machine and fail on the user's.
 
@@ -37,7 +37,10 @@ import { spawnSync } from 'child_process';
 import {
   formatCalendarDay, parseCalendarDay, toCalendarDayString, todayCalendarDay, daysUntilCalendarDay,
   addCalendarMonths, addCalendarDays, calendarDayOf, calendarDayStart, dayOrInstantDate,
+  mondayOfLocalWeek, localWeekStart,
 } from '../utils/calendarDate';
+import { currentWeekStart, addWeeks, buildLookahead, computePpc } from '../utils/lastPlanner';
+import { computeWeekLoad } from '../utils/summaryBriefing';
 import { addWorkingDays } from '../utils/scheduleEngine';
 import { setLang, getLang } from '../i18n/core';
 import { buildPortalSnapshot } from '../utils/portalSnapshot';
@@ -46,7 +49,7 @@ import type { ClientPortalSettings, DailyFieldReport, Project } from '../types';
 const ROOT = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const TZ_CHILD_FLAG = 'CALENDAR_DATE_TZ_CHILD';
-const TIMEZONES = ['America/Denver', 'UTC', 'Asia/Tokyo'];
+const TIMEZONES = ['America/Denver', 'America/New_York', 'UTC', 'Asia/Tokyo'];
 
 let pass = 0;
 let fail = 0;
@@ -431,15 +434,143 @@ function runtimeChecks() {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE WEEK RULE (2026-10-04) — "this week" is the LOCAL Monday-to-Sunday week
+// of the device, on every screen. Last Planner used the Monday of the UTC
+// date; Summary and the Friday close used the local one, so on a New York
+// Sunday from 8 pm to midnight (and a Tokyo Monday from midnight to 9 am) the
+// two screens were a week apart. Runs once per timezone, like the rest.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function weekBoundaryChecks() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  console.log(`[TZ=${tz}] "this week" is the local Monday-to-Sunday week (WEEK RULE):`);
+
+  // Wall-clock cases: the same local moment is a different instant in each
+  // zone, and the answer must be the same calendar Monday in all of them.
+  const WALL: [string, [number, number, number, number, number], string][] = [
+    ['Sunday 20:30', [2026, 9, 4, 20, 30], '2026-09-28'],
+    ['Sunday 21:00', [2026, 9, 4, 21, 0], '2026-09-28'],
+    ['Sunday 23:59', [2026, 9, 4, 23, 59], '2026-09-28'],
+    ['Monday 00:01', [2026, 9, 5, 0, 1], '2026-10-05'],
+    ['Monday 09:00', [2026, 9, 5, 9, 0], '2026-10-05'],
+    ['Wednesday noon', [2026, 9, 7, 12, 0], '2026-10-05'],
+    ['the Sunday US clocks spring forward, 01:30', [2026, 2, 8, 1, 30], '2026-03-02'],
+    ['the Sunday US clocks spring forward, 23:30', [2026, 2, 8, 23, 30], '2026-03-02'],
+    ['the Monday after spring forward, 00:01', [2026, 2, 9, 0, 1], '2026-03-09'],
+    ['the Sunday US clocks fall back, 01:30', [2026, 10, 1, 1, 30], '2026-10-26'],
+    ['the Sunday US clocks fall back, 23:30', [2026, 10, 1, 23, 30], '2026-10-26'],
+    ['the Monday after fall back, 00:01', [2026, 10, 2, 0, 1], '2026-11-02'],
+    ['a week that spans a month end (Wed Sep 30)', [2026, 8, 30, 23, 59], '2026-09-28'],
+    ['…and its Thursday Oct 1', [2026, 9, 1, 0, 1], '2026-09-28'],
+    ['New Year\'s Eve 23:59', [2026, 11, 31, 23, 59], '2026-12-28'],
+    ['New Year\'s Day 00:01 is still last year\'s Monday', [2027, 0, 1, 0, 1], '2026-12-28'],
+    ['Sunday Jan 3 23:59', [2027, 0, 3, 23, 59], '2026-12-28'],
+    ['Monday Jan 4 00:01', [2027, 0, 4, 0, 1], '2027-01-04'],
+    ['leap day (Tue Feb 29 2028)', [2028, 1, 29, 22, 0], '2028-02-28'],
+  ];
+  for (const [label, [y, mo, d, h, mi], want] of WALL) {
+    const at = new Date(y, mo, d, h, mi, 0);
+    eq(`${label} → week of ${want}`, localWeekStart(at), want);
+    eq(`…Last Planner opens on the same week`, currentWeekStart(at), want);
+    eq(`…and Summary's strip starts on it`, computeWeekLoad([], at).days[0]?.date, want);
+  }
+
+  // Fixed INSTANTS: one moment, a different local day per zone. These are the
+  // moments the two screens used to disagree at.
+  const INSTANTS: [string, Record<string, string>][] = [
+    ['2026-10-05T00:30:00Z', { 'America/New_York': '2026-09-28', 'America/Denver': '2026-09-28', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-05' }],
+    ['2026-10-05T01:00:00Z', { 'America/New_York': '2026-09-28', 'America/Denver': '2026-09-28', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-05' }],
+    ['2026-10-05T03:59:00Z', { 'America/New_York': '2026-09-28', 'America/Denver': '2026-09-28', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-05' }],
+    ['2026-10-05T04:01:00Z', { 'America/New_York': '2026-10-05', 'America/Denver': '2026-09-28', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-05' }],
+    ['2026-10-04T15:30:00Z', { 'America/New_York': '2026-09-28', 'America/Denver': '2026-09-28', UTC: '2026-09-28', 'Asia/Tokyo': '2026-10-05' }],
+    ['2026-10-04T14:59:00Z', { 'America/New_York': '2026-09-28', 'America/Denver': '2026-09-28', UTC: '2026-09-28', 'Asia/Tokyo': '2026-09-28' }],
+    // Winter (EST, UTC-5): the window opens at 7 pm, not 8.
+    ['2027-01-04T00:30:00Z', { 'America/New_York': '2026-12-28', 'America/Denver': '2026-12-28', UTC: '2027-01-04', 'Asia/Tokyo': '2027-01-04' }],
+  ];
+  for (const [iso, byZone] of INSTANTS) {
+    const want = byZone[tz];
+    if (!want) { ok(`instant ${iso}: an expectation exists for ${tz}`, false, 'add this zone to INSTANTS'); continue; }
+    const at = new Date(iso);
+    eq(`instant ${iso} is the week of ${want} here`, localWeekStart(at), want);
+    eq(`…on Last Planner`, currentWeekStart(at), want);
+    eq(`…and on Summary`, computeWeekLoad([], at).days[0]?.date, want);
+  }
+
+  // Every hour of two years: the screens never part, the key is always a
+  // Monday, the strip is always seven consecutive calendar days with exactly
+  // one TODAY on the local day.
+  {
+    let apart = '', notMonday = '', badStrip = '', badToday = '';
+    let n = 0;
+    for (let ms = Date.UTC(2026, 0, 1, 0, 30); ms < Date.UTC(2028, 0, 1); ms += 3_600_000) {
+      n++;
+      const at = new Date(ms);
+      const lp = currentWeekStart(at);
+      const week = computeWeekLoad([], at);
+      const stamp = `${at.toISOString()} lastPlanner=${lp} summary=${week.days[0]?.date}`;
+      if (!apart && lp !== week.days[0]?.date) apart = stamp;
+      if (!notMonday && (parseCalendarDay(lp)?.getDay() !== 1 || lp !== toCalendarDayString(mondayOfLocalWeek(at)))) notMonday = stamp;
+      if (!badStrip) {
+        const monday = parseCalendarDay(lp)!;
+        for (let i = 0; i < 7; i++) {
+          if (week.days[i]?.date !== toCalendarDayString(addCalendarDays(monday, i))) badStrip = `${stamp} day ${i}=${week.days[i]?.date}`;
+        }
+      }
+      const todays = week.days.filter(d => d.isToday);
+      if (!badToday && (todays.length !== 1 || todays[0].date !== todayCalendarDay(at))) badToday = `${stamp} today=${todays.map(d => d.date).join('|')}`;
+    }
+    ok(`Last Planner and Summary name the same week at every hour of 2026–2027 (${n} instants)`, !apart, apart);
+    ok('…that week key is always a local Monday', !notMonday, notMonday);
+    ok('…the strip is seven consecutive calendar days from it (DST weeks included)', !badStrip, badStrip);
+    ok('…with exactly one TODAY, on the local day', !badToday, badToday);
+  }
+
+  // The lookahead buckets by the same Monday: on Sunday 21:00 a task on this
+  // (ending) week's Monday is THIS week, and one on tomorrow is NEXT week.
+  {
+    const sundayNight = new Date(2026, 9, 4, 21, 0, 0);
+    const mk = (id: string) => ({
+      id, title: id, phase: 'Drywall', startDay: 1, durationDays: 3, progress: 0, crew: '',
+      dependencies: [], notes: '', status: 'not_started',
+    }) as unknown as Parameters<typeof buildLookahead>[0][number];
+    const ending = buildLookahead([mk('a')], '2026-09-28', [], { weeks: 3, asOf: sundayNight });
+    eq('Sunday 21:00: work dated this (ending) week is in the lookahead as this week', ending.weeks[0]?.weeksOut, 0);
+    eq('…under this week\'s Monday', ending.weeks[0]?.weekStart, '2026-09-28');
+    const coming = buildLookahead([mk('b')], '2026-10-05', [], { weeks: 3, asOf: sundayNight });
+    eq('Sunday 21:00: work starting tomorrow is NEXT week, not this week', coming.weeks[0]?.weeksOut, 1);
+  }
+
+  // STORED KEYS. last_planner_commitments.week_start rows were all written as
+  // a Monday 'YYYY-MM-DD' and are matched by string equality; nothing is
+  // rewritten. A row written before this change on a Sunday evening west of
+  // Greenwich carries the COMING Monday (the UTC rule) — it is that week's
+  // row, found one tap forward on Sunday night and on "This week" from Monday.
+  {
+    eq('addWeeks is calendar arithmetic across spring forward', addWeeks('2026-03-02', 1), '2026-03-09');
+    eq('…across fall back', addWeeks('2026-10-26', 1), '2026-11-02');
+    eq('…across the year end', addWeeks('2026-12-28', 1), '2027-01-04');
+    eq('…and backwards', addWeeks('2026-11-02', -1), '2026-10-26');
+    const stored = [{ taskId: 't', weekStart: '2026-10-05', committed: true, outcome: 'done' as const }];
+    const sundayNight = new Date(2026, 9, 4, 21, 0, 0);
+    eq('a row stored under the coming Monday is read one week forward on Sunday night',
+      computePpc(stored, addWeeks(currentWeekStart(sundayNight), 1)).committed, 1);
+    eq('…and as "This week" from Monday 00:01', computePpc(stored, currentWeekStart(new Date(2026, 9, 5, 0, 1, 0))).committed, 1);
+    eq('…through the following Sunday 23:59', computePpc(stored, currentWeekStart(new Date(2026, 9, 11, 23, 59, 0))).committed, 1);
+  }
+}
+
 if (process.env[TZ_CHILD_FLAG]) {
   runtimeChecks();
+  weekBoundaryChecks();
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }
 
 // ── Parent: run the runtime checks under each timezone ────────────────────
 
-console.log('\nruntime checks under three timezones:');
+console.log('\nruntime checks under four timezones:');
 for (const tz of TIMEZONES) {
   const res = spawnSync(process.execPath, [__filename], {
     env: { ...process.env, TZ: tz, [TZ_CHILD_FLAG]: '1' },
@@ -451,6 +582,49 @@ for (const tz of TIMEZONES) {
     childFails.join('\n       ') || out.slice(-400));
   const resolved = /\[TZ=([^\]]+)\]/.exec(out)?.[1];
   ok(`TZ=${tz}: the child actually ran in that zone`, resolved === tz, `child reported ${resolved}`);
+}
+
+// THE WEEK RULE, at its call sites. The runtime sweep above proves the answers
+// agree; these pin WHERE each screen asks, so a fourth copy of "the Monday of
+// now" cannot grow back unnoticed.
+{
+  console.log('\nevery "which week is it now" asks utils/calendarDate (WEEK RULE):');
+  const fnBody = (src: string, signature: string): string => {
+    const from = src.indexOf(signature);
+    if (from < 0) return '';
+    const next = src.indexOf('\nexport function ', from + signature.length);
+    return src.slice(from, next < 0 ? undefined : next);
+  };
+  const lp = read('utils/lastPlanner.ts');
+  ok('lastPlanner.currentWeekStart returns localWeekStart(asOf)',
+    /return localWeekStart\(asOf\);/.test(fnBody(lp, 'export function currentWeekStart(')));
+  ok('lastPlanner.buildLookahead takes "this Monday" from currentWeekStart(asOf)',
+    /const thisMonday = currentWeekStart\(asOf\);/.test(fnBody(lp, 'export function buildLookahead(')));
+  const summary = fnBody(read('utils/summaryBriefing.ts'), 'export function computeWeekLoad(');
+  ok('summaryBriefing.computeWeekLoad starts its strip at mondayOfLocalWeek',
+    /mondayOfLocalWeek\(/.test(summary) && !/getDay\(\)|getUTCDay\(\)/.test(summary));
+  const close = read('utils/weekClose/composeWeekClose.ts');
+  ok('composeWeekClose scores PPC on currentWeekStart(now), not its own Monday',
+    /const thisMonday = currentWeekStart\(now\);/.test(close));
+
+  // `toMonday` is for a DAY-GRID date (UTC midnight of a calendar day). Handing
+  // it an instant is the bug; no caller outside lastPlanner may hold it at all.
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(join(ROOT, dir))) {
+      const rel = `${dir}/${name}`;
+      if (statSync(join(ROOT, rel)).isDirectory()) { walk(rel); continue; }
+      if (!/\.tsx?$/.test(name)) continue;
+      const src = read(rel);
+      src.split('\n').forEach((line, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+        if (/\btoMonday\(\s*(new Date\(\s*\)|now\b|asOf\b|Date\.now)/.test(line)) offenders.push(`${rel}:${i + 1} passes an instant to toMonday`);
+        if (rel !== 'utils/lastPlanner.ts' && /\btoMonday\b/.test(line)) offenders.push(`${rel}:${i + 1} uses toMonday outside utils/lastPlanner`);
+      });
+    }
+  };
+  for (const dir of ['app', 'components', 'contexts', 'hooks', 'utils', 'lib']) walk(dir);
+  ok('no caller derives the current week from the UTC date (toMonday of an instant)', offenders.length === 0, offenders.join('\n       '));
 }
 
 // Spanish routing has no import cycle (wave-next I18NWIRE): i18n/format.ts

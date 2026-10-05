@@ -21,7 +21,7 @@
 // whole week.
 import type { Project, Invoice, PunchItem, ChangeOrder } from '@/types';
 import { PROJECT_CHIP_PALETTE } from '@/constants/colors';
-import { toCalendarDayString } from '@/utils/calendarDate';
+import { mondayOfLocalWeek, toCalendarDayString } from '@/utils/calendarDate';
 import {
   isMilestoneOnScheduleDay,
   isTaskActiveOnScheduleDay,
@@ -220,9 +220,9 @@ export function groupTodayByJob(tasks: TodayTask[]): TodayJobGroup[] {
 export function computeWeekLoad(projects: Project[], now: Date = new Date()): WeekLoad {
   const base = new Date(now);
   base.setHours(0, 0, 0, 0);
-  const mondayOffset = (base.getDay() + 6) % 7; // 0 = Monday
-  const monday = new Date(base);
-  monday.setDate(base.getDate() - mondayOffset);
+  // The one week rule (utils/calendarDate): the LOCAL Monday, the same one
+  // Last Planner's currentWeekStart reads.
+  const monday = mondayOfLocalWeek(base);
   const todayMs = base.getTime();
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const days: WeekDay[] = [];

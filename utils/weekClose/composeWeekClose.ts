@@ -58,7 +58,7 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { buildReadyToBill } from '@/utils/draftedRevenue';
 import type { PaymentPredictionResult } from '@/utils/paymentPrediction';
 import type { WeeklyCommitment } from '@/utils/lastPlanner';
-import { computePpc } from '@/utils/lastPlanner';
+import { computePpc, currentWeekStart } from '@/utils/lastPlanner';
 import type { WeekClose, WeekCloseLeg, WeekCloseLegId } from './types';
 import type { BriefItem } from '@/utils/brief/composeBrief';
 
@@ -405,13 +405,8 @@ function buildCloseLeg(
 
   if (wwp && wwp.commitments.length > 0) {
     // Compute PPC for the ENDING week (the Monday of the current week)
-    const thisMonday = (() => {
-      const d = new Date(now);
-      const dow = d.getDay(); // 0 = Sunday
-      const shift = dow === 0 ? -6 : 1 - dow;
-      d.setDate(d.getDate() + shift);
-      return localDateISO(d);
-    })();
+    // The one week rule — the same key Last Planner writes commitments under.
+    const thisMonday = currentWeekStart(now);
 
     const ppcRecord = computePpc(wwp.commitments, thisMonday);
 

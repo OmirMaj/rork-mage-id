@@ -4,29 +4,20 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { world } from '@/__tests__/fixtures/world';
 import type { Project } from '@/types';
 
-function mondayISO(): string {
-  const d = new Date();
-  const ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  const dow = new Date(ms).getUTCDay();
-  const shift = dow === 0 ? -6 : 1 - dow;
-  return new Date(ms + shift * 86400000).toISOString().slice(0, 10);
+// ONE Monday for both screens. Last Planner and /summary read "this week" from
+// the same rule — the LOCAL Monday-to-Sunday week of the device
+// (utils/calendarDate localWeekStart). Until 2026-10-04 Last Planner took the
+// Monday of the UTC date instead, so on a Sunday evening west of Greenwich
+// (8 PM to midnight in New York) it was already on next week while /summary
+// was still on this one, and this file had to seed each screen with the Monday
+// that screen read (75ee6164). Written out here from local components rather
+// than imported from the helper under test.
+function localMondayISO(nowMs: number = Date.now()): string {
+  const d = new Date(nowMs);
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
 }
-const MON = mondayISO();
-
-// /summary reads the LOCAL day (utils/summaryBriefing computeWeekLoad:
-// setHours(0,0,0,0) + getDay()), while mondayISO() above takes the day from
-// UTC. On a Sunday evening west of Greenwich (8 PM to midnight in New York)
-// UTC is already Monday, so MON is NEXT week's Monday for /summary and its
-// strip showed no clash: this suite went red in that window on an untouched
-// main (2026-10-04). The /summary cases date their fixtures from the local week.
-function localMondayISO(): string {
-  const d = new Date();
-  const ms = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = new Date(ms).getUTCDay();
-  const shift = dow === 0 ? -6 : 1 - dow;
-  return new Date(ms + shift * 86400000).toISOString().slice(0, 10);
-}
-const LOCAL_MON = localMondayISO();
+const MON = localMondayISO();
 
 function mk(id: string, name: string, tasks: any[], startDate: string = MON): Project {
   return {
@@ -116,8 +107,8 @@ describe('cross-project double-booking on /summary', () => {
 
   it('names the crew and both jobs in the week strip', async () => {
     await seed([
-      mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], LOCAL_MON),
-      mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], LOCAL_MON),
+      mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })]),
+      mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })]),
     ]);
     await mountRouteChecked('/summary');
     expect(screen.getByText('Double-booked')).toBeTruthy();
@@ -125,8 +116,77 @@ describe('cross-project double-booking on /summary', () => {
   });
 
   it('negative control: one project shows no Double-booked block', async () => {
-    await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], LOCAL_MON)]);
+    await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })])]);
     await mountRouteChecked('/summary');
+    expect(screen.queryByText('Double-booked')).toBeNull();
+  });
+});
+
+// The same six facts at the clocks where the two screens used to part. Local
+// wall time: jest cannot change zone inside a run, and the ship gate pins
+// TZ=America/New_York, where Sunday 21:00 is Monday 01:00 UTC — the hour this
+// suite went red on an untouched main. (Monday 00:30 is the same trap east of
+// Greenwich; scripts/validate-calendar-date.ts runs the rule itself under New
+// York, Denver, UTC and Tokyo.) Every fixture is dated from ONE Monday.
+const CLOCKS: [string, number, string, RegExp, RegExp][] = [
+  // label, instant, this week's Monday, the week label, the clash day
+  ['Sunday 21:00', new Date(2026, 9, 4, 21, 0, 0).getTime(), '2026-09-28', /Sep 28 – Oct 4/, /on Mon, Sep 28/],
+  ['Sunday 23:59', new Date(2026, 9, 4, 23, 59, 0).getTime(), '2026-09-28', /Sep 28 – Oct 4/, /on Mon, Sep 28/],
+  ['Monday 00:30', new Date(2026, 9, 5, 0, 30, 0).getTime(), '2026-10-05', /Oct 5 – Oct 11/, /on Mon, Oct 5/],
+  ['Wednesday noon', new Date(2026, 9, 7, 12, 0, 0).getTime(), '2026-10-05', /Oct 5 – Oct 11/, /on Mon, Oct 5/],
+];
+
+describe.each(CLOCKS)('Last Planner and /summary are on the same week at %s', (_label, now, monday, weekLabel, clashDay) => {
+  beforeEach(async () => { await primeWorld('empty'); });
+
+  const twoJobs = (startDate: string) => [
+    mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Hang drywall' })], startDate),
+    mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Patch' })], startDate),
+  ];
+
+  it('the test and the app agree which Monday it is', () => {
+    expect(localMondayISO(now)).toBe(monday);
+  });
+
+  it('Last Planner opens on that week and blocks the double-booked commit', async () => {
+    await seed(twoJobs(monday));
+    await mountRouteChecked('/last-planner?projectId=p1', { now });
+    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    expect(screen.getAllByText(weekLabel).length).toBeGreaterThan(0);
+    expect(screen.getByText(/A crew is booked on two projects this week/)).toBeTruthy();
+    const box = screen.getAllByRole('checkbox')[0];
+    await act(async () => { fireEvent.press(box); });
+    expect(screen.getAllByRole('checkbox')[0].props.accessibilityState.checked).toBe(false);
+    expect(screen.getByText(/Ace Drywall is already committed to Ridgeline Job on/)).toBeTruthy();
+    expect(screen.getByText(clashDay)).toBeTruthy();
+  });
+
+  it('/summary shows the same clash in its week strip', async () => {
+    await seed(twoJobs(monday));
+    await mountRouteChecked('/summary', { now });
+    expect(screen.getByText('Double-booked')).toBeTruthy();
+    expect(screen.getByText(/Henderson \+ Ridgeline Job/)).toBeTruthy();
+  });
+
+  // The other direction: the same seed, one week later, is "this week" on
+  // NEITHER screen. (On the UTC rule Last Planner showed it on Sunday evening.)
+  const weekAfter = () => {
+    const d = new Date(`${monday}T12:00:00`);
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+  };
+
+  it('work dated the week AFTER is not this week on Last Planner', async () => {
+    await seed(twoJobs(weekAfter()));
+    await mountRouteChecked('/last-planner?projectId=p1', { now });
+    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    expect(screen.getAllByText(weekLabel).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/A crew is booked on two projects this week/)).toBeNull();
+  });
+
+  it('…and not this week on /summary either', async () => {
+    await seed(twoJobs(weekAfter()));
+    await mountRouteChecked('/summary', { now });
     expect(screen.queryByText('Double-booked')).toBeNull();
   });
 });
