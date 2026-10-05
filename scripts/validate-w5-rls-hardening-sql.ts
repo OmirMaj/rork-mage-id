@@ -16,6 +16,7 @@
 // Run via: bun run scripts/validate-w5-rls-hardening-sql.ts
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SEALED_FIELD_TICKET_PRICE_FIELDS } from '../utils/fieldTicketCore';
@@ -425,6 +426,207 @@ ok('counts safety_incidents for OLD.id, DETAIL incidents=<n>',
   /from public\.safety_incidents si where si\.project_id = old\.id/i.test(keepSafety) && /format\('incidents=%s', v_n\)/.test(keepSafety));
 ok('SECURITY DEFINER with a pinned search_path', /security definer/i.test(keepSafety) && /set search_path to 'pg_catalog', 'public'/i.test(keepSafety));
 ok('the safety_incidents FK is left alone (RESTRICT would refuse account deletion)', !/safety_incidents_project_id_fkey/i.test(mig));
+
+// ── guard allow-lists (20261005110000_guard_allowlists.sql) ─────────────────
+// Five column guards used to act on "a client" spelled as two role names
+// (current_user in ('authenticated', 'anon')): a role added later passed them.
+// They now name who MAY write. This section holds that shut three ways:
+//   1. the LATEST definition of each of the five, across every migration, is
+//      the allow-list, and is the old body with ONLY the role test swapped;
+//   2. no function anywhere whose latest definition tests current_user against
+//      a client role, bar the two listed below (not this lane's; the list may
+//      only shrink), and no migration from this one on does it at all;
+//   3. planted mutations (in memory; the files are never touched) each turn
+//      the same checks red, so the checks themselves cannot go vacuous.
+// The executed half is the PGlite script named in the migration's header.
+console.log('\nguard allow-lists: no trigger decides by naming the two client roles');
+const GA_NAME = '20261005110000_guard_allowlists.sql';
+const GA_GUARDS: { fn: string; from: string; server: string }[] = [
+  { fn: 'invoices_ledger_guard', from: '20260920020000_invoice_payment_ledger.sql', server: 'public.invoice_append_payment(uuid,jsonb)' },
+  { fn: 'aia_pay_apps_pending_guard', from: '20260920020000_invoice_payment_ledger.sql', server: 'public.invoice_append_payment(uuid,jsonb)' },
+  { fn: 'change_orders_keep_number_fn', from: '20260920050000_change_order_numbers.sql', server: 'public.change_orders_assign_number_fn()' },
+  { fn: 'punch_items_guard', from: '20260920120000_punch_sub_portal_v2.sql', server: 'public.sub_portal_mark_punch_ready(text,text,text,text)' },
+  { fn: 'punch_items_seal_pin', from: '20261002150000_punch_seals.sql', server: 'public.sub_portal_mark_punch_ready(text,text,text,text)' },
+];
+// One-role deny-lists that are still live (20260923130000_lien_prequal_hardening.sql). Reported, not
+// converted here. A name may leave this list; none may join it.
+const GA_KNOWN_DENY = ['lien_waivers_protect_signature', 'prequal_packets_protect_submission'];
+const GA_DENY = /current_user\s+(not\s+)?in\s*\(\s*'(authenticated|anon)'|current_user\s*(=|<>|!=)\s*'(authenticated|anon)'/i;
+type GaFiles = Record<string, string>;
+type GaDef = { file: string; name: string; head: string; body: string };
+
+function gaFilesOnDisk(): GaFiles {
+  const dir = join(ROOT, 'supabase', 'migrations');
+  const out: GaFiles = {};
+  for (const f of readdirSync(dir).filter(x => /^\d{14}_.*\.sql$/.test(x)).sort()) out[f] = readFileSync(join(dir, f), 'utf8');
+  return out;
+}
+/** Every `create or replace function public.<name>(` in one file, as written (comments kept in the body: that is prosrc). */
+function gaDefs(file: string, src: string): GaDef[] {
+  const starts = [...src.matchAll(/create\s+or\s+replace\s+function\s+public\.(\w+)\s*\(/gi)];
+  const out: GaDef[] = [];
+  starts.forEach((m, i) => {
+    const rest = src.slice(m.index!, i + 1 < starts.length ? starts[i + 1].index! : src.length);
+    const tag = /\bas\s+(\$[A-Za-z_]*\$)/.exec(rest);
+    if (!tag) return;
+    const open = rest.indexOf(tag[1], tag.index) + tag[1].length;
+    const close = rest.indexOf(tag[1], open);
+    if (close < 0) return;
+    out.push({ file, name: m[1].toLowerCase(), head: rest.slice(0, tag.index), body: rest.slice(open, close) });
+  });
+  return out;
+}
+/** name → the definitions in the LAST file that defines it (what the database runs after every migration). */
+function gaLive(files: GaFiles): Map<string, GaDef[]> {
+  const live = new Map<string, GaDef[]>();
+  for (const f of Object.keys(files).sort()) {
+    const byName = new Map<string, GaDef[]>();
+    for (const d of gaDefs(f, files[f])) byName.set(d.name, [...(byName.get(d.name) ?? []), d]);
+    for (const [n, ds] of byName) live.set(n, ds);
+  }
+  return live;
+}
+const gaNorm = (sql: string) => norm(stripSql(sql));
+const GA_PREAMBLE = (server: string) => gaNorm(`
+  if current_user in ('service_role', 'postgres', 'supabase_admin') then
+    v_server := true;
+  else
+    begin
+      select ro.rolname into v_owner
+        from pg_catalog.pg_proc fn
+        join pg_catalog.pg_roles ro on ro.oid = fn.proowner
+       where fn.oid = pg_catalog.to_regprocedure('${server}');
+    exception when others then
+      v_owner := null;
+    end;
+    if v_owner is not null and current_user = v_owner then
+      v_server := true;
+    end if;
+  end if;`);
+const gaMd5 = (s: string) => createHash('md5').update(s, 'utf8').digest('hex');
+
+/** Everything that is wrong, in words. Empty = the guards are allow-lists and nothing else moved. */
+function gaProblems(files: GaFiles): string[] {
+  const bad: string[] = [];
+  const mig = files[GA_NAME] ?? '';
+  if (!mig) return [`${GA_NAME} is missing`];
+  const live = gaLive(files);
+  for (const g of GA_GUARDS) {
+    const defs = live.get(g.fn) ?? [];
+    if (defs.length !== 1) { bad.push(`${g.fn}: ${defs.length} live definitions, expected 1`); continue; }
+    const d = defs[0];
+    if (d.file < GA_NAME) { bad.push(`${g.fn}: its latest definition is in ${d.file}, before the allow-list migration`); continue; }
+    const head = gaNorm(d.head), body = gaNorm(d.body), pre = GA_PREAMBLE(g.server);
+    if (/security definer/.test(head)) bad.push(`${g.fn}: SECURITY DEFINER (current_user would be its owner; it would guard nothing)`);
+    if (!body.includes(pre)) bad.push(`${g.fn}: does not open with the allow-list (service_role, postgres, supabase_admin, then the owner of ${g.server} looked up inside a block that cannot raise)`);
+    if (/'authenticated'|'anon'|'authenticator'/.test(body)) bad.push(`${g.fn}: names a client role`);
+    if (GA_DENY.test(body) || /current_user\s+not\s+in|current_user\s*(<>|!=)/.test(body)) bad.push(`${g.fn}: a deny-list test on current_user`);
+    if ((body.match(/current_user/g) ?? []).length !== 2) bad.push(`${g.fn}: current_user is read ${(body.match(/current_user/g) ?? []).length} times, expected 2 (the named roles, the looked-up owner)`);
+    if ((body.match(/v_server\s*:=/g) ?? []).length !== 2 || (body.match(/v_server := true;/g) ?? []).length !== 2) bad.push(`${g.fn}: v_server is set somewhere other than the allow-list`);
+    // Nothing else moved: the old statement with ONLY the role test swapped equals the new one minus the allow-list.
+    const old = gaDefs(g.from, files[g.from] ?? '').find(x => x.name === g.fn);
+    if (!old) { bad.push(`${g.fn}: its first definition is no longer in ${g.from}`); continue; }
+    const want = gaNorm(old.head + ' as $ ' + old.body)
+      .split("current_user not in ('authenticated', 'anon')").join('v_server')
+      .split("current_user in ('authenticated', 'anon')").join('not v_server');
+    const got = gaNorm(d.head + ' as $ ' + d.body)
+      .replace(pre + ' ', '')
+      .replace('v_server boolean := false; v_owner name; ', '')
+      .replace(' as $ declare begin ', ' as $ begin ');
+    if (want !== got) bad.push(`${g.fn}: the body is not the ${g.from} body with only the role test swapped`);
+    if (GA_DENY.test(want)) bad.push(`${g.fn}: the old body has a role test this check does not know how to swap`);
+    // The header's md5(prosrc) values (read production BEFORE, verify AFTER) are these two bodies'.
+    const listed = [...mig.matchAll(new RegExp(`^--\\s+--\\s+${g.fn}\\s+([0-9a-f]{32})\\s*$`, 'gm'))].map(m => m[1]);
+    if (listed.length !== 2 || listed[0] !== gaMd5(old.body) || listed[1] !== gaMd5(d.body)) {
+      bad.push(`${g.fn}: the header must list md5(prosrc) before (${gaMd5(old.body)}) and after (${gaMd5(d.body)}); it lists ${listed.join(', ') || 'none'}`);
+    }
+  }
+  // No live function tests current_user against a client role, bar the known two.
+  for (const [name, defs] of live) {
+    for (const d of defs) {
+      if (GA_DENY.test(stripSql(d.body)) && !GA_KNOWN_DENY.includes(name)) bad.push(`${name} (${d.file}): decides by naming a client role (a deny-list); name who MAY write instead`);
+    }
+  }
+  // …and from this migration on, no file does it anywhere (a DO block, a policy, a trigger WHEN clause).
+  for (const f of Object.keys(files).filter(x => x >= GA_NAME)) {
+    if (GA_DENY.test(stripSql(files[f]))) bad.push(`${f}: tests current_user against a client role`);
+  }
+  // The migration refuses before it replaces, checks after, and says what to read in production first.
+  const code = stripSql(mig);
+  const firstFn = code.search(/create or replace function/i);
+  const pre = code.slice(0, firstFn), post = code.slice(code.lastIndexOf('do $$'));
+  if (!/\[guard-allowlists\] apply 20260920020000/.test(pre)) bad.push('preflight: does not refuse a database without the four migrations');
+  if (!/if v_owner in \('authenticated', 'anon', 'authenticator'\) then\s+raise exception/.test(pre)) bad.push('preflight: does not refuse a looked-up function owned by a role a request can run as');
+  if (!/c\.oid = g\.tbl::regclass\s+and r\.rolname not in \('service_role', 'postgres', 'supabase_admin', v_owner\)/.test(pre)) bad.push('preflight: does not refuse a table owned by a role the guard would call a client');
+  if (!/p\.prosecdef\s+and p\.prosrc ~\* \('\\m' \|\| g\.tbl_name \|\| '\\M'\)\s+and r\.rolname not in \('service_role', 'postgres', 'supabase_admin', v_owner\)/.test(pre)) bad.push('preflight: does not refuse a definer function, naming the table, owned by a role the guard would call a client');
+  if (!/position\('''authenticated''' in v_src\) > 0\s+or position\('''anon''' in v_src\) > 0/.test(post)
+      || !/position\('current_user in \(''service_role'', ''postgres'', ''supabase_admin''\)' in v_src\) = 0/.test(post)
+      || !/raise exception '\[guard-allowlists\] verify: % must be the allow-list/.test(post)) bad.push('self-check: does not fail the apply when a guard still names the deny-list');
+  for (const g of GA_GUARDS) {
+    if ((code.match(new RegExp(`\\('public\\.${g.fn}\\(\\)',[^\\n]*'${g.server.replace(/[().]/g, '\\$&')}'\\)`, 'g')) ?? []).length !== 2) bad.push(`${g.fn}: not in both the preflight list and the self-check list with ${g.server}`);
+  }
+  if (/\b(drop|create)\s+trigger\b|\bgrant\b|\brevoke\b|\balter\s+(table|function)\b/i.test(code)) bad.push('the migration touches a trigger, a grant or an owner; it must only replace the five bodies');
+  for (const needle of ['BEFORE APPLYING, read production', 'information_schema.role_table_grants', 'from cron.job', 'c.relowner', 'p.prosecdef', 'REVERSE PATH', 'DEPLOY ORDER', 'VERIFY AFTER', 'WHO PASSES, PER GUARD', 'THE RISK OF APPLYING', 'pgq/guard-allowlists.mjs']) {
+    if (!mig.includes(needle)) bad.push(`header: "${needle}" is missing`);
+  }
+  return bad;
+}
+
+const gaDisk = gaFilesOnDisk();
+const gaNow = gaProblems(gaDisk);
+ok('the five guards are allow-lists in their latest definition, each the old body with only the role test swapped; the header lists both md5s; no live function names a client role (bar the two known); the migration refuses before it replaces and checks after',
+  gaNow.length === 0, gaNow.join('\n   '));
+ok('the five are still first defined where this check reads the old body from', GA_GUARDS.every(g => gaDefs(g.from, gaDisk[g.from] ?? '').some(d => d.name === g.fn && GA_DENY.test(d.body))));
+ok('the two known one-role deny-lists are still exactly the known two (remove a name here when it is converted)',
+  GA_KNOWN_DENY.every(n => (gaLive(gaDisk).get(n) ?? []).some(d => GA_DENY.test(stripSql(d.body)))));
+
+// Planted mutations: each returns a changed copy of the file map and must be reported.
+const gaGuardSeg = (src: string, fn: string, edit: (seg: string) => string) => {
+  const a = src.indexOf(`create or replace function public.${fn}()`);
+  const b = src.indexOf('$;\n', src.indexOf(' then\n', a));
+  const end = src.indexOf('\n\n-- ──', a);
+  if (a < 0 || b < 0 || end < 0) throw new Error(`mutation anchor: ${fn}`);
+  return src.slice(0, a) + edit(src.slice(a, end)) + src.slice(end);
+};
+const gaSwap = (seg: string, from: string, to: string) => { if (!seg.includes(from)) throw new Error(`mutation anchor: ${from.slice(0, 60)}`); return seg.replace(from, () => to); };
+const GA_OWNER_PASS = "    if v_owner is not null and current_user = v_owner then\n      v_server := true;\n    end if;\n  end if;\n";
+const gaNew = (edit: (src: string) => string) => (f: GaFiles): GaFiles => ({ ...f, [GA_NAME]: edit(f[GA_NAME]) });
+const gaOld = (fn: string) => { const g = GA_GUARDS.find(x => x.fn === fn)!; const d = gaDefs(g.from, gaDisk[g.from]).find(x => x.name === fn)!; return `${d.head}as $f$${d.body}$f$;\n`; };
+const GA_MUTATIONS: [string, (f: GaFiles) => GaFiles][] = [
+  ...GA_GUARDS.map(g => [`THE DENY-LIST RESTORED in ${g.fn} (every role but the two named passes again)`,
+    gaNew(s => gaGuardSeg(s, g.fn, seg => gaSwap(seg, GA_OWNER_PASS, `${GA_OWNER_PASS}  v_server := current_user not in ('authenticated', 'anon');\n`)))] as [string, (f: GaFiles) => GaFiles]),
+  ['a LATER migration puts the old punch_items_guard back', f => ({ ...f, '20270101000000_oops.sql': gaOld('punch_items_guard') })],
+  ['a LATER migration puts the old invoices_ledger_guard back', f => ({ ...f, '20270101000000_oops.sql': gaOld('invoices_ledger_guard') })],
+  ['a LATER migration adds a new guard written as a two-role deny-list', f => ({ ...f, '20270101000000_new_guard.sql':
+    "create or replace function public.rfis_keep_number() returns trigger language plpgsql as $$\nbegin\n  if current_user in ('authenticated', 'anon') then new.number := old.number; end if;\n  return new;\nend $$;\n" })],
+  ['a LATER migration adds a new guard written as a one-role deny-list', f => ({ ...f, '20270101000000_new_guard.sql':
+    "create or replace function public.rfis_keep_number() returns trigger language plpgsql as $$\nbegin\n  if current_user <> 'authenticated' then return new; end if;\n  new.number := old.number;\n  return new;\nend $$;\n" })],
+  ['service_role dropped from invoices_ledger_guard', gaNew(s => gaGuardSeg(s, 'invoices_ledger_guard', seg => gaSwap(seg, "in ('service_role', 'postgres', 'supabase_admin') then", "in ('postgres', 'supabase_admin') then")))],
+  ['a client role added to the allow-list of aia_pay_apps_pending_guard', gaNew(s => gaGuardSeg(s, 'aia_pay_apps_pending_guard', seg => gaSwap(seg, "in ('service_role', 'postgres', 'supabase_admin') then", "in ('service_role', 'postgres', 'supabase_admin', 'authenticator') then")))],
+  ['the function-owner exception dropped from punch_items_guard', gaNew(s => gaGuardSeg(s, 'punch_items_guard', seg => gaSwap(seg, GA_OWNER_PASS, '  end if;\n')))],
+  ['the owner lookup of punch_items_seal_pin can raise (its handler is gone)', gaNew(s => gaGuardSeg(s, 'punch_items_seal_pin', seg => gaSwap(seg, "    exception when others then\n      v_owner := null;\n", '')))],
+  ['the owner lookup of punch_items_guard casts instead of asking', gaNew(s => gaGuardSeg(s, 'punch_items_guard', seg => gaSwap(seg, "pg_catalog.to_regprocedure('public.sub_portal_mark_punch_ready(text,text,text,text)')", "'public.sub_portal_mark_punch_ready(text,text,text,text)'::regprocedure")))],
+  ['change_orders_keep_number_fn looks up the owner of another function', gaNew(s => gaGuardSeg(s, 'change_orders_keep_number_fn', seg => gaSwap(seg, "'public.change_orders_assign_number_fn()'", "'public.invoice_ledger_sum(jsonb)'")))],
+  ['change_orders_keep_number_fn runs as its definer', gaNew(s => gaGuardSeg(s, 'change_orders_keep_number_fn', seg => gaSwap(seg, 'security invoker', 'security definer')))],
+  ['punch_items_guard passes everybody', gaNew(s => gaGuardSeg(s, 'punch_items_guard', seg => gaSwap(seg, GA_OWNER_PASS, `${GA_OWNER_PASS}  v_server := true;\n`)))],
+  ['a pin is lost on the way: punch_items_guard no longer keeps sub_note', gaNew(s => gaGuardSeg(s, 'punch_items_guard', seg => gaSwap(seg, '    new.sub_note := old.sub_note;\n', '')))],
+  ['a pin is lost on the way: the seal pin no longer skips a client DELETE of a sealed row', gaNew(s => gaGuardSeg(s, 'punch_items_seal_pin', seg => gaSwap(seg, '    if old.seal_id is not null and not v_server then\n      return null;\n    end if;\n', '')))],
+  ['the ledger guard treats the server as the client (the test is inverted)', gaNew(s => gaGuardSeg(s, 'invoices_ledger_guard', seg => gaSwap(seg, '  if v_server then\n    return new;', '  if not v_server then\n    return new;')))],
+  ['the self-check no longer refuses a guard that names a client role', gaNew(s => gaSwap(s, "       or position('''authenticated''' in v_src) > 0\n       or position('''anon''' in v_src) > 0\n", ''))],
+  ['the preflight no longer refuses a definer function owned by a role the guard would call a client', gaNew(s => gaSwap(s, "       and p.prosrc ~* ('\\m' || g.tbl_name || '\\M')\n", "       and false\n"))],
+  ['the preflight no longer refuses a table owned by such a role', gaNew(s => gaSwap(s, "     where c.oid = g.tbl::regclass\n       and r.rolname not in", "     where false and r.rolname not in"))],
+  ['the migration quietly re-grants EXECUTE on a guard', gaNew(s => s + '\ngrant execute on function public.punch_items_guard() to authenticated;\n')],
+  ['the header loses the read-only checks to run before applying', gaNew(s => gaSwap(s, 'BEFORE APPLYING, read production', 'Apply it'))],
+  ['a body changes and the header md5 does not', gaNew(s => gaGuardSeg(s, 'aia_pay_apps_pending_guard', seg => gaSwap(seg, '  return new;\nend\n', '  return new;  \nend\n')))],
+];
+const gaMissed: string[] = [];
+GA_MUTATIONS.forEach(([what, plant], i) => {
+  let found: string[] = [];
+  try { found = gaProblems(plant(gaDisk)); } catch (e) { found = []; gaMissed.push(`${i + 1} ${what}: ${(e as Error).message}`); return; }
+  if (found.length === 0) gaMissed.push(`${i + 1} ${what}: NOT CAUGHT`);
+});
+ok(`all ${GA_MUTATIONS.length} planted mutations turn the allow-list check red (5 restore a deny-list in place, 4 bring one back in a later migration)`,
+  GA_MUTATIONS.length === 26 && gaMissed.length === 0, gaMissed.join('\n   '));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

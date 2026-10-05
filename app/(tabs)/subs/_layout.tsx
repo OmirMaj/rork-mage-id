@@ -1,2 +1,2 @@
 import { Stack } from 'expo-router';
-export default function SubsLayout() { return <Stack screenOptions={{ headerShown: false }} />; }
+export default function SubsLayout() { return <Stack screenOptions={{ headerShown: false, orientation: 'portrait_up' }} />; }

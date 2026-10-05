@@ -23,6 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { latestGuardIsAllowList } from './guard-allowlist-check';
 import {
   PUNCH_SEAL_ACCEPTANCE_TEXT,
   PUNCH_SEAL_CONSENT_VERSION,
@@ -224,6 +225,17 @@ ok('ProjectContext: the after photo is staged under punch-<id>-after', /recordId
 // ── 9. delete-account erases the seals ──────────────────────────────────────
 const del = read('supabase/functions/delete-account/index.ts');
 ok('delete-account deletes punch_seals rows and the punch-seals bucket', /'punch_seals'/.test(del) && /'punch-seals'/.test(del));
+
+// ── 10. the seal pin names who MAY set seal_id ───────────────────────────────
+// 20261002150000 wrote punch_items_seal_pin as a deny-list (two client role names: a role added
+// later could set seal_id and delete a sealed row). 20261005110000_guard_allowlists.sql replaced it.
+{
+  const r = latestGuardIsAllowList(ROOT, 'punch_items_seal_pin', 'public.sub_portal_mark_punch_ready(text,text,text,text)');
+  ok('punch_items_seal_pin: its latest definition is an allow-list (service_role, postgres, supabase_admin, the owner of sub_portal_mark_punch_ready) and names no client role', r.ok, r.detail);
+  ok('…and this check is not vacuous: the 20261002150000 definition alone is refused',
+    !latestGuardIsAllowList(ROOT, 'punch_items_seal_pin', 'public.sub_portal_mark_punch_ready(text,text,text,text)',
+      { '20261002150000_punch_seals.sql': read('supabase/migrations/20261002150000_punch_seals.sql') }).ok);
+}
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-punch-seal: ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

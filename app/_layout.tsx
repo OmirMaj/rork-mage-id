@@ -83,6 +83,7 @@ import {
   ThemeProvider as NavThemeProvider, DefaultTheme, DarkTheme, type Theme as NavTheme,
 } from '@react-navigation/native';
 import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
+import { ROTATABLE_ORIENTATION } from '@/utils/screenOrientation';
 import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
 import { renderDesktopStackHeader } from '@/components/desktop/DesktopStackHeader';
 import { ShellDockProvider, ShellDockHost, ASK_DOCK_ID } from '@/components/desktop/ShellDock';
@@ -1026,7 +1027,7 @@ function RootLayoutNav() {
           returns the screen untouched everywhere else (utils/desktopPage). */}
       <NavThemeProvider value={navTheme}>
       <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
-        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion, ...desktopHeaderOption }} screenLayout={renderDesktopPageFrame}>
+        <Stack screenOptions={{ orientation: 'portrait_up', headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion, ...desktopHeaderOption }} screenLayout={renderDesktopPageFrame}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1482,7 +1483,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="plan-viewer"
-        options={{ headerShown: false }}
+        options={{ headerShown: false, orientation: ROTATABLE_ORIENTATION }}
       />
       <Stack.Screen
         name="equipment-detail"

@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { latestGuardIsAllowList } from './guard-allowlist-check';
 import { invoiceUpdatePayload, afterRecordedPayment, insertStillQueued } from '../utils/invoiceWrites';
 import { buildRetainageReleasePatch } from '../utils/retainage';
 import { buildClientBook } from '../utils/portfolio/clientBook';
@@ -168,6 +169,19 @@ console.log('\n#85 days-to-pay and the weekly window use the day RECEIVED');
   ok('…and no longer by the keying instant', !/\.filter\(p => inRange\(p\.date\)\)/.test(ws));
   const cb = read('utils/portfolio/clientBook.ts');
   ok('client book no longer Date.parse-s payment dates', !/Date\.parse\(a\.date\)|Date\.parse\(pmt\.date\)/.test(cb));
+}
+
+console.log('\n#80 the guards today (latest definition)');
+// The two guards pinned above were each a deny-list (two client role names: a role added later passed).
+// 20261005110000_guard_allowlists.sql replaced both; a later migration must not put it back.
+for (const fn of ['invoices_ledger_guard', 'aia_pay_apps_pending_guard']) {
+  const r = latestGuardIsAllowList(ROOT, fn, 'public.invoice_append_payment(uuid,jsonb)');
+  ok(`${fn}: its latest definition is an allow-list (service_role, postgres, supabase_admin, the owner of invoice_append_payment) and names no client role`, r.ok, r.detail);
+}
+{
+  const first = { '20260920020000_invoice_payment_ledger.sql': read('supabase/migrations/20260920020000_invoice_payment_ledger.sql') };
+  ok('…and this check is not vacuous: the 20260920020000 definitions alone are refused', ['invoices_ledger_guard', 'aia_pay_apps_pending_guard']
+    .every(fn => !latestGuardIsAllowList(ROOT, fn, 'public.invoice_append_payment(uuid,jsonb)', first).ok));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

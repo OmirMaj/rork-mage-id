@@ -18,8 +18,9 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, ScrollView, Linking, Platform, Modal, TextInput,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform, Modal, TextInput,
 } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -59,7 +60,7 @@ export default function SharedScheduleScreen() {
   // v2.4 (audit Item 6) — Accept either `t=` (inline base64, v2.3 P1
   // path) or `s=` (snapshot row-id, new fallback for oversize schedules).
   const { t, s, asSub } = useLocalSearchParams<{ t?: string; s?: string; asSub?: string }>();
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
 
   // Inline payload (synchronous decode) — null if t= is absent or invalid.
   const inlinePayload = useMemo(() => (t ? decodeShareToken(String(t)) : null), [t]);

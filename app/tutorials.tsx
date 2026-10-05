@@ -29,7 +29,8 @@
 // support, the desktop sidebar, universal search, and mageid://tutorials.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Award, CalendarDays, Calculator, Check, ChevronRight, ClipboardCheck, Receipt, Users, type LucideIcon } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -103,7 +104,7 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart, check
   const { colors } = useTheme();
   const { t } = useT();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   // Two columns once a row of two cards still leaves each ~360 pt.
   const twoUp = width >= 768;
 
