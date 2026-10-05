@@ -31,7 +31,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { humanizeEnum } from '@/utils/statusLabels';
-import { daysUntilCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, dayOrInstantDate, daysPastDue } from '@/utils/calendarDate';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8) — a bad row here
 // costs this screen, not the whole bundle.
@@ -177,7 +177,7 @@ export default function ReportInboxScreen() {
       // MONEY-F5: outstanding is NET of held retention (the shared definition),
       // so a retention invoice can settle instead of reading unpaid forever.
       const balance = invoiceOutstanding(inv);
-      const overdue = balance > 0 && inv.dueDate && new Date(inv.dueDate).getTime() < Date.now();
+      const overdue = balance > 0 && daysPastDue(inv.dueDate) > 0;
       const status = balance <= 0 ? 'paid' : overdue ? 'overdue' : 'unpaid';
       list.push({
         key: `inv-${inv.id}`,

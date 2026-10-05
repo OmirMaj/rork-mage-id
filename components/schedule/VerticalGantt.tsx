@@ -23,6 +23,7 @@ import {
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
 
 interface VerticalGanttProps {
   schedule: ProjectSchedule;
@@ -73,10 +74,10 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
     for (let d = 0; d < displayDays; d++) {
       const date = new Date(projectStartDate);
       date.setDate(date.getDate() + d);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = toCalendarDayString(date);
       const dow = date.getDay();
       const isWeekend = dow === 0 || dow === 6;
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = todayCalendarDay(now);
       const isToday = dateStr === todayStr;
 
       const dayTasks = tasks.filter(t => {

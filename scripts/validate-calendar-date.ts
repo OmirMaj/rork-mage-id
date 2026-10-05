@@ -37,10 +37,18 @@ import { spawnSync } from 'child_process';
 import {
   formatCalendarDay, parseCalendarDay, toCalendarDayString, todayCalendarDay, daysUntilCalendarDay,
   addCalendarMonths, addCalendarDays, calendarDayOf, calendarDayStart, dayOrInstantDate,
-  mondayOfLocalWeek, localWeekStart,
+  mondayOfLocalWeek, localWeekStart, daysPastDue,
 } from '../utils/calendarDate';
 import { currentWeekStart, addWeeks, buildLookahead, computePpc } from '../utils/lastPlanner';
-import { computeWeekLoad } from '../utils/summaryBriefing';
+import { computeWeekLoad, aggregateAttention } from '../utils/summaryBriefing';
+import { buildDraftCO, collectDraftableLeaks } from '../utils/brain/leakCoDraft';
+import { coPastItsOwnTurnaround } from '../utils/followUp/rules';
+import { normalizeExtraction } from '../utils/materialReceipt';
+import { computePrequalExpiry, prequalApprovalRisk, renewalBucket } from '../utils/prequalEngine';
+import { computeARAgingReport } from '../utils/financialReports';
+import { getEffectiveInvoiceStatus, getDaysPastDue } from '../utils/projectFinancials';
+import { findWeatherRisk } from '../utils/weatherService';
+import { buildFeedbackAsk } from '../utils/portalSnapshot';
 import { addWorkingDays } from '../utils/scheduleEngine';
 import { setLang, getLang } from '../i18n/core';
 import { buildPortalSnapshot } from '../utils/portalSnapshot';
@@ -561,9 +569,210 @@ function weekBoundaryChecks() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════�
+// THE DAY RULE (2026-10-05). "Today" for jobsite work is the DEVICE'S LOCAL
+// calendar day, on every screen and in every record. The week fix the night
+// before left the same bug wherever "today" came from the UTC date
+// (`new Date().toISOString().slice(0, 10)`): in New York from 8 pm (7 pm in
+// winter) it is already "tomorrow", and in Tokyo until 9 am it is still
+// "yesterday". One helper — todayCalendarDay — answers; nothing else may.
+// Runs once per timezone, like the rest.
+// ════════════════════════════════════════════════════════════════════════�
+
+/** Run `fn` with `new Date()` / `Date.now()` frozen at `at`. */
+function withNow<T>(at: Date, fn: () => T): T {
+  const Real = Date;
+  const frozen = at.getTime();
+  class Frozen extends Real {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(frozen);
+      else super(...(args as [number]));
+    }
+    static now() { return frozen; }
+  }
+  (globalThis as { Date: DateConstructor }).Date = Frozen as unknown as DateConstructor;
+  try { return fn(); } finally { (globalThis as { Date: DateConstructor }).Date = Real; }
+}
+
+function localDayChecks() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  console.log(`[TZ=${tz}] "today" is the device's local calendar day (DAY RULE):`);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const zoneDay = (at: Date) => {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
+    const get = (t: string) => parts.find(x => x.type === t)!.value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  };
+
+  // Wall clocks: the four moments around the old 8 pm flip and around
+  // midnight, on an ordinary day and on both US clock-change days.
+  const DAYS: [string, number, number, number][] = [
+    ['an ordinary Monday', 2026, 9, 5],
+    ['the day US clocks spring forward', 2026, 2, 8],
+    ['the day US clocks fall back', 2026, 10, 1],
+    ['New Year\'s Eve', 2026, 11, 31],
+  ];
+  for (const [name, y, m, d] of DAYS) {
+    for (const [h, mi] of [[19, 59], [20, 1], [23, 59], [0, 1]] as const) {
+      const at = new Date(y, m, d, h, mi);
+      const want = `${y}-${pad(m + 1)}-${pad(d)}`;
+      eq(`${name}, ${pad(h)}:${pad(mi)} local → ${want}`, todayCalendarDay(at), want);
+      eq(`…and that is the day the zone itself names`, zoneDay(at), want);
+      eq(`…also when the clock is read, not passed`, withNow(at, () => todayCalendarDay()), want);
+    }
+  }
+
+  // Fixed instants: one moment, a different local day per zone.
+  const FIXED: [string, Record<string, string>][] = [
+    ['2026-10-06T01:00:00Z', { 'America/Denver': '2026-10-05', 'America/New_York': '2026-10-05', UTC: '2026-10-06', 'Asia/Tokyo': '2026-10-06' }],
+    ['2026-10-05T23:59:00Z', { 'America/Denver': '2026-10-05', 'America/New_York': '2026-10-05', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-06' }],
+    ['2026-10-05T16:30:00Z', { 'America/Denver': '2026-10-05', 'America/New_York': '2026-10-05', UTC: '2026-10-05', 'Asia/Tokyo': '2026-10-06' }],
+    ['2026-03-09T03:30:00Z', { 'America/Denver': '2026-03-08', 'America/New_York': '2026-03-08', UTC: '2026-03-09', 'Asia/Tokyo': '2026-03-09' }],
+    ['2026-03-08T06:59:00Z', { 'America/Denver': '2026-03-07', 'America/New_York': '2026-03-08', UTC: '2026-03-08', 'Asia/Tokyo': '2026-03-08' }],
+    ['2026-11-01T05:30:00Z', { 'America/Denver': '2026-10-31', 'America/New_York': '2026-11-01', UTC: '2026-11-01', 'Asia/Tokyo': '2026-11-01' }],
+    ['2026-11-02T04:30:00Z', { 'America/Denver': '2026-11-01', 'America/New_York': '2026-11-01', UTC: '2026-11-02', 'Asia/Tokyo': '2026-11-02' }],
+    ['2027-01-01T00:30:00Z', { 'America/Denver': '2026-12-31', 'America/New_York': '2026-12-31', UTC: '2027-01-01', 'Asia/Tokyo': '2027-01-01' }],
+  ];
+  for (const [iso, want] of FIXED) {
+    if (want[tz]) eq(`the instant ${iso} is ${want[tz]} here`, todayCalendarDay(new Date(iso)), want[tz]);
+  }
+
+  // Every hour of 2026 and 2027 against the zone's own calendar.
+  {
+    let bad = '';
+    let differs = 0;
+    const end = Date.UTC(2028, 0, 1);
+    for (let t = Date.UTC(2026, 0, 1); t < end && !bad; t += 3_600_000) {
+      const at = new Date(t);
+      const got = todayCalendarDay(at);
+      if (got !== zoneDay(at)) bad = `${at.toISOString()} → ${got}, the zone says ${zoneDay(at)}`;
+      if (got !== at.toISOString().slice(0, 10)) differs++;
+    }
+    ok('todayCalendarDay equals the zone\'s own day at every hour of 2026 and 2027', !bad, bad);
+    ok(tz === 'UTC' ? 'in UTC the UTC date is never wrong (control)' : 'the UTC date is the WRONG day for some hours here — the bug this rule ends',
+      tz === 'UTC' ? differs === 0 : differs > 0, `${differs} hour(s) differ`);
+  }
+
+  // ── Every behaviour that SAVES a date, at 9 pm local on Monday Oct 5 ─────
+  // (in New York that instant is 2026-10-06T01:00Z — its UTC date is the 6th).
+  const evening = new Date(2026, 9, 5, 21, 0);
+  const eveningIso = evening.toISOString();
+  const DAY = '2026-10-05';
+  if (tz === 'America/New_York' || tz === 'America/Denver') {
+    eq('(the case bites here: 9 pm local is already the 6th in UTC)', eveningIso.slice(0, 10), '2026-10-06');
+  }
+  if (tz === 'Asia/Tokyo') {
+    eq('(the case bites here: local midnight is still the 4th in UTC)', new Date(2026, 9, 5).toISOString().slice(0, 10), '2026-10-04');
+  }
+
+  // 1. Schedule import: an imported schedule with no start date is anchored today.
+  eq('import anchor: an undated import at 9 pm is anchored to TODAY', withNow(evening, () => todayCalendarDay()), DAY);
+  // 2. An undated schedule's start (the project's createdAt instant, or the
+  //    local-midnight anchor of a double-tapped Gantt day) is its LOCAL day.
+  eq('undated schedule start: a project created at 9 pm starts that day', toCalendarDayString(new Date(eveningIso)), DAY);
+  eq('double-tap-to-add: the tapped local-midnight day prefills itself', toCalendarDayString(new Date(2026, 9, 5)), DAY);
+  // 3. Auto-drafted change orders are dated today, and the 14-day window is
+  //    14 LOCAL days.
+  {
+    const project = { id: 'p1', name: 'Job', status: 'in_progress' } as unknown as Project;
+    const reportAt = (d: Date, id: string) => ({
+      id, projectId: 'p1', date: d.toISOString(),
+      leakScan: { items: [{ description: 'Extra outlet', estimatedPrice: 250 }] },
+    }) as unknown as DailyFieldReport;
+    const draft = withNow(evening, () => buildDraftCO({ report: reportAt(evening, 'r0'), project }, [], todayCalendarDay()));
+    eq('CO draft date: a change order drafted at 9 pm is dated TODAY', draft.date, DAY);
+    const collect = (now: Date, r: DailyFieldReport) => collectDraftableLeaks({
+      dailyReports: [r], projects: [project], changeOrders: [], processedReportIds: new Set(), userId: 'u1', now,
+    }).length;
+    eq('…a report filed 14 local days ago (10 am) is still in the window at 9 pm', collect(evening, reportAt(new Date(2026, 8, 21, 10, 0), 'r1')), 1);
+    eq('…one filed 15 local days ago (9:30 pm) is out of it the next morning', collect(new Date(2026, 9, 5, 10, 0), reportAt(new Date(2026, 8, 20, 21, 30), 'r2')), 0);
+    eq('…and one filed 14 local days ago at 9:30 pm is in', collect(evening, reportAt(new Date(2026, 8, 21, 21, 30), 'r3')), 1);
+  }
+  // 4. A change order's approval target is N calendar days after the LOCAL day it was sent.
+  {
+    const mint = (co: Record<string, unknown>) => coPastItsOwnTurnaround.mint({
+      nowMs: evening.getTime(), projectId: 'p1', projectName: 'Job',
+      changeOrders: [{ id: 'co1', number: 1, status: 'submitted', description: 'x', approvers: [], ...co }],
+    } as unknown as Parameters<typeof coPastItsOwnTurnaround.mint>[0])[0]?.targetDate;
+    eq('approval target: sent at 9 pm with a 7-day turnaround → due the 12th', mint({ date: eveningIso, approvalDeadlineDays: 7 }), '2026-10-12');
+    eq('…a bare sent day gives the same answer', mint({ date: DAY, approvalDeadlineDays: 7 }), '2026-10-12');
+    eq('…across the day US clocks fall back', mint({ date: new Date(2026, 9, 28, 21, 0).toISOString(), approvalDeadlineDays: 7 }), '2026-11-04');
+    eq('…and the day they spring forward', mint({ date: new Date(2026, 2, 5, 21, 0).toISOString(), approvalDeadlineDays: 7 }), '2026-03-12');
+  }
+  // 5. A receipt's date is the day printed on it.
+  {
+    const receiptDate = (printed: string) => normalizeExtraction({ receiptDate: printed, lines: [] } as unknown as Parameters<typeof normalizeExtraction>[0], { projectId: 'p1', now: eveningIso }).receiptDate;
+    eq('receipt date: "Oct 5, 2026 9:15 PM" is Oct 5', receiptDate('Oct 5, 2026 9:15 PM'), DAY);
+    eq('…"10/5/2026" is Oct 5', receiptDate('10/5/2026'), DAY);
+    eq('…an ISO day is kept as written', receiptDate('2026-10-05'), DAY);
+    eq('…an ISO timestamp keeps its printed day', receiptDate('2026-10-05T21:15:00'), DAY);
+    eq('…and what cannot be read is shown as printed', receiptDate('fifth of October'), 'fifth of October');
+  }
+  // 6. The lien-waiver through-date falls back to today (the invoice screen),
+  //    and the waiver screen reads an instant as its local day.
+  eq('waiver through-date: an invoice issued at 9 pm is "through" that day', calendarDayOf(eveningIso), DAY);
+  eq('…and with nothing on the invoice it is today', withNow(evening, () => calendarDayOf(undefined) ?? todayCalendarDay()), DAY);
+
+  // ── Display: what is "today" / "expired" / "overdue" at 9 pm ─────────────
+  eq('prequal: an approval at 9 pm runs one year from TODAY', computePrequalExpiry(eveningIso), '2027-10-05');
+  eq('…a COI that lapses today is flagged as lapsing TODAY', JSON.stringify(prequalApprovalRisk(eveningIso, DAY)), JSON.stringify({ kind: 'lapsed', coi: DAY, today: true }));
+  eq('…a COI good through tomorrow is not a risk at 9 pm tonight', prequalApprovalRisk(eveningIso, '2026-10-06'), null);
+  eq('…and a COI that expires today is not "expired" the evening of', withNow(evening, () => renewalBucket(DAY)), '7d');
+  eq('…it is expired the next morning', withNow(new Date(2026, 9, 6, 0, 1), () => renewalBucket(DAY)), 'expired');
+  {
+    const rain = [{ date: DAY, isWorkable: false }] as unknown as Parameters<typeof findWeatherRisk>[3];
+    eq('weather on an undated schedule: day 1 of a job created at 9 pm is TODAY\'s forecast', findWeatherRisk(new Date(eveningIso), 1, 1, rain)?.date, DAY);
+    eq('…and of a local-midnight anchor', findWeatherRisk(new Date(2026, 9, 5), 1, 1, rain)?.date, DAY);
+    eq('…day 2 is tomorrow\'s, not today\'s', findWeatherRisk(new Date(eveningIso), 2, 1, rain), null);
+  }
+  {
+    const portal = { enabled: true } as unknown as ClientPortalSettings;
+    const done = (day: string) => ({ id: 'p1', substantialCompletionDate: day }) as unknown as Project;
+    const a = withNow(evening, () => buildFeedbackAsk(done(DAY), portal));
+    const b = buildFeedbackAsk(done(DAY), portal, DAY);
+    eq('portal: the snapshot\'s default "today" is the local day', JSON.stringify(a), JSON.stringify(b));
+  }
+
+  // ── THE OVERDUE RULE: overdue from the start of the local day AFTER the due day
+  {
+    const due2pm = new Date(2026, 9, 5, 14, 0).toISOString();
+    eq('overdue: due today at 2 pm, now 2:01 pm → not overdue', daysPastDue(due2pm, new Date(2026, 9, 5, 14, 1)), 0);
+    eq('…now 11:59 pm → still not overdue', daysPastDue(due2pm, new Date(2026, 9, 5, 23, 59)), 0);
+    eq('…now 12:01 am the next day → 1 day overdue', daysPastDue(due2pm, new Date(2026, 9, 6, 0, 1)), 1);
+    eq('…9 am two days later → 2', daysPastDue(due2pm, new Date(2026, 9, 7, 9, 0)), 2);
+    eq('…a due date stored at 9 pm is due THAT local day', daysPastDue(eveningIso, new Date(2026, 9, 5, 23, 59)), 0);
+    eq('…and overdue at 12:01 am', daysPastDue(eveningIso, new Date(2026, 9, 6, 0, 1)), 1);
+    eq('…a bare due day behaves the same', daysPastDue(DAY, new Date(2026, 9, 6, 0, 1)), 1);
+    eq('…and is not overdue on its own day', daysPastDue(DAY, new Date(2026, 9, 5, 23, 59)), 0);
+    eq('…days are calendar days across the fall-back weekend', daysPastDue('2026-10-31', new Date(2026, 10, 2, 0, 1)), 2);
+    eq('…and across spring forward', daysPastDue('2026-03-07', new Date(2026, 2, 9, 0, 1)), 2);
+    eq('…not yet due → 0', daysPastDue('2026-10-09', evening), 0);
+    eq('…unreadable → 0, never overdue', daysPastDue('next week', evening) + daysPastDue(undefined, evening) + daysPastDue('', evening), 0);
+
+    // The same invoice through every reader that calls it overdue.
+    const inv = (dueDate: string) => ({
+      id: 'i1', number: 7, projectId: 'p1', status: 'sent', issueDate: '2026-09-05T14:00:00.000Z', dueDate,
+      totalDue: 1000, amountPaid: 0, subtotal: 1000, retentionPercent: 0, retentionAmount: 0, retentionReleased: 0, lineItems: [], payments: [],
+    }) as unknown as Parameters<typeof getEffectiveInvoiceStatus>[0];
+    const projects = [{ id: 'p1', name: 'Job', status: 'in_progress' }] as unknown as Project[];
+    const lateSameDay = new Date(2026, 9, 5, 23, 30);
+    const nextMorning = new Date(2026, 9, 6, 0, 1);
+    const attention = (now: Date) => aggregateAttention(projects, [inv(due2pm)], [], [], now).filter(a => a.id === 'overdue-invoices');
+    eq('Summary: no "overdue" row at 11:30 pm on the due day', attention(lateSameDay).length, 0);
+    eq('…one at 12:01 am, counted as 1 day', attention(nextMorning).map(a => a.label).join('|'), 'Invoice 1 days overdue');
+    eq('invoice badge: "sent" at 11:30 pm on the due day', withNow(lateSameDay, () => getEffectiveInvoiceStatus(inv(due2pm))), 'sent');
+    eq('…"overdue" at 12:01 am', withNow(nextMorning, () => getEffectiveInvoiceStatus(inv(due2pm))), 'overdue');
+    eq('…1 day past due', withNow(nextMorning, () => getDaysPastDue(inv(due2pm))), 1);
+    const aging = (now: Date) => withNow(now, () => computeARAgingReport([inv(due2pm)], projects).rows.map(r => `${r.bucket}:${r.daysPastDue}`).join('|'));
+    eq('A/R aging: "current" at 11:30 pm on the due day', aging(lateSameDay), 'current:0');
+    eq('…in the 0-30 bucket, 1 day past due, at 12:01 am', aging(nextMorning), '0-30:1');
+  }
+}
+
 if (process.env[TZ_CHILD_FLAG]) {
   runtimeChecks();
   weekBoundaryChecks();
+  localDayChecks();
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }
@@ -1169,6 +1378,161 @@ console.log('\nthe shared date picker opens on the stored day:');
   const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
   ok('…and never from new Date(value)', !/new Date\(value\)/.test(code));
   eq("…a bare '2026-09-15' opens on the 15th", calendarDayStart('2026-09-15')?.getDate(), 15);
+}
+
+// ════════════════════════════════════════════════════════════════════════�
+// THE DAY RULE, static half: no app code may derive a day key from the UTC
+// text of an instant.
+//
+// The earlier sweeps in this file name the files they read, and each time the
+// bug came back in a file they did not name. This one walks every source
+// directory. `<anything>.toISOString()` immediately sliced / split /
+// substringed is how a Date becomes a 'YYYY-MM-DD' in UTC; every such line is
+// either gone (todayCalendarDay / toCalendarDayString / calendarDayOf) or in
+// UTC_DAY_ALLOWED below with the reason UTC is right THERE. A stale entry
+// fails, so the list cannot rot into a blanket pass. The same for the
+// component form (getUTCFullYear/Month/Date/Day, Date.UTC), listed per file.
+// ════════════════════════════════════════════════════════════════════════�
+
+console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):');
+{
+  const DIRS = ['app', 'components', 'contexts', 'hooks', 'utils', 'lib', 'constants'];
+  const UTC_DAY_ALLOWED: { file: string; line: string; reason: string }[] = [
+    // The AI caps: the server counts a UTC day and resets at UTC midnight
+    // (supabase/functions/_shared/auth.ts), so the client's counter must
+    // roll over at the same instant or the meter and the refusal disagree.
+    { file: 'utils/aiRateLimiter.ts', line: "const today = new Date().toISOString().split('T')[0];", reason: 'AI daily cap — must match the server\'s UTC day (two sites, same text)' },
+    { file: 'utils/aiService.ts', line: "const today = new Date().toISOString().split('T')[0];", reason: 'AI daily usage counter — the server\'s UTC day' },
+    { file: 'utils/aiService.ts', line: "return { date: new Date().toISOString().split('T')[0], copilotCount: 0, builderCount: 0 };", reason: 'AI daily usage counter — the server\'s UTC day' },
+    { file: 'utils/aiService.ts', line: "usage.date = new Date().toISOString().split('T')[0];", reason: 'AI daily usage counter — the server\'s UTC day' },
+    // Day-GRID arithmetic on a bare calendar day: the Date is built at UTC
+    // midnight/noon from 'YYYY-MM-DD' and read back in UTC, so no zone enters.
+    { file: 'utils/portalOwnerCore.ts', line: 'return new Date(dayMs(calendarDate) + offsetDays * DAY_MS).toISOString().slice(0, 10);', reason: 'UTC day grid: dayMs() parses the bare day at UTC, so the UTC read-back is the same calendar' },
+    { file: 'utils/copilot/dateMath.ts', line: 'return out.toISOString().slice(0, 10);', reason: 'UTC day grid: built with Date.UTC from a bare day\'s components' },
+    { file: 'utils/icsGenerator.ts', line: 'return d.toISOString().slice(0, 10);', reason: 'UTC day grid: `${base}T12:00:00Z` + setUTCDate' },
+    { file: 'app/aia-pay-app.tsx', line: '? new Date(new Date(priorAIA.periodTo).getTime() + 86400000).toISOString().slice(0, 10)', reason: 'UTC day grid: periodTo is a bare \'YYYY-MM-DD\' (parsed at UTC midnight) plus one day' },
+    // The JOBSITE's day, not the device's and not UTC: the instant is shifted
+    // by OpenWeather's city.timezone first, then read on the UTC grid.
+    { file: 'utils/weatherService.ts', line: "const iso = siteTime(e).toISOString().split('T')[0];", reason: 'jobsite-local day: siteTime() has already added the site\'s UTC offset' },
+    // Not a jobsite day at all.
+    { file: 'components/schedule/mobile/WeekStrip.tsx', line: 'keyExtractor={(d) => d.toISOString().slice(0, 10)}', reason: 'a React list key — unique per day in any zone, never shown or stored' },
+    { file: 'utils/dataExport.ts', line: "const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');", reason: 'a to-the-second UTC timestamp in a backup file name — an instant, not a day key' },
+    // KNOWN, NOT YET FIXED (reported 2026-10-05; none of these reads "now"):
+    { file: 'utils/icsGenerator.ts', line: 'return new Date(t).toISOString().slice(0, 10);', reason: 'UNRESOLVED: a schedule date stored as a full instant is exported on its UTC day; bare days (the normal shape) return before this line' },
+    { file: 'utils/dataTable.ts', line: 'if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.toISOString().slice(0, 10) : UNKNOWN_CELL;', reason: 'UNRESOLVED: the generic table prints a raw Date cell on its UTC day; no column passes "now"' },
+    { file: 'utils/portalSnapshot.ts', line: '.toISOString().slice(0, 10);', reason: 'UNRESOLVED: milestone dates walk a UTC-midnight anchor through addWorkingDays (which reads the LOCAL weekday) — a separate, older defect in the walk, not in "today"' },
+    { file: 'utils/portfolio/pipelineHorizon.ts', line: 'return d.toISOString().slice(0, 10);', reason: 'UNRESOLVED: same UTC-anchor / local-weekday walk as the portal milestones (backlog horizon date only; the load windows are local since 2026-10-05)' },
+  ];
+  const UTC_PARTS_ALLOWED: Record<string, string> = {
+    'utils/aiRateLimiterCore.ts': 'when the server\'s UTC-day and UTC-month AI caps reset',
+    'utils/weekClose/composeWeekClose.ts': 'the next run of the weekly digest cron, which is scheduled in UTC',
+    'utils/weatherService.ts': 'the jobsite\'s midday, on an instant already shifted by the site offset',
+    'utils/lastPlanner.ts': 'the UTC day grid for stored week keys (toMonday is grid-only; "now" comes from localWeekStart)',
+    'utils/crossProjectLoad.ts': 'UTC day grid over bare schedule days; no "now"',
+    'utils/cpm.ts': 'UTC day grid over bare schedule days; no "now"',
+    'utils/copilot/dateMath.ts': 'UTC day grid over a bare day',
+    'utils/icsGenerator.ts': 'UTC day grid over a bare day',
+    'utils/prequalEngine.ts': 'parsePrequalDate round-trips a typed day\'s components on the UTC grid',
+    'utils/permitPath/deptAnswers.ts': 'round-trips a bare day\'s components on the UTC grid',
+    'utils/tutorial/learn/fixturesD.ts': 'round-trips a bare day\'s components on the UTC grid',
+    'utils/passport/consumerPassport.ts': 'UTC day grid from a bare day\'s components',
+    'utils/safety/oshaLog.ts': 'UTC day grid from a bare day\'s components',
+    'utils/accountingExport.ts': 'formats a bare day parsed at noon UTC',
+    'utils/projectWorkspaceLayout.ts': 'UTC day grid; "today" enters as Date.UTC(LOCAL year, month, date)',
+    'utils/calendarDate.ts': 'UTC day grid of LOCAL components (daysUntilCalendarDay)',
+    'utils/punchExportCore.ts': 'UTC day grid of LOCAL components',
+    'utils/constructionNews.ts': 'UTC day grid of LOCAL components',
+    'utils/bidInviteCore.ts': 'UTC day grid of LOCAL components',
+    'utils/portfolio/portfolioRow.ts': 'UTC day grid of LOCAL components',
+    'components/DatePickerModal.tsx': 'the picker stores the chosen day at noon UTC so it names the same day in every zone',
+    'utils/subNetwork.ts': 'the YEAR of a stored instant (a "since 2024" label)',
+  };
+
+  const sliced = /\.toISOString\(\)\s*\.(?:slice|split|substring|substr)\(/;
+  const parts = /\.getUTC(?:FullYear|Month|Date|Day|Hours)\(|\bDate\.UTC\(/;
+  const hits: { file: string; lineNo: number; text: string }[] = [];
+  const partFiles = new Set<string>();
+  const brokenAcrossLines: string[] = [];
+  const aliased: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(join(ROOT, dir))) {
+      const rel = `${dir}/${name}`;
+      if (statSync(join(ROOT, rel)).isDirectory()) { if (name !== 'node_modules' && name !== '__tests__') walk(rel); continue; }
+      if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) continue;
+      const src = read(rel);
+      const lines = src.split('\n');
+      // `const now = new Date().toISOString()` … `now.slice(0, 10)` is the same
+      // bug one line apart.
+      const nowIso = new Set([...src.matchAll(/\b(?:const|let|var)\s+(\w+)\s*=\s*new Date\((?:Date\.now\(\))?\)\.toISOString\(\)/g)].map(m => m[1]));
+      lines.forEach((line, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+        if (sliced.test(line)) hits.push({ file: rel, lineNo: i + 1, text: line.trim() });
+        if (parts.test(line)) partFiles.add(rel);
+        if (/\.toISOString\(\)\s*$/.test(line) && /^\s*\.(?:slice|split|substring|substr)\(/.test(lines[i + 1] ?? '')) brokenAcrossLines.push(`${rel}:${i + 1}`);
+        for (const n of nowIso) {
+          if (new RegExp(`\\b${n}\\.(?:slice\\(0, ?10\\)|split\\(['"]T['"]\\)|substring\\(0, ?10\\))`).test(line)) aliased.push(`${rel}:${i + 1}: ${line.trim()}`);
+        }
+      });
+    }
+  };
+  for (const d of DIRS) walk(d);
+
+  const isAllowed = (h: { file: string; text: string }) => UTC_DAY_ALLOWED.some(a => a.file === h.file && a.line === h.text);
+  const unallowed = hits.filter(h => !isAllowed(h));
+  ok(`no un-listed \`.toISOString()\` day slice (found ${hits.length}, ${hits.length - unallowed.length} listed with a reason)`,
+    unallowed.length === 0,
+    unallowed.map(h => `${h.file}:${h.lineNo}: ${h.text}\n         → todayCalendarDay() / toCalendarDayString(d) / calendarDayOf(value); or, if UTC is right here, add it to UTC_DAY_ALLOWED with why`).join('\n       '));
+  const stale = UTC_DAY_ALLOWED.filter(a => !hits.some(h => h.file === a.file && h.text === a.line));
+  ok('every UTC_DAY_ALLOWED entry still matches a real line', stale.length === 0, stale.map(a => `${a.file}: ${a.line}`).join('\n       '));
+  ok('every UTC_DAY_ALLOWED entry says why', UTC_DAY_ALLOWED.every(a => a.reason.trim().length >= 20));
+  ok('no day slice hides behind a line break', brokenAcrossLines.length === 0, brokenAcrossLines.join('\n       '));
+  // The alias match is by NAME within a file, so one same-named parameter is a
+  // false hit: SignatureBlock's `signedAt` prop is sliced only after a regex
+  // has proved it is the noon-UTC stamp of a paper signature's calendar day.
+  const ALIAS_ALLOWED = ['app/contract.tsx: ? formatCalendarDay(signedAt.slice(0, 10))'];
+  const aliasKey = (a: string) => a.replace(/:\d+:/, ':');
+  const badAliases = aliased.filter(a => !ALIAS_ALLOWED.includes(aliasKey(a)));
+  ok('no day slice hides behind a `const now = new Date().toISOString()` alias', badAliases.length === 0, badAliases.join('\n       '));
+  ok('…and the one allowed same-named prop is still there', ALIAS_ALLOWED.every(k => aliased.some(a => aliasKey(a) === k)));
+  const newPartFiles = [...partFiles].filter(f => !(f in UTC_PARTS_ALLOWED));
+  ok(`no un-listed file reads UTC date parts (${partFiles.size} file(s), all listed with a reason)`, newPartFiles.length === 0,
+    newPartFiles.map(f => `${f} → local components (getFullYear/getMonth/getDate) via utils/calendarDate, or add the file to UTC_PARTS_ALLOWED with why`).join('\n       '));
+  const stalePartFiles = Object.keys(UTC_PARTS_ALLOWED).filter(f => !partFiles.has(f));
+  ok('every UTC_PARTS_ALLOWED file still reads UTC date parts', stalePartFiles.length === 0, stalePartFiles.join(', '));
+  ok('the AI caps are the only allowed "UTC day of now"', UTC_DAY_ALLOWED.filter(a => /new Date\(\)\.toISOString\(\)\.(?:split|slice\(0, 10\))/.test(a.line)).every(a => /^utils\/ai(RateLimiter|Service)\.ts$/.test(a.file)));
+
+  // The call sites that SAVE a date, pinned to the one helper.
+  const pins: [string, string, RegExp][] = [
+    ['schedule import anchors an undated import on todayCalendarDay()', 'app/schedule-import.tsx', /project\.schedule\?\.startDate \?\? todayCalendarDay\(\)/],
+    ['the Schedule tab\'s new project anchors on todayCalendarDay()', 'app/(tabs)/schedule/index.tsx', /startDate: schedule\.startDate \?\? todayCalendarDay\(\)/],
+    ['schedule-pro saves an undated schedule\'s start as its local day (shell)', 'app/schedule-pro.tsx', /startDate: project\?\.schedule\?\.startDate \?\? toCalendarDayString\(projectStartDate\),/],
+    ['…and on the desktop editor', 'app/schedule-pro.tsx', /\?\? toCalendarDayString\(projectStartDate\),\n\s+totalDurationDays,/],
+    ['…and double-tap-to-add prefills the tapped local day', 'app/schedule-pro.tsx', /const iso = toCalendarDayString\(target\);/],
+    ['auto-drafted change orders are dated todayCalendarDay()', 'hooks/useLeakCoDrafts.ts', /const nowISO = todayCalendarDay\(\);/],
+    ['the leak sweep\'s 14-day cutoff is 14 local calendar days', 'utils/brain/leakCoDraft.ts', /const cutoffISO = toCalendarDayString\(addCalendarDays\(now, -14\)\);/],
+    ['the buyout risk-override note is dated todayCalendarDay()', 'app/buyout-package.tsx', /\[risk-override \$\{todayCalendarDay\(\)\}\]/],
+    ['the lien-waiver through-date falls back to todayCalendarDay()', 'app/invoice.tsx', /existingInvoice\.issueDate \?\? todayCalendarDay\(\),/],
+    ['a change order\'s approval target counts calendar days from the local sent day', 'utils/followUp/rules.ts', /toCalendarDayString\(addCalendarDays\(new Date\(sentMs\), deadline\)\)/],
+    ['a receipt date is read back from local components', 'utils/materialReceipt.ts', /return toCalendarDayString\(new Date\(t\)\);/],
+    ['a shared plan link\'s start day falls back to todayCalendarDay()', 'utils/planShareToken.ts', /sd: scheduleStartDate \?\? todayCalendarDay\(\),/],
+    ['the vertical Gantt\'s "today" row is todayCalendarDay(now)', 'components/schedule/VerticalGantt.tsx', /const todayStr = todayCalendarDay\(now\);/],
+    ['the in-app client view ranks decisions against todayCalendarDay()', 'app/client-view.tsx', /today: todayCalendarDay\(\),/],
+    ['the bid advisor\'s capacity window starts on todayCalendarDay', 'app/judges.tsx', /startISO: todayCalendarDay\(start\), endISO: toCalendarDayString\(addCalendarDays\(start, weeks \* 7\)\)/],
+    ['the Home briefing cache is keyed on todayCalendarDay()', 'components/AIHomeBriefing.tsx', /const today = todayCalendarDay\(\);/],
+  ];
+  for (const [label, file, re] of pins) ok(label, re.test(read(file)));
+
+  // One overdue rule: every reader that calls an invoice overdue asks daysPastDue.
+  const OVERDUE_READERS = [
+    'utils/summaryBriefing.ts', 'utils/brief/composeBrief.ts', 'app/report-inbox.tsx', 'utils/financialReports.ts',
+    'utils/projectFinancials.ts', 'utils/weekClose/composeWeekClose.ts', 'utils/brainWatch.ts', 'hooks/useSmartInbox.ts',
+  ];
+  for (const file of OVERDUE_READERS) {
+    const code = read(file).split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    ok(`${file} asks daysPastDue for "overdue"`, /daysPastDue(?:Day)?\(/.test(code));
+    ok(`…and no longer compares the due INSTANT to the clock`,
+      !/new Date\((?:\w+\.)?dueDate\)\.getTime\(\)\s*<|dueTs < Date\.now\(\)|- new Date\((?:\w+\.)?dueDate\)\.getTime\(\)/.test(code));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

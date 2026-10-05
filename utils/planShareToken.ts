@@ -50,6 +50,7 @@
 import type { PlanZone, PlanSheet, ScheduleTask, DrawingPin, ProjectPhoto } from '@/types';
 // Relative, not '@/': the bun validators load this module directly.
 import { isPhotoShareable } from './photoShareToken';
+import { todayCalendarDay } from './calendarDate';
 
 /** Hard cap on photos in a single share link — keeps the URL inside what SMS
  *  and email clients will carry without mangling. */
@@ -265,7 +266,7 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     v: 1,
     n: projectName,
     gc: gcName,
-    sd: scheduleStartDate ?? new Date().toISOString().slice(0, 10),
+    sd: scheduleStartDate ?? todayCalendarDay(),
     // DB-F11: since `plan-sheets` went private-by-design this is a SIGNED url,
     // not a permanent public one, so a shared plan link now EXPIRES — mint a
     // fresh one for the homeowner rather than expecting an old link to keep

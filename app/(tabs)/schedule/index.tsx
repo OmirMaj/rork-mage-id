@@ -1058,7 +1058,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       description: 'Created from Schedule', createdAt: now, updatedAt: now,
       estimate: null,
       // Creation → anchor today unless the builder supplied a date.
-      schedule: { ...schedule, projectId: null, startDate: schedule.startDate ?? now.slice(0, 10), updatedAt: now },
+      schedule: { ...schedule, projectId: null, startDate: schedule.startDate ?? todayCalendarDay(), updatedAt: now },
       status: 'draft',
     };
     addProject(newProject);

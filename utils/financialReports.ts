@@ -24,6 +24,7 @@ import {
   type WipEstimatedCost, type WipSource,
 } from '@/utils/wip';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { daysPastDue as daysPastDueDay } from '@/utils/calendarDate';
 
 // ─── WIP ─────────────────────────────────────────────────────────────
 
@@ -762,8 +763,7 @@ export function computeARAgingReport(
   projects: Project[],
 ): ARAgingReport {
   const projectName = new Map(projects.map(p => [p.id, p.name]));
-  const now = Date.now();
-  const DAY = 86_400_000;
+  const now = new Date();
 
   const rows: ARAgingRow[] = [];
   for (const inv of invoices) {
@@ -798,9 +798,10 @@ export function computeARAgingReport(
     // under Retainage Held, never aged, never in a bucket.
     if (outstanding <= 0.5 && retainageHeld <= 0.5) continue;
 
-    const dueMs = new Date(inv.dueDate).getTime();
-    // Only a collectible balance ages; held retainage is not past due.
-    const daysPastDue = outstanding <= 0.5 || isNaN(dueMs) ? 0 : Math.max(0, Math.floor((now - dueMs) / DAY));
+    // Only a collectible balance ages; held retainage is not past due. Aged in
+    // LOCAL calendar days from the day after the due day (calendarDate
+    // daysPastDue — the one overdue rule).
+    const daysPastDue = outstanding <= 0.5 ? 0 : daysPastDueDay(inv.dueDate, now);
 
     let bucket: AgingBucket | 'current';
     if (daysPastDue === 0)        bucket = 'current';

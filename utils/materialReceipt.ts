@@ -13,6 +13,7 @@
 
 import type { MaterialReceipt, MaterialReceiptLine } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
+import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 
 /** The loose JSON the vision model returns — every field optional/untrusted. */
 export interface RawReceiptExtraction {
@@ -68,8 +69,14 @@ function clampPct(v: unknown): number | undefined {
 function normalizeDate(raw?: string): string | undefined {
   if (!raw || !raw.trim()) return undefined;
   const s = raw.trim();
+  // A date printed ISO-first is that calendar day as written — never moved
+  // by a zone. Anything else ('9/4/2026', 'Sep 4, 2026 9:15 PM') is parsed as
+  // LOCAL wall time, so it is read back from local components; its UTC date
+  // was the next day for an evening receipt west of Greenwich and the
+  // previous day for every dateless-time receipt east of it.
+  if (/^\d{4}-\d{2}-\d{2}/.test(s) && parseCalendarDay(s)) return s.slice(0, 10);
   const t = Date.parse(s);
-  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+  if (!Number.isNaN(t)) return toCalendarDayString(new Date(t));
   return s;
 }
 

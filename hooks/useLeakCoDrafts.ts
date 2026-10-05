@@ -25,6 +25,7 @@ import {
   buildDraftCO,
 } from '@/utils/brain/leakCoDraft';
 import { recordDidForYou } from '@/utils/brain/didForYou';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 // ─── AsyncStorage key for processed report IDs ────────────────────────────
 
@@ -85,7 +86,7 @@ export function useLeakCoDrafts(): void {
 
         if (candidates.length === 0) return;
 
-        const nowISO = new Date().toISOString().slice(0, 10);
+        const nowISO = todayCalendarDay();
         const newProcessed = [...processedArray];
 
         // Build ALL drafts first against a locally accumulated list, then

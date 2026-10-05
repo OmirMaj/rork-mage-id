@@ -19,12 +19,7 @@ import { computeWIPReport } from '@/utils/financialReports';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { outboundBidRecordsFromResponses, bidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { statedBudgetOf } from '@/utils/widgetLeadCore';
-
-const MS_PER_DAY = 86_400_000;
-
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getTime() + n * MS_PER_DAY);
-}
+import { toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 function toISO(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -203,10 +198,10 @@ export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHoriz
   const loadWindows: LoadWindow[] = [];
   const labels = ['Next 4 weeks', '4–8 weeks', '8–12 weeks'];
   for (let i = 0; i < 3; i++) {
-    const winStart = addDays(now, i * 28);
-    const winEnd = addDays(now, (i + 1) * 28);
-    const startISO = toISO(winStart);
-    const endISO = toISO(winEnd);
+    // The windows start on the device's LOCAL today (calendar days, so a
+    // DST change inside a window cannot shorten it).
+    const startISO = toCalendarDayString(addCalendarDays(now, i * 28));
+    const endISO = toCalendarDayString(addCalendarDays(now, (i + 1) * 28));
     const load = computeCapacityLoad(projects, startISO, endISO);
     loadWindows.push({
       label: labels[i]!,

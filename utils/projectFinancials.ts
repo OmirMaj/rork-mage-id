@@ -10,6 +10,7 @@
 import type { Project, ChangeOrder, Invoice, InvoiceStatus, BidPackage, BidPackageBid, Commitment } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld, roundCents } from '@/utils/invoiceBilling';
+import { daysPastDue } from '@/utils/calendarDate';
 
 /**
  * Total contract value = base estimate + approved change orders.
@@ -670,8 +671,7 @@ export function getEffectiveInvoiceStatus(invoice: Invoice): InvoiceStatus {
 
   // Overdue check — 'sent' with a due date in the past.
   if (base === 'sent' && invoice.dueDate) {
-    const dueTs = new Date(invoice.dueDate).getTime();
-    if (!Number.isNaN(dueTs) && dueTs < Date.now()) return 'overdue';
+    if (daysPastDue(invoice.dueDate, new Date(Date.now())) > 0) return 'overdue';
   }
   return base;
 }
@@ -682,11 +682,7 @@ export function getEffectiveInvoiceStatus(invoice: Invoice): InvoiceStatus {
 export function getDaysPastDue(invoice: Invoice): number {
   const eff = getEffectiveInvoiceStatus(invoice);
   if (eff !== 'overdue') return 0;
-  if (!invoice.dueDate) return 0;
-  const dueTs = new Date(invoice.dueDate).getTime();
-  if (Number.isNaN(dueTs)) return 0;
-  const diffMs = Date.now() - dueTs;
-  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  return daysPastDue(invoice.dueDate, new Date(Date.now()));
 }
 
 /**

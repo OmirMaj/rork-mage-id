@@ -16,7 +16,7 @@ import type {
 } from '@/types';
 import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
-import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
+import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
@@ -1165,7 +1165,7 @@ export function proposalBlockReason(
 export function buildFeedbackAsk(
   project: Project,
   portal: ClientPortalSettings,
-  today: string = new Date().toISOString().slice(0, 10),
+  today: string = todayCalendarDay(),
 ): { completedOn: string } | undefined {
   if (!portal.enabled) return undefined;
   const completedOn = toCalendarDate(project.substantialCompletionDate);
@@ -1575,7 +1575,7 @@ export function buildPortalDocuments(input: {
         // a fact on the row. `Warranty.status` is a GC-side workflow value
         // ('claimed', 'void') and is not the owner's business.
         status: w.endDate
-          ? (w.endDate < new Date().toISOString().slice(0, 10) ? 'Expired' : 'In force')
+          ? (w.endDate < todayCalendarDay() ? 'Expired' : 'In force')
           : undefined,
         expiresOn: w.endDate || undefined,
       });
@@ -2377,7 +2377,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // the rest underneath. Every day an owner sits on a tile selection is a day
   // the GC's sub doesn't show up.
   const ownerDecisions: OwnerDecision[] = (() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayCalendarDay();
     const list = buildOwnerDecisions({
       today,
       contract: opts.contract && opts.contract.status === 'sent'

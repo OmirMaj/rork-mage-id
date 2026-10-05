@@ -170,6 +170,7 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError } from '@/utils/errorCopy';
 import { copyToClipboard } from '@/utils/clipboard';
+import { toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
 /** A server copy as Schedule Pro adopts it: ScheduleCopy plus the active
  *  baseline when the copy says (#86 — undefined = does not say, null = cleared). */
 type LiveCopy = ScheduleCopy & { activeBaselineId?: string | null };
@@ -2034,7 +2035,7 @@ function ScheduleProScreenInner() {
       projectStartDate.getMonth(),
       projectStartDate.getDate() + (dayNumber - 1),
     );
-    const iso = target.toISOString().slice(0, 10);
+    const iso = toCalendarDayString(target);
     setPrefillStart(iso);
     handleAddTask();
   }, [projectStartDate, handleAddTask]);
@@ -2238,7 +2239,7 @@ function ScheduleProScreenInner() {
       project?.schedule?.nonWorkingDates,
     );
     const safeName = (project?.name ?? 'schedule').replace(/[^a-z0-9\-_]+/gi, '-').toLowerCase();
-    const filename = `${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `${safeName}-${todayCalendarDay()}.csv`;
     if (Platform.OS === 'web') {
       const ok = downloadCsvInBrowser(csv, filename);
       if (!ok) window.alert?.('Couldn’t start the download. Try a different browser.');
@@ -2268,7 +2269,7 @@ function ScheduleProScreenInner() {
       const liveProject = {
         ...project,
         schedule: {
-          ...(project.schedule ?? { startDate: new Date().toISOString().slice(0, 10) }),
+          ...(project.schedule ?? { startDate: todayCalendarDay() }),
           tasks: workingTasks,
         },
       } as typeof project;
@@ -3103,7 +3104,7 @@ function ScheduleProScreenInner() {
       projectId: project?.id ?? '',
       name: project?.schedule?.name ?? project?.name ?? 'Schedule',
       tasks: rolledTasks,
-      startDate: project?.schedule?.startDate ?? projectStartDate.toISOString().slice(0, 10),
+      startDate: project?.schedule?.startDate ?? toCalendarDayString(projectStartDate),
       totalDurationDays,
       healthScore: healthScore.score,
     };
@@ -3522,7 +3523,7 @@ function ScheduleProScreenInner() {
               // SchedulerHeader's START / FINISH KPIs don't show "—" when
               // a schedule exists but has no explicit startDate set.
               startDate: project?.schedule?.startDate
-                ?? projectStartDate.toISOString().slice(0, 10),
+                ?? toCalendarDayString(projectStartDate),
               totalDurationDays,
               healthScore: healthScore.score,
             }}

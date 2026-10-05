@@ -25,6 +25,7 @@ import { describeError } from '@/utils/errorCopy';
 import { aiConsentErrorText } from '@/utils/aiConsent';
 import { useStagger } from '@/components/motion/kit';
 import { Skeleton } from '@/components/Skeleton';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 interface Props {
   projects: Project[];
@@ -81,7 +82,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   const fetchBriefing = useCallback(async (cacheOnly = false) => {
     if (projects.length === 0 || isLoading) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayCalendarDay();
     const cacheKey = `home_briefing_${today}`;
     const cached = await getCachedResult<HomeBriefingResult>(cacheKey, FOUR_HOURS);
     if (cached) {

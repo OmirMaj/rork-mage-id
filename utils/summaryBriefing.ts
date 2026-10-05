@@ -21,15 +21,13 @@
 // whole week.
 import type { Project, Invoice, PunchItem, ChangeOrder } from '@/types';
 import { PROJECT_CHIP_PALETTE } from '@/constants/colors';
-import { mondayOfLocalWeek, toCalendarDayString } from '@/utils/calendarDate';
+import { mondayOfLocalWeek, toCalendarDayString, daysPastDue } from '@/utils/calendarDate';
 import {
   isMilestoneOnScheduleDay,
   isTaskActiveOnScheduleDay,
   resolveScheduleAnchor,
   scheduleDayOnCalendar,
 } from '@/utils/scheduleOps';
-
-const MS_DAY = 24 * 60 * 60 * 1000;
 
 export interface TodayTask {
   projectId: string;
@@ -271,18 +269,14 @@ export function aggregateAttention(
   changeOrders: ChangeOrder[],
   now: Date = new Date(),
 ): AttentionItem[] {
-  const nowMs = now.getTime();
   const out: AttentionItem[] = [];
 
   const overdue = invoices.filter(
     // Drafts are unsent and not collectible — they can't be overdue.
-    (i) => i.status !== 'paid' && i.status !== 'draft' && i.dueDate && new Date(i.dueDate).getTime() < nowMs,
+    (i) => i.status !== 'paid' && i.status !== 'draft' && daysPastDue(i.dueDate, now) > 0,
   );
   if (overdue.length > 0) {
-    const worst = [...overdue].sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-    )[0];
-    const days = Math.max(1, Math.floor((nowMs - new Date(worst.dueDate).getTime()) / MS_DAY));
+    const days = Math.max(...overdue.map((i) => daysPastDue(i.dueDate, now)));
     out.push({
       id: 'overdue-invoices',
       severity: 'danger',

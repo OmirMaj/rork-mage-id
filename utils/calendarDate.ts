@@ -89,9 +89,15 @@ export function toCalendarDayString(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Today's calendar day from LOCAL components (audit UX-F3/F11: the
- *  `new Date().toISOString().slice(0, 10)` idiom stamped evening records with
- *  tomorrow's date). */
+/**
+ * THE DAY RULE (2026-10-05). "Today" for jobsite work is the DEVICE'S LOCAL
+ * calendar day, and this is the one place that says which day that is.
+ * (Audit UX-F3/F11: `new Date().toISOString().slice(0, 10)` is the UTC date —
+ * in New York it is already tomorrow from 8 pm, 7 pm in winter, and it
+ * stamped evening records, anchors and "expired" labels a day ahead.)
+ * scripts/validate-calendar-date.ts fails on any new UTC day key outside its
+ * allow-list; the AI caps are the deliberate exception (the server's day).
+ */
 export function todayCalendarDay(now: Date = new Date()): string {
   return toCalendarDayString(now);
 }
@@ -222,4 +228,25 @@ export function daysUntilCalendarDay(value: string | null | undefined, now: Date
   const target = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((target - today) / 86_400_000);
+}
+
+/**
+ * THE OVERDUE RULE (2026-10-05). Something due on a day is overdue from the
+ * START of the LOCAL day AFTER its due day — never from a time of day.
+ *
+ * Returns the whole local calendar days past the due day: 0 on the due day
+ * itself, before it, and for an unreadable value; 1 from the next local
+ * midnight; and so on. "Overdue" is `daysPastDue(...) > 0`.
+ *
+ * One copy, because `Invoice.dueDate` is stored as an INSTANT (issue time +
+ * N days, app/invoice.tsx getDueDate) and every reader compared instants:
+ * an invoice issued at 2 pm read "overdue" from 2 pm on its due day, one
+ * issued at 9 am was overdue all that day, and the day count was elapsed
+ * 24-hour blocks. The due DAY is the local day the stored value names
+ * (calendarDayOf: a bare day as written, an instant by the local day it fell
+ * on). Nothing stored changes — only the comparison.
+ */
+export function daysPastDue(dueDate: string | null | undefined, now: Date = new Date()): number {
+  const until = daysUntilCalendarDay(calendarDayOf(dueDate), now);
+  return until !== null && until < 0 ? -until : 0;
 }

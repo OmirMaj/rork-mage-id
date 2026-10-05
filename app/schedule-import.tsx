@@ -52,6 +52,7 @@ import { describeError, ownSentence } from '@/utils/errorCopy';
 import type {
   ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 // Fields we surface in the "detected columns" summary, in display order.
 const FIELD_LABELS: { key: ScheduleImportField; label: string }[] = [
@@ -66,10 +67,6 @@ const FIELD_LABELS: { key: ScheduleImportField; label: string }[] = [
   { key: 'resource', label: 'Resource' },
   { key: 'notes', label: 'Notes' },
 ];
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // Web-safe base64 (no Buffer). Native uses FileSystem's base64 encoding.
 function arrayBufferToBase64(buf: ArrayBuffer): string {
@@ -287,7 +284,7 @@ export default function ScheduleImportScreen() {
     if (!result || !project) return;
     try {
       setImporting(true);
-      const scheduleStartDate = project.schedule?.startDate ?? todayISO();
+      const scheduleStartDate = project.schedule?.startDate ?? todayCalendarDay();
       const workingDaysPerWeek = project.schedule?.workingDaysPerWeek ?? 5;
 
       const { tasks: mappedTasks } = mapRowsToScheduleTasks(result.rows, {

@@ -13,6 +13,7 @@ import {
   type FollowUpRule, type FollowUpContext, type MintedFollowUp, daysBetween,
 } from './engine';
 import { taskCalendarDay } from '@/utils/scheduleCalendarDate';
+import { toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 const NONE: FollowUpBasis = { kind: 'none' };
 
@@ -77,7 +78,7 @@ export const coPastItsOwnTurnaround: FollowUpRule = {
         ? { kind: 'stated', field: 'approvalDeadlineDays' }
         : NONE;
       const targetDate = deadline != null
-        ? new Date(sentMs + deadline * 86400000).toISOString().slice(0, 10)
+        ? toCalendarDayString(addCalendarDays(new Date(sentMs), deadline))
         : undefined;
 
       // The first approver still PENDING — the person actually holding it.

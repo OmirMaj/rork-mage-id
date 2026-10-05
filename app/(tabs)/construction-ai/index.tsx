@@ -936,7 +936,7 @@ function ConstructionAIScreenInner() {
   );
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
-  const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
+  const roadmapStartDate = roadmapProject?.schedule?.startDate ?? todayCalendarDay();
   // The borough's measured plan-review time (NYC only; inert everywhere else).
   // It runs unconditionally so the hook order never depends on the jobsite.
   const roadmapBenchmark = useReviewBenchmark(roadmapProject);

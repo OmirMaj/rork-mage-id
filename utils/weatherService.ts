@@ -216,10 +216,13 @@ export function findWeatherRisk(
     }
     return null;
   }
+  // The LOCAL calendar day of the anchor plus the offset — its UTC date was
+  // tomorrow for an undated schedule (anchor = an instant) read in the evening
+  // west of Greenwich, and yesterday for a local-midnight anchor east of it.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { addCalendarDays, toCalendarDayString } = require('./calendarDate') as typeof import('./calendarDate');
   for (let offset = 0; offset < Math.max(1, durationDays); offset++) {
-    const taskDate = new Date(projectStartDate);
-    taskDate.setDate(taskDate.getDate() + (startDay - 1) + offset);
-    const iso = taskDate.toISOString().split('T')[0];
+    const iso = toCalendarDayString(addCalendarDays(projectStartDate, (startDay - 1) + offset));
     const day = forecasts.find((f) => f.date === iso);
     if (day && !day.isWorkable) return day;
   }

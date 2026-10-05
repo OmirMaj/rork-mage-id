@@ -28,6 +28,7 @@
 
 import type { ScheduleTask, DependencyLink, WeatherDelayLogEntry } from '@/types';
 import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
+import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import {
   partitionDatesBySource,
   summarizeForecastSource,
@@ -101,9 +102,7 @@ function depLinks(task: ScheduleTask): DependencyLink[] {
  *  are the same numbers (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"). A dated
  *  schedule goes through `taskCalendarDay` instead (see `calendar` below). */
 function isoForDay(projectStartDate: Date, dayNumber: number): string {
-  const d = new Date(projectStartDate.getTime());
-  d.setDate(d.getDate() + (dayNumber - 1));
-  return d.toISOString().split('T')[0];
+  return toCalendarDayString(addCalendarDays(projectStartDate, dayNumber - 1));
 }
 
 /** Calendar days from the raw anchor to `now`, 1-based (raw-day mode's today). */
@@ -424,9 +423,7 @@ function findFirstWorkableOffset(
   for (let push = 1; push <= 14; push++) {
     let allWorkable = true;
     for (let offset = 0; offset < durationDays; offset++) {
-      const d = new Date(projectStartDate.getTime());
-      d.setDate(d.getDate() + (startDay - 1) + push + offset);
-      const iso = d.toISOString().split('T')[0];
+      const iso = isoForDay(projectStartDate, startDay + push + offset);
       const day = forecasts.find(f => f.date === iso);
       if (day && !day.isWorkable) {
         allWorkable = false;
