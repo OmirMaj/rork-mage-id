@@ -3,6 +3,7 @@ import { Dimensions, Platform, type ScaledSize } from 'react-native';
 import { Layout } from '@/constants/designTokens';
 import { sidebarWidthForRoute } from '@/utils/sidebarRail';
 import { getSidebarRail, subscribeSidebarRail } from '@/utils/sidebarRailStore';
+import { isNativePhone } from '@/utils/nativePhone';
 
 export type ScreenSize = 'phone' | 'tablet' | 'desktop';
 
@@ -41,9 +42,15 @@ function railLayoutKey(): string {
  *
  * `isDesktop` is web >= 900 CSS px OR any platform >= 1024. So a NATIVE window
  * >= 1024 (an Android tablet, ChromeOS) counts as desktop for LAYOUT — desktop
- * widths and styles — by design (wave 6b minor, a written rule since 6c). The
- * portrait-locked iPhone can never reach it. Browser-only behaviour (hotkeys,
- * URL writes, the shell dock) must use useIsDesktopWeb() instead.
+ * widths and styles — by design (wave 6b minor, a written rule since 6c).
+ * Browser-only behaviour (hotkeys, URL writes, the shell dock) must use
+ * useIsDesktopWeb() instead.
+ *
+ * A NATIVE PHONE IS 'phone' AT EVERY WIDTH (utils/nativePhone): an iPhone turned
+ * sideways is up to 956 pt wide, past the 768 tablet line, and must not become
+ * a tablet (or, one day, a desktop) because it was rotated. Decided by the
+ * short side, so neither the iPhone nor a locked screen underneath a rotated
+ * one changes layout.
  *
  * `sidebarWidth` is the desktop sidebar's CURRENT width: 240, or the 64 px
  * rail when it is collapsed for this route (utils/sidebarRail, read from the
@@ -67,7 +74,9 @@ export function useResponsiveLayout(): ResponsiveLayout {
   return useMemo(() => {
     const railWidth = parseInt(railKey, 10);
     let screenSize: ScreenSize = 'phone';
-    if (width >= 1024 || (isWeb && width >= 900)) {
+    if (isNativePhone(Platform.OS, width, height)) {
+      screenSize = 'phone';
+    } else if (width >= 1024 || (isWeb && width >= 900)) {
       screenSize = 'desktop';
     } else if (width >= 768) {
       screenSize = 'tablet';

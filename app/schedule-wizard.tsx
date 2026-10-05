@@ -35,8 +35,9 @@ import { projectTypeLabel } from '@/utils/projectTypes';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Platform, Modal, Pressable, useWindowDimensions,
+  Platform, Modal, Pressable,
 } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -200,7 +201,7 @@ export default function ScheduleWizardScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const { canAccess } = useTierAccess();
   const { isDesktop } = useResponsiveLayout();
   // Route to Schedule Pro only when the grid is both usable (wide screen) AND
@@ -1228,7 +1229,7 @@ function TasksStep(props: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const {
     activeId, templates, onPickTemplate, documentMode, documentTitle, startDate,
     onEditProject, onBrowseTemplates, onEditStartDate, onQuickStart,
@@ -1987,7 +1988,7 @@ function ScheduleStep(props: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { width } = useWindowDimensions();
+  const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const { scheduledTasks, startDate, totalDays, wideEnoughForPro, onEditStartDate, hideDateRow } = props;
   const PX_PER_DAY = 16;
   const WEEK_PX = PX_PER_DAY * 7;

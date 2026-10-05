@@ -26,6 +26,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useBreakpointWidth } from '@/utils/useBreakpointWidth';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -59,7 +60,7 @@ export default function SkillsCertificatesScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { isDesktop, sidebarWidth } = useResponsiveLayout();
-  const twoUp = width >= 768;
+  const twoUp = useBreakpointWidth() >= 768; // a native phone is a phone sideways too (utils/nativePhone)
   // The grid's width: a card never grows past half of it (minus the 12 gap), so
   // a lone last card keeps its column instead of stretching. Until onLayout
   // reports, it is seeded from the frame's own arithmetic (the desktop 'form'

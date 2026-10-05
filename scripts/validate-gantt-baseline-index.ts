@@ -28,34 +28,45 @@
 // perf smell into a phone defect that ships:
 //
 //   1. app.json          — ios.supportsTablet is false
-//   2. app.json          — orientation is "portrait"
+//   2. utils/nativePhone + utils/useResponsiveLayout — a native phone is
+//                           'phone' at EVERY width, upright and sideways
 //   3. schedule/index.tsx — ScheduleTabRoute sends layout.isPhone to
 //                           MobileScheduleScreen, and only the non-phone
 //                           ScheduleScreen mounts <GanttChart>.
 //
-// Together: on iOS the window is never >= 768pt wide, so `isPhone` is always
-// true and GanttChart never renders. Flip supportsTablet to true, or unlock
-// landscape, and this guard fails so somebody has to decide about virtualizing
-// the rows rather than discovering it from a tester's device.
+// Fact 2 used to be "app.json orientation is portrait": on iOS the window was
+// never >= 768pt wide, so `isPhone` was always true. LANDSCAPE-0 (2026-10-05)
+// opened landscape in the iPhone's Info.plist, and a sideways iPhone is 667 to
+// 956pt wide, so the width no longer proves anything. What proves it now is
+// that phone-ness does not come from the width at all: useResponsiveLayout
+// asks isNativePhone (the SHORT side) before it compares a single width, so
+// `isPhone` is true on an iPhone whichever way up it is, including for the
+// Schedule tab sitting mounted UNDER a rotated screen. That is executed below
+// for every iPhone size, and the Schedule tab itself is still locked to
+// portrait. Flip supportsTablet to true, take the branch out, or open the
+// Schedule tab to landscape, and this guard fails so somebody has to decide
+// about virtualizing the rows rather than discovering it from a tester's
+// device. (Which screens may rotate at all: scripts/validate-landscape-lock.ts.)
 //
 // Text-based for the components (they are .tsx and cannot be imported by bun
 // without a bundler — same constraint validate-schedule-board-perf.ts works
 // under) and behavioural for the lookup semantics.
 //
-// Run via: bun run test:gantt-baseline-index
-//
-// !! NOT YET WIRED INTO ship-check — see package.json. Until it is, this file
-// !! cannot fail the build. validate-guard-coverage.ts will say so.
+// Run via: bun run test:gantt-baseline-index (a link in package.json's ship-check).
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isNativePhone } from '../utils/nativePhone';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GANTT = join(ROOT, 'components', 'schedule', 'GanttChart.tsx');
 const SCREEN = join(ROOT, 'app', '(tabs)', 'schedule', 'index.tsx');
 const APP_JSON = join(ROOT, 'app.json');
 const IMPORTER = join(ROOT, 'supabase', 'functions', 'import-schedule', 'index.ts');
+const RESPONSIVE = join(ROOT, 'utils', 'useResponsiveLayout.ts');
+const SCHEDULE_LAYOUT = join(ROOT, 'app', '(tabs)', 'schedule', '_layout.tsx');
+const ROOT_LAYOUT = join(ROOT, 'app', '_layout.tsx');
 
 /**
  * The component documents WHY the old shape was wrong and quotes it verbatim,
@@ -183,18 +194,57 @@ ok('baseline bar geometry is unchanged (left from startDay-1, width floored at 1
 // -- 4. the routing premise: this chart is not on the iOS path ------------
 ok('ios.supportsTablet is still false',
   expo?.ios?.supportsTablet === false,
-  'If iPad support is turned on, the iPad window is >= 768pt, layout.isPhone goes false, and '
+  'If iPad support is turned on, the iPad window has a short side >= 600pt, it is no longer a '
+  + 'native phone (utils/nativePhone), layout.isPhone goes false, and '
   + 'ScheduleScreen mounts <GanttChart> with up to 1,000 UNVIRTUALIZED rows inside a horizontal '
   + 'ScrollView. Virtualize the rows before flipping this.');
 
-ok('orientation is still locked to portrait',
+// The iPhone may now be turned on its side (the Info.plist allows landscape;
+// scripts/validate-landscape-lock.ts owns that list). A sideways iPhone is up
+// to 956pt wide, past the 768pt tablet line, so "the window is narrow" is no
+// longer what keeps GanttChart off a phone. These four are.
+
+// [name, upright width, upright height] — every iPhone window size.
+const IPHONES: [string, number, number][] = [
+  ['SE', 375, 667], ['mini', 375, 812], ['12-14', 390, 844], ['14 Pro-16', 393, 852], ['16 Pro / 17', 402, 874],
+  ['Air', 420, 912], ['Plus', 428, 926], ['Pro Max', 430, 932], ['16-17 Pro Max', 440, 956],
+];
+const notPhone = IPHONES.flatMap(([name, w, h]) => [
+  ...(isNativePhone('ios', w, h) ? [] : [`${name} upright ${w}x${h}`]),
+  ...(isNativePhone('ios', h, w) ? [] : [`${name} sideways ${h}x${w}`]),
+]);
+ok(`every iPhone is a native phone upright AND sideways (${IPHONES.length} sizes, widths up to ${Math.max(...IPHONES.map((p) => p[2]))}pt)`,
+  notPhone.length === 0,
+  `Not a phone: ${notPhone.join(', ')}. A sideways iPhone that is not a phone is a 'tablet' in `
+  + 'utils/useResponsiveLayout.ts, and ScheduleScreen mounts <GanttChart> with up to 1,000 '
+  + 'UNVIRTUALIZED rows on it.');
+
+const responsive = stripComments(readFileSync(RESPONSIVE, 'utf8'));
+ok('useResponsiveLayout asks isNativePhone before it compares any width',
+  /let screenSize: ScreenSize = 'phone';\s*if \(isNativePhone\(Platform\.OS, width, height\)\) \{\s*screenSize = 'phone';\s*\} else if \(width >= 1024/.test(responsive)
+  && (responsive.match(/\bscreenSize = '/g)?.length ?? 0) === 3
+  && /const isPhone = screenSize === 'phone';/.test(responsive),
+  'layout.isPhone must be true on a native phone at every width. If the width comparisons run '
+  + 'first, an iPhone in landscape (667-956pt) reads as a tablet: the Schedule tab unmounts '
+  + 'MobileScheduleScreen (losing its state) and mounts ScheduleScreen + GanttChart, even while '
+  + 'it sits hidden under a rotated screen.');
+
+ok('the Schedule tab is still locked to portrait',
+  /<Stack screenOptions=\{\{ headerShown: false, orientation: 'portrait_up' \}\} \/>/.test(
+    stripComments(readFileSync(SCHEDULE_LAYOUT, 'utf8')))
+  && !/<Stack\.Screen\s+name="\(tabs\)"[^>]*orientation/.test(stripComments(readFileSync(ROOT_LAYOUT, 'utf8'))),
+  'Opening the phone Gantt to landscape is a planned step, and a decision: MobileGantt is '
+  + 'virtualized and can take it, but re-read this guard first and keep GanttChart off the phone.');
+
+ok('app.json orientation is still "portrait" (Android stays locked; iOS landscape is the infoPlist key)',
   expo?.orientation === 'portrait',
-  'An iPhone in landscape is up to 932pt wide, which crosses the 768pt tablet breakpoint in '
-  + 'utils/useResponsiveLayout.ts and puts GanttChart on a phone. Same warning as above.');
+  'Anything else writes screenOrientation="unspecified" into the Android manifest and every '
+  + 'Android screen rotates. iPhone landscape comes from ios.infoPlist, not from this field.');
 
 ok('nothing unlocks orientation at runtime',
   !/ScreenOrientation|expo-screen-orientation/.test(screen),
-  'A runtime unlockAsync defeats the app.json lock.');
+  'A runtime unlockAsync defeats the per-screen lock (and expo-screen-orientation is a native '
+  + 'module no shipped build contains).');
 
 ok('the phone branch of the schedule tab does not render GanttChart',
   /layout\.isPhone\s*\?\s*<MobileScheduleScreen/.test(screen)

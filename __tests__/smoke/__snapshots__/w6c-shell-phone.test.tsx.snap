@@ -58317,7 +58317,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                 "onWillDisappear": [Function],
                                                                 "preventNativeDismiss": undefined,
                                                                 "replaceAnimation": "push",
-                                                                "screenOrientation": undefined,
+                                                                "screenOrientation": "portrait_up",
                                                                 "scrollEdgeEffects": {
                                                                   "bottom": "automatic",
                                                                   "left": "automatic",
@@ -60845,7 +60845,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                             "onWillDisappear": [Function],
                             "preventNativeDismiss": undefined,
                             "replaceAnimation": "push",
-                            "screenOrientation": undefined,
+                            "screenOrientation": "portrait_up",
                             "scrollEdgeEffects": {
                               "bottom": "automatic",
                               "left": "automatic",
@@ -78844,7 +78844,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                 "onWillDisappear": [Function],
                                                                 "preventNativeDismiss": undefined,
                                                                 "replaceAnimation": "push",
-                                                                "screenOrientation": undefined,
+                                                                "screenOrientation": "portrait_up",
                                                                 "scrollEdgeEffects": {
                                                                   "bottom": "automatic",
                                                                   "left": "automatic",
@@ -80308,7 +80308,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                             "onWillDisappear": [Function],
                             "preventNativeDismiss": undefined,
                             "replaceAnimation": "push",
-                            "screenOrientation": undefined,
+                            "screenOrientation": "portrait_up",
                             "scrollEdgeEffects": {
                               "bottom": "automatic",
                               "left": "automatic",

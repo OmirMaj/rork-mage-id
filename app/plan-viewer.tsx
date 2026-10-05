@@ -15,11 +15,13 @@
 
 import React, { useCallback, useEffect, useMemo, useState, useRef, useSyncExternalStore } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, useWindowDimensions, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent, ActivityIndicator,
 } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHideBrainFab } from '@/components/brain/brainFabState';
+import { ROTATABLE_MODAL_ORIENTATIONS } from '@/utils/screenOrientation';
+import { isNativePhone } from '@/utils/nativePhone';
 import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
@@ -64,6 +66,25 @@ import CodeCheckThisButton from '@/components/codeThread/CodeCheckThisButton';
 import { planScaleStatus, stampImageFrame, usableCalibration, PLAN_SCALE_RECHECK_COPY } from '@/utils/planScale';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
+
+/** Width of the tool column on a phone held sideways. */
+const LANDSCAPE_TOOLS_W = 72;
+
+/** The screen root's safe-area padding. Upright the side insets are 0 and the
+ *  object is exactly what it always was ({ paddingTop }); on its side the root
+ *  (the dark ground) runs edge to edge and the header, canvas and tools sit
+ *  inside the notch / Dynamic Island and the rounded corners. */
+function rootInsets(insets: { top: number; left: number; right: number }) {
+  return insets.left > 0 || insets.right > 0
+    ? { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }
+    : { paddingTop: insets.top };
+}
+
+/** The same side padding for a sheet's backdrop (a Modal is its own window, so
+ *  the root's padding does not reach it). null upright. */
+function sideInsets(insets: { left: number; right: number }) {
+  return insets.left > 0 || insets.right > 0 ? { paddingLeft: insets.left, paddingRight: insets.right } : null;
+}
 
 const CALIBRATE_FRAME_UNKNOWN_COPY = 'This sheet\'s size is unknown, so a scale set now would be measured against the wrong frame. Reopen it once the image has loaded, then calibrate.';
 
@@ -147,7 +168,7 @@ function PlanViewerGate({ gate, role, onRetry }: { gate: PlanGate; role: PlanRol
     );
   }
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, rootInsets(insets)]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
@@ -332,6 +353,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   // recomputed the moment the ratio lands (validate-punch-plan-pin).
   const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
   const [imgNaturalRatio, setImgNaturalRatio] = useState<number | null>(null);
+  const [canvasTop, setCanvasTop] = useState(0);
   // The ratio is the loaded image's, else the sheet's stored width/height
   // (planViewerImageRatio — the pin step's precedence, so a walk pin is drawn
   // in the rect it was placed in). The stored fallback is what makes web right:
@@ -613,7 +635,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   }, []);
 
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
+    const { width, height, y } = e.nativeEvent.layout;
+    // Where the canvas starts, for the landscape tool column (a number: the
+    // same value back re-renders nothing).
+    setCanvasTop(y);
     // Same size back from a re-layout must not make a new object: imgLayout is
     // a useMemo over this, and a fresh identity would re-run every consumer.
     setContainerSize(prev => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
@@ -660,6 +685,20 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   // rail and the keys are browser-only behaviour (isDesktopWeb); an Android
   // tablet keeps today's screen, horizontal toolbar included.
   const isDesktopWeb = useIsDesktopWeb();
+  // THE ONE SCREEN THAT TURNS (app/_layout.tsx gives this route
+  // ROTATABLE_ORIENTATION). A phone on its side is ~390 pt tall: a toolbar
+  // across the bottom would take a fifth of the drawing, so the six tools
+  // become a 72 pt column down the right edge, from the canvas's top to the
+  // bottom of the screen, and the canvas and the hint line give up that 72 pt
+  // of width and keep the whole height. Upright nothing changes: every style
+  // below is the object it always was. Live window size (never Dimensions.get
+  // at module load), and a phone only (utils/nativePhone): an Android tablet
+  // in landscape keeps its bottom row. The canvas itself needs nothing: it is
+  // measured (onLayout) and every pin, stroke and scale point is stored
+  // normalised to the image rect, so they land in the same spot either way up.
+  const { width: winW, height: winH } = useWindowDimensions();
+  const landscapePhone = isNativePhone(Platform.OS, winW, winH) && winW > winH;
+  const toolBtnBase = landscapePhone ? styles.toolBtnLandscape : styles.toolBtn;
   const rail = useMemo(() => (sheet ? railSheets(projectSheets, sheet.id) : []), [sheet, projectSheets]);
   // Open by default; his last choice is read back from the device (web
   // localStorage answers at once, so a closed rail does not flash).
@@ -701,7 +740,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
 
   if (!sheet) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={[styles.root, rootInsets(insets)]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
@@ -744,7 +783,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   // lay them out beside the sheet rail. The phone renders the same three
   // elements, in the same order, as siblings (a fragment adds no node).
   const canvasEl = (
-    <View style={styles.canvasWrap} onLayout={handleContainerLayout}>
+    <View style={landscapePhone ? styles.canvasWrapLandscape : styles.canvasWrap} onLayout={handleContainerLayout}>
       <ScrollView
         maximumZoomScale={Platform.OS === 'ios' ? 3 : 1}
         minimumZoomScale={1}
@@ -946,7 +985,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
     </View>
   );
   const hintEl = (mode === 'measure' || mode === 'calibrate') && (
-    <View style={styles.hintBar}>
+    <View style={landscapePhone ? styles.hintBarLandscape : styles.hintBar}>
       <Ruler size={14} color={themeColors.accent} strokeWidth={1.75} />
       <Text style={styles.hintText}>
         {mode === 'measure'
@@ -964,9 +1003,9 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
     </View>
   );
   const toolbarEl = (
-    <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 10) }, isDesktopWeb && styles.toolbarDesktop]}>
+    <View style={[landscapePhone ? styles.toolbarLandscape : styles.toolbar, landscapePhone ? { top: canvasTop, right: insets.right, paddingBottom: Math.max(insets.bottom, 4) } : { paddingBottom: Math.max(insets.bottom, 10) }, isDesktopWeb && styles.toolbarDesktop]}>
       <TouchableOpacity
-        style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        style={[toolBtnBase, mode === 'pin' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
         onPress={() => { if (refuseMarkup()) return; switchMode('pin'); }}
         accessibilityHint={markupBlock ?? undefined}
       >
@@ -974,7 +1013,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        style={[toolBtnBase, mode === 'draw' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
         onPress={() => { if (refuseMarkup()) return; switchMode('draw'); }}
         accessibilityHint={markupBlock ?? undefined}
         testID="plan-viewer-tool-draw"
@@ -983,7 +1022,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.toolBtn, mode === 'measure' && styles.toolBtnActive, isDesktopWeb && styles.toolBtnDesktop]}
+        style={[toolBtnBase, mode === 'measure' && styles.toolBtnActive, isDesktopWeb && styles.toolBtnDesktop]}
         onPress={() => {
           if (!scaleFtPerPx) {
             // Calibrate must happen first — switch to calibrate mode and
@@ -1017,7 +1056,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         ]}>Measure</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        style={[toolBtnBase, mode === 'calibrate' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
         accessibilityHint={markupBlock ?? undefined}
         testID="plan-viewer-tool-calibrate"
         onPress={() => {
@@ -1032,11 +1071,11 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           {calibration ? 'Re-cal' : 'Calibrate'}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} onPress={() => { if (refuseMarkup()) return; undoLastMarkup(); }} disabled={markups.length === 0} accessibilityHint={markupBlock ?? undefined}>
+      <TouchableOpacity style={[toolBtnBase, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} onPress={() => { if (refuseMarkup()) return; undoLastMarkup(); }} disabled={markups.length === 0} accessibilityHint={markupBlock ?? undefined}>
         <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
         <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
+      <TouchableOpacity style={[toolBtnBase, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
         if (markups.length === 0) return;
         if (refuseMarkup()) return;
         showAlert('Clear markup', 'Remove all strokes on this sheet?', [
@@ -1051,7 +1090,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   );
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, rootInsets(insets)]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
@@ -1248,9 +1287,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         visible={numberDraft !== null}
         transparent
         animationType={fNum.animationType}
+        supportedOrientations={ROTATABLE_MODAL_ORIENTATIONS}
         onRequestClose={() => setNumberDraft(null)}
       >
-        <View style={[styles.modalBackdrop, fNum.overlay]}>
+        <View style={[styles.modalBackdrop, fNum.overlay, sideInsets(insets)]}>
           <View style={[styles.modalCard, { paddingBottom: 24 }, fNum.card]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1288,9 +1328,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         visible={!!calibrationInput?.visible}
         transparent
         animationType={fCal.animationType}
+        supportedOrientations={ROTATABLE_MODAL_ORIENTATIONS}
         onRequestClose={() => { setCalibrationInput(null); setPointBuffer([]); }}
       >
-        <View style={[styles.modalBackdrop, fCal.overlay]}>
+        <View style={[styles.modalBackdrop, fCal.overlay, sideInsets(insets)]}>
           <View style={[styles.modalCard, { paddingBottom: 24 }, fCal.card]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1362,6 +1403,7 @@ function PinDetailModal({
   // The pin sheet takes the Sheet.tsx frame; above the early return so the
   // hook order is fixed. It has no primary action (every row is its own).
   const f = useSheetFrame('form', { visible: !!pin, animationType: 'slide' });
+  const insets = useSafeAreaInsets();
 
   if (!pin) return null;
 
@@ -1373,8 +1415,8 @@ function PinDetailModal({
   };
 
   return (
-    <Modal visible transparent animationType={f.animationType} onRequestClose={onClose}>
-      <View style={[styles.modalBackdrop, f.overlay]}>
+    <Modal visible transparent animationType={f.animationType} supportedOrientations={ROTATABLE_MODAL_ORIENTATIONS} onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, f.overlay, sideInsets(insets)]}>
         <View style={[styles.modalCard, f.card]}>
           <View style={styles.modalHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1712,6 +1754,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingTop: Layout.rowGap, paddingBottom: Layout.rowGap, paddingHorizontal: Layout.rowGap, gap: Layout.rowGap,
   },
   toolBtnDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: Layout.control.lg },
+  // A native phone on its side (see landscapePhone): the tools are a 72 pt
+  // column pinned to the right edge, and the six SHARE its height (flex: 1)
+  // instead of taking 48 each, so they all stay on screen at 375 pt tall with
+  // a banner showing. top / right / paddingBottom come from the measured
+  // canvas and the safe area, inline.
+  toolbarLandscape: {
+    position: 'absolute', bottom: 0, width: LANDSCAPE_TOOLS_W,
+    flexDirection: 'column', backgroundColor: t.surface,
+    borderLeftColor: t.line, borderLeftWidth: 1,
+    paddingTop: 4, paddingHorizontal: 4, gap: 2,
+  },
+  toolBtnLandscape: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2,
+    paddingVertical: 2, paddingHorizontal: 2, borderRadius: Tokens.radius.md,
+  },
+  canvasWrapLandscape: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden', marginRight: LANDSCAPE_TOOLS_W },
   toolBtnText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
   toolBtnTextActive: { color: '#FFFFFF' },
   toolBtnTextDisabled: { color: t.textMuted },
@@ -1722,6 +1780,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: '#F0F9F2',
     borderTopColor: t.line, borderTopWidth: 1,
     borderBottomColor: t.line, borderBottomWidth: 1,
+  },
+  hintBarLandscape: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: '#F0F9F2',
+    borderTopColor: t.line, borderTopWidth: 1,
+    borderBottomColor: t.line, borderBottomWidth: 1,
+    marginRight: LANDSCAPE_TOOLS_W,
   },
   hintText: { flex: 1, color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '500' },
 

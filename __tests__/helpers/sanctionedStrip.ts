@@ -48,6 +48,44 @@ function strip(v: unknown): unknown {
   return copy;
 }
 
+// LANDSCAPE-0 (2026-10-05): every navigator now pins `orientation: 'portrait_up'`
+// in its screenOptions (the iPhone's Info.plist allows landscape from the next
+// build; scripts/validate-landscape-lock.ts owns which screens may turn), and
+// native-stack hands it to the screen as the `screenOrientation` prop. That one
+// prop, with that one value, on that one host type, is put back to the
+// `undefined` it was before a golden is fingerprinted, so each golden still proves nothing ELSE moved. A screen
+// that is OPENED carries another value ('all') and is deliberately not
+// stripped: opening a screen moves its golden.
+export const SANCTIONED_SCREEN_LOCK = { type: 'RNSScreen', prop: 'screenOrientation', value: 'portrait_up' } as const;
+
+function hasScreenLock(n: unknown): boolean {
+  if (!n || typeof n !== 'object' || Array.isArray(n)) return false;
+  const node = n as { type?: unknown; props?: Record<string, unknown> | null };
+  return node.type === SANCTIONED_SCREEN_LOCK.type && !!node.props
+    && node.props[SANCTIONED_SCREEN_LOCK.prop] === SANCTIONED_SCREEN_LOCK.value;
+}
+
+function containsScreenLock(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(containsScreenLock);
+  if (!v || typeof v !== 'object') return false;
+  return hasScreenLock(v) || containsScreenLock((v as { children?: unknown }).children);
+}
+
+/** A copy with the portrait lock prop back at undefined; the same reference when there is none
+ *  anywhere below, so an untouched tree hashes exactly what it hashed before. */
+function stripScreenLock<T>(v: T): T {
+  if (!containsScreenLock(v)) return v;
+  if (Array.isArray(v)) return v.map((x) => stripScreenLock(x)) as T;
+  const copy = cloneNode(v as object);
+  if (hasScreenLock(v)) {
+    // `undefined`, in place: native-stack always passed the key (with no
+    // value) before the lock existed, and a golden that prints props prints it.
+    copy.props = { ...(copy.props as Record<string, unknown>), [SANCTIONED_SCREEN_LOCK.prop]: undefined };
+  }
+  if (Array.isArray(copy.children)) copy.children = copy.children.map((x) => stripScreenLock(x));
+  return copy as T;
+}
+
 /**
  * Removes every sanctioned node (and its subtree) from any children array and
  * from a root array, copying only the nodes on the path to a removal, so the
@@ -58,6 +96,7 @@ function strip(v: unknown): unknown {
  * hashes exactly what it hashed before. The input is never mutated.
  */
 export function stripSanctioned<T>(json: T): T {
+  json = stripScreenLock(json);
   if (isSanctionedNode(json)) return null as T;
   if (!containsSanctioned(json)) return json;
   if (Array.isArray(json)) {
