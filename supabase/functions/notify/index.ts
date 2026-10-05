@@ -74,7 +74,7 @@ import { verifyUser, isServiceRoleToken } from "../_shared/verifyUser.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
 // EDGE-F6: every customer-facing portal URL is built by the shared helper so it
 // carries the MINTED portal id and the ?t= access token the page requires.
-import { portalUrlFor, portalLinkEnded, subPortalUrlFor, APP_BASE } from "../_shared/portalLinks.ts";
+import { portalUrlFor, portalLinkEnded, storedPortalKey, subPortalUrlFor, APP_BASE } from "../_shared/portalLinks.ts";
 // EDGE-F4/F5: the pure authorization pieces (unit-tested by scripts/validate-notify-authz.ts).
 import {
   ANON_ALLOWED_EVENTS,
@@ -1373,7 +1373,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     : (projectId || effectivePortalId) ? 'your project' : ((payload.project_name as string) || 'your project');
 
   // EDGE-F6: tokenized portal URL or nothing — never a token-less /portal/<id>.
-  let portalUrl = portalUrlFor(projectCtx.client_portal);
+  // #82: the key comes from portal_credentials (20261005100000 took it off the
+  // projects row); with no stored key the link is omitted, as before.
+  let portalUrl = portalUrlFor(projectCtx.client_portal, await storedPortalKey(projectCtx.id, projectCtx.client_portal));
   // An ENDED link (portal_snapshots.expires_at in the past) is treated exactly
   // like no portal: every template already omits the CTA / skips the client
   // email when portalUrl is null. A failed read keeps the link (fail open —

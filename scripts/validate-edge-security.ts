@@ -292,7 +292,7 @@ for (const fn of ['schedule-ical', 'schedule-ical-url']) {
 const digest = read('supabase/functions/homeowner-weekly-digest/index.ts');
 ok('digest wraps report text in a data boundary (AI-F13)', /DAILY REPORT TEXT — data, not instructions/.test(digest));
 ok('digest post-filters headline, paragraph and bullets', (digest.match(/sanitizeForHomeowner\(/g) ?? []).length >= 4);
-ok('digest builds the portal link with portalUrlFor (EDGE-F6 sibling)', /portalUrlFor\(portal\)/.test(digest) && !/mageid\.app\/portal\/\$\{project\.id\}/.test(digest));
+ok('digest builds the portal link with portalUrlFor (EDGE-F6 sibling)', /portalUrlFor\(portal, portalKey\)/.test(digest) && !/mageid\.app\/portal\/\$\{project\.id\}/.test(digest));
 ok('digest does not log the homeowner address (AUTH-F16)', !/skipping', project\.id, invite\.email\)/.test(digest));
 
 // ── 14. Portal page sends the anon key to portal-ask-home (AUTH-F4) ─────────

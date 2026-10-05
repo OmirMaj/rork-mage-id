@@ -137,7 +137,7 @@ ok('anon path is bucketed by client IP', /exceedsRateLimit\(`notify:ip:\$\{clien
 ok('client IP comes from clientIpFrom (last hop / proxy header)', /clientIpFrom\(req\.headers\)/.test(notify) && !/split\(','\)\[0\]/.test(notify));
 ok('legacy per-portal bucket is kept', /exceedsRateLimit\(`portal:\$\{portalId\}`, ANON_HOURLY_CAP\)/.test(notify));
 ok('anon callers without even the anon key get 401', /reason: 'event_not_anon_allowed'/.test(notify) && /error: 'unauthorized' \}, 401\)/.test(notify));
-ok('portal CTA URLs come from portalUrlFor', /import \{ portalUrlFor, portalLinkEnded, subPortalUrlFor, APP_BASE \} from "\.\.\/_shared\/portalLinks\.ts"/.test(notify) && /portalUrlFor\(projectCtx\.client_portal\)/.test(notify));
+ok('portal CTA URLs come from portalUrlFor', /import \{ portalUrlFor, portalLinkEnded, storedPortalKey, subPortalUrlFor, APP_BASE \} from "\.\.\/_shared\/portalLinks\.ts"/.test(notify) && /portalUrlFor\(projectCtx\.client_portal, await storedPortalKey\(projectCtx\.id, projectCtx\.client_portal\)\)/.test(notify));
 // An ENDED link (portal_snapshots.expires_at past) is dropped like no portal.
 ok('notify drops an ended portal link', /else if \(portalLinkEnded\(snap\[0\]\?\.expires_at \?\? null\)\) portalUrl = null;/.test(notify));
 // Leftovers review: award_rfp creates the winner's portal enabled, with the
@@ -209,23 +209,23 @@ ok('the page does not send the token to the dead portal_reaction call (unchanged
 console.log('\nportal links in system emails:');
 const dunning = read('supabase/functions/invoice-dunning/index.ts');
 ok('invoice-dunning loaded', dunning.length > 0);
-ok('dunning imports portalUrlFor', /import \{ portalUrlFor, portalLinkEnded \} from '\.\.\/_shared\/portalLinks\.ts'/.test(dunning));
-ok('dunning builds the link from client_portal', /let portalUrl = portalUrlFor\(project\.client_portal\)/.test(dunning));
+ok('dunning imports portalUrlFor', /import \{ portalUrlFor, portalLinkEnded, storedPortalKey \} from '\.\.\/_shared\/portalLinks\.ts'/.test(dunning));
+ok('dunning builds the link from client_portal', /let portalUrl = portalUrlFor\(project\.client_portal, await storedPortalKey\(project\.id, project\.client_portal\)\)/.test(dunning));
 ok('dunning drops an ended portal link', /portalLinkEnded\(\(snapRes\.data[^)]*\)\?\.expires_at \?\? null\)\) \{\s*portalUrl = null;/.test(dunning));
 ok('dunning no longer links /portal/<project.id>', !/mageid\.app\/portal\/\$\{project\.id\}/.test(dunning));
 ok('dunning omits the button when there is no tokenized URL', /opts\.portalUrl \? emailButton\('View invoice', opts\.portalUrl\) : ''/.test(dunning));
 ok('dunning still selects client_portal', /\.select\('id,user_id,name,client_portal'\)/.test(dunning));
 const expiry = read('supabase/functions/portal-link-expiry-notice/index.ts');
 ok('portal-link-expiry-notice loaded', expiry.length > 0);
-ok('expiry notice imports portalUrlFor', /import \{ portalUrlFor \} from "\.\.\/_shared\/portalLinks\.ts"/.test(expiry));
+ok('expiry notice imports portalUrlFor', /import \{ portalUrlFor, storedPortalKey \} from "\.\.\/_shared\/portalLinks\.ts"/.test(expiry));
 ok('expiry notice selects client_portal', /select=user_id,name,client_portal/.test(expiry));
 ok('expiry notice attaches the current link only while it still works', /kind === "portal_link_expiring" && portalUrl \? \{ portalUrl \} : \{\}/.test(expiry));
 ok('expiry notice has no /portal/ literal', !/mageid\.app\/portal/.test(expiry));
 // review 2026-09-04 advisory 6 — the Friday homeowner digest linked /portal/<project.id>
 const digest = read('supabase/functions/homeowner-weekly-digest/index.ts');
 ok('homeowner-weekly-digest loaded', digest.length > 0);
-ok('digest imports portalUrlFor', /import \{ portalUrlFor \} from '\.\.\/_shared\/portalLinks\.ts'/.test(digest));
-ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal\) \?\? undefined\)/.test(digest) && /const portal = project\.client_portal/.test(digest));
+ok('digest imports portalUrlFor', /import \{ portalUrlFor, storedPortalKey \} from '\.\.\/_shared\/portalLinks\.ts'/.test(digest));
+ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal, portalKey\) \?\? undefined\)/.test(digest) && /const portal = project\.client_portal/.test(digest));
 ok('digest omits the CTA when there is no tokenized URL', /cta: opts\.portalUrl \? \{ label: 'View your portal', href: opts\.portalUrl \} : undefined/.test(digest));
 ok('digest no longer links /portal/<project.id> (or any token-less portal path)', !/\/portal\/\$\{/.test(digest) && !/mageid\.app\/portal\//.test(digest));
 // closed_at joined the select 2026-09-18 (audit #23: the digest stops at handover).

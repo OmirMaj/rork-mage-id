@@ -34,7 +34,7 @@ import {
   acceptedRolesByProject, aiaRowToSaved, claimProjectForUser, classifyProjectForSync, coerceRate, financialPickAfterLoad,
   financialsLoadedFor, keepPendingPinFields, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
   pendingPinIdsInQueue, pinOverlayIds,
-  queryKeysForFlushedTables, savedToAiaRow, stripPortalCredentials,
+  queryKeysForFlushedTables, savedToAiaRow, stripPortalCredentials, ownerClientPortalAfterLoad, type PortalKeyRow,
   subCoiExpiryAcross, vanishedPendingIds, coiSaveStampsVerified,
   changeOrderTaxColumns, changeOrderTaxFromRow, chunkForAppend, dailyReportColumns, deleteProjectRefusal,
   invoiceBillToColumns, invoiceBillToFromRow, mergeServerKeepingPending, newAuditEntries, portalWriteRefusal,
@@ -2111,6 +2111,29 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           } catch {
             // table absent (pre-migration) — cached roles / display list cover us
           }
+          // #82: the client portal key is no longer on the projects row
+          // (20261005100000 — every accepted collaborator can read that row).
+          // The OWNER's keys come from portal_credentials, whose one policy
+          // returns a row only to the project's owner, so this read hands a
+          // collaborator nothing. A failed read keeps the key this device
+          // already holds (ownerClientPortalAfterLoad).
+          const portalKeyById = new Map<string, PortalKeyRow>();
+          let portalKeysReadOk = false;
+          try {
+            const { data: keyRows, error: keyError } = await supabase
+              .from('portal_credentials')
+              .select('project_id, portal_id, access_token');
+            if (keyError) {
+              console.log('[ProjectContext] portal key read failed — keeping the keys this device holds');
+            } else {
+              portalKeysReadOk = true;
+              for (const k of (keyRows ?? []) as PortalKeyRow[]) {
+                if (k.project_id) portalKeyById.set(k.project_id, k);
+              }
+            }
+          } catch {
+            // table absent (pre-migration) — the row's own copy covers us
+          }
           // #90: a successful read is the server's answer even with ZERO rows
           // (his only job was the one he was removed from) — but only when it
           // was answered to his live bearer (emptyReadTrusted); an anon answer
@@ -2212,7 +2235,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // AUTH-F5: the portal token + passcode authenticate the HOMEOWNER;
               // they never reach a collaborator's memory or AsyncStorage cache.
               clientPortal: (owned
-                ? r.client_portal
+                ? ownerClientPortalAfterLoad(r.client_portal as Project['clientPortal'] | null, portalKeyById.get(rid), portalKeysReadOk, cached?.clientPortal)
                 : stripPortalCredentials(r.client_portal as Project['clientPortal'] | null)) as Project['clientPortal'],
               targetBudget: pick('target_budget', r.target_budget, cached?.targetBudget) as Project['targetBudget'],
               // Contract terms live on project_financials only (no legacy copy on

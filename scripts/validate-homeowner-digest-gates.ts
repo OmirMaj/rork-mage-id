@@ -217,7 +217,7 @@ console.log('\nhomeowner-weekly-digest/index.ts is wired to the rules:');
     /\} else if \(errs\.every\(e => e === 'unsubscribed'\)\) \{[\s\S]{0,40}showAlert\('Your client turned these emails off'/.test(setup)
       && /const refusal = errs\.find\(e => e !== 'unsubscribed'\) \?\? errs\[0\];/.test(setup));
   ok('a never-published portal gets no portal button in the recap',
-    /portalUnpublished = !snapRes\.error && snapRes\.data == null;/.test(fn) && /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal\) \?\? undefined\);/.test(fn));
+    /portalUnpublished = !snapRes\.error && snapRes\.data == null;/.test(fn) && /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal, portalKey\) \?\? undefined\);/.test(fn));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

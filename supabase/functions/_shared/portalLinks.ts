@@ -8,7 +8,12 @@
 // lands on the fallback page ("This portal isn't available") — which is what
 // every system email did before 2026-09-04 (audit EDGE-F6).
 //
-// Callers pass the raw `client_portal` jsonb from the projects row.
+// Callers pass the raw `client_portal` jsonb from the projects row AND the key
+// read from public.portal_credentials (storedPortalKey below). The key left the
+// projects row with 20261005100000_portal_token_strip.sql (#82): every accepted
+// collaborator can read that row, and the key is all the client page checks
+// before it records the client's e-signature. A caller that passes only the
+// row builds no link at all once that migration is applied.
 
 export const PORTAL_BASE = 'https://mageid.app/portal';
 export const SUB_PORTAL_BASE = 'https://mageid.app/sub-portal';
@@ -24,14 +29,56 @@ export interface ClientPortalLike {
  * Homeowner portal URL for a project, or null when the portal is not enabled
  * or has no minted id / token (in which case callers must fall back to
  * APP_BASE or omit the CTA — never emit a dead link).
+ *
+ * `storedKey` is the key from portal_credentials (storedPortalKey). It wins
+ * over a copy still on the row: the credentials row is the one the client
+ * page's gate compares with, so after a Reset link the row's copy is the dead
+ * one. The row's copy is only the fallback for a database where
+ * 20261005100000 is not applied yet.
  */
-export function portalUrlFor(clientPortal: unknown): string | null {
+export function portalUrlFor(clientPortal: unknown, storedKey?: string | null): string | null {
   const cp = (clientPortal ?? {}) as ClientPortalLike;
   if (cp.enabled === false) return null;
   const portalId = typeof cp.portalId === 'string' ? cp.portalId.trim() : '';
-  const token = typeof cp.accessToken === 'string' ? cp.accessToken.trim() : '';
+  const stored = typeof storedKey === 'string' ? storedKey.trim() : '';
+  const token = stored || (typeof cp.accessToken === 'string' ? cp.accessToken.trim() : '');
   if (!portalId || !token) return null;
   return `${PORTAL_BASE}/${encodeURIComponent(portalId)}?t=${encodeURIComponent(token)}`;
+}
+
+/**
+ * The key public.portal_credentials holds for this project's CURRENT portal id,
+ * read with the service role (the table has no policy for anyone but the
+ * project's owner). null = no key stored for that portal id, the read failed,
+ * or the function has no service key — the caller's portalUrlFor then falls
+ * back to the row's own copy, and to no link at all when there is none. Never
+ * throws, never logs the key.
+ *
+ * A row whose portal_id is not the one on the project is a key for a portal
+ * that no longer exists; it is not returned.
+ */
+export async function storedPortalKey(projectId: unknown, clientPortal: unknown): Promise<string | null> {
+  const cp = (clientPortal ?? {}) as ClientPortalLike;
+  const portalId = typeof cp.portalId === 'string' ? cp.portalId.trim() : '';
+  const pid = typeof projectId === 'string' ? projectId.trim() : '';
+  if (!pid || !portalId || cp.enabled === false) return null;
+  const url = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '');
+  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
+  if (!url || !service) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/portal_credentials?project_id=eq.${encodeURIComponent(pid)}&select=portal_id,access_token&limit=1`,
+      { headers: { apikey: service, Authorization: `Bearer ${service}` } },
+    );
+    if (!res.ok) return null;
+    const rows = (await res.json()) as { portal_id?: string | null; access_token?: string | null }[];
+    const row = Array.isArray(rows) ? rows[0] : undefined;
+    if (!row || row.portal_id !== portalId) return null;
+    const key = typeof row.access_token === 'string' ? row.access_token.trim() : '';
+    return key || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
