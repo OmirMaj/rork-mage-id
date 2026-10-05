@@ -13,13 +13,28 @@ function mondayISO(): string {
 }
 const MON = mondayISO();
 
-function mk(id: string, name: string, tasks: any[]): Project {
+// Two screens, two definitions of "this week". Last Planner keys its week on
+// the UTC Monday (utils/lastPlanner toMonday — mondayISO above mirrors it);
+// the /summary strip keys on the LOCAL Monday (utils/summaryBriefing
+// computeWeekLoad). West of Greenwich the two are different weeks from Sunday
+// evening until local midnight, so each block seeds the Monday its own screen
+// reads — one shared Monday made the /summary case fail in that window.
+function localMondayISO(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+}
+const MON_LOCAL = localMondayISO();
+
+function mk(id: string, name: string, tasks: any[], startDate: string = MON): Project {
   return {
     ...(world.project as any),
     id, name,
     schedule: {
       id: `${id}-s`, name: `${name} schedule`, projectId: id,
-      startDate: MON, workingDaysPerWeek: 5, bufferDays: 0,
+      startDate, workingDaysPerWeek: 5, bufferDays: 0,
       tasks, totalDurationDays: 10, criticalPathDays: 10, laborAlignmentScore: 0, riskItems: [],
     },
   } as unknown as Project;
@@ -101,8 +116,8 @@ describe('cross-project double-booking on /summary', () => {
 
   it('names the crew and both jobs in the week strip', async () => {
     await seed([
-      mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })]),
-      mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })]),
+      mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], MON_LOCAL),
+      mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], MON_LOCAL),
     ]);
     await mountRouteChecked('/summary');
     expect(screen.getByText('Double-booked')).toBeTruthy();
@@ -110,7 +125,7 @@ describe('cross-project double-booking on /summary', () => {
   });
 
   it('negative control: one project shows no Double-booked block', async () => {
-    await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })])]);
+    await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })], MON_LOCAL)]);
     await mountRouteChecked('/summary');
     expect(screen.queryByText('Double-booked')).toBeNull();
   });
