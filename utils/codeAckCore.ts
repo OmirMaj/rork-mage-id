@@ -107,8 +107,14 @@ export function askCodeAckOnce(showAlert: ShowAlert): Promise<boolean> {
 }
 
 export interface CodeAckGate {
-  /** True when a code request may go out. Asks once per account. Never throws. */
+  /** True when a code request may go out. Asks once per account. Never throws.
+   *  A second call while the notice is up gets false: one tap, one request. */
   ensure(): Promise<boolean>;
+  /** True, with no await, when this session already knows the signed-in
+   *  account acknowledged. Handlers check it first so an acknowledged tap runs
+   *  exactly as it did before the gate existed (no extra tick before the
+   *  button turns busy, so a double tap cannot start two requests). */
+  known(): boolean;
   /** The stored record for the signed-in account, or null. Never throws. */
   read(): Promise<CodeAckRecord | null>;
   setHost(h: CodeAckHost | null): void;
@@ -116,11 +122,13 @@ export interface CodeAckGate {
 
 export function createCodeAckGate(deps: { storage: CodeAckStorage; now?: () => Date }): CodeAckGate {
   let host: CodeAckHost | null = null;
-  // Two requests racing on first use share ONE notice.
-  let pending: Promise<boolean> | null = null;
-  // An acknowledgement that could not be written still stands for this
-  // session, so a full disk does not ask on every tap.
-  let sessionAck: string | null = null;
+  // True while the notice is up. A second request arriving meanwhile is
+  // refused (false): the tap that raised the notice is the one that goes on.
+  let asking = false;
+  // The account this session knows has acknowledged ('' = signed out), from a
+  // read or from the tap. It also carries an acknowledgement that could not be
+  // written, so a full disk does not ask on every tap.
+  let acked: string | null = null;
   const now = deps.now ?? (() => new Date());
 
   const account = (): string | null => {
@@ -130,35 +138,39 @@ export function createCodeAckGate(deps: { storage: CodeAckStorage; now?: () => D
   const read = async (): Promise<CodeAckRecord | null> => {
     try {
       const rec = parseCodeAck(await deps.storage.getItem(CODE_ACK_STORAGE_KEY));
-      return codeAckCovers(rec, account()) ? rec : null;
+      if (!codeAckCovers(rec, account())) return null;
+      acked = rec ? rec.account : acked;
+      return rec;
     } catch {
       return null;
     }
   };
 
+  const known = (): boolean => acked !== null && acked === (account() ?? '');
+
   const ensure = async (): Promise<boolean> => {
+    if (known()) return true;
+    if (asking) return false;
     if (await read()) return true;
-    const who = account();
-    if (sessionAck !== null && sessionAck === (who ?? '')) return true;
-    if (pending) return pending;
+    if (known()) return true;
+    if (asking) return false;
     // Nobody to show the notice: the request waits (fail closed). The host is
     // mounted at the root of the app, so this is a test or a headless run.
     if (!host) return false;
+    const who = account();
     const ask = host.prompt;
-    pending = (async () => {
+    asking = true;
+    try {
       let yes = false;
       try { yes = (await ask()) === true; } catch { yes = false; }
       if (!yes) return false;
-      sessionAck = who ?? '';
+      acked = who ?? '';
       try { await deps.storage.setItem(CODE_ACK_STORAGE_KEY, serializeCodeAck(who, now())); } catch { /* stands for this session */ }
       return true;
-    })();
-    try {
-      return await pending;
     } finally {
-      pending = null;
+      asking = false;
     }
   };
 
-  return { ensure, read, setHost(h) { host = h; } };
+  return { ensure, read, known, setHost(h) { host = h; } };
 }

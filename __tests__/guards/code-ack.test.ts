@@ -103,18 +103,38 @@ describe('unacknowledged: the request waits on the notice', () => {
     expect(asked).toBe(2);
   });
 
-  it('two requests racing on first use share one notice', async () => {
+  it('a second request while the notice is up is refused: one notice, one request', async () => {
     const storage = memoryStorage();
     const gate = createCodeAckGate({ storage, now: () => at });
     let asked = 0;
     let tap: (v: boolean) => void = () => {};
     gate.setHost({ accountId: () => 'user-a', prompt: () => { asked += 1; return new Promise<boolean>((r) => { tap = r; }); } });
     const a = gate.ensure();
-    const b = gate.ensure();
     await new Promise((r) => setTimeout(r, 0));
+    const b = gate.ensure();
+    expect(await b).toBe(false);
     expect(asked).toBe(1);
     tap(true);
-    expect(await Promise.all([a, b])).toEqual([true, true]);
+    expect(await a).toBe(true);
+  });
+
+  it('known() is false until the account acknowledged, then true with no await', async () => {
+    const storage = memoryStorage();
+    const gate = createCodeAckGate({ storage, now: () => at });
+    let who = 'user-a';
+    gate.setHost({ accountId: () => who, prompt: async () => true });
+    expect(gate.known()).toBe(false);
+    await gate.ensure();
+    expect(gate.known()).toBe(true);
+    who = 'user-b';
+    expect(gate.known()).toBe(false);
+
+    // A fresh session learns it from storage (the host reads on mount).
+    const next = createCodeAckGate({ storage, now: () => at });
+    next.setHost({ accountId: () => 'user-a', prompt: async () => false });
+    expect(next.known()).toBe(false);
+    await next.read();
+    expect(next.known()).toBe(true);
   });
 
   it('another account on the same phone is asked for itself', async () => {
@@ -162,7 +182,7 @@ describe('every code request entry point awaits the gate', () => {
   it.each(ENTRY_POINTS)('%s', (file, n) => {
     const src = read(file);
     expect(src).toContain("from '@/utils/codeAck'");
-    expect(src.split('if (!(await ensureCodeAck())) return;').length - 1).toBe(n);
+    expect(src.split('if (!codeAckKnown() && !(await ensureCodeAck())) return;').length - 1).toBe(n);
   });
 
   it('the gate comes before the request in each handler', () => {
@@ -170,7 +190,7 @@ describe('every code request entry point awaits the gate', () => {
       const src = read(file);
       const at = src.indexOf(request);
       expect(at).toBeGreaterThan(-1);
-      const gateAt = src.lastIndexOf('if (!(await ensureCodeAck())) return;', at);
+      const gateAt = src.lastIndexOf('if (!codeAckKnown() && !(await ensureCodeAck())) return;', at);
       expect(gateAt).toBeGreaterThan(-1);
       // No other handler starts between the gate and the request.
       expect(src.slice(gateAt, at)).not.toMatch(/= useCallback\(/);

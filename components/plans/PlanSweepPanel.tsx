@@ -48,7 +48,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PLAN_REVIEW_DISCLAIMER, type PlanCodeFindingRaw } from '@/utils/planCodeReviewer';
-import { ensureCodeAck } from '@/utils/codeAck';
+import { codeAckKnown, ensureCodeAck } from '@/utils/codeAck';
 import { groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction } from '@/utils/codeJurisdiction';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { sheetAttachmentFor } from '@/utils/plans/revisionActions';
@@ -133,7 +133,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
   const onFind = useCallback(async () => {
     // One-time notice before a code answer is relied on (utils/codeAck). An
     // answer already on screen stays; only the next request waits on it.
-    if (!(await ensureCodeAck())) return;
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     abort.current = { aborted: false };
     setPhase('finding'); setFound(null); setReview(null); setError(null); setDrafted({}); setPunched({}); punchedRef.current = {};
     try {
@@ -155,7 +155,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
     if (found?.state !== 'ready') return;
     // One-time notice before a code answer is relied on (utils/codeAck). An
     // answer already on screen stays; only the next request waits on it.
-    if (!(await ensureCodeAck())) return;
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     abort.current = { aborted: false };
     setPhase('reviewing'); setError(null);
     try {

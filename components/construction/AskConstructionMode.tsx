@@ -75,7 +75,7 @@ import { CodeCardSheet } from '@/components/codeCard/CodeCardSheet';
 import { JurisdictionBlock } from '@/components/codeCard/JurisdictionBlock';
 import { blockedAction, doneAction, readyAction, SunlightToggle, type CodeCardAction } from '@/components/codeCard/parts';
 import type { CodeCardItem, CodeJobValue, CodeJurisdictionInfo, CodeStage } from '@/utils/codeCard/types';
-import { CODE_RESULT_NOTE, ensureCodeAck } from '@/utils/codeAck';
+import { CODE_RESULT_NOTE, codeAckKnown, ensureCodeAck } from '@/utils/codeAck';
 import { attachEvidence, codeCardStoreBlockedReason, parseCodeCardItems } from '@/utils/codeCard/parse';
 import { codeJurisdictionInfoFor } from '@/utils/codeCard/jurisdiction';
 import { codePinStore, makePin, pinsFor } from '@/utils/codeCard/pins';
@@ -839,7 +839,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
     if (!canSubmit) return;
     // One-time notice before a code answer is relied on (utils/codeAck). An
     // answer already on screen stays; only the next request waits on it.
-    if (!(await ensureCodeAck())) return;
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     setResult(null);

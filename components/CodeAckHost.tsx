@@ -13,7 +13,7 @@
 import { useEffect, useRef } from 'react';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
-import { askCodeAckOnce, setCodeAckHost } from '@/utils/codeAck';
+import { askCodeAckOnce, readCodeAck, setCodeAckHost } from '@/utils/codeAck';
 
 export default function CodeAckHost() {
   const { user } = useAuth();
@@ -26,5 +26,9 @@ export default function CodeAckHost() {
     });
     return () => setCodeAckHost(null);
   }, []);
+  // Read the stored acknowledgement as soon as the account is known, so an
+  // acknowledged contractor's tap never waits on storage (codeAckKnown()).
+  const id = user?.id ?? null;
+  useEffect(() => { void readCodeAck(); }, [id]);
   return null;
 }

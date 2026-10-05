@@ -58,7 +58,7 @@ import { cardSurface } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
 import { generateUUID } from '@/utils/generateId';
-import { ensureCodeAck } from '@/utils/codeAck';
+import { codeAckKnown, ensureCodeAck } from '@/utils/codeAck';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
@@ -157,7 +157,7 @@ export default function InspectionReadySheet({
     if (!canAI) return;
     // One-time notice before a code answer is relied on (utils/codeAck). An
     // answer already on screen stays; only the next request waits on it.
-    if (!(await ensureCodeAck())) return;
+    if (!codeAckKnown() && !(await ensureCodeAck())) return;
     const { prompt, cacheKey } = buildRecallPrompt({ inspection, project, jurisdiction: grounding, covered: base.items, answers });
     const seq = ++recallSeq.current;
     setRecallBusy(true);

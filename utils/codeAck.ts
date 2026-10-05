@@ -25,6 +25,9 @@ const gate = createCodeAckGate({ storage: AsyncStorage });
 
 /** True when a code request may go out (shows the notice once per account). Never throws. */
 export const ensureCodeAck = (): Promise<boolean> => gate.ensure();
+/** True, with no await, when this session already knows the account acknowledged.
+ *  Handlers write `if (!codeAckKnown() && !(await ensureCodeAck())) return;`. */
+export const codeAckKnown = (): boolean => gate.known();
 /** This account's stored acknowledgement on this device, or null. */
 export const readCodeAck = (): Promise<CodeAckRecord | null> => gate.read();
 /** components/CodeAckHost.tsx registers here while mounted. */
