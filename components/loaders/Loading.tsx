@@ -57,6 +57,8 @@ export default function Loading(props: LoadingProps) {
   return <LoadingGated {...props} />;
 }
 
+// The INLINE widths. scope 'screen' never reads its entry: it renders ScreenLoader,
+// whose level is sized from the window (utils/levelDesk screenLevelW).
 const MARK_W: Record<GateScope, number> = { button: 20, inline: 20, skeleton: 36, section: 36, knownSlow: 64, screen: 64 };
 
 function LoadingGated({ ready, scope = 'section', label, caption, size, style, testID = 'loading', children }: LoadingProps) {

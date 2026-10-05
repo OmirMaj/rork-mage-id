@@ -68,7 +68,8 @@ export interface LevelMarkProps {
   testID?: string;
   /**
    * The wide-canvas table (utils/levelDesk.ts levelPartsDesk): widths past 120
-   * keep growing to 240 instead of centring a 120 mark. Identical to the phone
+   * keep growing (the table to 240, then in proportion to 640) instead of
+   * centring a 120 mark. Identical to the phone
    * table at ≤ 120 and for the splash tone. Default false.
    */
   desk?: boolean;

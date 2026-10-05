@@ -87,12 +87,19 @@ export const DESK_DATUM = {
   splashOpacity: 0.12, themeOpacity: 0.3,
 } as const;
 
-/** The full-screen gate (ScreenLoader) per desk tier. */
+/** The full-screen gate's caption per desk tier (its level width is screenLevelW, below). */
 export const DESK_SCREEN = {
-  tablet: { levelW: 160, caption: 'footnoteEmphasized', captionGap: 12, captionMaxW: 320 },
-  laptop: { levelW: 200, caption: 'headline', captionGap: 20, captionMaxW: 480 },
-  monitor: { levelW: 240, caption: 'headline', captionGap: 20, captionMaxW: 480 },
+  tablet: { caption: 'footnoteEmphasized', captionGap: 12, captionMaxW: 320 },
+  laptop: { caption: 'headline', captionGap: 20, captionMaxW: 480 },
+  monitor: { caption: 'headline', captionGap: 20, captionMaxW: 480 },
 } as const;
+
+/**
+ * The full-screen gate's level, every platform: the LAUNCH mark's width for the
+ * same window, rounded, never under minPx or over maxPx (= the widest launch
+ * mark, DESK_SPLASH.monitor.maxPx).
+ */
+export const SCREEN_LEVEL = { minPx: 120, maxPx: 640 } as const;
 
 /** ConstructionLoader size="lg" on the desk web (S1). */
 export const DESK_INLINE_LG = { tablet: 120, laptop: 160, monitor: 200 } as const;
@@ -102,7 +109,9 @@ export const LEVEL_DESK_ANCHORS = {
   widths: [120, 240], bubbleW: [18, 36], bubbleH: [7, 13], amp: [28, 60],
   trackH: [2, 4], capH: [10, 18], stretch: 0.14, squash: 0.1,
 } as const;
+/** The last anchor row. Past it the 240 row scales in proportion, up to LEVEL_DESK_SCALE_MAX_W. */
 export const LEVEL_DESK_MAX_W = 240;
+export const LEVEL_DESK_SCALE_MAX_W = 640;
 
 // ── The web launch palette ───────────────────────────────────────────────────
 //
@@ -235,9 +244,21 @@ export function launchRect(width: number, height: number, platform: string): Spl
 
 // ── The full-screen gate ─────────────────────────────────────────────────────
 
-/** ScreenLoader's level width: 64 on the phone (unchanged), 160 / 200 / 240 on the desk. */
-export function deskScreenLevelW(tier: LoaderTier): number {
-  return tier === 'phone' ? 64 : DESK_SCREEN[tier].levelW;
+/**
+ * THE ONE RULE for a full-screen loader's level (ScreenLoader: the sign-in
+ * reload veil, the account-switch gate, <Loading scope="screen">): it is drawn
+ * as wide as the launch mark for the same window — launchRect's markW, so
+ * 438/1024 of the shorter side on a phone (capped at 240 on the web below 768)
+ * and DESK_SPLASH's clamp on a desk tier — rounded to a whole point and held
+ * inside SCREEN_LEVEL. The founder (2026-10-04): "after logging in the loading
+ * screen is a very small level" — it was a fixed 64 pt (16 % of an iPhone)
+ * right after a 167 pt launch mark. Inline loaders (buttons, rows, cards) do
+ * not come through here; they keep their own small sizes.
+ */
+export function screenLevelW(width: number, height: number, platform: string): number {
+  const w = launchRect(width, height, platform).markW;
+  if (!Number.isFinite(w)) return SCREEN_LEVEL.minPx;
+  return clamp(SCREEN_LEVEL.minPx, Math.round(w), SCREEN_LEVEL.maxPx);
 }
 
 function lerp2(xs: readonly [number, number] | readonly number[], ys: readonly number[], x: number): number {
@@ -249,14 +270,17 @@ function lerp2(xs: readonly [number, number] | readonly number[], ys: readonly n
 /**
  * The table geometry for a drawn width: ≤ 120 IS levelGeometry (identical);
  * 120 → 240 continues it from LEVEL_DESK_ANCHORS (caps, graduations, the
- * "it's level" accent settle all as the table draws them from 96 px); > 240
- * clamps to 240.
+ * "it's level" accent settle all as the table draws them from 96 px); past
+ * 240 the 240 row scales in proportion (every part × width / 240), and the
+ * width clamps at LEVEL_DESK_SCALE_MAX_W.
  */
 export function levelGeometryDesk(width: number): LevelGeometry {
   if (!(width > LEVEL_MAX_W)) return levelGeometry(width);
-  const w = Math.min(LEVEL_DESK_MAX_W, width);
+  const drawn = Math.min(LEVEL_DESK_SCALE_MAX_W, width);
+  const k = drawn > LEVEL_DESK_MAX_W ? drawn / LEVEL_DESK_MAX_W : 1;
+  const w = drawn;
   const A = LEVEL_DESK_ANCHORS;
-  const at = (ys: readonly number[]) => lerp2(A.widths, ys, w);
+  const at = (ys: readonly number[]) => k * lerp2(A.widths, ys, Math.min(LEVEL_DESK_MAX_W, drawn));
   const bubbleW = at(A.bubbleW);
   const bubbleH = at(A.bubbleH);
   const trackH = at(A.trackH);
