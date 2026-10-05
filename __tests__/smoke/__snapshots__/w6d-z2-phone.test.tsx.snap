@@ -45,14 +45,14 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c3) construction
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-paywall 1`] = `
 {
   "lines": 442,
-  "sha256": "7229816d57294cfd2f0a65e5f91765ba2267193ce63233bd32145e9ded7a455d",
+  "sha256": "db5a328bad49d9425b4f2f5f225620fed9b56cd7446d8be54cbb968d76f9604f",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 2071,
-  "sha256": "a5883f96f71e26307d6c1441a47357761285645dbd8025dca8fd3cc06939bb3b",
+  "sha256": "a40d887d70589a2aa826a16ad6e8e6208829bc96a6bb1bd3f41c888a5ddf5b91",
 }
 `;
 

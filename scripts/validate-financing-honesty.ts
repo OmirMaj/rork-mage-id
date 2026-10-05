@@ -294,7 +294,7 @@ const html = read('marketing/portal/index.html');
   const pw = code(read('app/paywall.tsx'));
   ok('the plans page no longer names Wisetack', !/Wisetack/i.test(pw));
   ok('…lists client financing as bring-your-own-lender on every plan',
-    /\{ label: 'Client financing \(bring your own lender\)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' \}/.test(pw));
+    /\{ label: 'Client Financing \(Bring Your Own Lender\)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' \}/.test(pw));
   const fin = code(read('utils/financing.ts'));
   ok('the invoice-email block renders the one disclosure (financingDisclosureText)',
     /escapeHtml\(financingDisclosureText\(cfg\.partnerName\)\)/.test(fin) && !/may receive compensation/.test(fin));

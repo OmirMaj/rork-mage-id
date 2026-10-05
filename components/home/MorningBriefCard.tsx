@@ -105,14 +105,14 @@ export default function MorningBriefCard() {
         onPress={openBrief}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel="Open your morning brief"
+        accessibilityLabel="Open Your Morning Brief"
         testID="morning-brief-card"
       >
         <View style={styles.icon}>
           <Sunrise size={16} color={t.accent} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Your morning brief</Text>
+          <Text style={styles.title}>Your Morning Brief</Text>
           <Text style={styles.summary} numberOfLines={1}>{briefSummaryLine(brief)}</Text>
         </View>
         <ChevronRight size={16} color={t.textMuted} strokeWidth={2} />
@@ -122,7 +122,7 @@ export default function MorningBriefCard() {
         onPress={markSeen}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Dismiss the morning brief for today"
+        accessibilityLabel="Dismiss the Morning Brief for Today"
         testID="morning-brief-dismiss"
       >
         <X size={14} color={t.textMuted} strokeWidth={2} />

@@ -266,8 +266,8 @@ export default function LoginScreen() {
   const handleBiometricLogin = useCallback(async () => {
     if (!hasStoredCredentials) {
       showAlert(
-        'Sign in with your password first',
-        'Sign in with your email and password with "Remember me" on. After that, you can use Face ID or Touch ID.'
+        'Sign In with Your Password First',
+        'Sign in with your email and password with "Remember Me" on. After that, you can use Face ID or Touch ID.'
       );
       return;
     }
@@ -284,7 +284,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
       console.warn('[Login] biometric sign-in failed:', rawErrorMessage(err));
-      showAlert("Couldn't sign in", 'Face ID or Touch ID did not confirm. Sign in with your password instead.');
+      showAlert("Couldn't Sign In", 'Face ID or Touch ID did not confirm. Sign in with your password instead.');
     } finally {
       localSignInRef.current = false;
       setIsBiometricLoading(false);
@@ -489,10 +489,10 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Slot style={entrance.slot(3)}>
-            <Text style={styles.sheetEyebrow}>Welcome back</Text>
+            <Text style={styles.sheetEyebrow}>Welcome Back</Text>
           </Slot>
           <Slot style={entrance.slot(4)}>
-            <Text style={styles.sheetHeading} accessibilityRole="header">{isDeskWeb ? 'Sign in to MAGE ID' : 'Sign in'}</Text>
+            <Text style={styles.sheetHeading} accessibilityRole="header">{isDeskWeb ? 'Sign In to MAGE ID' : 'Sign In'}</Text>
           </Slot>
           <View>
             {errorMessage ? (
@@ -597,13 +597,13 @@ export default function LoginScreen() {
               <View style={[styles.magicLinkSuccess, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
                 <CheckCircle2 size={15} color={Colors.successDark} strokeWidth={2} />
                 <Text style={[styles.magicLinkSuccessText, { flex: 1 }]}>
-                  Check your inbox — we just sent a sign-in link to {email.trim()}.
+                  Check your inbox. We sent a sign-in link to {email.trim()}.
                 </Text>
               </View>
             ) : (
               <AuthSubmitButton
                 phase={isMagicLinkLoading ? 'loading' : 'idle'}
-                label="Email me a sign-in link"
+                label="Email Me a Sign-In Link"
                 leading={<KeyRound size={18} color={themeColors.accent} strokeWidth={2} />}
                 style={[styles.magicLinkButton, isMagicLinkLoading && styles.loginButtonDisabled]}
                 textStyle={styles.magicLinkButtonText}
@@ -634,7 +634,7 @@ export default function LoginScreen() {
                 <>
                   <ScanFace size={20} color={themeColors.accent} strokeWidth={1.8} />
                   <Text style={styles.biometricText}>
-                    Sign in with Face ID / Touch ID
+                    Sign In with Face ID or Touch ID
                   </Text>
                 </>
               )}
@@ -650,7 +650,7 @@ export default function LoginScreen() {
               onPress={openPasswordMode}
               testID="login-show-password-mode"
             >
-              <Text style={styles.passwordModeToggleText}>Sign in with password instead</Text>
+              <Text style={styles.passwordModeToggleText}>Sign In with Password Instead</Text>
             </TouchableOpacity>
           ) : (
             <Slot style={passwordReveal ? passwordReveal.style : null}>
@@ -691,7 +691,7 @@ export default function LoginScreen() {
                 </View>
               </View>
               <View style={styles.rememberRow}>
-                <Text style={styles.rememberLabel}>Remember me</Text>
+                <Text style={styles.rememberLabel}>Remember Me</Text>
                 <Switch
                   value={rememberMe}
                   onValueChange={setRememberMe}
@@ -703,7 +703,7 @@ export default function LoginScreen() {
               <Animated.View style={press.style}>
                 <AuthSubmitButton
                   phase={submitPhase}
-                  label="Sign in"
+                  label="Sign In"
                   trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
                   style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
                   textStyle={styles.loginButtonText}
@@ -731,16 +731,16 @@ export default function LoginScreen() {
             style={styles.forgotButton}
             onPress={async () => {
               if (!email.trim()) {
-                showAlert('Add your email', 'Enter your email address, then tap Forgot password.');
+                showAlert('Add Your Email', 'Enter your email address, then tap Forgot password.');
                 return;
               }
               if (!EMAIL_REGEX.test(email.trim())) {
-                showAlert('Check your email address', 'That email address looks off. Check it and try again.');
+                showAlert('Check Your Email Address', 'That email address looks off. Check it and try again.');
                 return;
               }
               try {
                 await resetPassword(email.trim());
-                showAlert('Check your email', 'A password reset link was sent to ' + email.trim() + '.');
+                showAlert('Check Your Email', 'A password reset link was sent to ' + email.trim() + '.');
               } catch (err: unknown) {
                 console.warn('[Login] reset email failed:', rawErrorMessage(err));
                 const copy = describeError(err, { action: 'send the password reset email' });
@@ -759,7 +759,7 @@ export default function LoginScreen() {
               onPress={() => router.push(signupHrefForInvite(inviteToken) as never)}
               testID="login-go-signup"
             >
-              <Text style={styles.signupLink}>Create account</Text>
+              <Text style={styles.signupLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
           </Slot>

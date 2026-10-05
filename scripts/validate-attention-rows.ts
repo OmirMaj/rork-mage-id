@@ -167,8 +167,8 @@ console.log('\nsource pins:');
   const page = strip(read('app/(tabs)/(home)/attention.tsx'));
   ok('/attention parses ?view= with parseAttentionView and writes it with setParams',
     /parseAttentionView\(/.test(page) && /router\.setParams\(\{ view/.test(page));
-  ok('/attention keeps the rail\'s three empty states', /All caught up/.test(page)
-    && /Nothing overdue on schedules, invoices, permits or certs\./.test(page)
+  ok('/attention keeps the rail\'s three empty states', /All Caught Up/.test(page)
+    && /Nothing overdue on schedules, invoices, permits or certificates\./.test(page)
     && /\/waiting-on/.test(page) && /Couldn't reach MAGE/.test(page));
   // Wave 6d, lane V3 (C6): the two loading branches, desktop only.
   ok("/attention: 'bill' waits for changeOrdersLoaded and 'logs' for dailyReportsLoaded — desktop only (isDesktop &&)",

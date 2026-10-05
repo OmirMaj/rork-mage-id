@@ -298,7 +298,7 @@ console.log('\nsource assertions:');
   ok('probe (re-review A1): the listener lives with the ticker and this query does not double-probe on web focus', /installForegroundGate\(client\)/.test(probe) && /removeForegroundGate\(\)/.test(probe) && /refetchOnWindowFocus: false/.test(probe));
   ok('probe (review 9): no per-observer refetchInterval — one ref-counted ticker, foreground-gated', !/refetchInterval:/.test(probe) && /acquireTicker/.test(probe) && /releaseTicker/.test(probe));
   const rail = src('components/DesktopActionRail.tsx');
-  ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE — showing what's on this/.test(rail));
+  ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE\. Showing what's on this/.test(rail));
 }
 
 // ── the estimate validator scores against HIS numbers, not "industry" ──────

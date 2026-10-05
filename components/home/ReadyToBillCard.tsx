@@ -95,14 +95,14 @@ export default function ReadyToBillCard() {
       if (error) throw error;
       setAdvanceState('done');
       showAlert(
-        'Advance requested',
+        'Advance Requested',
         `Your interest in an advance of up to ${formatMoney(advanceTotal)} against this work is saved. ` +
           'Funding runs through a lending partner, and MAGE ID contacts you as soon as it opens in your state.',
       );
     } catch (e) {
       console.warn('[ReadyToBillCard] advance interest not recorded', e);
       setAdvanceState('idle');
-      showAlert('Couldn’t save', 'Try again in a moment.');
+      showAlert('Couldn’t Save', 'Try again in a moment.');
     }
   };
 
@@ -172,7 +172,7 @@ export default function ReadyToBillCard() {
           <Banknote size={14} color={colors.success} strokeWidth={2} />
           <Text style={styles.advanceText}>
             {advanceState === 'done'
-              ? 'Advance requested — we’ll be in touch'
+              ? 'Advance requested. We’ll be in touch.'
               : `Need it now? Advance up to ${formatMoney(advanceTotal)}`}
           </Text>
           {advanceState === 'idle' ? (

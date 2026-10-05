@@ -92,7 +92,7 @@ ok('refresh routes every answer through applyStatus', /applyStatus\(await fetchQ
 
 console.log('\n── Settings row ──');
 const settings = read('app/(tabs)/settings/index.tsx');
-ok('Settings shows "Status unavailable" for an unknown check', /qboUnknown \? \([\s\S]{0,300}Status unavailable/.test(settings));
+ok('Settings shows "Status unavailable" for an unknown check', /qboUnknown \? \([\s\S]{0,300}Status Unavailable/.test(settings));
 ok('…and never "Connect QuickBooks" for it', /\{qboConnected \|\| qboUnknown \? 'QuickBooks Online'/.test(settings));
 ok('a plan refusal below Business still reads "Requires Business"',
   /const qboUnknown = qboStatus\?\.status === 'unknown'\s*&& !\(qboStatus\.reason === 'tier' && tier !== 'business' && tier !== 'enterprise'\);/.test(settings));

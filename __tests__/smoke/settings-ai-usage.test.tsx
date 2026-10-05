@@ -36,7 +36,7 @@ describe('Settings > AI USAGE shows real numbers or says it could not', () => {
     await primeWorld('empty');
     const tree = await mountRouteChecked('/settings');
     const text = flat(tree);
-    expect(text).toContain('AI usage');
+    expect(text).toContain('AI Usage');
     expect(text).toContain('Today: 0 of 150 requests');
     expect(text).toContain('Advanced: 0 of 40');
     expect(text).not.toMatch(/of 10 requests/);
@@ -58,7 +58,7 @@ describe('Settings > AI USAGE shows real numbers or says it could not', () => {
     expect(text).not.toMatch(/of 10 requests/);
 
     await AsyncStorage.removeItem('mage_ai_usage');
-    fireEvent.press(tree.getByLabelText('Retry loading AI usage'));
+    fireEvent.press(tree.getByLabelText('Retry Loading AI Usage'));
     await settle();
     text = flat(tree);
     expect(text).not.toContain('Couldn’t load today’s AI usage.');

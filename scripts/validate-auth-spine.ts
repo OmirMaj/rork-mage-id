@@ -136,7 +136,7 @@ export const BASE_TEST_IDS: Record<string, string[]> = {
 /** Accessibility labels of the auth controls on origin/main, kept verbatim. */
 const BASE_LABELS: Record<string, string[]> = {
   'app/signup.tsx': ['accessibilityLabel="Back"'],
-  'app/onboarding.tsx': ['accessibilityLabel="Get started with MAGE ID"', 'accessibilityLabel="Try it on a sample project"'],
+  'app/onboarding.tsx': ['accessibilityLabel="Get Started with MAGE ID"', 'accessibilityLabel="Try It on a Sample Project"'],
 };
 
 export function hasTestId(src: string, id: string): boolean {

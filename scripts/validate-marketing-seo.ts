@@ -381,7 +381,7 @@ export function aiLimitsFrom(paywallSrc: string): Record<string, CapRow> {
   const block = /const AI_LIMITS[^=]*=\s*\[([\s\S]*?)\n\];/.exec(paywallSrc)?.[1] ?? '';
   for (const m of block.matchAll(/label:\s*'([^']+)'[^}]*?business:\s*'([^']+)'[^}]*?enterprise:\s*'([^']+)'/g)) {
     const key = /^Daily AI/.test(m[1]) ? 'daily' : /^Advanced/.test(m[1]) ? 'advanced' : /^Drawing/.test(m[1]) ? 'drawing'
-      : /^Photo analyses/.test(m[1]) ? 'photo' : /^PDF takeoff/.test(m[1]) ? 'pdf' : m[1];
+      : /^Photo analyses/i.test(m[1]) ? 'photo' : /^PDF takeoff/i.test(m[1]) ? 'pdf' : m[1];
     out[key] = { business: Number(m[2]), enterprise: Number(m[3]) };
   }
   return out;

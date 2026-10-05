@@ -300,9 +300,9 @@ console.log('\n6. one name');
   }
   const pw = read('components/Paywall.tsx');
   const title = /'Photo Code Look': '([^']*)'/.exec(/const FEATURE_TITLE[\s\S]*?\n\};/.exec(pw)?.[0] ?? '')?.[1];
-  ok("Paywall FEATURE_TITLE['Photo Code Look'] is \"Photo code check\" (the key stays)", title === NAME, title);
+  ok("Paywall FEATURE_TITLE['Photo Code Look'] is \"Photo Code Check\", a heading in Title Case (the key stays)", title === 'Photo Code Check', title);
   const plansRow = /const CODE_LOOK_LIMIT: AILimitRow = \{ label: '([^']*)'/.exec(read('app/paywall.tsx'))?.[1];
-  ok('the plans row reads "Photo code checks /mo"', plansRow === 'Photo code checks /mo', plansRow);
+  ok('the plans row reads "Photo Code Checks per Month"', plansRow === 'Photo Code Checks per Month', plansRow);
   const readySrc = read('components/inspectionPrep/InspectionReadySheet.tsx');
   ok('the prep group heading is "From your photo code check"', readySrc.includes('<Text style={s.sectionHeading}>From your photo code check</Text>'));
 }

@@ -335,8 +335,8 @@ describe('lane F — /attention on the phone (390 iOS)', () => {
     await primeWorld('empty');
     const tree = await mountRouteChecked('/attention');
     await pump();
-    expect(screen.getByText('All caught up')).toBeTruthy();
-    expect(screen.getByText('Nothing overdue on schedules, invoices, permits or certs.')).toBeTruthy();
+    expect(screen.getByText('All Caught Up')).toBeTruthy();
+    expect(screen.getByText('Nothing overdue on schedules, invoices, permits or certificates.')).toBeTruthy();
     expect(fingerprint('attention-phone-empty', tree.toJSON())).toMatchSnapshot();
   });
 
@@ -479,7 +479,7 @@ describe('lane F — primitives at a phone width', () => {
     env('ios', 390, 844);
     const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'components', 'home', 'BrainWatchCard.tsx'), 'utf8') as string; // eslint-disable-line @typescript-eslint/no-require-imports
     // The phone branch is today's Text, byte for byte; the link is behind isDesktop.
-    expect(src).toMatch(/isDesktop \? \([\s\S]*?<RowLink[\s\S]*?\) : \(\s*<Text style=\{styles\.overflowHint\}>\s*\+\{items\.length - MAX_VISIBLE\} more — open each screen to review\s*<\/Text>\s*\)\)\}/);
+    expect(src).toMatch(/isDesktop \? \([\s\S]*?<RowLink[\s\S]*?\) : \(\s*<Text style=\{styles\.overflowHint\}>\s*\+\{items\.length - MAX_VISIBLE\} more\. Open each screen to review\.\s*<\/Text>\s*\)\)\}/);
   });
 });
 

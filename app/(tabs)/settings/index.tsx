@@ -129,10 +129,10 @@ const ACCOUNT_DELETE_HANDOVER_NOTE =
 // the server's requireTier(['business','enterprise']) on every qbo-* function
 // and the Business-bucket check in app/qbo-setup.tsx, so it is listed apart.
 const SETTINGS_EXTRA_PLAN_LINES: PlanFeatureLine[] = [
-  { label: 'Bid advisor (take, hold or walk)', keys: ['bid_scoring'] },
-  { label: 'Track record: how each forecast turned out', keys: ['brain_accuracy'] },
+  { label: 'Bid Advisor (Take, Hold or Walk)', keys: ['bid_scoring'] },
+  { label: 'Track Record: How Each Forecast Turned Out', keys: ['brain_accuracy'] },
 ];
-const QUICKBOOKS_PLAN_LINE = 'QuickBooks 2-way sync';
+const QUICKBOOKS_PLAN_LINE = 'QuickBooks 2-Way Sync';
 
 /** Display names for the supplier category keys (stored lower case). */
 const SUPPLIER_CATEGORY_LABELS: Record<string, string> = {
@@ -160,7 +160,7 @@ function planCardLines(tier: 'pro' | 'business'): string[] {
 const FREE_PROJECT_LINE = '1 project of your own (finished jobs still count)';
 const FREE_TIER_FAQ =
   'Free includes 1 project of your own (finished jobs still count, and jobs other contractors share with you don\u2019t), plus the estimate wizard, the basic schedule builder, daily reports and sync across your devices (every plan syncs). '
-  + `Pro (${listPriceLabel('pro')} list) adds unlimited projects, ${planFeatureBlurb('pro')}. `
+  + `Pro (${listPriceLabel('pro')} list) lets you run more than one project and adds ${planFeatureBlurb('pro')}. `
   + `Business (${listPriceLabel('business')} list) adds ${planFeatureBlurb('business')}, and QuickBooks sync.`;
 
 // ── App Store copy (guidelines 2.3.10 and 3.1.1, first submission) ─────────
@@ -184,7 +184,7 @@ function privacyFaqAnswer(): string {
   // ACCOUNT's copy of the answer (supabase/functions/_shared/aiConsent.ts); the
   // row itself says so (utils/aiConsentCore AI_CONSENT_OFF_ROW) and the line
   // beneath it states what the account says (components/AiAccountNote).
-  return `${base} In this app, AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings → AI features.`;
+  return `${base} In this app, AI features send what you choose to our AI providers only after you allow it, and you can turn them off in Settings > AI Features.`;
 }
 
 function ipadFaqAnswer(): string {
@@ -195,21 +195,21 @@ function ipadFaqAnswer(): string {
 
 function subscriptionFaqAnswer(): string {
   if (Platform.OS === 'ios') {
-    return 'If you subscribed in the app, use Settings → Manage subscription, which opens your App Store subscriptions. Nothing is deleted when a plan ends.';
+    return 'If you subscribed in the app, use Settings > Manage Subscription, which opens your App Store subscriptions. Nothing is deleted when a plan ends.';
   }
   if (Platform.OS === 'android') {
-    return 'If you subscribed in the app, use Settings → Manage subscription, which opens your Google Play subscriptions. Nothing is deleted when a plan ends.';
+    return 'If you subscribed in the app, use Settings > Manage Subscription, which opens your Google Play subscriptions. Nothing is deleted when a plan ends.';
   }
   // #176: a plan turned on by hand has nothing in a store to cancel. Same two
   // routes as support.html. Web only.
-  return 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings → Manage subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you (how every paid plan starts today), email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.';
+  return 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings > Manage Subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you (how every paid plan starts today), email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.';
 }
 
 /** The delete-account warning's subscription line, per platform. */
 function deleteAccountSubscriptionNote(): string {
-  if (Platform.OS === 'ios') return 'If you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions. Deleting your account does NOT cancel your subscription.';
-  if (Platform.OS === 'android') return 'If you have an active subscription, cancel it first in Google Play → Subscriptions. Deleting your account does NOT cancel your subscription.';
-  return 'If you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.';
+  if (Platform.OS === 'ios') return 'If you have an active subscription, cancel it first in Settings > Apple ID > Subscriptions. Deleting your account does not cancel your subscription.';
+  if (Platform.OS === 'android') return 'If you have an active subscription, cancel it first in Google Play > Subscriptions. Deleting your account does not cancel your subscription.';
+  return 'If you have an active subscription, cancel it first in Settings > Apple ID > Subscriptions on iOS or Google Play > Subscriptions on Android. Deleting your account does not cancel your subscription.';
 }
 
 type PlanChangeRoute = {
@@ -238,12 +238,12 @@ function planChangeRouteFor(planSource: PlanSource, tier: 'free' | PaidTier): Pl
       url: Platform.OS === 'ios'
         ? 'itms-apps://apps.apple.com/account/subscriptions'
         : 'https://play.google.com/store/account/subscriptions',
-      label: 'Manage subscription',
+      label: 'Manage Subscription',
       subtitle: `Cancel or change anytime in the ${store}`,
       fallback: Platform.OS === 'ios'
-        ? 'Open Settings → Apple ID → Subscriptions to manage your MAGE ID plan.'
-        : 'Open Play Store → Subscriptions to manage your MAGE ID plan.',
-      downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings → Apple ID → Subscriptions' : 'Play Store → Subscriptions'}). Nothing is deleted.`,
+        ? 'Open Settings > Apple ID > Subscriptions to manage your MAGE ID plan.'
+        : 'Open Play Store > Subscriptions to manage your MAGE ID plan.',
+      downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings > Apple ID > Subscriptions' : 'Play Store > Subscriptions'}). Nothing is deleted.`,
     };
   }
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -260,7 +260,7 @@ function planChangeRouteFor(planSource: PlanSource, tier: 'free' | PaidTier): Pl
     // A store subscription viewed on the web: the store page is on his phone.
     return {
       url: mailto,
-      label: 'Manage subscription',
+      label: 'Manage Subscription',
       subtitle: 'Billed through the App Store or Google Play. Change or cancel it on your phone, or email help@mageid.app.',
       fallback: 'Change or cancel it in your phone’s App Store or Google Play subscriptions, or email help@mageid.app.',
       downgradeMessage: 'Your plan is billed through the App Store or Google Play. Cancel it in your phone’s subscription settings to switch to Free, or email help@mageid.app. Nothing is deleted.',
@@ -268,7 +268,7 @@ function planChangeRouteFor(planSource: PlanSource, tier: 'free' | PaidTier): Pl
   }
   return {
     url: mailto,
-    label: 'Your plan was turned on by MAGE ID',
+    label: 'Your Plan Was Turned On by MAGE ID',
     subtitle: 'Email help@mageid.app to change or cancel. Nothing is deleted.',
     fallback: 'Email help@mageid.app to change or cancel your plan. Nothing is deleted.',
     downgradeMessage: 'Your plan was turned on by MAGE ID, so there is nothing to cancel in the App Store. Email help@mageid.app to switch to Free. Nothing is deleted.',
@@ -302,7 +302,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'How do I share an estimate or schedule with a client?',
-    a: 'From the project screen, tap Share \u2192 Generate link. This creates a read-only link you can text or email. Pro also exports a PDF with your logo.',
+    a: 'From the project screen, tap Share, then generate a link. This creates a read-only link you can text or email. Pro also exports a PDF with your logo.',
   },
   {
     q: 'Do you support iPad?',
@@ -318,7 +318,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'Where do I send feedback or feature requests?',
-    a: 'Email support@mageid.app or tap Contact support above. We read every note.',
+    a: 'Email support@mageid.app or tap Contact Support above. We read every note.',
   },
 ];
 
@@ -340,15 +340,15 @@ export default function SettingsScreen() {
   // its Retry rather than a pre-filled blank sheet.
   const savedTerms = useSavedPaymentTerms();
   const howYouGetPaidLabel = useMemo(() => {
-    if (savedTerms.status === 'loading') return `How you get paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.loading}`;
-    if (savedTerms.status === 'failed') return `How you get paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.failed} your profile \u2014 tap to retry`;
+    if (savedTerms.status === 'loading') return `How You Get Paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.loading}`;
+    if (savedTerms.status === 'failed') return `How You Get Paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.failed} your profile, tap to retry`;
     const split = savedTerms.split;
     const months = savedTerms.warrantyMonths;
-    if (!split && months == null) return 'How you get paid \u00b7 Not set \u2014 asked the first time a document prints it';
+    if (!split && months == null) return 'How You Get Paid \u00b7 Not set, asked the first time a document prints it';
     const warranty = months == null
       ? 'warranty not set'
       : `${months % 12 === 0 ? `${months / 12}-year` : `${months}-month`} warranty`;
-    return `How you get paid \u00b7 ${split ? splitLabel(split) : 'terms not set'} \u00b7 ${warranty} \u203a`;
+    return `How You Get Paid \u00b7 ${split ? splitLabel(split) : 'terms not set'} \u00b7 ${warranty} \u203a`;
   }, [savedTerms]);
   // Open the step the label says is missing: with the split answered and the
   // warranty not, "terms" would show him the question he already answered and
@@ -465,9 +465,9 @@ export default function SettingsScreen() {
     const message = [unsavedLine, pendingLine].filter(Boolean).join('\n\n') || 'Are you sure you want to sign out?';
     showAlert('Sign out?', message, [
       { text: 'Cancel', style: 'cancel' },
-      ...(unsaved > 0 ? [{ text: 'Review Not saved', onPress: () => requestSyncSheet() }] : []),
+      ...(unsaved > 0 ? [{ text: 'Review Not Saved', onPress: () => requestSyncSheet() }] : []),
       {
-        text: unsaved > 0 ? 'Delete and sign out' : pending > 0 ? 'Sync and sign out' : 'Sign out',
+        text: unsaved > 0 ? 'Delete and Sign Out' : pending > 0 ? 'Sync and Sign Out' : 'Sign Out',
         style: 'destructive',
         onPress: async () => {
           await logout(true);
@@ -611,7 +611,7 @@ export default function SettingsScreen() {
     const sep = pdfNaming.separator;
     const parts: string[] = [];
     if (pdfNaming.prefix.trim()) parts.push(pdfNaming.prefix.trim());
-    if (pdfNaming.includeProjectName) parts.push('Project name');
+    if (pdfNaming.includeProjectName) parts.push('Project Name');
     if (pdfNaming.includeDocType) parts.push('Estimate');
     if (pdfNaming.includeDate) {
       const now = new Date();
@@ -686,7 +686,7 @@ export default function SettingsScreen() {
       }
     } catch (e) {
       console.error('[Settings] Logo pick error:', e);
-      showAlert("Couldn't add the logo", 'The image could not be opened. Try again or pick another image.');
+      showAlert("Couldn't Add the Logo", 'The image could not be opened. Try again or pick another image.');
     }
   }, [autoSaveBranding]);
 
@@ -701,7 +701,7 @@ export default function SettingsScreen() {
     setShowSignatureModal(false);
     autoSaveBranding({ sig: paths });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Signature saved', 'It prints on your documents from now on.');
+    showAlert('Signature Saved', 'It prints on your documents from now on.');
   }, [autoSaveBranding]);
 
   const handleClearSignature = useCallback(() => {
@@ -729,7 +729,7 @@ export default function SettingsScreen() {
     if (!settingsLoadFailed) return false;
     const n = profileGateNotice({ failed: true });
     showAlert(n.title, `${n.message} Settings changes wait for it too.`, [
-      { text: 'Not now', style: 'cancel' },
+      { text: 'Not Now', style: 'cancel' },
       { text: 'Retry', onPress: retryRemoteReads },
     ]);
     return true;
@@ -765,11 +765,11 @@ export default function SettingsScreen() {
     const tax = parseFloat(taxRate);
     const cont = parseFloat(contingency);
     if (isNaN(tax) || tax < 0 || tax > 30) {
-      showAlert('Check the tax rate', 'Enter a rate between 0 and 30%.');
+      showAlert('Check the Tax Rate', 'Enter a rate between 0 and 30%.');
       return false;
     }
     if (isNaN(cont) || cont < 0 || cont > 50) {
-      showAlert('Check the contingency', 'Enter a rate between 0 and 50%.');
+      showAlert('Check the Contingency', 'Enter a rate between 0 and 50%.');
       return false;
     }
     if (!commitScreen({ taxRate: tax, contingencyRate: cont })) return false;
@@ -794,7 +794,7 @@ export default function SettingsScreen() {
       const guard = defaultsGuardRef.current;
       if (!guard.dirty) return;
       showAlert(
-        'Estimate defaults not saved',
+        'Estimate Defaults Not Saved',
         'You changed your sales tax or contingency rate and left before saving. Every new estimate, invoice and change order uses these.',
         [
           { text: 'Discard', style: 'destructive', onPress: () => guard.discard() },
@@ -895,7 +895,7 @@ export default function SettingsScreen() {
     // onboarding. They belong to this same account, so keeping them leaks
     // nothing; the profile re-read still overwrites them when it lands.
     if (sourceFailed) {
-      showAlert('Reset needs a connection', 'MAGE can’t reach your account right now, so your projects couldn’t reload after a reset. Nothing was changed. Try again when you’re back online.');
+      showAlert('Reset Needs a Connection', 'MAGE can’t reach your account right now, so your projects couldn’t reload after a reset. Nothing was changed. Try again when you’re back online.');
       return;
     }
     await dropPendingWrites();
@@ -905,7 +905,7 @@ export default function SettingsScreen() {
       if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
     } catch (e) {
       console.warn('[Settings] device reset failed:', rawErrorMessage(e));
-      showAlert('Reset didn’t finish', 'MAGE couldn’t clear this device’s saved copy. Nothing on your account was changed. Try again.');
+      showAlert('Reset Didn’t Finish', 'MAGE couldn’t clear this device’s saved copy. Nothing on your account was changed. Try again.');
       return;
     }
     // Reload instead of zeroing. The old code emptied the caches with
@@ -935,7 +935,7 @@ export default function SettingsScreen() {
     }
     retryRemoteReads();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Device reset', 'Your projects are reloading from your account.');
+    showAlert('Device Reset', 'Your projects are reloading from your account.');
   }, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);
 
   const handleClearAll = useCallback(async () => {
@@ -952,7 +952,7 @@ export default function SettingsScreen() {
       countOwnUnsavedRecords().catch(() => 0),
     ]);
     const unsavedLine = unsaved > 0
-      ? `\n\n${countNoun(unsaved, 'record')} under Not saved on the sync badge ${unsaved === 1 ? 'was' : 'were'} refused by the server and ${unsaved === 1 ? 'is' : 'are'} only on this phone. Resetting deletes ${unsaved === 1 ? 'it' : 'them'} — retry or review ${unsaved === 1 ? 'it' : 'them'} first.`
+      ? `\n\n${countNoun(unsaved, 'record')} under Not saved on the sync badge ${unsaved === 1 ? 'was' : 'were'} refused by the server and ${unsaved === 1 ? 'is' : 'are'} only on this phone. Resetting deletes ${unsaved === 1 ? 'it' : 'them'}, so retry or review ${unsaved === 1 ? 'it' : 'them'} first.`
       : '';
     const pendingLine = queued + photos > 0
       ? `\n\n${[queued > 0 ? countNoun(queued, 'change') : '', photos > 0 ? countNoun(photos, 'photo') : ''].filter(Boolean).join(' and ')} on this phone ${queued + photos === 1 ? "hasn't" : "haven't"} reached MAGE and will be lost. Cancel and let ${queued + photos === 1 ? 'it' : 'them'} sync first if you need ${queued + photos === 1 ? 'it' : 'them'}.`
@@ -962,8 +962,8 @@ export default function SettingsScreen() {
       `Removes MAGE ID’s saved copy from this device. Your projects stay on your account and reload. Nothing on your account, your other devices, your clients’ portals or your team’s access is deleted. Your appearance setting is kept.${unsavedLine}${pendingLine}`,
       [
         { text: 'Cancel', style: 'cancel' },
-        ...(unsaved > 0 ? [{ text: 'Review Not saved', onPress: () => requestSyncSheet() }] : []),
-        { text: 'Reset this device', style: 'destructive', onPress: () => { void resetThisDevice(); } },
+        ...(unsaved > 0 ? [{ text: 'Review Not Saved', onPress: () => requestSyncSheet() }] : []),
+        { text: 'Reset This Device', style: 'destructive', onPress: () => { void resetThisDevice(); } },
       ],
     );
   }, [resetThisDevice]);
@@ -977,7 +977,7 @@ export default function SettingsScreen() {
   //     real account.
   const handleDeleteAccount = useCallback(() => {
     showAlert(
-      'Delete account',
+      'Delete Account',
       `This permanently removes your MAGE ID account, every project you own, and the files you uploaded. This cannot be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}\n\n${deleteAccountSubscriptionNote()}`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -991,16 +991,16 @@ export default function SettingsScreen() {
             // sure?" yes/no on Android since prompt isn't available there.
             if (Platform.OS === 'ios') {
               showPrompt(
-                'Type DELETE to confirm',
+                'Type DELETE to Confirm',
                 'Account deletion is permanent. Type the word DELETE in all caps below to confirm.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'Delete account',
+                    text: 'Delete Account',
                     style: 'destructive',
                     onPress: async (input?: string) => {
                       if (input !== 'DELETE') {
-                        showAlert('Confirmation didn\'t match', 'Type DELETE in all caps to confirm.');
+                        showAlert('Confirmation Didn\'t Match', 'Type DELETE in all caps to confirm.');
                         return;
                       }
                       await runDeleteAccount();
@@ -1011,12 +1011,12 @@ export default function SettingsScreen() {
               );
             } else {
               showAlert(
-                'Final confirmation',
+                'Final Confirmation',
                 `This deletes your account and every project you own. It can\u2019t be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}`,
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'Delete account',
+                    text: 'Delete Account',
                     style: 'destructive',
                     onPress: () => { void runDeleteAccount(); },
                   },
@@ -1033,7 +1033,7 @@ export default function SettingsScreen() {
     try {
       await deleteAccount();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      showAlert('Account deleted', `Your MAGE ID account, the projects you owned and the files you uploaded have been removed.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}`, [
+      showAlert('Account Deleted', `Your MAGE ID account, the projects you owned and the files you uploaded have been removed.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}`, [
         { text: 'OK', onPress: () => router.replace('/login' as never) },
       ]);
     } catch (err) {
@@ -1043,7 +1043,7 @@ export default function SettingsScreen() {
       const raw = rawErrorMessage(err);
       console.warn('[Settings] account deletion failed:', raw);
       const serverSaid = raw && !/^Could not delete account:|^Account deletion failed/.test(raw);
-      showAlert("Couldn't delete account", serverSaid ? raw : describeError(err, { action: 'delete your account' }).body);
+      showAlert("Couldn't Delete Account", serverSaid ? raw : describeError(err, { action: 'delete your account' }).body);
     }
   }, [deleteAccount, router]);
 
@@ -1085,7 +1085,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('/company-profile' as any)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Edit company profile"
+            accessibilityLabel="Edit Company Profile"
             testID="profile-hero-tap"
           >
             <View style={styles.profileAvatar}>
@@ -1138,7 +1138,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
                 disabled={signingOut}
                 testID="logout-button" accessibilityRole="button"
-                accessibilityLabel={signingOut ? signOutBusyLabel(signOutPhase) : 'Sign out'}
+                accessibilityLabel={signingOut ? signOutBusyLabel(signOutPhase) : 'Sign Out'}
                 accessibilityState={{ disabled: signingOut, busy: signingOut }}>
                 {signingOut
                   ? <ActivityIndicator size="small" color={themeColors.textSecondary} />
@@ -1159,7 +1159,7 @@ export default function SettingsScreen() {
             the contractor experience and the property-owner experience
             without resigning up. Routes to /persona-select which re-runs
             the same picker as first-time onboarding. */}
-        <Text style={styles.sectionHeader}>Account type</Text>
+        <Text style={styles.sectionHeader}>Account Type</Text>
         <View style={styles.group}>
           <Pressable
             style={({ hovered }) => [styles.row, hovered && styles.rowHover]}
@@ -1172,7 +1172,7 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
-                {userRole ? USER_ROLE_LABELS[userRole] : 'Not set'}
+                {userRole ? USER_ROLE_LABELS[userRole] : 'Not Set'}
               </Text>
               <Text style={{ fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 }}>
                 {(() => {
@@ -1198,7 +1198,7 @@ export default function SettingsScreen() {
 
         </SettingsSection>
         <SettingsSection id="ai-usage">
-        <Text style={styles.sectionHeader}>AI usage</Text>
+        <Text style={styles.sectionHeader}>AI Usage</Text>
         <View style={styles.group}>
           {/* Loading / couldn't-load replace BOTH daily rows: no number is shown
               until it is the real one (describeAIUsageCard). The ready branch
@@ -1224,7 +1224,7 @@ export default function SettingsScreen() {
                 onPress={() => setAiUsageAttempt(n => n + 1)}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Retry loading AI usage"
+                accessibilityLabel="Retry Loading AI Usage"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent }}>Retry</Text>
@@ -1331,7 +1331,7 @@ export default function SettingsScreen() {
             </Text>
             {tier === 'free' && (
               <TouchableOpacity onPress={() => router.push('/paywall' as any)} activeOpacity={0.7}>
-                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent }}>See plans</Text>
+                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent }}>See Plans</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1339,7 +1339,7 @@ export default function SettingsScreen() {
 
         </SettingsSection>
         <SettingsSection id="location-units">
-        <Text style={styles.sectionHeader}>Location and units</Text>
+        <Text style={styles.sectionHeader}>Location and Units</Text>
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={styles.iconWrap}>
@@ -1436,7 +1436,7 @@ export default function SettingsScreen() {
             gate, not a desktop one — contractor, client and 'both' unchanged. */}
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="estimate-defaults">
-        <Text style={styles.sectionHeader}>Estimate defaults</Text>
+        <Text style={styles.sectionHeader}>Estimate Defaults</Text>
         <Text style={styles.sectionSubtext}>
           Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
         </Text>
@@ -1445,7 +1445,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <Percent size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Sales tax rate</Text>
+            <Text style={styles.rowLabel}>Sales Tax Rate</Text>
             <View style={styles.rowRight}>
               <TextInput
                 style={styles.numericInput}
@@ -1465,7 +1465,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Contingency rate</Text>
+            <Text style={styles.rowLabel}>Contingency Rate</Text>
             <View style={styles.rowRight}>
               <TextInput
                 style={styles.numericInput}
@@ -1494,7 +1494,7 @@ export default function SettingsScreen() {
           testID="save-estimate-defaults"
         >
           <Text style={[styles.saveButtonText, !estimateDefaultsDirty && styles.saveButtonTextIdle]}>
-            {estimateDefaultsDirty ? 'Save estimate defaults' : 'Estimate defaults saved'}
+            {estimateDefaultsDirty ? 'Save Estimate Defaults' : 'Estimate Defaults Saved'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -1517,7 +1517,7 @@ export default function SettingsScreen() {
 
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="pdf-naming">
-        <Text style={styles.sectionHeader}>PDF naming</Text>
+        <Text style={styles.sectionHeader}>PDF Naming</Text>
         <Text style={styles.sectionSubtext}>
           Name every PDF with your own format and a running number.
         </Text>
@@ -1534,7 +1534,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <Hash size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Auto-name PDFs</Text>
+            <Text style={styles.rowLabel}>Auto-Name PDFs</Text>
             <Switch
               value={pdfNaming.enabled}
               onValueChange={(val) => {
@@ -1558,7 +1558,7 @@ export default function SettingsScreen() {
                   style={styles.inlineInput}
                   value={pdfNaming.prefix}
                   onChangeText={(val) => setPdfNaming(prev => ({ ...prev, prefix: val }))}
-                  placeholder="e.g. MAGE"
+                  placeholder="MAGE"
                   placeholderTextColor={themeColors.textMuted}
                   textAlign="right"
                   testID="pdf-naming-prefix"
@@ -1576,7 +1576,7 @@ export default function SettingsScreen() {
                 <View style={styles.iconWrap}>
                   <Building2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.rowLabel}>Include project name</Text>
+                <Text style={styles.rowLabel}>Include Project Name</Text>
                 <Switch
                   value={pdfNaming.includeProjectName}
                   onValueChange={(val) => {
@@ -1600,7 +1600,7 @@ export default function SettingsScreen() {
                 <View style={styles.iconWrap}>
                   <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.rowLabel}>Include document type</Text>
+                <Text style={styles.rowLabel}>Include Document Type</Text>
                 <Switch
                   value={pdfNaming.includeDocType}
                   onValueChange={(val) => {
@@ -1624,7 +1624,7 @@ export default function SettingsScreen() {
                 <View style={styles.iconWrap}>
                   <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.rowLabel}>Include date</Text>
+                <Text style={styles.rowLabel}>Include Date</Text>
                 <Switch
                   value={pdfNaming.includeDate}
                   onValueChange={(val) => {
@@ -1669,7 +1669,7 @@ export default function SettingsScreen() {
                 <View style={styles.iconWrap}>
                   <Hash size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.rowLabel}>Next number</Text>
+                <Text style={styles.rowLabel}>Next Number</Text>
                 <TextInput
                   style={styles.numericInput}
                   value={pdfNaming.nextNumber.toString()}
@@ -1704,7 +1704,7 @@ export default function SettingsScreen() {
         </SettingsSection>
         </>)}
         <SettingsSection id="theme">
-        <Text style={styles.sectionHeader}>App theme</Text>
+        <Text style={styles.sectionHeader}>App Theme</Text>
         {/* The last sentence is honest, and temporary: some chrome sites
             still paint the brand hex (#2F6B3A) directly (header tints, some
             icons and chevrons), so a user who picks Navy WILL still meet
@@ -1785,14 +1785,14 @@ export default function SettingsScreen() {
                 accessible
                 accessibilityRole="switch"
                 accessibilityState={{ disabled: true, checked: false }}
-                accessibilityLabel={`App lock. ${APP_LOCK_NOT_BUILT}`}
+                accessibilityLabel={`App Lock. ${APP_LOCK_NOT_BUILT}`}
                 testID="app-lock-row"
               >
                 <View style={styles.iconWrap}>
                   <ScanFace size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowLabel}>App lock (Face ID / Touch ID)</Text>
+                  <Text style={styles.rowLabel}>App Lock (Face ID or Touch ID)</Text>
                   <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>{APP_LOCK_NOT_BUILT}</Text>
                 </View>
                 <Switch
@@ -1820,7 +1820,7 @@ export default function SettingsScreen() {
               <Bell size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Push & email preferences</Text>
+              <Text style={styles.rowLabel}>Push and Email Preferences</Text>
               <Text style={styles.rowSubtext}>
                 Choose which portal events reach your phone or your email
               </Text>
@@ -1834,9 +1834,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionSubtext}>
           {/* MONEY-F8: the fee is the tier's, rendered from the one table
               (utils/platformFees) — never a literal in copy. */}
-          Connect your bank to accept invoice payments in-app. Money goes to you, not us — {platformFeeLabel(tier) === '0%'
-            ? 'your plan pays no platform fee on payments'
-            : `your plan pays a ${platformFeeLabel(tier)} platform fee per transaction`}, plus Stripe&apos;s standard processing.
+          Connect your bank to accept invoice payments in-app. Money goes to you, not us. {platformFeeLabel(tier) === '0%'
+            ? 'Your plan pays no platform fee on payments'
+            : `Your plan pays a ${platformFeeLabel(tier)} platform fee per transaction`}, plus Stripe&apos;s standard processing.
         </Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1848,7 +1848,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Set Up Payments</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           {/* Payments dashboard — was an orphan route until May 2026 audit
@@ -1864,7 +1864,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Payments Dashboard</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -1898,11 +1898,11 @@ export default function SettingsScreen() {
                 </View>
               ) : qboReauth ? (
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 2 }}>
-                  Reconnect required
+                  Reconnect Required
                 </Text>
               ) : qboUnknown ? (
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 }} testID="qbo-status-unavailable">
-                  {qboStatus?.reason === 'offline' ? 'Status unavailable · No connection' : 'Status unavailable · Tap to retry'}
+                  {qboStatus?.reason === 'offline' ? 'Status Unavailable · No Connection' : 'Status Unavailable · Tap to Retry'}
                 </Text>
               ) : (tier !== 'business' && tier !== 'enterprise') ? (
                 // QuickBooks sync is a Business feature — signal it before the
@@ -1926,7 +1926,7 @@ export default function SettingsScreen() {
             from here. */}
         </SettingsSection>
         <SettingsSection id="project-pages">
-        <Text style={styles.sectionHeader}>Project pages and verification</Text>
+        <Text style={styles.sectionHeader}>Project Pages and Verification</Text>
         <Text style={styles.sectionSubtext}>
           Publish a finished project as a public portfolio page you can link from your website or send to a prospect.
         </Text>
@@ -1940,7 +1940,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <UserCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Publish a project page</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Publish a Project Page</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1952,7 +1952,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Get verified</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Get Verified</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -1965,7 +1965,7 @@ export default function SettingsScreen() {
             veteran's day-one estimate was a beginner's. Seeding lets them bring
             the rates they already know; the book keeps them tagged as stated
             (not measured) until a closed job proves them out. */}
-        <Text style={styles.sectionHeader}>Your costs</Text>
+        <Text style={styles.sectionHeader}>Your Costs</Text>
         <Text style={styles.sectionSubtext}>
           Bring the rates you already know so estimates price from your numbers on day one.
         </Text>
@@ -1980,7 +1980,7 @@ export default function SettingsScreen() {
               <FolderInput size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Add your rates</Text>
+              <Text style={styles.rowLabel}>Add Your Rates</Text>
               <Text style={styles.sectionSubtext}>Paste or type your unit costs</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1994,7 +1994,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <Database size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Cost history</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Cost History</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -2002,7 +2002,7 @@ export default function SettingsScreen() {
         </SettingsSection>
         </>)}
         <SettingsSection id="contacts-email">
-        <Text style={styles.sectionHeader}>Contacts and email</Text>
+        <Text style={styles.sectionHeader}>Contacts and Email</Text>
         <View style={styles.group}>
           <TouchableOpacity
             style={styles.row}
@@ -2020,9 +2020,9 @@ export default function SettingsScreen() {
 
         </SettingsSection>
         <SettingsSection id="your-data">
-        <Text style={styles.sectionHeader}>Your data</Text>
+        <Text style={styles.sectionHeader}>Your Data</Text>
         <Text style={styles.sectionSubtext}>
-          Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV.
+          Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records to JSON or CSV. Download links work for 24 hours.
         </Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -2034,7 +2034,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <FolderDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Export My Data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           {Platform.OS !== 'web' && (
@@ -2043,7 +2043,7 @@ export default function SettingsScreen() {
                 <MageAIMark size={14} color={themeColors.textSecondary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>AI features</Text>
+                <Text style={styles.rowLabel}>AI Features</Text>
                 <Text style={styles.sectionSubtext}>
                   {aiConsentState === 'granted'
                     ? 'What you send an AI feature goes to Google Gemini, Anthropic Claude or a speech-to-text service, only to answer it.'
@@ -2061,7 +2061,7 @@ export default function SettingsScreen() {
                   trackColor={{ false: themeColors.line, true: themeColors.accent }}
                   thumbColor={themeColors.surface}
                   ios_backgroundColor={themeColors.line}
-                  accessibilityLabel="AI features"
+                  accessibilityLabel="AI Features"
                   testID="ai-features-switch"
                 />
               </View>
@@ -2076,7 +2076,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <MageAIMark size={14} color={themeColors.textSecondary} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI Assistant)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -2088,7 +2088,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <FolderInput size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Import data</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Import Data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -2097,7 +2097,7 @@ export default function SettingsScreen() {
         {isOwner(user?.email) && (
           <>
             <SettingsSection id="developer">
-            <Text style={styles.sectionHeader}>Developer (owner only)</Text>
+            <Text style={styles.sectionHeader}>Developer (Owner Only)</Text>
             <Text style={styles.sectionSubtext}>
               Only you can see this. Demo data for App Store screenshots.
             </Text>
@@ -2112,7 +2112,7 @@ export default function SettingsScreen() {
                   <Gem size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowLabel}>Flagship demo (Overlook Estate)</Text>
+                  <Text style={styles.rowLabel}>Flagship Demo (Overlook Estate)</Text>
                   <Text style={styles.sectionSubtext}>$3.24M luxury estate, everything filled</Text>
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -2126,7 +2126,7 @@ export default function SettingsScreen() {
                 <View style={styles.iconWrap}>
                   <Database size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder (Westlake)</Text>
+                <Text style={[styles.rowLabel, { flex: 1 }]}>Demo Data Seeder (Westlake)</Text>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -2136,7 +2136,7 @@ export default function SettingsScreen() {
 
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="supplier-marketplace">
-        <Text style={styles.sectionHeader}>Supplier marketplace</Text>
+        <Text style={styles.sectionHeader}>Supplier Marketplace</Text>
         <Text style={styles.sectionSubtext}>
           Register as a supplier to list your materials on the MAGE ID marketplace and sell directly to contractors.
         </Text>
@@ -2149,7 +2149,7 @@ export default function SettingsScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.rowLabel}>{supplierProfile.companyName}</Text>
-                  <Text style={styles.supplierRegisteredSub}>Registered supplier</Text>
+                  <Text style={styles.supplierRegisteredSub}>Registered Supplier</Text>
                 </View>
               </View>
               <View style={styles.supplierRegisteredMeta}>
@@ -2168,7 +2168,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
               >
                 <PenTool size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.supplierEditBtnText}>Edit profile</Text>
+                <Text style={styles.supplierEditBtnText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -2182,7 +2182,7 @@ export default function SettingsScreen() {
                 <Store size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>Register as a supplier</Text>
+                <Text style={styles.rowLabel}>Register as a Supplier</Text>
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary }}>List your materials for sale</Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -2193,10 +2193,10 @@ export default function SettingsScreen() {
         </SettingsSection>
         </>)}
         <SettingsSection id="subscription">
-        <Text style={styles.sectionHeader}>Subscription plan</Text>
+        <Text style={styles.sectionHeader}>Subscription Plan</Text>
         <Text style={styles.sectionSubtext}>
           {tier === 'free'
-            ? 'Pro adds AI takeoffs, pay apps and unlimited projects.'
+            ? 'Pro lets you run more than one project and adds AI takeoffs and pay apps.'
             : tier === 'pro'
             ? 'Business adds sub management and higher AI usage limits.'
             : tier === 'business'
@@ -2215,7 +2215,7 @@ export default function SettingsScreen() {
                 // #134: only what Free really has (none of these is gated) —
                 // sync included, it has no tier. What Free lacks is read from
                 // the Pro gates, not typed.
-                features: [FREE_PROJECT_LINE, 'Estimate wizard', 'Basic schedule builder', 'Daily reports', 'Syncs across your devices'],
+                features: [FREE_PROJECT_LINE, 'Estimate Wizard', 'Basic Schedule Builder', 'Daily Reports', 'Sync Across Your Devices'],
                 disabled: [`Not on Free: ${planFeatureBlurb('pro')}`],
               },
               {
@@ -2224,7 +2224,7 @@ export default function SettingsScreen() {
                 price: planPriceLabel('pro'),
                 color: themeColors.accent,
                 icon: MageAIMark,
-                features: ['Unlimited projects', ...planCardLines('pro')],
+                features: ['More Than One Project', ...planCardLines('pro')],
                 disabled: [],
               },
               {
@@ -2245,7 +2245,7 @@ export default function SettingsScreen() {
                 price: planPriceLabel('enterprise'),
                 color: themeColors.info,
                 icon: Crown,
-                features: ['Everything in Business', 'Highest AI usage limits', '100 drawing analyses/mo', '200 photo analyses/mo', '4,500 text AI calls/mo', 'Concierge onboarding'],
+                features: ['Everything in Business', 'Highest AI Usage Limits', '100 drawing analyses per month', '200 photo analyses per month', '4,500 text AI calls per month', 'Concierge Onboarding'],
                 disabled: [],
               },
             ].map(plan => {
@@ -2358,7 +2358,7 @@ export default function SettingsScreen() {
 
         </SettingsSection>
         <SettingsSection id="help">
-        <Text style={styles.sectionHeader}>Help and support</Text>
+        <Text style={styles.sectionHeader}>Help and Support</Text>
         <View style={styles.group}>
           {/* The learn-by-doing hub (app/tutorials.tsx): real screens, a
               sample job, one action at a time. It replaced the mock slideshow
@@ -2394,7 +2394,7 @@ export default function SettingsScreen() {
               const body = encodeURIComponent(bodyLines.join('\n'));
               const url = `mailto:support@mageid.app?subject=MAGE%20ID%20Support&body=${body}`;
               Linking.openURL(url).catch(() =>
-                showAlert("Couldn't open mail", 'Email us at support@mageid.app.')
+                showAlert("Couldn't Open Mail", 'Email us at support@mageid.app.')
               );
             }}
             activeOpacity={0.6}
@@ -2403,7 +2403,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <MessageCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Contact support</Text>
+            <Text style={styles.rowLabel}>Contact Support</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -2489,18 +2489,18 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/privacy').catch(() => {
-                showAlert("Couldn't open the page", 'Visit mageid.app/privacy in your browser.');
+                showAlert("Couldn't Open the Page", 'Visit mageid.app/privacy in your browser.');
               });
             }}
             activeOpacity={0.6}
             testID="settings-privacy"
             accessibilityRole="link"
-            accessibilityLabel="Privacy policy"
+            accessibilityLabel="Privacy Policy"
           >
             <View style={styles.iconWrap}>
               <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Privacy policy</Text>
+            <Text style={styles.rowLabel}>Privacy Policy</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
@@ -2508,18 +2508,18 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/terms').catch(() => {
-                showAlert("Couldn't open the page", 'Visit mageid.app/terms in your browser.');
+                showAlert("Couldn't Open the Page", 'Visit mageid.app/terms in your browser.');
               });
             }}
             activeOpacity={0.6}
             testID="settings-terms"
             accessibilityRole="link"
-            accessibilityLabel="Terms of service"
+            accessibilityLabel="Terms of Service"
           >
             <View style={styles.iconWrap}>
               <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Terms of service</Text>
+            <Text style={styles.rowLabel}>Terms of Service</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
@@ -2527,18 +2527,18 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/do-not-sell').catch(() => {
-                showAlert("Couldn't open the page", 'Visit mageid.app/do-not-sell in your browser.');
+                showAlert("Couldn't Open the Page", 'Visit mageid.app/do-not-sell in your browser.');
               });
             }}
             activeOpacity={0.6}
             testID="settings-do-not-sell"
             accessibilityRole="link"
-            accessibilityLabel="Do not sell or share my personal information"
+            accessibilityLabel="Do Not Sell or Share My Personal Information"
           >
             <View style={styles.iconWrap}>
               <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Do not sell my info (CA)</Text>
+            <Text style={styles.rowLabel}>Do Not Sell My Info (CA)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           {/* "Show when I have a project open" (dark behind WHOS_ON_ENABLED).
@@ -2549,14 +2549,14 @@ export default function SettingsScreen() {
 
         </SettingsSection>
         <SettingsSection id="danger">
-        <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>Danger zone</Text>
+        <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>Danger Zone</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={() => { void handleClearAll(); }} activeOpacity={0.6} testID="clear-all" accessibilityRole="button">
             <View style={styles.iconWrap}>
               <Trash2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Reset this device</Text>
+              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Reset This Device</Text>
               <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>
                 Clears MAGE ID&apos;s saved copy on this device. Your projects stay on your account and reload.
               </Text>
@@ -2568,7 +2568,7 @@ export default function SettingsScreen() {
               <UserCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete account</Text>
+              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete Account</Text>
               <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>
                 Permanently remove your account and the projects you own. Work you logged on other contractors&apos; jobs stays with those jobs. This can&apos;t be undone.
               </Text>
@@ -2627,7 +2627,7 @@ export default function SettingsScreen() {
             <View style={styles.supProfileCard}>
               <View style={styles.supProfileHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.supProfileTitle}>Supplier profile</Text>
+                  <Text style={styles.supProfileTitle}>Supplier Profile</Text>
                   <Text style={styles.supProfileDesc}>
                     Fill in your business details to appear on the MAGE ID marketplace.
                   </Text>
@@ -2649,7 +2649,7 @@ export default function SettingsScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 <View style={styles.supFieldGroup}>
-                  <Text style={styles.supFieldLabel}>Company name *</Text>
+                  <Text style={styles.supFieldLabel}>Company Name *</Text>
                   <TextInput
                     style={styles.supFieldInput}
                     value={supCompanyName}
@@ -2661,7 +2661,7 @@ export default function SettingsScreen() {
                 </View>
 
                 <View style={styles.supFieldGroup}>
-                  <Text style={styles.supFieldLabel}>Contact name</Text>
+                  <Text style={styles.supFieldLabel}>Contact Name</Text>
                   <TextInput
                     style={styles.supFieldInput}
                     value={supContactName}
@@ -2734,7 +2734,7 @@ export default function SettingsScreen() {
 
                 <View style={styles.supRow}>
                   <View style={[styles.supFieldGroup, styles.supRowItem]}>
-                    <Text style={styles.supFieldLabel}>Minimum order ($)</Text>
+                    <Text style={styles.supFieldLabel}>Minimum Order ($)</Text>
                     <TextInput
                       style={styles.supFieldInput}
                       value={supMinOrder}
@@ -2745,7 +2745,7 @@ export default function SettingsScreen() {
                     />
                   </View>
                   <View style={[styles.supFieldGroup, styles.supRowItem]}>
-                    <Text style={styles.supFieldLabel}>Delivery options</Text>
+                    <Text style={styles.supFieldLabel}>Delivery Options</Text>
                     <TextInput
                       style={styles.supFieldInput}
                       value={supDelivery}
@@ -2789,11 +2789,11 @@ export default function SettingsScreen() {
                     const name = supCompanyName.trim();
                     const email = supEmail.trim();
                     if (!name) {
-                      showAlert('Add a company name', 'Enter your company name.');
+                      showAlert('Add a Company Name', 'Enter your company name.');
                       return;
                     }
                     if (!email || !email.includes('@')) {
-                      showAlert('Add an email', 'Enter a valid email address.');
+                      showAlert('Add an Email', 'Enter a valid email address.');
                       return;
                     }
                     const profile = {
@@ -2815,13 +2815,13 @@ export default function SettingsScreen() {
                     updateSettings({ supplierProfile: profile });
                     setShowSupplierForm(false);
                     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    showAlert('Supplier profile saved', 'Your materials appear on the marketplace.');
+                    showAlert('Supplier Profile Saved', 'Your materials appear on the marketplace.');
                     console.log('[Settings] Supplier profile saved:', profile.companyName);
                   }}
                   activeOpacity={0.85}
                   testID="save-supplier"
                 >
-                  <Text style={styles.supProfileSaveBtnText}>{supplierProfile ? 'Update profile' : 'Register as a supplier'}</Text>
+                  <Text style={styles.supProfileSaveBtnText}>{supplierProfile ? 'Update Profile' : 'Register as a Supplier'}</Text>
                 </TouchableOpacity>
               </View>
             </View>

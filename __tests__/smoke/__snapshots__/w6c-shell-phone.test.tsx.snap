@@ -39282,7 +39282,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                             },
                                                                                           ],
                                                                                           "props": {
-                                                                                            "accessibilityLabel": "Sign out",
+                                                                                            "accessibilityLabel": "Sign Out",
                                                                                             "accessibilityRole": "button",
                                                                                             "accessibilityState": {
                                                                                               "busy": false,
@@ -39332,7 +39332,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                     },
                                                                                   ],
                                                                                   "props": {
-                                                                                    "accessibilityLabel": "Edit company profile",
+                                                                                    "accessibilityLabel": "Edit Company Profile",
                                                                                     "accessibilityRole": "button",
                                                                                     "accessibilityState": {
                                                                                       "busy": undefined,
@@ -39683,7 +39683,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Account type",
+                                                                                    "Account Type",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -40029,7 +40029,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "AI usage",
+                                                                                    "AI Usage",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -40964,7 +40964,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Location and units",
+                                                                                    "Location and Units",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -41816,7 +41816,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Estimate defaults",
+                                                                                    "Estimate Defaults",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -41995,7 +41995,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Sales tax rate",
+                                                                                            "Sales Tax Rate",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -42192,7 +42192,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Contingency rate",
+                                                                                            "Contingency Rate",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -42279,7 +42279,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                   "children": [
                                                                                     {
                                                                                       "children": [
-                                                                                        "Estimate defaults saved",
+                                                                                        "Estimate Defaults Saved",
                                                                                       ],
                                                                                       "props": {
                                                                                         "style": {
@@ -42344,7 +42344,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                   "children": [
                                                                                     {
                                                                                       "children": [
-                                                                                        "How you get paid · Couldn’t load your profile — tap to retry",
+                                                                                        "How You Get Paid · Couldn’t load your profile, tap to retry",
                                                                                       ],
                                                                                       "props": {
                                                                                         "style": {
@@ -42357,7 +42357,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                     },
                                                                                   ],
                                                                                   "props": {
-                                                                                    "accessibilityLabel": "How you get paid · Couldn’t load your profile — tap to retry. Opens your payment terms.",
+                                                                                    "accessibilityLabel": "How You Get Paid · Couldn’t load your profile, tap to retry. Opens your payment terms.",
                                                                                     "accessibilityRole": "button",
                                                                                     "accessibilityState": {
                                                                                       "busy": undefined,
@@ -42396,7 +42396,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "PDF naming",
+                                                                                    "PDF Naming",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -42602,7 +42602,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Auto-name PDFs",
+                                                                                            "Auto-Name PDFs",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -42688,7 +42688,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "App theme",
+                                                                                    "App Theme",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -43726,7 +43726,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "App lock (Face ID / Touch ID)",
+                                                                                                "App Lock (Face ID or Touch ID)",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -43781,7 +43781,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "App lock. App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
+                                                                                        "accessibilityLabel": "App Lock. App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
                                                                                         "accessibilityRole": "switch",
                                                                                         "accessibilityState": {
                                                                                           "checked": false,
@@ -43953,7 +43953,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Push & email preferences",
+                                                                                                "Push and Email Preferences",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -44057,8 +44057,8 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Connect your bank to accept invoice payments in-app. Money goes to you, not us — ",
-                                                                                    "your plan pays a 0.4% platform fee per transaction",
+                                                                                    "Connect your bank to accept invoice payments in-app. Money goes to you, not us. ",
+                                                                                    "Your plan pays a 0.4% platform fee per transaction",
                                                                                     ", plus Stripe's standard processing.",
                                                                                   ],
                                                                                   "props": {
@@ -44191,7 +44191,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Set up payments",
+                                                                                            "Set Up Payments",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -44434,7 +44434,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Payments dashboard",
+                                                                                            "Payments Dashboard",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -44764,7 +44764,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Status unavailable · Tap to retry",
+                                                                                                "Status Unavailable · Tap to Retry",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -44914,7 +44914,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Project pages and verification",
+                                                                                    "Project Pages and Verification",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -45090,7 +45090,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Publish a project page",
+                                                                                            "Publish a Project Page",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -45333,7 +45333,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Get verified",
+                                                                                            "Get Verified",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -45475,7 +45475,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Your costs",
+                                                                                    "Your Costs",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -45649,7 +45649,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Add your rates",
+                                                                                                "Add Your Rates",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -45940,7 +45940,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Cost history",
+                                                                                            "Cost History",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -46082,7 +46082,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Contacts and email",
+                                                                                    "Contacts and Email",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -46361,7 +46361,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Your data",
+                                                                                    "Your Data",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -46379,7 +46379,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV.",
+                                                                                    "Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records to JSON or CSV. Download links work for 24 hours.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -46533,7 +46533,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Export my data",
+                                                                                            "Export My Data",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -46893,7 +46893,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "AI features",
+                                                                                                "AI Features",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -46946,7 +46946,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                             {
                                                                                               "children": null,
                                                                                               "props": {
-                                                                                                "accessibilityLabel": "AI features",
+                                                                                                "accessibilityLabel": "AI Features",
                                                                                                 "accessibilityRole": "switch",
                                                                                                 "disabled": undefined,
                                                                                                 "onChange": [Function],
@@ -47221,7 +47221,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Connect Claude (AI assistant)",
+                                                                                            "Connect Claude (AI Assistant)",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -47486,7 +47486,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Import data",
+                                                                                            "Import Data",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -47628,7 +47628,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Supplier marketplace",
+                                                                                    "Supplier Marketplace",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -47846,7 +47846,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Register as a supplier",
+                                                                                                "Register as a Supplier",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -48007,7 +48007,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Subscription plan",
+                                                                                    "Subscription Plan",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -48366,7 +48366,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Estimate wizard",
+                                                                                                        "Estimate Wizard",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -48467,7 +48467,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Basic schedule builder",
+                                                                                                        "Basic Schedule Builder",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -48568,7 +48568,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Daily reports",
+                                                                                                        "Daily Reports",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -48669,7 +48669,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Syncs across your devices",
+                                                                                                        "Sync Across Your Devices",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49219,7 +49219,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Unlimited projects",
+                                                                                                        "More Than One Project",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49320,7 +49320,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "AI cost estimator",
+                                                                                                        "AI Cost Estimator",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49421,7 +49421,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Cash-flow forecast and budget health",
+                                                                                                        "Cash Flow Forecast and Budget Health",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49522,7 +49522,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Schedule builder with Gantt and PDF export",
+                                                                                                        "Schedule Builder with Gantt and PDF Export",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49623,7 +49623,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Change orders and invoicing",
+                                                                                                        "Change Orders and Invoicing",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49724,7 +49724,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "AIA-style G702/G703 pay apps",
+                                                                                                        "AIA-Style G702/G703 Pay Apps",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49825,7 +49825,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Plan viewer, sheet pins and markup",
+                                                                                                        "Plan Viewer, Sheet Pins and Markup",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -49926,7 +49926,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "RFIs and submittals",
+                                                                                                        "RFIs and Submittals",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50027,7 +50027,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Client portal for your clients",
+                                                                                                        "Client Portal for Your Clients",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50128,7 +50128,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Photo documentation and AI photo triage",
+                                                                                                        "Photo Documentation and AI Photo Triage",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50229,7 +50229,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Lien waivers",
+                                                                                                        "Lien Waivers",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50330,7 +50330,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Equipment tracking",
+                                                                                                        "Equipment Tracking",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50743,7 +50743,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Sub management",
+                                                                                                        "Sub Management",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50844,7 +50844,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Punch list and closeout packets",
+                                                                                                        "Punch List and Closeout Packets",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -50945,7 +50945,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Safety management — JHAs, incidents, OSHA log",
+                                                                                                        "Safety Management: JHAs, Incidents and OSHA Log",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51046,7 +51046,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Crew profiles and certifications",
+                                                                                                        "Crew Profiles and Certifications",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51147,7 +51147,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "WIP reporting and full budget dashboard",
+                                                                                                        "WIP Reporting and Full Budget Dashboard",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51349,7 +51349,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Ask your plans",
+                                                                                                        "Ask Your Plans",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51450,7 +51450,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Unlimited marketplace bid responses",
+                                                                                                        "Marketplace Bids Past the Free Monthly Cap",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51551,7 +51551,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Bid advisor (take, hold or walk)",
+                                                                                                        "Bid Advisor (Take, Hold or Walk)",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51652,7 +51652,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Track record: how each forecast turned out",
+                                                                                                        "Track Record: How Each Forecast Turned Out",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -51753,7 +51753,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "QuickBooks 2-way sync",
+                                                                                                        "QuickBooks 2-Way Sync",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52192,7 +52192,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Highest AI usage limits",
+                                                                                                        "Highest AI Usage Limits",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52293,7 +52293,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "100 drawing analyses/mo",
+                                                                                                        "100 drawing analyses per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52394,7 +52394,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "200 photo analyses/mo",
+                                                                                                        "200 photo analyses per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52495,7 +52495,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "4,500 text AI calls/mo",
+                                                                                                        "4,500 text AI calls per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52596,7 +52596,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Concierge onboarding",
+                                                                                                        "Concierge Onboarding",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -52847,7 +52847,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Help and support",
+                                                                                    "Help and Support",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -53216,7 +53216,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Contact support",
+                                                                                            "Contact Support",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -56941,7 +56941,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Privacy policy",
+                                                                                            "Privacy Policy",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -57031,7 +57031,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Privacy policy",
+                                                                                        "accessibilityLabel": "Privacy Policy",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -57263,7 +57263,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Terms of service",
+                                                                                            "Terms of Service",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -57353,7 +57353,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Terms of service",
+                                                                                        "accessibilityLabel": "Terms of Service",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -57519,7 +57519,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Do not sell my info (CA)",
+                                                                                            "Do Not Sell My Info (CA)",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -57609,7 +57609,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Do not sell or share my personal information",
+                                                                                        "accessibilityLabel": "Do Not Sell or Share My Personal Information",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -57663,7 +57663,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Danger zone",
+                                                                                    "Danger Zone",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -57872,7 +57872,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Reset this device",
+                                                                                                "Reset This Device",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -58100,7 +58100,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Delete account",
+                                                                                                "Delete Account",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -61667,7 +61667,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                             },
                                                                                           ],
                                                                                           "props": {
-                                                                                            "accessibilityLabel": "Sign out",
+                                                                                            "accessibilityLabel": "Sign Out",
                                                                                             "accessibilityRole": "button",
                                                                                             "accessibilityState": {
                                                                                               "busy": false,
@@ -61717,7 +61717,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                     },
                                                                                   ],
                                                                                   "props": {
-                                                                                    "accessibilityLabel": "Edit company profile",
+                                                                                    "accessibilityLabel": "Edit Company Profile",
                                                                                     "accessibilityRole": "button",
                                                                                     "accessibilityState": {
                                                                                       "busy": undefined,
@@ -62068,7 +62068,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Account type",
+                                                                                    "Account Type",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -62249,7 +62249,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Property manager",
+                                                                                                "Property Manager",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -62414,7 +62414,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "AI usage",
+                                                                                    "AI Usage",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -63349,7 +63349,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Location and units",
+                                                                                    "Location and Units",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -64201,7 +64201,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "App theme",
+                                                                                    "App Theme",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -65239,7 +65239,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "App lock (Face ID / Touch ID)",
+                                                                                                "App Lock (Face ID or Touch ID)",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -65294,7 +65294,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "App lock. App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
+                                                                                        "accessibilityLabel": "App Lock. App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
                                                                                         "accessibilityRole": "switch",
                                                                                         "accessibilityState": {
                                                                                           "checked": false,
@@ -65466,7 +65466,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Push & email preferences",
+                                                                                                "Push and Email Preferences",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -65570,8 +65570,8 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Connect your bank to accept invoice payments in-app. Money goes to you, not us — ",
-                                                                                    "your plan pays a 0.4% platform fee per transaction",
+                                                                                    "Connect your bank to accept invoice payments in-app. Money goes to you, not us. ",
+                                                                                    "Your plan pays a 0.4% platform fee per transaction",
                                                                                     ", plus Stripe's standard processing.",
                                                                                   ],
                                                                                   "props": {
@@ -65704,7 +65704,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Set up payments",
+                                                                                            "Set Up Payments",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -65947,7 +65947,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Payments dashboard",
+                                                                                            "Payments Dashboard",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -66277,7 +66277,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Status unavailable · Tap to retry",
+                                                                                                "Status Unavailable · Tap to Retry",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -66427,7 +66427,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Project pages and verification",
+                                                                                    "Project Pages and Verification",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -66603,7 +66603,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Publish a project page",
+                                                                                            "Publish a Project Page",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -66846,7 +66846,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Get verified",
+                                                                                            "Get Verified",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -66988,7 +66988,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Contacts and email",
+                                                                                    "Contacts and Email",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -67267,7 +67267,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Your data",
+                                                                                    "Your Data",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -67285,7 +67285,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV.",
+                                                                                    "Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records to JSON or CSV. Download links work for 24 hours.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -67439,7 +67439,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Export my data",
+                                                                                            "Export My Data",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -67799,7 +67799,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "AI features",
+                                                                                                "AI Features",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -67852,7 +67852,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                             {
                                                                                               "children": null,
                                                                                               "props": {
-                                                                                                "accessibilityLabel": "AI features",
+                                                                                                "accessibilityLabel": "AI Features",
                                                                                                 "accessibilityRole": "switch",
                                                                                                 "disabled": undefined,
                                                                                                 "onChange": [Function],
@@ -68127,7 +68127,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Connect Claude (AI assistant)",
+                                                                                            "Connect Claude (AI Assistant)",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -68392,7 +68392,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Import data",
+                                                                                            "Import Data",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -68534,7 +68534,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Subscription plan",
+                                                                                    "Subscription Plan",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -68893,7 +68893,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Estimate wizard",
+                                                                                                        "Estimate Wizard",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -68994,7 +68994,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Basic schedule builder",
+                                                                                                        "Basic Schedule Builder",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -69095,7 +69095,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Daily reports",
+                                                                                                        "Daily Reports",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -69196,7 +69196,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Syncs across your devices",
+                                                                                                        "Sync Across Your Devices",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -69746,7 +69746,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Unlimited projects",
+                                                                                                        "More Than One Project",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -69847,7 +69847,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "AI cost estimator",
+                                                                                                        "AI Cost Estimator",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -69948,7 +69948,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Cash-flow forecast and budget health",
+                                                                                                        "Cash Flow Forecast and Budget Health",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70049,7 +70049,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Schedule builder with Gantt and PDF export",
+                                                                                                        "Schedule Builder with Gantt and PDF Export",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70150,7 +70150,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Change orders and invoicing",
+                                                                                                        "Change Orders and Invoicing",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70251,7 +70251,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "AIA-style G702/G703 pay apps",
+                                                                                                        "AIA-Style G702/G703 Pay Apps",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70352,7 +70352,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Plan viewer, sheet pins and markup",
+                                                                                                        "Plan Viewer, Sheet Pins and Markup",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70453,7 +70453,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "RFIs and submittals",
+                                                                                                        "RFIs and Submittals",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70554,7 +70554,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Client portal for your clients",
+                                                                                                        "Client Portal for Your Clients",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70655,7 +70655,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Photo documentation and AI photo triage",
+                                                                                                        "Photo Documentation and AI Photo Triage",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70756,7 +70756,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Lien waivers",
+                                                                                                        "Lien Waivers",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -70857,7 +70857,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Equipment tracking",
+                                                                                                        "Equipment Tracking",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71270,7 +71270,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Sub management",
+                                                                                                        "Sub Management",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71371,7 +71371,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Punch list and closeout packets",
+                                                                                                        "Punch List and Closeout Packets",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71472,7 +71472,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Safety management — JHAs, incidents, OSHA log",
+                                                                                                        "Safety Management: JHAs, Incidents and OSHA Log",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71573,7 +71573,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Crew profiles and certifications",
+                                                                                                        "Crew Profiles and Certifications",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71674,7 +71674,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "WIP reporting and full budget dashboard",
+                                                                                                        "WIP Reporting and Full Budget Dashboard",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71876,7 +71876,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Ask your plans",
+                                                                                                        "Ask Your Plans",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -71977,7 +71977,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Unlimited marketplace bid responses",
+                                                                                                        "Marketplace Bids Past the Free Monthly Cap",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72078,7 +72078,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Bid advisor (take, hold or walk)",
+                                                                                                        "Bid Advisor (Take, Hold or Walk)",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72179,7 +72179,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Track record: how each forecast turned out",
+                                                                                                        "Track Record: How Each Forecast Turned Out",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72280,7 +72280,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "QuickBooks 2-way sync",
+                                                                                                        "QuickBooks 2-Way Sync",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72719,7 +72719,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Highest AI usage limits",
+                                                                                                        "Highest AI Usage Limits",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72820,7 +72820,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "100 drawing analyses/mo",
+                                                                                                        "100 drawing analyses per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -72921,7 +72921,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "200 photo analyses/mo",
+                                                                                                        "200 photo analyses per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -73022,7 +73022,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "4,500 text AI calls/mo",
+                                                                                                        "4,500 text AI calls per month",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -73123,7 +73123,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Concierge onboarding",
+                                                                                                        "Concierge Onboarding",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -73374,7 +73374,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Help and support",
+                                                                                    "Help and Support",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -73743,7 +73743,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Contact support",
+                                                                                            "Contact Support",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -77468,7 +77468,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Privacy policy",
+                                                                                            "Privacy Policy",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -77558,7 +77558,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Privacy policy",
+                                                                                        "accessibilityLabel": "Privacy Policy",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -77790,7 +77790,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Terms of service",
+                                                                                            "Terms of Service",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -77880,7 +77880,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Terms of service",
+                                                                                        "accessibilityLabel": "Terms of Service",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -78046,7 +78046,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Do not sell my info (CA)",
+                                                                                            "Do Not Sell My Info (CA)",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -78136,7 +78136,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Do not sell or share my personal information",
+                                                                                        "accessibilityLabel": "Do Not Sell or Share My Personal Information",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -78190,7 +78190,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Danger zone",
+                                                                                    "Danger Zone",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -78399,7 +78399,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Reset this device",
+                                                                                                "Reset This Device",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -78627,7 +78627,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Delete account",
+                                                                                                "Delete Account",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {

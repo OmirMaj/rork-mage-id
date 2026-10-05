@@ -110,7 +110,7 @@ export default function BrainWatchCard() {
   // green all-clear while every read 401'd. When MAGE could not be reached,
   // say so; what is listed is this device's last cache, not a current read.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -135,7 +135,7 @@ export default function BrainWatchCard() {
         <View style={styles.allClearRow}>
           <CheckCircle2 size={16} color={colors.success} strokeWidth={2} />
           <Text style={styles.allClearText}>
-            All clear — nothing overdue on schedules, invoices, permits or certs.
+            Nothing overdue on schedules, invoices, permits or certificates.
           </Text>
         </View>
       </View>
@@ -216,7 +216,7 @@ export default function BrainWatchCard() {
         </RowLink>
       ) : (
         <Text style={styles.overflowHint}>
-          +{items.length - MAX_VISIBLE} more — open each screen to review
+          +{items.length - MAX_VISIBLE} more. Open each screen to review.
         </Text>
       ))}
 
@@ -227,7 +227,7 @@ export default function BrainWatchCard() {
           onPress={() => router.push('/track-record' as any)}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="View MAGE's track record"
+          accessibilityLabel="View MAGE's Track Record"
         >
           <MageAIMark size={12} color={colors.accent} />
           <Text style={styles.accuracyChipText}>

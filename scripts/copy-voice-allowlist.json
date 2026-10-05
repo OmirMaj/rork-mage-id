@@ -157,6 +157,24 @@
       "rule": "R16",
       "match": "and 0 more",
       "reason": "list continuation (\"and 3 more\") under the rows above"
+    },
+    {
+      "file": "components/DesktopSidebar.tsx",
+      "rule": "R21",
+      "match": "SETUP & TOOLS",
+      "reason": "a section KEY: rows, the saved open state (mageid_sidebar_sections) and validators match it; the header prints SECTION_LABEL, which says \"and\""
+    },
+    {
+      "file": "app/(tabs)/(home)/index.tsx",
+      "rule": "R24",
+      "match": "Unlimited Projects",
+      "reason": "the Paywall `feature` key (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'More Than One Project'"
+    },
+    {
+      "file": "components/DesktopSidebar.tsx",
+      "rule": "R15",
+      "match": "Primary navigation",
+      "reason": "matched by code: SIDEBAR_DOM_SELECTOR in components/ui/desktop.ts and the print stylesheet select nav[aria-label='Primary navigation']"
     }
   ]
 }

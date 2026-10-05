@@ -117,6 +117,9 @@ eq('our own copy → unavailable', lib.purchaseFailureKind('This plan isn’t av
 eq('a card decline → failed (generic, never echoed)', lib.purchaseFailureKind('Payment declined', true), 'failed');
 eq('iOS label drops "(Android: beta)"', lib.storeSafeLabel('Voice-to-report (Android: beta)', 'ios'), 'Voice-to-report');
 eq('…mid-label too', lib.storeSafeLabel('Plan viewer · sheet pinning (Android: beta)', 'ios'), 'Plan viewer · sheet pinning');
+eq('iOS label drops the Title Case note "(Android: Beta)" too', lib.storeSafeLabel('Voice-to-Report (Android: Beta)', 'ios'), 'Voice-to-Report');
+eq('…mid-label, Title Case', lib.storeSafeLabel('Plan Viewer and Sheet Pinning (Android: Beta)', 'android'), 'Plan Viewer and Sheet Pinning');
+ok('every "(Android: …)" note in the plan table is one storeSafeLabel removes', [...read('app/paywall.tsx').matchAll(/label: '([^']*\(Android[^']*)'/g)].every((m) => !/Android|[Bb]eta/.test(lib.storeSafeLabel(m[1], 'ios'))));
 eq('Android build drops it as well (no "beta" in a store build)', lib.storeSafeLabel('Voice-to-report (Android: beta)', 'android'), 'Voice-to-report');
 eq('web keeps its label', lib.storeSafeLabel('Voice-to-report (Android: beta)', 'web'), 'Voice-to-report (Android: beta)');
 eq('iOS: the store-unreachable sentence', lib.plansLoadFailedText('ios'), 'Plans couldn’t load from the App Store. Check your connection and try again.');
@@ -292,13 +295,13 @@ for (const { f, c } of [{ f: MODAL, c: modalCode }, { f: SCREEN, c: screenCode }
   const shown = c.split(AIA_KEY).join('');
   const bare = [...shown.matchAll(/G70[23]/g)].filter((m) => {
     const before = shown.slice(Math.max(0, (m.index ?? 0) - 16), m.index ?? 0);
-    return !/AIA-style (G702\/)?$/.test(before);
+    return !/AIA-[Ss]tyle (G702\/)?$/.test(before);
   });
   ok(`${f}: every G702/G703 a buyer reads says "AIA-style"`, bare.length === 0,
     bare.map((m) => shown.slice(Math.max(0, (m.index ?? 0) - 30), (m.index ?? 0) + 30).replace(/\s+/g, ' ')).join(' | '));
 }
 ok(`${MODAL}: the pay-app feature KEY has a display title that says "AIA-style"`,
-  new RegExp(`${AIA_KEY.replace(/[/]/g, '\\/')}\\s*'AIA-style G702\\/G703 pay apps'`).test(modalCode));
+  new RegExp(`${AIA_KEY.replace(/[/]/g, '\\/')}\\s*'AIA-Style G702\\/G703 Pay Apps'`).test(modalCode));
 ok(`${MODAL}: the heading prints the display title, not the raw key`, /const featureTitle = FEATURE_TITLE\[feature\] \?\? feature;/.test(modalCode));
 
 // The store listing the founder pastes into App Store Connect follows the same

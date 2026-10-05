@@ -341,7 +341,7 @@ for (const s of SAMPLES) {
   // Pin the CONSEQUENT of each arm, and that the condition is not negated.
   ok('home: the failed read is branched BEFORE the day-one onboarding card',
     /(^|[^!])sourceFailed \? \(\s*<ErrorState/m.test(home)
-    && home.indexOf('sourceFailed ? (') < home.indexOf('title="Build something"'));
+    && home.indexOf('sourceFailed ? (') < home.indexOf('title="No Projects Yet"'));
   // Gated on the BOOK, not on this list's emptiness (review 2026-09-07). The
   // first draft used `sourceFailed` alone, and this ListEmptyComponent fires
   // in two states that are not "he has nothing": the status chips narrow the
@@ -367,9 +367,9 @@ for (const s of SAMPLES) {
   // are on screen (review 2026-09-07).
   ok('home: the empty state stays silent when the desktop table has rows in it',
     /ListEmptyComponent=\{\s*(\/\/[^\n]*\n\s*)*useDenseRows && filteredProjects\.length > 0 \? null :/.test(home));
-  ok('home: a brand-new account still gets "Build something" and its CTA',
+  ok('home: a brand-new account still gets "No Projects Yet" and its CTA',
     /\) : \(\s*<EmptyState/.test(home)
-    && /title="Build something"/.test(home) && /actionLabel="Create your first project"/.test(home));
+    && /title="No Projects Yet"/.test(home) && /actionLabel="Create Your First Project"/.test(home));
   ok('home: the failure state offers the retry, not project creation',
     /onRetry=\{retryRemoteReads\}/.test(home) && /testID="home-unreachable"/.test(home));
 

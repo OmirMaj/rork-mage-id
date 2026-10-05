@@ -177,7 +177,7 @@ async function modal(sub: Over, requiredTier: 'pro' | 'enterprise') {
   return screenText(tree.toJSON(), 'paywall-modal-close');
 }
 function expectNoForbidden(text: string) {
-  for (const bad of ['Android', 'Google Play', 'beta', 'Early access', 'Priority queue', 'Contact us', 'support@', 'by email', 'App Store yet', 'Cancel anytime']) {
+  for (const bad of ['Android', 'Google Play', 'beta', 'Beta', 'Early access', 'Priority queue', 'Contact us', 'support@', 'by email', 'App Store yet', 'Cancel anytime']) {
     expect(text).not.toContain(bad);
   }
 }
@@ -220,7 +220,7 @@ describe('APPPAY — the purchase modal (components/Paywall) on iOS', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('paywall-upgrade-btn')); });
     await pump(2);
     expect(mockPurchasePro).toHaveBeenCalledWith('annual');
-    expect(mockAlerts.at(-1)).toEqual(["Couldn't complete purchase", "The purchase didn't go through. Try again."]);
+    expect(mockAlerts.at(-1)).toEqual(["Couldn't Complete Purchase", "The purchase didn't go through. Try again."]);
     expect(JSON.stringify(mockAlerts)).not.toContain('RAW_STORE_TEXT');
   });
 
@@ -308,7 +308,7 @@ describe('APPPAY — /paywall on iOS', () => {
     expect(screen.getByTestId('buy-business')).toBeTruthy();
     expect(screen.queryByTestId('buy-enterprise')).toBeNull();
     expect(screen.queryByTestId('buy-enterprise-contact')).toBeNull();
-    expect(text).toContain('Voice-to-report');
+    expect(text).toContain('Voice-to-Report');
     expect(text).toContain(AUTO_RENEW_IOS);
     expect(screen.getByTestId('restore-purchases')).toBeTruthy();
     expectNoForbidden(text);

@@ -144,8 +144,8 @@ console.log('\nD. screens and context:');
   const SET = read('app', '(tabs)', 'settings', 'index.tsx');
   const so = slice(SET, 'const confirmSignOut = useCallback(', '}, [logout, router, signingOut]);');
   ok('the sign-out confirm counts unsaved records and says signing out deletes them',
-    /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
-      && /unsaved > 0 \? 'Delete and sign out'/.test(so));
+    /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not Saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
+      && /unsaved > 0 \? 'Delete and Sign Out'/.test(so));
   const INV = read('app', 'invoice.tsx');
   // Wave-next W2 (moments B3): the unsaved-append check is read while the
   // record sheet is open (the slide's disabled reason, before any write); the

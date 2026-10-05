@@ -315,7 +315,7 @@ const onboarding = read('app/onboarding.tsx');
 ok('there is exactly one final preview card',
   (onboarding.match(/isTryIt: true/g) ?? []).length === 1);
 ok('the primary CTA on it prices a real bid',
-  onboarding.includes("isLast ? 'Price a real bid' : 'Next'"),
+  onboarding.includes("isLast ? 'Price a Real Bid' : 'Next'"),
   'the last card must name the real-bid path, not a generic advance');
 
 const tourJsx = balancedFrom(onboarding, onboarding.indexOf('{isLast && ('));

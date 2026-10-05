@@ -64,9 +64,9 @@ for (const m of PUSH_ASK_MOMENTS) {
 ok('both moments still have their own entry (the fallback is not how a moment gets copy)',
   PUSH_ASK_MOMENTS.every((m) => Object.prototype.hasOwnProperty.call(PUSH_ASK_COPY, m)));
 ok('the brief note says the brief is OFF until he turns it on, and where',
-  /off unless you turn it on/i.test(PUSH_ASK_BRIEF_NOTE) && /Push & email preferences/.test(PUSH_ASK_BRIEF_NOTE));
+  /off unless you turn it on/i.test(PUSH_ASK_BRIEF_NOTE) && /Push and Email Preferences/.test(PUSH_ASK_BRIEF_NOTE));
 ok('…and that place exists: the Settings row and the digest card',
-  /Push & email preferences/.test(read('app/(tabs)/settings/index.tsx'))
+  /Push and Email Preferences/.test(read('app/(tabs)/settings/index.tsx'))
   && /AI morning digest/.test(read('app/notifications-settings.tsx')));
 const ask = read('utils/pushPermissionAsk.ts');
 ok('the doc comment no longer lists morning-digest / invoice-dunning as senders this ask turns on',
@@ -128,7 +128,7 @@ for (const c of PUSH_ASK_CLAIMS) {
   const others = [...gcPushKeys].filter((k) => !claimed.has(k));
   ok('the other-alerts note is true: notify pushes the GC for events beyond the three claims',
     others.length >= 3, others.join(', '));
-  ok('…and says where they are muted', /mute/i.test(PUSH_ASK_OTHERS_NOTE) && /Push & email preferences/.test(PUSH_ASK_OTHERS_NOTE));
+  ok('…and says where they are muted', /mute/i.test(PUSH_ASK_OTHERS_NOTE) && /Push and Email Preferences/.test(PUSH_ASK_OTHERS_NOTE));
 }
 // The brief really is off by default, which is why it can't be a claim.
 ok('morning-digest only runs for digest_enabled = true', /\.eq\('digest_enabled', true\)/.test(read('supabase/functions/morning-digest/index.ts')));

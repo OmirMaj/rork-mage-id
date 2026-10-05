@@ -128,11 +128,11 @@ export const PUSH_ASK_CLAIMS = [
  *  more (every dispatchOne('gc', …) gated only by prefAllows). The body used to
  *  say "Nothing else." after the three — as false as the brief it replaced
  *  (review of #132). This says what is true and where each one is muted. */
-export const PUSH_ASK_OTHERS_NOTE = 'It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences.';
+export const PUSH_ASK_OTHERS_NOTE = 'It also alerts you to other job events; you can mute any of them in Settings > Push and Email Preferences.';
 
 /** The honest pointer to the brief: it exists, it is off, and this is where
- *  it is turned on (Settings → "Push & email preferences" → AI morning digest). */
-export const PUSH_ASK_BRIEF_NOTE = 'A morning brief is off unless you turn it on in Settings → Push & email preferences.';
+ *  it is turned on (Settings > "Push and Email Preferences" > AI morning digest). */
+export const PUSH_ASK_BRIEF_NOTE = 'A morning brief is off unless you turn it on in Settings > Push and Email Preferences.';
 
 export interface PushAskCopy {
   title: string;
@@ -153,13 +153,13 @@ export interface PushAskCopy {
 export const PUSH_ASK_COPY: Record<PushAskMoment, PushAskCopy> = {
   estimate_shared: {
     title: 'Want to know when they respond?',
-    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences. A morning brief is off unless you turn it on in Settings → Push & email preferences.',
+    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings > Push and Email Preferences. A morning brief is off unless you turn it on in Settings > Push and Email Preferences.',
     confirm: 'Notify me',
     decline: 'Not now',
   },
   project_created: {
     title: 'Want this job to reach you?',
-    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences. A morning brief is off unless you turn it on in Settings → Push & email preferences.',
+    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings > Push and Email Preferences. A morning brief is off unless you turn it on in Settings > Push and Email Preferences.',
     confirm: 'Notify me',
     decline: 'Not now',
   },

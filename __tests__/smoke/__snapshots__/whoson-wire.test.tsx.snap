@@ -8119,7 +8119,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
   }
 >
   <View
-    accessibilityLabel="Privacy policy"
+    accessibilityLabel="Privacy Policy"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8283,7 +8283,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Privacy policy
+      Privacy Policy
     </Text>
     <RNSVGSvgView
       align="xMidYMid"
@@ -8373,7 +8373,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
     }
   />
   <View
-    accessibilityLabel="Terms of service"
+    accessibilityLabel="Terms of Service"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8603,7 +8603,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Terms of service
+      Terms of Service
     </Text>
     <RNSVGSvgView
       align="xMidYMid"
@@ -8693,7 +8693,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
     }
   />
   <View
-    accessibilityLabel="Do not sell or share my personal information"
+    accessibilityLabel="Do Not Sell or Share My Personal Information"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8857,7 +8857,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Do not sell my info (CA)
+      Do Not Sell My Info (CA)
     </Text>
     <RNSVGSvgView
       align="xMidYMid"

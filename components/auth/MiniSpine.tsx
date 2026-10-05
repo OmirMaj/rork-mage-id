@@ -99,7 +99,7 @@ export default function MiniSpine({ width, maxScale = 1, animate, style, testID 
         </Chip>
         <Chip clock={clock} beat={p.chip1} dim={p.dim1} dimTo={MINI_DIM[1]} top={CHIP_TOP[1]}>
           <KLabel size={10.5}>Estimate</KLabel>
-          <Text style={styles.t} numberOfLines={1}>Kitchen remodel</Text>
+          <Text style={styles.t} numberOfLines={1}>Kitchen Remodel</Text>
           <Text style={styles.b}>$31,870</Text>
         </Chip>
         <Chip clock={clock} beat={p.chip2} dim={p.dim2} dimTo={MINI_DIM[2]} top={CHIP_TOP[2]}>

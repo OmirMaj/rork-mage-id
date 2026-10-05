@@ -34,7 +34,7 @@ const cardsAt = src.indexOf("id: 'free' as const");
 const cardsEnd = src.indexOf("id: 'enterprise' as const");
 const cards = cardsAt > -1 && cardsEnd > cardsAt ? src.slice(cardsAt, cardsEnd) : '';
 ok('the Free/Pro/Business card block was found', cards.length > 0);
-ok("Pro card lists 'Unlimited projects' + planCardLines('pro')", /features: \['Unlimited projects', \.\.\.planCardLines\('pro'\)\]/.test(cards));
+ok("Pro card lists 'More Than One Project' + planCardLines('pro')", /features: \['More Than One Project', \.\.\.planCardLines\('pro'\)\]/.test(cards));
 ok("Business card lists 'Everything in Pro' + planCardLines('business')", /features: \['Everything in Pro', \.\.\.planCardLines\('business'\)\]/.test(cards));
 ok('planCardLines reads planFeatureLines and filters the extra lines by lineTier',
   /\.\.\.planFeatureLines\(tier\),\s*\.\.\.SETTINGS_EXTRA_PLAN_LINES\.filter\(\(l\) => lineTier\(l\) === tier\)/.test(src));
@@ -72,8 +72,8 @@ ok('the row reads planSource (CONTRACT 1)', /const \{ planSource[^}]*\} = useSub
 ok("the store deep link is only for planSource 'store' on iOS/Android",
   /if \(planSource === 'store' && \(Platform\.OS === 'ios' \|\| Platform\.OS === 'android'\)\)/.test(src));
 ok('no apps.apple.com link for the web', !/'https:\/\/apps\.apple\.com\/account\/subscriptions'/.test(src));
-ok('a hand-granted plan: "Your plan was turned on by MAGE ID" + mailto help@mageid.app',
-  /label: 'Your plan was turned on by MAGE ID'/.test(src)
+ok('a hand-granted plan: "Your Plan Was Turned On by MAGE ID" + mailto help@mageid.app',
+  /label: 'Your Plan Was Turned On by MAGE ID'/.test(src)
   && /'mailto:help@mageid\.app\?subject=Change%20my%20MAGE%20ID%20plan'/.test(src)
   && /Email help@mageid\.app to change or cancel\. Nothing is deleted\./.test(src));
 ok('never "no support call needed"', !/no support call needed/.test(src));

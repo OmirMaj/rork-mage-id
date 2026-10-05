@@ -24,7 +24,7 @@
 //       hangs only off the 'removed' answer.
 //   (f) SkillsProfileRow renders nothing when signed out, before any data
 //       hook runs; Settings mounts it exactly once, between the profile hero
-//       and the "Account type" header.
+//       and the "Account Type" header.
 //   (g) the certificates screen never shows the empty state for a failed read,
 //       and its two-up grid uses a fixed flexBasis, not a percentage.
 //   Every source rule is then fed planted mutations, each of which must fail.
@@ -220,8 +220,8 @@ export function checkRow(row: string, settings: string): string[] {
   if (uses.length !== 1) p.push(`Settings mounts <SkillsProfileRow /> ${uses.length} times`);
   const hero = s.indexOf('testID="profile-hero-tap"');
   const at = s.indexOf('<SkillsProfileRow');
-  const acct = s.indexOf('<Text style={styles.sectionHeader}>Account type</Text>');
-  if (!(hero >= 0 && at > hero && acct > at)) p.push('the row is not between the profile hero and the "Account type" header');
+  const acct = s.indexOf('<Text style={styles.sectionHeader}>Account Type</Text>');
+  if (!(hero >= 0 && at > hero && acct > at)) p.push('the row is not between the profile hero and the "Account Type" header');
   if (!/import \{ SkillsProfileRow \} from '@\/components\/learn\/SkillsProfileRow';/.test(s)) p.push('Settings does not import SkillsProfileRow');
   return p;
 }

@@ -108,18 +108,18 @@ ok('Business web blurb names no Pro feature', !/RFI|submittal|plan viewer|(?<![Y
   const screen = code(read('app/paywall.tsx'));
   // B2 (wave-next W3): the feature is "Daily report(s)" (glossary), never
   // "Daily Field Report(s)" — the negative pin above stays; these name it.
-  ok('B2: the paywall row names the feature "daily reports"', /\{ label: 'Manual daily reports', free: true,/.test(screen) && !/Daily Field Reports?/.test(screen));
+  ok('B2: the paywall row names the feature "daily reports"', /\{ label: 'Manual Daily Reports', free: true,/.test(screen) && !/Daily Field Reports?/.test(screen));
   ok('B2: the daily report screen calls itself "Daily report"', /t\('field\.dfr\.dailyReport', 'Daily report'\)/.test(read('app/daily-report.tsx')) && !/daily field reports?|\bDFRs\b/i.test(read('app/daily-report.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')));
   ok("web plan tiles' blurbs come from planFeatureBlurb", /planFeatureBlurb\('pro'\)/.test(screen) && /planFeatureBlurb\('business'\)/.test(screen));
   ok('the old Business blurb is gone', !/subs, RFIs, submittals, punch \+ closeout, plans/.test(screen));
   // carries: #41 split row, #39 label, #175 freeNote
-  ok('#41: AI Photo Triage derives from photo_documentation', /\{ label: 'AI photo triage', key: 'photo_documentation' \}/.test(screen));
-  ok('#41: AI Punch from Photos derives from punch_list_closeout', /\{ label: 'AI punch items from photos', key: 'punch_list_closeout' \}/.test(screen));
+  ok('#41: AI Photo Triage derives from photo_documentation', /\{ label: 'AI Photo Triage', key: 'photo_documentation' \}/.test(screen));
+  ok('#41: AI Punch from Photos derives from punch_list_closeout', /\{ label: 'AI Punch Items from Photos', key: 'punch_list_closeout' \}/.test(screen));
   ok('#41: the mixed row is gone', !/'AI Photo Triage \/ Punch'/.test(screen));
-  ok('#39: the drawing-analyses row says what shares it', /'Drawing analyses \/mo \(takeoff runs, spec books, compare drawings\)'/.test(screen));
-  ok('#175: Voice-to-Report shows its 3 free tries', /label: 'Voice-to-report \(Android: beta\)', free: false, pro: true, business: true, freeNote: '3 tries'/.test(screen));
+  ok('#39: the drawing-analyses row says what shares it', /'Drawing Analyses per Month \(Takeoff Runs, Spec Books, Compare Drawings\)'/.test(screen));
+  ok('#175: Voice-to-Report shows its 3 free tries', /label: 'Voice-to-Report \(Android: Beta\)', free: false, pro: true, business: true, freeNote: '3 tries'/.test(screen));
   const onb = code(read('app/onboarding-paywall.tsx'));
-  ok('#41: onboarding does not promise punch items on Pro', !/punch/i.test(/title: 'AI photo triage',\s*description: '([^']*)'/.exec(onb)?.[1] ?? 'punch'));
+  ok('#41: onboarding does not promise punch items on Pro', !/punch/i.test(/title: 'AI Photo Triage',\s*description: '([^']*)'/.exec(onb)?.[1] ?? 'punch'));
 }
 
 // pricing.html tier cards

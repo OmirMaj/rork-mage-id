@@ -94,7 +94,7 @@ export default function SummaryScreen() {
   // Same sentence the home Brain Watch card and the desktop rail use, so an
   // unreachable backend reads as one recognisable state across the app.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
   const attention = useMemo<AttentionItem[]>(
     () => watchItems.map((it) => ({
       id: it.id,

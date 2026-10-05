@@ -56,8 +56,8 @@ function projectRowSource(): string {
   expect(start).toBeGreaterThan(-1);
   const table = src.slice(start, src.indexOf('\n];', start));
   // Matched on the project word rather than the exact label so a reworded row
-  // ("Active projects") is still found and checked.
-  const rows = table.match(/\{\s*label:\s*'[^']*[Pp]rojects[^']*'[^}]*\}/g);
+  // ("Active projects", "More Than One Project") is still found and checked.
+  const rows = table.match(/\{\s*label:\s*'[^']*[Pp]rojects?\b[^']*'[^}]*\}/g);
   expect(rows).not.toBeNull();
   // More than one and "the project row" is ambiguous — this guard would be
   // checking whichever happened to be first, which is how the original row

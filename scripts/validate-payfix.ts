@@ -428,7 +428,7 @@ console.log('\n2. Labels never imply an official AIA document');
     count(paywall, /'AIA G702\/G703 Pay Applications':/g) === 2
     && paywallHits.length === 2 && paywallHits.every(l => /^\s*'AIA G702\/G703 Pay Applications':/.test(l)), paywallHits.join(' | '));
   ok('…and the name it SHOWS for that key is hedged',
-    /\n  'AIA G702\/G703 Pay Applications': 'AIA-style G702\/G703 pay apps',\n/.test(paywall));
+    /\n  'AIA G702\/G703 Pay Applications': 'AIA-Style G702\/G703 Pay Apps',\n/.test(paywall));
 
   // The ratchet. What still matches, with counts. Nothing on it is a label a
   // customer reads: two lookup keys and two dev-only screens. A new file or a
