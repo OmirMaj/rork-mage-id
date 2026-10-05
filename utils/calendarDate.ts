@@ -246,7 +246,7 @@ export function daysUntilCalendarDay(value: string | null | undefined, now: Date
  * (calendarDayOf: a bare day as written, an instant by the local day it fell
  * on). Nothing stored changes — only the comparison.
  */
-export function daysPastDue(dueDate: string | null | undefined, now: Date = new Date()): number {
+export function daysPastDue(dueDate: string | null | undefined, now: Date = new Date(Date.now())): number {
   const until = daysUntilCalendarDay(calendarDayOf(dueDate), now);
   return until !== null && until < 0 ? -until : 0;
 }

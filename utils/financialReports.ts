@@ -763,7 +763,8 @@ export function computeARAgingReport(
   projects: Project[],
 ): ARAgingReport {
   const projectName = new Map(projects.map(p => [p.id, p.name]));
-  const now = new Date();
+  // Through Date.now(), as before: tests (and any clock shim) pin that.
+  const now = new Date(Date.now());
 
   const rows: ARAgingRow[] = [];
   for (const inv of invoices) {
