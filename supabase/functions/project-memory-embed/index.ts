@@ -215,7 +215,7 @@ serve(async (req: Request) => {
 
   let vectors: number[][];
   try {
-    vectors = await geminiEmbed(docs.map(d => d.content));
+    vectors = await geminiEmbed(docs.map(d => d.content), { fn: "project-memory-embed", feature: "project_memory", userId: meter.userId });
   } catch (e) {
     console.error("[project-memory-embed] embed failed:", String(e));
     return json({ success: false, error: "Embedding failed" }, 502);

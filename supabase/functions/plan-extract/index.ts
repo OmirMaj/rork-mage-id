@@ -32,6 +32,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { loadPlanSheetImageParts, planSheetProjectId, PlanSheetAccessError } from "../_shared/planSheetBytes.ts";
 import { mayWritePlanIndex, tierMeets, ownerPlanRefusal, type Tier } from "../project-memory-embed/planScope.ts";
 import { resolvePlanScope, tierOfUser } from "../project-memory-embed/planScopeIo.ts";
@@ -147,7 +148,7 @@ function approxBase64Bytes(b64: string): number {
 
 // Input is validated by the handler before this runs; everything thrown here
 // is an UpstreamError so the handler can charge / report it uniformly.
-async function callGemini(req: PlanExtractRequest): Promise<{ text: string; titleBlock: PlanTitleBlock }> {
+async function callGemini(req: PlanExtractRequest, userId: string): Promise<{ text: string; titleBlock: PlanTitleBlock }> {
   const mimeType = req.mimeType && req.mimeType.startsWith("image/")
     ? req.mimeType.split(";")[0]
     : "image/png";
@@ -158,11 +159,13 @@ async function callGemini(req: PlanExtractRequest): Promise<{ text: string; titl
     ] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.1, maxOutputTokens: 16384 },
   };
-  const r = await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await logGeminiCall(null, { fn: "plan-extract", feature: "plan_extract", userId, model: MODEL, images: inlineImageCount(body.contents[0]?.parts) }, async () => {
+    return await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     const errText = await r.text().catch(() => "");
     // Upstream text stays server-side (AI-F16); not charged.
@@ -279,7 +282,7 @@ serve(async (req) => {
       body.mimeType = part.inlineData.mimeType;
     }
 
-    const { text, titleBlock } = await callGemini(body);
+    const { text, titleBlock } = await callGemini(body, meter.userId);
     const newUsed = await aiUsageIncrement(meter.userId, "plan_extract");
     // `text` keeps its old position and meaning — Ask Your Plans embeds it
     // unchanged. `titleBlock` is additive, for the PDF importer.

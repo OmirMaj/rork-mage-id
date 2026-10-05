@@ -1298,6 +1298,8 @@ function freshWorld(): World {
   };
 }
 
+/** supabase/functions/_shared/aiCallLog.ts, loaded once in main (the real wrappers). */
+let aiCallLog: Record<string, unknown> = {};
 function makeHandler(core: CoreMod, loader: LoaderMod, env: Record<string, string>, coreOver: Record<string, unknown>): { handle: Handler; world: () => World; reset: () => World; missing: string[] } {
   let w = freshWorld();
   const src = read(INDEX_REL);
@@ -1314,6 +1316,11 @@ function makeHandler(core: CoreMod, loader: LoaderMod, env: Record<string, strin
   const imports: Record<string, unknown> = {
     ...core,
     ...coreOver,
+    // The cost-log wrappers (lane AICOST, 2026-10-04) are the REAL module: every
+    // case below runs through logGeminiCall, so the harness also proves the
+    // wrapper changes nothing the function returns. It writes nowhere here (no
+    // service key outside Deno).
+    ...aiCallLog,
     serve: (h: Handler) => { captured = h; },
     createClient: (...args: unknown[]) => { w.clientArgs.push(args); return w.svc ? w.svc.svc : null; },
     PDFDocument: { load: (bytes: Uint8Array, o: unknown) => { w.pdfOpts.push(o); return PDFDocument.load(bytes, o as { updateMetadata?: boolean }); } },
@@ -1861,6 +1868,7 @@ async function main(): Promise<void> {
   try {
     rule = (await import(join(ROOT, RULE_REL))) as RuleMod;
     core = (await import(srcPath(CORE_REL))) as CoreMod;
+    aiCallLog = (await import(join(ROOT, 'supabase/functions/_shared/aiCallLog.ts'))) as Record<string, unknown>;
     loader = (await import(srcPath(LOADER_REL))) as LoaderMod;
     filesMod = (await import(join(ROOT, FILES_REL))) as FilesMod;
     portal = (await import(join(ROOT, 'supabase/functions/portal-message-files/core.ts'))) as PortalCoreMod;

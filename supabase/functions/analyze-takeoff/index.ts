@@ -48,6 +48,7 @@
 //   { success: false, error }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { logAnthropicHttpCall, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS, type Tier } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 import {
@@ -408,15 +409,16 @@ async function callTakeoffModel(req: TakeoffRequest, tier: Tier, userId: string)
   const imageParts = await pageImageParts(req, userId);
 
   if (modelUsed === 'claude-sonnet-4-5') {
-    return { data: await callClaude(req, imageParts), modelUsed };
+    return { data: await callClaude(req, imageParts, userId), modelUsed };
   }
-  return { data: await callGemini(req, modelUsed, imageParts), modelUsed };
+  return { data: await callGemini(req, modelUsed, imageParts, userId), modelUsed };
 }
 
 async function callGemini(
   req: TakeoffRequest,
   modelUsed: 'gemini-2.5-flash' | 'gemini-2.5-pro',
   imageParts: { inlineData: { mimeType: string; data: string } }[],
+  userId: string,
 ): Promise<unknown> {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured on the server.');
 
@@ -438,11 +440,13 @@ async function callGemini(
     },
   };
 
-  const r = await fetchWithTimeout(`${geminiEndpoint(modelUsed)}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await logGeminiCall(null, { fn: 'analyze-takeoff', feature: 'analyze_takeoff', userId, model: modelUsed, images: imageParts.length }, async () => {
+    return await fetchWithTimeout(`${geminiEndpoint(modelUsed)}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     const errText = await r.text().catch(() => '');
     throw new UpstreamError(`Gemini ${r.status}: ${errText.slice(0, 400)}`, false);
@@ -471,6 +475,7 @@ async function callGemini(
 async function callClaude(
   req: TakeoffRequest,
   imageParts: { inlineData: { mimeType: string; data: string } }[],
+  userId: string,
 ): Promise<unknown> {
   if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured on the server.');
 
@@ -532,7 +537,8 @@ async function callClaude(
     ],
   };
 
-  const r = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+  const r = await logAnthropicHttpCall(null, { fn: 'analyze-takeoff', feature: 'analyze_takeoff', userId, model: body.model, images: imageParts.length }, async () => {
+    return await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': ANTHROPIC_API_KEY,
@@ -541,6 +547,7 @@ async function callClaude(
     },
     body: JSON.stringify(body),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     const errText = await r.text().catch(() => '');
     throw new UpstreamError(`Anthropic ${r.status}: ${errText.slice(0, 400)}`, false);

@@ -27,6 +27,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
+import { logGeminiCall } from "../_shared/aiCallLog.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
 import { aiConsentAllows, readOwnerAiConsent } from "../_shared/aiConsent.ts";
@@ -280,7 +281,7 @@ serve(async (req: Request) => {
   // Retrieve from the project's memory index using the OWNER's user_id.
   let qvec: number[][];
   try {
-    qvec = await geminiEmbed([question]);
+    qvec = await geminiEmbed([question], { fn: "portal-ask-home", feature: "ask_home", userId: proj.user_id });
   } catch (e) {
     console.error("[portal-ask-home] query embed failed:", String(e));
     return json({ success: false, error: "Embedding failed" }, 502);
@@ -352,7 +353,8 @@ serve(async (req: Request) => {
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   let gen: Response;
   try {
-    gen = await fetch(
+    gen = await logGeminiCall(null, { fn: "portal-ask-home", feature: "ask_home", userId: proj.user_id, model: GEMINI_MODEL }, async () => {
+      return await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
       {
         method: "POST",
@@ -364,6 +366,7 @@ serve(async (req: Request) => {
         signal: ac.signal,
       },
     );
+    });
   } catch (e) {
     if ((e as Error).name === "AbortError") {
       return json({ success: false, error: "No answer right now — try again in a moment.", code: "upstream_timeout" }, 504);

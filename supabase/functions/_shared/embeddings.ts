@@ -11,6 +11,7 @@
 // gemini-embedding-001 does not, and normalizing is a no-op on a unit vector.
 
 import { GEMINI_EMBED_DIMS, GEMINI_EMBED_MODEL } from "./models.ts";
+import { logGeminiCall } from "./aiCallLog.ts";
 
 const GK = Deno.env.get("GEMINI_API_KEY") || "";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
@@ -28,15 +29,24 @@ function normalize(vec: number[]): number[] {
   return norm > 0 ? vec.map((v) => v / norm) : vec;
 }
 
+/** Who an embedding call is logged against (public.ai_call_log): the calling
+ *  edge function, its feature key and the account the call is billed to. */
+export interface EmbedCaller {
+  fn: string;
+  feature: string;
+  userId: string | null;
+}
+
 /** Embed a batch of texts → array of EMBED_DIMS-float unit vectors, order-preserved. */
-export async function geminiEmbed(texts: string[]): Promise<number[][]> {
+export async function geminiEmbed(texts: string[], who: EmbedCaller): Promise<number[][]> {
   if (texts.length === 0) return [];
   if (!GK) throw new Error("GEMINI_API_KEY not set on server");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), EMBED_TIMEOUT_MS);
   let r: Response;
   try {
-    r = await fetch(`${BASE}${EMBED_MODEL}:batchEmbedContents?key=${GK}`, {
+    r = await logGeminiCall(null, { fn: who.fn, feature: who.feature, userId: who.userId, model: EMBED_MODEL }, async () => {
+      return await fetch(`${BASE}${EMBED_MODEL}:batchEmbedContents?key=${GK}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -50,6 +60,7 @@ export async function geminiEmbed(texts: string[]): Promise<number[][]> {
         })),
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     throw new Error((e as Error).name === "AbortError"

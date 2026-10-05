@@ -47,6 +47,7 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { aiCallerOf, inlineImageCount, logGeminiCall, noteAiCaller } from "../_shared/aiCallLog.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
@@ -199,11 +200,13 @@ function serviceClient() {
 
 /** The one model call. Everything thrown here is an UpstreamError. */
 async function callModel(request: ModelRequest): Promise<unknown> {
-  const r = await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await logGeminiCall(null, { fn: "ask-files", feature: METER_KEY, userId: aiCallerOf(request).userId, model: MODEL, images: inlineImageCount(request.contents?.[0]?.parts), pdfPages: aiCallerOf(request).pdfPages }, async () => {
+    return await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     try { await r.body?.cancel(); } catch { /* nothing to release */ }
     throw new UpstreamError(false, 502);
@@ -431,6 +434,8 @@ serve(async (req) => {
     const request = ask.mode === "ask"
       ? buildAskRequest(parts, read, ask.question)
       : buildMessageRequest(parts, read, messageBody);
+    const pdfPages = read.reduce((n, r) => n + (r?.pages ?? 0), 0);
+    noteAiCaller(request, { userId: auth.userId, pdfPages: pdfPages > 0 ? pdfPages : null });
     const modelJson = await callModel(request);
 
     step = "answer";

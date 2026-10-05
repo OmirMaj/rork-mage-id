@@ -23,6 +23,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 import { rateLimitCount } from '../_shared/auth.ts';
+import { logOpaqueCall } from '../_shared/aiCallLog.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -100,10 +101,12 @@ serve(async (req) => {
 
   let upstream: Response;
   try {
-    upstream = await fetch(STT_ENDPOINT, {
+    upstream = await logOpaqueCall('rork-stt', null, { fn: 'transcribe-audio', feature: 'stt', userId: user.id, model: 'unknown' }, async () => {
+      return await fetch(STT_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': contentType },
       body,
+    });
     });
   } catch (err) {
     return json({ error: `Transcription service unreachable. ${err instanceof Error ? err.message : ''}`.trim() }, 502);

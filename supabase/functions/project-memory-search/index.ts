@@ -112,7 +112,7 @@ serve(async (req: Request) => {
 
   let qvec: number[][];
   try {
-    qvec = await geminiEmbed([query]);
+    qvec = await geminiEmbed([query], { fn: "project-memory-search", feature: "project_memory", userId: meter.userId });
   } catch (e) {
     console.error("[project-memory-search] query embed failed:", String(e));
     return json({ success: false, error: "Embedding failed" }, 502);

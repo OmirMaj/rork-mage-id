@@ -48,6 +48,7 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { aiCallerOf, inlineImageCount, logGeminiCall, noteAiCaller } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -344,11 +345,13 @@ async function callGemini(req: PlanCodeRequest): Promise<unknown> {
     ] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 8192 },
   };
-  const r = await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await logGeminiCall(null, { fn: "analyze-plan-code", feature: "plan_code_review", userId: aiCallerOf(req).userId, model: MODEL, images: inlineImageCount(body.contents[0]?.parts) }, async () => {
+    return await fetchWithTimeout(`${geminiEndpoint()}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     const errText = await r.text().catch(() => "");
     // Upstream text stays server-side (AI-F16); not charged.
@@ -399,6 +402,9 @@ serve(async (req) => {
     const hourly = await rateLimitCount(`analyze-plan-code:user:${auth.userId}`);
     if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
     if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+
+    // public.ai_call_log: the model call made from this request is billed to the caller.
+    noteAiCaller(body, { userId: auth.userId });
 
     // Monthly cap PRECHECK (AI-F8: the unit is charged after the model answers
     // — see the success path and the UpstreamError branch below). aiUsageGet

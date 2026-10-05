@@ -25,6 +25,7 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 import {
@@ -335,7 +336,8 @@ async function callGemini(req: SpecRequest, userId: string): Promise<{ data: unk
     },
   };
 
-  const r = await fetchWithTimeout(
+  const r = await logGeminiCall(null, { fn: 'analyze-spec-book', feature: 'analyze_spec_book', userId, model: modelUsed, images: inlineImageCount(body.contents[0]?.parts) }, async () => {
+    return await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelUsed}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
     {
       method: 'POST',
@@ -344,6 +346,7 @@ async function callGemini(req: SpecRequest, userId: string): Promise<{ data: unk
     },
     VISION_TIMEOUT_MS,
   );
+  });
   if (!r.ok) {
     const err = await r.text().catch(() => '');
     throw new UpstreamError(`Gemini ${r.status}: ${err.slice(0, 400)}`, false);

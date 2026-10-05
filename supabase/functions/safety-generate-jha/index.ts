@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { logGeminiCall } from "../_shared/aiCallLog.ts";
 import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -115,7 +116,8 @@ serve(async (req) => {
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   let geminiResp: Response;
   try {
-    geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    geminiResp = await logGeminiCall(null, { fn: 'safety-generate-jha', feature: 'safety_generate_jha', userId: auth.userId, model: MODEL }, async () => {
+      return await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -123,6 +125,7 @@ serve(async (req) => {
         generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 2000 },
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') {

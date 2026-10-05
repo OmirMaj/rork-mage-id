@@ -12,6 +12,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
@@ -152,7 +153,8 @@ serve(async (req) => {
   const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS);
   let geminiResp: Response;
   try {
-    geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    geminiResp = await logGeminiCall(null, { fn: 'safety-detect-hazards', feature: 'safety_detect_hazards', userId: auth.userId, model: MODEL, images: inlineImageCount(parts) }, async () => {
+      return await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -160,6 +162,7 @@ serve(async (req) => {
         generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 1500 },
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') {

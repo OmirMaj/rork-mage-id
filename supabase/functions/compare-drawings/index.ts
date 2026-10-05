@@ -29,6 +29,7 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 import { loadPlanSheetImageParts, PlanSheetAccessError, planSheetSideSource } from "../_shared/planSheetBytes.ts";
@@ -272,7 +273,8 @@ async function callGemini(req: CompareRequest, userId: string): Promise<{ data: 
       maxOutputTokens: 6000,
     },
   };
-  const r = await fetchWithTimeout(
+  const r = await logGeminiCall(null, { fn: 'compare-drawings', feature: 'compare_drawings', userId, model: modelUsed, images: inlineImageCount(body.contents[0]?.parts) }, async () => {
+    return await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelUsed}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
     {
       method: 'POST',
@@ -281,6 +283,7 @@ async function callGemini(req: CompareRequest, userId: string): Promise<{ data: 
     },
     VISION_TIMEOUT_MS,
   );
+  });
   if (!r.ok) {
     const err = await r.text().catch(() => '');
     throw new UpstreamError(`Gemini ${r.status}: ${err.slice(0, 400)}`, false);

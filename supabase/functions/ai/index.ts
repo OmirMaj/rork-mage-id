@@ -37,6 +37,7 @@
 // non-200 as `errorKind: 'http'` distinctly from `errorKind: 'model'`.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
 import { inferSchema, hintHasMultiShapeArray } from "../_shared/inferSchema.ts";
@@ -325,11 +326,13 @@ serve(async (req) => {
     const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
     let r: Response;
     try {
-      r = await fetch(url, {
+      r = await logGeminiCall(null, { fn: "ai", feature: "ai_text", userId: auth.userId, model }, async () => {
+        return await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(gb),
         signal: ac.signal,
+      });
       });
     } catch (e) {
       if ((e as Error).name === "AbortError") {

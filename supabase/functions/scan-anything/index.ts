@@ -20,6 +20,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { aiCallerOf, inlineImageCount, logGeminiCall, noteAiCaller } from "../_shared/aiCallLog.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
@@ -214,8 +215,10 @@ Leave a field empty ("" or []) if not legible. Return JSON only — no preamble.
 
 async function classify(
   parts: Record<string, unknown>[],
+  userId: string,
 ): Promise<{ docType: ScanDocType; confidence: number } | { error: string; status: number; spent: boolean }> {
   const geminiParts = [{ text: CLASSIFY_PROMPT }, ...parts];
+  noteAiCaller(geminiParts, { userId });
   const r = await callGemini(geminiParts, 400, CLASSIFY_TIMEOUT_MS);
   if ('error' in r) return r;
   const o = r.parsed as Record<string, unknown>;
@@ -230,11 +233,13 @@ async function classify(
 async function extract(
   docType: ScanDocType,
   parts: Record<string, unknown>[],
+  userId: string,
 ): Promise<{ fields: Record<string, unknown>; title: string }> {
   const prompt = EXTRACT_PROMPTS[docType];
   // No extract schema (plan_sheet / other) → file-only, empty fields.
   if (!prompt) return { fields: {}, title: '' };
   const geminiParts = [{ text: prompt }, ...parts];
+  noteAiCaller(geminiParts, { userId });
   // Invoices/contracts can carry 20+ line items; a 1500-token ceiling truncates
   // the JSON mid-object → parse fails → blank form on the headline use case.
   // Give the structured-output path a wider budget so realistic docs fit.
@@ -266,7 +271,8 @@ async function callGemini(
   const ac = new AbortController();
   const to = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    resp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    resp = await logGeminiCall(null, { fn: 'scan-anything', feature: 'scan_anything', userId: aiCallerOf(parts).userId, model: MODEL, images: inlineImageCount(parts) }, async () => {
+      return await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -274,6 +280,7 @@ async function callGemini(
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens },
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
@@ -381,7 +388,7 @@ serve(async (req) => {
   console.log(`[scan-anything] tier=${auth.tier} images=${images.length}`);
 
   // Step 1 — classify.
-  const classified = await classify(imageParts);
+  const classified = await classify(imageParts, auth.userId);
   if ('error' in classified) {
     // Charge only if the model answered (spend incurred); a 5xx/timeout is free.
     if (classified.spent) await aiUsageIncrement(auth.userId, 'scan_anything');
@@ -408,7 +415,7 @@ serve(async (req) => {
   }
 
   // Step 3 — extract (schema switched by docType; empty fields on failure).
-  const { fields, title } = await extract(docType, imageParts);
+  const { fields, title } = await extract(docType, imageParts, auth.userId);
   const destination = resolveDestination(docType);
 
   return jsonResponse({

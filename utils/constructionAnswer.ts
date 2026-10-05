@@ -17,6 +17,9 @@
  *     • 'timeout'         → no reply inside ANSWER_TIMEOUT_MS. The run may
  *                           still finish on the server and count toward the
  *                           month (the charge lands after the model answers).
+ *                           A 504 + {code:'answer_timeout'} is the SERVER
+ *                           stopping its own run at 100 s: same code, the
+ *                           server's sentence (that run is not charged).
  *     • 'server_error'    → any other non-2xx or a non-JSON body.
  *     • 'not_configured'  → the ONLY "isn't available yet": a 503 whose body
  *                           says not_configured (no ANTHROPIC_API_KEY set).
@@ -154,6 +157,12 @@ export function mapConstructionAnswerFailure(
       'limit_reached',
       withLocalMonthlyReset(message || CONSTRUCTION_ANSWER_COPY.limit_reached, now),
     );
+  }
+  // The function stopped its own run at its wall clock (limits.ts
+  // ANSWER_STOP_MS). Its sentence says the run was not charged, which the
+  // client-side timeout copy cannot promise.
+  if (code === 'answer_timeout') {
+    return new ConstructionAnswerError('timeout', message || CONSTRUCTION_ANSWER_COPY.timeout);
   }
   if (status === 401 || code === 'unauthenticated') {
     return new ConstructionAnswerError('unauthenticated', CONSTRUCTION_ANSWER_COPY.unauthenticated);

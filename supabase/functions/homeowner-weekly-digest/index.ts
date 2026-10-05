@@ -35,6 +35,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the app sends so this digest matches sub-portal invites, contract
 // sends, payment receipts, COI warnings, and the morning brief.
 import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
+import { logGeminiCall } from '../_shared/aiCallLog.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 // The portal link must carry the minted portal id + access token (audit
@@ -337,7 +338,8 @@ Return JSON only, no preamble.`;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   try {
-    const res = await fetch(
+    const res = await logGeminiCall(null, { fn: 'homeowner-weekly-digest', feature: 'homeowner_digest', userId: project.user_id ?? null, model: GEMINI_TEXT_MODEL }, async () => {
+      return await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
@@ -353,6 +355,7 @@ Return JSON only, no preamble.`;
         signal: ac.signal,
       },
     );
+    });
     if (!res.ok) return null;
     const j = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const raw = j.candidates?.[0]?.content?.parts?.[0]?.text ?? '';

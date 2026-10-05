@@ -920,8 +920,31 @@ console.log('\n9. construction-answer wiring');
   ok('the calculator, SYSTEM, tools and data helpers are byte-identical to the untouched file, but for HONESTY CONTRACT rule 1 (one line, replaced)',
     rule1.length > 0 && rule1 !== OLD_RULE_1 && src.split(rule1).length === 2
       && sha(spanWithOldRule1) === 'adb44d51f3db9df0f416f3a2c249b576321960f1bf098998d426bc32f8175dcf', sha(spanWithOldRule1));
-  ok('the agentic loop is byte-identical to the untouched file',
-    sha(seg('    const client = new Anthropic(', '    const parsed = parseFooter(fullText);')) === 'da3901889462ded41f1c90c57e9190eb3f59262b40905ceb12e72a59901e8d73');
+  // SIX EDITS ON PURPOSE (2026-10-04, lane AICOST: "record every AI call's
+  // cost, and put an hourly limit on Construction Answers"): both model calls
+  // of the loop run inside logAnthropicSdkCall and carry the wall-clock stop
+  // signal, a stop is not retried as a rejected beta, the loop checks the
+  // clock before each round and clears the timer when it ends, and the two
+  // bounds are named (MAX_ROUNDS, MAX_WEB_SEARCHES_PER_ROUND; same 8 and 5).
+  // The hash is STILL the untouched file's: with each of those edits put back
+  // (every one must be there exactly once) the span is the untouched span.
+  // scripts/validate-ai-call-log.ts pins the new lines themselves.
+  const COST_LANE_EDITS: Array<[string, string]> = [
+    ['max_uses: MAX_WEB_SEARCHES_PER_ROUND },', 'max_uses: 5 },'],
+    ['          return await logAnthropicSdkCall(null, callMeta, () => client.beta.messages.stream({\n            ...baseParams,\n            output_config: { effort: "high", task_budget: { type: "tokens", total: 40000 } },\n            betas: ["task-budgets-2026-03-13"],\n          }, { signal: stop.signal }).finalMessage());\n',
+      '          const stream = await client.beta.messages.stream({\n            ...baseParams,\n            output_config: { effort: "high", task_budget: { type: "tokens", total: 40000 } },\n            betas: ["task-budgets-2026-03-13"],\n          });\n          return await stream.finalMessage();\n'],
+    ['          // The wall-clock stop is not a rejected beta: no second attempt.\n          if (stop.signal.aborted) throw e;\n', ''],
+    ['      return await logAnthropicSdkCall(null, callMeta, () => client.messages.stream(baseParams, { signal: stop.signal }).finalMessage());\n',
+      '      const stream = await client.messages.stream(baseParams);\n      return await stream.finalMessage();\n'],
+    ['    // Hard stop for the whole run: the timer aborts a model call in flight,\n    // and no new round starts once the time is spent. Cleared when the loop\n    // ends, so the cards call below keeps its own (105 s) budget.\n    const stopTimer = setTimeout(() => stop.abort(), Math.max(0, stopMsLeft(startedAt, Date.now(), ANSWER_STOP_MS)));\n    try {\n    for (let iter = 0; iter < MAX_ROUNDS; iter++) {\n      if (stop.signal.aborted || stopMsLeft(startedAt, Date.now(), ANSWER_STOP_MS) <= 0) {\n        stop.abort();\n        throw new Error("answer stopped at the wall clock");\n      }\n',
+      '    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {\n'],
+    ['      if (iter === MAX_ROUNDS - 1) hitCap = true;\n    }\n    } finally {\n      clearTimeout(stopTimer);\n    }\n', '      if (iter === MAX_ITERATIONS - 1) hitCap = true;\n    }\n'],
+  ];
+  let loop = seg('    const client = new Anthropic(', '    const parsed = parseFooter(fullText);');
+  const editsOnce = COST_LANE_EDITS.every(([now]) => loop.split(now).length === 2);
+  for (const [now, was] of COST_LANE_EDITS) loop = loop.replace(now, () => was);
+  ok('the agentic loop is byte-identical to the untouched file, but for the cost-log wrappers, the wall-clock stop and the two named bounds (six edits, each once)',
+    editsOnce && sha(loop) === 'da3901889462ded41f1c90c57e9190eb3f59262b40905ceb12e72a59901e8d73', `${editsOnce} ${sha(loop)}`);
   ok('the charge and the citation split are byte-identical to the untouched file',
     sha(seg('    // 4. Record the charge', '    const result: ConstructionAnswerResult = {')) === '24c49c2e77b46fd5d059ab4db43ced89ccd2606e78a237a3111c5a3860fe4a0f');
   ok('it imports the code-card module', src.includes('import { requirementsFor, requirementsTimeoutFor, wantsCodeCards, type CodeRequirementOut, type RequirementsClient } from "./codeCardRequirements.ts";'));
@@ -935,8 +958,10 @@ console.log('\n9. construction-answer wiring');
   ok('requirements is set once, only inside the opt-in branch, after the result is built',
     gateAt > src.indexOf('const result: ConstructionAnswerResult = {') && setAt > gateAt && (src.match(/result\.requirements =/g) ?? []).length === 1
       && (src.match(/requirementsFor\(/g) ?? []).length === 1);
+  // cardsClient (2026-10-04, lane AICOST) is the same SDK client behind a logging
+  // wrapper, so the cards call writes its ai_call_log row; validate-ai-call-log A8 pins it.
   ok('…with the run\'s model, the question, the finished answer, the run\'s calc and only the time left',
-    /const cardsMs = requirementsTimeoutFor\(Date\.now\(\) - startedAt\);\n\s*result\.requirements = answer && cardsMs > 0\n\s*\? await requirementsFor\(client as unknown as RequirementsClient, MODEL, \{ question, answer, calc \}, cardsMs\)\n\s*: \[\];/.test(src));
+    /const cardsMs = requirementsTimeoutFor\(Date\.now\(\) - startedAt\);\n\s*result\.requirements = answer && cardsMs > 0\n\s*\? await requirementsFor\(cardsClient, MODEL, \{ question, answer, calc \}, cardsMs\)\n\s*: \[\];/.test(src));
   ok('…after the charge, the cap gate, the key check and the Business gate',
     setAt > src.indexOf('await aiUsageIncrement(auth.userId, "construction_answer");') && setAt > src.indexOf('if (used >= cap) {')
       && setAt > src.indexOf('if (!ANTHROPIC_API_KEY) {') && setAt > src.indexOf('requireTier(req, ["business"], "construction_answer")'));

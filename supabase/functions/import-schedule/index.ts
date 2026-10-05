@@ -41,6 +41,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { logGeminiCall } from "../_shared/aiCallLog.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = "gemini-2.5-flash";
@@ -201,13 +202,13 @@ function readBestGrid(bytes: Uint8Array): XlsxGrid {
 // ─── xlsx Gemini column detection + row materialization (metered step) ─────
 // Returns the import result plus `spent` — whether Gemini actually answered
 // (audit AI-F8: the handler charges the monthly unit only then).
-async function parseXlsx(grid: XlsxGrid): Promise<{ result: ScheduleImportResult; spent: boolean }> {
+async function parseXlsx(grid: XlsxGrid, userId: string): Promise<{ result: ScheduleImportResult; spent: boolean }> {
   const warnings: ScheduleImportWarning[] = [...grid.warnings];
   const { header, dataRows, truncated } = grid;
 
   // Ask Gemini to map header → schedule fields. On any failure, mapping=null
   // and the client asks the user to rename their headers and re-import.
-  const { mapping, spent } = await detectColumns(header, dataRows.slice(0, 5), warnings);
+  const { mapping, spent } = await detectColumns(header, dataRows.slice(0, 5), warnings, userId);
 
   // Materialize ImportedScheduleRow[] using the suggested mapping. Excel
   // sourceId uses 1-based numbering (i + 1) to match the task IDs that
@@ -259,6 +260,7 @@ async function detectColumns(
   header: string[],
   sample: unknown[][],
   warnings: ScheduleImportWarning[],
+  userId: string,
 ): Promise<{ mapping: ColumnMapping | null; spent: boolean }> {
   const promptText =
     `${MAP_SYSTEM_PROMPT}\n\nHeader row (0-based columns):\n${JSON.stringify(header)}\n\nSample data rows:\n${JSON.stringify(sample)}`;
@@ -269,7 +271,8 @@ async function detectColumns(
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   let geminiResp: Response;
   try {
-    geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    geminiResp = await logGeminiCall(null, { fn: "import-schedule", feature: "schedule_import", userId, model: MODEL }, async () => {
+      return await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -281,6 +284,7 @@ async function detectColumns(
         },
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     console.error(`[import-schedule] Gemini ${(e as Error).name === "AbortError" ? "timed out" : "network error"}`);
@@ -497,7 +501,7 @@ serve(async (req) => {
       }, 429);
     }
 
-    const { result, spent } = await parseXlsx(grid);
+    const { result, spent } = await parseXlsx(grid, auth.userId);
     if (spent) await aiUsageIncrement(auth.userId, "schedule_import");
     console.log(`[import-schedule] format=xlsx rows=${result.rows.length} cols=${result.rawColumns?.length ?? 0} charged=${spent}`);
     return jsonResponse(result);

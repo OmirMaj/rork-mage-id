@@ -44,6 +44,7 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
@@ -563,7 +564,8 @@ Return JSON only — no preamble.`;
   const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS);
   let geminiResp: Response;
   try {
-    geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    geminiResp = await logGeminiCall(null, { fn: 'analyze-photos', feature: meterKey, userId: auth.userId, model: MODEL, images: inlineImageCount(parts) }, async () => {
+      return await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -578,6 +580,7 @@ Return JSON only — no preamble.`;
         },
       }),
       signal: ac.signal,
+    });
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') {

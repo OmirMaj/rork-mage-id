@@ -31,6 +31,7 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { inlineImageCount, logGeminiCall } from "../_shared/aiCallLog.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 import {
@@ -313,11 +314,13 @@ async function callGemini(req: AnalyzeRequest, userId: string): Promise<{ data: 
     },
   };
 
-  const r = await fetchWithTimeout(`${geminiEndpoint(modelUsed)}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await logGeminiCall(null, { fn: 'analyze-drawings', feature: 'analyze_drawings', userId, model: modelUsed, images: inlineImageCount(body.contents[0]?.parts) }, async () => {
+    return await fetchWithTimeout(`${geminiEndpoint(modelUsed)}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }, VISION_TIMEOUT_MS);
+  });
   if (!r.ok) {
     const errText = await r.text().catch(() => '');
     throw new UpstreamError(`Gemini ${r.status}: ${errText.slice(0, 400)}`, false);

@@ -64,12 +64,23 @@
 // cards call only gets what is left of a 105 s budget from the handler's
 // start (the app gives up at 120 s), so it can never cost the prose answer.
 //
+// Limits + cost log (lane AICOST, 2026-10-04; limits.ts): an account may START
+// HOURLY_LIMIT answers per clock hour (429 hourly_limit; the limiter fails
+// closed, 503); the whole agentic run stops at ANSWER_STOP_MS of wall clock
+// (504 answer_timeout, NOT charged against the month, like every other run
+// that ends without an answer); the loop is MAX_ROUNDS model calls of at most
+// MAX_WEB_SEARCHES_PER_ROUND searches each. Every model call (each round, a
+// rejected task-budget attempt, the cards call) writes one public.ai_call_log
+// row through _shared/aiCallLog.ts, all sharing one request_id.
+//
 // Deploy:  supabase functions deploy construction-answer
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import Anthropic from "npm:@anthropic-ai/sdk@0.115.0";
-import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { logAnthropicSdkCall } from "../_shared/aiCallLog.ts";
+import { ANSWER_STOP_MS, HOURLY_LIMIT, MAX_ROUNDS, MAX_WEB_SEARCHES_PER_ROUND, answerStoppedBody, hourlyDecision, hourlyLimitBody, limiterUnavailableBody, stopMsLeft } from "./limits.ts";
 import { splitCitations, webCitationsFromTextBlocks, planSearchTerms } from "./citationFilter.ts";
 import { requirementsFor, requirementsTimeoutFor, wantsCodeCards, type CodeRequirementOut, type RequirementsClient } from "./codeCardRequirements.ts";
 
@@ -79,7 +90,6 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("ANON_KEY") |
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 
 const MODEL = "claude-opus-4-8";
-const MAX_ITERATIONS = 8;
 
 const H: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -706,6 +716,10 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
   if (req.method !== "POST") return jsonResp({ error: "Use POST" }, 405);
 
+  // The wall-clock stop for the agentic run (limits.ts ANSWER_STOP_MS). Aborted
+  // = the run was stopped; the catch below answers 504 answer_timeout.
+  const stop = new AbortController();
+
   try {
     // 1. Tier gate BEFORE any Anthropic call. Business+ (min-rank: enterprise
     //    auto-passes). On failure return requireTier's own 4xx body.
@@ -765,13 +779,24 @@ serve(async (req: Request) => {
       }, 429);
     }
 
+    // 3c. Hourly limit, per account, BEFORE any Anthropic call. One slot per
+    //     run that is about to start (a capped, malformed or unconfigured
+    //     request above never spends one). rateLimitCount returns the count
+    //     AFTER this request, or -1 when the limiter is down: fail CLOSED.
+    const hourly = hourlyDecision(await rateLimitCount(`construction-answer:user:${auth.userId}`), HOURLY_LIMIT);
+    if (hourly === "unavailable") return jsonResp(limiterUnavailableBody(), 503);
+    if (hourly === "limited") return jsonResp(hourlyLimitBody(HOURLY_LIMIT), 429);
+
+    // One ai_call_log row per model call; every call of this request shares requestId.
+    const callMeta = { fn: "construction-answer", feature: "construction_answer", userId: auth.userId, model: MODEL, requestId: crypto.randomUUID() };
+
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
     // Tools: Anthropic's server-side web_search + our custom tools. Do NOT also
     // declare a code_execution tool — the _20260209 web tool runs code-exec
     // internally, and a second one confuses the model.
     const tools: any[] = [
-      { type: "web_search_20260209", name: "web_search", max_uses: 5 },
+      { type: "web_search_20260209", name: "web_search", max_uses: MAX_WEB_SEARCHES_PER_ROUND },
       ...CUSTOM_TOOLS,
     ];
 
@@ -802,27 +827,36 @@ serve(async (req: Request) => {
       };
       if (useTaskBudget) {
         try {
-          const stream = await client.beta.messages.stream({
+          return await logAnthropicSdkCall(null, callMeta, () => client.beta.messages.stream({
             ...baseParams,
             output_config: { effort: "high", task_budget: { type: "tokens", total: 40000 } },
             betas: ["task-budgets-2026-03-13"],
-          });
-          return await stream.finalMessage();
+          }, { signal: stop.signal }).finalMessage());
         } catch (e) {
+          // The wall-clock stop is not a rejected beta: no second attempt.
+          if (stop.signal.aborted) throw e;
           // Beta/param not accepted — fall back for this and every later call.
           console.error("[construction-answer] task_budget rejected, falling back:", e instanceof Error ? e.message : String(e));
           useTaskBudget = false;
         }
       }
       baseParams.output_config = { effort: "high" };
-      const stream = await client.messages.stream(baseParams);
-      return await stream.finalMessage();
+      return await logAnthropicSdkCall(null, callMeta, () => client.messages.stream(baseParams, { signal: stop.signal }).finalMessage());
     }
 
     let msg: any = null;
     let hitCap = false;
 
-    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    // Hard stop for the whole run: the timer aborts a model call in flight,
+    // and no new round starts once the time is spent. Cleared when the loop
+    // ends, so the cards call below keeps its own (105 s) budget.
+    const stopTimer = setTimeout(() => stop.abort(), Math.max(0, stopMsLeft(startedAt, Date.now(), ANSWER_STOP_MS)));
+    try {
+    for (let iter = 0; iter < MAX_ROUNDS; iter++) {
+      if (stop.signal.aborted || stopMsLeft(startedAt, Date.now(), ANSWER_STOP_MS) <= 0) {
+        stop.abort();
+        throw new Error("answer stopped at the wall clock");
+      }
       msg = await runOnce();
 
       // Accumulate web-search results from THIS assistant turn. These are what
@@ -927,7 +961,10 @@ serve(async (req: Request) => {
 
       messages.push({ role: "user", content: toolResults });
 
-      if (iter === MAX_ITERATIONS - 1) hitCap = true;
+      if (iter === MAX_ROUNDS - 1) hitCap = true;
+    }
+    } finally {
+      clearTimeout(stopTimer);
     }
 
     // Extract the final assistant text.
@@ -972,14 +1009,28 @@ serve(async (req: Request) => {
     // 120 s), capped at 25 s; under 8 s left it is skipped, so a long run
     // still returns its prose in time, with requirements: [].
     if (wantsCodeCards(body)) {
+      // The cards call, logged like every other model call of this request.
+      const cardsClient: RequirementsClient = {
+        messages: {
+          create: (params, options) =>
+            logAnthropicSdkCall(null, { ...callMeta, feature: "construction_answer_cards" }, () => (client as unknown as RequirementsClient).messages.create(params, options)),
+        },
+      };
       const cardsMs = requirementsTimeoutFor(Date.now() - startedAt);
       result.requirements = answer && cardsMs > 0
-        ? await requirementsFor(client as unknown as RequirementsClient, MODEL, { question, answer, calc }, cardsMs)
+        ? await requirementsFor(cardsClient, MODEL, { question, answer, calc }, cardsMs)
         : [];
     }
 
     return jsonResp(result);
   } catch (err) {
+    // The wall-clock stop tripped: a typed "took too long", nothing charged
+    // (the monthly increment sits after the loop, so no run that ends without
+    // an answer is ever charged; the hourly slot it used stays used).
+    if (stop.signal.aborted) {
+      console.error("[construction-answer] stopped at the wall clock");
+      return jsonResp(answerStoppedBody(), 504);
+    }
     // Never hang — always return JSON. Do NOT leak the API key or internals.
     console.error("[construction-answer] error:", err instanceof Error ? err.message : String(err));
     return jsonResp({ error: "Internal error" }, 500);
