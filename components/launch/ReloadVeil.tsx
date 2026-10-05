@@ -5,7 +5,7 @@
 // loader OVER the mounted Stack (navMode 'stack+overlay', see
 // utils/deepLinksInvite.rootNavPresentation). A data reload is not a brand
 // moment, so the picture is the plain ScreenLoader — the theme ground and the
-// 64 pt level, no wordmark (it used to be the "MAGE ID" crane loader). Its
+// level at the launch mark's width (screenLevelW), no wordmark (it used to be the "MAGE ID" crane loader). Its
 // reveal delay is 0: the veil owns the grace and the fades.
 //   - it blocks input from the first frame, exactly as before;
 //   - it only becomes VISIBLE if the reload is still running after

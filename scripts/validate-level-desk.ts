@@ -7,9 +7,12 @@
  *
  * WHY. The founder: "the loading animation is so tiny on monitor and laptop
  * screens". The fix is a wide-canvas composition (a proportional level on a
- * datum) that must NEVER leak onto the phone: every native platform at any
- * width, and the web below 768 px, renders exactly what it did. These rules
- * hold both halves:
+ * datum) whose DATUM, wordmark and launch rect must never leak onto the phone
+ * (every native platform at any width, and the web below 768 px). The
+ * founder again, 2026-10-04: "after logging in the loading screen is a very
+ * small level" — so the full-screen gate's level is no longer a fixed width
+ * anywhere: ONE rule, screenLevelW, draws it as wide as the launch mark for the
+ * same window (rule E2). These rules hold all of it:
  *
  *  A. Tiers: one pure function of (width, platform); native is always 'phone'.
  *  B. Launch sizes: the spec's sample table; markH = markW·30/438; centred;
@@ -18,8 +21,12 @@
  *  C. The wordmark box per tier; its clearance over the level.
  *  D. The datum: gutters, symmetry, inner ends, the centre line, ≥ 150 px.
  *  E. Desk geometry: identical to levelGeometry ≤ 120; monotonic with a real
- *     clearance 120…240; the 160 / 200 / 240 rows; levelPartsDesk ≡ levelParts
- *     wherever the phone draws.
+ *     clearance 120…240; the 160 / 200 / 240 rows; past 240 the 240 row in
+ *     proportion to 640; levelPartsDesk ≡ levelParts for every width ≤ 120.
+ *  E2. The full-screen gate: screenLevelW = round(launchRect.markW) inside
+ *     120…640 for every window and platform; never the old fixed 64 / 160 /
+ *     200 / 240; ScreenLoader draws it in BOTH branches and names no literal
+ *     width.
  *  F. Source pins (comment-stripped) in the hosts: the phone expressions are
  *     still there, the desk override is additive, no new timer / value /
  *     timing, the datum only on the desk, the wordmark style never an array.
@@ -231,8 +238,27 @@ const A = D.LEVEL_DESK_ANCHORS;
   check('E every integer 120…240: MONOTONIC; CLEARANCE ≥ 1.5 px and ≥ 10 % of the width (the bubble never crowds the caps); caps + grads, XL',
     bad.length === 0, bad.slice(0, 4).join(' | '));
 }
-check('E > 240 clamps to 240', JSON.stringify(D.levelGeometryDesk(300)) === JSON.stringify(D.levelGeometryDesk(240))
-  && JSON.stringify(D.levelGeometryDesk(1e6)) === JSON.stringify(D.levelGeometryDesk(240)));
+{
+  // Past the last anchor row the 240 row scales in proportion (so a gate as
+  // wide as the launch mark is the same picture, not a 240 mark in a big box).
+  const g240 = D.levelGeometryDesk(240);
+  const bad: string[] = [];
+  for (let w = 241; w <= 640; w++) {
+    const g = D.levelGeometryDesk(w);
+    const k = w / 240;
+    const pairs: [string, number, number][] = [['boxW', g.boxW, w], ['boxH', g.boxH, g240.boxH * k], ['bubbleW', g.bubble.w, g240.bubble.w * k],
+      ['bubbleH', g.bubble.h, g240.bubble.h * k], ['bubbleX', g.bubble.x, g240.bubble.x * k], ['amp', g.amp, g240.amp * k], ['trackH', g.track.h, g240.track.h * k],
+      ['trackW', g.track.w, g240.track.w * k], ['capH', g.caps!.h, g240.caps!.h * k], ['capW', g.caps!.w, g240.caps!.w * k], ['capXR', g.caps!.xR, g240.caps!.xR * k],
+      ['gradW', g.grads!.w, g240.grads!.w * k], ['gradH', g.grads!.h, g240.grads!.h * k], ['gradXL', g.grads!.xL, g240.grads!.xL * k]];
+    for (const [name, got, want] of pairs) if (!near(got, want, 1e-6)) bad.push(`${w}: ${name} ${got} ≠ ${want}`);
+    if (g.cls !== 'XL' || g.track.opacity !== 0.25 || g.grads!.opacity !== 0.55 || g.stretch !== g240.stretch || g.squash !== g240.squash) bad.push(`${w}: class / opacities / stretch`);
+  }
+  check('E past 240 every part is the 240 row × width / 240, for every integer 241…640 (LEVEL_DESK_SCALE_MAX_W 640)',
+    bad.length === 0 && D.LEVEL_DESK_SCALE_MAX_W === 640, bad.slice(0, 4).join(' | '));
+  check('E > 640 clamps to 640 (and Infinity)', JSON.stringify(D.levelGeometryDesk(700)) === JSON.stringify(D.levelGeometryDesk(640))
+    && JSON.stringify(D.levelGeometryDesk(1e6)) === JSON.stringify(D.levelGeometryDesk(640))
+    && JSON.stringify(D.levelGeometryDesk(Infinity)) === JSON.stringify(D.levelGeometryDesk(640)) && D.levelGeometryDesk(640).boxW === 640);
+}
 // [w, bubbleW, bubbleH, amp, trackH, capH, gradW, gradH, gradOffset, clearance]
 const DESK_ROWS: number[][] = [
   [160, 24, 9, 38.67, 2.67, 12.67, 1.33, 8, 13.76, 26.67],
@@ -263,8 +289,47 @@ for (const [w, bw, bh, amp, th, ch, gw, gh, off, clr] of DESK_ROWS) {
     && p.grads != null && p.hasLvl && p.trackOpacity === 0.25 && p.gradOpacity === 0.55 && p.capOpacity === 1 && !p.splash
     && D.levelPartsDesk(200, 'muted').trackOpacity === 0.3 && D.levelPartsDesk(200, 'onAccent').trackOpacity === 0.35);
 }
-check('E deskScreenLevelW: phone 64, tablet 160, laptop 200, monitor 240', D.deskScreenLevelW('phone') === 64 && D.deskScreenLevelW('tablet') === 160
-  && D.deskScreenLevelW('laptop') === 200 && D.deskScreenLevelW('monitor') === 240);
+// ── E2. The full-screen gate's ONE sizing rule ───────────────────────────────
+{
+  const SL = D.SCREEN_LEVEL;
+  check('E2 SCREEN_LEVEL = 120…640 (640 = the widest launch mark, DESK_SPLASH.monitor.maxPx)', SL.minPx === 120 && SL.maxPx === 640 && SL.maxPx === SPLASH.monitor.maxPx);
+  // [W, H, platform, expected width]
+  const ROWS: [number, number, string, number][] = [
+    [390, 844, 'ios', 167], [430, 932, 'ios', 184], [320, 568, 'ios', 137], [412, 915, 'android', 176], [844, 390, 'ios', 167],
+    [390, 844, 'web', 167], [767, 1024, 'web', 240], [768, 1024, 'web', 240], [1280, 800, 'web', 360], [1440, 900, 'web', 403],
+    [1512, 945, 'web', 423], [1920, 1080, 'web', 480], [2560, 1440, 'web', 640], [3840, 2160, 'web', 640],
+  ];
+  const off = ROWS.filter(([W, H, p, w]) => D.screenLevelW(W, H, p) !== w).map(([W, H, p, w]) => `${p} ${W}×${H}: ${D.screenLevelW(W, H, p)} ≠ ${w}`);
+  check('E2 screenLevelW sample table: iPhone 390 → 167, 430 → 184, web 768 → 240, 1512 → 423, 2560 → 640', off.length === 0, off.join(' | '));
+  const bad: string[] = [];
+  for (const p of ['ios', 'android', 'web']) {
+    for (const H of [480, 844, 1024, 1440]) {
+      let prev = 0;
+      for (let W = 280; W <= 3840; W += 1) {
+        const v = D.screenLevelW(W, H, p);
+        const launch = (D.launchRect(W, H, p) as Rect).markW;
+        const want = Math.min(SL.maxPx, Math.max(SL.minPx, Math.round(launch)));
+        if (v !== want) bad.push(`${p} ${W}×${H}: ${v} ≠ the launch mark ${launch.toFixed(2)}`);
+        if (!Number.isInteger(v) || v < SL.minPx || v > SL.maxPx) bad.push(`${p} ${W}×${H}: ${v} outside ${SL.minPx}…${SL.maxPx}`);
+        if (v < prev) bad.push(`${p} ${W}×${H}: falls ${prev} → ${v}`);
+        // Within the clamp it IS the launch mark (the hand-off never changes size by more than the rounding).
+        if (launch >= SL.minPx && launch <= SL.maxPx && Math.abs(v - launch) > 0.5) bad.push(`${p} ${W}×${H}: ${v} is ${Math.abs(v - launch).toFixed(2)} off the launch mark`);
+        prev = v;
+      }
+    }
+  }
+  check('E2 every W 280…3840 × H 480/844/1024/1440 × ios/android/web: screenLevelW = round(launchRect.markW) held in 120…640, an integer, non-decreasing in W, within 0.5 px of the launch mark',
+    bad.length === 0, bad.slice(0, 4).join(' | '));
+  const small: string[] = [];
+  for (const [W, H, p] of [[390, 844, 'ios'], [430, 932, 'ios'], [390, 844, 'web'], [1512, 945, 'web'], [1920, 1080, 'web']] as [number, number, string][]) {
+    const v = D.screenLevelW(W, H, p);
+    if (v / W < 0.25) small.push(`${p} ${W}: ${(100 * v / W).toFixed(1)} % of the width`);
+  }
+  check('E2 not a speck: the gate\'s level is ≥ 25 % of the window width on an iPhone, a web phone, a laptop and a monitor (it was 16 % / 13 %)', small.length === 0, small.join(' | '));
+  check('E2 a window with no size yet (NaN / 0) still gets a level: the 120 minimum', D.screenLevelW(NaN, NaN, 'ios') === 120 && D.screenLevelW(0, 0, 'web') === 120);
+  check('E2 the retired per-tier widths are gone (no deskScreenLevelW, no DESK_SCREEN.*.levelW)', D.deskScreenLevelW === undefined
+    && (['tablet', 'laptop', 'monitor'] as const).every((t) => !('levelW' in D.DESK_SCREEN[t])));
+}
 check('E DESK_SCREEN captions: footnoteEmphasized 12/320, headline 20/480 ×2', D.DESK_SCREEN.tablet.caption === 'footnoteEmphasized'
   && D.DESK_SCREEN.tablet.captionGap === 12 && D.DESK_SCREEN.tablet.captionMaxW === 320 && D.DESK_SCREEN.laptop.caption === 'headline'
   && D.DESK_SCREEN.laptop.captionGap === 20 && D.DESK_SCREEN.laptop.captionMaxW === 480 && D.DESK_SCREEN.monitor.caption === 'headline');
@@ -329,19 +394,25 @@ for (const [f, base] of Object.entries(BASE_COUNTS)) {
   const at = s.indexOf("if (tier === 'phone')");
   const ret = at >= 0 ? s.indexOf('return (', at) : -1;
   const phone = ret >= 0 ? group(s, s.indexOf('(', ret)) : '';
-  check("F ScreenLoader: the `if (tier === 'phone')` return keeps today's JSX — <LevelMark size={64} …> and the footnote caption",
-    phone.includes('<LevelMark size={64} revealDelayMs={revealDelayMs} done={done} exit="settle" onSettled={onSettled} />')
+  check("F ScreenLoader: the `if (tier === 'phone')` return is the level at the rule's width — <LevelMark desk size={levelW} …> — and the footnote caption, no datum",
+    phone.includes('<LevelMark desk size={levelW} revealDelayMs={revealDelayMs} done={done} exit="settle" onSettled={onSettled} />')
     && phone.includes('Type.footnoteEmphasized, styles.caption') && phone.includes('styles.root, { backgroundColor: colors.bg }, style, { opacity: ground }')
-    && !/DatumSegment|desk/.test(phone), phone.slice(0, 120));
+    && !/DatumSegment|deskFadeStyle|deskGutter|styles\.desk/.test(phone), phone.slice(0, 120));
   const rest = at >= 0 ? s.slice(at + 'if (tier === \'phone\')'.length + phone.length) : '';
-  check('F ScreenLoader: the desk branch passes desk and size={levelW} from deskScreenLevelW(tier)',
-    /const levelW = deskScreenLevelW\(tier\);/.test(rest) && /<LevelMark\s+desk\s+size=\{levelW\}/.test(rest));
+  check('F ScreenLoader: the desk branch passes desk and size={levelW}', /<LevelMark\s+desk\s+size=\{levelW\}/.test(rest));
+  const ruleAt = s.indexOf('const levelW = screenLevelW(width, height, Platform.OS);');
+  check('F ScreenLoader: ONE width, from the one rule, before the tier branch — const levelW = screenLevelW(width, height, Platform.OS)',
+    ruleAt > 0 && ruleAt < at && count(s, 'levelW =') === 1 && count(s, 'screenLevelW(') === 1);
+  const sizes = [...s.matchAll(/<LevelMark\b[^>]*?\bsize=\{([^}]*)\}/g)].map((m) => m[1]);
+  check('F ScreenLoader: both <LevelMark>s take size={levelW} — no literal width in the file', sizes.length === 2 && sizes.every((v) => v === 'levelW')
+    && !/\bsize=\{\s*\d/.test(s), sizes.join(','));
   check('F ScreenLoader: the desk datum is the theme\'s textMuted at DESK_DATUM.themeOpacity, testIDs -datum-l / -datum-r',
     /color=\{colors\.textMuted\}/.test(rest) && /opacity=\{DESK_DATUM\.themeOpacity\}/.test(rest)
     && rest.includes('testID={`${testID}-datum-l`}') && rest.includes('testID={`${testID}-datum-r`}'));
   check('F ScreenLoader: the desk companions fade with the level (deskFadeStyle)', /deskFadeStyle\(revealDelayMs, done, reduce\)/.test(rest));
   check('F ScreenLoader: every hook is called before the tier branch', at > 0 && ['useTheme()', 'useLevelReveal(revealDelayMs', 'useLevelReveal(0', 'useWindowDimensions()', 'useReducedMotion()']
-    .every((h) => { const i = s.indexOf(h); return i > 0 && i < at; }) && !/use[A-Z]\w*\(/.test(rest));
+    .every((h) => { const i = s.indexOf(h); return i > 0 && i < at; }) && !/use[A-Z]\w*\(/.test(rest)
+    && s.includes('const { width, height } = useWindowDimensions();'));
 }
 for (const f of ['components/loaders/LevelMark.tsx', 'components/loaders/LevelMarkWeb.tsx']) {
   const s = code(read(f));

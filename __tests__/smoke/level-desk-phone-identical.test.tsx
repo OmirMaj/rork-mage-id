@@ -21,6 +21,15 @@
  *           move by a pixel below 768.
  * Each under Reduce Motion off and on.
  *
+ * ONE NAMED DELTA SINCE (2026-10-04, the founder: "after logging in the loading
+ * screen is a very small level"): ScreenLoader's level is no longer the fixed
+ * 64 pt — it is drawn at the launch mark's width for the window
+ * (utils/levelDesk screenLevelW: 168 at 393, 438 on the 1366×1024 window, 342
+ * on 1280×800, 167 on the 390 web, 240 on the 767 web). The 20 ScreenLoader
+ * snapshots were re-recorded for that and nothing else (the level's box and
+ * its parts; the ground, the caption and the a11y props are unchanged); the
+ * BrandSplash and BootShell snapshots are the c5cf89fb recordings, untouched.
+ *
  * Clocks pinned: fake timers, Date.now at the web level epoch (the CSS phase is
  * read from it), so nothing in a snapshot depends on when the suite runs.
  */

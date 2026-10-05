@@ -128,13 +128,13 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
   },
   'gemini-2.5-pro': {
     label: 'Pro takeoff',
-    tagline: 'Slower and more careful. Reads schedules and unclear areas more reliably.',
+    tagline: 'A slower model with room for a longer answer, for sets with long schedules.',
   },
   'claude-sonnet-4-5': {
     // Capability-tier name, NOT the vendor model name — user-facing copy
     // never name-drops the underlying provider (sim-audit #10).
     label: 'Max takeoff',
-    tagline: 'Highest accuracy on stamped or marked-up scans. Enterprise plan.',
+    tagline: 'A different model, for stamped or marked-up scans. Enterprise plan.',
   },
 };
 
@@ -915,7 +915,7 @@ function TakeoffInner() {
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Takeoff depth</Text>
               <Text style={styles.cardHelper}>
-                Standard reads schedules + dimensions on clean drawings. Pro Takeoff is more careful on ambiguous areas — better when wall heights aren&apos;t fully dimensioned.
+                Standard is the fast model. Pro takeoff is a slower model with room for a longer answer. Both follow the same instructions and flag wall heights that aren&apos;t dimensioned.
               </Text>
               <View style={styles.modelRow}>
                 <ModelOption
@@ -945,7 +945,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Pro takeoff is on the Business plan. Max takeoff (highest accuracy on stamped scans) is on the Enterprise plan.
+                    Pro takeoff is on the Business plan. Max takeoff (a different model, for stamped scans) is on the Enterprise plan.
                   </Text>
                 </View>
               )}
@@ -953,7 +953,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Max takeoff (highest accuracy on stamped and marked-up scans) is on the Enterprise plan.
+                    Max takeoff (a different model, for stamped and marked-up scans) is on the Enterprise plan.
                   </Text>
                 </View>
               )}
@@ -1602,12 +1602,12 @@ function ResultView({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business plan · Pro takeoff</Text>
-              <Text style={styles.teaserTitle}>Want sharper counts on this set?</Text>
+              <Text style={styles.teaserTitle}>Try a slower model on this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
           <Text style={styles.teaserBody}>
-            Pro takeoff reads schedules more reliably, flags unclear wall heights as concerns, and leaves unlabeled areas out, so counts hold up when plans are incomplete.
+            Pro takeoff uses a slower model with room for a longer answer, which matters on sets with long door, window and finish schedules. Every level flags wall heights that are not dimensioned as concerns.
           </Text>
           <View style={styles.teaserCta}>
             <Text style={styles.teaserCtaText}>See Business plan</Text>

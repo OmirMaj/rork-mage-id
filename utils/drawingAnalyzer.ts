@@ -55,9 +55,10 @@ export interface DrawingAnalysisResult {
   confidenceExplanation: string;
 }
 
-// Pro Estimator is gated to Business tier — head-to-head testing showed
-// Pro catching $500K+ of scope Flash missed on a 15-sheet roof set. That
-// accuracy delta is the upgrade hook for Business. Pro-tier subscribers
+// Pro Estimator is gated to Business tier. What differs in the code is the
+// model (gemini-2.5-pro vs flash) and the output budget (32768 vs 16384
+// tokens, supabase/functions/analyze-drawings); the prompt is the same, and
+// no accuracy comparison is on file, so the copy claims none. Pro-tier subscribers
 // get Standard (Flash); Business unlocks Pro Estimator.
 export type AnalyzerModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
 
@@ -69,7 +70,7 @@ export const MODEL_DISPLAY: Record<AnalyzerModel, { label: string; tagline: stri
   },
   'gemini-2.5-pro': {
     label: 'Pro Estimator',
-    tagline: 'Deeper reasoning · catches scope Standard misses',
+    tagline: 'A slower model with room for a longer answer',
     tier: 'business',
   },
 };

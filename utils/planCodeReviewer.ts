@@ -56,7 +56,7 @@ export interface PlanCodeResult {
 }
 
 export const PLAN_REVIEW_DISCLAIMER =
-  'AI pre-check — verify each finding against your local code official. Not a substitute for plan review.';
+  'AI pre-check, not a plan review. Not a substitute for the adopted code. Confirm with your building department.';
 
 function mimeFromExt(uri: string): string {
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';

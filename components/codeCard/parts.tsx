@@ -75,7 +75,7 @@ export function ConfirmBlock({ line, sunlight, testID }: { line: string; sunligh
     <View style={styles.confirm} testID={testID}>
       <Building2 size={20} color={P.ink} strokeWidth={1.9} />
       <View style={styles.confirmText}>
-        <Text style={styles.confirmHead}>Confirm with your building department.</Text>
+        <Text style={styles.confirmHead}>Not a substitute for the adopted code. Confirm with your building department.</Text>
         {line ? <Text style={styles.confirmLine}>{line}</Text> : null}
       </View>
     </View>

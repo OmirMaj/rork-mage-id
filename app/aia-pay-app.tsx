@@ -1940,7 +1940,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>
         <FeatureHeader
           eyebrow="AIA-style G702 / G703"
-          title="Bill the bank"
+          title="Bill for this period"
           subtitle="Turn your % complete into a draft AIA-style pay application. Fills in the contract sum, retainage and schedule of values."
           explainer={{
             term: 'AIA-style pay app',

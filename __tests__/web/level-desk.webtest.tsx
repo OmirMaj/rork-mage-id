@@ -14,8 +14,9 @@
  *     follows light / dark: a dark OS (or an in-app dark choice, the theme-boot
  *     data-theme tag) opens on WEB_LAUNCH_DARK, an in-app light choice on a
  *     dark OS stays light;
- *   - ScreenLoader: a 200 px level with a theme datum on a laptop (light and
- *     dark), today's 64 px picture and no datum at 390;
+ *   - ScreenLoader: the level at the launch mark's width (screenLevelW) — 403 px
+ *     with a theme datum on a 1440 laptop (light and dark), 167 px and no datum
+ *     at 390, 640 px on a 2560 monitor;
  *   - Reduce Motion: the bubble breathes (no drift), the splash datum stays 0.
  */
 
@@ -299,12 +300,12 @@ describe('the web launch follows light / dark (no light flash before the dark ap
 describe('ScreenLoader (the full-screen gate)', () => {
   const muted = { light: Theme.light.textMuted, dark: Theme.dark.textMuted };
 
-  it.each([['light', false], ['dark', true]] as const)('1440 laptop, %s: a 200 px level on a theme datum (textMuted × 0.3)', (name, dark) => {
+  it.each([['light', false], ['dark', true]] as const)('1440 laptop, %s: a 403 px level (the launch mark\'s width) on a theme datum (textMuted × 0.3)', (name, dark) => {
     mockDark = dark;
     setWindow(1440, 900);
     const m = mount(<ScreenLoader caption="Loading" />);
     const mark = byId(m.host, 'level-mark')!;
-    expect(px(mark.style.width)).toBe(200);
+    expect(px(mark.style.width)).toBe(403);
     for (const id of ['screen-loader-datum-l', 'screen-loader-datum-r']) {
       const seg = byId(m.host, id)!;
       expect(seg).not.toBeNull();
@@ -317,19 +318,19 @@ describe('ScreenLoader (the full-screen gate)', () => {
     m.done();
   });
 
-  it('390 web phone: today\'s 64 px level, no datum', () => {
+  it('390 web phone: a 167 px level (the launch mark\'s width, not the old 64), no datum', () => {
     setWindow(390, 844);
     const m = mount(<ScreenLoader />);
-    expect(px(byId(m.host, 'level-mark')!.style.width)).toBe(64);
+    expect(px(byId(m.host, 'level-mark')!.style.width)).toBe(167);
     expect(byId(m.host, 'screen-loader-datum-l')).toBeNull();
     expect(byId(m.host, 'screen-loader-datum-r')).toBeNull();
     m.done();
   });
 
-  it('2560 monitor: a 240 px level', () => {
+  it('2560 monitor: a 640 px level', () => {
     setWindow(2560, 1440);
     const m = mount(<ScreenLoader />);
-    expect(px(byId(m.host, 'level-mark')!.style.width)).toBe(240);
+    expect(px(byId(m.host, 'level-mark')!.style.width)).toBe(640);
     m.done();
   });
 });
