@@ -70,7 +70,10 @@ jest.mock('@/contexts/SubscriptionContext', () => ({ useSubscription: () => ({ t
 let mockSeeds: unknown[] = [];
 jest.mock('@/hooks/useCostSeeds', () => ({ useCostSeeds: () => ({ seeds: mockSeeds, isLoading: false }) }));
 let mockContracts: { data: string[] | undefined; isError: boolean; isFetching: boolean } = { data: [], isError: false, isFetching: false };
-jest.mock('@tanstack/react-query', () => ({ useQuery: () => ({ ...mockContracts, refetch: async () => {} }) }));
+const mockUseQuery = jest.fn();
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: (o: { enabled: boolean }) => { mockUseQuery(o.enabled); return { ...mockContracts, dataUpdatedAt: 0, refetch: async () => {} }; },
+}));
 jest.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,
   supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }) } },
@@ -152,6 +155,7 @@ beforeEach(() => {
   mockPush.mockClear();
   mockTrack.mockClear();
   mockStartTutorial.mockClear();
+  mockUseQuery.mockClear();
   mockCtx = {
     projects: [], userRole: 'contractor', settings: { branding: { companyName: '' } }, dailyReports: [],
     projectsLoaded: true, settingsLoaded: true, invoicesLoaded: true, dailyReportsLoaded: true,
@@ -172,6 +176,16 @@ describe('S1 the opening question', () => {
     expect(r.getByText('Not Sure. Show Me The Usual Order')).toBeTruthy();
     expect(r.getByTestId('first-job-ring-text').props.children).toBe('0 of 7');
     expect(r.queryByTestId('first-job-path')).toBeNull();
+  });
+
+  it('the proposal read is not asked before he is on the path with a real project', async () => {
+    mockCtx = { ...mockCtx, projects: [REAL_JOB] };
+    const r = await mount({ projectCount: 1 });
+    expect(r.getByTestId('first-job-question')).toBeTruthy();
+    expect(mockUseQuery.mock.calls.every((c) => c[0] === false)).toBe(true);
+    fireEvent.press(r.getByTestId('first-job-answer-unsure'));
+    await flush();
+    expect(mockUseQuery.mock.calls.some((c) => c[0] === true)).toBe(true);
   });
 
   it('answering shows the path: that answer\'s step first, all seven there, one open', async () => {

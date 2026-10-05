@@ -159,8 +159,10 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
   const reduce = useReducedMotion();
 
   // ── Done comes only from the account's data ──
+  // The proposal read is only asked once he is on the path: before the
+  // question is answered no step is drawn, so there is nothing for it to tick.
   const { signals, projects } = useFirstJobSignals({
-    active: true,
+    active: stored.answer !== null,
     estimateCount,
     invoiceCount,
     realProjectCount,

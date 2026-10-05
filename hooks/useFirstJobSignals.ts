@@ -38,13 +38,15 @@ export interface FirstJobSignalsResult {
   projects: FirstJobProject[];
 }
 
+const SENT_RECHECK_MS = 60 * 1000;
+
 function stamp(p: { updatedAt?: string; createdAt?: string }): number {
   const t = Date.parse(p.updatedAt ?? '') || Date.parse(p.createdAt ?? '') || 0;
   return Number.isFinite(t) ? t : 0;
 }
 
 export function useFirstJobSignals(a: {
-  /** False while the card is not on screen for this account: no proposal read is made. */
+  /** False until he is on the path (the question is answered): no proposal read is made before that. */
   active: boolean;
   estimateCount: number;
   invoiceCount: number;
@@ -97,13 +99,16 @@ export function useFirstJobSignals(a: {
   const contractsQ = useQuery({
     queryKey: ['firstJobSentContracts', userId],
     enabled: contractsEnabled,
-    staleTime: 60 * 1000,
+    staleTime: SENT_RECHECK_MS,
     queryFn: fetchSentContractProjectIds,
   });
+  // Asked again when Home comes back into view (he may have just sent one),
+  // but not more than once a minute.
   const refetchContracts = contractsQ.refetch;
+  const contractsAt = contractsQ.dataUpdatedAt;
   useFocusEffect(useCallback(() => {
-    if (contractsEnabled) void refetchContracts();
-  }, [contractsEnabled, refetchContracts]));
+    if (contractsEnabled && Date.now() - (contractsAt || 0) > SENT_RECHECK_MS) void refetchContracts();
+  }, [contractsEnabled, contractsAt, refetchContracts]));
   const sentContractCount = useMemo(
     () => (contractsQ.data ?? []).filter((id) => realIds.has(id)).length,
     [contractsQ.data, realIds],

@@ -397,6 +397,10 @@ function wiringChecks(files: Files): Check[] {
     /if \(projectName != null && isSampleProjectName\(projectName\)\) return;/.test(store));
   ok('data-only', 'a failed proposal read throws (so it is "could not check", not "none")',
     /if \(error\) throw new Error\(error\.message\);/.test(store) && /contractsQ\.isError && !contractsQ\.isFetching \? 'failed'/.test(signals));
+  ok('quiet', 'the proposal read waits until he is on the path, and is re-asked at most once a minute',
+    /active: stored\.answer !== null,/.test(card)
+    && /const contractsEnabled = a\.active && !!userId && projectsLoaded && real\.length > 0 && !sentElsewhere;/.test(signals)
+    && /if \(contractsEnabled && Date\.now\(\) - \(contractsAt \|\| 0\) > SENT_RECHECK_MS\) void refetchContracts\(\);/.test(signals));
   ok('data-only', 'practising a tutorial starts the tutorial and touches nothing else',
     /void startTutorial\(openShowMe\.tutorialId, \{ entry: 'checklist' \}\);/.test(card));
 
@@ -679,6 +683,7 @@ const MUTATIONS: Mutation[] = [
   { name: 'the store writes a key of its own', rule: 'storage', file: sub('store', 'await AsyncStorage.setItem(firstJobStateKey(userId), serializeStored(state));', "await AsyncStorage.setItem('first_job', serializeStored(state));") },
   { name: 'the store clears all of storage', rule: 'storage', file: sub('store', 'sentListeners.forEach((fn) => fn());', 'sentListeners.forEach((fn) => fn());\n    await AsyncStorage.clear();') },
   // quiet / look
+  { name: 'the proposal read is asked on every visit, for everyone', rule: 'quiet', file: sub('card', 'active: stored.answer !== null,', 'active: true,') },
   { name: 'a pop-up is added', rule: 'quiet', file: sub('card', "import * as Haptics from 'expo-haptics';", "import * as Haptics from 'expo-haptics';\nimport { showAlert } from '@/utils/alert';") },
   { name: 'a colour is hard-coded', rule: 'look', file: sub('views', 'stageNow: { borderColor: t.accent },', "stageNow: { borderColor: '#2F6B3A' },") },
   { name: 'a string is typed straight into the card', rule: 'look', file: sub('views', '<Text style={styles.ghostTextQuiet}>{copy.skipLabel}</Text>', '<Text style={styles.ghostTextQuiet}>Skip</Text>') },
