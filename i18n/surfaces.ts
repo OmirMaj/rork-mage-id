@@ -244,6 +244,10 @@ export const SURFACES: Surface[] = [
   // string lives in the one copy hook. Complete: each key has Spanish
   // (i18n/catalog/es/office/firstJob.ts), and validate-i18n fails without it.
   { id: 'office.first-job', phase: 2, state: 'complete', keyPrefixes: ['office.firstJob.'], files: ['hooks/useFirstJobCopy.ts'], lane: 'FIRSTJOB' },
+  // Scan The Room (dark behind SCAN_ROOM_ENABLED): the start, the floor plan,
+  // the quantities and the priced draft. Every string lives in the one copy
+  // hook. Complete: each key has Spanish (i18n/catalog/es/office/roomScan.ts).
+  { id: 'office.room-scan', phase: 2, state: 'complete', keyPrefixes: ['office.roomScan.'], files: ['hooks/useRoomScanCopy.ts'], lane: 'SCANROOM' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */
