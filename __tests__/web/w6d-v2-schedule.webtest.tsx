@@ -167,7 +167,7 @@ describe('C4 — toolbar row 2 at a measured width', () => {
     expect(inRow2('schedule-view-split') && inRow2('schedule-view-gantt') && inRow2('schedule-view-list')).toBe(true);
     const fit = q('schedule-zoom-fit');
     expect(fit?.getAttribute('aria-label')).toBe('Fit the Whole Project');
-    expect(q('schedule-zoom-today')?.getAttribute('aria-label')).toBe('Scroll to today');
+    expect(q('schedule-zoom-today')?.getAttribute('aria-label')).toBe('Scroll to Today');
     expect(fit?.textContent === 'Fit').toBe(words);
 
     // Board / Overview are still one click away: in More ▾ when off the control.

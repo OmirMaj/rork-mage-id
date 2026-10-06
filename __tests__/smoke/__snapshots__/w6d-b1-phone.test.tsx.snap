@@ -72,7 +72,7 @@ exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing: the first phase pressed (PhaseDetailModal open) 1`] = `
 {
-  "lines": 839,
-  "sha256": "4d5029534987cc4baa338e45c05e79b92cc972bdfe9252891a87616c581bd2fc",
+  "lines": 827,
+  "sha256": "0e3b0c31430ca84fb5168d51db95e1bfd27960c555047f5751d9525c6456107f",
 }
 `;

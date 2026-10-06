@@ -207,7 +207,7 @@ describe('the AIA G703 grid (desktop web, 1512)', () => {
       expect(row).toMatch(/\.\d\d$/); // cents on the card (founder default 2)
       expect(byId(el, `aia-g702-strip-${key}`)!.textContent).toContain(row!);
     }
-    expect(g702Row(el, 'Current payment due')).toBe(formatMoney(t.currentPaymentDue, 2));
+    expect(g702Row(el, 'Current Payment Due')).toBe(formatMoney(t.currentPaymentDue, 2));
     expect(byId(el, 'aia-g702-strip-completed')!.textContent).toContain(`${t.percentComplete.toFixed(1)}% complete`);
   });
 
