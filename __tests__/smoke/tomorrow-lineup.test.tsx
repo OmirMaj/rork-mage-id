@@ -215,6 +215,6 @@ describe("tomorrow's lineup", () => {
   it('/last-planner carries the door to the lineup', async () => {
     await mount(`/last-planner?projectId=${P}`);
     expect(screen.getByTestId('lineup-link')).toBeTruthy();
-    expect(screen.getByText("Tomorrow's lineup — a ready-to-send text per sub")).toBeTruthy();
+    expect(screen.getByText("Tomorrow's Lineup: A Ready-to-Send Text per Sub")).toBeTruthy();
   });
 });

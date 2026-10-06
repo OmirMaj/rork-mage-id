@@ -430,11 +430,11 @@ describe('lane M1 — the change-order line grid (desktop web 1512)', () => {
     expect(screen.getByTestId('co-lines-view')).toBeTruthy();
     expect(rows()).toHaveLength(3);
     expect(screen.queryByTestId('co-line-qty-coli-m1-1')).toBeNull(); // the card inputs are gone
-    expect(screen.getByText('Lines subtotal (before tax)')).toBeTruthy();
+    expect(screen.getByText('Lines Subtotal (Before Tax)')).toBeTruthy();
     expect(screen.getByText('CSI division, line notes and margin are in Cards.')).toBeTruthy();
     // The row tags say why a line cannot go out yet.
-    expect(screen.getByText('Needs a price — it cannot be sent at $0.')).toBeTruthy();
-    expect(screen.getByText('AI estimate from your cost book — type a price, or confirm it when you send.')).toBeTruthy();
+    expect(screen.getByText('Needs a price. It cannot be sent at $0.')).toBeTruthy();
+    expect(screen.getByText('AI estimate from your cost book. Type a price, or confirm it when you send.')).toBeTruthy();
   });
 
   it('Enter adds a needs_price line under the current one', async () => {
@@ -445,12 +445,12 @@ describe('lane M1 — the change-order line grid (desktop web 1512)', () => {
     expect(now).toHaveLength(4);
     const newId = (now[1].props.testID as string).replace('co-lines-row-', '');
     expect(newId).not.toMatch(/^coli-m1-/); // inserted right under line 1
-    expect(screen.getByText('Name this line — it prints on the change order.')).toBeTruthy();
+    expect(screen.getByText('Name this line. It prints on the change order.')).toBeTruthy();
     await act(async () => { fireEvent.changeText(screen.getByTestId(`co-lines-cell-${newId}-name`), 'Blocking for pendants'); });
     await pump(2);
     // Named now: what is left is the price, and it is tagged needs_price.
-    expect(screen.queryByText('Name this line — it prints on the change order.')).toBeNull();
-    expect(screen.getAllByText('Needs a price — it cannot be sent at $0.')).toHaveLength(2);
+    expect(screen.queryByText('Name this line. It prints on the change order.')).toBeNull();
+    expect(screen.getAllByText('Needs a price. It cannot be sent at $0.')).toHaveLength(2);
   });
 
   it("after a '12.345' price draft the footer is persistCO's committed amount, not the typed line's", async () => {

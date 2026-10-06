@@ -1178,7 +1178,7 @@ export const G703_COL_LABEL: Record<G703Col, string> = {
   itemNo: 'Item',
   description: 'Description of Work',
   scheduled: 'Scheduled Value',
-  thisPeriod: 'This period',
+  thisPeriod: 'This Period',
   stored: 'Stored',
   percent: '% complete',
 };

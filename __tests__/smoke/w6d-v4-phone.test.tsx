@@ -225,7 +225,7 @@ describe('lane V4 — the phone is unchanged (golden, 390 × 844 iOS)', () => {
 
   // The notice-form sheet host (NoticeFormModal) with an event open: log a
   // delay through the real form, answer the notice-window ask, open the event
-  // and press "Record a notice" — the event sheet's body and the notice form
+  // and press "Record a Notice" — the event sheet's body and the notice form
   // are then both drawn with their state live.
   it('delay-events: a logged delay, its event sheet and the notice form', async () => {
     const tree = await phoneRoute(`/delay-events?${BAG}`);

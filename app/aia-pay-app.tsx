@@ -2841,7 +2841,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                     )}
                   </View>
                   <View style={styles.sovValueCol}>
-                    <Text style={styles.sovValueLabel}>This period</Text>
+                    <Text style={styles.sovValueLabel}>This Period</Text>
                     <MoneyField
                       style={styles.sovInput}
                       value={line.thisPeriod}

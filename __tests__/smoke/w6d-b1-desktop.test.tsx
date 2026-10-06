@@ -194,14 +194,14 @@ describe('lane B1 — money dashboards on desktop web (1512 × 945)', () => {
     expect(screen.getByTestId('jobcost-phases')).toBeTruthy();
     expect(screen.getByTestId('jobcost-commitments')).toBeTruthy();
     // The phone's KPI cards and PhaseBar list are not drawn on desktop web.
-    expect(screen.queryByText('By phase')).toBeTruthy();
+    expect(screen.queryByText('By Phase')).toBeTruthy();
     const rail = screen.getByTestId('dashboard-columns-rail');
     expect(within(rail).getByTestId('open-living-estimate')).toBeTruthy();
 
     // The totals row: 'Job total' then Budget, Committed, Actual, EAC,
     // Variance, % spent — the SAME figures the KPI strip prints.
     const table = texts(screen.getByTestId('jobcost-phases').children as unknown);
-    const at = table.indexOf('Project total');
+    const at = table.indexOf('Project Total');
     expect(at).toBeGreaterThan(-1);
     const [fBudget, fCommitted, fActual, fEac] = table.slice(at + 1, at + 5);
     expect(textOf('jobcost-kpis-budget')).toContain(fBudget);

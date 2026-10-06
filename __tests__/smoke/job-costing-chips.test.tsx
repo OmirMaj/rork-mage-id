@@ -13,7 +13,7 @@
  * world.ts now seeds `mageid_commitments` with a few Commitment rows against the
  * fixture project, so this test can mount /job-costing?projectId=<real> and see:
  *   - the project resolves (no picker),
- *   - the "By phase" section renders PhaseBar rows (phase names + status pills),
+ *   - the "By Phase" section renders PhaseBar rows (phase names + status pills),
  *   - the Commitments list renders StatusChip labels (Active / Draft).
  *
  * Kept in the smoke suite so it runs under ship-check (bun run test:smoke).
@@ -63,12 +63,12 @@ describe('job costing — phase bars and status chips render on a picked project
     const text = collectText(tree.toJSON());
 
     // The section itself.
-    expect(text).toContain('By phase');
+    expect(text).toContain('By Phase');
     // PhaseBar renders a status pill whose label is one of these words. At least
     // one must be present — proof a PhaseBar actually mounted rather than the
     // "No phases yet" empty branch.
     expect(text).not.toContain('No phases yet');
-    const pillLabels = ['On track', 'Watch', 'Over', 'Unbudgeted'];
+    const pillLabels = ['On Track', 'Watch', 'Over', 'Unbudgeted'];
     expect(text.some((s) => pillLabels.includes(s))).toBe(true);
   });
 

@@ -9,10 +9,10 @@
  *   (b) Offline, Reset link refuses before the confirm and calls nothing.
  *   (c) RESET LINK NEVER GUESSES. When the rotate call does not come back clean
  *       the screen reads the server's key and says only what that proves:
- *       (c1) the server still holds the same key -> "Link not reset", the old
+ *       (c1) the server still holds the same key -> "Link Not Reset", the old
  *            link still works, nothing on screen changes;
  *       (c2) the answer was lost but the server holds a NEW key -> the reset
- *            happened: the new link is on screen and "Send new link" is offered;
+ *            happened: the new link is on screen and "Send New Link" is offered;
  *       (c3) the answer was lost and the read-back fails too -> "Reset not
  *            confirmed": no claim that the old link works, the held key leaves
  *            the screen, Copy and Reset lock, and Retry shows the server's link.
@@ -218,20 +218,20 @@ describe('PORTALFIX behavior — the phone', () => {
     expect(lastAlert().title).toBe('Reset the link?');
     expect(lastAlert().message).toBe('Your client\u2019s old link stops working. Send them the new one.');
     expect(rpcCalls.length).toBe(0);
-    await tapButton('Reset link');
+    await tapButton('Reset Link');
     await pump(2);
     expect(rpcCalls).toEqual([{ fn: 'portal_rotate_access_token', args: { p_project_id: PROJECT_ID } }]);
-    expect(lastAlert().title).toBe('Link reset');
-    expect(lastAlert().buttons?.map(b => b.text)).toEqual(['Later', 'Send new link']);
+    expect(lastAlert().title).toBe('Link Reset');
+    expect(lastAlert().buttons?.map(b => b.text)).toEqual(['Later', 'Send New Link']);
     const after = String(screen.getByTestId('portal-link-display').props.children);
     expect(after).not.toBe(before);
     expect(after.startsWith('https://mageid.app/portal/')).toBe(true);
     expect(after).not.toContain(keyHead(PORTAL_TOKEN));
     // Send new link runs the existing Share flow with the NEW link: the link is
-    // there (no "Finalizing secure link" guard), nothing else is asked.
+    // there (no "Finalizing Secure Link" guard), nothing else is asked.
     heldButtons = lastAlert().buttons;
     mockAlerts.length = 0;
-    await tapButton('Send new link');
+    await tapButton('Send New Link');
     expect(mockAlerts.map(a => a.title)).toEqual([]);
     expect(rpcCalls.length).toBe(1);
   });
@@ -253,12 +253,12 @@ describe('PORTALFIX behavior — the phone', () => {
     await phoneSetup();
     const before = linkShown();
     await press('portal-reset-link-btn');
-    await tapButton('Reset link');
+    await tapButton('Reset Link');
     await pump(2);
     expect(rpcCalls.length).toBe(1);
     // Said only after the server was read.
     expect(getterCalls).toEqual([{ p_project_id: PROJECT_ID }]);
-    expect(lastAlert().title).toBe('Link not reset');
+    expect(lastAlert().title).toBe('Link Not Reset');
     expect(lastAlert().message).toMatch(/We checked with the server/);
     expect(lastAlert().message).toMatch(/old link still works/);
     expect(linkShown()).toBe(before);
@@ -269,13 +269,13 @@ describe('PORTALFIX behavior — the phone', () => {
     await phoneSetup();
     const before = linkShown();
     await press('portal-reset-link-btn');
-    await tapButton('Reset link');
+    await tapButton('Reset Link');
     await pump(2);
     expect(rpcCalls.length).toBe(1);
     expect(getterCalls.length).toBe(1);
     expect(allAlertText()).not.toMatch(/still works/);
-    expect(lastAlert().title).toBe('Link reset');
-    expect(lastAlert().buttons?.map(b => b.text)).toEqual(['Later', 'Send new link']);
+    expect(lastAlert().title).toBe('Link Reset');
+    expect(lastAlert().buttons?.map(b => b.text)).toEqual(['Later', 'Send New Link']);
     const after = linkShown();
     expect(after).not.toBe(before);
     expect(after).not.toContain(keyHead(PORTAL_TOKEN));
@@ -283,7 +283,7 @@ describe('PORTALFIX behavior — the phone', () => {
     // Send new link opens the existing Share flow on the new link, no guard in the way.
     heldButtons = lastAlert().buttons;
     mockAlerts.length = 0;
-    await tapButton('Send new link');
+    await tapButton('Send New Link');
     expect(mockAlerts.map(a => a.title)).toEqual([]);
   });
 
@@ -291,9 +291,9 @@ describe('PORTALFIX behavior — the phone', () => {
     stubServer({ data: null, error: null }, () => ({ data: NEW_KEY, error: null }));
     await phoneSetup();
     await press('portal-reset-link-btn');
-    await tapButton('Reset link');
+    await tapButton('Reset Link');
     await pump(2);
-    expect(lastAlert().title).toBe('Link reset');
+    expect(lastAlert().title).toBe('Link Reset');
     expect(allAlertText()).not.toMatch(/still works/);
     expect(linkShown()).toContain(keyHead(NEW_KEY));
   });
@@ -305,10 +305,10 @@ describe('PORTALFIX behavior — the phone', () => {
     const before = linkShown();
     expect(before).toContain(keyHead(PORTAL_TOKEN));
     await press('portal-reset-link-btn');
-    await tapButton('Reset link');
+    await tapButton('Reset Link');
     await pump(3);
     expect(rpcCalls.length).toBe(1);
-    const said = mockAlerts.find(a => a.title === 'Reset not confirmed');
+    const said = mockAlerts.find(a => a.title === 'Reset Not Confirmed');
     expect(said).toBeTruthy();
     // Never the claim the review caught: nothing here says the old link works.
     expect(allAlertText()).not.toMatch(/still works/);
@@ -351,7 +351,7 @@ describe('PORTALFIX behavior — the phone', () => {
     ]) {
       mockAlerts.length = 0;
       await act(async () => { action(); });
-      expect(mockAlerts.map(a => a.title)).toEqual(['Sample job']);
+      expect(mockAlerts.map(a => a.title)).toEqual(['Sample Job']);
     }
     expect(rpcCalls.length).toBe(0);
   });
@@ -371,7 +371,7 @@ describe('PORTALFIX behavior — the phone', () => {
     expect(screen.queryByTestId('portal-setup-unsaved')).toBeTruthy();
     await press('portal-setup-save');
     await pump(2);
-    expect(mockAlerts.some(a => a.title === 'Portal saved')).toBe(true);
+    expect(mockAlerts.some(a => a.title === 'Portal Saved')).toBe(true);
     expect(screen.getByPlaceholderText('Passcode (4 to 20 characters)').props.value).toBe('Harlow9000');
     expect(screen.queryByTestId('portal-setup-unsaved')).toBeNull();
   });

@@ -1081,6 +1081,12 @@
       "rule": "R20",
       "match": "a client portal never goes out from a sample",
       "reason": "carries both sentences of SAMPLE_PORTAL_REASON word for word (validate-portalfix 5f): it changes with the lane that owns that constant"
+    },
+    {
+      "file": "app/last-planner.tsx",
+      "rule": "R15",
+      "match": "Next week",
+      "reason": "a label that carries a date (\"Next week · Mar 9 to 15\"): sentence case, VOICE 3"
     }
   ]
 }

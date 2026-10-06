@@ -133,7 +133,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     expect(text).not.toContain(CHART_MARKER);
 
     // …replaced by what is actually true, and by what to do about it.
-    expect(text).toContain('No forecast yet');
+    expect(text).toContain('No Forecast Yet');
     expect(text).toContain('nothing to forecast yet');
     expect(text).toContain('No dated cash movements yet');
 
@@ -160,7 +160,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     const text = collectText(tree.toJSON()).join(' | ');
 
     expect(text).not.toContain('Healthy');
-    expect(text).toContain('No forecast yet');
+    expect(text).toContain('No Forecast Yet');
     expect(text).toContain('has no dates on it');
     expect(text).toContain('put a schedule on those projects');
   });
@@ -176,7 +176,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
 
     expect(text).toContain('$48,250');
     expect(text).not.toContain('Healthy');
-    expect(text).toContain('No forecast yet');
+    expect(text).toContain('No Forecast Yet');
   });
 
   it('does not tell a GC to add the bank balance he already recorded', async () => {
@@ -190,7 +190,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     const text = collectText(tree.toJSON()).join(' | ');
 
     expect(text).toContain('$48,250');
-    expect(text).toContain('No forecast yet');
+    expect(text).toContain('No Forecast Yet');
     expect(text).not.toContain('Add your bank balance');
     expect(text).not.toContain('bank balance, an unpaid invoice');
     // What it says instead names only things that are genuinely absent.
@@ -225,7 +225,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     const text = collectText(tree.toJSON()).join(' | ');
 
     expect(text).toContain('$26,000');
-    expect(text).toContain('No forecast yet');
+    expect(text).toContain('No Forecast Yet');
     expect(text).toContain('either unsent or dated outside this window');
     expect(text).not.toContain('Add an unpaid invoice');
   });
@@ -247,7 +247,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     const tree = await mountRouteChecked('/cash-flow');
     const text = collectText(tree.toJSON()).join(' | ');
 
-    expect(text).not.toContain('No forecast yet');
+    expect(text).not.toContain('No Forecast Yet');
     expect(text).toContain('Watch');
     expect(text).toContain(CHART_MARKER);
   });
@@ -260,8 +260,8 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     await seedSetup({ startingBalance: 48_250 });
     const tree = await mountRouteChecked('/cash-flow');
     // The "Add Expense" entry point lives inside the collapsed section.
-    await act(async () => { fireEvent.press(tree.getByText('Monthly expenses')); });
-    await act(async () => { fireEvent.press(tree.getByText('Add expense')); });
+    await act(async () => { fireEvent.press(tree.getByText('Monthly Expenses')); });
+    await act(async () => { fireEvent.press(tree.getByText('Add Expense')); });
 
     // Name typed, amount box left empty: the save is blocked and says why.
     await act(async () => {
@@ -298,8 +298,8 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     await primeWorld('empty');
     await seedSetup({ startingBalance: 48_250 });
     const tree = await mountRouteChecked('/cash-flow');
-    await act(async () => { fireEvent.press(tree.getByText('Expected income')); });
-    await act(async () => { fireEvent.press(tree.getByText('Add expected payment')); });
+    await act(async () => { fireEvent.press(tree.getByText('Expected Income')); });
+    await act(async () => { fireEvent.press(tree.getByText('Add Expected Payment')); });
     await act(async () => {
       fireEvent.changeText(tree.getByPlaceholderText('e.g. Deposit from River Oak'), 'Harlow draw 2');
     });
@@ -347,7 +347,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
 
     expect(text).toContain('Healthy');
     expect(text).toContain(CHART_MARKER);
-    expect(text).not.toContain('No forecast yet');
+    expect(text).not.toContain('No Forecast Yet');
     expect(tree.getByTestId('ai-analysis-btn').props.accessibilityState?.disabled).toBe(false);
   });
 
@@ -362,7 +362,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
 
     expect(text).toContain('Watch');
     expect(text).not.toContain('Healthy');
-    expect(text).not.toContain('No forecast yet');
+    expect(text).not.toContain('No Forecast Yet');
   });
 });
 

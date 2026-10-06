@@ -14,7 +14,7 @@
  *  1. GOLDEN — recorded FIRST, on the untouched base (bdd5daee), before a
  *     single line of this lane was written, and never regenerated:
  *       - /schedule-pro?projectId at 390 iOS (the narrow gate);
- *       - /schedule at 390 with the "Tell me what to change" sheet open
+ *       - /schedule at 390 with the "Tell Me What to Change" sheet open
  *         (the real ScheduleEditPanel, presentation defaulting to 'modal');
  *       - /copilot?capabilityId=schedule at 390 (CopilotShell, no autoSubmitSeed);
  *       - the SubUpdates / Weather / EV cards, their sheets, the weather
@@ -346,7 +346,7 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
     const tree = await mountRouteChecked(`/schedule-pro?projectId=${PID}`);
     await pump();
     expect(screen.queryByTestId('schedule-pro-open-classic')).toBeNull();
-    expect(screen.getByText('Tell me what to change')).toBeTruthy();
+    expect(screen.getByText('Tell Me What to Change')).toBeTruthy();
     // THE ONE NAMED DELTA (spec D2 d: "It applies to both branches"): the
     // SchedulerHeader / Overview finish. cpm.projectFinish (calendar index 32
     // from Mon Sep 7 = Thu Oct 8) used to be handed over raw and counted as 32
@@ -404,7 +404,7 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
       const WeatherRescheduleModal = require('@/components/schedule/WeatherRescheduleModal').default;
       const r = render(<Wrap><View><WeatherRescheduleModal visible result={WEATHER_RESULT} projectStartDate={new Date(2026, 8, 7)} onClose={() => {}} onApply={() => {}} /></View></Wrap>);
       await pump(2);
-      expect(r.getByText('Apply reschedule')).toBeTruthy();
+      expect(r.getByText('Apply Reschedule')).toBeTruthy();
       // The same named delta as the prompt: the credit renders, and without it
       // the modal hashes to the untouched golden.
       expect(r.getAllByTestId('weather-credit').length).toBeGreaterThan(0);
@@ -419,7 +419,7 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
       );
       await pump(2);
       expect(fingerprint('share-sheet-full-390', r.toJSON())).toMatchSnapshot();
-      fireEvent.press(r.getByText('By trade'));
+      fireEvent.press(r.getByText('By Trade'));
       await pump(2);
       expect(fingerprint('share-sheet-trade-390', r.toJSON())).toMatchSnapshot();
     });
@@ -466,7 +466,7 @@ describe('lane DB — desktop 1512 × 945', () => {
     const cmd = styleOf(screen.getByTestId('schedule-command-field') as unknown as Styled);
     expect(cmd).toMatchObject({ minWidth: 200, maxWidth: 360, height: 32 });
     expect(screen.queryByText('Baseline')).toBeNull(); // SchedulerHeader's KPI strip
-    expect(screen.queryByText('Tell me what to change')).toBeNull();
+    expect(screen.queryByText('Tell Me What to Change')).toBeNull();
     // Plan ▾ Track ▾ Share ▾ live once, inside Row 2.
     expect(screen.getAllByText(/^Plan/)).toHaveLength(1);
     // The finish in Row 1 is the engine's own date: calendar index 32 from Mon Sep 7 = Thu Oct 8.

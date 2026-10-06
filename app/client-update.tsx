@@ -385,7 +385,7 @@ export default function ClientUpdateScreen() {
             </View>
 
             <BulletEditor
-              title="This week"
+              title="This Week"
               items={draft.accomplishments}
               onChange={(i, v) => updateBullet('accomplishments', i, v)}
               onAdd={() => addBullet('accomplishments')}

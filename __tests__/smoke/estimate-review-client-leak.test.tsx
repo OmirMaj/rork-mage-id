@@ -79,7 +79,7 @@ describe('estimate review — client mode does not leak markup', () => {
     // The client subtree is now mounted (EstimateClientView + share button).
     // Proof it actually rendered, not the empty branch:
     expect(tree.getByTestId('review-share-proposal')).toBeTruthy();
-    expect(collectText(tree.toJSON())).toContain('Project total');
+    expect(collectText(tree.toJSON())).toContain('Project Total');
 
     // The hero eyebrow must have dropped its "% MARKUP" — in client mode it is
     // the bare word "ESTIMATE".

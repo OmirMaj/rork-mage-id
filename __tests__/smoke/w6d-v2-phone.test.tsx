@@ -192,7 +192,7 @@ describe('lane V2 — the phone is unchanged (golden, 390 × 844 iOS)', () => {
         <TaskInspector task={TASKS[1]} allTasks={TASKS} cpm={cpm} projectStartDate={new Date(2026, 7, 3)} onClose={() => {}} onEdit={() => {}} />
       </Wrap>,
     );
-    fireEvent.press(screen.getByLabelText('Select trade'));
+    fireEvent.press(screen.getByLabelText('Select Trade'));
     await settle();
     expect(fingerprint('task-inspector-trade-open', r.toJSON())).toMatchSnapshot();
   });
@@ -240,7 +240,7 @@ describe('lane V2 — the phone is unchanged (golden, 390 × 844 iOS)', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { ScheduleRowMenu } = require('@/components/schedule/ScheduleRowMenu');
     const actions = [
-      { key: 'edit', label: 'Edit task', onPress: () => {} },
+      { key: 'edit', label: 'Edit Task', onPress: () => {} },
       { key: 'dup', label: 'Duplicate', onPress: () => {} },
       { key: 'del', label: 'Delete', destructive: true, onPress: () => {} },
     ];

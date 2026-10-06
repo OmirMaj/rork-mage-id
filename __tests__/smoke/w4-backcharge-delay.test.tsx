@@ -128,8 +128,8 @@ describe('backcharges', () => {
     expect(plan.payCents).toBe(105000);
     const line = screen.getByTestId('backcharge-deduct-line-inv7');
     const text = [line.props.children].flat(3).join('');
-    expect(text).toBe(`Backcharges open: ${formatCents(170050)} · Deduct ${formatCents(plan.deductCents)} on this bill → pay ${formatCents(plan.payCents)}`);
-    expect(text).toBe('Backcharges open: $1,700.50 · Deduct $450 on this bill → pay $1,050');
+    expect(text).toBe(`Backcharges open: ${formatCents(170050)} · Deduct ${formatCents(plan.deductCents)} on this bill, pay ${formatCents(plan.payCents)}`);
+    expect(text).toBe('Backcharges open: $1,700.50 · Deduct $450 on this bill, pay $1,050');
     expect(screen.getByText(/\$1,250\.50 carries to the next bill/)).toBeTruthy();
     expect(screen.getByText(/MAGE never moves the money/)).toBeTruthy();
 
@@ -141,7 +141,7 @@ describe('backcharges', () => {
     // The card now shows only the recorded deduction: no second Apply on inv7.
     await waitFor(() => {
       const after = [screen.getByTestId('backcharge-deduct-line-inv7').props.children].flat(3).join('');
-      expect(after).toBe('Deducted $450 on this bill → pay $1,050');
+      expect(after).toBe('Deducted $450 on this bill, pay $1,050');
     });
     expect(screen.queryByTestId('backcharge-apply-inv7')).toBeNull();
     expect(screen.getByText(/\$1,250\.50 carries to the next bill/)).toBeTruthy();
@@ -172,7 +172,7 @@ describe('cost of owner delay on /waiting-on', () => {
       const el = c as { props?: { children?: unknown } };
       return el?.props ? [el.props.children].flat(3).join('') : String(c ?? '');
     }).join('');
-    expect(text).toMatch(/^Kitchen framing is on the critical path: finish moves \d+ working days? · No daily site cost on file — add a General Conditions line to see dollars\.$/);
+    expect(text).toMatch(/^Kitchen framing is on the critical path: finish moves \d+ working days? · No daily site cost on file. Add a General Conditions line to see dollars\.$/);
     expect(text).not.toContain('$');
   });
 });

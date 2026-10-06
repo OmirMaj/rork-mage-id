@@ -5,7 +5,7 @@
  * Two bids whose SAVED reasons carry the labels the honesty pass writes
  * (utils/levelingBasis): a fresh mount is exactly a reload, so what shows
  * here is what the contractor sees the next day, with no session state.
- *   • /bid-leveling: "Not from your book" and "Needs price" chips, the ranking
+ *   • /bid-leveling: "Not from Your Book" and "Needs Price" chips, the ranking
  *     note, and no winner claimed while the would-be winner's exclusion needs
  *     a price.
  *   • /buyout-package: the same labels on the adjustment reasons.
@@ -22,7 +22,7 @@ import { NEEDS_PRICE_TAG, NOT_FROM_BOOK_TAG } from '@/utils/levelingBasis';
 
 const T = '2026-08-01T12:00:00.000Z';
 const PKG = {
-  projectId: PROJECT_ID, createdAt: T, updatedAt: T, id: 'pkg-t7-plumb', name: 'Plumbing rough-in', phase: 'Rough-in',
+  projectId: PROJECT_ID, createdAt: T, updatedAt: T, id: 'pkg-t7-plumb', name: 'Plumbing Rough-In', phase: 'Rough-in',
   csiDivision: '22', scopeDescription: '• Plumbing rough + trim — 1 LS', linkedEstimateItemIds: [], estimateBudget: 16000,
   status: 'leveling',
 };
@@ -52,8 +52,8 @@ function textOf(node: unknown, out: string[] = []): string[] {
 describe('bid leveling — the saved basis label', () => {
   it('/bid-leveling shows the saved labels, the ranking note, and calls no winner', async () => {
     const tree = await mountRouteChecked(`/bid-leveling?packageId=${PKG.id}`);
-    expect(within(screen.getByTestId('leveling-basis-bid-t7-1')).getByText('Not from your book')).toBeTruthy();
-    expect(within(screen.getByTestId('leveling-basis-bid-t7-2')).getByText('Needs price')).toBeTruthy();
+    expect(within(screen.getByTestId('leveling-basis-bid-t7-1')).getByText('Not from Your Book')).toBeTruthy();
+    expect(within(screen.getByTestId('leveling-basis-bid-t7-2')).getByText('Needs Price')).toBeTruthy();
     const text = textOf(tree.toJSON()).join('\n');
     const note = String(screen.getByTestId('leveling-note').props.children);
     expect(note).toContain('Ranking uses 1 amount not from your book.');
@@ -62,16 +62,16 @@ describe('bid leveling — the saved basis label', () => {
     expect(text).toContain('Close call until you price the exclusion');
     // The prefix is a label, not part of the words shown after "leveled:".
     expect(text).not.toContain(`leveled: ${NOT_FROM_BOOK_TAG}`);
-    expect(text).not.toContain('AI draft');
+    expect(text).not.toContain('AI Draft');
   });
 
   it('/buyout-package renders the same labels on the adjustment reasons', async () => {
     const tree = await mountRouteChecked(`/buyout-package?packageId=${PKG.id}`);
-    expect(screen.getByTestId('leveling-basis-bid-t7-1').props.children).toBe('Not from your book');
-    expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Needs price');
+    expect(screen.getByTestId('leveling-basis-bid-t7-1').props.children).toBe('Not from Your Book');
+    expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Needs Price');
     const text = textOf(tree.toJSON()).join('\n');
-    expect(text).toContain('Not from your book');
-    expect(text).toContain('Needs price');
+    expect(text).toContain('Not from Your Book');
+    expect(text).toContain('Needs Price');
     expect(text).toContain('Fixtures, a typical allowance.');
     expect(text).not.toContain(NOT_FROM_BOOK_TAG + 'Fixtures');
   });
@@ -124,9 +124,9 @@ describe('bid leveling — a needs-price bid is never a number, and "Nothing ext
     expect(text).not.toContain('under budget');
     expect(text).not.toContain('as bid');
     expect(text.match(/vs budget/g)?.length).toBe(1); // Joe's row only
-    expect(screen.getByTestId('leveling-needs-price-bid-t7-2').props.children).toBe('Needs price');
+    expect(screen.getByTestId('leveling-needs-price-bid-t7-2').props.children).toBe('Needs Price');
     expect(text).toContain('$15,000 bid + the excluded scope');
-    // The close call is called a close call — no "Best value" badge on Ace.
+    // The close call is called a close call — no "Best Value" badge on Ace.
     expect(text).toContain('Close call until you price the exclusion');
     expect(text).not.toMatch(/^Best value$/m);
     // The spread is not measured off the placeholder: one known leveled cost.

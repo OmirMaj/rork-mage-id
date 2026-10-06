@@ -345,7 +345,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
       expect(rowIds()).toEqual(['takeoffws-row-press-c-floor', 'takeoffws-row-press-c-base']);
       // '/' is the page-scope binding while the workspace is mounted (no other scope holds it).
       const slash = hotkeys.list().filter((h) => h.combo === '/');
-      expect(slash).toEqual([expect.objectContaining({ scope: 'page', label: 'Filter conditions', group: 'Takeoff' })]);
+      expect(slash).toEqual([expect.objectContaining({ scope: 'page', label: 'Filter Conditions', group: 'Takeoff' })]);
       const focus = TextInput.prototype.focus as unknown as jest.Mock;
       focus.mockClear();
       let fired = false;

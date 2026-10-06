@@ -231,7 +231,7 @@ function LastPlannerInner() {
 
       <View style={[styles.segmentWrap, { maxWidth: contentWidth }]}>
         <Segment label="Lookahead" active={tab === 'lookahead'} onPress={() => { setTab('lookahead'); haptic(); }} t={t} styles={styles} />
-        <Segment label="This week" active={tab === 'week'} onPress={() => { setTab('week'); haptic(); }} t={t} styles={styles} />
+        <Segment label="This Week" active={tab === 'week'} onPress={() => { setTab('week'); haptic(); }} t={t} styles={styles} />
         <Segment label="Reliability" active={tab === 'reliability'} onPress={() => { setTab('reliability'); haptic(); }} t={t} styles={styles} />
       </View>
       {lp.syncState === 'local-only' && (
@@ -346,7 +346,7 @@ function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstrain
       {la.weeks.map(week => (
         <View key={week.weekStart} style={{ marginBottom: 8 }}>
           <Text style={styles.weekHeading}>
-            {week.weeksOut === 0 ? 'This week' : week.weeksOut === 1 ? 'Next Week' : `In ${week.weeksOut} weeks`} · {formatWeekRange(week.weekStart)}
+            {week.weeksOut === 0 ? 'This week' : week.weeksOut === 1 ? 'Next week' : `In ${week.weeksOut} weeks`} · {formatWeekRange(week.weekStart)}
           </Text>
           {week.entries.map(e => {
             const m = readinessMeta(e.readiness, t);
@@ -485,7 +485,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       <View style={styles.weekNav}>
         <TouchableOpacity onPress={() => setWeekStart(addWeeks(weekStart, -1))} hitSlop={10} style={styles.weekNavBtn}><ChevLeft size={18} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ alignItems: 'center', flex: 1 }}>
-          <Text style={styles.weekNavLabel}>{weekStart === currentWeekStart() ? 'This week' : formatWeekRange(weekStart)}</Text>
+          <Text style={styles.weekNavLabel}>{weekStart === currentWeekStart() ? 'This Week' : formatWeekRange(weekStart)}</Text>
           <Text style={styles.weekNavSub}>{formatWeekRange(weekStart)} · {committedCount} committed</Text>
         </View>
         <TouchableOpacity onPress={() => setWeekStart(addWeeks(weekStart, 1))} hitSlop={10} style={styles.weekNavBtn}><ChevronRight size={18} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
