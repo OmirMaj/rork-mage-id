@@ -91,7 +91,7 @@ export const SECTION_TITLES: Readonly<Record<string, string>> = {
   materials: 'Materials',
   labor: 'Labor',
   summary: 'Cost Summary',
-  notes: 'Tips & Notes',
+  notes: 'Tips and Notes',
   collaborators: 'Team',
   changeOrders: 'Change Orders',
   invoices: 'Invoices',
@@ -104,7 +104,7 @@ export const SECTION_TITLES: Readonly<Record<string, string>> = {
   clientPortal: 'Client Portal',
   communications: 'Communications',
   aiReport: 'AI Project Report',
-  subsPay: 'Subs & Pay',
+  subsPay: 'Subs and Pay',
 };
 
 /** '' for an unknown key or none — exactly what the phone ternary printed. */

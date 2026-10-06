@@ -377,7 +377,7 @@ function provisionHtml(period: WipPeriodWithSources): string {
   const lossRows = period.rows.filter((r) => r.output.anticipatedLoss);
   if (lossRows.length === 0 || !(t.lossProvision != null && t.lossProvision > 0)) return '';
   const names = lossRows.map((r) => escapeHtml(r.projectName)).join(', ');
-  return `<div class="provision"><b>Provision for loss on uncompleted contracts —
+  return `<div class="provision"><b>Provision for loss on uncompleted contracts:
     ${money(t.lossProvision)}.</b> ${lossRows.length} contract${lossRows.length === 1 ? ' is' : 's are'}
     forecast to finish at a loss (${names}), totalling ${money(t.totalForecastLoss ?? 0)}. The full
     loss is recognised in the period it becomes evident and is not pro-rated by percent complete;

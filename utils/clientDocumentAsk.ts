@@ -358,7 +358,7 @@ export function confirmationFor(input: {
   if (question === 'terms') {
     if (!split) return 'Saved as your terms';
     const label = splitLabel(split);
-    if (!firstTime) return `Saved — new proposals and contracts say ${label}; sent ones keep theirs`;
+    if (!firstTime) return `Saved. New proposals and contracts say ${label}; sent ones keep theirs`;
     return unconfirmedPortalCount === 0
       ? `Saved as your terms. Proposal, portal and contract now all say ${label}`
       : `Saved as your terms. New proposals and contracts say ${label}`;

@@ -678,7 +678,7 @@ export async function requestLienWaiverSignature(
        </p>`,
       `<p style="margin:14px 0 0 0;font-size:12px;line-height:19px;color:#8B9099;">
          A lien waiver gives up rights. If you have not been paid the amount above, do not sign an unconditional
-         waiver — reply to this email instead.
+         waiver. Reply to this email instead.
        </p>`,
     ].join(''),
     cta: { label: 'Read and Sign', href: signUrl },

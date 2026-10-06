@@ -217,7 +217,7 @@ export function renderDraftToHtml(draft: WeeklyUpdateDraft): string {
     ${section('Heads up:', draft.issues)}
     ${draft.financial ? `<p style="margin-top:16px;">${esc(draft.financial)}</p>` : ''}
     <p style="margin-top:20px;">${esc(draft.closing)}</p>
-    <p style="margin-top:20px;">— ${esc(draft.signatureName)}</p>
+    <p style="margin-top:20px;">${esc(draft.signatureName)}</p>
   </div>`;
 }
 

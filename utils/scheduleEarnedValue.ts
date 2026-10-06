@@ -204,7 +204,7 @@ export function computeCollectedToDate(
 /** Ledger key → the words a GC reads on screen. Order = the order he'd fill
  *  them in, which is the order the gap sentence lists them. */
 const LEDGER_LABELS: readonly (readonly [keyof ActualCostLedgers, string])[] = [
-  ['commitments', 'sub & PO payments'],
+  ['commitments', 'sub and PO payments'],
   ['receipts', 'material receipts'],
   ['timeEntries', 'crew hours'],
   ['equipment', 'equipment days'],

@@ -306,7 +306,7 @@ export function receiptMaterialLine(r: DeliveryReceipt, delivery: Delivery | und
   if (po) line += ` (PO ${po})`;
   const by = (r.receivedBy ?? '').trim();
   if (by) line += `, received by ${by}`;
-  if (r.hasDamage) line += ` — DAMAGED: ${(r.damageNotes ?? '').trim() || 'damage noted at receiving, no detail recorded'}`;
+  if (r.hasDamage) line += `. DAMAGED: ${(r.damageNotes ?? '').trim() || 'damage noted at receiving, no detail recorded'}`;
   return line;
 }
 
@@ -332,7 +332,7 @@ export function receiptLinesForDay(
     if (r.hasDamage) {
       const what = (delivery?.description ?? '').trim() || 'Load';
       const notes = (r.damageNotes ?? '').trim() || 'damage noted at receiving, no detail recorded';
-      out.damage.push(`Damaged delivery: ${what} from ${(r.supplier ?? '').trim() || 'supplier not recorded'} — ${notes}${r.receivedBy ? ` (received by ${r.receivedBy.trim()})` : ''}.`);
+      out.damage.push(`Damaged delivery: ${what} from ${(r.supplier ?? '').trim() || 'supplier not recorded'}: ${notes}${r.receivedBy ? ` (received by ${r.receivedBy.trim()})` : ''}.`);
     }
   }
   return out;

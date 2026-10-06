@@ -2106,8 +2106,8 @@ export function detectStartDayBasis(
       ...base,
       ordinalEvidence: [
         wd >= 7
-          ? 'A 7-day week with no closures — the working and calendar scales are the same numbers here.'
-          : 'No start date — the engine runs in raw-day mode, where the two scales are the same numbers.',
+          ? 'A 7-day week with no closures. The working and calendar scales are the same numbers here.'
+          : 'No start date. The engine runs in raw-day mode, where the two scales are the same numbers.',
       ],
     };
   }
@@ -2127,7 +2127,7 @@ export function detectStartDayBasis(
   if (wouldRemapTaskCount === 0) {
     return {
       ...base,
-      ordinalEvidence: ['Every stored day is the same number on both scales — there is nothing to convert.'],
+      ordinalEvidence: ['Every stored day is the same number on both scales. There is nothing to convert.'],
     };
   }
 
@@ -2145,7 +2145,7 @@ export function detectStartDayBasis(
     const d = dayOf(t);
     if (d > 1 && !isWorkingDay(d, wd, start, closures)) {
       ordinalEvidence.push(
-        `"${t.title}" starts on day ${d}, a non-working day on this calendar — no re-anchor could have produced it.`,
+        `"${t.title}" starts on day ${d}, a non-working day on this calendar. No re-anchor could have produced it.`,
       );
       break;
     }

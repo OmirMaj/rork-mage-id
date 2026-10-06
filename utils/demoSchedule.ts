@@ -35,21 +35,21 @@ interface SeedSpec {
 // Tasks in logical build order. `deps` references other entries by alias.
 const SPEC: SeedSpec[] = [
   // --- Phase 1: Site prep -------------------------------------------------
-  { alias: 'kickoff', title: 'Project Kickoff & Permits Filed', phase: 'Site', durationDays: 0, isMilestone: true, status: 'done', progress: 100, actualStartOffset: 1, actualEndOffset: 1 },
-  { alias: 'survey',  title: 'Site Survey & Staking', phase: 'Site', durationDays: 2, deps: ['kickoff'], crew: 'Surveyor', status: 'done', progress: 100, actualStartOffset: 1, actualEndOffset: 2 },
-  { alias: 'clear',   title: 'Clear & Grub Site',     phase: 'Site', durationDays: 3, deps: ['survey'], crew: 'Excavation', crewSize: 3, status: 'done', progress: 100, actualStartOffset: 3, actualEndOffset: 6, isWeatherSensitive: true },
+  { alias: 'kickoff', title: 'Project Kickoff and Permits Filed', phase: 'Site', durationDays: 0, isMilestone: true, status: 'done', progress: 100, actualStartOffset: 1, actualEndOffset: 1 },
+  { alias: 'survey',  title: 'Site Survey and Staking', phase: 'Site', durationDays: 2, deps: ['kickoff'], crew: 'Surveyor', status: 'done', progress: 100, actualStartOffset: 1, actualEndOffset: 2 },
+  { alias: 'clear',   title: 'Clear and Grub Site',     phase: 'Site', durationDays: 3, deps: ['survey'], crew: 'Excavation', crewSize: 3, status: 'done', progress: 100, actualStartOffset: 3, actualEndOffset: 6, isWeatherSensitive: true },
   { alias: 'erosion', title: 'Erosion Control',       phase: 'Site', durationDays: 1, deps: ['clear'], crew: 'Excavation', status: 'done', progress: 100, actualStartOffset: 6, actualEndOffset: 6 },
   { alias: 'tempUt',  title: 'Temporary Utilities',   phase: 'Site', durationDays: 2, deps: ['clear'], crew: 'Electric', status: 'done', progress: 100, actualStartOffset: 7, actualEndOffset: 8 },
 
   // --- Phase 2: Foundation -----------------------------------------------
-  { alias: 'excavate', title: 'Excavate Footings & Basement', phase: 'Foundation', durationDays: 4, deps: ['clear', 'erosion'], crew: 'Excavation', crewSize: 3, status: 'done', progress: 100, actualStartOffset: 7, actualEndOffset: 11 },
-  { alias: 'foundFormwork', title: 'Foundation Formwork & Rebar', phase: 'Foundation', durationDays: 3, deps: ['excavate'], crew: 'Concrete', crewSize: 4, status: 'done', progress: 100, actualStartOffset: 11, actualEndOffset: 14 },
+  { alias: 'excavate', title: 'Excavate Footings and Basement', phase: 'Foundation', durationDays: 4, deps: ['clear', 'erosion'], crew: 'Excavation', crewSize: 3, status: 'done', progress: 100, actualStartOffset: 7, actualEndOffset: 11 },
+  { alias: 'foundFormwork', title: 'Foundation Formwork and Rebar', phase: 'Foundation', durationDays: 3, deps: ['excavate'], crew: 'Concrete', crewSize: 4, status: 'done', progress: 100, actualStartOffset: 11, actualEndOffset: 14 },
   { alias: 'pourFound', title: 'Pour Foundation Walls', phase: 'Foundation', durationDays: 2, deps: ['foundFormwork'], crew: 'Concrete', status: 'done', progress: 100, actualStartOffset: 14, actualEndOffset: 15 },
-  { alias: 'foundCure', title: 'Foundation Cure & Strip Forms', phase: 'Foundation', durationDays: 3, deps: ['pourFound'], crew: 'Concrete', status: 'in_progress', progress: 65, actualStartOffset: 16 },
+  { alias: 'foundCure', title: 'Foundation Cure and Strip Forms', phase: 'Foundation', durationDays: 3, deps: ['pourFound'], crew: 'Concrete', status: 'in_progress', progress: 65, actualStartOffset: 16 },
   { alias: 'foundInsp', title: 'Foundation Inspection', phase: 'Inspections', durationDays: 1, deps: ['foundCure'], isMilestone: false },
   { alias: 'waterproof', title: 'Waterproof Foundation', phase: 'Foundation', durationDays: 2, deps: ['foundInsp'], crew: 'Waterproofing' },
   { alias: 'backfill', title: 'Backfill Foundation', phase: 'Foundation', durationDays: 2, deps: ['waterproof'], crew: 'Excavation' },
-  { alias: 'slabPrep', title: 'Slab Prep & Vapor Barrier', phase: 'Foundation', durationDays: 2, deps: ['backfill'], crew: 'Concrete' },
+  { alias: 'slabPrep', title: 'Slab Prep and Vapor Barrier', phase: 'Foundation', durationDays: 2, deps: ['backfill'], crew: 'Concrete' },
   { alias: 'pourSlab', title: 'Pour Slab', phase: 'Foundation', durationDays: 1, deps: ['slabPrep'], crew: 'Concrete' },
 
   // --- Phase 3: Framing --------------------------------------------------
@@ -57,10 +57,10 @@ const SPEC: SeedSpec[] = [
   { alias: 'frameWalls1', title: 'Frame 1st floor walls', phase: 'Framing', durationDays: 4, deps: ['frameFloor1'], crew: 'Framing', crewSize: 5 },
   { alias: 'frameFloor2', title: 'Frame 2nd floor deck', phase: 'Framing', durationDays: 2, deps: ['frameWalls1'], crew: 'Framing' },
   { alias: 'frameWalls2', title: 'Frame 2nd floor walls', phase: 'Framing', durationDays: 3, deps: ['frameFloor2'], crew: 'Framing' },
-  { alias: 'frameRoof',   title: 'Frame Roof Trusses & Sheathing', phase: 'Framing', durationDays: 4, deps: ['frameWalls2'], crew: 'Framing', crewSize: 5, isWeatherSensitive: true },
+  { alias: 'frameRoof',   title: 'Frame Roof Trusses and Sheathing', phase: 'Framing', durationDays: 4, deps: ['frameWalls2'], crew: 'Framing', crewSize: 5, isWeatherSensitive: true },
   { alias: 'frameInsp',   title: 'Rough Framing Inspection', phase: 'Inspections', durationDays: 1, deps: ['frameRoof'] },
   { alias: 'roofing',     title: 'Install Roofing', phase: 'Framing', durationDays: 3, deps: ['frameInsp'], crew: 'Roofing', isWeatherSensitive: true },
-  { alias: 'windows',     title: 'Install Windows & Exterior Doors', phase: 'Framing', durationDays: 2, deps: ['frameInsp'], crew: 'Framing' },
+  { alias: 'windows',     title: 'Install Windows and Exterior Doors', phase: 'Framing', durationDays: 2, deps: ['frameInsp'], crew: 'Framing' },
   { alias: 'weatherTight', title: 'Weather-Tight Milestone', phase: 'Framing', durationDays: 0, deps: ['roofing', 'windows'], isMilestone: true },
 
   // --- Phase 4: MEP rough-in --------------------------------------------
@@ -74,19 +74,19 @@ const SPEC: SeedSpec[] = [
 
   // --- Phase 5: Finishes -------------------------------------------------
   { alias: 'insulation',  title: 'Insulation', phase: 'Interior', durationDays: 3, deps: ['mepInsp'], crew: 'Insulation' },
-  { alias: 'drywall',     title: 'Hang & Finish Drywall', phase: 'Drywall', durationDays: 6, deps: ['insulation'], crew: 'Drywall', crewSize: 4 },
+  { alias: 'drywall',     title: 'Hang and Finish Drywall', phase: 'Drywall', durationDays: 6, deps: ['insulation'], crew: 'Drywall', crewSize: 4 },
   { alias: 'interiorPaint', title: 'Interior Paint', phase: 'Finishes', durationDays: 4, deps: ['drywall'], crew: 'Paint' },
   { alias: 'cabinets',    title: 'Install Cabinets', phase: 'Finishes', durationDays: 3, deps: ['interiorPaint'], crew: 'Finish Carp' },
   { alias: 'countertops', title: 'Countertops Template + Install', phase: 'Finishes', durationDays: 5, deps: ['cabinets'], crew: 'Finish Carp' },
   { alias: 'flooring',    title: 'Flooring', phase: 'Finishes', durationDays: 4, deps: ['interiorPaint'], crew: 'Flooring' },
-  { alias: 'trim',        title: 'Interior Trim & Doors', phase: 'Finishes', durationDays: 3, deps: ['flooring'], crew: 'Finish Carp' },
-  { alias: 'fixtures',    title: 'Plumbing & Electrical Fixtures', phase: 'Finishes', durationDays: 2, deps: ['trim', 'countertops'], crew: 'Mechanical' },
+  { alias: 'trim',        title: 'Interior Trim and Doors', phase: 'Finishes', durationDays: 3, deps: ['flooring'], crew: 'Finish Carp' },
+  { alias: 'fixtures',    title: 'Plumbing and Electrical Fixtures', phase: 'Finishes', durationDays: 2, deps: ['trim', 'countertops'], crew: 'Mechanical' },
 
   // --- Phase 6: Closeout -------------------------------------------------
   { alias: 'landscaping', title: 'Landscaping', phase: 'Landscaping', durationDays: 4, deps: ['backfill'], crew: 'Landscaping', isWeatherSensitive: true },
   { alias: 'finalClean',  title: 'Final Clean', phase: 'Finishes', durationDays: 2, deps: ['fixtures'], crew: 'Cleaning' },
-  { alias: 'finalInsp',   title: 'Final Inspection & C/O', phase: 'Inspections', durationDays: 1, deps: ['finalClean', 'landscaping'] },
-  { alias: 'turnover',    title: 'Client Walkthrough & Turnover', phase: 'General', durationDays: 0, deps: ['finalInsp'], isMilestone: true },
+  { alias: 'finalInsp',   title: 'Final Inspection and C/O', phase: 'Inspections', durationDays: 1, deps: ['finalClean', 'landscaping'] },
+  { alias: 'turnover',    title: 'Client Walkthrough and Turnover', phase: 'General', durationDays: 0, deps: ['finalInsp'], isMilestone: true },
 ];
 
 /**

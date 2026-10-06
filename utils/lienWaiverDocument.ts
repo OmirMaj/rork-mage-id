@@ -259,7 +259,7 @@ function statutoryBodyHtml(form: StatutoryWaiverForm): string {
  */
 function statuteProvenanceHtml(form: StatutoryWaiverForm): string {
   return `<div style="margin-top:24px;padding:14px 16px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};border-radius:10px;font-size:11px;color:${PDF_PALETTE.text};line-height:1.6">
-    <strong>Form source.</strong> ${escHtml(form.stateName)} — ${escHtml(form.citation)}. Statutory text as of ${escHtml(STATUTE_TEXT_AS_OF)}.
+    <strong>Form source.</strong> ${escHtml(form.stateName)}: ${escHtml(form.citation)}. Statutory text as of ${escHtml(STATUTE_TEXT_AS_OF)}.
     <div style="margin-top:6px;color:${PDF_PALETTE.text2}">${escHtml(STATUTE_VERIFY_LINE)}</div>
   </div>`;
 }
