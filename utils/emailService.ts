@@ -19,6 +19,8 @@ import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceS
 import { PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 import { readEdgeError, edgeErrorStatus } from '@/utils/edgeError';
 import { SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { dfrWeatherSourceLine } from '@/utils/weatherService';
+import { OPENWEATHER_CREDIT, OPENWEATHER_URL } from '@/utils/contentCredits';
 
 export interface SendEmailParams {
   to: string;
@@ -873,8 +875,10 @@ export function buildDailyReportEmailHtml(opts: {
   recipientName: string;
   projectName: string;
   date: string;
-  /** The strings the form recorded, unchanged. See dfrWeatherLine. */
-  weather: { conditions: string; temperature: string; wind?: string };
+  /** The strings the form recorded, unchanged. See dfrWeatherLine. When the
+   *  app read them from OpenWeather (`isManual: false` + `source` + `readAt`),
+   *  the email also prints where they came from and OpenWeather's credit. */
+  weather: { conditions: string; temperature: string; wind?: string; isManual?: boolean; source?: string; readAt?: string };
   totalManpower: number;
   totalManHours: number;
   workPerformed: string;
@@ -914,6 +918,10 @@ export function buildDailyReportEmailHtml(opts: {
   const formatted = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const { isToday } = dfrDayWording(reportDay, opts.today ?? todayCalendarDay());
   const weatherLine = dfrWeatherLine(weather);
+  const weatherSource = dfrWeatherSourceLine(weather, reportDay);
+  const weatherSourceRow = weatherSource
+    ? emailStatRow('Weather Source', `${escapeHtml(weatherSource)}. <a href="${OPENWEATHER_URL}" style="color:#4A5159;">${escapeHtml(OPENWEATHER_CREDIT)}</a>`)
+    : '';
   const text = (v: string) => `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${escapeHtml(v)}</p>`;
   const heading = (v: string, color = '#0B0D10') => `<p style="margin:18px 0 6px;font-weight:700;color:${color};">${escapeHtml(v)}</p>`;
 
@@ -948,6 +956,7 @@ export function buildDailyReportEmailHtml(opts: {
     ${message ? emailQuote(message) : `<p style="margin:0 0 6px;">${escapeHtml(isToday ? "Today's daily report is below." : `The daily report for ${formatted} is below.`)}</p>`}
     ${emailStatCard(`
       ${emailStatRow('Weather', escapeHtml(weatherLine))}
+      ${weatherSourceRow}
       ${emailStatRow('Manpower', escapeHtml(plural(totalManpower, 'worker')))}
       ${emailStatRow('Man-hours', escapeHtml(`${totalManHours} hrs`), { emphasize: true })}
     `)}

@@ -17,6 +17,7 @@ import type {
 import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
 import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { dfrWeatherSourceLine } from '@/utils/weatherService';
 import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
@@ -657,6 +658,13 @@ export interface PortalSnapshot {
     }[];
     dailyReports?: {
       id: string; date: string; weather?: string;
+      /** Only for weather the app read from OpenWeather: 'From OpenWeather at
+       *  3:42 PM'. The portal prints it with OpenWeather's credit. Absent for
+       *  typed weather, which carries no credit. */
+      weatherSource?: string;
+      /** ISO instant of that read, so the in-app client view can rebuild the
+       *  same line. Present exactly when weatherSource is. */
+      weatherReadAt?: string;
       totalManpower?: number; totalManHours?: number;
       workPerformed?: string;
     }[];
@@ -2068,6 +2076,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           id: dfr.id,
           date: day && Number.isFinite(day.getTime()) ? day.toISOString() : dfr.date,
           weather,
+          ...(weather && dfrWeatherSourceLine(dfr.weather, calendarDayOf(dfr.date))
+            ? { weatherSource: dfrWeatherSourceLine(dfr.weather, calendarDayOf(dfr.date)), weatherReadAt: dfr.weather.readAt }
+            : {}),
           totalManpower,
           totalManHours,
           workPerformed: dfr.workPerformed,

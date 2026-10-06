@@ -2657,6 +2657,8 @@
     padding: 3px 10px; background: var(--surface);
     border: 1px solid var(--bone); border-radius: 999px;
   }
+  .dfr-weather-source { font-size: 11px; color: var(--text-2); margin: -4px 0 8px; }
+  .dfr-weather-source a { color: inherit; text-decoration: underline; }
   .dfr-stat {
     display: inline-flex; gap: 5px; font-size: 13px; color: var(--text-2);
     font-weight: 500;
@@ -5520,6 +5522,11 @@
             '<div class="dfr-date">'+fmtDate(d.date)+'</div>' +
             (d.weather ? '<div class="dfr-weather">'+esc(d.weather)+'</div>' : '') +
           '</div>' +
+          // Weather the contractor's app read from OpenWeather carries where it
+          // came from and OpenWeather's credit. Typed weather carries neither.
+          (d.weather && d.weatherSource
+            ? '<div class="dfr-weather-source">'+esc(d.weatherSource)+'. <a href="https://openweathermap.org/" target="_blank" rel="noopener noreferrer">Weather data provided by OpenWeather</a></div>'
+            : '') +
           '<div class="dfr-stats">' +
             (d.totalManpower ? '<div class="dfr-stat"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg> <strong>'+d.totalManpower+'</strong> on site</div>' : '') +
             (d.totalManHours ? '<div class="dfr-stat"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg> <strong>'+d.totalManHours+'</strong> hours</div>' : '') +

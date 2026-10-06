@@ -111,7 +111,11 @@ import {
 } from '@/utils/safety/osha';
 import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { useLaborRates } from '@/hooks/useLaborRates';
-import { canReadLiveWeatherFor, weatherProvenanceLine } from '@/utils/weatherService';
+import {
+  appWeatherIsMisdated, autoReadMayWrite, canReadLiveWeatherFor, isOpenWeatherReading,
+  dfrReadPlaceTime, readLiveWeatherForDailyReport, readOnReportDay, settleDfrWeather, weatherProvenanceKind,
+} from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { useT } from '@/contexts/LanguageContext';
 import { getLang, t, t as coreT, tn } from '@/i18n/core';
 import { formatDateOptsL, formatTimeL } from '@/i18n/format';
@@ -231,6 +235,12 @@ const MAX_DFR_PHOTOS = 10;
 /** The weather block a brand-new report starts with. Shared with the draft
  *  baseline below so "untouched" means the same thing in both places. */
 const EMPTY_DFR_WEATHER: DFRWeather = { temperature: '', conditions: '', wind: '', isManual: true };
+/** The three weather strings as one value, to tell whether the block changed. */
+const dfrWeatherText = (w: DFRWeather): string => JSON.stringify([w.temperature, w.conditions, w.wind]);
+/** What WeatherCredit is handed: one live day for a reading the app took from
+ *  OpenWeather, nothing for typed weather (so it renders nothing). */
+const DFR_CREDIT_LIVE = [{ source: 'live' }] as const;
+const DFR_CREDIT_NONE = [] as const;
 
 /** Ditto for the incident block. */
 const EMPTY_DFR_INCIDENT: IncidentReport = {
@@ -1364,9 +1374,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    * What the SCREEN filled in by itself, as opposed to what the super typed.
    *
    * DFR-DIRTY-AUTOFILL (review 2026-09-08). Two effects below write fields with
-   * no user action on a brand-new report: the weather auto-fetch (retired
-   * 2026-10-02, content rights — weather is typed by hand now; the weather slot
-   * is still cleared by the backfill effect) and the schedule crew prefill (any
+   * no user action on a brand-new report: the weather read (today's conditions
+   * from OpenWeather, lane DFRWEATHER 2026-10-06; the slot is also cleared by
+   * the misdated-reading effect) and the schedule crew prefill (any
    * project with a task live today). The unsaved-work baseline started out comparing against the
    * EMPTY report, so within a second of opening a DFR nobody had touched, the
    * screen was "dirty" — the iOS edge-swipe was disabled, the back chevron
@@ -1382,6 +1392,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const [autoFilled, setAutoFilled] = useState<{
     weather?: DFRWeather; manpower?: ManpowerEntry[]; materialsDelivered?: string[]; issuesAndDelays?: string;
   }>({});
+  /** True from the first character a person types, dictates or restores into
+   *  the weather block. From then on no unattended read may write to it. */
+  const weatherTouchedRef = useRef(false);
+  /** Live values for the awaited weather read: state read inside an awaited
+   *  callback is the value from the render that started it. */
+  const weatherRef = useRef(weather);
+  useEffect(() => { weatherRef.current = weather; }, [weather]);
   const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
   // Structured per-task progress chips. Each entry pins a task from the
   // project schedule + a percent-complete the GC observed today.
@@ -1880,52 +1897,67 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     return { done, total, isReady: done >= 3 };
   }, [weather, manpower, workPerformed, materialsDelivered, photos]);
 
-  // ─── WEATHER IS TYPED BY HAND (content rights, 2026-10-02) ─────────────
-  // This block used to fill itself on open and on an "Auto-fetch" tap from a
-  // free third-party weather service that publishes no terms, no data license
-  // and no data source, and every call sent it the jobsite address, so MAGE could not honestly tell
-  // Apple it had the right to show that weather (contentfix-specs/
-  // RIGHTS-VERDICT.md). The app's licensed source, OpenWeather, is reached
-  // through a 5-day / 3-hour FORECAST relay (supabase/functions/
-  // weather-forecast) — and a forecast slot is not a reading of the sky, so it
-  // is not written into a field report as one. Until a current-conditions
-  // reading exists, the super types what he saw; nothing is pre-filled, and no
-  // button offers a fetch that does not exist.
+  // ─── WEATHER: TODAY'S FILLS ITSELF IN, FROM OPENWEATHER (DFRWEATHER) ────
+  // Until 2026-10-02 this block filled itself from a free third-party service
+  // that publishes no terms, no data license and no data source; that read was
+  // removed for content rights and weather was typed by hand. It fills itself
+  // again from the app's licensed source, OpenWeather, through
+  // utils/weatherService.readLiveWeatherForDailyReport, which reads the CURRENT
+  // conditions (never a forecast slot, never a simulated day) and only for a
+  // report dated today. The read itself lives below `persistedSelf`.
 
-  // DFR-WEATHER-DAY, second half. The screen no longer fetches weather, but an
-  // unsaved draft restored from before that change can still carry a reading the
-  // screen fetched (`isManual === false`). Backfilling is a DATE CHANGE, so that
-  // reading would be today's sky under an earlier date: clear it and leave the
-  // fields empty for the super to type, rather than leaving this morning's 72°F
-  // sitting under last Monday's date with the "fetched" flag on it.
+  // DFR-WEATHER-DAY, second half. A reading the app took belongs to the
+  // calendar day it was read on. Backfilling is a DATE CHANGE, so a reading
+  // left in the block would be one day's sky under another day's date: clear it
+  // and leave the fields empty for the super to type, rather than leaving this
+  // morning's 72°F sitting under last Monday's date with a source stamped on it.
   //
-  // Only ever clears a reading the SCREEN fetched (`isManual === false`) on a
+  // Only ever clears a value the APP wrote (`isManual === false`) on a
   // report that is not yet saved. Typed weather is the super's own answer about
   // that day and is never touched, and a saved record is not rewritten on open:
   // wiping stored evidence because the app now knows better is destructive, so a
-  // legacy report gets the caveat in its provenance line instead.
+  // saved report gets the caveat in its provenance line instead.
   useEffect(() => {
-    if (reportIsToday || existingReport) return;
-    if (weather.isManual) return;
-    if (!weather.temperature && !weather.conditions && !weather.wind) return;
+    if (existingReport) return;
+    if (!appWeatherIsMisdated(weather, calendarDayOf(reportDate), carryLabelDay)) return;
     setWeather(EMPTY_DFR_WEATHER);
     // Keep the unsaved-work baseline in step, or clearing the app's own guess
     // reads as the super having edited the report.
     setAutoFilled(p => ({ ...p, weather: EMPTY_DFR_WEATHER }));
-  }, [reportIsToday, existingReport, weather.isManual, weather.temperature, weather.conditions, weather.wind]);
+  }, [existingReport, reportDate, carryLabelDay, weather]);
 
-  /** The honesty chip under the weather block. `isManual` was WRITE-ONLY before
-   *  this — nothing in the repo read it — so flipping the flag alone changed
-   *  nothing anyone could see. */
-  const weatherProvenance = useMemo(() => weatherProvenanceLine({
-    isManual: weather.isManual,
-    reportIsToday,
-    hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
-    // Nothing is read live any more, so there is no place or clock time to
-    // name: a typed value says "Typed by hand.", and a reading saved by an
-    // older version keeps its saved-reading caveat.
-    location: '',
-  }), [weather, reportIsToday]);
+  /** The honesty line under the weather block. A reading the app took names
+   *  its source and the time stored with it; typed weather says typed; a record
+   *  saved before the source was stored never claims one. */
+  const weatherFromOpenWeather = isOpenWeatherReading(weather);
+  /** The clock WHERE the reading was taken, with its UTC offset ("3:42 PM
+   *  UTC-4"), so an office in another zone reads the same time the foreman
+   *  saw. A block saved without the place falls back to this device's clock. */
+  const weatherReadAtLabel = useMemo(() => {
+    const place = dfrReadPlaceTime(weather);
+    if (place) return `${formatTimeL(place.wall, lang, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} ${place.zone}`;
+    return formatTimeL(new Date(weather.readAt ?? ''), lang);
+  }, [weather, lang]);
+  const weatherProvenance = useMemo(() => {
+    const kind = weatherProvenanceKind({
+      isManual: weather.isManual,
+      reportIsToday,
+      hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
+      source: weather.source,
+      readAtLabel: weatherFromOpenWeather && weather.readAt ? weatherReadAtLabel : undefined,
+      readOnReportDay: readOnReportDay(weather, calendarDayOf(reportDate)),
+    });
+    switch (kind) {
+      case 'typed': return t('field.dfr.weather.typedByHand', 'Typed by hand.');
+      case 'openweather': return t('field.dfr.weather.fromOpenWeatherAt', 'From OpenWeather at {time}.', {
+        time: weatherReadAtLabel,
+      });
+      case 'openweather_other_day': return t('field.dfr.weather.fromOpenWeatherOtherDay', 'From OpenWeather, read on a different day than this report. Check it against what you saw.');
+      case 'saved_today': return t('field.dfr.weather.savedNoSource', 'Saved with this report. The source was not recorded.');
+      case 'saved_past': return t('field.dfr.weather.savedNoSourcePast', 'Saved without a source. MAGE cannot read a past day, so check it against what you saw.');
+      default: return '';
+    }
+  }, [weather, weatherFromOpenWeather, weatherReadAtLabel, reportIsToday, reportDate, t]);
 
   // Pre-fill manpower for the report's day. Two sources, in order of truth:
   //
@@ -2856,6 +2888,104 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     [existingReports, stableReportId],
   );
 
+  // ─── DFRWEATHER: the read ──────────────────────────────────────────────
+  // WHEN IT FILLS BY ITSELF: a report opened as NEW (no reportId in the route,
+  // nothing saved under its id yet) whose calendar day is today on this device,
+  // once per open (and once more if the date is moved away and back to today).
+  // WHEN IT REFUSES: any other day; a saved report; anything a person typed or
+  // dictated; no jobsite address; no key or relay, no signal, a refused
+  // payload. Refusing leaves the block exactly as it was.
+  /** Live value of reportDate for the awaited read's re-check. */
+  const reportDateRef = useRef(reportDate);
+  useEffect(() => { reportDateRef.current = reportDate; }, [reportDate]);
+  const weatherReadSeqRef = useRef(0);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  /** A read was tried for this report and nothing came back. */
+  const [liveWeatherMissing, setLiveWeatherMissing] = useState(false);
+  const isSavedReport = Boolean(reportId || existingReport || persistedSelf);
+
+  // `opts.auto` marks the read the screen makes by itself. The Refresh control
+  // passes nothing. Never wire this straight to onPress: the press event would
+  // arrive as `opts`.
+  // `opts.confirmedReplace` marks the one read the person asked to overwrite
+  // their own words with (the "Replace" answer).
+  const readLiveWeather = useCallback(async (opts?: { auto?: boolean; confirmedReplace?: boolean }) => {
+    const auto = opts?.auto === true;
+    const confirmedReplace = opts?.confirmedReplace === true;
+    // The day this read is FOR. The service refuses any day but today before
+    // it asks and again after the answer; the screen re-checks that the report
+    // was not re-dated while the request was in flight.
+    const requestedDay = calendarDayOf(reportDateRef.current);
+    const seq = ++weatherReadSeqRef.current;
+    // The block as it stands when the read STARTS. The "ask first" check ran at
+    // the tap; the answer arrives seconds later, and anything typed or dictated
+    // in between was never asked about.
+    const beforeText = dfrWeatherText(weatherRef.current);
+    const touchedBefore = weatherTouchedRef.current;
+    setWeatherLoading(true);
+    try {
+      const result = await readLiveWeatherForDailyReport({
+        reportDay: requestedDay,
+        today: () => todayCalendarDay(),
+        location: { city: project?.location, latitude: project?.locationLatitude, longitude: project?.locationLongitude },
+      });
+      if (seq !== weatherReadSeqRef.current) return;
+      if (calendarDayOf(reportDateRef.current) !== requestedDay) return;
+      if (!result.ok) {
+        setLiveWeatherMissing(result.reason !== 'not_today');
+        return;
+      }
+      // Whose words are in the block right now? Anything a person typed or
+      // dictated is theirs: an unattended read never replaces it.
+      const personsWords = !autoReadMayWrite(weatherRef.current, weatherTouchedRef.current);
+      if (auto && personsWords) return;
+      // Words that arrived while the read was in flight win: the answer is
+      // dropped without writing. The one exception is the read the person
+      // just confirmed with "Replace": they asked for their words to go.
+      const changedInFlight = dfrWeatherText(weatherRef.current) !== beforeText
+        || (weatherTouchedRef.current && !touchedBefore);
+      if (changedInFlight && !confirmedReplace) return;
+      setLiveWeatherMissing(false);
+      weatherTouchedRef.current = false;
+      setWeather(result.weather);
+      // A reading that replaced nothing a person wrote is still only the app's
+      // work: fold it into the unsaved-work baseline, or the screen reports
+      // itself as edited before the super has typed a word (DFR-DIRTY-AUTOFILL).
+      if (!personsWords) setAutoFilled(p => ({ ...p, weather: result.weather }));
+    } catch (err) {
+      console.log('[DFR] live weather read failed:', err);
+      if (seq === weatherReadSeqRef.current) setLiveWeatherMissing(true);
+    } finally {
+      if (seq === weatherReadSeqRef.current) setWeatherLoading(false);
+    }
+  }, [project?.location, project?.locationLatitude, project?.locationLongitude]);
+
+  /** The day the unattended read last ran for, so a re-render never asks twice. */
+  const autoWeatherDayRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reportIsToday) { autoWeatherDayRef.current = null; return; }
+    if (isSavedReport || !project) return;
+    if (autoWeatherDayRef.current === carryLabelDay) return;
+    autoWeatherDayRef.current = carryLabelDay;
+    void readLiveWeather({ auto: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportIsToday, isSavedReport, carryLabelDay, project?.id]);
+
+  /** Refresh. Typed weather is only replaced after the person says so. */
+  const handleRefreshWeather = useCallback(() => {
+    const cur = weatherRef.current;
+    const typed = cur.isManual && Boolean(cur.temperature || cur.conditions || cur.wind);
+    if (!typed) { void readLiveWeather(); return; }
+    showAlert(
+      t('field.dfr.weather.replaceTitle', 'Replace What You Typed?'),
+      t('field.dfr.weather.replaceBody', 'The weather you typed will be replaced with the current reading from OpenWeather.'),
+      [
+        { text: t('field.dfr.weather.keepMine', 'Keep Mine'), style: 'cancel' },
+        { text: t('field.dfr.weather.replace', 'Replace'), onPress: () => { void readLiveWeather({ confirmedReplace: true }); } },
+      ],
+    );
+  }, [readLiveWeather, t]);
+
   // `silent` writes the record and nothing else — no haptic, no toast, no
   // navigation. handleConfirmSend uses it to get the day on disk BEFORE it
   // tries to deliver anything, and owns the outcome message itself.
@@ -2881,7 +3011,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // Which sections this note actually wrote — the tutorial's stat says
     // "3 sections from one note" from this list, never from a guess.
     const fields: string[] = [];
-    if (parsed.weather && !weather.temperature) {
+    // Dictated weather beats a reading the app took (his account of the day
+    // wins). A note that said nothing about the weather does nothing here: it
+    // neither claims the block nor wipes a reading or a half-typed value.
+    const dictatedWeather = Boolean(parsed.weather
+      && (parsed.weather.temperature || parsed.weather.conditions || parsed.weather.wind));
+    if (parsed.weather && dictatedWeather && (!weather.temperature || isOpenWeatherReading(weather))) {
+      weatherTouchedRef.current = true;
       // isManual TRUE: dictated weather is the super's own account
       // of the day, not a reading from a weather service. The
       // parser defaults it to false (utils/voiceDFRParser.ts), which
@@ -3105,7 +3241,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       // note only" and files its day — withVoiceOriginCleared.
       updateDailyReport(savedRecord.id, withVoiceOriginCleared({
         date: reportDate,  // honor the user-picked date on edit too
-        weather,
+        weather: settleDfrWeather(weather),
         manpower,
         workPerformed: workPerformed.trim(),
         workProgress: workProgress.length > 0 ? workProgress : undefined,
@@ -3162,7 +3298,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         date: reportDate,  // user-picked date instead of "now" — pre-fix
                            // a report typed on Tuesday for Monday's work
                            // was misfiled as Tuesday's record
-        weather,
+        weather: settleDfrWeather(weather),
         manpower,
         workPerformed: workPerformed.trim(),
         workProgress: workProgress.length > 0 ? workProgress : undefined,
@@ -3384,7 +3520,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       id: stableReportId,
       projectId,
       date: reportDate,
-      weather,
+      weather: settleDfrWeather(weather),
       manpower: [],
       workPerformed: text,
       materialsDelivered: [],
@@ -3487,7 +3623,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       id: stableReportId,
       projectId: projectId ?? '',
       date: reportDate,
-      weather,
+      weather: settleDfrWeather(weather),
       manpower,
       workPerformed: workPerformed.trim(),
       workProgress: workProgress.length > 0 ? workProgress : undefined,
@@ -3647,7 +3783,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         recipientName: sendRecipientName,
         projectName: project?.name ?? 'Project',
         date: reportDate,  // honor the user-picked date in the email body
-        weather: { conditions: String(weather.conditions ?? ''), temperature: String(weather.temperature ?? ''), wind: String(weather.wind ?? '') },
+        weather: { ...settleDfrWeather(weather), conditions: String(weather.conditions ?? ''), temperature: String(weather.temperature ?? ''), wind: String(weather.wind ?? '') },
         totalManpower,
         totalManHours,
         workPerformed: workPerformed.trim(),
@@ -3765,7 +3901,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    * what makes the form clean again.
    *
    * `autoFilled` is the second fallback for the two fields the screen writes on
-   * its own (weather, whose auto-fetch is retired, and the schedule crew prefill) — see DFR-DIRTY-AUTOFILL
+   * its own (today's weather read and the schedule crew prefill) — see DFR-DIRTY-AUTOFILL
    * above. Without it a brand-new report is dirty a second after it opens, with
    * nobody having touched it.
    */
@@ -3949,6 +4085,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               text: t('field.dfr.restore', 'Restore'),
               onPress: () => {
                 setReportDate(draft.reportDate);
+                // What he typed stays his: no unattended read may replace it.
+                if (draft.weather?.isManual && (draft.weather.temperature || draft.weather.conditions || draft.weather.wind)) {
+                  weatherTouchedRef.current = true;
+                }
                 setWeather(draft.weather);
                 setManpower(draft.manpower ?? []);
                 setWorkPerformed(draft.workPerformed ?? '');
@@ -4337,7 +4477,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 onGenerated={(parsed) => {
                   // Inferred from photos, never read from a weather service —
                   // so it is not a fetched reading. See DFR-WEATHER-DAY.
-                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: true });
+                  if (parsed.weather && (parsed.weather.temperature || parsed.weather.conditions || parsed.weather.wind) && !weather.temperature) { weatherTouchedRef.current = true; setWeather({ ...parsed.weather, isManual: true }); }
                   if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
                   if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
                   if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
@@ -4536,6 +4676,25 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.sectionHeader}>
               <Cloud size={18} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>{t('field.dfr.weather', 'Weather')}</Text>
+              {/* Refresh re-reads today's conditions. Offered for today only,
+                  and on a saved report only while its weather is still empty:
+                  a stored reading is never overwritten. */}
+              {!isLocked && reportIsToday && (!isSavedReport || !(weather.temperature || weather.conditions || weather.wind)) && (
+                <TouchableOpacity
+                  style={[styles.refreshBtn, weatherLoading && styles.refreshBtnDisabled]}
+                  onPress={() => { handleRefreshWeather(); }}
+                  activeOpacity={0.7}
+                  disabled={weatherLoading}
+                  testID="dfr-weather-refresh"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: weatherLoading, busy: weatherLoading }}
+                  accessibilityLabel={t('field.dfr.weather.refreshA11y', 'Refresh the Weather from OpenWeather')}
+                >
+                  <Text style={[styles.refreshBtnText, weatherLoading && styles.refreshBtnTextDisabled]}>
+                    {weatherLoading ? t('field.dfr.weather.reading', 'Reading') : t('field.dfr.weather.refresh', 'Refresh')}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
             <View style={[styles.weatherGrid, isDesktop && styles.weatherGridDesktop]}>
               <View style={[styles.weatherItem, isDesktop && styles.weatherItemDesktop]}>
@@ -4544,7 +4703,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <TextInput
                     style={[styles.weatherInput, isDesktop && styles.weatherInputXsDesktop]}
                     value={weather.temperature}
-                    onChangeText={(v) => setWeather(prev => ({ ...prev, temperature: v, isManual: true }))}
+                    onChangeText={(v) => { weatherTouchedRef.current = true; setWeather(prev => ({ ...prev, temperature: v, isManual: true })); }}
                     placeholder={t('field.dfr.n72F', '72°F')}
                     placeholderTextColor={themeColors.textMuted}
                   />
@@ -4558,7 +4717,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <TextInput
                     style={[styles.weatherInput, isDesktop && styles.weatherInputSmDesktop]}
                     value={weather.conditions}
-                    onChangeText={(v) => setWeather(prev => ({ ...prev, conditions: v, isManual: true }))}
+                    onChangeText={(v) => { weatherTouchedRef.current = true; setWeather(prev => ({ ...prev, conditions: v, isManual: true })); }}
                     placeholder={t('field.dfr.sunnyCloudy', 'Sunny, cloudy')}
                     placeholderTextColor={themeColors.textMuted}
                   />
@@ -4572,7 +4731,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <TextInput
                     style={[styles.weatherInput, isDesktop && styles.weatherInputSmDesktop]}
                     value={weather.wind}
-                    onChangeText={(v) => setWeather(prev => ({ ...prev, wind: v, isManual: true }))}
+                    onChangeText={(v) => { weatherTouchedRef.current = true; setWeather(prev => ({ ...prev, wind: v, isManual: true })); }}
                     placeholder={t('field.dfr.n5MphNw', '5 mph NW')}
                     placeholderTextColor={themeColors.textMuted}
                   />
@@ -4583,6 +4742,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             </View>
             {weatherProvenance ? (
               <Text style={styles.weatherProvenance} testID="dfr-weather-provenance">{weatherProvenance}</Text>
+            ) : null}
+            {/* OpenWeather's credit goes wherever its reading shows, and never
+                on typed weather (WeatherCredit renders nothing for no live day). */}
+            <WeatherCredit days={weatherFromOpenWeather ? DFR_CREDIT_LIVE : DFR_CREDIT_NONE} style={styles.weatherCredit} />
+            {/* At most one quiet line, and only while the block is empty. */}
+            {!isLocked && !(weather.temperature || weather.conditions || weather.wind) && (!reportIsToday || liveWeatherMissing) ? (
+              <Text style={styles.weatherNotice} testID="dfr-weather-quiet-line">
+                {!reportIsToday
+                  ? t('field.dfr.weather.todayOnly', 'MAGE fills in the weather for today only. For another day, type what you saw.')
+                  : t('field.dfr.weather.notAvailable', 'Live weather is not available right now. Type what you saw.')}
+              </Text>
             ) : null}
           </View>
 
@@ -6645,7 +6815,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refreshBtnTextDisabled: { color: themeColors.textMuted },
   // DFR-WEATHER-DAY — the reason a backfilled report will not fill itself in,
   // and the provenance of whatever is in the block.
-  weatherNotice: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginBottom: 10 },
+  weatherNotice: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginTop: 10 },
+  weatherCredit: { marginTop: 4 },
   weatherProvenance: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 10 },
   weatherGrid: { gap: 10 },
   weatherGridDesktop: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Layout.groupGap },

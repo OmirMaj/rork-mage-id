@@ -141,7 +141,12 @@ export function hydratePortalSnapshot(
     // The snapshot flattens conditions + temperature into one display string
     // (there is no structured weather in the payload). Keep it in `conditions`
     // and leave `temperature` empty rather than splitting on a guess.
-    weather: { temperature: '', conditions: d.weather ?? '', wind: '', isManual: false },
+    // `weatherSource` + `weatherReadAt` travel only with a reading the app took
+    // from OpenWeather; they are what lets the client view print its credit.
+    weather: {
+      temperature: '', conditions: d.weather ?? '', wind: '', isManual: false,
+      ...(d.weatherSource && d.weatherReadAt ? { source: 'openweather' as const, readAt: d.weatherReadAt } : {}),
+    },
     manpower: [],
     workPerformed: d.workPerformed ?? '',
     materialsDelivered: [],

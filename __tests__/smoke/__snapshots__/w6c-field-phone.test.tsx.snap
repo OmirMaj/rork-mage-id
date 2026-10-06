@@ -17,7 +17,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) area-takeoff
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction-ai 1`] = `
 {
   "lines": 831,
-  "sha256": "175b939cd97537ff6150e76037f8d5d80709639aac11d6faffde76705c4f5148",
+  "sha256": "d3723453343a34ba9dfd2a862fe57b8aea19918c5e07d474b1db7c84751332f8",
 }
 `;
 
@@ -44,8 +44,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
-  "lines": 1154,
-  "sha256": "f6638614f00918ec9c85a1fe6fe774fb5e0d822f703c2647a524bfe621962ec2",
+  "lines": 1159,
+  "sha256": "25e651199666c94fe2696e57c1f0f824af428847cc17929bf24848659324d5a1",
 }
 `;
 
@@ -150,7 +150,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) payments (ta
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) permits 1`] = `
 {
   "lines": 834,
-  "sha256": "ed977202b683be4058d3e2c0b15becfbc4ee639574361ad3d2937de0cb3b08fd",
+  "sha256": "5c58b63153854e45e549b0c6efa0c29e0ea56143461b5d4ecd74192ca139629d",
 }
 `;
 
@@ -171,7 +171,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-list (
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-walk (trade override, sub picker, all locations) 1`] = `
 {
   "lines": 710,
-  "sha256": "b64f5c6bc41f20b98b1a6365496380f8b7f533f82704d7bffeae75a0da79cdd3",
+  "sha256": "9075bb11c911dc5b6b5689cc0d1dcfcfb0a0f98f26a5b852af0025222ba752b2",
 }
 `;
 
@@ -255,7 +255,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) sub-scorecard 1`] = `
 {
   "lines": 349,
-  "sha256": "2c74e3ec4f3e8688db45b281dbbcf01df72a661c1b62ef110c2d7b8ed8125073",
+  "sha256": "79aa90967908e79559046195daf56cb6d206c73c3796df675fe6ccd919bb6657",
 }
 `;
 
@@ -276,7 +276,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-trackin
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) warranties 1`] = `
 {
   "lines": 451,
-  "sha256": "4954db676dde48d0f4a6aa3f43bca45c291cea537095b3e7576356097168fcfa",
+  "sha256": "ee2b3a6ceb68eb236da24540a2d7c3740ddc6be1fa4938c6d3d096e45a434fca",
 }
 `;
 

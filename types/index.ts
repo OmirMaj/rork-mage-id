@@ -2179,7 +2179,24 @@ export interface DFRWeather {
   temperature: string;
   conditions: string;
   wind: string;
+  /** True for anything a person typed or dictated. False alone does NOT prove
+   *  a licensed read (older records and seeders wrote false with no source):
+   *  only `source` + `readAt` below do. */
   isManual: boolean;
+  /** Set ONLY when the app itself read the three values from OpenWeather's
+   *  current conditions (utils/weatherService.readLiveWeatherForDailyReport).
+   *  Lives inside the report's `weather` JSON, so it needs no column. */
+  source?: 'openweather';
+  /** ISO instant of that read. Always the report's own calendar day: a read
+   *  for any other day is refused before it is stored. */
+  readAt?: string;
+  /** The calendar day of that read WHERE it was taken ('YYYY-MM-DD'), and the
+   *  reading device's minutes east of UTC at that moment (-420 = UTC-7). The
+   *  same-day test and the printed time use these, so a report read at 9:30 PM
+   *  Pacific does not print as "a different day" on an Eastern office device.
+   *  Missing on anything saved without them: the viewing device's zone is used. */
+  readDay?: string;
+  readOffsetMin?: number;
 }
 
 export interface DFRPhoto {
