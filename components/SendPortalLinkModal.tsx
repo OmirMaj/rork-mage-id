@@ -173,7 +173,7 @@ export function SendPortalLinkModal({
               contentContainerStyle={styles.scrollContent}
               bounces={false}
             >
-              <Text style={styles.title}>Send the portal link</Text>
+              <Text style={styles.title}>Send the Portal Link</Text>
               <Text style={styles.sub}>Add one or more recipients, separated by commas or new lines.</Text>
 
               <View style={styles.modeRow}>
@@ -194,7 +194,7 @@ export function SendPortalLinkModal({
               </View>
 
               <View style={styles.labelRow}>
-                <Text style={styles.label}>{mode === 'email' ? 'Email addresses' : 'Phone numbers'}</Text>
+                <Text style={styles.label}>{mode === 'email' ? 'Email Addresses' : 'Phone Numbers'}</Text>
                 <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8} style={styles.doneInline}>
                   <Text style={styles.doneInlineText}>Done</Text>
                 </Pressable>
@@ -213,7 +213,7 @@ export function SendPortalLinkModal({
                 testID="send-portal-recipients"
               />
 
-              <Text style={styles.previewLabel}>Message preview</Text>
+              <Text style={styles.previewLabel}>Message Preview</Text>
               <View style={styles.preview}>
                 <Text style={styles.previewText} numberOfLines={6}>{message}</Text>
               </View>

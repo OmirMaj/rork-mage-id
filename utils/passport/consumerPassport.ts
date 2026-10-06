@@ -812,7 +812,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       projectId: p.projectId,
       projectName: p.projectName,
       kind: 'permit',
-      title: `Permit ${p.permitNumber ?? p.type} — ${p.jurisdiction || 'jurisdiction'}`.trim(),
+      title: `Permit ${p.permitNumber ?? p.type}, ${p.jurisdiction || 'jurisdiction'}`.trim(),
       date: p.approvedDate ?? p.appliedDate,
       uri: p.documentUri,
     });
@@ -824,7 +824,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       projectId: w.projectId,
       projectName: w.projectName,
       kind: 'warranty',
-      title: `Warranty — ${w.title}`,
+      title: `Warranty: ${w.title}`,
       date: w.startDate,
       uri: w.documentUri,
     });
@@ -835,7 +835,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       projectId: ph.projectId,
       projectName: nameOf(ph.projectId),
       kind: 'photo',
-      title: clean(ph.tag) || clean(ph.location) || 'Site photo',
+      title: clean(ph.tag) || clean(ph.location) || 'Site Photo',
       date: isoDay(ph.timestamp) || isoDay(ph.createdAt) || null,
       ...(clean(ph.uri) ? { uri: clean(ph.uri) } : {}),
     });
@@ -1025,7 +1025,7 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
   const lines: string[] = [];
   const push = (s: string) => lines.push(s);
 
-  push(`HOME PASSPORT — ${p.home.address || 'this home'}`);
+  push(`HOME PASSPORT: ${p.home.address || 'this home'}`);
   if (p.home.onRecordSince) push(`On record since ${p.home.onRecordSince}.`);
   push(`${p.stats.completedProjectCount} completed ${p.stats.completedProjectCount === 1 ? 'project' : 'projects'}, ${p.stats.contractorCount} ${p.stats.contractorCount === 1 ? 'contractor' : 'contractors'} on file.`);
 
@@ -1044,7 +1044,7 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
     push('');
     push('WARRANTIES STILL IN FORCE');
     for (const w of live.slice(0, maxItemsPerSection)) {
-      push(`- ${w.title}${w.provider ? ` (${w.provider})` : ''} — ends ${w.endDate ?? 'unknown'}`);
+      push(`- ${w.title}${w.provider ? ` (${w.provider})` : ''}, ends ${w.endDate ?? 'unknown'}`);
     }
   }
 
@@ -1060,7 +1060,7 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
   const permitted = p.permits.filter((x) => x.isFinaled);
   if (permitted.length > 0) {
     push('');
-    push('PERMITTED & FINALED');
+    push('PERMITTED AND FINALED');
     for (const x of permitted.slice(0, maxItemsPerSection)) {
       push(`- ${x.type}${x.permitNumber ? ` #${x.permitNumber}` : ''} — ${x.jurisdiction || 'jurisdiction on file'}`);
     }

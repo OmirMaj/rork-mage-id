@@ -93,12 +93,12 @@ ok('it is picked with the DatePickerModal (future allowed)', /setDateField\('exp
 ok('there is a Clear', /setForm\(f => \(\{ \.\.\.f, expiresDate: '' \}\)\)/.test(pm));
 ok('+6 / +12 month shortcuts use calendar months', /addCalendarMonths\(expiryBase, m\)/.test(pm) && /\[6, 12\]\.map/.test(pm));
 ok('the card reads the same rule as Brain Watch', /permitExpiryState\(permit, nowMs\)/.test(pm) && /const expiry = permitExpiryLine\(permit, Date\.now\(\)\);/.test(pm));
-ok('…and says "Expires today" / "Expired N days ago"', /'Expires today'/.test(pm) && /`Expired \$\{-d\} day/.test(pm));
+ok('…and says "Expires Today" / "Expired N days ago"', /'Expires Today'/.test(pm) && /`Expired \$\{-d\} day/.test(pm));
 
 console.log('\n#145 permits — a logged verdict and the status:');
 {
   const b = block(pm, 'const addLoggedInspection = useCallback(');
-  ok('logging a verdict for the booked visit ASKS', /showAlert\(\s*'Update the permit status\?'/.test(b) && /'Keep as scheduled'/.test(b) && /'Update status'/.test(b), b.slice(0, 200));
+  ok('logging a verdict for the booked visit ASKS', /showAlert\(\s*'Update the permit status\?'/.test(b) && /'Keep as Scheduled'/.test(b) && /'Update Status'/.test(b), b.slice(0, 200));
   ok('…only when it is on/after the booked day and the permit is scheduled',
     /form\.status === 'inspection_scheduled'/.test(b) && /row\.scheduledFor >= headDay/.test(b));
   ok('…and never changes the status outside the Update-status button',
@@ -112,10 +112,10 @@ ok('the card shows the history failure', /historyFailure=\{historyFailures\.get\
 
 console.log('\n#67 permits — the saved scan opens:');
 ok('"Permit document attached" dead text is gone', !/Permit document attached/.test(pmRaw));
-ok('the card has a "View permit" button', /accessibilityRole="button"\s*accessibilityLabel="View permit"/.test(pm) && /onViewScan\(\);/.test(pm));
+ok('the card has a "View Permit" button', /accessibilityRole="button"\s*accessibilityLabel="View Permit"/.test(pm) && /onViewScan\(\);/.test(pm));
 ok('…whose press does not also open the edit form', /e\.stopPropagation\?\.\(\); onViewScan\(\);/.test(pm));
 ok('a bucket path is signed with resolvePhotoUrls', /resolvePhotoUrls\(\[uri\]\)/.test(pm) && /looksLikeStoragePath\(uri\)/.test(pm));
-ok('a queued upload shows the local original with the uploading note', /getOwnPhotoUploadQueue\(\)/.test(pm) && /'Scan saved — uploading, viewable once it lands\.'/.test(pm));
+ok('a queued upload shows the local original with the uploading note', /getOwnPhotoUploadQueue\(\)/.test(pm) && /'Scan saved\. Uploading, viewable once it lands\.'/.test(pm));
 {
   const b = block(pm, 'const openEditForm = useCallback(');
   ok('opening a permit resolves its saved scan', /resolvePermitScan\(saved\)/.test(b), b.slice(0, 200));
@@ -127,7 +127,7 @@ ok('"uploads on its own as soon as you have signal" only for a fresh pick',
   /scanState === 'unavailable'[\s\S]{0,300}isDeviceLocalUri\(form\.attachmentUri\)[\s\S]{0,300}'Scan attached\. It uploads on its own as soon as you have signal\.'/.test(pm));
 ok('the viewer zooms (ScrollView zoom scale)', /maximumZoomScale=\{5\}/.test(pm));
 ok('web opens the signed copy in a new tab from a direct tap', /Linking\.openURL\(scanViewer\.webUrl!\)/.test(pm));
-ok('attaching needs the job first (the bucket path is per job)', /if \(!form\.projectId\) \{\s*showAlert\('Pick a project first'/.test(pm));
+ok('attaching needs the job first (the bucket path is per job)', /if \(!form\.projectId\) \{\s*showAlert\('Pick a Project First'/.test(pm));
 
 // ═══ app/warranties.tsx ══════════════════════════════════════════════════════
 const WR = 'app/warranties.tsx';
@@ -155,7 +155,7 @@ if (wg) {
   ok('the screen reads the role for the route job', /useProjectRoleState\(projectId \|\| undefined\)/.test(screen));
   ok('…and renders the note INSTEAD of the list when not open', /if \(gate !== 'open'\) \{[\s\S]*<WarrantiesAccessNote/.test(screen) && /return <WarrantiesScreenInner \/>;/.test(screen));
 }
-ok('the note names whose warranties they are', /Warranties are kept on the project owner's account — ask them to log one/.test(wrRaw));
+ok('the note names whose warranties they are', /Warranties are kept on the project owner's account\. Ask them to log one/.test(wrRaw));
 ok('the account-wide form lists only jobs he owns', /ownProjects\.map\(p => \(/.test(wr) && !/\{projects\.map\(p => \(/.test(wr));
 ok('…and says why a shared job is missing', /warranty-shared-jobs-note/.test(wr));
 
@@ -167,7 +167,7 @@ console.log('\n#144/#146 warranties — resolving claims, cents:');
   ok('…through updateWarranty (the offline-queued path)', /updateWarranty\(w\.id,/.test(b));
   ok('…with an optional one-line resolution', /showPrompt\(/.test(b) && /resolution: resolution \|\| c\.resolution/.test(b));
 }
-ok('open claims have the button, resolved ones read "Resolved <date>"', /Mark resolved/.test(wr) && /Resolved \{formatDate\(c\.resolvedAt!\)\}/.test(wr));
+ok('open claims have the button, resolved ones read "Resolved <date>"', /Mark Resolved/.test(wr) && /Resolved \{formatDate\(c\.resolvedAt!\)\}/.test(wr));
 ok('the "no mark resolved yet" comment is gone', !/deliberately no "mark resolved" here yet/.test(wrRaw));
 ok('claim cost prints to the cent', /formatMoney\(c\.cost, 2\)/.test(wr) && !/Math\.round\(c\.cost\)/.test(wr));
 ok('addWarrantyClaim is still wired (nav-coverage pins it)', /addWarrantyClaim\(/.test(wr));
@@ -183,7 +183,7 @@ ok('no hard-wired "12-month warranty closes"', !/12-month warranty closes/.test(
 ok('no "year-one" anywhere in the screen', !/year-one/i.test(ww));
 ok('no hard-wired "11-month" in the title, email title, subject or preheader', !/11-month/.test(ww));
 ok('hero names his N months', /before your \$\{warrantyMonths\}-month warranty closes/.test(ww));
-ok('email title/subject/preheader use the walk label', /completed the \$\{emailWalk\}/.test(ww) && /\$\{project\.name\} — \$\{emailWalkTitle\}/.test(ww) && /\$\{project\.name\} — \$\{emailWalk\} summary/.test(ww));
+ok('email title/subject/preheader use the walk label', /completed the \$\{emailWalk\}/.test(ww) && /\$\{project\.name\}: \$\{emailWalkTitle\}/.test(ww) && /\$\{project\.name\}: \$\{emailWalk\} summary/.test(ww));
 ok('an unset warranty is SAID to be an assumption, with the way to set it', /these dates assume 12 months/.test(ww) && /router\.push\('\/\(tabs\)\/settings' as never\)/.test(ww));
 ok('…and the homeowner email then names no month count', /monthsAssumed \? 'warranty walk'/.test(ww));
 ok('a close-date start is said as such (#136)', /counted from the day you closed the job/.test(ww));
@@ -204,7 +204,7 @@ ok('beforeRemove guard is registered', /navigation\.addListener\('beforeRemove'/
   ok('a logged walk deletes the draft', /void clearDraft\(\);/.test(b), b.slice(0, 200));
   ok('…and opens the gate BEFORE its own router.back()', /allowLeave\.current = true; router\.back\(\);/.test(b));
 }
-ok('Discard deletes the draft', /text: 'Discard walk'[\s\S]{0,200}clearDraft\(\)/.test(ww));
+ok('Discard deletes the draft', /text: 'Discard Walk'[\s\S]{0,200}clearDraft\(\)/.test(ww));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

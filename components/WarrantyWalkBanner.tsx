@@ -58,7 +58,7 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
                 {/* The walk is a month before THIS job's warranty ends (CONTRACT 4:
                     alerts carry the real term). An assumed term says only
                     "Warranty walk" rather than a month count nobody chose. */}
-                {a.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(a.warrantyMonths)}
+                {a.warrantyMonthsAssumed ? 'Warranty Walk' : warrantyWalkTitle(a.warrantyMonths)}
               </Text>
               <Text style={styles.body} numberOfLines={1}>
                 <Text style={styles.bodyStrong}>{a.project.name}</Text> · {describeWalkTiming(a)}

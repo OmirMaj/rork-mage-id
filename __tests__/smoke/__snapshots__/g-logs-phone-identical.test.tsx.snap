@@ -3,90 +3,90 @@
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (a record) 1`] = `
 {
   "lines": 1413,
-  "sha256": "d57256dfee3a5644908e7f7b91bc98b3850c5e08a1937fc1d5f339fe5217530f",
+  "sha256": "ff977259a874d108e6530256d854ddfe10a714a19501a66015b4ad7d253b9cf8",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (project only) 1`] = `
 {
   "lines": 1025,
-  "sha256": "4cf79c50679be46b611bbbc49ac1218f8639c964ff2331173f21b607a088b668",
+  "sha256": "b724eb8beae4424142df32c16b64710028cb82269db45571ab56968214ef1811",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a record) 1`] = `
 {
   "lines": 1015,
-  "sha256": "c27be537fa84cc4872ef26eb728ec0224d402c0055bf3b4bea0a6c0bd6192bb3",
+  "sha256": "0c467bb3840afbf558aefc42d9a5304471e446a04fdf835da7c027cf26098077",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (project only) 1`] = `
 {
   "lines": 1025,
-  "sha256": "e2f7005c4d7baff522be2a734a1eb930990fe7a9ff7b1f3d993c5d5b15574e42",
+  "sha256": "302f915404272d79190e7f17c17f4112084283784fd0f1a681fe9695eb9acbac",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the tutorial route, type=progress) 1`] = `
 {
   "lines": 1036,
-  "sha256": "8779e4ecc192fe4fe2b16bfc7a4d470bcf941581b0e9a8e9213de176081b940c",
+  "sha256": "82d371e31888ce8fe0691034b18b615f1bacc47e81f1cc59a5a8bfb08ed2ec66",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (a record) 1`] = `
 {
   "lines": 863,
-  "sha256": "27cdbc99233561f467473c84e934856dc0caf907c2c2523769321a6e78e9786a",
+  "sha256": "05f7c9ed0b7c2081690314126128ba8452cda0b2ed5fe6e1c00b8df362631e5d",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (project only: the create form) 1`] = `
 {
   "lines": 746,
-  "sha256": "a887dafc50b7d8a20196c166477ec917d478d7ad1e65d4300b6f796c838e14c9",
+  "sha256": "e9cc0da263a741b4d5aa6fa275f635c0dd22155c8c9a1396135854a70ec65067",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (a record) 1`] = `
 {
   "lines": 807,
-  "sha256": "bd8b33550e1caed4c96cdb8beac2ca29b5728831a040fcb901a96d6f733cfbdf",
+  "sha256": "1e80699a5cac0d22a609845dcdaadca8841e687d295651544865c0ddf9171920",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (project only) 1`] = `
 {
   "lines": 726,
-  "sha256": "b68d467bfe5fd5a9dfc90fed1ac55372524ada8e48a5cfd27d958cda75a41e41",
+  "sha256": "3bdda53592c750274c8b05cdeecd6c55c88330277bc5229c9ef5cee2ed162f33",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved credit: the bill bar says why) 1`] = `
 {
   "lines": 991,
-  "sha256": "b806ee437fa9af8df5a9a16c163f861a076bbdf32f8a1dd22accf8b09eb568ad",
+  "sha256": "faf936e538795dab0c295aae329abe2a56ba70bba115d5af8f633d7c126e5579",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved, billable: the bill bar) 1`] = `
 {
   "lines": 1003,
-  "sha256": "8127e1e9cedc2dbcbeaa6a02c71905603a46f676159467b3fc11b4c9bb3fc438",
+  "sha256": "393780b59b3da2ea960c9ca105e775ec2f1177b239d064070f9302c376ecac94",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (rejected: locked, no bar) 1`] = `
 {
   "lines": 997,
-  "sha256": "a1a161b45a4a166de6fa12a083478f5331af9a094d76df99f82215eafc08da02",
+  "sha256": "b95a4073e9e5899470476805d674a8740e3d76fa4ec236202ef83cd3aeb759f9",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) invoice (sent: reminder and pay link) 1`] = `
 {
   "lines": 1010,
-  "sha256": "e6fe6628b0a28d69cc948c1296dcd923480bcb0a893fea40be58545bc9a9de3a",
+  "sha256": "3383574e69c6a5cf6966d1efae2d3cc64c648804169d9e86fc7469d4a14d12b0",
 }
 `;

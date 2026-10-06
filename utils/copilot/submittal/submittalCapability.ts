@@ -10,24 +10,24 @@ export interface SubmittalApplied { route: '/submittal'; projectId: string; para
 
 export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApplied> = {
   id: 'submittal',
-  label: 'Log a submittal',
+  label: 'Log a Submittal',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
   suggestions: [
-    'Tile submittal for the primary bath — porcelain, 12x24',
+    'Tile submittal for the primary bath: porcelain, 12x24',
     'Structural steel shop drawings for the moment frames',
   ],
   topicChecklist: [
     { label: 'Item', hint: 'what is being submitted' },
-    { label: 'Spec section', hint: 'CSI division' },
+    { label: 'Spec Section', hint: 'CSI division' },
     { label: 'Timing', hint: 'when you need approval' },
   ],
   copy: {
     voiceTitle: 'Log a submittal',
     composeEyebrow: 'WHAT ARE YOU SUBMITTING',
     composeQuestion: 'What’s the submittal?',
-    composeHint: 'The item + spec section — I’ll number it and log it.',
+    composeHint: 'The item and spec section. I’ll number it and log it.',
     reviewHeadline: 'Here’s your submittal, ready to track.',
     reviewSub: 'Review the item + spec section, then open it from Submittals to attach the product data and send it for review.',
     buildingLabel: 'Logging the submittal…',

@@ -3,21 +3,21 @@
 exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today view 1`] = `
 {
   "lines": 2179,
-  "sha256": "f219ff0788e015631741a43dab884ac1e9ec8dab236ec31657199e3c8b2def6a",
+  "sha256": "ecc0f2e0f37a4c173d2c39a608b3fd78641a1ad4adf49379df74bc636176564e",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (Tools entry) 1`] = `
 {
   "lines": 831,
-  "sha256": "d3723453343a34ba9dfd2a862fe57b8aea19918c5e07d474b1db7c84751332f8",
+  "sha256": "175b939cd97537ff6150e76037f8d5d80709639aac11d6faffde76705c4f5148",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (from the job) 1`] = `
 {
   "lines": 839,
-  "sha256": "ec0057314f5b4ce514fe70b699a8e05f20b3c6e155e43d54263f0852c3f347d1",
+  "sha256": "0fcabfa1c1668a5c13d7e917d30eae3754fcd05e758e465910aef4308fea6c68",
 }
 `;
 
@@ -31,7 +31,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) deliveries 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code checks card) 1`] = `
 {
   "lines": 1611,
-  "sha256": "dd511871e974da19f973e767365333de813778b6e11aad6641ab23f79c10cd2f",
+  "sha256": "623f3720de87f0ea73aa47cad064d4124d665e0d92d27527a571c522a4b7ee9f",
 }
 `;
 
@@ -45,21 +45,21 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (answered rfi-1) 1`] = `
 {
   "lines": 847,
-  "sha256": "6bcbf1c5ed60f0d6b3621c9e1367962f1b04687f20cdc15a412f5d8e59abc66f",
+  "sha256": "44a49f3a1053a5d575fbf546a9ab3a58ab828cc580c6d06c94ab11a24309f9f1",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (new) 1`] = `
 {
   "lines": 746,
-  "sha256": "0ef0e167b3ed4f509b3bb04770a7b653e78756e2bfe0b4214a7993299d08db25",
+  "sha256": "e6bbf9030ed5f2f4fe4003caaf711b8d07f309021802cdb640de0b633484e4a2",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (open rfi-2) 1`] = `
 {
   "lines": 863,
-  "sha256": "13098fdc34f1a4b7c04cfd6cb84300496f36c71d100383d0be257c19649598f6",
+  "sha256": "112af6e2542fb7520ec537cc70c0f505ebc92376c221d96ee9b97407e1b8aa33",
 }
 `;
 

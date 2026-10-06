@@ -28,13 +28,13 @@ export function PausedPill({ top, onResume, onEnd }: PausedPillProps) {
         style={[styles.pill, Tokens.shadow.medium, { backgroundColor: colors.surface, borderColor: colors.line }]}
         testID="tutorial-paused-pill"
       >
-        <Text style={[Type.footnoteEmphasized, styles.label, { color: colors.text }]}>Tutorial paused</Text>
+        <Text style={[Type.footnoteEmphasized, styles.label, { color: colors.text }]}>Tutorial Paused</Text>
         <Text style={[Type.footnote, { color: colors.textMuted }]}>·</Text>
-        <Pressable onPress={onResume} accessibilityRole="button" accessibilityLabel="Resume tutorial" hitSlop={6} style={styles.action} testID="tutorial-resume">
+        <Pressable onPress={onResume} accessibilityRole="button" accessibilityLabel="Resume Tutorial" hitSlop={6} style={styles.action} testID="tutorial-resume">
           <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>Resume</Text>
         </Pressable>
         <Text style={[Type.footnote, { color: colors.textMuted }]}>·</Text>
-        <Pressable onPress={onEnd} accessibilityRole="button" accessibilityLabel="End tutorial" hitSlop={6} style={styles.action} testID="tutorial-paused-end">
+        <Pressable onPress={onEnd} accessibilityRole="button" accessibilityLabel="End Tutorial" hitSlop={6} style={styles.action} testID="tutorial-paused-end">
           <Text style={[Type.footnoteEmphasized, { color: colors.textSecondary }]}>End</Text>
         </Pressable>
       </View>

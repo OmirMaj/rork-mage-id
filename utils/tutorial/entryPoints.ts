@@ -47,10 +47,10 @@ export function helpTutorialsRowVisible(persona: TutorialPersona | null | undefi
 // ── Hub cards ───────────────────────────────────────────────────────────────
 
 export const HUB_GROUPS: readonly { group: TutorialGroup; label: string }[] = [
-  { group: 'site', label: 'On site' },
+  { group: 'site', label: 'On Site' },
   { group: 'money', label: 'Money' },
   { group: 'schedule', label: 'Schedule' },
-  { group: 'client', label: 'Your client' },
+  { group: 'client', label: 'Your Client' },
   { group: 'bid', label: 'Estimating' },
 ];
 
@@ -83,7 +83,7 @@ export function tierTagFor(
 ): string | null {
   const missing = missingTierFor(def, canAccess);
   if (!missing || !practicePass) return null;
-  return `${TIER_NAME[missing]} — practise free on the sample`;
+  return `${TIER_NAME[missing]}. Practise free on the sample.`;
 }
 
 export interface HubCard {
@@ -143,7 +143,7 @@ export function hubSections(ctx: HubCtx, defs: TutorialDefs = TUTORIAL_DEFS): Hu
 export function hubEmptyReason(persona: TutorialPersona | null | undefined, sections: readonly HubSection[]): string | null {
   if (sections.length > 0) return null;
   if (persona === 'client' || persona === 'property_manager') {
-    return 'Tutorials practise running a job — daily reports, punch walks, invoices. Your contractor runs those and shares the results with you, so there is nothing here to practise.';
+    return 'Tutorials practise running a job: daily reports, punch walks, invoices. Your contractor runs those and shares the results with you, so there is nothing here to practise.';
   }
   return 'No tutorials are available on your plan right now.';
 }

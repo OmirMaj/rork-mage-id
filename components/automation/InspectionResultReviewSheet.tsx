@@ -74,13 +74,13 @@ export function InspectionResultReviewSheet(
         </View>
         <View style={styles.headerTextWrap}>
           <Text style={styles.eyebrow}>
-            {isPass ? 'Inspection passed' : 'Inspection failed'}
+            {isPass ? 'Inspection Passed' : 'Inspection Failed'}
           </Text>
           <Text style={styles.title} testID="result-sheet-title">
             {inspection.title}
           </Text>
           <Text style={styles.subtitle}>
-            Draft only — nothing changes until you confirm.
+            Draft only. Nothing changes until you confirm.
           </Text>
         </View>
       </View>
@@ -92,7 +92,7 @@ export function InspectionResultReviewSheet(
               <CalendarClock {...Tokens.iconSize.small} color={colors.successLabel} />
               <Text style={styles.blockTitle}>
                 {releasedCount === 0
-                  ? 'No gated tasks to release'
+                  ? 'No Gated Tasks to Release'
                   : releasedCount === 1
                     ? '1 task will be released to start'
                     : `${releasedCount} tasks will be released to start`}
@@ -112,7 +112,7 @@ export function InspectionResultReviewSheet(
             <View style={styles.block} testID="result-reinspect-block">
               <View style={styles.blockHead}>
                 <CalendarClock {...Tokens.iconSize.small} color={colors.accent} />
-                <Text style={styles.blockTitle}>A re-inspection will be scheduled</Text>
+                <Text style={styles.blockTitle}>A Re-Inspection Will Be Scheduled</Text>
               </View>
               {work.reinspectionDraft ? (
                 <Text style={styles.blockBody}>{work.reinspectionDraft.title}</Text>
@@ -132,7 +132,7 @@ export function InspectionResultReviewSheet(
                 <Lock {...Tokens.iconSize.small} color={colors.warningLabel} />
                 <Text style={styles.blockTitle}>
                   {blockedCount === 0
-                    ? 'No downstream tasks were gated'
+                    ? 'No Downstream Tasks Were Gated'
                     : blockedCount === 1
                       ? '1 task stays blocked'
                       : `${blockedCount} tasks stay blocked`}
@@ -152,7 +152,7 @@ export function InspectionResultReviewSheet(
               <View style={styles.block} testID="result-hazard-block">
                 <View style={styles.blockHead}>
                   <ShieldAlert {...Tokens.iconSize.small} color={colors.dangerLabel} />
-                  <Text style={styles.blockTitle}>A safety hazard will be logged</Text>
+                  <Text style={styles.blockTitle}>A Safety Hazard Will Be Logged</Text>
                 </View>
                 <Text style={styles.blockBody}>{work.hazardDraft.description}</Text>
               </View>
@@ -176,12 +176,12 @@ export function InspectionResultReviewSheet(
           style={[styles.confirmBtn, !isPass && styles.confirmBtnFail]}
           accessibilityRole="button"
           accessibilityLabel={
-            isPass ? 'Confirm and release the schedule' : 'Confirm re-inspection and hazard'
+            isPass ? 'Confirm and Release the Schedule' : 'Confirm Re-Inspection and Hazard'
           }
           testID="result-confirm-btn"
         >
           <Text style={styles.confirmText}>
-            {isPass ? 'Confirm and release' : 'Confirm re-inspection'}
+            {isPass ? 'Confirm and Release' : 'Confirm Re-Inspection'}
           </Text>
         </TouchableOpacity>
       </View>

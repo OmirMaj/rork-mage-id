@@ -1150,7 +1150,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE b  phon
             ]
           }
         >
-          Invite a team member
+          Invite a Team Member
         </Text>
         <View
           style={
@@ -1758,7 +1758,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE b  phon
               }
             }
           >
-            Send invite
+            Send Invite
           </Text>
         </View>
       </View>
@@ -5939,7 +5939,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE d  desk
             ]
           }
         >
-          Invite a team member
+          Invite a Team Member
         </Text>
         <View
           style={
@@ -6547,7 +6547,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE d  desk
               }
             }
           >
-            Send invite
+            Send Invite
           </Text>
         </View>
       </View>

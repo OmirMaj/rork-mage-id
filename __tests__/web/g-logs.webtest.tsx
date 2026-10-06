@@ -231,11 +231,11 @@ beforeEach(() => {
 });
 
 describe('honest loading — no "No … yet" before the collection has loaded (C6)', () => {
-  it('RFIs: not settled → "Loading RFIs…", never "No RFIs on this project yet"; no chip counts', async () => {
+  it('RFIs: not settled → "Loading RFIs…", never "No RFIs on This Project Yet"; no chip counts', async () => {
     mockSettle = { settled: false, failed: false, hasRecord: false };
     const { el } = await mountLog(<RfiLog projectId={P} />);
     expect(el.textContent).toContain('Loading RFIs…');
-    expect(el.textContent).not.toMatch(/No RFIs on this project yet/);
+    expect(el.textContent).not.toMatch(/No RFIs on This Project Yet/);
     // The chips carry no count while loading (never a 0 it has not earned).
     expect(byId(el, 'rfi-log-chip-open')?.textContent).toBe('Open');
     expect(byId(el, 'rfi-log-chip-all')?.textContent).toBe('All');
@@ -245,9 +245,9 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
     mockSettle = { settled: true, failed: true, hasRecord: false };
     const { el } = await mountLog(<RfiLog projectId={P} />);
     expect(el.textContent).toContain("Couldn't load RFIs. Check your connection.");
-    expect(el.textContent).not.toMatch(/No RFIs on this project yet/);
+    expect(el.textContent).not.toMatch(/No RFIs on This Project Yet/);
     const spy = jest.spyOn(qc, 'invalidateQueries');
-    const retry = [...el.querySelectorAll('[role="button"], div')].find((n) => n.textContent === 'Try again');
+    const retry = [...el.querySelectorAll('[role="button"], div')].find((n) => n.textContent === 'Try Again');
     expect(retry).toBeTruthy();
     await click(retry!);
     expect(spy).toHaveBeenCalledWith({ queryKey: ['rfis'] });
@@ -255,7 +255,7 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
 
   it('RFIs: settled and truly empty → the empty copy is back', async () => {
     const { el } = await mountLog(<RfiLog projectId={P} />);
-    expect(el.textContent).toContain('No RFIs on this project yet');
+    expect(el.textContent).toContain('No RFIs on This Project Yet');
     expect(el.textContent).not.toMatch(/Loading/);
   });
 
@@ -263,7 +263,7 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
     mockSettle = { settled: false, failed: false, hasRecord: false };
     const { el } = await mountLog(<SubmittalLog projectId={P} />);
     expect(el.textContent).toContain('Loading submittals…');
-    expect(el.textContent).not.toMatch(/No submittals on this project yet/);
+    expect(el.textContent).not.toMatch(/No Submittals on This Project Yet/);
   });
 
   it('change orders: changeOrdersLoaded false → "Loading change orders…"', async () => {
@@ -317,7 +317,7 @@ describe('bulk Mark sent (invoices)', () => {
     const [title, message, buttons] = lastAlert();
     expect(title).toBe('Mark 2 invoices sent?');
     expect(message).toContain('This does not email anything.');
-    expect(message).toContain('Skipped 2: #2 — already sent; #3 — paid.');
+    expect(message).toContain('Skipped 2: #2 (already sent); #3 (paid).');
     const update = mockCtx.updateInvoice as jest.Mock;
     expect(update).not.toHaveBeenCalled();
     expect(buttons.map((b) => b.text)).toEqual(['Cancel', 'Mark 2 sent']);
@@ -337,7 +337,7 @@ describe('bulk Mark sent (invoices)', () => {
     await bulk(el, 'invoice-log-table', 'Mark Sent');
     const [title, message, buttons] = lastAlert();
     expect(title).toBe('Nothing to Mark Sent');
-    expect(message).toBe('Skipped 4: #1, #4 — sample job, sends only reach you; #2 — already sent; #3 — paid.');
+    expect(message).toBe('Skipped 4: #1, #4 (sample job, sends only reach you); #2 (already sent); #3 (paid).');
     expect(buttons.map((b) => b.text)).toEqual(['OK']);
     expect(mockCtx.updateInvoice as jest.Mock).not.toHaveBeenCalled();
   });
@@ -367,7 +367,7 @@ describe('bulk Close (RFIs)', () => {
     const [title, message, buttons] = lastAlert();
     expect(title).toBe('Close 1 answered RFI?');
     expect(message).toContain('Each is marked Closed and the ball goes to "closed", logged as "RFI closed by GC".');
-    expect(message).toContain('Skipped 3: #1 — not answered yet — close it from its record; #3 — already closed; #4 — void.');
+    expect(message).toContain('Skipped 3: #1 (not answered yet, so close it from its record); #3 (already closed); #4 (void).');
     const update = mockCtx.updateRFI as jest.Mock;
     expect(update).not.toHaveBeenCalled();
     await act(async () => { buttons[1].onPress?.(); });

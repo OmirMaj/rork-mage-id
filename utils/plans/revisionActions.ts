@@ -62,13 +62,13 @@ export function revisionFiling(opts: {
   const { oldSheet, allSheets, newPath, filedRevision, newSheetInSet } = opts;
   const number = sheetNumberKey(oldSheet);
   if (newSheetInSet) {
-    return { kind: 'in_set', label: `Already in the plan set as ${sheetCitation(newSheetInSet)} — nothing to file.` };
+    return { kind: 'in_set', label: `Already in the plan set as ${sheetCitation(newSheetInSet)}. Nothing to file.` };
   }
   if (typeof filedRevision === 'number') {
-    return { kind: 'filed', label: `Filed as Rev ${filedRevision} of ${number ?? oldSheet.name} — the old copy is marked superseded` };
+    return { kind: 'filed', label: `Filed as Rev ${filedRevision} of ${number ?? oldSheet.name}. The old copy is marked superseded.` };
   }
   if (!newPath) {
-    return { kind: 'blocked', reason: 'Only a PDF revision or an uploaded image can be filed into the plan set — this revision has no stored copy.' };
+    return { kind: 'blocked', reason: 'Only a PDF revision or an uploaded image can be filed into the plan set. This revision has no stored copy.' };
   }
   if (!number) {
     return {
@@ -76,7 +76,7 @@ export function revisionFiling(opts: {
       needsNumber: true,
       // The comparison is kept while he types it (#75): no second render, no
       // second paid compare.
-      reason: `${oldSheet.name} has no sheet number, so a new copy can't replace it. Type the number from its title block below (or in the plan viewer) — this comparison is kept.`,
+      reason: `${oldSheet.name} has no sheet number, so a new copy can't replace it. Type the number from its title block below (or in the plan viewer). This comparison is kept.`,
     };
   }
   // addPlanSheet chains onto the highest live revision with this number; say
@@ -163,7 +163,7 @@ export function rfiFromCandidate(
 }
 
 const CHANGE_LABEL: Record<string, string> = {
-  added: 'Added', removed: 'Removed', modified: 'Modified', renote: 'Note revised',
+  added: 'Added', removed: 'Removed', modified: 'Modified', renote: 'Note Revised',
 };
 
 /**
@@ -236,7 +236,7 @@ export function planRenumber(
   const number = rawNumber.trim();
   const before = (edited.sheetNumber ?? '').trim();
   if (number === before) return { kind: 'noop' };
-  if (number.length > 40) return { kind: 'invalid', reason: 'Sheet numbers are short, like A-201 — 40 characters at most.' };
+  if (number.length > 40) return { kind: 'invalid', reason: 'Sheet numbers are short, like A-201: 40 characters at most.' };
   if (!number) {
     return { kind: 'apply', patches: [{ id: edited.id, updates: { sheetNumber: '' } }], message: null };
   }
@@ -253,7 +253,7 @@ export function planRenumber(
     return {
       kind: 'apply',
       patches: [{ id: edited.id, updates: { sheetNumber: number } }],
-      message: `${heads.length} other live sheets already carry ${number}. Nothing was marked superseded — open them and confirm which one is current.`,
+      message: `${heads.length} other live sheets already carry ${number}. Nothing was marked superseded. Open them and confirm which one is current.`,
     };
   }
   const head = heads[0];
@@ -424,7 +424,7 @@ export function rfiFromPin(
   const seeAttached = sheetUri ? ` ${sheetName} is attached.` : '';
   return {
     projectId: sheet.projectId,
-    subject: label ? `${sheetName}: ${label}` : `${sheetName} — RFI`,
+    subject: label ? `${sheetName}: ${label}` : `${sheetName}: RFI`,
     question: label
       ? `Regarding ${label} ${where}: please advise.${seeAttached}`
       : `Please clarify the detail ${where}.${seeAttached}`,
@@ -525,7 +525,7 @@ export function pinLocationLine(opts: {
 }): string {
   const where = `Marked location: ${opts.sheetName}, ${Math.round(opts.x * 100)}% across and ${Math.round(opts.y * 100)}% down the sheet`;
   return opts.circledAtReplyLink
-    ? `${where} — circled on the sheet at the reply link.`
+    ? `${where}, circled on the sheet at the reply link.`
     : `${where} (the sheet is not attached; the location is given here in words).`;
 }
 
@@ -560,19 +560,19 @@ export function staleMatchesNote(staleDropped: number, answeredFromCurrent: bool
   const n = `${staleDropped} match${staleDropped === 1 ? '' : 'es'}`;
   if (!canIndex) {
     return answeredFromCurrent
-      ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out — ask the project owner or an editor to re-index the new revision.`
-      : `The only matching sheets were older revisions — the current set isn't indexed yet. Ask the project owner or an editor to re-index it.`;
+      ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out. Ask the project owner or an editor to re-index the new revision.`
+      : `The only matching sheets were older revisions. The current set isn't indexed yet. Ask the project owner or an editor to re-index it.`;
   }
   return answeredFromCurrent
-    ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out — tap Index to read the new revision.`
-    : `The only matching sheets were older revisions — the current set isn't indexed yet. Tap Index to search it.`;
+    ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out. Tap Index to read the new revision.`
+    : `The only matching sheets were older revisions. The current set isn't indexed yet. Tap Index to search it.`;
 }
 
 /** The index button's wording when the manifest says sheets changed since the
  *  last run. null = the manifest could not be read (never claim "up to date"). */
 export function changedSinceIndexLabel(staleCount: number | null): string | null {
   if (staleCount === null || staleCount <= 0) return null;
-  return `Index ${staleCount} changed sheet${staleCount === 1 ? '' : 's'} — answers may be from older revisions`;
+  return `Index ${staleCount} changed sheet${staleCount === 1 ? '' : 's'}. Answers may be from older revisions.`;
 }
 
 // ── #73 Who may do what to the plan set ────────────────────────────────────
@@ -663,7 +663,7 @@ export function planControlBlock(role: PlanRole, control: PlanControl, status?: 
     case 'import':
       return role === 'editor' ? null : 'Only the project owner or an editor can add sheets to this project.';
     case 'compare':
-      return role === 'editor' ? null : 'Only the project owner or an editor can compare revisions \u2014 a comparison files the new revision into the set.';
+      return role === 'editor' ? null : 'Only the project owner or an editor can compare revisions. A comparison files the new revision into the set.';
     case 'delete':
       return 'Only the project owner, or the editor who added a sheet, can delete it.';
     case 'estimate':
@@ -674,7 +674,7 @@ export function planControlBlock(role: PlanRole, control: PlanControl, status?: 
       // dead end right after he filed a revision through Compare.
       return role === 'editor' ? null : PLAN_INDEX_REFUSAL;
     case 'markup':
-      return role === 'viewer' ? 'Viewer seats can look but not mark up \u2014 ask the project owner for a field seat.' : null;
+      return role === 'viewer' ? 'Viewers can look but not mark up. Ask the project owner for Field access.' : null;
   }
 }
 
@@ -693,6 +693,6 @@ export function sheetDeleteBlock(
   const screenWide = planControlBlock(role, 'delete', status);
   if (screenWide === null) return null;
   if (role === 'editor' && sheet.userId && userId && sheet.userId === userId) return null;
-  if (role === 'editor') return 'Only the project owner, or the editor who added this sheet, can delete it \u2014 someone else added this one.';
+  if (role === 'editor') return 'Only the project owner, or the editor who added this sheet, can delete it. Someone else added this one.';
   return screenWide;
 }

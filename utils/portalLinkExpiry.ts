@@ -219,7 +219,7 @@ export function linkState(
 ): PortalLinkState {
   const expiryMs = toMillis(expiresAt);
   if (expiryMs === null) {
-    return { kind: 'never', daysLeft: null, label: 'Open until handover' };
+    return { kind: 'never', daysLeft: null, label: 'Open Until Handover' };
   }
 
   // A non-finite `now` (NaN from a bad caller) would make every comparison
@@ -240,7 +240,7 @@ export function linkState(
       label: handover
         ? `Link closed ${date} (${ago}), ${HANDOVER_GRACE_DAYS} days after handover`
         : elapsedDays === 0
-          ? 'Link expired today'
+          ? 'Link Expired Today'
           : `Link expired ${elapsedDays} ${plural(elapsedDays)} ago`,
     };
   }
@@ -252,7 +252,7 @@ export function linkState(
       kind: 'expiring_soon',
       daysLeft,
       label: handover
-        ? `Closes ${date} (${when}) — job handed over`
+        ? `Closes ${date} (${when}), job handed over`
         : `Link expires ${when}`,
     };
   }
@@ -261,8 +261,8 @@ export function linkState(
     kind: 'active',
     daysLeft,
     label: handover
-      ? `Closes ${date} — ${HANDOVER_GRACE_DAYS} days after handover`
-      : `Link active — expires in ${daysLeft} ${plural(daysLeft)}`,
+      ? `Closes ${date}, ${HANDOVER_GRACE_DAYS} days after handover`
+      : `Link active, expires in ${daysLeft} ${plural(daysLeft)}`,
   };
 }
 

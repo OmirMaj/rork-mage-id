@@ -113,8 +113,8 @@ describe('tutorials hub', () => {
     // now appears on several cards: the wave-A cards carry theirs.
     expect(free.getByTestId('tutorial-card-punch-walk-tier')).toBeTruthy();
     expect(free.getByTestId('tutorial-card-invoice-to-self-tier')).toBeTruthy();
-    expect(free.getAllByText('Business — practise free on the sample').length).toBeGreaterThan(0);
-    expect(free.getAllByText('Pro — practise free on the sample').length).toBeGreaterThan(0);
+    expect(free.getAllByText('Business. Practise free on the sample.').length).toBeGreaterThan(0);
+    expect(free.getAllByText('Pro. Practise free on the sample.').length).toBeGreaterThan(0);
     expect(free.queryByTestId('tutorial-card-daily-report-voice-tier')).toBeNull();
   });
 

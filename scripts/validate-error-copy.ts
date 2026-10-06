@@ -423,7 +423,7 @@ for (const s of SAMPLES) {
   const sites: Array<[string, string, string]> = [
     ['app/contract.tsx', "seal the contract", "Couldn't Seal the Contract"],
     ['app/estimate-wizard.tsx', "share the estimate", "Couldn't Share the Estimate"],
-    ['app/rfi.tsx', "send the RFI", "Couldn't send the RFI"],
+    ['app/rfi.tsx', "send the RFI", "Couldn't Send the RFI"],
   ];
   for (const [file, action, title] of sites) {
     const code = src(file);
@@ -436,7 +436,7 @@ for (const s of SAMPLES) {
   }
   const rfi = src('app/rfi.tsx');
   ok('app/rfi.tsx: a refused send shows only a reader sentence, never the raw server text',
-    /showAlert\("Couldn't send the RFI", ownSentence\(result\.error \?\? null\) \?\? describeError\(result\.error \?\? null, \{ action: 'send the RFI', keptLocally: true \}\)\.body\);/.test(rfi)
+    /showAlert\("Couldn't Send the RFI", ownSentence\(result\.error \?\? null\) \?\? describeError\(result\.error \?\? null, \{ action: 'send the RFI', keptLocally: true \}\)\.body\);/.test(rfi)
     && !/showAlert\('Send failed', result\.error/.test(rfi));
   const co = src('app/change-order.tsx');
   ok('app/change-order.tsx: the send catch folds in the thrown sentence when it is one',

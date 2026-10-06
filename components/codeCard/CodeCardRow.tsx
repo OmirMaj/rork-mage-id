@@ -40,7 +40,7 @@ export interface CodeCardRowProps {
 /** Who the "ask" row's question is for. */
 export function askTarget(item: Pick<CodeCardItem, 'status' | 'question'>): string | null {
   if (item.status !== 'ask') return null;
-  return (item.question ?? '').trim() ? 'Ask architect' : 'Ask town';
+  return (item.question ?? '').trim() ? 'Ask Architect' : 'Ask Town';
 }
 
 export function CodeCardRow({ item, onPress, showStage = true, edition, info, ruled, sunlight, testID }: CodeCardRowProps) {

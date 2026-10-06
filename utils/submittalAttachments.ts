@@ -174,7 +174,7 @@ export function submittalSendOutcome(o: {
     warning:
       `The email went, but ${dropped} of ${o.requested} file${o.requested === 1 ? '' : 's'} could not be attached` +
       (sent > 0 ? ` (${sent} did)` : '') +
-      '. It was not logged as a review round — check the files and send again.',
+      '. It was not logged as a review round. Check the files and send again.',
   };
 }
 
@@ -404,7 +404,7 @@ function requiredDateFromTask(
  *  there is none. */
 export function requiredDateNote(d: DerivedRequiredDate, leadDays: number): string {
   if (!d.requiredDate) return 'Required date: set it, or link a schedule task';
-  return `Needed by ${formatCalendarDay(d.requiredDate)} — "${d.taskTitle}" starts ${formatCalendarDay(d.taskStart ?? '')}, less the ${leadDays}-day estimated lead (AI)`;
+  return `Needed by ${formatCalendarDay(d.requiredDate)}: "${d.taskTitle}" starts ${formatCalendarDay(d.taskStart ?? '')}, less the ${leadDays}-day estimated lead (AI)`;
 }
 
 /** The submittal a kept spec row becomes. Not submitted (nothing has been sent)

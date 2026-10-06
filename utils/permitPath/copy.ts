@@ -23,11 +23,11 @@ export function ppDay(iso: string): string {
 const STATION_TITLES: Readonly<Record<StationId, string>> = {
   scope: 'Scope',
   checks: 'Checks',
-  drawings: 'Drawings and who stamps them',
+  drawings: 'Drawings and Who Stamps Them',
   filing: 'Filing',
-  review: 'Plan review',
-  issued: 'Permit issued',
-  work: 'Work and inspections',
+  review: 'Plan Review',
+  issued: 'Permit Issued',
+  work: 'Work and Inspections',
   signoff: 'Sign-off',
 };
 
@@ -47,19 +47,19 @@ const STATE_LABELS: Readonly<Record<StationState, string>> = {
   done: 'Done',
   current: 'You are here',
   ahead: 'Ahead',
-  not_needed: 'Not needed',
-  unknown: 'Not known yet',
+  not_needed: 'Not Needed',
+  unknown: 'Not Known Yet',
 };
 
 const PARTY_LABELS: Readonly<Record<Party, string>> = {
   owner: 'Owner',
   gc: 'You (GC)',
-  design_pro: 'Architect or engineer',
-  licensed_plumber: 'Licensed plumber',
-  licensed_electrician: 'Licensed electrician',
-  asbestos_investigator: 'Asbestos investigator',
+  design_pro: 'Architect or Engineer',
+  licensed_plumber: 'Licensed Plumber',
+  licensed_electrician: 'Licensed Electrician',
+  asbestos_investigator: 'Asbestos Investigator',
   expediter: 'Expediter',
-  department: 'Building department',
+  department: 'Building Department',
   lpc: 'Landmarks (LPC)',
 };
 

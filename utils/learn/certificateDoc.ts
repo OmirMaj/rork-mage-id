@@ -70,7 +70,7 @@ export function scoreLine(cert: SkillCertificate, issuedLabel: string): string {
 /** What the share sheet (or, on web, the clipboard) carries. CERT_NAME_NOTE
  *  rides along right after the name, as on the card and the PDF. */
 export function certificateShareText(cert: SkillCertificate, topic: SkillTopic, url: string): string {
-  return `${topic.certificateTitle} — ${cert.holderName}. ${CERT_NAME_NOTE} Check it at ${url}`;
+  return `${topic.certificateTitle}, ${cert.holderName}. ${CERT_NAME_NOTE} Check it at ${url}`;
 }
 
 /** What VoiceOver reads for one card:

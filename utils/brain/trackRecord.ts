@@ -71,7 +71,7 @@ type ReceiptBody = Omit<TrackRecordReceipt, 'id' | 'kind' | 'whenISO'>;
 
 function paceReceipt(o: PaceOutcome): ReceiptBody {
   return {
-    label: o.trade || 'Pace call',
+    label: o.trade || 'Pace Call',
     predicted: fmtDays(o.paceDays),
     actual: fmtDays(o.actualDays),
     verdict: o.tie ? 'tie' : o.paceBeatAi ? 'hit' : 'miss',
@@ -85,7 +85,7 @@ function delayReceipt(o: DelayRippleOutcome): ReceiptBody {
     err == null ? 'info' : Math.abs(err) <= 1 ? 'hit' : Math.abs(err) <= 2 ? 'info' : 'miss';
   const taskCount = o.perTask.length;
   return {
-    label: 'Delay ripple',
+    label: 'Delay Ripple',
     predicted: 'finish held',
     actual: err == null ? 'graded' : err === 0 ? 'on time' : `${err > 0 ? '+' : ''}${err}d`,
     verdict,
@@ -96,7 +96,7 @@ function delayReceipt(o: DelayRippleOutcome): ReceiptBody {
 function leakReceipt(o: LeakOutcome): ReceiptBody {
   const flagged = o.itemsBilled + o.itemsEaten;
   return {
-    label: 'Profit-leak scan',
+    label: 'Profit-Leak Scan',
     predicted: `${flagged} item${flagged === 1 ? '' : 's'} flagged`,
     actual: `${o.itemsBilled} recovered`,
     verdict: o.itemsBilled > 0 ? 'hit' : 'miss',
@@ -118,7 +118,7 @@ function estimateReceipt(o: EstimateSnapshotOutcome): ReceiptBody {
 function judgesReceipt(o: JudgesOutcome): ReceiptBody {
   // targetMarginPct + realizedMarginPct are FRACTIONS (see JudgesOutcome doc).
   return {
-    label: 'Margin verdict',
+    label: 'Margin Verdict',
     predicted: `${fmtPct(o.targetMarginPct)} target`,
     actual: o.realizedMarginPct == null ? 'pending' : fmtPct(o.realizedMarginPct),
     verdict: o.verdictWasRight == null ? 'info' : o.verdictWasRight ? 'hit' : 'miss',
@@ -128,7 +128,7 @@ function judgesReceipt(o: JudgesOutcome): ReceiptBody {
 
 function instantBidReceipt(o: InstantBidOutcome): ReceiptBody {
   return {
-    label: 'Instant bid',
+    label: 'Instant Bid',
     predicted: 'proposal sent',
     actual: o.won ? 'won' : 'lost',
     verdict: o.won ? 'hit' : 'miss',
@@ -142,7 +142,7 @@ function bidScoreReceipt(o: BidScoreOutcome): ReceiptBody {
   // that lost, is a "right" read. No probability recorded → informational.
   const verdict: ReceiptVerdict = p == null ? 'info' : (p >= 0.5) === o.won ? 'hit' : 'miss';
   return {
-    label: 'Tracked bid',
+    label: 'Tracked Bid',
     predicted,
     actual: o.won ? 'won' : 'lost',
     verdict,

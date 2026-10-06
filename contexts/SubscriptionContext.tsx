@@ -293,7 +293,7 @@ export function restoreOutcome(
   if (result instanceof RestoreUnavailableError
     || (result instanceof Error && result.name === 'RestoreUnavailableError')) {
     return {
-      title: 'Restore is in the mobile app',
+      title: 'Restore Is in the Mobile App',
       body: 'Purchases are restored in the MAGE ID iPhone or Android app. Open it, sign in with this account, and tap Restore on the plans screen.',
       leave: false,
     };
@@ -301,16 +301,16 @@ export function restoreOutcome(
   if (typeof result === 'string' && result in TIER_RANK) {
     const t = result as SubscriptionTier;
     if (TIER_RANK[t] > 0) {
-      return { title: `Restored — you're on ${TIER_LABEL[t]}`, body: 'Your plan is active on this account.', leave: true };
+      return { title: `Restored. You're on ${TIER_LABEL[t]}.`, body: 'Your plan is active on this account.', leave: true };
     }
     return {
-      title: 'Nothing to restore',
+      title: 'Nothing to Restore',
       body: `No active subscription found for this ${storeName} account.`,
       leave: false,
     };
   }
   return {
-    title: 'Couldn’t restore purchases',
+    title: 'Couldn’t Restore Purchases',
     body: `Could not reach the ${storeName} to restore your purchases. Check your connection and try again.`,
     leave: false,
   };

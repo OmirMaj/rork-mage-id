@@ -112,7 +112,7 @@ test('(2) after the tap: observations, check on site, can\'t tell and the fixed 
   expect(within(obs).getByText('IRC R602.6')).toBeTruthy();
   const site = screen.getByTestId('codelook-check-on-site');
   expect(within(site).getByText('Possible gap in fire-stopping at the top plate')).toBeTruthy();
-  expect(within(site).getByText('Hard to see — check on site')).toBeTruthy();
+  expect(within(site).getByText('Hard to see. Check on site.')).toBeTruthy();
   const cant = screen.getByTestId('codelook-cant-tell');
   expect(within(cant).getByText('Box fill inside the two-gang box')).toBeTruthy();
   expect(within(cant).getByText('Better shot: A straight-on shot into the open box')).toBeTruthy();
@@ -142,7 +142,7 @@ test('(4) "Make punch item" files an internal punch pinned to THIS photo', async
   expect(punches).toEqual([{ photoUri: PHOTO, sourcePhotoId: SOURCE_PHOTO_ID, description: first.what }]);
   // The row now says it is in punch, and cannot be pressed again.
   const btn = screen.getByTestId(`codelook-punch-${first.id}`);
-  expect(within(btn).getByText('In punch (internal)')).toBeTruthy();
+  expect(within(btn).getByText('In Punch (Internal)')).toBeTruthy();
   expect(btn.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
 });
 

@@ -105,7 +105,7 @@ const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mecha
 /**
  * The permit is issued but its inspection cycle has not begun. The inspection
  * breadcrumb is then correctly all-empty — nothing has been scheduled — and
- * this is what keeps "Schedule inspection" reachable anyway.
+ * this is what keeps "Schedule Inspection" reachable anyway.
  *
  * Both halves come from the model so the screen cannot drift from it:
  * `pipelinePositionFor` says the status belongs to the application path, and
@@ -170,7 +170,7 @@ function PickerOptions({ children, testID }: { children: React.ReactNode; testID
  * Name the gap and point at the fix. Returns null when there is nothing real
  * to print, so each caller decides how to say it.
  */
-const JURISDICTION_UNSET = 'Issuing jurisdiction not set';
+const JURISDICTION_UNSET = 'Issuing Jurisdiction Not Set';
 
 function jurisdictionOrNull(value: string | null | undefined): string | null {
   const v = (value ?? '').trim();
@@ -195,7 +195,7 @@ function permitExpiryLine(permit: Permit, nowMs: number): { text: string; tone: 
         ? { text: `Expired ${-d} day${d === -1 ? '' : 's'} ago`, tone: 'bad' }
         : null;
     }
-    if (d === 0) return { text: 'Expires today', tone: 'warn' };
+    if (d === 0) return { text: 'Expires Today', tone: 'warn' };
     if (d !== null) return { text: `Expires in ${d} day${d === 1 ? '' : 's'}`, tone: 'warn' };
     return null;
   }
@@ -205,7 +205,7 @@ function permitExpiryLine(permit: Permit, nowMs: number): { text: string; tone: 
 }
 
 /** "Scan saved" while the bytes are still in the upload queue (#67). */
-const SCAN_UPLOADING_NOTE = 'Scan saved — uploading, viewable once it lands.';
+const SCAN_UPLOADING_NOTE = 'Scan saved. Uploading, viewable once it lands.';
 
 function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
   permit: Permit;
@@ -291,7 +291,7 @@ function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
             <Text style={styles.permitJurisdiction}>{jurisdiction}</Text>
           ) : (
             <Text style={styles.permitJurisdictionUnset} testID={`permit-jurisdiction-unset-${permit.id}`}>
-              {JURISDICTION_UNSET} — tap to add
+              {JURISDICTION_UNSET}. Tap to add.
             </Text>
           );
         })()}
@@ -356,11 +356,11 @@ function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
             style={styles.viewScanBtn}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel="View permit"
+            accessibilityLabel="View Permit"
             testID={`permit-view-scan-${permit.id}`}
           >
             <Eye size={13} color={themeColors.accentLabel} strokeWidth={1.75} />
-            <Text style={styles.viewScanText}>View permit</Text>
+            <Text style={styles.viewScanText}>View Permit</Text>
           </Pressable>
         ) : null}
 
@@ -370,7 +370,7 @@ function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
             (or nothing), never an invented "Applied today". */}
         <View style={styles.permitFooter}>
           <Text style={styles.permitFee}>
-            {permit.fee === 0 && /Fee not read from the scan/.test(permit.notes ?? '') ? 'Fee not recorded' : formatMoney(permit.fee)}
+            {permit.fee === 0 && /Fee not read from the scan/.test(permit.notes ?? '') ? 'Fee Not Recorded' : formatMoney(permit.fee)}
           </Text>
           {permit.appliedDate ? (
             <Text style={styles.permitDate}>
@@ -522,7 +522,7 @@ function PermitsAccessNote({ gate, onRetry, onClose }: {
               ? "You don't have access to this project. Ask the project owner to invite you."
               : 'Permits are managed by the project owner. Ask them for a permit’s status or an inspection date, since permits are kept on their account.'}
       </Text>
-      {gate === 'error' ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="permits-gate-retry" /> : null}
+      {gate === 'error' ? <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="permits-gate-retry" /> : null}
       {gate === 'owner_only' || gate === 'no_access' ? <Button label="Back" variant="secondary" size="sm" onPress={onClose} testID="permits-gate-back" /> : null}
     </View>
   );
@@ -692,7 +692,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     const r = await resolvePermitScan(uri);
     if (r.kind === 'unavailable') {
       showAlert(
-        'Permit scan',
+        'Permit Scan',
         "Couldn't open the saved scan. Check your connection and try again. It's stored with the project, so any signed-in device can open it once it has signal.",
       );
       return;
@@ -708,7 +708,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       ...EMPTY_FORM,
       appliedDate: todayCalendarDay(),
       // #51: the job he is looking at. With no job in scope and more than one
-      // project, leave it EMPTY — handleSave's "Pick a project" guard makes
+      // project, leave it EMPTY — handleSave's "Pick a Project" guard makes
       // him choose, instead of quietly filing it under whichever job happens
       // to be first in the list.
       projectId: scopedProjectId
@@ -824,7 +824,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     // The scan is filed under the job's folder in the bucket, so the job has
     // to be known first — without it the scan could only stay on this phone.
     if (!form.projectId) {
-      showAlert('Pick a project first', 'The permit scan is stored with its project. Pick which project this permit belongs to, then attach it.');
+      showAlert('Pick a Project First', 'The permit scan is stored with its project. Pick which project this permit belongs to, then attach it.');
       return;
     }
     const picked = source === 'library'
@@ -868,23 +868,23 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       setDobCheck(cur => {
         if (!cur || cur.permitNumber !== num) return cur;
         if (res.status === 'permit') return { permitNumber: num, busy: false, lookup: res.lookup, error: null };
-        return { permitNumber: num, busy: false, lookup: null, error: res.status === 'error' ? res.error : "DOB didn't answer — nothing was checked." };
+        return { permitNumber: num, busy: false, lookup: null, error: res.status === 'error' ? res.error : "DOB didn't answer. Nothing was checked." };
       });
     })();
   }, [form.permitNumber]);
 
   const handleSave = useCallback(() => {
     if (!form.projectId) {
-      showAlert('Pick a project', 'Permits are tracked per project — pick which one this belongs to.');
+      showAlert('Pick a Project', 'Permits are tracked per project. Pick which one this belongs to.');
       return;
     }
     if (!form.jurisdiction.trim()) {
-      showAlert('Missing jurisdiction', 'Add the issuing jurisdiction (e.g. "City of Phoenix, AZ").');
+      showAlert('Missing Jurisdiction', 'Add the issuing jurisdiction, such as "City of Phoenix, AZ".');
       return;
     }
     const project = projects.find(p => p.id === form.projectId);
     if (!project) {
-      showAlert('Project not found', 'Pick a project from the list.');
+      showAlert('Project Not Found', 'Pick a project from the list.');
       return;
     }
     const fee = Number(form.fee.replace(/[^0-9.]/g, '')) || 0;
@@ -952,7 +952,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
   const addLoggedInspection = useCallback(() => {
     const day = logDraft.scheduledFor.slice(0, 10);
     if (!day) {
-      showAlert('Pick a date', 'An inspection needs the day it was called or booked for.');
+      showAlert('Pick a Date', 'An inspection needs the day it was called or booked for.');
       return;
     }
     const row: PermitInspection = {
@@ -985,9 +985,9 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
           ? `This looks like the inspection booked for ${formatCalendarDay(headDay, { weekday: 'short', month: 'short', day: 'numeric' })}. Mark the permit Inspection ${verdict}?`
           : `The permit still says an inspection is scheduled. Mark it Inspection ${verdict}?`,
         [
-          { text: 'Keep as scheduled', style: 'cancel' },
+          { text: 'Keep as Scheduled', style: 'cancel' },
           {
-            text: 'Update status',
+            text: 'Update Status',
             onPress: () => {
               // The logged row IS the booked visit now: the booking's own
               // 'scheduled' row for that day is dropped (never a verdict row),
@@ -1015,7 +1015,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         ? `${row.name} · ${formatCalendarDay(row.scheduledFor, { month: 'short', day: 'numeric' })} · ${INSPECTION_RESULT_LABELS[row.result]}${row.notes ? '. Its notes are deleted too' : ''}. This is the record of what the inspector said, and removing it can't be undone.`
         : 'This can\'t be undone.',
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: 'Keep It', style: 'cancel' },
         { text: 'Remove', style: 'destructive', onPress: () => setInspections(prev => prev.filter(i => i.id !== id)) },
       ],
     );
@@ -1043,7 +1043,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     );
   }, [editingPermit, deletePermit, closeForm]);
 
-  const selectedProjectName = projects.find(p => p.id === form.projectId)?.name ?? 'Pick a project';
+  const selectedProjectName = projects.find(p => p.id === form.projectId)?.name ?? 'Pick a Project';
 
   // #138: "+6 / +12 months" counts from the day the permit was issued when it
   // carries one, else from the applied date — and the chip says which.
@@ -1082,10 +1082,10 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
               onPress={() => router.setParams({ projectId: undefined })}
               style={styles.scopeBtn}
               accessibilityRole="button"
-              accessibilityLabel="Show permits for all projects"
+              accessibilityLabel="Show Permits for All Projects"
               testID="permits-scope-all"
             >
-              <Text style={styles.scopeBtnText}>All projects</Text>
+              <Text style={styles.scopeBtnText}>All Projects</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1111,7 +1111,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? themeColors.dangerSoft : '#F3E5F5' }]}>
                   <Calendar size={14} color={urgent ? themeColors.dangerLabel : Colors.purple} strokeWidth={1.75} />
                   <Text style={[styles.nextInspectionBadgeText, { color: urgent ? themeColors.dangerLabel : Colors.purple }]}>
-                    Next inspection · {dayLabel}
+                    Next Inspection · {dayLabel}
                   </Text>
                 </View>
                 <Text style={styles.nextInspectionDate}>
@@ -1146,7 +1146,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   {(PERMIT_TYPE_INFO[b.type]?.label ?? b.type)} · {b.projectName}
                 </Text>
                 <Text style={styles.blockerStatus}>
-                  {b.status === 'denied' ? 'Permit denied' : 'Failed inspection'}
+                  {b.status === 'denied' ? 'Permit Denied' : 'Failed Inspection'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1185,7 +1185,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         </View>
 
         <View style={styles.feeCard}>
-          <Text style={styles.feeLabel}>Total permit fees</Text>
+          <Text style={styles.feeLabel}>Total Permit Fees</Text>
           <Text style={styles.feeValue}>{formatMoney(stats.totalFees)}</Text>
         </View>
 
@@ -1233,11 +1233,11 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
               <ClipboardCheck size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>{scopedProject && scopedPermits.length === 0 ? `No permits on ${scopedProject.name} yet` : 'No permits yet'}</Text>
+              <Text style={styles.emptyTitle}>{scopedProject && scopedPermits.length === 0 ? `No permits on ${scopedProject.name} yet` : 'No Permits Yet'}</Text>
               <Text style={styles.emptySub}>Tap + above to log your first permit. We&apos;ll track inspections and renewal dates from there.</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={openNewForm}>
                 <Plus size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.emptyCtaText}>New permit</Text>
+                <Text style={styles.emptyCtaText}>New Permit</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1270,7 +1270,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   body, so tall permits pushed this header off the top of the
                   screen. */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingPermit ? 'Edit permit' : 'New permit'}</Text>
+                <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
                 <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
 
@@ -1287,7 +1287,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       <View style={styles.permitSideBranchBadge}>
                         <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
                         <Text style={styles.permitSideBranchText}>
-                          {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} — not on the normal path
+                          {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} (not on the normal path)
                         </Text>
                       </View>
                     )}
@@ -1304,8 +1304,8 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                         setForm(f => ({ ...f, status: next as PermitStatus }));
                       }}
                       advanceLabel={
-                        form.status === 'applied' ? 'Move to review'
-                        : form.status === 'under_review' ? 'Mark approved'
+                        form.status === 'applied' ? 'Move to Review'
+                        : form.status === 'under_review' ? 'Mark Approved'
                         : undefined
                       }
                     />
@@ -1326,8 +1326,8 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                           setForm(f => ({ ...f, status: next as PermitStatus }));
                         }}
                         advanceLabel={
-                          form.status === 'approved' ? 'Schedule inspection'
-                          : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                          form.status === 'approved' ? 'Schedule Inspection'
+                          : form.status === 'inspection_scheduled' ? 'Mark Inspection Passed'
                           : undefined
                         }
                       />
@@ -1343,7 +1343,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 {pickerOpen === 'project' && (
                   <PickerOptions testID="permit-project-options">
                     {projects.length === 0 ? (
-                      <Text style={styles.pickerEmpty}>No projects yet — create one first.</Text>
+                      <Text style={styles.pickerEmpty}>No projects yet. Create one first.</Text>
                     ) : projects.map(p => (
                       <TouchableOpacity
                         key={p.id}
@@ -1380,14 +1380,14 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     regular permit types so it doesn't feel cluttered. */}
                 {form.type === 'special_inspection' && (
                   <>
-                    <Text style={styles.formLabel}>IBC Ch.17 category</Text>
+                    <Text style={styles.formLabel}>IBC Ch.17 Category</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => setPickerOpen(pickerOpen === 'specialCategory' ? null : 'specialCategory')}
                       testID="permit-special-category-picker"
                     >
                       <Text style={styles.formPickerText}>
-                        {form.specialInspectionCategory ? SPECIAL_INSPECTION_LABELS[form.specialInspectionCategory] : 'Pick a category'}
+                        {form.specialInspectionCategory ? SPECIAL_INSPECTION_LABELS[form.specialInspectionCategory] : 'Pick a Category'}
                       </Text>
                       <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
@@ -1407,16 +1407,16 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       </PickerOptions>
                     )}
 
-                    <Text style={styles.formLabel}>Inspector / agency</Text>
+                    <Text style={styles.formLabel}>Inspector / Agency</Text>
                     <TextInput
                       style={styles.formInput}
                       value={form.inspectorName ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, inspectorName: t }))}
-                      placeholder='e.g. "Geotek Engineering — Lic. STX-4112"'
+                      placeholder="Geotek Engineering, Lic. STX-4112"
                       placeholderTextColor={themeColors.textMuted}
                     />
 
-                    <Text style={styles.formLabel}>Last report date</Text>
+                    <Text style={styles.formLabel}>Last Report Date</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('lastReportDate'); }}
@@ -1424,16 +1424,16 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     >
                       <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.lastReportDate && { color: themeColors.textMuted }]}>
-                        {form.lastReportDate ? formatDateLabel(form.lastReportDate) : 'Pick a date'}
+                        {form.lastReportDate ? formatDateLabel(form.lastReportDate) : 'Pick a Date'}
                       </Text>
                     </TouchableOpacity>
 
-                    <Text style={styles.formLabel}>Last report summary</Text>
+                    <Text style={styles.formLabel}>Last Report Summary</Text>
                     <TextInput
                       style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' as const }]}
                       value={form.lastReportSummary ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, lastReportSummary: t }))}
-                      placeholder="One-line summary of findings, e.g. 'Concrete sample 4-day compressive 4180 psi — passing'"
+                      placeholder="Concrete sample 4-day compressive 4180 psi, passing"
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
@@ -1459,12 +1459,12 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   </PickerOptions>
                 )}
 
-                <Text style={styles.formLabel}>Permit number</Text>
+                <Text style={styles.formLabel}>Permit Number</Text>
                 <TextInput
                   style={styles.formInput}
                   value={form.permitNumber}
                   onChangeText={t => setForm(f => ({ ...f, permitNumber: t }))}
-                  placeholder="e.g. BP-2026-04521"
+                  placeholder="BP-2026-04521"
                   placeholderTextColor={themeColors.textMuted}
                 />
 
@@ -1504,7 +1504,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                             </Text>
                           ) : null}
                           {objections ? (
-                            <Text style={styles.dobLine}>DOB shows objections issued — your applicant of record answers them.</Text>
+                            <Text style={styles.dobLine}>DOB shows objections issued. Your applicant of record answers them.</Text>
                           ) : null}
                           {suggested ? (
                             <Button
@@ -1532,18 +1532,18 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 />
                 <DepartmentCard project={formProject} testID="permit-form-department" />
 
-                <Text style={styles.formLabel}>Phase tag</Text>
+                <Text style={styles.formLabel}>Phase Tag</Text>
                 <TextInput
                   style={styles.formInput}
                   value={form.phase}
                   onChangeText={t => setForm(f => ({ ...f, phase: t }))}
-                  placeholder="e.g. Foundation, Rough-in, Final"
+                  placeholder="Foundation, Rough-in, Final"
                   placeholderTextColor={themeColors.textMuted}
                 />
 
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Applied date</Text>
+                    <Text style={styles.formLabel}>Applied Date</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('appliedDate'); }}
@@ -1551,12 +1551,12 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     >
                       <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.appliedDate && { color: themeColors.textMuted }]}>
-                        {form.appliedDate ? formatDateLabel(form.appliedDate) : 'Pick a date'}
+                        {form.appliedDate ? formatDateLabel(form.appliedDate) : 'Pick a Date'}
                       </Text>
                     </TouchableOpacity>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Inspection date</Text>
+                    <Text style={styles.formLabel}>Inspection Date</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('inspectionDate'); }}
@@ -1564,7 +1564,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     >
                       <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.inspectionDate && { color: themeColors.textMuted }]}>
-                        {form.inspectionDate ? formatDateLabel(form.inspectionDate) : 'Pick a date'}
+                        {form.inspectionDate ? formatDateLabel(form.inspectionDate) : 'Pick a Date'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1579,12 +1579,12 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     style={[styles.formPicker, { flex: 1 }]}
                     onPress={() => { setPickerOpen(null); setDateField('expiresDate'); }}
                     accessibilityRole="button"
-                    accessibilityLabel={form.expiresDate ? `Permit expires ${formatDateLabel(form.expiresDate)}. Change the date` : 'Pick the date the permit expires'}
+                    accessibilityLabel={form.expiresDate ? `Permit expires ${formatDateLabel(form.expiresDate)}. Change the date` : 'Pick the Date the Permit Expires'}
                     testID="permit-expires-date"
                   >
                     <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.expiresDate && { color: themeColors.textMuted }]}>
-                      {form.expiresDate ? formatDateLabel(form.expiresDate) : 'Not set'}
+                      {form.expiresDate ? formatDateLabel(form.expiresDate) : 'Not Set'}
                     </Text>
                   </TouchableOpacity>
                   {form.expiresDate ? (
@@ -1592,7 +1592,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       style={styles.expiryChip}
                       onPress={() => setForm(f => ({ ...f, expiresDate: '' }))}
                       accessibilityRole="button"
-                      accessibilityLabel="Clear the expiry date"
+                      accessibilityLabel="Clear the Expiry Date"
                       testID="permit-expires-clear"
                     >
                       <Text style={styles.expiryChipText}>Clear</Text>
@@ -1626,7 +1626,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   placeholderTextColor={themeColors.textMuted}
                 />
 
-                <Text style={styles.formLabel}>Inspection notes</Text>
+                <Text style={styles.formLabel}>Inspection Notes</Text>
                 <TextInput
                   style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={form.inspectionNotes}
@@ -1642,16 +1642,16 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     save, so booking the next inspection can no longer erase
                     the last one's result or its correction note. */}
                 <View style={styles.historyHeader}>
-                  <Text style={styles.formLabel}>Inspection history</Text>
+                  <Text style={styles.formLabel}>Inspection History</Text>
                   <TouchableOpacity
                     onPress={() => setLogOpen(v => !v)}
                     style={styles.historyAddBtn}
                     accessibilityRole="button"
-                    accessibilityLabel={logOpen ? 'Close inspection form' : 'Log an inspection'}
+                    accessibilityLabel={logOpen ? 'Close Inspection Form' : 'Log an Inspection'}
                     testID="permit-log-inspection"
                   >
                     <Plus size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
-                    <Text style={styles.historyAddText}>{logOpen ? 'Close' : 'Log one'}</Text>
+                    <Text style={styles.historyAddText}>{logOpen ? 'Close' : 'Log One'}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1693,18 +1693,18 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       style={styles.formInput}
                       value={logDraft.name}
                       onChangeText={t => setLogDraft(d => ({ ...d, name: t }))}
-                      placeholder="What was inspected — e.g. Rough electrical"
+                      placeholder="Rough electrical"
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('logInspection'); }}
                       accessibilityRole="button"
-                      accessibilityLabel="Pick the inspection date"
+                      accessibilityLabel="Pick the Inspection Date"
                     >
                       <CalendarDays size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                       <Text style={[styles.formPickerText, { marginLeft: 8 }, !logDraft.scheduledFor && { color: themeColors.textMuted }]}>
-                        {logDraft.scheduledFor ? formatDateLabel(logDraft.scheduledFor) : 'Pick a date'}
+                        {logDraft.scheduledFor ? formatDateLabel(logDraft.scheduledFor) : 'Pick a Date'}
                       </Text>
                     </TouchableOpacity>
                     <View style={styles.historyResultRow}>
@@ -1739,13 +1739,13 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       testID="permit-add-inspection"
                     >
                       <Text style={styles.historySaveBtnText}>
-                        {logDraft.scheduledFor ? 'Add to history' : 'Pick a date to add it'}
+                        {logDraft.scheduledFor ? 'Add to History' : 'Pick a Date to Add It'}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
 
-                <Text style={styles.formLabel}>General notes</Text>
+                <Text style={styles.formLabel}>General Notes</Text>
                 <TextInput
                   style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={form.notes}
@@ -1755,17 +1755,17 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   multiline
                 />
 
-                <Text style={styles.formLabel}>Permit document</Text>
+                <Text style={styles.formLabel}>Permit Document</Text>
                 <View style={styles.attachRowBtns}>
-                  <TouchableOpacity style={styles.attachBtn} onPress={() => { void handleAttach('camera'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Photograph the permit" testID="permit-attach-camera">
+                  <TouchableOpacity style={styles.attachBtn} onPress={() => { void handleAttach('camera'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Photograph the Permit" testID="permit-attach-camera">
                     <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
                     <Text style={styles.attachBtnText}>
-                      {form.attachmentUri ? 'Re-shoot' : 'Photograph it'}
+                      {form.attachmentUri ? 'Re-shoot' : 'Photograph It'}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.attachBtn} onPress={() => { void handleAttach('library'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Attach a permit scan from the library" testID="permit-attach-library">
+                  <TouchableOpacity style={styles.attachBtn} onPress={() => { void handleAttach('library'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Attach a Permit Scan from the Library" testID="permit-attach-library">
                     <FileText size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
-                    <Text style={styles.attachBtnText}>From library</Text>
+                    <Text style={styles.attachBtnText}>From Library</Text>
                   </TouchableOpacity>
                 </View>
                 {/* The raw value used to be printed here — a `file://` path,
@@ -1782,16 +1782,16 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     style={styles.viewScanBtn}
                     onPress={() => openScanViewer(
                       attachmentPreview,
-                      editingPermit ? scanCaption(editingPermit) : 'Permit scan',
+                      editingPermit ? scanCaption(editingPermit) : 'Permit Scan',
                       scanState === 'uploading' ? SCAN_UPLOADING_NOTE : undefined,
                       scanState === 'ready' ? attachmentPreview : undefined,
                     )}
                     accessibilityRole="button"
-                    accessibilityLabel="View permit full screen"
+                    accessibilityLabel="View Permit Full Screen"
                     testID="permit-form-view-scan"
                   >
                     <Eye size={13} color={themeColors.accentLabel} strokeWidth={1.75} />
-                    <Text style={styles.viewScanText}>View permit</Text>
+                    <Text style={styles.viewScanText}>View Permit</Text>
                   </TouchableOpacity>
                 ) : null}
                 {form.attachmentUri ? (
@@ -1803,9 +1803,9 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                         : scanState === 'uploading'
                           ? SCAN_UPLOADING_NOTE
                           : scanState === 'unavailable'
-                            ? "Couldn't load the saved scan — check your connection. It is still attached."
+                            ? "Couldn't load the saved scan. Check your connection. It is still attached."
                             : isDeviceLocalUri(form.attachmentUri)
-                              ? 'Scan attached — stored on this device only. Sign in to have it upload.'
+                              ? 'Scan attached and stored on this device only. Sign in to have it upload.'
                               // 'fresh': he just picked it, and it really is queued.
                               : 'Scan attached. It uploads on its own as soon as you have signal.'}
                   </Text>
@@ -1818,7 +1818,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 )}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="permit-save-btn">
                   <Save size={16} color="#fff" strokeWidth={1.75} />
-                  <Text style={styles.saveBtnText}>{editingPermit ? 'Update' : 'Create permit'}</Text>
+                  <Text style={styles.saveBtnText}>{editingPermit ? 'Update' : 'Create Permit'}</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
@@ -1836,7 +1836,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
               onPress={() => setScanViewer(null)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
-              accessibilityLabel="Close permit scan"
+              accessibilityLabel="Close Permit Scan"
               testID="permit-scan-viewer-close"
             >
               <X size={22} color={SCAN_ON_BACKDROP} strokeWidth={1.75} />
@@ -1846,7 +1846,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
               <TouchableOpacity
                 onPress={() => { void Linking.openURL(scanViewer.webUrl!); }}
                 accessibilityRole="link"
-                accessibilityLabel="Open the permit scan in a new tab"
+                accessibilityLabel="Open the Permit Scan in a New Tab"
                 testID="permit-scan-viewer-newtab"
               >
                 <ExternalLink size={20} color={SCAN_ON_BACKDROP} strokeWidth={1.75} />
@@ -1900,11 +1900,11 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         // Thursday, the footing that failed was three weeks ago.
         allowFuture={dateField === 'inspectionDate' || dateField === 'logInspection' || dateField === 'expiresDate'}
         title={
-          dateField === 'appliedDate' ? 'Applied date'
-          : dateField === 'inspectionDate' ? 'Inspection date'
-          : dateField === 'expiresDate' ? 'Permit expires'
+          dateField === 'appliedDate' ? 'Applied Date'
+          : dateField === 'inspectionDate' ? 'Inspection Date'
+          : dateField === 'expiresDate' ? 'Permit Expires'
           : dateField === 'logInspection' ? 'When was it called?'
-          : 'Last report date'
+          : 'Last Report Date'
         }
         onClose={() => setDateField(null)}
         onChange={(iso) => {

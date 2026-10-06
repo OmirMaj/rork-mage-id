@@ -74,13 +74,13 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
         res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to check a photo.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Allow camera access in Settings to check a photo.'); return; }
         res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
       }
       if (res.canceled || !res.assets[0]?.uri) return;
       setPhotoUri(res.assets[0].uri);
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', 'Try again.');
+      showAlert('Couldn\u2019t Open the Camera', 'Try again.');
     }
   }, []);
 
@@ -91,9 +91,9 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
     <View testID="codethread-project-card" style={styles.wrap}>
       <Card>
         <View style={styles.headerRow}>
-          <Text style={styles.heading}>Code checks</Text>
+          <Text style={styles.heading}>Code Checks</Text>
           <Button
-            label="Code check this job"
+            label="Code Check This Job"
             size="sm"
             variant="secondary"
             testID="codethread-run-project"
@@ -101,7 +101,7 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
           />
         </View>
         <Button
-          label="Check a photo"
+          label="Check a Photo"
           variant="secondary"
           fullWidth
           iconLeft={<Camera size={16} color={colors.text} strokeWidth={1.75} />}

@@ -673,7 +673,7 @@ function buildCredential(o: {
       `Verified by MAGE ID from ${plural(jobCount, 'job record', 'job records')} across ${plural(gcCount, 'general contractor', 'general contractors')}`,
     );
   } else {
-    verifiedParts.push('Verified by MAGE ID — no linked job records yet');
+    verifiedParts.push('Verified by MAGE ID, no linked job records yet');
   }
 
   return {
@@ -717,19 +717,19 @@ function buildReferral(
       : '';
 
   const message =
-    `Hey - a couple of the GCs I work for run their subs through MAGE ID, and it's made my end a lot cleaner. ` +
+    `Hey, a couple of the GCs I work for run their subs through MAGE ID, and it's made my end a lot cleaner. ` +
     `I get my scope and schedule in one place, I submit invoices there, and my COI and license stay current instead of you chasing me for them.${proof} ` +
     `It's free for subs, so there's nothing for me to sign up for twice. ` +
     `If you send me bid invites and invoices through MAGE, everything between us lives in one thread. Want me to send you the link to set it up?`;
 
   const shortMessage =
-    `A few of my GCs run subs through MAGE ID - scope, schedule, invoices and my COI all in one place, free on my end. ` +
+    `A few of my GCs run subs through MAGE ID: scope, schedule, invoices and my COI all in one place, free on my end. ` +
     `Want me to send you the link so we can run our jobs through it?`;
 
   return {
     message,
     shortMessage,
-    emailSubject: `${companyName} - running our jobs through MAGE ID`,
+    emailSubject: `${companyName}: running our jobs through MAGE ID`,
     inviteTargets,
   };
 }

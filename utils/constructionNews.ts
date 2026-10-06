@@ -184,8 +184,8 @@ export type NewsStaleReason = 'offline' | 'refresh_failed';
 export function staleBannerText(reason: NewsStaleReason, fetchedAt: string, nowMs: number): string {
   const since = sincePhrase(fetchedAt, nowMs);
   return reason === 'offline'
-    ? `Offline — showing news from ${since}`
-    : `Couldn't refresh — showing news from ${since}`;
+    ? `Offline. Showing news from ${since}.`
+    : `Couldn't refresh. Showing news from ${since}.`;
 }
 
 /** "All" plus every topic that has at least one item, in NEWS_TOPICS order. */

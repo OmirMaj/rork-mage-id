@@ -42,11 +42,11 @@ export type CodeCheckSyncVerdict = 'ok' | 'local' | 'seat' | 'seat_unknown';
 export const CODE_CHECKS_CAPTION: Record<CodeCheckSyncState, string> = {
   local: 'Saved on this device until you sign out.',
   seat: 'Saved on this device. Your role on this project can’t save code checks to the account.',
-  syncing: 'Saved on this device — checking your account…',
-  synced: 'Saved to your account — on every device you sign in to.',
-  offline: 'Saved on this device — it syncs to your account when you’re back online.',
-  failed: 'Saved on this device — couldn’t reach your account, so it may not be on your other devices yet.',
-  refused: 'Saved on this device only — your account didn’t accept this save, so it isn’t on your other devices.',
+  syncing: 'Saved on this device. Checking your account…',
+  synced: 'Saved to your account, on every device you sign in to.',
+  offline: 'Saved on this device. It syncs to your account when you’re back online.',
+  failed: 'Saved on this device. Couldn’t reach your account, so it may not be on your other devices yet.',
+  refused: 'Saved on this device only. Your account didn’t accept this save, so it isn’t on your other devices.',
 };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -7,7 +7,7 @@ import type { EnCatalog } from '../../types';
 export const EN: EnCatalog = {
   "common.tutorial.askPlansSampleA11y": "Ask the sample question. {note}.",
   "common.tutorial.askPlansSampleQuestion": "Ask the sample question: {question}",
-  "common.tutorial.caiModeBlockedTitle": "Not on the sample",
+  "common.tutorial.caiModeBlockedTitle": "Not on the Sample",
   "common.tutorial.caiSampleA11y": "Use the sample question. {note}.",
   "common.tutorial.caiSampleQuestion": "Use the sample question: {question}",
   "common.tutorial.caiStillLoading": "This job's invoices are still loading. Try again in a moment.",

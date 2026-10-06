@@ -354,9 +354,9 @@ console.log('\nux-doors validation (Lane D):');
     /dollarsToCents\(commitmentValue\(c as Commitment\)\)/.test(srcRows) && /dollarsToCents\(commitmentPaidToDate\(c as Commitment\)\)/.test(srcRows));
   const tile = read('components', 'project', 'SubsPayTile.tsx');
   ok('D5: the tile says "Approved bills" (the rollup counts approved-but-unpaid bills), never "Paid to date"; Get waiver is off when there is no waiver door',
-    />Approved bills</.test(tile) && !/Paid to date/.test(tile) && /disabled=\{!r\.waiverHref\}/.test(tile));
+    />Approved Bills</.test(tile) && !/Paid to date/.test(tile) && /disabled=\{!r\.waiverHref\}/.test(tile));
   ok('D5: no commitments → no rows, and the empty line reads "No subs on this project yet"',
-    subsPayRows({ projectId: 'p1', commitments: [], subs, subBills: [] }).length === 0 && SUBS_PAY_EMPTY.title === 'No subs on this project yet');
+    subsPayRows({ projectId: 'p1', commitments: [], subs, subBills: [] }).length === 0 && SUBS_PAY_EMPTY.title === 'No Subs on This Project Yet');
   ok('D5: every amount prints cents', centsLabel(450000) === '$4,500.00' && centsLabel(120050) === '$1,200.50' && dollarsToCents(Number.NaN) === 0);
 
   const pd = read('app', 'project-detail.tsx');

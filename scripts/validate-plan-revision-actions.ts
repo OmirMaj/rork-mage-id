@@ -177,7 +177,7 @@ console.log('\n7. plan-extract reports the title block as data');
 console.log('\n8. the viewer can give a PDF page its number');
 const pv = read('app/plan-viewer.tsx');
 ok('the sheet number is editable from the viewer', /plan-viewer-sheet-number-input/.test(pv) && /setNumberDraft/.test(pv));
-ok('an unnumbered sheet invites the number', /\+ Add sheet number/.test(pv));
+ok('an unnumbered sheet invites the number', /\+ Add Sheet Number/.test(pv));
 ok('saving runs planRenumber, not a bare updatePlanSheet', /planRenumber\(sheet, numberDraft, projectSheets\)/.test(pv));
 
 // B4 review: the renumber alert says "the older copy is marked superseded".

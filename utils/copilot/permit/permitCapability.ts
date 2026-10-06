@@ -24,7 +24,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v)
 
 export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
   id: 'permit',
-  label: 'Log a permit',
+  label: 'Log a Permit',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
@@ -41,7 +41,7 @@ export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
     voiceTitle: 'Log a permit',
     composeEyebrow: 'A PERMIT UPDATE',
     composeQuestion: 'What’s the permit?',
-    composeHint: 'Which permit, who issued it, the number, expiry, fee — whatever you have.',
+    composeHint: 'Which permit, who issued it, the number, expiry, fee: whatever you have.',
     reviewHeadline: 'Here’s your permit, ready to log.',
     reviewSub: 'Review it, then save. It shows on the permit log and drives expiry + inspection reminders.',
     buildingLabel: 'Logging the permit…',

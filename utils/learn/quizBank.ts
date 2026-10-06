@@ -346,7 +346,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'They mean the same thing'], ['b', 'Sources back the answer. Also checked were read, not used'], ['c', 'Also checked are paid sources']],
       correctId: 'b',
       why: 'Only Sources are what the answer rests on.',
-      source: { file: CAI_ASK, mustContain: 'Also checked' },
+      source: { file: CAI_ASK, mustContain: 'Also Checked' },
     },
     {
       id: 'q3',
@@ -612,7 +612,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Nothing, the plans don’t have it'], ['b', 'Upgrade to see the answer'], ['c', 'Rephrase it, or index new sheets']],
       correctId: 'c',
       why: 'Try other words, or add sheets that have not been indexed yet.',
-      source: { file: ASK_PLANS, mustContain: 'try rephrasing, or index new sheets below' },
+      source: { file: ASK_PLANS, mustContain: 'Try rephrasing, or index new sheets below' },
     },
     {
       id: 'q4',
@@ -628,7 +628,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Check each against the sheet, then tick the ones to use'], ['b', 'Accept them all at once'], ['c', 'Type every number by hand']],
       correctId: 'a',
       why: 'The numbers are read by AI, so you confirm each one before it is used.',
-      source: { file: ASK_PLANS, mustContain: 'check each against the sheet' },
+      source: { file: ASK_PLANS, mustContain: 'Check each against the sheet' },
     },
   ]),
 
@@ -682,7 +682,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'You type all of it in'], ['b', 'Your client fills it in'], ['c', 'It is compiled from the project’s records']],
       correctId: 'c',
       why: 'Finishes, trades and warranties on file are pulled in from the project.',
-      source: { file: BINDER, mustContain: 'Auto-compiled from this project' },
+      source: { file: BINDER, mustContain: 'Auto-Compiled from This Project' },
     },
     {
       id: 'q2',

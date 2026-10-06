@@ -138,7 +138,7 @@ export function lienWaiverDetail(cov: WaiverCoverage): string {
   let s = `${withFinal} of ${cov.total} subs have a final waiver`;
   if (cov.conditional > 0) s += ` (${cov.conditional} conditional, awaiting payment)`;
   if (cov.progressOnly > 0) {
-    s += `. ${cov.progressOnly} ${cov.progressOnly === 1 ? 'has' : 'have'} progress waivers only — progress waivers don't cover final payment or retainage`;
+    s += `. ${cov.progressOnly} ${cov.progressOnly === 1 ? 'has' : 'have'} progress waivers only, and progress waivers don't cover final payment or retainage`;
   }
   return s;
 }
@@ -256,8 +256,8 @@ export interface PermitsHandoverState {
 const PERMIT_TYPE_LABELS: Record<string, string> = {
   building: 'Building', electrical: 'Electrical', plumbing: 'Plumbing', mechanical: 'Mechanical',
   demolition: 'Demolition', grading: 'Grading', fire: 'Fire', occupancy: 'Occupancy',
-  special_inspection: 'Special inspection', hot_work: 'Hot work', shutdown: 'System shutdown',
-  after_hours: 'After-hours work', landlord_approval: 'Landlord approval', elevator_dock: 'Elevator / dock',
+  special_inspection: 'Special Inspection', hot_work: 'Hot Work', shutdown: 'System Shutdown',
+  after_hours: 'After-Hours Work', landlord_approval: 'Landlord Approval', elevator_dock: 'Elevator / Dock',
   other: 'Other',
 };
 

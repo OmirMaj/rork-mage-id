@@ -126,7 +126,7 @@ const TILE_ENTRY = [{ trade: 'Tile', provenance: 'earned' as const }];
   const price = src('utils/copilot/estimate/estimatePrice.ts');
   ok('the pricing call is metered as quickEstimate', /checkAILimit\([^)]*'quickEstimate'\)/.test(price) && /recordAIUsage\(reqTier, 'quickEstimate'\)/.test(price));
   const shell = src('components/copilot/CopilotShell.tsx');
-  ok('assumed defaults are never headed "SET FROM YOUR HISTORY"', /ASSUMED — CHANGE ON THE GRID/.test(shell) && /r\.source === 'history'/.test(shell));
+  ok('assumed defaults are never headed "SET FROM YOUR HISTORY"', /ASSUMED: CHANGE ON THE GRID/.test(shell) && /r\.source === 'history'/.test(shell));
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exit(1);

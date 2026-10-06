@@ -230,7 +230,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         visible={datePickerOpen}
         value=""
         allowFuture
-        title={state.currentGap?.question ?? 'Pick the start date'}
+        title={state.currentGap?.question ?? 'Pick the Start Date'}
         onClose={() => setDatePickerOpen(false)}
         onChange={(iso) => {
           setDatePickerOpen(false);
@@ -260,8 +260,8 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
           (iOS) keeps the review's follow-up box above the keyboard. */}
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {/* resolved defaults — shown, not asked */}
-        {[{ key: 'history', head: 'SET FROM YOUR HISTORY — NOTHING TO ASK', rows: fromHistory },
-          { key: 'assumed', head: 'ASSUMED — CHANGE ON THE GRID', rows: assumed }]
+        {[{ key: 'history', head: 'SET FROM YOUR HISTORY: NOTHING TO ASK', rows: fromHistory },
+          { key: 'assumed', head: 'ASSUMED: CHANGE ON THE GRID', rows: assumed }]
           .filter(g => g.rows.length > 0)
           .map(g => (
             <View key={g.key} style={styles.resolvedGroup}>
@@ -280,7 +280,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
         {(state.phase === 'listening' || state.phase === 'idle') && !sampleReview && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'Tell me about the project'}</Text>
+            <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'Tell Me About the Project'}</Text>
             <Text style={styles.question}>{cap.copy.composeQuestion ?? 'What are we building?'}</Text>
             <Text style={styles.grounding}>{cap.copy.composeHint ?? 'Speak it or type it: scope, rooms, start date, what’s ordered.'}</Text>
             {(() => {
@@ -323,7 +323,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         {/* the question */}
         {state.phase === 'asking' && state.currentGap && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>Grounded in your project</Text>
+            <Text style={styles.askEyebrow}>Grounded in Your Project</Text>
             <Text style={styles.question}>{state.currentGap.question}</Text>
             <Text style={styles.grounding}>{state.currentGap.groundedDefault.basis}</Text>
 
@@ -338,7 +338,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 >
                   <CalendarDays size={20} color={colors.accent} strokeWidth={2} />
                   <View style={styles.optLab}>
-                    <Text style={styles.optText}>Pick the start date</Text>
+                    <Text style={styles.optText}>Pick the Start Date</Text>
                     <Text style={styles.optSub}>Tap to choose the day you break ground</Text>
                   </View>
                   <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
@@ -363,7 +363,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 <TouchableOpacity accessibilityRole="button" style={[styles.opt, styles.optRec]} activeOpacity={0.85} onPress={submitEntry} testID="copilot-gap-submit">
                   <View style={[styles.radio, styles.radioRec]} />
                   <View style={styles.optLab}>
-                    <Text style={styles.optText}>{entry.trim() ? 'Use this answer' : 'Skip — use the default'}</Text>
+                    <Text style={styles.optText}>{entry.trim() ? 'Use This Answer' : 'Skip and Use the Default'}</Text>
                     <Text style={styles.optSub}>{state.currentGap.groundedDefault.basis}</Text>
                   </View>
                   <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
@@ -441,13 +441,13 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             </View>
           ) : (
             <View style={styles.ask}>
-              <Text style={styles.askEyebrow}>Ready to build</Text>
+              <Text style={styles.askEyebrow}>Ready to Build</Text>
               <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
               {!!state.reviewNote && <Text style={styles.grounding} testID="copilot-review-note">{state.reviewNote}</Text>}
               <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={buildAndLeave}>
                 <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.buildBtnText}>Build it</Text>
+                <Text style={styles.buildBtnText}>Build It</Text>
               </TouchableOpacity>
             </View>
           )
@@ -455,7 +455,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
         {state.phase === 'done' && landed && (
           <View style={styles.ask} testID="copilot-landed">
-            <Text style={styles.askEyebrow}>{undone ? 'Undone' : 'Done · what changed'}</Text>
+            <Text style={styles.askEyebrow}>{undone ? 'Undone' : 'Done · What Changed'}</Text>
             {undone ? (
               <Text style={styles.question}>{undoResult!.message}</Text>
             ) : (
@@ -501,41 +501,41 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 new turn can help: a Build failure re-dictated costs another
                 AI turn and throws the same error; a limit needs a plan. */}
             <Text style={styles.askEyebrow}>
-              {limitError ? 'AI limit reached'
-                : capError ? 'Free covers one project'
+              {limitError ? 'AI Limit Reached'
+                : capError ? 'Free Covers One Project'
                 : state.errorKind === 'no_project' ? 'Which project is this for?'
                 : state.errorKind === 'no_estimate' ? 'This project needs an estimate'
-                : applyError ? 'Couldn’t build it'
-                : 'That didn’t go through'}
+                : applyError ? 'Couldn’t Build It'
+                : 'That Didn’t Go Through'}
             </Text>
             <Text style={styles.question}>{state.errorMessage ?? 'Try again.'}</Text>
             {(limitError || capError) && (
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
-                <Text style={styles.buildBtnText}>See plans</Text>
+                <Text style={styles.buildBtnText}>See Plans</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_project' && onPickProject && (
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
                 <Briefcase size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.buildBtnText}>Pick a project</Text>
+                <Text style={styles.buildBtnText}>Pick a Project</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_estimate' && onBuildEstimate && (
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
                 <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.buildBtnText}>Build the estimate first</Text>
+                <Text style={styles.buildBtnText}>Build the Estimate First</Text>
               </TouchableOpacity>
             )}
             {applyError && (
               <TouchableOpacity accessibilityRole="button" style={styles.ghostBtn} activeOpacity={0.8} onPress={backToReview} testID="copilot-back-to-review">
                 <ArrowLeft size={16} color={colors.textSecondary} strokeWidth={2} />
-                <Text style={styles.ghostBtnText}>Back to review</Text>
+                <Text style={styles.ghostBtnText}>Back to Review</Text>
               </TouchableOpacity>
             )}
             {!limitError && !applyError && !capError && (
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
                 <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.buildBtnText}>Try again</Text>
+                <Text style={styles.buildBtnText}>Try Again</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -544,20 +544,20 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
       {/* persistent escapes */}
       <View style={styles.actionbar}>
-        <TouchableOpacity accessibilityRole="button" style={styles.mic} onPress={() => setMicOpen(true)} accessibilityLabel="Answer by voice">
+        <TouchableOpacity accessibilityRole="button" style={styles.mic} onPress={() => setMicOpen(true)} accessibilityLabel="Answer by Voice">
           <Mic size={22} color={Colors.textOnAccent} strokeWidth={1.9} />
         </TouchableOpacity>
         <View style={styles.escapes}>
           {state.phase === 'asking' && (
             <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={skip}>
               <Check size={14} color={colors.textMuted} strokeWidth={1.9} />
-              <Text style={styles.ghostText}>Build it now — skip the rest</Text>
+              <Text style={styles.ghostText}>Build It Now and Skip the Rest</Text>
             </TouchableOpacity>
           )}
           {!onWebRoute && (
             <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={openWeb}>
               <Monitor size={14} color={colors.textMuted} strokeWidth={1.9} />
-              <Text style={styles.ghostText}>Open on web to fine-tune</Text>
+              <Text style={styles.ghostText}>Open on Web to Fine-Tune</Text>
               <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.9} />
             </TouchableOpacity>
           )}

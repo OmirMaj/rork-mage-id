@@ -71,7 +71,7 @@ const CATEGORY_CHOICES: { label: string; value: WarrantyCategory }[] = [
   { label: 'Appliances', value: 'appliances' },
   { label: 'Structural', value: 'structural' },
   { label: 'Finishes', value: 'finishes' },
-  { label: 'General workmanship', value: 'general' },
+  { label: 'General Workmanship', value: 'general' },
 ];
 
 const MONTHS_IN_YEAR = 12;
@@ -108,9 +108,9 @@ export function warrantyGaps(draft: WarrantyDraft, grounding: Grounding): Gap[] 
   if (draft.provider == null) {
     gaps.push({
       field: 'provider', impact: 0.55, kind: 'text',
-      question: 'Who backs it — the manufacturer or the sub who installed it?',
+      question: 'Who backs it: the manufacturer or the sub who installed it?',
       groundedDefault: { value: '', basis: 'note who to call on a claim' },
-      placeholder: 'e.g. GAF, or the installer',
+      placeholder: 'GAF, or the installer',
     });
   }
 

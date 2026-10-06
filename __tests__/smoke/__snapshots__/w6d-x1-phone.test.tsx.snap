@@ -116,7 +116,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManage
 {
   "lines": 106,
   "modalCount": 1,
-  "sha256": "5796e392c0fa28ebba782857c39ea7efab2be11acaf1dac2c9885fef0d63e547",
+  "sha256": "49b1923b22fcbd7f95fcf2c6c36a2b0ab75bb26af46a4112013a9bdeecfbe6ed",
 }
 `;
 
@@ -124,7 +124,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManage
 {
   "lines": 106,
   "modalCount": 1,
-  "sha256": "9bc074fb5415a0bf64029ae7511b67f119c32fae0d9cacdcb3f5fab0c4792e6d",
+  "sha256": "dcf0dd7ef2c7a3107d2a62c2cc642c4096f6a86b5b23e30e466c6ae8747307d7",
 }
 `;
 
@@ -196,7 +196,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdate
 {
   "lines": 117,
   "modalCount": 1,
-  "sha256": "3abd90f1da3c60e790de9abdc74c40da499f6b628cdcc582c9c89eaa43955e0e",
+  "sha256": "0bc4f9a20953c716a9b50cbbfebec1dd4238ab1e25c232859b4da3b86c3b546f",
 }
 `;
 
@@ -204,7 +204,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdate
 {
   "lines": 117,
   "modalCount": 1,
-  "sha256": "9319c5966f2bb66988600c25bebf3eab653efb89fb2dd0fa2ed20fe1d8ca89bf",
+  "sha256": "a30d5a9a12c80a8f556e2d8d4aafc2707f136fc3ac619143e753fd4f90a3aa7b",
 }
 `;
 

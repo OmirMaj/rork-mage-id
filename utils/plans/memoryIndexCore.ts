@@ -208,11 +208,11 @@ export function summarizePlanIndex(r: PlanIndexResult): PlanIndexSummary {
   for (const s of r.skipped) counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1);
   const reasons = [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([reason, n]) => `${n} sheet${n === 1 ? '' : 's'} — ${reason}`);
+    .map(([reason, n]) => `${n} sheet${n === 1 ? '' : 's'}: ${reason}`);
 
   if (r.total === 0) {
     return {
-      label: r.supersededExcluded > 0 ? 'No current sheets to index (only superseded revisions)' : 'No sheets to index yet',
+      label: r.supersededExcluded > 0 ? 'No Current Sheets to Index (Only Superseded Revisions)' : 'No Sheets to Index Yet',
       tone: 'muted',
       reasons,
     };
@@ -227,10 +227,10 @@ export function summarizePlanIndex(r: PlanIndexResult): PlanIndexSummary {
     return { label: `All ${plural(r.total)} indexed${fresh}`, tone: 'success', reasons };
   }
   if (indexed === 0) {
-    return { label: `0 of ${plural(r.total)} indexed — answers can't use your plans yet`, tone: 'danger', reasons };
+    return { label: `0 of ${plural(r.total)} indexed. Answers can't use your plans yet.`, tone: 'danger', reasons };
   }
   return {
-    label: `Indexed ${indexed} of ${plural(r.total)} — ${r.total - indexed} not searchable`,
+    label: `Indexed ${indexed} of ${plural(r.total)} · ${r.total - indexed} not searchable`,
     tone: 'warning',
     reasons,
   };

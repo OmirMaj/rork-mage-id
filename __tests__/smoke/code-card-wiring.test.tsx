@@ -590,7 +590,7 @@ describe('CCWIRE behaviour — cards, pins, Save, Ask town', () => {
     await pump(4);
     // The final's pin is there, under its fixed note; the framing pin is not on a final.
     expect(screen.getByTestId('inspection-prep-pinned')).toBeTruthy();
-    expect(screen.getAllByText('Pinned from code cards').length).toBe(1);
+    expect(screen.getAllByText('Pinned from Code Cards').length).toBe(1);
     expect(screen.getAllByText('Sample: guards on every open side of the deck.').length).toBeGreaterThan(0);
     expect(screen.queryByText('Sample: joist hangers at the ledger.')).toBeNull();
     expect(screen.getAllByText('Pinned from code cards. In MAGE\u2019s words; section from AI recall unless marked. Confirm with your building department.').length).toBe(1);
@@ -1119,7 +1119,7 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     expect(screen.getAllByText('Sample: measure from the walking surface.')).toHaveLength(1);
     expect(screen.queryAllByText(/shall be not less than|Sample title|Exception:/)).toHaveLength(0);
     // The only failure bullet was withheld, so its heading has nothing under it and is not shown.
-    expect(screen.queryAllByText('How jobs fail it')).toHaveLength(0);
+    expect(screen.queryAllByText('How Jobs Fail It')).toHaveLength(0);
     expect(screen.getByTestId('code-detail-withheld-0').props.children).toBe(`${NOTICE} Section: 2025 RCNYS R312.1. ${VIEWER}`);
     expect(within(screen.getByTestId('code-detail-withheld-0-viewer')).getAllByRole('link').length).toBeGreaterThan(0);
     expect(screen.getAllByText(new RegExp(`^${NOTICE.replace(/\./g, '\\.')}`))).toHaveLength(1);
@@ -1139,7 +1139,7 @@ describe('CARDS2 — the summary, the drill-in and the recall list print MAGE\u2
     await pump(6);
     expect(screen.getAllByText('Sample: a guard goes on every open side of the deck.')).toHaveLength(1);
     expect(screen.getAllByText('\u2022 Sample: guard left off the stair side')).toHaveLength(1);
-    expect(screen.getAllByText('How jobs fail it')).toHaveLength(1);
+    expect(screen.getAllByText('How Jobs Fail It')).toHaveLength(1);
     expect(screen.queryByTestId('code-detail-withheld-0')).toBeNull();
   });
 

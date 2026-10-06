@@ -212,7 +212,7 @@ function PlanIntelligenceInner() {
 
   const pickFromLibrary = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { showAlert('Permission needed', 'Allow photo library access to pick a plan image.'); return; }
+    if (!perm.granted) { showAlert('Permission Needed', 'Allow photo library access to pick a plan image.'); return; }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
     if (res.canceled || !res.assets?.[0]?.uri) return;
     const a = res.assets[0];
@@ -318,11 +318,11 @@ function PlanIntelligenceInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Plan intelligence · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'AI plan estimator'}</Text>
+          <Text style={styles.headerEyebrow}>Plan Intelligence · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'AI Plan Estimator'}</Text>
         </View>
         {phase === 'review' ? (
-          <TouchableOpacity onPress={() => setPhase('pick')} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="New analysis">
+          <TouchableOpacity onPress={() => setPhase('pick')} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="New Analysis">
             <RefreshCw size={18} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : (
@@ -365,14 +365,14 @@ function PlanIntelligenceInner() {
                 projects.length === 0 ? (
                   <EmptyState
                     icon={<ScanSearch size={36} color={t.accent} strokeWidth={1.6} />}
-                    title="No projects yet"
+                    title="No Projects Yet"
                     message="Plan intelligence reads a floor plan and builds a room-by-room estimate. Create a project first so the rooms have somewhere to land."
-                    actionLabel="Open projects"
+                    actionLabel="Open Projects"
                     onAction={() => router.push('/(tabs)/(home)' as never)}
                   />
                 ) : (
                   <>
-                    <Text style={styles.sectionTitle}>Pick a project</Text>
+                    <Text style={styles.sectionTitle}>Pick a Project</Text>
                     {projects.map(p => (
                       <TouchableOpacity key={p.id} style={styles.pickRow} onPress={() => setProjectId(p.id)} activeOpacity={0.8}>
                         <Text style={styles.pickRowTitle} numberOfLines={1}>{p.name}</Text>
@@ -387,14 +387,14 @@ function PlanIntelligenceInner() {
                     <TouchableOpacity style={styles.resumeCard} onPress={() => void restoreSession()} activeOpacity={0.85}>
                       <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.resumeTitle}>Resume last session</Text>
+                        <Text style={styles.resumeTitle}>Resume Last Session</Text>
                         <Text style={styles.resumeSub}>{session.rooms.length} {session.rooms.length === 1 ? 'room' : 'rooms'} · saved {new Date(session.updatedAt).toLocaleDateString()}</Text>
                       </View>
                     </TouchableOpacity>
                   )}
 
-                  <Text style={styles.sectionTitle}>Estimate rooms from a sheet</Text>
-                  <Text style={styles.note}>Tapping a sheet starts an AI room-by-room estimate — it uses your AI allowance.</Text>
+                  <Text style={styles.sectionTitle}>Estimate Rooms from a Sheet</Text>
+                  <Text style={styles.note}>Tapping a sheet starts an AI room-by-room estimate. It uses your AI allowance.</Text>
                   {planSheets.map(s => (
                     <TouchableOpacity key={s.id} style={styles.pickRow} onPress={() => void runAnalysis(s.imageUri, s.id, s.width, s.height)} activeOpacity={0.8}>
                       <FileImage size={16} color={t.textSecondary} strokeWidth={1.75} />
@@ -404,7 +404,7 @@ function PlanIntelligenceInner() {
                   ))}
                   <TouchableOpacity style={[styles.pickRow, styles.pickRowDashed]} onPress={() => void pickFromLibrary()} activeOpacity={0.8}>
                     <Plus size={16} color={t.accent} strokeWidth={1.75} />
-                    <Text style={[styles.pickRowTitle, { color: t.accent }]}>Pick a plan image from your library</Text>
+                    <Text style={[styles.pickRowTitle, { color: t.accent }]}>Pick a Plan Image from Your Library</Text>
                   </TouchableOpacity>
                   {planSheets.length === 0 && (
                     <Text style={styles.note}>
@@ -462,7 +462,7 @@ function PlanIntelligenceInner() {
                       <View style={styles.learnedChip}><Text style={styles.learnedChipText}>Auto-corrected</Text></View>
                     )}
                     {r.rateSource === 'learned' && (
-                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>Your rate</Text></View>
+                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>Your Rate</Text></View>
                     )}
                     {/* Absence of a positive chip is NOT a disclosure. A room
                         priced off DEFAULT_ROOM_RATES has a placeholder $/SF
@@ -470,7 +470,7 @@ function PlanIntelligenceInner() {
                         cold-start row reads exactly like a learned one. */}
                     {r.rateSource === 'default' && (
                       <View style={styles.defaultRateChip}>
-                        <Text style={styles.defaultRateChipText}>Market placeholder, not your rate</Text>
+                        <Text style={styles.defaultRateChipText}>Market Placeholder, Not Your Rate</Text>
                       </View>
                     )}
                   </View>
@@ -518,7 +518,7 @@ function PlanIntelligenceInner() {
           {project?.linkedEstimate ? (
             <TouchableOpacity style={styles.footerBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
               <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.footerBtnText}>Add to estimate</Text>
+              <Text style={styles.footerBtnText}>Add to Estimate</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -597,12 +597,12 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.fieldLabel}>Room name</Text>
+          <Text style={styles.fieldLabel}>Room Name</Text>
           <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Kitchen" placeholderTextColor={t.textMuted} />
 
           <View style={styles.fieldRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Square feet</Text>
+              <Text style={styles.fieldLabel}>Square Feet</Text>
               <TextInput style={styles.fieldInput} value={sqftStr} onChangeText={setSqftStr} keyboardType="decimal-pad" inputMode="decimal" placeholder="0" placeholderTextColor={t.textMuted} />
               {room && Math.round(room.aiSqft) !== Math.round(parseDecimalInput(sqftStr) ?? 0) ? (
                 <Text style={styles.fieldHint}>MAGE read {Math.round(room.aiSqft)} SF. Your fix teaches it.</Text>
@@ -614,24 +614,24 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
             </View>
           </View>
 
-          <Text style={styles.fieldLabel}>Note for MAGE (carried to future plans)</Text>
+          <Text style={styles.fieldLabel}>Note for MAGE (Carried to Future Plans)</Text>
           <TextInput
             style={[styles.fieldInput, styles.fieldInputMultiline]}
             value={note}
             onChangeText={setNote}
-            placeholder='e.g. "client wants heated floors", "include in phase 2 only"'
+            placeholder="Client wants heated floors. Include in phase 2 only."
             placeholderTextColor={t.textMuted}
             multiline
           />
 
           <View style={styles.includeRow}>
-            <Text style={styles.fieldLabel}>Include in estimate</Text>
+            <Text style={styles.fieldLabel}>Include in Estimate</Text>
             <Switch value={included} onValueChange={setIncluded} trackColor={{ true: t.accent }} />
           </View>
 
           <TouchableOpacity style={styles.modalSave} onPress={save} activeOpacity={0.85}>
             <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-            <Text style={styles.modalSaveText}>Save room</Text>
+            <Text style={styles.modalSaveText}>Save Room</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

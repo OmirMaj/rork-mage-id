@@ -139,7 +139,7 @@ export function planPortalApproval(
         timestamp: row.created_at,
         detail: `Your client's portal recorded a second answer for this change order: ${row.decision} by ${actor}, `
           + `after it was already ${otherWord}${other.actor && other.actor !== 'MAGE ID' ? ` by ${other.actor}` : ''}. `
-          + `Status left as ${coStatus || 'it was'} — confirm with your client before changing it.`,
+          + `Status left as ${coStatus || 'it was'}. Confirm with your client before changing it.`,
       },
       status: null,
       approvers: null,

@@ -89,11 +89,11 @@ if (P) {
     /: prev && mine\.trim\(\) !== liveResponse\.trim\(\) \? \{ theirs: liveResponse \} : null\)\);/.test(eff)
     && /const mine = String\(next\.response \?\? ''\);/.test(eff));
   const pf = RFI.slice(RFI.indexOf('const persistForm = useCallback'), RFI.indexOf('const navigation = useNavigation()'));
-  ok('rfi: persistForm refuses while the conflict stands, with the reason', /if \(responseConflict\) \{\s*showAlert\('Pick an answer first', RFI_RESPONSE_CONFLICT_REASON\);\s*return null;/.test(pf));
+  ok('rfi: persistForm refuses while the conflict stands, with the reason', /if \(responseConflict\) \{\s*showAlert\('Pick an Answer First', RFI_RESPONSE_CONFLICT_REASON\);\s*return null;/.test(pf));
   ok('rfi: both Save buttons are disabled while it stands, and say why',
     /testID="rfi-save-conflict"/.test(RFI) && /disabled=\{!!responseConflict\}[^>]*testID="rfi-save-in-place"/.test(RFI) && /disabled=\{!!responseConflict\}[^>]*testID="rfi-save"/.test(RFI));
   ok('rfi: the banner shows theirs with Keep theirs / Replace with mine',
-    /testID="rfi-response-conflict"/.test(RFI) && /setResponse\(responseConflict\.theirs\); setResponseConflict\(null\);/.test(RFI) && /label="Replace with mine"/.test(RFI));
+    /testID="rfi-response-conflict"/.test(RFI) && /setResponse\(responseConflict\.theirs\); setResponseConflict\(null\);/.test(RFI) && /label="Replace with Mine"/.test(RFI));
 }
 
 console.log('\n#29 only a queued INSERT means no number');
@@ -213,7 +213,7 @@ console.log('\n#98 create opens the RFI');
   ok('the create keeps the record', /const created = addRFI\(\{/.test(hs));
   ok('…and replaces to /rfi with its id (the leave gate opened first)',
     /allowLeave\.current = true;\s*router\.replace\(\{ pathname: '\/rfi', params: \{ projectId: created\.projectId, rfiId: created\.id \} \}\);/.test(hs));
-  ok('…with a toast that prints no guessed number', /nailIt\('RFI created — send it when ready'\)/.test(hs));
+  ok('…with a toast that prints no guessed number', /nailIt\('RFI created. Send it when ready.'\)/.test(hs));
   ok('an update still goes back', /router\.back\(\);/.test(hs));
 }
 

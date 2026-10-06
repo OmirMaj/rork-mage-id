@@ -140,7 +140,7 @@ export function CertificateCard({ cert, topic, actions = false, testID }: Certif
       return;
     }
     showAlert(t('settings.learn.removeConfirm', 'Remove this certificate? Its check link stops working.'), undefined, [
-      { text: t('settings.learn.keep', 'Keep it'), style: 'cancel' },
+      { text: t('settings.learn.keep', 'Keep It'), style: 'cancel' },
       { text: t('settings.learn.remove', 'Remove'), style: 'destructive', onPress: () => { void doRemove(); } },
     ]);
   }, [doRemove, t]);
@@ -184,7 +184,7 @@ export function CertificateCard({ cert, topic, actions = false, testID }: Certif
             testID={`${id}-pdf`}
           />
           <Button
-            label={t('settings.learn.shareLink', 'Share link')}
+            label={t('settings.learn.shareLink', 'Share Link')}
             variant="secondary"
             size="sm"
             disabled={busy !== null}
@@ -192,7 +192,7 @@ export function CertificateCard({ cert, topic, actions = false, testID }: Certif
             testID={`${id}-share`}
           />
           <Button
-            label={t('settings.learn.removeFromProfile', 'Remove from profile')}
+            label={t('settings.learn.removeFromProfile', 'Remove from Profile')}
             variant="ghost"
             size="sm"
             loading={busy === 'remove'}

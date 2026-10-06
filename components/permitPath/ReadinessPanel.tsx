@@ -154,11 +154,11 @@ export function ReadinessPanel({
                 ) : null
               ) : r.state === 'missing' ? (
                 <>
-                  <Button label={t('office.permitPath.ready.have', 'Have it')} size="sm" onPress={() => attest(r.item.id)} testID={`${testID}-row-${r.item.id}-have`} />
+                  <Button label={t('office.permitPath.ready.have', 'Have It')} size="sm" onPress={() => attest(r.item.id)} testID={`${testID}-row-${r.item.id}-have`} />
                   {permits.length > 0 ? (
-                    <Button label={t('office.permitPath.ready.link', 'Link a permit')} size="sm" variant="secondary" onPress={() => setLinking(linking === r.item.id ? null : r.item.id)} testID={`${testID}-row-${r.item.id}-link`} />
+                    <Button label={t('office.permitPath.ready.link', 'Link a Permit')} size="sm" variant="secondary" onPress={() => setLinking(linking === r.item.id ? null : r.item.id)} testID={`${testID}-row-${r.item.id}-link`} />
                   ) : null}
-                  <Button label={t('office.permitPath.ready.notNeeded', 'Not needed')} size="sm" variant="ghost" onPress={() => notNeeded(r.item.id)} testID={`${testID}-row-${r.item.id}-na`} />
+                  <Button label={t('office.permitPath.ready.notNeeded', 'Not Needed')} size="sm" variant="ghost" onPress={() => notNeeded(r.item.id)} testID={`${testID}-row-${r.item.id}-na`} />
                 </>
               ) : (
                 <Button label={t('office.permitPath.ready.undo', 'Undo')} size="sm" variant="ghost" onPress={() => onMark(r.item.id, null)} testID={`${testID}-row-${r.item.id}-undo`} />
@@ -196,12 +196,12 @@ export function ReadinessPanel({
         <CheckSync rows={checkRows} renderCheck={glyph} rowStyle={styles.row} testID={`${testID}-rows`} />
       )}
       {summary ? (
-        onOpenFull ? <Button label={t('office.permitPath.ready.open', 'Open checklist')} size="sm" variant="secondary" onPress={onOpenFull} containerStyle={styles.alignStart} testID={`${testID}-open`} /> : null
+        onOpenFull ? <Button label={t('office.permitPath.ready.open', 'Open Checklist')} size="sm" variant="secondary" onPress={onOpenFull} containerStyle={styles.alignStart} testID={`${testID}-open`} /> : null
       ) : (
         <View style={styles.actions}>
-          <Button label={t('office.permitPath.ready.share', 'Share checklist')} size="sm" variant="secondary" iconLeft={<Share2 size={14} color={c.text} />} onPress={() => { void doShare(); }} testID={`${testID}-share`} />
+          <Button label={t('office.permitPath.ready.share', 'Share Checklist')} size="sm" variant="secondary" iconLeft={<Share2 size={14} color={c.text} />} onPress={() => { void doShare(); }} testID={`${testID}-share`} />
           {Platform.OS === 'web' ? (
-            <Button label={t('office.permitPath.ready.print', 'Print checklist')} size="sm" variant="ghost" iconLeft={<Printer size={14} color={c.text} />} onPress={doPrint} testID={`${testID}-print`} />
+            <Button label={t('office.permitPath.ready.print', 'Print Checklist')} size="sm" variant="ghost" iconLeft={<Printer size={14} color={c.text} />} onPress={doPrint} testID={`${testID}-print`} />
           ) : null}
         </View>
       )}

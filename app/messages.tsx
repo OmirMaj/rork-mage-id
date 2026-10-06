@@ -126,7 +126,7 @@ export default function MessagesScreen() {
         <Stack.Screen options={{ title: 'Messages' }} />
         <EmptyState
           icon={<MessageCircle size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="Messaging isn't open yet"
+          title="Messaging Isn't Open Yet"
           message="In-app messaging turns on when the hiring marketplace launches."
         />
       </View>
@@ -141,14 +141,14 @@ export default function MessagesScreen() {
         <Stack.Screen options={{ title: 'Messages' }} />
         <EmptyState
           icon={<MessageCircle size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No conversation open yet"
+          title="No Conversation Open Yet"
           message="Messages live inside hires and subs you've connected with. To start a thread:"
           steps={[
             'Open Hire from the sidebar to see active hires, or Subs for your sub roster.',
             'Tap a person to open their profile.',
-            'Hit Message to start chatting — replies show up here automatically.',
+            'Hit Message to start chatting. Replies show up here automatically.',
           ]}
-          actionLabel="Open hiring"
+          actionLabel="Open Hiring"
           onAction={() => router.push('/(tabs)/discover/hire' as any)}
           secondaryLabel="View Subs"
           onSecondaryAction={() => router.push('/(tabs)/subs' as any)}
@@ -191,7 +191,7 @@ export default function MessagesScreen() {
           <Animated.View style={[styles.scrollToBottomBtn, { opacity: scrollIndicatorAnim }]}>
             <TouchableOpacity onPress={scrollToBottom} style={styles.scrollBtnInner}>
               <ChevronDown size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.scrollBtnText}>New messages</Text>
+              <Text style={styles.scrollBtnText}>New Messages</Text>
             </TouchableOpacity>
           </Animated.View>
         )}

@@ -55,9 +55,9 @@ export default function SharedPlanScreen() {
   if (!t) {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-plan-no-token">
-        <Stack.Screen options={{ title: 'Floor plan', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Floor Plan', headerShown: false }} />
         <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.errorTitle}>No share token</Text>
+        <Text style={styles.errorTitle}>No Share Token</Text>
         <Text style={styles.errorBody}>This link is missing the data it needs. Ask your contractor for a fresh link.</Text>
       </View>
     );
@@ -66,12 +66,12 @@ export default function SharedPlanScreen() {
   if (!payload || !hydrated) {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-plan-bad-token">
-        <Stack.Screen options={{ title: 'Floor plan', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Floor Plan', headerShown: false }} />
         <View style={styles.errorChip}>
           <AlertCircle size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-          <Text style={styles.errorChipText}>Bad link</Text>
+          <Text style={styles.errorChipText}>Bad Link</Text>
         </View>
-        <Text style={styles.errorTitle}>Couldn&apos;t open this link</Text>
+        <Text style={styles.errorTitle}>Couldn&apos;t Open This Link</Text>
         <Text style={styles.errorBody}>
           The share data is corrupted or this link is from an older version of MAGE ID. Ask your contractor for a fresh link.
         </Text>
@@ -81,7 +81,7 @@ export default function SharedPlanScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="shared-plan-view">
-      <Stack.Screen options={{ title: 'Floor plan', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Floor Plan', headerShown: false }} />
       <View style={styles.header}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.projectName} numberOfLines={1}>{payload.n}</Text>
@@ -112,8 +112,8 @@ export default function SharedPlanScreen() {
 
       <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.footNote}>
-          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill —
-          talk to {payload.gc ?? 'your contractor'} about anything you see here.
+          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill. Talk
+          to {payload.gc ?? 'your contractor'} about anything you see here.
         </Text>
       </ScrollView>
     </View>

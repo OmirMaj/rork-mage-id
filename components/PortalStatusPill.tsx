@@ -65,7 +65,7 @@ export function PortalStatusPill({ portalState, itemUpdatedAt }: Props) {
   if (unsentEdits) {
     return <View style={[styles.pill, { backgroundColor: '#F59E0B22' }]}>
       <View style={[styles.dot, { backgroundColor: '#D97706' }]} />
-      <Text style={[styles.label, { color: '#92400E' }]}>Unsent edits</Text>
+      <Text style={[styles.label, { color: '#92400E' }]}>Unsent Edits</Text>
     </View>;
   }
   if (s?.viewedAt) {

@@ -298,7 +298,7 @@ console.log('validate-permit-path-ui');
   const ai = code(read('app/(tabs)/construction-ai/index.tsx'));
   ok('8.1 Construction AI: the segment reads "Permit Path", not "Project roadmap"', count(ai, '>Permit Path</Text>') === 1 && !/>Project roadmap</.test(ai));
   ok('8.2 Construction AI: one hero card mount on the roadmap project, plus its import', count(ai, /<PermitPathHeroCard\b/) === 1 && count(ai, '<PermitPathHeroCard project={roadmapProject} />') === 1 && count(ai, IMPORT_HERO) === 1);
-  ok('8.3 Construction AI: the old hero is the "AI draft list"', count(ai, '>AI draft list</Text>') === 1
+  ok('8.3 Construction AI: the old hero is the "AI Draft List"', count(ai, '>AI Draft List</Text>') === 1
     && count(ai, 'Suggested permits and inspections from your scope and schedule. Check each one.') === 1
     && !/AI generates a sequenced permit and inspection roadmap/.test(ai));
   const permits = code(read('app/permits.tsx'));

@@ -149,7 +149,7 @@ for (const rel of PLURAL_SURFACES) {
 
 // ── 3. The removed tells stay removed ───────────────────────────────────────
 const GONE: [string, RegExp, string][] = [
-  ['utils/subCompliance.ts', /Expiring Soon|typed on his record|before he starts|his insurance/, 'sentence case and no gendered sub'],
+  ['utils/subCompliance.ts', /Expiring soon|typed on his record|before he starts|his insurance/, 'Title Case status label (converted file) and no gendered sub'],
   ['app/(tabs)/subs/index.tsx', /couldn't check his portal|keep him so/, 'no gendered sub in the delete alert'],
   ['app/buyout-package.tsx', /tell him to phone|what he is pricing|to his record|AI PICK/, 'no gendered sub, no hard-coded caps badge'],
   ['app/wip-report.tsx', /AS THEY STAND TODAY|will not invent|LOSS JOB/, 'the save alert reads VOICE #18, the loss tag is words'],

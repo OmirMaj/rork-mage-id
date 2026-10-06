@@ -181,7 +181,7 @@ async function main() {
   ok('the row says it is checking while the money read runs',
     /openingId === item\.id \?/.test(INBOX) && /extraData=\{openingId\}/.test(INBOX));
   ok('safety_incident_filed has an inbox row (ShieldAlert, "Incident report")',
-    /safety_incident_filed: \{ icon: <ShieldAlert[^\n]*label: 'Incident report' \}/.test(INBOX));
+    /safety_incident_filed: \{ icon: <ShieldAlert[^\n]*label: 'Incident Report' \}/.test(INBOX));
   {
     const m = INBOX.match(/case 'safety_incident_filed': \{([\s\S]*?)\n    \}/);
     ok('the incident summary never prints severity', !!m && !/severity/.test(m[1]) && /filed an incident report/.test(m[1]));

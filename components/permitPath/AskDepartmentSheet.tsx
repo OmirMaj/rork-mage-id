@@ -69,7 +69,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
       await Linking.openURL(url);
     } catch {
       showAlert(
-        t('office.permitPath.ask.noMailTitle', 'No mail app'),
+        t('office.permitPath.ask.noMailTitle', 'No Mail App'),
         t('office.permitPath.ask.noMailBody', 'Copy the draft instead and paste it into your email.'),
       );
     }
@@ -79,7 +79,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
     const text = `${draft.to ? `To: ${draft.to}\n` : ''}Subject: ${subject}\n\n${body}`;
     const ok = await copyToClipboard(text);
     showAlert(
-      ok ? t('office.permitPath.ask.copied', 'Copied') : t('office.permitPath.ask.copyFailed', 'Copy failed'),
+      ok ? t('office.permitPath.ask.copied', 'Copied') : t('office.permitPath.ask.copyFailed', 'Copy Failed'),
       ok
         ? t('office.permitPath.ask.copiedBody', 'The draft is on your clipboard.')
         : t('office.permitPath.ask.copyFailedBody', 'Select the text and copy it by hand.'),
@@ -92,7 +92,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
       await Linking.openURL(draft.call.tel);
     } catch {
       showAlert(
-        t('office.permitPath.ask.noPhoneTitle', 'Can’t place the call here'),
+        t('office.permitPath.ask.noPhoneTitle', 'Can’t Place the Call Here'),
         t('office.permitPath.ask.noPhoneBody', 'Dial the number from your phone.'),
       );
     }
@@ -118,7 +118,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
           testID: id('mail'),
         }
         : {
-          label: t('office.permitPath.ask.gotAnswer', 'I got an answer'),
+          label: t('office.permitPath.ask.gotAnswer', 'I Got an Answer'),
           onPress: onSaveAnswer,
           testID: id('got-answer'),
         }}
@@ -139,7 +139,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
         value={tab}
         onChange={setTab}
         size="sm"
-        accessibilityLabel={t('office.permitPath.ask.tabs', 'Email or call')}
+        accessibilityLabel={t('office.permitPath.ask.tabs', 'Email or Call')}
         testID={id('tabs')}
       />
 
@@ -172,7 +172,7 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
           />
           <View style={styles.row}>
             <Button
-              label={t('office.permitPath.ask.gotAnswer', 'I got an answer')}
+              label={t('office.permitPath.ask.gotAnswer', 'I Got an Answer')}
               variant="ghost"
               size="sm"
               onPress={onSaveAnswer}
@@ -202,13 +202,13 @@ export function AskDepartmentSheet({ visible, onClose, draft, onSaveAnswer, onAs
             )}
             {draft.call.hours ? <Text style={styles.meta} testID={id('hours')}>{draft.call.hours}</Text> : null}
           </View>
-          <Text style={styles.label}>{t('office.permitPath.ask.say', 'Start with')}</Text>
+          <Text style={styles.label}>{t('office.permitPath.ask.say', 'Start With')}</Text>
           <Text style={styles.text}>{draft.call.opener}</Text>
           <Text style={styles.label}>{t('office.permitPath.ask.questions', 'Ask')}</Text>
           {draft.call.numbered.map((q, i) => (
             <Text key={`q-${i}`} style={styles.text} testID={id(`q-${i}`)}>{`${i + 1}. ${q}`}</Text>
           ))}
-          <Text style={styles.label}>{t('office.permitPath.ask.capture', 'Write down')}</Text>
+          <Text style={styles.label}>{t('office.permitPath.ask.capture', 'Write Down')}</Text>
           {draft.call.capture.map((c, i) => (
             <Text key={`c-${i}`} style={styles.text}>{`· ${c}`}</Text>
           ))}

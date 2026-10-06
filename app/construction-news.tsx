@@ -141,7 +141,7 @@ function ConstructionNewsScreen() {
       <View style={styles.container} testID="news-error">
         <EmptyState
           icon={<CloudOff size={32} color={colors.textSecondary} strokeWidth={1.75} />}
-          title="The news didn't load"
+          title="The News Didn't Load"
           message={errorMessage ?? 'The news could not load.'}
           actionLabel="Retry"
           onAction={onRefresh}
@@ -199,7 +199,7 @@ function ConstructionNewsScreen() {
   const empty = (
     <EmptyState
       icon={<Newspaper size={32} color={colors.textSecondary} strokeWidth={1.75} />}
-      title="No stories right now"
+      title="No Stories Right Now"
       message="None of the publishers had a story from the last 30 days that MAGE ID could read. Pull down or tap Retry to check again."
       actionLabel="Retry"
       onAction={onRefresh}
@@ -212,7 +212,7 @@ function ConstructionNewsScreen() {
         Headlines and summaries come from each publisher's own feed. Tap a story to read it on their site.
       </Text>
       <Button
-        label="Check for newer stories"
+        label="Check for Newer Stories"
         variant="ghost"
         size="sm"
         onPress={onRefresh}

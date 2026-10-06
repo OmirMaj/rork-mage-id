@@ -255,7 +255,7 @@ export function inspectionHistorySummary(rows: PermitInspection[]): string | nul
   if (failed > 0) parts.push(`${failed} failed`);
   const called = passed + failed;
   if (called === 0) return `${rows.length} inspection${rows.length === 1 ? '' : 's'} scheduled`;
-  return `${called} inspection${called === 1 ? '' : 's'} called — ${parts.join(', ')}`;
+  return `${called} inspection${called === 1 ? '' : 's'} called: ${parts.join(', ')}`;
 }
 
 /** Newest-first rows (sortPermitInspections order); a CALLED row is one with a

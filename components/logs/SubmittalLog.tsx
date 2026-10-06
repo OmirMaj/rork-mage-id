@@ -79,25 +79,25 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
     { key: 'spec', label: 'Spec §', width: 96, hideBelow: 640, sortValue: (s) => s.specSection, value: (s) => s.specSection || null },
     { key: 'trade', label: 'Trade', width: 120, hideBelow: 1000, sortValue: (s) => s.trade, value: (s) => s.trade || null },
     { key: 'required', label: 'Required', width: 96, sortValue: (s) => logDayKey(s.requiredDate), value: (s) => logDayLabel(s.requiredDate, now) },
-    { key: 'lead', label: 'Lead days', width: 80, numeric: true, hideBelow: 900, sortValue: leadDaysOf, value: leadDaysOf },
-    { key: 'cycle', label: 'Review cycle', width: 96, hideBelow: 640, sortValue: submittalCycleCount, value: submittalCycleLabel },
+    { key: 'lead', label: 'Lead Days', width: 80, numeric: true, hideBelow: 900, sortValue: leadDaysOf, value: leadDaysOf },
+    { key: 'cycle', label: 'Review Cycle', width: 96, hideBelow: 640, sortValue: submittalCycleCount, value: submittalCycleLabel },
     {
       key: 'status', label: 'Status', width: 120, sortValue: (s) => s.currentStatus,
       render: (s) => <StatusPill label={submittalStatusLabel(s.currentStatus) ?? '—'} tone={submittalTone(s, now)} size="compact" />,
     },
-    { key: 'ball', label: 'Ball in court', width: 130, hideBelow: 800, sortValue: submittalBallInCourt, value: submittalBallInCourt },
+    { key: 'ball', label: 'Ball in Court', width: 130, hideBelow: 800, sortValue: submittalBallInCourt, value: submittalBallInCourt },
   ], [now]);
 
   const csvColumns = useMemo(() => [
     { key: 'number', label: '#', csvValue: (s: Submittal) => s.number },
     { key: 'title', label: 'Title', csvValue: (s: Submittal) => s.title },
-    { key: 'spec', label: 'Spec section', csvValue: (s: Submittal) => s.specSection || null },
+    { key: 'spec', label: 'Spec Section', csvValue: (s: Submittal) => s.specSection || null },
     { key: 'trade', label: 'Trade', csvValue: (s: Submittal) => s.trade || null },
     { key: 'required', label: 'Required', csvValue: (s: Submittal) => logDayKey(s.requiredDate) },
-    { key: 'lead', label: 'Lead days', csvValue: leadDaysOf },
-    { key: 'cycle', label: 'Review cycle', csvValue: submittalCycleLabel },
+    { key: 'lead', label: 'Lead Days', csvValue: leadDaysOf },
+    { key: 'cycle', label: 'Review Cycle', csvValue: submittalCycleLabel },
     { key: 'status', label: 'Status', csvValue: (s: Submittal) => submittalStatusLabel(s.currentStatus) },
-    { key: 'ball', label: 'Ball in court', csvValue: submittalBallInCourt },
+    { key: 'ball', label: 'Ball in Court', csvValue: submittalBallInCourt },
   ], []);
 
   const csv = useCallback(() => rowsToCsv(csvColumns, rows), [csvColumns, rows]);
@@ -167,15 +167,15 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
               icon={<FileCheck2 size={28} color={t.accent} />}
               title="Couldn't load submittals. Check your connection."
               message="Nothing on this device yet, and the read from MAGE failed."
-              actionLabel="Try again"
+              actionLabel="Try Again"
               onAction={retryRead}
             />
           ) : (
             <EmptyState
               icon={<FileCheck2 size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No submittals on this project yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No Submittals on This Project Yet' : 'Nothing Under This Filter'}
               message={all.length === 0 ? 'Route a product spec through the architect before you order.' : 'Pick another chip, or All.'}
-              actionLabel="New submittal"
+              actionLabel="New Submittal"
               onAction={newSubmittal}
             />
           )}

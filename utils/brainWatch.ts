@@ -278,7 +278,7 @@ export function permitAttention(
         kind: 'permit',
         severity: expiry.lapsed ? 'critical' : 'high',
         message: expiry.lapsed
-          ? `${project.name}: ${expiry.label} permit has expired — work on it is unpermitted`
+          ? `${project.name}: ${expiry.label} permit has expired. Work on it is unpermitted.`
           // "expires in 0d" is not a sentence anyone says, and today is the one
           // day the countdown matters most.
           : expiry.daysToExpiry === 0
@@ -373,7 +373,7 @@ export function rfiAttention(
     // assignedTo is free text and can be blank on a legacy row; naming a blank
     // holder would read as "waiting on " with nothing after it.
     const holder = rfi.assignedTo?.trim();
-    const waiting = sent ? (holder ? ` — waiting on ${holder}` : '') : ' — never sent, still in your drafts';
+    const waiting = sent ? (holder ? `, waiting on ${holder}` : '') : ', never sent, still in your drafts';
 
     items.push({
       id: `rfi-${rfi.id}`,
@@ -838,7 +838,7 @@ export function closeoutAttention(project: Project): AttentionItem[] {
       projectName: project.name,
       kind: 'closeout',
       severity: 'medium',
-      message: `${project.name}: work looks done — close it to feed your cost book`,
+      message: `${project.name}: work looks done. Close it to feed your cost history.`,
       route: { pathname: '/closeout-binder', params: { projectId: project.id } },
     },
   ];

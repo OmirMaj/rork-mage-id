@@ -52,7 +52,7 @@ export interface SubsPayRow {
   /** The roster sub's company name, else the commitment's vendor name, else
    *  SUB_NOT_NAMED (the row still shows: its number and description say which). */
   name: string;
-  /** 'Subcontract' or 'Purchase order'. */
+  /** 'Subcontract' or 'Purchase Order'. */
   kindLabel: string;
   contractCents: number;
   /** Approved and paid bills (the ledger's paidToDate), gross of retainage. */
@@ -73,7 +73,7 @@ export interface SubsPayRow {
 
 export const PAY_NEEDS_ROSTER_SUB = 'Add this sub to your Subs list to pay through the sub portal.';
 /** A commitment with no roster sub and no vendor name: shown, never dropped. */
-export const SUB_NOT_NAMED = 'Sub not named';
+export const SUB_NOT_NAMED = 'Sub Not Named';
 export const NAME_THE_SUB = 'Name the sub on this commitment to pay it or get a waiver.';
 
 /**
@@ -110,7 +110,7 @@ export function subsPayRows(input: {
       commitmentId: c.id,
       detail: [c.number, (c.description ?? '').trim()].filter(Boolean).join(' · '),
       name: named || SUB_NOT_NAMED,
-      kindLabel: c.type === 'purchase_order' ? 'Purchase order' : 'Subcontract',
+      kindLabel: c.type === 'purchase_order' ? 'Purchase Order' : 'Subcontract',
       contractCents,
       paidCents,
       openBillCents,
@@ -132,4 +132,4 @@ export function subsPayRows(input: {
 }
 
 /** The empty line and its one action (VOICE: what this is, plus one action). */
-export const SUBS_PAY_EMPTY = { title: 'No subs on this project yet', action: 'Add a sub' } as const;
+export const SUBS_PAY_EMPTY = { title: 'No Subs on This Project Yet', action: 'Add a Sub' } as const;

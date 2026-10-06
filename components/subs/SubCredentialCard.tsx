@@ -85,7 +85,7 @@ export function SubCredentialCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>Your record on MAGE ID</Text>
+      <Text style={styles.eyebrow}>Your Record on MAGE ID</Text>
 
       <View style={styles.identityRow}>
         <View style={styles.avatar}>
@@ -113,9 +113,9 @@ export function SubCredentialCard({
           <View style={styles.statRow}>
             <Stat value={String(c.jobCount)} label={c.jobCount === 1 ? 'project' : 'projects'} styles={styles} />
             <View style={styles.statDivider} />
-            <Stat value={String(c.gcCount)} label={c.gcCount === 1 ? 'general contractor' : 'general contractors'} styles={styles} />
+            <Stat value={String(c.gcCount)} label={c.gcCount === 1 ? 'General Contractor' : 'General Contractors'} styles={styles} />
             <View style={styles.statDivider} />
-            <Stat value={String(c.jobsCompleted)} label="closed out" styles={styles} />
+            <Stat value={String(c.jobsCompleted)} label="Closed Out" styles={styles} />
           </View>
 
           <View style={styles.chipRow}>
@@ -126,24 +126,24 @@ export function SubCredentialCard({
               <Chip label={`${r.punchCleanPct}% punch clean`} tone="good" styles={styles} t={t} />
             ) : null}
             <Chip
-              label={r.coiCurrent ? `COI to ${monthYear(r.coiExpiryISO)}` : 'COI not current'}
+              label={r.coiCurrent ? `COI to ${monthYear(r.coiExpiryISO)}` : 'COI Not Current'}
               tone={r.coiCurrent ? 'good' : 'neutral'}
               styles={styles}
               t={t}
             />
             <Chip
-              label={r.licenseCurrent ? `License to ${monthYear(r.licenseExpiryISO)}` : 'License not current'}
+              label={r.licenseCurrent ? `License to ${monthYear(r.licenseExpiryISO)}` : 'License Not Current'}
               tone={r.licenseCurrent ? 'good' : 'neutral'}
               styles={styles}
               t={t}
             />
-            {r.w9OnFile ? <Chip label="W-9 on file" tone="good" styles={styles} t={t} /> : null}
+            {r.w9OnFile ? <Chip label="W-9 on File" tone="good" styles={styles} t={t} /> : null}
           </View>
 
           {c.highlights.length > 0 ? (
             <>
               <View style={styles.divider} />
-              <Text style={styles.sectionLabel}>What a new GC sees</Text>
+              <Text style={styles.sectionLabel}>What a New GC Sees</Text>
               {c.highlights.map((h, i) => (
                 <View key={`hl-${i}`} style={styles.hlRow}>
                   <View style={styles.bullet} />
@@ -168,7 +168,7 @@ export function SubCredentialCard({
               onPress={() => onCopy(shareText)}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Copy your credential"
+              accessibilityLabel="Copy Your Credential"
             >
               <Copy size={15} color={t.text} strokeWidth={1.9} />
               <Text style={styles.actionText}>Copy</Text>
@@ -180,7 +180,7 @@ export function SubCredentialCard({
               onPress={() => onShare(shareText)}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Send your credential to a general contractor"
+              accessibilityLabel="Send Your Credential to a General Contractor"
             >
               <Share2 size={15} color={t.surface} strokeWidth={1.9} />
               <Text style={[styles.actionText, { color: t.surface }]}>Send to a GC</Text>

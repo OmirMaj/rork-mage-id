@@ -153,7 +153,7 @@ console.log('\n4 · the vault list falls back to the date on the record:');
   const e2 = vaultCoiExpiry({ coverages: [{ expiresAt: day(90) }] }, { coiExpiry: day(5) });
   ok("the certificate's own date wins over the record", e2.day === day(90) && e2.source === 'certificate');
   const e3 = vaultCoiExpiry(noDates, { coiExpiry: 'next spring' });
-  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /not a date · no reminders/.test(vaultCoiStatus(e3, NOW).label));
+  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /Not a Date · No Reminders/.test(vaultCoiStatus(e3, NOW).label));
   ok('certificateExpiryDay reads the earliest calendar day', certificateExpiryDay({ coverages: [{ expiresAt: '2027-05-01' }, { expiresAt: '2027-02-01T12:00:00.000Z' }] }) === '2027-02-01');
 
   const vault = src('app/coi-vault.tsx');

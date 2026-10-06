@@ -17,27 +17,27 @@ export const UNSURE = 'unsure';
 export const YES_NO_UNSURE: readonly string[] = Object.freeze([YES, NO, UNSURE]);
 
 export const WORK_TYPE_CHOICES = Object.freeze([
-  { id: 'new_building_addition', label: 'New building or addition' },
-  { id: 'interior_renovation', label: 'Interior renovation' },
-  { id: 'kitchen_bath', label: 'Kitchen or bath' },
+  { id: 'new_building_addition', label: 'New Building or Addition' },
+  { id: 'interior_renovation', label: 'Interior Renovation' },
+  { id: 'kitchen_bath', label: 'Kitchen or Bath' },
   { id: 'plumbing', label: 'Plumbing' },
   { id: 'electrical', label: 'Electrical' },
-  { id: 'hvac', label: 'HVAC or mechanical' },
-  { id: 'structural', label: 'Structural (walls, beams)' },
-  { id: 'roofing_siding', label: 'Roofing or siding' },
-  { id: 'deck_porch_fence', label: 'Deck, porch or fence' },
+  { id: 'hvac', label: 'HVAC or Mechanical' },
+  { id: 'structural', label: 'Structural (Walls, Beams)' },
+  { id: 'roofing_siding', label: 'Roofing or Siding' },
+  { id: 'deck_porch_fence', label: 'Deck, Porch or Fence' },
   { id: 'demolition', label: 'Demolition' },
   { id: 'change_of_use', label: 'Change of use (for example, basement to living space)' },
-  { id: 'not_sure', label: 'Not sure' },
+  { id: 'not_sure', label: 'Not Sure' },
 ] as const);
 
 export type WorkTypeChoiceId = (typeof WORK_TYPE_CHOICES)[number]['id'];
 
 export const RESIDENTIAL_CHOICES = Object.freeze([
   { id: 'one_two_family', label: '1- or 2-family home' },
-  { id: 'apartment', label: 'Apartment building' },
+  { id: 'apartment', label: 'Apartment Building' },
   { id: 'commercial', label: 'Commercial' },
-  { id: 'mixed_use', label: 'Mixed use' },
+  { id: 'mixed_use', label: 'Mixed Use' },
 ] as const);
 
 const questions: readonly Question[] = [

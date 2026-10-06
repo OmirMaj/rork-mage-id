@@ -82,7 +82,7 @@ import {
 import { runInspectionRecall } from '@/utils/inspectionPrepAI';
 import { permitTypeLabel } from '@/utils/statusLabels';
 
-export const RECALL_CHIP = 'From model recall — verify with your AHJ';
+export const RECALL_CHIP = 'From model recall. Verify with your AHJ.';
 export const RECALL_NEEDS_PRO = 'Commonly checked items are on the Pro plan.';
 /** Said once, next to the viewer buttons it explains (the Code Check screen's own words). */
 export const RECALL_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";
@@ -210,7 +210,7 @@ export default function InspectionReadySheet({
     } else {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        showAlert('Camera access needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
+        showAlert('Camera Access Needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
         return undefined;
       }
       result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false, exif: false });
@@ -227,7 +227,7 @@ export default function InspectionReadySheet({
       else addToPunch(item, uri);
       update((e) => ({ ...e, proofByItem: { ...e.proofByItem, [item.id]: true } }));
     } catch {
-      showAlert("Couldn't attach the photo", 'Try again, or add it from the punch list.');
+      showAlert("Couldn't Attach the Photo", 'Try again, or add it from the punch list.');
     }
   }, [pickPhoto, linkedPunch, updatePunchItem, addToPunch, update]);
 
@@ -238,7 +238,7 @@ export default function InspectionReadySheet({
       const uri = await pickPhoto();
       if (uri) setCodeLookTarget({ photoUri: uri, item });
     } catch {
-      showAlert('Could not open the photo', 'Try again.');
+      showAlert('Could Not Open the Photo', 'Try again.');
     }
   }, [pickPhoto]);
   const addCodeLookLine = useCallback((p: PrepItem) => {
@@ -319,7 +319,7 @@ export default function InspectionReadySheet({
             testID={`inspection-prep-punch-${item.id}`}
           >
             <ListChecks size={13} color={t.textSecondary} strokeWidth={1.75} />
-            <Text style={s.actionText}>{punchId ? 'In punch (internal)' : 'Add to punch (internal)'}</Text>
+            <Text style={s.actionText}>{punchId ? 'In Punch (Internal)' : 'Add to Punch (Internal)'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.action}
@@ -328,7 +328,7 @@ export default function InspectionReadySheet({
             testID={`inspection-prep-proof-${item.id}`}
           >
             <Camera size={13} color={t.textSecondary} strokeWidth={1.75} />
-            <Text style={s.actionText}>{proof ? 'Proof attached' : 'Snap proof'}</Text>
+            <Text style={s.actionText}>{proof ? 'Proof Attached' : 'Snap Proof'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.action}
@@ -355,7 +355,7 @@ export default function InspectionReadySheet({
               style={s.action}
               onPress={() => unpin(item.pinItemId as string)}
               accessibilityRole="button"
-              accessibilityLabel="Unpin this code card"
+              accessibilityLabel="Unpin This Code Card"
               testID={`inspection-prep-unpin-${item.id}`}
             >
               <Text style={s.actionText}>Unpin</Text>
@@ -373,8 +373,8 @@ export default function InspectionReadySheet({
         <View style={[s.container, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }, f.card]} testID="inspection-ready-sheet">
           <View style={s.header}>
             <View style={s.headerBody}>
-              <Text style={s.sheetHeading}>{`Get ready for ${inspection.name} — ${dayLabel}`}</Text>
-              <Text style={s.authority}>{inspection.authority ?? 'Issuing authority not set — add it on the permit'}</Text>
+              <Text style={s.sheetHeading}>{`Get ready for ${inspection.name} · ${dayLabel}`}</Text>
+              <Text style={s.authority}>{inspection.authority ?? 'Issuing authority not set. Add it on the permit.'}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close" testID="inspection-ready-close">
               <X size={18} color={t.text} strokeWidth={1.75} />
@@ -392,7 +392,7 @@ export default function InspectionReadySheet({
             <View style={s.section}>
               <View style={s.sectionHead}>
                 <History size={15} color={t.accentLabel} strokeWidth={1.75} />
-                <Text style={s.sectionHeading}>Your inspector flagged this before</Text>
+                <Text style={s.sectionHeading}>Your Inspector Flagged This Before</Text>
               </View>
               {byGroup.history.length > 0
                 ? byGroup.history.map(renderItem)
@@ -403,7 +403,7 @@ export default function InspectionReadySheet({
             <View style={s.section}>
               <View style={s.sectionHead}>
                 <Ruler size={15} color={t.accentLabel} strokeWidth={1.75} />
-                <Text style={s.sectionHeading}>Your scope triggers this</Text>
+                <Text style={s.sectionHeading}>Your Scope Triggers This</Text>
               </View>
               {byGroup.scope.length > 0
                 ? byGroup.scope.map(renderItem)
@@ -414,7 +414,7 @@ export default function InspectionReadySheet({
             <View style={s.section}>
               <View style={s.sectionHead}>
                 <BookOpen size={15} color={t.warningLabel} strokeWidth={1.75} />
-                <Text style={s.sectionHeading}>Commonly checked (model recall)</Text>
+                <Text style={s.sectionHeading}>Commonly Checked (Model Recall)</Text>
               </View>
               <Text style={s.recallChip}>{RECALL_CHIP}</Text>
               <Text style={s.groundingChip}>{grounding.chipLabel}</Text>
@@ -422,7 +422,7 @@ export default function InspectionReadySheet({
                 <View style={s.proBox}>
                   <Text style={s.empty} testID="inspection-prep-needs-pro">{RECALL_NEEDS_PRO}</Text>
                   <TouchableOpacity style={s.action} onPress={() => setPaywallOpen(true)} accessibilityRole="button" testID="inspection-prep-see-pro">
-                    <Text style={s.actionText}>See plans</Text>
+                    <Text style={s.actionText}>See Plans</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -455,8 +455,8 @@ export default function InspectionReadySheet({
                             // The volume link only: viewerUrlToOpen rebuilds it
                             // from the volume id, so no section rides on it.
                             const href = viewerUrlToOpen(l.url);
-                            if (!href) { showAlert('Cannot open', 'This code link could not be opened.'); return; }
-                            void Linking.openURL(href).catch(() => showAlert('Cannot open', 'This code link could not be opened.'));
+                            if (!href) { showAlert('Cannot Open', 'This code link could not be opened.'); return; }
+                            void Linking.openURL(href).catch(() => showAlert('Cannot Open', 'This code link could not be opened.'));
                           }}
                         >
                           <ExternalLink size={13} color={t.textSecondary} strokeWidth={1.75} />
@@ -495,7 +495,7 @@ export default function InspectionReadySheet({
                     testID="inspection-prep-refresh"
                   >
                     <RefreshCw size={13} color={t.textSecondary} strokeWidth={1.75} />
-                    <Text style={s.actionText}>Refresh list</Text>
+                    <Text style={s.actionText}>Refresh List</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -506,7 +506,7 @@ export default function InspectionReadySheet({
               <View style={s.section}>
                 <View style={s.sectionHead}>
                   <HelpCircle size={15} color={t.warningLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>Not sure — verify on site</Text>
+                  <Text style={s.sectionHeading}>Not Sure: Verify on Site</Text>
                 </View>
                 {byGroup.verify.map(renderItem)}
               </View>
@@ -517,7 +517,7 @@ export default function InspectionReadySheet({
               <View style={s.section} testID="codelook-prep-extras">
                 <View style={s.sectionHead}>
                   <ScanSearch size={15} color={t.accentLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>From your photo code check</Text>
+                  <Text style={s.sectionHeading}>From Your Photo Code Check</Text>
                 </View>
                 {extras.map(renderItem)}
               </View>
@@ -528,7 +528,7 @@ export default function InspectionReadySheet({
               <View style={s.section} testID="inspection-prep-pinned">
                 <View style={s.sectionHead}>
                   <Pin size={15} color={t.accentLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>Pinned from code cards</Text>
+                  <Text style={s.sectionHeading}>Pinned from Code Cards</Text>
                 </View>
                 <Text style={s.groundingChip}>{PINNED_NOTE}</Text>
                 {pinned.map(renderItem)}
@@ -540,7 +540,7 @@ export default function InspectionReadySheet({
               <Text style={s.sectionHeading}>How did it go?</Text>
               {jobPermits.length === 0 ? (
                 <TouchableOpacity style={s.action} onPress={openPermits} accessibilityRole="button" testID="inspection-prep-log-permit">
-                  <Text style={s.actionText}>Log this on a permit first</Text>
+                  <Text style={s.actionText}>Log This on a Permit First</Text>
                 </TouchableOpacity>
               ) : (
                 <>
@@ -571,13 +571,13 @@ export default function InspectionReadySheet({
                         accessibilityLabel="What did the inspector write?"
                         testID="inspection-prep-notes"
                       />
-                      <Text style={s.label}>Inspector name (optional)</Text>
+                      <Text style={s.label}>Inspector Name (Optional)</Text>
                       <TextInput
                         style={s.input}
                         value={inspectorName}
                         onChangeText={setInspectorName}
                         placeholderTextColor={t.textMuted}
-                        accessibilityLabel="Inspector name (optional)"
+                        accessibilityLabel="Inspector Name (Optional)"
                         testID="inspection-prep-inspector"
                       />
                     </>
@@ -612,7 +612,7 @@ export default function InspectionReadySheet({
                       accessibilityState={{ disabled: !chosenPermit }}
                       testID="inspection-prep-save"
                     >
-                      <Text style={s.saveText}>{chosenPermit ? 'Save' : 'Pick a permit to save'}</Text>
+                      <Text style={s.saveText}>{chosenPermit ? 'Save' : 'Pick a Permit to Save'}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {savedMsg ? <Text style={s.saved} testID="inspection-prep-saved">{savedMsg}</Text> : null}

@@ -3,27 +3,27 @@
 exports[`CCWIRE sweep golden — recorded on the untouched panel (s1) the panel as it mounts 1`] = `
 {
   "lines": 43,
-  "sha256": "6cf37f85cc0f77636dd7ff7600aa837da7b54fbb4761fa43a92997af0169f7a3",
+  "sha256": "46f093d305b475c5d450744fec6e8d519c060087505693aca91266fc1b69c4d7",
 }
 `;
 
 exports[`CCWIRE sweep golden — recorded on the untouched panel (s2) after Find the sheets, before any review 1`] = `
 {
   "lines": 88,
-  "sha256": "2d6ba4ecca8ffae430b36b8cb758bbdbdd04c972ffdbc1efda083a65746126fb",
+  "sha256": "a1426f1af1fd80b377a90556ac852279f20e88a834766596da271a3a8a8f8ee3",
 }
 `;
 
 exports[`CCWIRE sweep golden — recorded on the untouched panel (s3) after the review, two findings per sheet (old server shape) 1`] = `
 {
   "lines": 290,
-  "sha256": "770cb261231fb24fc01db3997a778ede72d6473ffd15ecc1e50a930933230970",
+  "sha256": "894ad3f54a5b4af3c3e64ae61cd9999067ddaa5545ec62abff174c88f75fd149",
 }
 `;
 
 exports[`CCWIRE sweep golden — recorded on the untouched panel (s4) after a review that raised nothing 1`] = `
 {
   "lines": 110,
-  "sha256": "dcca4a180eb3fec48b49bb82b7ed6a5dd7d4d04f9e356191a3b798c799af79f9",
+  "sha256": "cf3653dac2c2124216cbfd956020c5920e53befba53629d59802620de9144266",
 }
 `;

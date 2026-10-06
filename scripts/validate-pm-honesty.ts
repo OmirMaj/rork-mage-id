@@ -284,7 +284,7 @@ console.log('\n── stale comments, colours, the AI mark ──');
     ok(`${mode}: emergency is the danger pair`, pm.workOrderPriorityTone(t, 'emergency').fg === t.dangerLabel);
   }
   ok('"Add property" uses the Plus icon, not the AI mark',
-    !/MageAIMark/.test(homeCode) && /<Plus size=\{15\} color=\{Colors\.textOnAccent\}[^>]*\/>\s*<Text style=\{styles\.modalCtaText\}>Add property<\/Text>/.test(homeCode));
+    !/MageAIMark/.test(homeCode) && /<Plus size=\{15\} color=\{Colors\.textOnAccent\}[^>]*\/>\s*<Text style=\{styles\.modalCtaText\}>Add Property<\/Text>/.test(homeCode));
 }
 
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `\nALL PASS (${pass})`);

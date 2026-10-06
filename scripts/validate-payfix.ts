@@ -243,7 +243,7 @@ console.log('\n2. Labels never imply an official AIA document');
     // closeout binder).
     'Some lenders and architects require their own or the official AIA forms.',
     'It is not the official AIA document, and some lenders and architects require their own or the official forms.',
-    'These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.',
+    'These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents. Verify before you send.',
     // Fix round 4 — three more notices that say somebody may NOT take it (the
     // pay-app screen's legal note, the pay-app PDF footer, the closeout forms).
     'Some lenders or architects only accept the official AIA Contract Documents.',
@@ -293,7 +293,7 @@ console.log('\n2. Labels never imply an official AIA document');
     // The hedges pass — and ONLY as written.
     ["Some lenders and architects require their own or the official AIA forms.", false, false],
     ["It is not the official AIA document, and some lenders and architects require their own or the official forms.", false, false],
-    ["These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.", false, false],
+    ["These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents. Verify before you send.", false, false],
     ['AIA® and &quot;AIA Document G702/G703&quot; are registered trademarks of The American Institute of Architects, which is not affiliated with MAGE ID.', false, false],
     ["MAGE ID generates draft pay applications styled after AIA G702 / G703.{' '}", false, false],
     ["Some lenders and architects accept these as the official AIA forms.", true, true],
@@ -509,7 +509,7 @@ console.log('\n2. Labels never imply an official AIA document');
   const DISCLAIMER_HOME: [string, string][] = [
     ['app/invoice.tsx', 'Some lenders and architects require their own or the official AIA forms.'],
     ['app/aia-pay-app.tsx', 'It is not the official AIA document, and some lenders and architects require their own or the official forms.'],
-    ['app/closeout-binder.tsx', 'These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.'],
+    ['app/closeout-binder.tsx', 'These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents. Verify before you send.'],
     ['app/aia-pay-app.tsx', 'Some lenders or architects only accept the official AIA Contract Documents.'],
     ['utils/aiaBilling.ts', 'Some lenders and architects require the official AIA Contract Documents.'],
     ['utils/aiaForms.ts', 'Some lenders, sureties, and architects require the official AIA Contract Documents — verify acceptance with your owner / architect / surety before submitting.'],

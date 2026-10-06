@@ -211,7 +211,7 @@ export function roomsToEstimateLines(rooms: PlanRoom[]): RoomEstimateLine[] {
   return rooms
     .filter(r => r.included && r.sqft > 0 && r.ratePerSqft > 0)
     .map(r => ({
-      name: `${r.name} — finish-out (plan AI)`,
+      name: `${r.name}: finish-out (plan AI)`,
       category: ROOM_TYPE_LABELS[r.type],
       unit: 'SF' as const,
       quantity: Math.round(r.sqft),

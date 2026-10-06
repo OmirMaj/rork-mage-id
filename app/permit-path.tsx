@@ -162,7 +162,7 @@ function PermitPathBody({ project, onBack }: { project: Project; onBack: () => v
       {pp.lookupFailed ? (
         <View style={styles.failRow} testID="permit-path-lookup-failed">
           <Text style={styles.caution}>{t('office.permitPath.header.failed', 'Couldn’t look up the building department. Try again.')}</Text>
-          <Button label={t('office.permitPath.header.retry', 'Try again')} size="sm" variant="secondary" onPress={pp.retryLookup} testID="permit-path-retry" />
+          <Button label={t('office.permitPath.header.retry', 'Try Again')} size="sm" variant="secondary" onPress={pp.retryLookup} testID="permit-path-retry" />
         </View>
       ) : null}
       {route.unknownCount > 0 ? (
@@ -171,7 +171,7 @@ function PermitPathBody({ project, onBack }: { project: Project; onBack: () => v
             {tn('office.permitPath.header.unknown', route.unknownCount, { one: '1 thing not known yet', other: '{count} things not known yet' })}
           </Text>
           {askAllIds.length ? (
-            <Button label={t('office.permitPath.header.askAll', 'Ask about all')} size="sm" variant="secondary" onPress={() => ask(askAllIds)} testID="permit-path-ask-all" />
+            <Button label={t('office.permitPath.header.askAll', 'Ask About All')} size="sm" variant="secondary" onPress={() => ask(askAllIds)} testID="permit-path-ask-all" />
           ) : null}
         </View>
       ) : null}

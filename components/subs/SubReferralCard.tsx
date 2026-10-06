@@ -42,7 +42,7 @@ export function SubReferralCard({
           <Sparkles size={16} color={t.accent} strokeWidth={1.9} />
         </View>
         <View style={styles.headText}>
-          <Text style={styles.title}>Bring your other GCs on</Text>
+          <Text style={styles.title}>Bring Your Other GCs On</Text>
           <Text style={styles.subtitle}>
             Free for you, free for them to try. Everything between you lands in one thread
             instead of six text messages.
@@ -60,17 +60,17 @@ export function SubReferralCard({
           onPress={() => onSend(referral.message, referral.emailSubject)}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Send this message to a general contractor"
+          accessibilityLabel="Send This Message to a General Contractor"
         >
           <Send size={15} color={t.surface} strokeWidth={1.9} />
-          <Text style={styles.sendBtnText}>Send this</Text>
+          <Text style={styles.sendBtnText}>Send This</Text>
         </TouchableOpacity>
       ) : null}
 
       {referral.inviteTargets.length > 0 ? (
         <>
           <View style={styles.divider} />
-          <Text style={styles.sectionLabel}>Your GCs not on MAGE yet</Text>
+          <Text style={styles.sectionLabel}>Your GCs Not on MAGE Yet</Text>
           {referral.inviteTargets.map((gc) => (
             <View key={gc.name} style={styles.targetRow}>
               <View style={styles.targetIcon}>
@@ -107,10 +107,10 @@ export function SubReferralCard({
           onPress={onAddGc}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Add a general contractor you work for"
+          accessibilityLabel="Add a General Contractor You Work For"
         >
           <UserPlus size={14} color={t.textSecondary} strokeWidth={1.9} />
-          <Text style={styles.addBtnText}>Add a GC you work for</Text>
+          <Text style={styles.addBtnText}>Add a GC You Work For</Text>
         </TouchableOpacity>
       ) : null}
     </View>

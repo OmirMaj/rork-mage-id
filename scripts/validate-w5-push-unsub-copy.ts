@@ -67,7 +67,7 @@ ok('the brief note says the brief is OFF until he turns it on, and where',
   /off unless you turn it on/i.test(PUSH_ASK_BRIEF_NOTE) && /Push and Email Preferences/.test(PUSH_ASK_BRIEF_NOTE));
 ok('…and that place exists: the Settings row and the digest card',
   /Push and Email Preferences/.test(read('app/(tabs)/settings/index.tsx'))
-  && /AI morning digest/.test(read('app/notifications-settings.tsx')));
+  && /AI Morning Digest/.test(read('app/notifications-settings.tsx')));
 const ask = read('utils/pushPermissionAsk.ts');
 ok('the doc comment no longer lists morning-digest / invoice-dunning as senders this ask turns on',
   !/the past-due nudge from invoice-dunning, the morning brief from\s+\/\/?\s*\*?\s*morning-digest/.test(ask)

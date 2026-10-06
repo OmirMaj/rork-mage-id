@@ -53,7 +53,7 @@ export function QuizResultCard({ phase, label, holderName, onChangeName }: QuizR
           {t('settings.learn.issued', 'Certificate issued: MAGE ID skills: {label}', { label })}
         </Text>
         <Card style={styles.cert} testID="skills-check-certificate">
-          <EyebrowLabel tone="neutral" showDot={false}>{t('settings.learn.certEyebrow', 'App skills')}</EyebrowLabel>
+          <EyebrowLabel tone="neutral" showDot={false}>{t('settings.learn.certEyebrow', 'App Skills')}</EyebrowLabel>
           <Text style={[Type.headline, styles.certTitle, { color: colors.text }]}>{`MAGE ID skills: ${label}`}</Text>
           <Text style={[Type.title3, styles.certName, { color: colors.text }]} testID="skills-check-certificate-name">{c.holderName}</Text>
           <Text style={[Type.caption1, { color: colors.textSecondary }]}>{CERT_NAME_NOTE}</Text>
@@ -123,7 +123,7 @@ export function QuizResultCard({ phase, label, holderName, onChangeName }: QuizR
         {phase.kind !== 'pending' && !(phase.kind === 'refused' && (phase.reason === 'quiz_changed' || phase.reason === 'bad_request' || phase.reason === 'revoked')) ? (
           <View style={styles.field}>
             <Text style={[Type.footnoteEmphasized, { color: colors.text }]} nativeID="skills-check-name-label">
-              {t('settings.learn.nameLabel', 'Name on the certificate')}
+              {t('settings.learn.nameLabel', 'Name on the Certificate')}
             </Text>
             <TextInput
               value={holderName}
@@ -135,7 +135,7 @@ export function QuizResultCard({ phase, label, holderName, onChangeName }: QuizR
               autoComplete="name"
               textContentType="name"
               returnKeyType="done"
-              accessibilityLabel={t('settings.learn.nameLabel', 'Name on the certificate')}
+              accessibilityLabel={t('settings.learn.nameLabel', 'Name on the Certificate')}
               accessibilityLabelledBy="skills-check-name-label"
               placeholderTextColor={colors.textMuted}
               style={[Type.callout, styles.input, { color: colors.text, backgroundColor: colors.surfaceAlt, opacity: editable ? 1 : 0.6 }]}

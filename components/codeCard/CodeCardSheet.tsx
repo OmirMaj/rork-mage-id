@@ -193,7 +193,7 @@ function SheetBody({
 
   const stageWord = stage ? stageLabel(stage) : null;
   const stageSuffix = !stage ? '' : stageEdited ? ' · you set it' : item.stageIsGuess ? ' · AI guess' : '';
-  const checklistTitle = stageWord ? `Add to ${stageWord} inspection checklist` : 'Add to an inspection checklist';
+  const checklistTitle = stageWord ? `Add to ${stageWord} inspection checklist` : 'Add to an Inspection Checklist';
 
   const actionRow = (key: string, title: string, sub: string, Icon: typeof Bookmark, action: CodeCardAction | undefined, ruled: boolean) => {
     const done = action?.kind === 'done';
@@ -258,7 +258,7 @@ function SheetBody({
       </View>
 
       {stageOpen ? (
-        <View style={styles.stagePick} accessibilityRole="radiogroup" accessibilityLabel="Which inspection checks this">
+        <View style={styles.stagePick} accessibilityRole="radiogroup" accessibilityLabel="Which Inspection Checks This">
           <Text style={styles.stageHint}>Which inspection checks this is the AI&apos;s guess. Pick the one your town uses.</Text>
           <View style={styles.chips}>
             {CODE_STAGES.map((s) => (
@@ -287,9 +287,9 @@ function SheetBody({
       {recheckable || item.why || item.calc ? (
         <View style={styles.blk}>
           <View style={styles.blkHead}>
-            <Text style={styles.blkLabel}>Why it applies here</Text>
+            <Text style={styles.blkLabel}>Why It Applies Here</Text>
             <View style={styles.spacer} />
-            {item.calc ? <Text style={styles.blkTag}>MAGE calculator</Text> : null}
+            {item.calc ? <Text style={styles.blkTag}>MAGE Calculator</Text> : null}
           </View>
           {item.why ? <Text style={styles.why}>{item.why}</Text> : null}
           {item.calc ? (
@@ -357,9 +357,9 @@ function SheetBody({
       {item.whatToBuild && item.whatToBuild.length ? (
         <View style={styles.blk}>
           <View style={styles.blkHead}>
-            <Text style={styles.blkLabel}>What to build</Text>
+            <Text style={styles.blkLabel}>What to Build</Text>
             <View style={styles.spacer} />
-            <Text style={styles.blkTag}>In our words</Text>
+            <Text style={styles.blkTag}>In Our Words</Text>
           </View>
           {item.whatToBuild.map((line, i) => (
             <View key={`${i}-${line}`} style={[styles.spec, i > 0 && styles.ruled]}>
@@ -371,7 +371,7 @@ function SheetBody({
       ) : null}
 
       <View style={styles.blk}>
-        <View style={styles.blkHead}><Text style={styles.blkLabel}>The code behind it</Text></View>
+        <View style={styles.blkHead}><Text style={styles.blkLabel}>The Code Behind It</Text></View>
         <View style={styles.ref}>
           <View style={styles.rr}>
             <Text style={styles.rrKey}>Section</Text>
@@ -404,7 +404,7 @@ function SheetBody({
               {info?.editionLabel ? (
                 <>
                   <Text style={styles.rrText}>{info.editionLabel}</Text>
-                  <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source not on file'}</Text>
+                  <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source Not on File'}</Text>
                   {edition.citedLine ? <Text style={styles.rrSmall} testID={`${tid}-cited`}>{edition.citedLine}</Text> : null}
                 </>
               ) : (
@@ -418,7 +418,7 @@ function SheetBody({
           <View style={[styles.rr, styles.ruled]}>
             <Text style={styles.rrKey}>Permit</Text>
             <View style={styles.rrVal}>
-              <Text style={styles.rrText}>{info?.permitOfficeTitle ?? 'Not found for this address'}</Text>
+              <Text style={styles.rrText}>{info?.permitOfficeTitle ?? 'Not Found for This Address'}</Text>
               {info?.permitOfficeTitle ? (
                 <Text style={styles.rrSmall}>
                   {[sourceLine(info.permitOfficeSourceUrl, info.permitOfficeCheckedOn) ?? OFFICE_UNVERIFIED, permitPhone].filter(Boolean).join(' · ')}
@@ -443,7 +443,7 @@ function SheetBody({
       >
         <View style={styles.ot}>
           <BookOpen size={22} color={P.ink} strokeWidth={1.9} />
-          <Text style={styles.otText}>Read the official text</Text>
+          <Text style={styles.otText}>Read the Official Text</Text>
           <View style={styles.free}><Text style={styles.freeText}>Free</Text></View>
           <View style={styles.spacer} />
           <ExternalLink size={20} color={P.ink3} strokeWidth={1.9} />
@@ -461,12 +461,12 @@ function SheetBody({
 
       <View style={styles.alist}>
         {actionRow('checklist', checklistTitle, 'Shows in Inspection Ready 3 days before that inspection', ClipboardCheck, storeGated(checklist, shown), false)}
-        {actionRow('ask', 'Draft a question for the town', 'Opens in your Mail. MAGE sends nothing.', MessageCircleQuestion, askTown, true)}
-        {actionRow('save', 'Save to the job', 'Kept with the codes and permits', Bookmark, storeGated(save, shown), true)}
+        {actionRow('ask', 'Draft a Question for the Town', 'Opens in your Mail. MAGE sends nothing.', MessageCircleQuestion, askTown, true)}
+        {actionRow('save', 'Save to the Job', 'Kept with the codes and permits', Bookmark, storeGated(save, shown), true)}
       </View>
       <BlockedNote text={note} sunlight={sunlight} testID={`${tid}-note`} />
 
-      <Text style={styles.msgHead}>Send to a sub</Text>
+      <Text style={styles.msgHead}>Send to a Sub</Text>
       <View style={styles.chips}>
         {(recipients ?? []).map((r) => (
           <Pressable
@@ -494,7 +494,7 @@ function SheetBody({
         </View>
       )}
       <Button
-        label={recipient ? `Text it to ${recipient.name}` : 'Text it to a sub'}
+        label={recipient ? `Text it to ${recipient.name}` : 'Text It to a Sub'}
         size="lg"
         fullWidth
         disabled={!!sendBlocked}

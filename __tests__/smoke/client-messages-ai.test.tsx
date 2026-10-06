@@ -489,7 +489,7 @@ describe('flag on: the sheet', () => {
     expect(screen.getByText('Move the vanity light up')).toBeTruthy();
     expect(screen.getByText('Confirm the new height before drywall')).toBeTruthy();
     const block = within(screen.getByTestId('ask-what-i-read'));
-    expect(block.getByText('What I read')).toBeTruthy();
+    expect(block.getByText('What I Read')).toBeTruthy();
     expect(block.getByText('Vanity wall.jpg')).toBeTruthy();
     expect(block.getByText('PDF, 2 pages')).toBeTruthy();
     const draft = within(screen.getByTestId('message-ai-draft'));
@@ -661,7 +661,7 @@ describe('flag on: the sheet', () => {
     expect(mockSettle.mock.invocationCallOrder[0]).toBeGreaterThan(mockAskFiles.mock.invocationCallOrder[0]);
     expect(mockSettle.mock.invocationCallOrder[0]).toBeLessThan(mockAskFiles.mock.invocationCallOrder[1]);
     expect(screen.getByTestId('message-ai-failure').props.children).toBe(
-      'Your account has not allowed AI features, so nothing was sent to Google. Check Settings → AI features, then try again.');
+      'Your account has not allowed AI features, so nothing was sent to Google. Check Settings > AI Features, then try again.');
     expect(screen.getByTestId('message-ai-retry')).toBeTruthy();
   });
 

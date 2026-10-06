@@ -99,7 +99,7 @@ describe('CodeCheckLoader on the web (react-native-web)', () => {
     expect(m.host.querySelector('[data-testid="code-check-laser"]')).toBeNull();
     expect(m.host.querySelector('[data-testid="code-check-mark-0"]')).toBeNull();
     expect(insertedCss()).not.toContain(lastFrame.replace(/\s+/g, ''));
-    expect(m.host.textContent).toContain('What MAGE checks');
+    expect(m.host.textContent).toContain('What MAGE Checks');
     m.done();
   });
 

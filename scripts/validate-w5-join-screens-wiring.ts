@@ -265,7 +265,7 @@ console.log('\n#57 / #156 — every create path asks the cap gate:');
   const hook = read('hooks/useCopilotConversation.ts');
   const shell = read('components/copilot/CopilotShell.tsx');
   ok('the Copilot names a cap refusal (project_cap) and offers See plans, not a retry',
-    /capRefused \? 'project_cap'/.test(hook) && /Free covers one project/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
+    /capRefused \? 'project_cap'/.test(hook) && /Free Covers One Project/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
 }
 
 // ── #74 claimed crew worker ───────────────────────────────────────────────
@@ -330,7 +330,7 @@ for (const f of ['app/closeout-binder.tsx', 'app/project-detail.tsx', 'app/sub-p
   const src = read(f);
   ok(`${f} reads through loadLienWaiversChecked`, /loadLienWaiversChecked\(/.test(src) && !/fetchLienWaiversForProject\(/.test(src));
 }
-ok('the binder refuses to print an empty waiver section off a failed read', /if \(waiverReadError\) \{[\s\S]{0,300}'Lien waivers not loaded'/.test(read('app/closeout-binder.tsx')));
+ok('the binder refuses to print an empty waiver section off a failed read', /if \(waiverReadError\) \{[\s\S]{0,300}'Lien Waivers Not Loaded'/.test(read('app/closeout-binder.tsx')));
 ok('sub-portal setup says it could not check instead of offering a second release',
   /releasesReadFailed \? 'Couldn\\u2019t check lien releases/.test(read('app/sub-portal-setup.tsx'))
   && /\(!shown \|\| needsUnconditional\) && !releasesReadFailed \?/.test(read('app/sub-portal-setup.tsx')));
