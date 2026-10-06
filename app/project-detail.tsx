@@ -120,6 +120,8 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf, toCalendarDayString } from '@/utils/calendarDate';
+import { isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { pdfFailureMessage } from '@/utils/platformFile';
 // Wave 6c, lane E — the desktop workspace (see the render's `isDesktop ?`).
 import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
@@ -3753,6 +3755,9 @@ export default function ProjectDetailScreen() {
                   </View>
                 ));
               })()}
+              {/* OpenWeather's credit, when a row above shows conditions the
+                  app read from it. Typed weather carries none. */}
+              <WeatherCredit days={dailyReports.some(dr => isOpenWeatherReading(dr.weather)) ? [{ source: 'live' }] : []} />
               {/* Log by voice — MAGE Copilot: dictate the day, it confirms
                   today's critical-path progress + writes the full report. */}
               <TouchableOpacity

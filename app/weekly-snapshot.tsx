@@ -35,6 +35,8 @@ import { issuedInvoiceWindowStats } from '@/utils/clientViewMoney'; // MONEY-F5 
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { paymentReceivedAt, type RecordedPaymentFields } from '@/utils/billingFlowCore';
 import type { InvoicePayment } from '@/types';
 
@@ -272,6 +274,8 @@ export default function WeeklySnapshotScreen() {
               <>
                 <Text style={styles.cardBigValue}>{Math.round(weatherStats.high)}°/{Math.round(weatherStats.low ?? weatherStats.high)}°</Text>
                 <Text style={styles.cardSub}>{weatherStats.dominant || '—'}</Text>
+                {/* Credit when any of the week's readings came from OpenWeather. */}
+                <WeatherCredit days={weekDfrs.some(d => isOpenWeatherReading(d.weather)) ? [{ source: 'live' }] : []} />
               </>
             ) : (
               <Text style={styles.cardEmpty}>No weather in daily reports</Text>

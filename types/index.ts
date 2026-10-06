@@ -2179,7 +2179,17 @@ export interface DFRWeather {
   temperature: string;
   conditions: string;
   wind: string;
+  /** True for anything a person typed or dictated. False alone does NOT prove
+   *  a licensed read (older records and seeders wrote false with no source):
+   *  only `source` + `readAt` below do. */
   isManual: boolean;
+  /** Set ONLY when the app itself read the three values from OpenWeather's
+   *  current conditions (utils/weatherService.readLiveWeatherForDailyReport).
+   *  Lives inside the report's `weather` JSON, so it needs no column. */
+  source?: 'openweather';
+  /** ISO instant of that read. Always the report's own calendar day: a read
+   *  for any other day is refused before it is stored. */
+  readAt?: string;
 }
 
 export interface DFRPhoto {

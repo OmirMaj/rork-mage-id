@@ -296,22 +296,35 @@ ok('...and the baseline actually recomputes when they land',
   /\bexistingReport\b/.test(savedSignatureDeps) && /\bautoFilled\b/.test(savedSignatureDeps),
   'a memo that never re-runs holds the empty baseline and the screen stays dirty forever; ' +
   `savedSignature deps are [${savedSignatureDeps}]`);
-// The on-mount weather fetch was retired (content rights, 2026-10-02): nothing
-// fills the weather on open any more, so there is no app-acting fetch to mark.
-// What must hold instead: the screen never fetches weather on its own, and the
-// legacy-reading clear moves the baseline with it (or the clear reads as an edit).
-ok('the report fills no weather on its own (no mount fetch to mistake for the user)',
-  !/\bfetchWeather\b/.test(dfrCode) && !/wttr\.in/.test(dfrCode));
-ok('clearing a legacy reading moves the unsaved-work baseline with it',
+// Lane DFRWEATHER (2026-10-06): today's weather fills itself in again, from the
+// app's licensed source (OpenWeather current conditions, through
+// utils/weatherService.ts, never a hobby service and never simulated). So there
+// IS an app-acting read again, and it must not be mistaken for the user.
+ok('the one unattended weather read is marked as the app acting, and is the licensed one',
+  (dfrCode.match(/readLiveWeather\(\{ auto: true \}\)/g) ?? []).length === 1
+    && (dfrCode.match(/readLiveWeatherForDailyReport\(/g) ?? []).length === 1
+    && !/wttr\.in/.test(dfrCode) && !/getSimulatedForecast|getForecastWithFallback/.test(dfrCode),
+  'an unmarked mount read is indistinguishable from the super tapping Refresh');
+ok('a fill that replaced nothing a person wrote joins the unsaved-work baseline',
+  /const personsWords = !autoReadMayWrite\(weatherRef\.current, weatherTouchedRef\.current\);\s*if \(auto && personsWords\) return;[\s\S]{0,260}if \(!personsWords\) setAutoFilled\(p => \(\{ \.\.\.p, weather: result\.weather \}\)\);/.test(dfrCode),
+  'otherwise every new DFR on a project with a location is dirty a second after it opens, ' +
+  'and a draft of the app\'s own reading is written and offered back the next morning');
+ok('a read that replaced what a person typed (Refresh, after asking) is an edit, not a baseline',
+  !/setAutoFilled\(p => \(\{ \.\.\.p, weather: result\.weather \}\)\);\s*\}\s*catch/.test(dfrCode.replace(/if \(!personsWords\) setAutoFilled/, 'GUARDED')),
+  'an unguarded fold would hide a deliberate replacement from the unsaved-work prompt');
+ok('clearing a misdated reading moves the unsaved-work baseline with it',
   /setWeather\(EMPTY_DFR_WEATHER\);[\s\S]{0,200}setAutoFilled\(p => \(\{ \.\.\.p, weather: EMPTY_DFR_WEATHER \}\)\)/.test(dfrCode));
 ok('the schedule crew prefill records what it seeded',
   /setManpower\(seeded\);\s*setAutoFilled\(/.test(dfrCode),
   'the seed has to reach the baseline or it reads as the GC typing a roster');
-// The manual "Auto-fetch" button is gone with the read (content rights): typed
-// weather is the user's own work, and each typed field must read as an edit.
+// Typed weather is the user's own work: each typed field must read as an edit,
+// and from the first character no unattended read may write to the block.
 ok('typed weather counts as the user\'s edit (isManual: true on every field)',
   (dfrCode.match(/setWeather\(prev => \(\{ \.\.\.prev, (temperature|conditions|wind): v, isManual: true \}\)\)/g) ?? []).length === 3,
   'a typed value that does not mark itself as typed reads as an app reading on the provenance chip');
+ok('typing claims the weather block (no later unattended read may overwrite it)',
+  (dfrCode.match(/weatherTouchedRef\.current = true; setWeather\(prev => \(\{ \.\.\.prev, (temperature|conditions|wind): v, isManual: true \}\)\)/g) ?? []).length === 3,
+  'a reading that lands after he started typing would replace his own account of the day');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. The permit inspection history (audit #14)

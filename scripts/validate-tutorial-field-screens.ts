@@ -148,9 +148,14 @@ console.log('\n2. daily report: the sample note is free, the mic is metered, bot
   ok('dfr.voice.applied fires only when the note wrote something (fields.length > 0)',
     /if \(projectId && fields\.length > 0\) tutorialSignal\('dfr\.voice\.applied'/.test(apply));
   ok('…with the fields it wrote, and where the note came from', /tutorialSignal\('dfr\.voice\.applied', \{ projectId, fields, source: opts\.source \}\)/.test(apply));
-  ok('the fill never overwrites what he typed (each field gated on empty)',
+  // Lane DFRWEATHER (2026-10-06): weather is gated on empty OR on a reading the
+  // app itself took from OpenWeather. What he dictates beats the app's reading
+  // (his account of the day wins); it still never replaces what he typed.
+  ok('the fill never overwrites what he typed (each field gated on empty; weather also over the app\'s own reading)',
     /parsed\.manpower && manpower\.length === 0/.test(apply) && /parsed\.workPerformed && !workPerformed/.test(apply)
-    && /parsed\.issuesAndDelays && !issuesAndDelays/.test(apply) && /parsed\.weather && !weather\.temperature/.test(apply));
+    && /parsed\.issuesAndDelays && !issuesAndDelays/.test(apply)
+    && /parsed\.weather && \(!weather\.temperature \|\| \(dictatedWeather && isOpenWeatherReading\(weather\)\)\)/.test(apply)
+    && /const dictatedWeather = Boolean\(parsed\.weather\s*&& \(parsed\.weather\.temperature \|\| parsed\.weather\.conditions \|\| parsed\.weather\.wind\)\);/.test(apply));
 
   const sample = region(DFR, 'const applySampleNote = useCallback(');
   ok('the sample chip calls the shared fill UNMETERED', /applyParsedDfr\(parsed, \{ metered: false, source: 'sample' \}\)/.test(sample));
