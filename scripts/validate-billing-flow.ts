@@ -12,7 +12,7 @@
 //    fail after the invoice already exists.
 //
 // 2. INVOICE REMINDERS. The dunning cron dedupes purely by "only ever advance
-//    to a higher Stage". Adding a manual "send reminder now" button on top of
+//    to a higher stage". Adding a manual "send reminder now" button on top of
 //    that is exactly how you get a client receiving two FINAL NOTICES in one
 //    afternoon, or a cadence that silently skips from friendly to final. The
 //    manual path relaxes one guard (re-send at the CURRENT stage) and pays for

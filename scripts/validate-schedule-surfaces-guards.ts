@@ -11,7 +11,7 @@
 //        ones dropped (never re-attached to new task ids), the new plan's own
 //        start date. The phone header's one-tap voice "build" no longer shows
 //        over a running schedule.
-//   #53  "What-If" could only snapshot and restore: nothing edits a scenario —
+//   #53  "What-If" could only snapshot and restore — nothing edits a scenario —
 //        yet the Pro paywall sold "try the what-if" and the create card said
 //        changes "only affect that scenario". Renamed to Saved plans; the
 //        three promises reworded (FOUNDER: interim until real scenario editing).

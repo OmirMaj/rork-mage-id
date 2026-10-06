@@ -288,7 +288,7 @@ expect('overdue first, then contract → CO → selection → invoice, then olde
     'sel-far:waiting',
   ]);
 
-ok('an overdue selection outranks the unSigned Contract',
+ok('an overdue selection outranks the unsigned contract',
   D_JUN15.findIndex(d => d.id === 'sel-late') < D_JUN15.findIndex(d => d.id === 'contract'));
 ok('the unsigned contract outranks a pending CO at the same severity',
   D_JUN15.findIndex(d => d.id === 'contract') < D_JUN15.findIndex(d => d.id === 'co1'));

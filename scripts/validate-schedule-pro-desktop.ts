@@ -180,7 +180,7 @@ console.log('\nviews:');
   ok("calendar is labelled 'Calendar', and opens the stub that says it isn't built",
     VIEW_LABEL.calendar === 'Calendar'
       && /if \(key === 'calendar'\) \{\s*return \(\s*<TabComingSoon\b/.test(code('components/schedule/SchedulerTabShell.tsx')));
-  ok("living is labelled 'Living Plan' (sentence case, as on the phone)", VIEW_LABEL.living === 'Living Plan');
+  ok("living is labelled 'Living Plan' (Title Case, as on the phone)", VIEW_LABEL.living === 'Living Plan');
   ok('split / gantt / lanes / living are timeline layouts', (['split', 'gantt', 'lanes', 'living'] as const).every((v) => eq(viewToTab(v), { tab: 'timeline', layout: v })));
   ok('list / board / overview / workload / calendar are their own tabs', (['list', 'board', 'overview', 'workload', 'calendar'] as const).every((v) => eq(viewToTab(v), { tab: v })));
 }
