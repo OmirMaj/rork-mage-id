@@ -283,7 +283,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
                                           "children": [
                                             {
                                               "children": [
-                                                "Sign in to accept",
+                                                "Sign In to Accept",
                                               ],
                                               "props": {
                                                 "style": {
@@ -29388,7 +29388,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /sub-po
         "position": "absolute",
         "width": "100%",
       },
-      "title": "Sub portal",
+      "title": "Sub Portal",
       "titleColor": "#2F6B3A",
       "titleFontFamily": "Barlow_600SemiBold",
       "titleFontSize": 17,

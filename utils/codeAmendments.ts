@@ -244,7 +244,7 @@ export const HAND_VERIFIED_AMENDMENTS: readonly StateAmendment[] = [
     codeAliases: ['RCNYS'],
     section: 'P2904',
     caption:
-      'Residential fire sprinkler system — named in § 1220.2(a)(6) as the standard an owner-occupied lodging house of five or fewer guestrooms must comply with.',
+      'Residential fire sprinkler system, named in § 1220.2(a)(6) as the standard an owner-occupied lodging house of five or fewer guestrooms must comply with.',
     cite: '19 NYCRR § 1220.2(a)(6)',
     authorityName:
       'New York State Department of State, Division of Building Standards and Codes',
@@ -529,14 +529,14 @@ export function citationEvidenceFor(
         rungIndex: RUNG_INDEX.amended,
         badge: parent ? 'PARENT SECTION AMENDED' : 'STATE AMENDMENT',
         detail: parent
-          ? `${row.cite} amends ${what} § ${row.section}, the parent of the number cited. Read off ${row.authorityName} on ${row.checkedOn}. MAGE did NOT verify § ${citedSection.trim()} itself — that number is still model recall.`
+          ? `${row.cite} amends ${what} § ${row.section}, the parent of the number cited. Read off ${row.authorityName} on ${row.checkedOn}. MAGE did NOT verify § ${citedSection.trim()} itself. That number is still model recall.`
           // THE LAST CLAUSE IS NOT PADDING. A green badge sits directly under
           // the model's own requirement prose, and a reader takes the badge to
           // be vouching for the whole row. It is not: MAGE read a register
           // entry, and the requirement summarised above it is still recall.
           // The parent variant already disclaimed the cited section; the exact
           // variant disclaimed nothing at all.
-          : `${row.cite} amends ${what} § ${row.section}. Read off ${row.authorityName} on ${row.checkedOn}. The text below is the state’s own, not the model code’s — the requirement summarised above it is still the model’s recall.`,
+          : `${row.cite} amends ${what} § ${row.section}. Read off ${row.authorityName} on ${row.checkedOn}. The text below is the state’s own, not the model code’s. The requirement summarised above it is still the model’s recall.`,
         sourceUrl: row.sourceUrl,
         sourceLabel: row.cite,
         quote: row.amendmentText,
@@ -564,8 +564,8 @@ export function citationEvidenceFor(
     rungIndex: RUNG_INDEX.edition,
     badge: 'MODEL RECALL · EDITION KNOWN',
     detail:
-      `MAGE verified the governing code here — ${codesSummary(entry.codes)}, ` +
-      `checked ${entry.checkedOn} — but has no government record naming this section. ${RECALL_TAIL}`,
+      `MAGE verified the governing code here (${codesSummary(entry.codes)}, ` +
+      `checked ${entry.checkedOn}) but has no government record naming this section. ${RECALL_TAIL}`,
   };
 }
 

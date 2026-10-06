@@ -276,7 +276,7 @@ console.log('\nsubmittal screen wiring');
   ok('#55 a title edit sends only what changed', /changedFields\(submittalFormValuesOf\(base\), formValues\)/.test(SUB) && !/updateSubmittal\(existingSubmittal\.id, \{\s*title: title\.trim\(\),\s*specSection/.test(SUB));
   ok('#147 the manual cycle takes the days he entered, never now()', /sentDate: newCycleSent,/.test(SUB) && !/sentDate: new Date\(\)\.toISOString\(\),\s*reviewer: newReviewer/.test(SUB));
   ok('#147 the manual cycle is validated (Returned required for a stamp)', /manualCycleProblem\(\{/.test(SUB));
-  ok('#147 an unknown Sent day says "Not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'Not recorded'/.test(SUB));
+  ok('#147 an unknown Sent day says "Not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'Not Recorded'/.test(SUB));
   ok('#147 "pending" is not a review outcome in the cycle form', /CYCLE_STATUSES(\.filter\([^)]*\))?\.map/.test(SUB) && !/'pending', 'in_review', 'approved'/.test(SUB.slice(SUB.indexOf('const CYCLE_STATUSES'), SUB.indexOf('const CYCLE_STATUSES') + 120)));
   ok('#148 email / PDF / portal wait for the server number', /subject: `Submittal #\$\{subNumber\}/.test(SUB) && /number: numberInfo\.number/.test(SUB) && /sendBlockReason\(\{ isDirty, numberHold \}\)/.test(SUB));
   const subSend = SUB.slice(SUB.indexOf('const handleSendEmail'), SUB.indexOf('const scheduleTasks'));

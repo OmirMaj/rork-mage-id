@@ -23,7 +23,7 @@ const SECTION_TOTAL = BINDER_SECTION_LABELS.length;
 export const closeoutBinder: TutorialDef = {
   id: 'closeout-binder',
   version: 1,
-  title: 'Build a closeout binder',
+  title: 'Build a Closeout Binder',
   seconds: 35,
   endsWith: 'A draft binder with every section in one place',
   group: 'client',
@@ -58,7 +58,7 @@ export const closeoutBinder: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'binder.saved' },
       success: {
-        title: 'Binder saved as a draft',
+        title: 'Binder Saved as a Draft',
         sub: ctx => {
           const n = ctx.payloads['binder.saved']?.sections;
           if (typeof n !== 'number') return 'Saved on the sample job';
@@ -107,7 +107,7 @@ export const closeoutBinder: TutorialDef = {
   handoff: {
     pathname: '/closeout-binder',
     projectParam: 'projectId',
-    realJobLabel: name => `Build the binder on ${name} →`,
+    realJobLabel: name => `Build the Binder on ${name}`,
     roles: ['owner', 'editor'],
   },
 };

@@ -79,7 +79,7 @@ export async function armDailyBriefNudge(opts: {
     await Notifications.scheduleNotificationAsync({
       identifier: BRIEF_NUDGE_IDENTIFIER,
       content: {
-        title: 'Morning brief',
+        title: 'Morning Brief',
         body: 'Your morning brief is ready.',
         data: { kind: 'morning_brief' },
         sound: 'default',

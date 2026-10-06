@@ -93,7 +93,7 @@ export function CoachCard(p: CoachCardProps) {
         <Pressable
           onPress={p.onExit}
           accessibilityRole="button"
-          accessibilityLabel="End tutorial"
+          accessibilityLabel="End Tutorial"
           hitSlop={8}
           style={styles.close}
           testID="tutorial-end"
@@ -126,13 +126,13 @@ export function CoachCard(p: CoachCardProps) {
           {p.skip ? (
             <Pressable onPress={p.onSkip} accessibilityRole="button" hitSlop={8} style={styles.link} testID="tutorial-skip-step">
               <Text style={[Type.footnoteEmphasized, { color: colors.textSecondary }]}>
-                {p.missing ? "Can't find it — Skip step" : 'Skip this step'}
+                {p.missing ? "Can't Find It? Skip Step" : 'Skip This Step'}
               </Text>
             </Pressable>
           ) : null}
           {p.assist ? (
             <Pressable onPress={p.onAssist} accessibilityRole="button" hitSlop={8} style={styles.link} testID="tutorial-assist">
-              <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>Do it for me</Text>
+              <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>Do It for Me</Text>
             </Pressable>
           ) : null}
           <View style={styles.spacer} />

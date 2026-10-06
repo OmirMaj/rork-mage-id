@@ -43,10 +43,10 @@ export interface SavedCodeCheckSheetProps {
 }
 
 const SOURCE_LABEL: Record<CodeThreadSourceKind, string> = {
-  project: 'Run for this job',
-  punch: 'Run from a punch item',
-  plan_sheet: 'Run from a plan sheet',
-  manual: 'Run by hand',
+  project: 'Run for This Job',
+  punch: 'Run from a Punch Item',
+  plan_sheet: 'Run from a Plan Sheet',
+  manual: 'Run by Hand',
 };
 
 export const BUILDING_RECORD_NOT_CHECKED_TEXT = 'The building record was not checked for this check.';
@@ -102,7 +102,7 @@ export function recordSections(rec: CodeCheckRecord): SavedSection[] {
   return [
     {
       section: 'codes',
-      title: 'Applicable codes',
+      title: 'Applicable Codes',
       items: codes.map((c) => {
         const words = savedRequirementWords(c.requirement);
         return [c.code, c.section].filter(Boolean).join(' ') + (words ? `: ${words}` : '');
@@ -116,7 +116,7 @@ export function recordSections(rec: CodeCheckRecord): SavedSection[] {
     },
     gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),
     gated('inspections', 'Inspections', savedOwnWordsLines(r?.inspections)),
-    gated('violations', 'Common violations', savedOwnWordsLines(r?.commonViolations)),
+    gated('violations', 'Common Violations', savedOwnWordsLines(r?.commonViolations)),
   ];
 }
 
@@ -156,7 +156,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
     setTimeout(() => router.push(href), Platform.OS === 'ios' ? IOS_MODAL_NAV_DELAY_MS : 0);
   };
 
-  const sourceLabel = record.source?.label?.trim() || SOURCE_LABEL[record.source?.kind ?? 'manual'] || 'Run by hand';
+  const sourceLabel = record.source?.label?.trim() || SOURCE_LABEL[record.source?.kind ?? 'manual'] || 'Run by Hand';
   const sent = g?.jobDataSent ?? [];
   // The headline as frozen; with none, say 'not checked' only when it wasn't.
   const recordLine = g?.buildingRecordHeadline?.trim()
@@ -174,7 +174,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
             <TouchableOpacity style={styles.backBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={colors.text} strokeWidth={2} />
             </TouchableOpacity>
-            <Text style={styles.heading} numberOfLines={1}>{record.categoryLabel || 'Saved code check'}</Text>
+            <Text style={styles.heading} numberOfLines={1}>{record.categoryLabel || 'Saved Code Check'}</Text>
             <View style={styles.backBtn} />
           </View>
           <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}>
@@ -191,7 +191,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
 
             {answerLines.items.length > 0 || answerLines.withheld > 0 ? (
               <View style={styles.block}>
-                <Text style={styles.blockTitle}>What you told it</Text>
+                <Text style={styles.blockTitle}>What You Told It</Text>
                 {answerLines.items.map((line, k) => (
                   <React.Fragment key={`answer-${k}`}>
                     <SavedWithheld lines={answerLines} at={k} testID="codethread-saved-answers-withheld" />
@@ -247,7 +247,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
 
             <View style={styles.footer}>
               <Button
-                label="Run it again with today’s data"
+                label="Run It Again with Today’s Data"
                 variant="secondary"
                 testID="codethread-run-again"
                 onPress={runAgain}

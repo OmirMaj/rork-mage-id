@@ -989,8 +989,8 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
       RECALL_PROMPT_VERSION === 'specific1' && runs.every((r) => r.key === `${KEY_BEFORE}::specific1`)
         && prepSrc.includes("}::${JSON.stringify(sortedAnswers)}::${RECALL_PROMPT_VERSION}`;") && prepSrc.includes("export const RECALL_PROMPT_VERSION = 'specific1';"), runs.map((r) => r.key).join(' | '));
     ok('the sheet still labels that group as model recall (the chip, and the heading)',
-      /export const RECALL_CHIP = 'From model recall — verify with your AHJ';/.test(read('components/inspectionPrep/InspectionReadySheet.tsx'))
-        && read('components/inspectionPrep/InspectionReadySheet.tsx').includes('Commonly checked (model recall)'));
+      /export const RECALL_CHIP = 'From model recall\. Verify with your AHJ\.';/.test(read('components/inspectionPrep/InspectionReadySheet.tsx'))
+        && read('components/inspectionPrep/InspectionReadySheet.tsx').includes('Commonly Checked (Model Recall)'));
   }
   ok('an answer cached before the limit rule, or before the specifics rule, is not replayed (the cache key is past cards1 and cards2)',
     /::\$\{answersCacheFragment\(answered\)\}::cards3`;/.test(index) && !index.includes('::cards1') && !index.includes('::cards2'));
@@ -1021,7 +1021,7 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   ok('recall chip: neutral grey fill and ink', /recallChip: \{[^}]*backgroundColor: themeColors\.neutralSoft/.test(index) && /recallChipText: \{[^}]*color: themeColors\.textSecondary/.test(index));
   ok('recall rung badge: neutral grey', /rungRecall: \{ backgroundColor: themeColors\.neutralSoft \}/.test(index) && /rungRecallText: \{ color: themeColors\.textSecondary \}/.test(index));
   ok('the edition-mismatch badge (a real warning) stays amber, twice', (index.match(/styles\.rungBadge, styles\.rungWarn, styles\.rungMismatchBadge/g) ?? []).length === 2 && /rungWarnText: \{ color: themeColors\.warningLabel \}/.test(index));
-  ok('the recall words are unchanged (Code Check and Plan Review)', (index.match(/From model recall — verify with your AHJ before relying on a section number/g) ?? []).length === 2);
+  ok('the recall words are unchanged (Code Check and Plan Review)', (index.match(/From model recall\. Verify with your AHJ before relying on a section number\./g) ?? []).length === 2);
 
   const rm = between(index, 'function ResultModal(', 'function AccordionSection(');
   ok('every citation with a verdict renders a CodeCard from its own card item (codeCheckCards: index-aligned, content ids)',
@@ -1454,8 +1454,8 @@ console.log('\n4b. The withhold rule covers every place the line can appear');
       && (rm2.match(/text=\{c\.requirement\}/g) ?? []).length === 0);
   ok('the drill-in prompt never sends MAGE’s stand-in line as the requirement', rm2.includes("Summary requirement given: ${isCardPlaceholder(c.requirement) ? 'none' : c.requirement}\n"));
   ok('the hint above the Code Check rows promises only what a tap does: a card opens its detail; a plain row has the "What the inspector checks" toggle',
-    rm2.includes("{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the inspector checks under a code for what it requires.'}")
-      && !index.includes('Tap a code for') && rm2.includes("{isOpen ? 'Hide what the inspector checks' : 'What the inspector checks'}"));
+    rm2.includes("{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the Inspector Checks under a code for what it requires.'}")
+      && !index.includes('Tap a code for') && rm2.includes("{isOpen ? 'Hide What the Inspector Checks' : 'What the Inspector Checks'}"));
 
   // Plan Review: gated where a review is saved, and again where the list prints.
   const runPlan = between(index, 'const runPlanReview = useCallback(async () => {', 'savePlanReview({ id: reviewId');
@@ -1872,7 +1872,7 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
         && rm3.includes('const violationList = useMemo(() => ownWordsList(result?.commonViolations), [result]);')
         && ['permitList', 'inspectionList', 'violationList', 'answerLines', 'askedHidden'].every((n) => (rm3.match(new RegExp(`\\bconst ${n}\\b`, 'g')) ?? []).length === 1)
         && rm3.includes('const askedHidden = useMemo(() => ownWordsQuestions(result?.followUps), [result]);'));
-    const lists: [string, string, string, string][] = [['permitList', 'permits', 'Permits required', 'p'], ['inspectionList', 'inspections', 'Inspections', 'ins'], ['violationList', 'violations', 'Common violations', 'v']];
+    const lists: [string, string, string, string][] = [['permitList', 'permits', 'Permits Required', 'p'], ['inspectionList', 'inspections', 'Inspections', 'ins'], ['violationList', 'violations', 'Common Violations', 'v']];
     /** One list's section in the result sheet: from its condition to the end of its AccordionSection. */
     const listBlock = (name: string) => between(rm3, `{(${name}.items.length > 0 || ${name}.withheld > 0) && (`, '</AccordionSection>');
     ok('…each list’s section shows when it has a line OR a hidden line, and counts only the lines it shows',
@@ -2008,7 +2008,7 @@ console.log('\n4e. The Code Check summary, the drill-in answer and the recall li
     ok('the three lists and the answers are held only as the gate’s output, each from its own stored key',
       saved.includes("gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),")
         && saved.includes("gated('inspections', 'Inspections', savedOwnWordsLines(r?.inspections)),")
-        && saved.includes("gated('violations', 'Common violations', savedOwnWordsLines(r?.commonViolations)),")
+        && saved.includes("gated('violations', 'Common Violations', savedOwnWordsLines(r?.commonViolations)),")
         && saved.includes('{ section, title, ...lines, actionTexts: lines.items }')
         && saved.includes('const answerLines = savedAnswerLines(record);') && (code(saved).match(/\bsavedOwnWordsLines\(/g) ?? []).length === 4
         && saved.includes("import { savedOwnWordsLines, type SavedLines } from '@/utils/codeThread/savedLines';"));

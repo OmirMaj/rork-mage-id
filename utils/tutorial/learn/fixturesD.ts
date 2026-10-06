@@ -84,7 +84,7 @@ export function payAppPeriodPayload(
 
 /** The binder's sections, exactly as app/closeout-binder.tsx's preview card
  *  lists them (PreviewRow labels, in order). The validator pins the match. */
-export const BINDER_SECTION_LABELS = ['Finishes & fixtures', 'Trades', 'Warranties', 'Maintenance schedule'] as const;
+export const BINDER_SECTION_LABELS = ['Finishes and Fixtures', 'Trades', 'Warranties', 'Maintenance Schedule'] as const;
 
 /** How many of the binder's sections have something in them right now. */
 export function binderSectionsFilled(counts: {

@@ -155,7 +155,7 @@ ok('an edit route opens scheduleEditHref; several running jobs show a picker', /
   ok('the schedule card that leaves the hub says to handle the others first',
     /const leavesHub = a\.capabilityId === 'schedule' && \['edit', 'view'\]\.includes\(scheduleRoute\(a\.text\)\.kind\)/.test(hub)
     && /\{leavesHub && <Text[^>]*testID="copilot-hub-queue-schedule-last">\{SCHEDULE_CARD_LAST_COPY\}<\/Text>\}/.test(hub)
-    && /handle the others first/.test(SCHEDULE_CARD_LAST_COPY));
+    && /Handle the others first/.test(SCHEDULE_CARD_LAST_COPY));
 }
 ok('the split sees the job list (routeScheduleRequest over his projects)', /routeScheduleRequest\(\{\s*text: seed,\s*projectId: projectId \?\? '',\s*projects: projectId \? projects : pickableProjects\(projects\)/.test(hub));
 

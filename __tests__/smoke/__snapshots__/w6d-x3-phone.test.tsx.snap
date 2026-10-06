@@ -28,7 +28,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 395,
   "modals": 5,
-  "sha256": "6c3ab245528ce517c0ea13931f95785d80c36f75b1b9950308fec95eddfd40d8",
+  "sha256": "32c3e41588731e5db8148308cf373b80cc17e41bb65c69bf6fedab77f2e9e50d",
 }
 `;
 
@@ -212,7 +212,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 29,
   "modals": 1,
-  "sha256": "dcf9cab43912dbe09381013d0e7920f63249a81a4ac073ebb2c79caf457ddd98",
+  "sha256": "4fbfe65011d187f0afe49addb7db4f6aa6e93d2ee591234f68cdf3a9d2307d95",
 }
 `;
 
@@ -220,7 +220,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 29,
   "modals": 1,
-  "sha256": "e53518427069599a3c90dba40599e90ccc640f75cb099f6bb1e426423609fddf",
+  "sha256": "3720149b31c808a30195b80de3f18f0c08f72f7fe1144b69dd8294d0aa27a4a4",
 }
 `;
 

@@ -1,4 +1,4 @@
-// components/permitPath/InterviewPanel.tsx — "Tell us about the job" (lane PPUI, M5).
+// components/permitPath/InterviewPanel.tsx — "Tell Us About the Job" (lane PPUI, M5).
 //
 // One question at a time: yes / no / not sure, choice chips, multi-select
 // chips, or a year. Every answer redraws the route (the hook rebuilds it and
@@ -48,7 +48,7 @@ const YNU = ['yes', 'no', 'unsure'] as const;
 function ynuLabel(t: T, v: string): string {
   if (v === 'yes') return t('office.permitPath.interview.yes', 'Yes');
   if (v === 'no') return t('office.permitPath.interview.no', 'No');
-  return t('office.permitPath.interview.unsure', 'Not sure');
+  return t('office.permitPath.interview.unsure', 'Not Sure');
 }
 
 /** The words for an answer value ("Yes", "Kitchen or bath, Plumbing", "1931"). */
@@ -148,9 +148,9 @@ export function InterviewPanel({
     <View>
       <Card style={styles.card} testID={testID}>
         <View style={styles.head}>
-          <Text style={styles.panelHead}>{t('office.permitPath.interview.heading', 'Tell us about the job')}</Text>
+          <Text style={styles.panelHead}>{t('office.permitPath.interview.heading', 'Tell Us About the Job')}</Text>
           {answeredCount > 0 ? (
-            <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={t('office.permitPath.interview.collapse', 'Hide the questions')} hitSlop={8} testID={`${testID}-collapse`}>
+            <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={t('office.permitPath.interview.collapse', 'Hide the Questions')} hitSlop={8} testID={`${testID}-collapse`}>
               <ChevronUp size={18} color={c.textSecondary} />
             </Pressable>
           ) : null}

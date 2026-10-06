@@ -475,7 +475,7 @@ console.log('\nsurfaces:');
 
 const rfiScreen = read('app/rfi.tsx');
 ok('the RFI screen computes hold time', /computeRfiHoldTime/.test(rfiScreen));
-ok('the RFI screen labels the owner-side hold', /Owner side held it/.test(rfiScreen));
+ok('the RFI screen labels the owner-side hold', /Owner Side Held It/.test(rfiScreen));
 ok('the RFI screen labels the round-trip figure as round trip', /round trip/i.test(rfiScreen));
 ok('the RFI screen states that a sub\'s time is the GC\'s side', /sub/i.test(rfiScreen) && /not theirs/i.test(rfiScreen));
 ok('the RFI screen does not call round trip a delay measure or a claim',
@@ -526,7 +526,7 @@ function blockOf(rel: string, from: string, to: string): { rel: string; text: st
   const end = src.indexOf(to, start);
   return { rel: `${rel} (${from.slice(0, 24)}…)`, text: start >= 0 && end > start ? src.slice(start, end) : '' };
 }
-const rfiHoldBlock = blockOf('app/rfi.tsx', 'Owner-side HOLD time', 'Handoff log');
+const rfiHoldBlock = blockOf('app/rfi.tsx', 'Owner-side HOLD time', 'Handoff Log');
 const dfrNoWorkBlock = blockOf('app/daily-report.tsx', 'Nothing happened today', 'sectionCard');
 ok('the RFI hold block was found for scanning', rfiHoldBlock.text.length > 200);
 ok('the daily-report no-work block was found for scanning', dfrNoWorkBlock.text.length > 200);

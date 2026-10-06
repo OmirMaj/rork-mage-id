@@ -51,7 +51,7 @@ export function rfiBallLabel(ball: RFIBallInCourt | null | undefined): string | 
     case 'owner': return 'Owner';
     case 'sub': return 'Subcontractor';
     case 'landlord': return 'Landlord';
-    case 'building_engineer': return 'Building engineer';
+    case 'building_engineer': return 'Building Engineer';
     case 'closed': return 'Closed';
     default: return null;
   }
@@ -184,7 +184,7 @@ export interface RfiBulkCloseDeps {
 export type RfiClosePatch = Pick<RFI, 'status'> & Partial<Pick<RFI, 'ballInCourt' | 'handoffs'>>;
 
 export const RFI_CLOSE_SKIP = {
-  open: 'not answered yet — close it from its record',
+  open: 'not answered yet, so close it from its record',
   closed: 'already closed',
   void: 'void',
 } as const;
@@ -230,7 +230,7 @@ export function rfiBulkClosePlan(
   return out;
 }
 
-/** "Skipped 3: #4, #7 — already sent; #2 — paid." — or '' when none were. */
+/** "Skipped 3: #4, #7 (already sent); #2 (paid)." Or '' when none were. */
 export function logBulkSkippedLine(skipped: readonly { number: number | null | undefined; reason: string }[]): string {
   if (skipped.length === 0) return '';
   const byReason = new Map<string, string[]>();
@@ -238,6 +238,6 @@ export function logBulkSkippedLine(skipped: readonly { number: number | null | u
     const label = typeof s.number === 'number' && Number.isFinite(s.number) ? `#${s.number}` : 'one with no number';
     byReason.set(s.reason, [...(byReason.get(s.reason) ?? []), label]);
   }
-  const parts = [...byReason].map(([reason, labels]) => `${labels.join(', ')} — ${reason}`);
+  const parts = [...byReason].map(([reason, labels]) => `${labels.join(', ')} (${reason})`);
   return `Skipped ${skipped.length}: ${parts.join('; ')}.`;
 }

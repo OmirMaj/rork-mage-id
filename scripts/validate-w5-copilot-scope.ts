@@ -66,13 +66,13 @@ ok('the host decides the job before mounting CopilotShell', /copilotPrecondition
 ok('exactly one job is used automatically, with a Change link', /candidates\.length === 1 \? candidates\[0\]\.id/.test(host) && /copilot-change-job/.test(host));
 ok('no job at all → "Create a project first" opening new_project', /Create a project first\./.test(host) && /capabilityId: 'new_project'/.test(host));
 ok('a picked job is written to the route (setParams)', /router\.setParams\(\{ projectId: id \}/.test(host));
-ok('schedule / billing without an estimate link to the estimate Copilot', /Build the estimate first/.test(host) && /capabilityId: 'estimate', projectId/.test(host));
+ok('schedule / billing without an estimate link to the estimate Copilot', /Build the Estimate First/.test(host) && /capabilityId: 'estimate', projectId/.test(host));
 ok('the shell can still pick a job over a running interview', /onPickProject=\{projectFree \? undefined : \(\) => setOverlayPicker\(true\)\}/.test(host));
 ok('warranty on a job he does not own says why (owner-only interim)', /useProjectRoleState\(/.test(host) && /roleState\.role !== 'owner'/.test(host) && /WARRANTY_OWNER_ONLY_COPY/.test(host) && /owner’s account/.test(WARRANTY_OWNER_ONLY_COPY));
 ok('…with loading / offline / error states that say so', /Checking your role on/.test(host) && /roleState\.isPaused/.test(host) && /Couldn’t check your role/.test(host));
 ok('the ctx bag still carries receipts, labor and seeds, plus his decided markup', /markupDecided, markup: globalMarkup, receipts, laborSamples, seeds \}/.test(host));
 const shell = src('components/copilot/CopilotShell.tsx');
-ok('a Build error offers "Pick a project" / "Back to review", not only the mic', /Pick a project/.test(shell) && /Back to review/.test(shell) && /onPress=\{backToReview\}/.test(shell));
+ok('a Build error offers "Pick a project" / "Back to review", not only the mic', /Pick a Project/.test(shell) && /Back to Review/.test(shell) && /onPress=\{backToReview\}/.test(shell));
 const hook = src('hooks/useCopilotConversation.ts');
 ok('the hook names a missing job / estimate on a Build failure', /copilotPrecondition\(cap\.id, ctx\.project\)/.test(hook) && /pre\.ok \? 'apply_failed' : pre\.kind/.test(hook));
 

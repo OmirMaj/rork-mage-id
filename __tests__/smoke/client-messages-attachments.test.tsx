@@ -8,7 +8,7 @@
  *   - one file message whose upload failed (an outbox entry),
  *   - one contractor message that is ONLY a PDF (no text, so no bubble).
  * Asserted: the PDF chip's name and "PDF · 1.2 MB"; the photo tile's label;
- * "Waiting to send" on the queued one with NO time; "Not sent" with Retry and
+ * "Waiting to Send" on the queued one with NO time; "Not sent" with Retry and
  * Remove on the failed one; Retry calls retryOutbox with the entry's id; the
  * contractor's PDF-only chip carries its own fill, so its white ink never
  * sits on the page background.
@@ -140,13 +140,13 @@ describe('client thread: photos, PDFs and messages that are not sent yet', () =>
     // The sent client message keeps its time.
     expect(screen.getByText(timeOf(clientMessage.createdAt))).toBeTruthy();
 
-    // The queued text message: "Waiting to send", and no time label.
+    // The queued text message: "Waiting to Send", and no time label.
     expect(screen.getByTestId(`message-status-${QUEUED_ID}`)).toBeTruthy();
-    expect(screen.getByText('Waiting to send')).toBeTruthy();
+    expect(screen.getByText('Waiting to Send')).toBeTruthy();
     expect(screen.queryByText(timeOf(queuedMessage.createdAt))).toBeNull();
 
     // The failed file message: "Not sent", its reason, Retry and Remove, no time.
-    expect(screen.getByText('Not sent')).toBeTruthy();
+    expect(screen.getByText('Not Sent')).toBeTruthy();
     expect(screen.getByText("The upload didn't finish. Retry when you have a good connection.")).toBeTruthy();
     expect(screen.getByTestId(`message-status-${FAILED_ID}-retry`)).toBeTruthy();
     expect(screen.getByTestId(`message-status-${FAILED_ID}-remove`)).toBeTruthy();

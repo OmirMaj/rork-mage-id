@@ -132,11 +132,11 @@ const endDayMs = (w: Warranty): number => parseCalendarDay(w.endDate)?.getTime()
 // whose absence used to crash the card renderer.
 const statusMeta = (t: ThemeColors): Record<DisplayStatus, { label: string; color: string; bg: string; Icon: any }> => ({
   active: { label: 'Active', color: t.success, bg: t.successSoft, Icon: CheckCircle2 },
-  expiring_soon: { label: 'Expiring soon', color: t.warningLabel, bg: t.warningSoft, Icon: AlertTriangle },
+  expiring_soon: { label: 'Expiring Soon', color: t.warningLabel, bg: t.warningSoft, Icon: AlertTriangle },
   expired: { label: 'Expired', color: t.dangerLabel, bg: t.dangerSoft, Icon: Clock },
   claimed: { label: 'Claimed', color: t.info, bg: t.info + '1F', Icon: Shield },
   void: { label: 'Void', color: t.textSecondary, bg: t.surfaceAlt, Icon: X },
-  unknown: { label: 'No end date', color: t.textSecondary, bg: t.surfaceAlt, Icon: FileText },
+  unknown: { label: 'No End Date', color: t.textSecondary, bg: t.surfaceAlt, Icon: FileText },
 });
 
 /**
@@ -172,7 +172,7 @@ function warrantiesGate(a: {
 }
 
 const WARRANTIES_OWNER_ONLY_NOTE =
-  "Warranties are kept on the project owner's account — ask them to log one. It appears in the closeout binder and handover.";
+  "Warranties are kept on the project owner's account. Ask them to log one. It appears in the closeout binder and handover.";
 
 export default function WarrantiesScreen() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -222,7 +222,7 @@ function WarrantiesAccessNote({ gate, reason, onRetry, onClose }: {
                 : WARRANTIES_OWNER_ONLY_NOTE}
       </Text>
       {gate === 'error' || gate === 'paused'
-        ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="warranties-gate-retry" />
+        ? <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="warranties-gate-retry" />
         : null}
       {gate === 'owner_only' || gate === 'no_access'
         ? <Button label="Back" variant="secondary" size="sm" onPress={onClose} testID="warranties-gate-back" />
@@ -336,17 +336,17 @@ function WarrantiesScreenInner() {
   }, []);
 
   const handleSave = useCallback(() => {
-    if (!title.trim()) { showAlert('Add a title', 'Enter a warranty title.'); return; }
-    if (!formProjectId) { showAlert('Pick a project', 'Select the project this warranty covers.'); return; }
+    if (!title.trim()) { showAlert('Add a Title', 'Enter a warranty title.'); return; }
+    if (!formProjectId) { showAlert('Pick a Project', 'Select the project this warranty covers.'); return; }
     const months = parseInt(durationMonths, 10);
-    if (!Number.isFinite(months) || months <= 0) { showAlert('Check the duration', 'Enter the months as a whole number above zero.'); return; }
+    if (!Number.isFinite(months) || months <= 0) { showAlert('Check the Duration', 'Enter the months as a whole number above zero.'); return; }
     // Guard the start date before deriving start/end — addMonths would
     // otherwise silently fall back to "today + N months", saving dates the GC
     // never intended with no warning. parseCalendarDay also rejects rolled-over
     // components (2026-02-30), which new Date() used to accept silently.
     const startParsed = parseCalendarDay(startDate);
     if (!startParsed) {
-      showAlert('Check the start date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
+      showAlert('Check the Start Date', 'Enter the start date as YYYY-MM-DD, like 2026-07-14.');
       return;
     }
     const proj = projects.find(p => p.id === formProjectId);
@@ -403,14 +403,14 @@ function WarrantiesScreenInner() {
   const handleSaveClaim = useCallback(() => {
     if (!claimFor) return;
     if (!claimDesc.trim()) {
-      showAlert('Describe the claim', 'What failed? One line is enough, like "roof leak over the kitchen window".');
+      showAlert('Describe the Claim', 'What failed? One line is enough, like "roof leak over the kitchen window".');
       return;
     }
     // Same calendar-day discipline as the warranty dates themselves (see
     // addMonths): a bare 'YYYY-MM-DD' parsed locally, never a UTC re-projection.
     const parsed = parseCalendarDay(claimDate);
     if (!parsed) {
-      showAlert('Check the date', 'Enter the claim date as YYYY-MM-DD (e.g. 2026-07-14).');
+      showAlert('Check the Date', 'Enter the claim date as YYYY-MM-DD, like 2026-07-14.');
       return;
     }
     const cost = claimCost.trim() === '' ? undefined : parseLenientNumber(claimCost) ?? undefined;
@@ -432,7 +432,7 @@ function WarrantiesScreenInner() {
   const handleResolveClaim = useCallback((w: Warranty, claimId: string) => {
     showPrompt(
       'Mark this claim resolved?',
-      'Optional — one line on how it was fixed. The claim stays on the warranty as resolved.',
+      'Optional. One line on how it was fixed. The claim stays on the warranty as resolved.',
       (value: string) => {
         const resolution = (value ?? '').trim();
         updateWarranty(w.id, {
@@ -460,7 +460,7 @@ function WarrantiesScreenInner() {
   }, [updateWarranty]);
 
   const handleDelete = useCallback((w: Warranty) => {
-    showAlert('Delete warranty', `Delete "${w.title}"?`, [
+    showAlert('Delete Warranty', `Delete "${w.title}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteWarranty(w.id) },
     ]);
@@ -521,7 +521,7 @@ function WarrantiesScreenInner() {
         {list.length === 0 ? (
           <View style={styles.emptyState}>
             <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No warranties yet</Text>
+            <Text style={styles.emptyTitle}>No Warranties Yet</Text>
             <Text style={styles.emptyDesc}>Track equipment, roofing, HVAC and finish warranties for your clients.</Text>
           </View>
         ) : (
@@ -600,7 +600,7 @@ function WarrantiesScreenInner() {
                               testID={`warranty-resolve-claim-${c.id}`}
                             >
                               <CheckCircle2 size={12} color={themeColors.success} strokeWidth={1.75} />
-                              <Text style={styles.claimResolveText}>Mark resolved</Text>
+                              <Text style={styles.claimResolveText}>Mark Resolved</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -627,7 +627,7 @@ function WarrantiesScreenInner() {
                   testID={`warranty-log-claim-${w.id}`}
                 >
                   <AlertTriangle size={13} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={styles.claimBtnText}>Log a claim</Text>
+                  <Text style={styles.claimBtnText}>Log a Claim</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
             );
@@ -636,7 +636,7 @@ function WarrantiesScreenInner() {
 
         <TouchableOpacity style={styles.addBtn} onPress={openNew} activeOpacity={0.85}>
           <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addBtnText}>Add warranty</Text>
+          <Text style={styles.addBtnText}>Add Warranty</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -646,7 +646,7 @@ function WarrantiesScreenInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fForm.card]}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{editingId ? 'Edit warranty' : 'New warranty'}</Text>
+                  <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
                   <TouchableOpacity onPress={() => setShowForm(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -675,7 +675,7 @@ function WarrantiesScreenInner() {
                 )}
 
                 <Text style={styles.fieldLabel}>Title</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof, 10-year manufacturer" placeholderTextColor={themeColors.textMuted} />
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Roof, 10-year manufacturer" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.fieldLabel}>Category</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
@@ -690,21 +690,21 @@ function WarrantiesScreenInner() {
                   ))}
                 </ScrollView>
 
-                <Text style={styles.fieldLabel}>Provider or manufacturer</Text>
-                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={themeColors.textMuted} />
+                <Text style={styles.fieldLabel}>Provider or Manufacturer</Text>
+                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="GAF, Carrier, Kohler" placeholderTextColor={themeColors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Start date</Text>
+                    <Text style={styles.fieldLabel}>Start Date</Text>
                     <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Duration (months)</Text>
+                    <Text style={styles.fieldLabel}>Duration (Months)</Text>
                     <TextInput style={styles.input} value={durationMonths} onChangeText={setDurationMonths} keyboardType="number-pad" placeholder="12" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>Coverage details</Text>
+                <Text style={styles.fieldLabel}>Coverage Details</Text>
                 <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={themeColors.textMuted} multiline />
 
                 <Text style={styles.fieldLabel}>Notes</Text>
@@ -736,7 +736,7 @@ function WarrantiesScreenInner() {
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-                    <Text style={styles.saveBtnText}>{editingId ? 'Update' : 'Add warranty'}</Text>
+                    <Text style={styles.saveBtnText}>{editingId ? 'Update' : 'Add Warranty'}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -751,7 +751,7 @@ function WarrantiesScreenInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fClaim.card]}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Log a claim</Text>
+                  <Text style={styles.modalTitle}>Log a Claim</Text>
                   <TouchableOpacity onPress={() => setClaimFor(null)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -768,7 +768,7 @@ function WarrantiesScreenInner() {
                       style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
                       value={claimDesc}
                       onChangeText={setClaimDesc}
-                      placeholder="e.g. Roof leak over the kitchen window after the March storm"
+                      placeholder="Roof leak over the kitchen window after the March storm"
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                       testID="warranty-claim-description"
@@ -776,11 +776,11 @@ function WarrantiesScreenInner() {
 
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>Date reported</Text>
+                        <Text style={styles.fieldLabel}>Date Reported</Text>
                         <TextInput style={styles.input} value={claimDate} onChangeText={setClaimDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-date" />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>Cost so far</Text>
+                        <Text style={styles.fieldLabel}>Cost to Date</Text>
                         <TextInput style={styles.input} value={claimCost} onChangeText={setClaimCost} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-cost" />
                       </View>
                     </View>
@@ -796,7 +796,7 @@ function WarrantiesScreenInner() {
                         <Text style={styles.cancelBtnText}>Cancel</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.saveBtn} onPress={handleSaveClaim} activeOpacity={0.85} testID="warranty-claim-save">
-                        <Text style={styles.saveBtnText}>Log claim</Text>
+                        <Text style={styles.saveBtnText}>Log Claim</Text>
                       </TouchableOpacity>
                     </View>
                   </>

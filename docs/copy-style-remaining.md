@@ -4,8 +4,8 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 
 ## Where things stand
 
-- **Converted: 287 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below.
-- **Still to convert: 576 files with 5,725 strings the guard would fail today** (counted 2026-10-05 with lanes 1 and 3 both in). Counts by rule: label not in Title Case 3,769, dash used as punctuation 1,537, "&" 263, "e.g." or "i.e." 82, arrows 74. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
+- **Converted: 465 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below. **Lane 4 (178 files, done 2026-10-06):** the client portal setup and messages, RFIs, submittals, plans, permits and Permit Path, Code Check, Construction AI, Ask MAGE, the copilot, Inspection Ready, warranties, closeout, handover, subs, tutorials and skills checks, notifications and the team section; see its section below.
+- **Still to convert: 397 files with 4,045 strings the guard would fail today** (counted 2026-10-06 with lanes 1, 3 and 4 in). Counts by rule: label not in Title Case 2,621, dash used as punctuation 1,096, "&" 220, "e.g." or "i.e." 52, arrows 56. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
 - The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
 
 ## How to run a lane
@@ -48,18 +48,18 @@ File lists do not overlap. A file went to the first group whose words match its 
 | Lane | What it covers | Files | Strings |
 |---|---|---|---|
 | 1. Estimate, bids and contract (**done**) | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
-| 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 195 | 2,164 |
+| 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 194 of 195 left | 2,160 of 2,164 left |
 | 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
-| 4. Office, AI and portal | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 178 | 1,678 |
-| 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,886 |
+| 4. Office, AI and portal (**done**) | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 0 of 178 left | 0 of 1,678 left |
+| 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,885 of 1,886 left |
 | **Total** | | **823** | **9,198** |
-| **Still to convert (lanes 2, 4 and 5)** | Less the handful of strings lanes 1 and 3 changed in other lanes' files. | **576** | **5,725** |
+| **Still to convert (lanes 2 and 5)** | Less the handful of strings lanes 1, 3 and 4 changed in other lanes' files. | **397** | **4,045** |
 
 ### Lane 1. Estimate, bids and contract (144 files, 1,849 strings): DONE 2026-10-05
 
 All 144 files are in `scripts/copy-style-converted.json` and the guard reads zero for them. The file list is in git history (this section before the lane landed).
 
-### Lane 2. Money and schedule (195 files, 2,164 strings)
+### Lane 2. Money and schedule (195 files, 2,164 strings when listed; 194 files and 2,160 strings left on 2026-10-06)
 
 Strings the guard would fail, per file, largest first.
 
@@ -283,192 +283,38 @@ Things the next lanes will hit, found here:
 - **Do not replace old strings across validators by script.** A pin often quotes a file from another lane that still has the old casing. Fix each red check by reading it.
 - **The `title` props of `VoiceCaptureModal`, `InlineVoiceFill` and `VoiceRecorder`** feed the queue key above: lanes 1, 4 and 5 each have some.
 
-### Lane 4. Office, AI and portal (178 files, 1,678 strings)
+### Lane 4. Office, AI and portal (done, 2026-10-06)
 
-Strings the guard would fail, per file, largest first.
+Converted: all 178 files are on `scripts/copy-style-converted.json` and the guard reads zero for them. 159 of them changed (1,662 source lines), about 180 of those lines being labels the guard could not see, found by reading the dump. 78 English catalog entries were regenerated; none of them has a Spanish entry yet, so no Spanish catalog entry was re-stamped. The portal language pack (`utils/portalLanguages.ts`) lost its dashes in Spanish, Portuguese, Vietnamese and French (13 strings, punctuation only). The file list is in git history (this section before the lane landed).
 
-```
-  90  app/(tabs)/construction-ai/index.tsx
-  76  app/permits.tsx
-  74  app/rfi.tsx
-  72  app/submittal.tsx
-  58  app/plans.tsx
-  57  app/plan-viewer.tsx
-  52  app/notifications-settings.tsx
-  51  app/oac-meeting.tsx
-  44  app/closeout-binder.tsx
-  43  app/sub-portal-setup.tsx
-  41  utils/codeJurisdiction.ts
-  40  app/(tabs)/subs/index.tsx
-  39  app/warranty-walk.tsx
-  33  app/warranties.tsx
-  28  app/notifications-inbox.tsx
-  26  components/inspectionPrep/InspectionReadySheet.tsx
-  24  app/handover.tsx
-  24  components/copilot/CopilotShell.tsx
-  19  utils/plans/planSweep.ts
-  19  utils/subScorecard.ts
-  18  app/extract-submittals.tsx
-  18  app/plan-intelligence.tsx
-  18  components/plans/AskPlansPanel.tsx
-  18  utils/plans/revisionActions.ts
-  18  utils/portalSnapshot.ts
-  16  utils/tutorial/fixtures.ts
-  13  components/collaborators/CollaboratorsManager.tsx
-  13  utils/portalLanguages.ts
-  12  utils/copilot/intentTable.ts
-  12  utils/permitInspectionFacts.ts
-  12  utils/tutorial/learn/laneD.ts
-  11  components/codeLook/CodeLookSheet.tsx
-  11  components/passport/HomePassportCard.tsx
-  11  components/permitPath/SaveAnswerSheet.tsx
-  11  utils/oacEngine.ts
-  11  utils/permitPath/copy.ts
-  10  app/managed-property.tsx
-  10  app/skills-check.tsx
-  10  app/sub-scorecard.tsx
-  10  components/logs/SubmittalLog.tsx
-  10  components/registers/SubsRegister.tsx
-  10  utils/permitPath/packs/base.ts
-   9  components/AISubEvaluator.tsx
-   9  components/SubDailyUpdateModal.tsx
-   9  components/brain/AskConversation.tsx
-   9  components/construction/AskConstructionMode.tsx
-   9  components/logs/RfiLog.tsx
-   9  utils/passport/buildHomePassport.ts
-   8  app/copilot.tsx
-   8  components/automation/InspectionResultReviewSheet.tsx
-   8  components/codeCard/CodeCardSheet.tsx
-   8  components/codeThread/SavedCodeCheckSheet.tsx
-   8  components/permitPath/AskDepartmentSheet.tsx
-   8  components/subs/SubCredentialCard.tsx
-   8  utils/tutorial/learn/laneA.ts
-   7  app/shared-plan.tsx
-   7  app/skills-certificates.tsx
-   7  components/AIHomeBriefing.tsx
-   7  utils/closeoutBinderEngine.ts
-   7  utils/codeAmendments.ts
-   7  utils/portalOwnerCore.ts
-   7  utils/subCompliance.ts
-   6  app/accept-invite.tsx
-   6  app/copilot-hub.tsx
-   6  components/PropertyManagerHome.tsx
-   6  components/permitPath/ReadinessPanel.tsx
-   6  components/subs/SubReferralCard.tsx
-   6  utils/brain/trackRecord.ts
-   6  utils/constructionNews.ts
-   6  utils/learn/quizBank.ts
-   6  utils/passport/askHomePrompt.ts
-   6  utils/passport/consumerPassport.ts
-   6  utils/tutorial/learn/laneC.ts
-   5  app/brief.tsx
-   5  app/home-passport.tsx
-   5  app/messages.tsx
-   5  components/codeThread/ProjectCodeChecksCard.tsx
-   5  components/subs/SubNetworkProfileView.tsx
-   5  components/tutorial/TutorialHost.tsx
-   5  utils/codeThread/cloudSync.ts
-   5  utils/copilot/hubRouting.ts
-   5  utils/logs/submittalLogRows.ts
-   5  utils/portalLinkExpiry.ts
-   5  utils/tutorial/registry.ts
-   4  app/sub-portals.tsx
-   4  app/tutorials.tsx
-   4  components/RFITriageModal.tsx
-   4  components/codeThread/CodeThreadActions.tsx
-   4  contexts/SubscriptionContext.tsx
-   4  utils/closeoutPacketGenerator.ts
-   4  utils/copilot/newProject/newProjectCapability.ts
-   4  utils/copilot/rfi/rfiGaps.ts
-   4  utils/copilot/submittal/submittalCapability.ts
-   4  utils/copilot/submittal/submittalGaps.ts
-   4  utils/permitPath/packs/longIsland.ts
-   4  utils/plans/memoryIndexCore.ts
-   4  utils/registers/subRows.ts
-   4  utils/subNetwork.ts
-   4  utils/tutorial/entryPoints.ts
-   4  utils/tutorial/handoff.ts
-   4  utils/tutorial/learn/laneB.ts
-   3  app/construction-news.tsx
-   3  components/SendPortalLinkModal.tsx
-   3  components/codeCard/CodeCardList.tsx
-   3  components/codeThread/CodeCheckThisButton.tsx
-   3  components/learn/CertificateCard.tsx
-   3  components/permitPath/StationDetail.tsx
-   3  components/project/SubsPayTile.tsx
-   3  components/tutorial/CoachCard.tsx
-   3  utils/brainWatch.ts
-   3  utils/brief/composeBrief.ts
-   3  utils/copilot/warranty/warrantyGaps.ts
-   3  utils/handoverWaivers.ts
-   3  utils/permitPath/packs/nyc.ts
-   3  utils/planRevisionCore.ts
-   3  utils/plans/planDiscipline.ts
-   3  utils/tutorial/defs/askYourPlans.ts
-   3  utils/tutorial/defs/closeoutBinder.ts
-   3  utils/tutorial/learn/fixturesB.ts
-   2  app/permit-path.tsx
-   2  app/project-memory.tsx
-   2  app/sub-profile.tsx
-   2  components/CodeCheckLoader.tsx
-   2  components/codeCard/CodeCard.tsx
-   2  components/codeCard/JurisdictionBlock.tsx
-   2  components/learn/QuizResultCard.tsx
-   2  components/plans/PlanSweepPanel.tsx
-   2  components/tutorial/PausedPill.tsx
-   2  components/tutorial/TutorialOfferChip.tsx
-   2  utils/codeCard/summary.ts
-   2  utils/codeLook.ts
-   2  utils/constructionAnswer.ts
-   2  utils/copilot/newProject/newProjectGaps.ts
-   2  utils/copilot/permit/permitCapability.ts
-   2  utils/copilot/permit/permitGaps.ts
-   2  utils/copilot/warranty/warrantyCapability.ts
-   2  utils/planSheetBatchCore.ts
-   2  utils/plans/planAnswer.ts
-   2  utils/plans/specBookRange.ts
-   2  utils/portalMessageWrite.ts
-   2  utils/subTradeMatch.ts
-   2  utils/submittalAttachments.ts
-   2  utils/tutorial/defs/index.ts
-   1  components/PortalStatusPill.tsx
-   1  components/WarrantyWalkBanner.tsx
-   1  components/collaborators/PendingInvitesCard.tsx
-   1  components/permitPath/InterviewPanel.tsx
-   1  components/plans/PlanSheetRail.tsx
-   1  components/subs/SubWorkHistoryList.tsx
-   1  components/summary/BriefingHero.tsx
-   1  components/tutorial/FinaleCard.tsx
-   1  hooks/useAskCopy.ts
-   1  hooks/useConstructionNews.ts
-   1  hooks/useMessageAttachmentCopy.ts
-   1  hooks/usePortalApprovalReconciler.ts
-   1  utils/brief/nudge.ts
-   1  utils/codeAckCore.ts
-   1  utils/codeCard/echoCheck.ts
-   1  utils/codeThread/context.ts
-   1  utils/copilot/rfi/rfiCapability.ts
-   1  utils/copilot/turnMeter.ts
-   1  utils/copilot/types.ts
-   1  utils/inspectionPrep.ts
-   1  utils/learn/certificateDoc.ts
-   1  utils/logs/rfiLogRows.ts
-   1  utils/permitInspectionHistory.ts
-   1  utils/permitOffices.ts
-   1  utils/permitPath/deptAnswers.ts
-   1  utils/planCodeReviewer.ts
-   1  utils/planIntelligence.ts
-   1  utils/planSheetImageCore.ts
-   1  utils/projectMemory.ts
-   1  utils/pushPermissionAsk.ts
-   1  utils/rfiHoldTime.ts
-   1  utils/rfiLatency.ts
-   1  utils/subsPayRows.ts
-   1  utils/tutorial/learn/fixturesD.ts
-   1  utils/tutorial/machine.ts
-```
+What this lane left as typed, each with an allow-list entry and its reason in `scripts/copy-voice-allowlist.json` (152 entries):
 
-### Lane 5. Shell remainder and everything else (203 files, 1,886 strings)
+- **Text the server compares or stores.** `PLAN_INDEX_REFUSAL` (two edge functions refuse with the same sentence), the signing-off sentence in `utils/portalOwnerCore.ts` (the static portal page carries it byte for byte), the four `NEWS_TOPICS` with "&" (equal to the server's list), the canonical proposal text a client accepts (`utils/portalSnapshot.ts`, five lines), the `'Sample — '` project-name prefix, and the stored sheet-name prefix `— page N` in `utils/planSheetBatchCore.ts`.
+- **The code-answer acknowledgement.** `CODE_ACK_COPY.title` ("Before you rely on a code answer") stays word for word, with its body and button.
+- **"Photo code check".** The name is held equal in eight files by `validate-code-look`; two are the server's and one is `app/project-detail.tsx` (lane 5). It stays in sentence case on the sheet heading and the Inspection Ready button until all eight move together.
+- **Prompt and grounding text.** The adoption-record `notes` in `utils/codeJurisdiction.ts` (sent to the model as "Jurisdiction note: …"), every fact line in `utils/permitInspectionFacts.ts`, the Ask Your Home prompt and its record references ("Warranty — Trane HVAC"), the copilot intent hints, the RFI latency fact lines, the plan-answer and Inspection Ready prompt lines, two lines of the sub evaluator prompt.
+- **Skills-check questions.** Three questions and choices still say "Sign & send" and "Revise & re-issue": changing a question needs a `quizVersion` bump and a regenerated server key. Their `mustContain` pins were updated to the new casing (the key did not move).
+- **Voice sheet titles** (the storage key found by lane 3): "Dictate this RFI", "Dictate this submittal", "Record the answer", "Describe the work", "Capture meeting discussion", "Ask by voice".
+- **Paywall feature keys**: `feature="Permits & Inspections"`, `feature="RFIs & Submittals"`, `'Punch List & Closeout'` in the tutorial host (the wall prints `FEATURE_TITLE`).
+- **Another organization's own name**: Seattle Department of Construction & Inspections, Baltimore City Department of Housing & Community Development, the Miami-Dade department name with its dash, Town of Huntington Building & Housing Division.
+- **Developer notes on tutorial anchors** (`note` / `what` in `utils/tutorial/registry.ts` and `learn/lane*.ts`), a regular expression, two `readBy` provenance lines, verdict reasons printed only by `scripts/verify-code-sources.ts`.
+- **Fragments**: "Share with {name}", "Invoices from {name}", "Title block reads {n}. Use it?", "2 with an open claim", the scale value "not read (sample counts)", the coverage sentence "No pages were read".
+- **`SAMPLE_PORTAL_REASON`** keeps its dash: `validate-portalfix` holds it equal to `SAMPLE_PORTAL_NOTE` in `app/client-portal-setup.tsx` (lane 5). Change both there.
+
+Not restyled, and not on the allow-list because the guard does not read them as labels: the English labels of the portal language pack ("Change orders", "Pay now", "Sign and make binding"). The static portal pages carry the same words, so they convert with the portal pass and its deploy. The closeout binder PDF's section titles (`utils/closeoutBinderEngine.ts`) are in the same position.
+
+Things the next lanes will hit, found here:
+
+- **A helper that rewrites pins by trial is dangerous.** A script that tried each old string against a red validator and kept the change when the red count fell also kept changes that made the validator crash (a crash prints no red line). It renamed `const save` to `const Save` in eight validators before the diff was read. Read every line of a validator diff.
+- **A pinned digest.** `validate-building-scope-triggers` pins the sha256 of a fixture's JSON. Six NYC link labels and one note changed inside it; the two outputs were diffed field by field against `origin/main` before the digest was re-pinned.
+- **A regular expression pin needs its dots escaped again.** "model recall — verify" became "model recall. Verify", and a bare "." in the pin matches anything.
+- **`validate-money-copy` banned "Expiring Soon"** as a sentence-case rule. On a converted file the ban is now on "Expiring soon".
+- **A label in a `label:` key that is really a sentence** ("No pages were read", "No current sheets to index") is still rewritten by `--fix-labels`. Check each against its validator.
+- **Jest lookups are not found by the validators.** After every validator was green, 21 smoke suites and 2 web suites still looked up the old words (`getByText`, `getByLabelText`, `toBe` on an alert title, a CSV header row). Run the whole smoke suite before calling the pins done. A `not.toMatch(/old words/)` passes for ever once the words change: search the tests for the old string, do not wait for a red.
+- **The bulk "Skipped" line** (`logBulkSkippedLine` in `utils/logs/rfiLogRows.ts`, also used by the invoice and change order logs in lane 2) no longer joins with a dash: "Skipped 3: #4, #7 (already sent); #2 (paid).".
+- **"so" inside a label** has no Title Case the guard accepts ("Cost so Far" is what it asks for). "Cost so far" became "Cost to Date".
+
+### Lane 5. Shell remainder and everything else (203 files, 1,886 strings when listed; 1,885 left on 2026-10-06)
 
 Strings the guard would fail, per file, largest first.
 

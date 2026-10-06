@@ -88,7 +88,7 @@ export async function imageUriToBase64(uri: string): Promise<{ base64: string; m
   // so say what to do rather than letting downloadAsync throw "unable to
   // download <uuid>/sheet-page-1.png" at the user.
   if (!/^https?:\/\//i.test(uri)) {
-    throw new Error('That plan sheet could not be opened — reconnect and reopen the plan, then try again.');
+    throw new Error('That plan sheet could not be opened. Reconnect and reopen the plan, then try again.');
   }
   // remote http(s). On web there is no cache directory to download INTO, but
   // fetch can read the URL directly — so skip the download-then-read dance

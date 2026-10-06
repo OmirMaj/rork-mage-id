@@ -368,7 +368,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
       ...base,
       gap: 'no_activity',
       headline:
-        `Nothing was logged on this project between ${formatDateRange(periodFrom, periodTo)} — ` +
+        `Nothing was logged on this project between ${formatDateRange(periodFrom, periodTo)}: ` +
         'no photos, daily reports, or completed milestones. Ask your contractor what this billing period covers before you pay.',
     };
   }
@@ -387,7 +387,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   let headline = `${subject}.`;
   if (photoCount > 0 && photoFrom && photoTo) {
     const range = photoFrom === photoTo ? formatCalendarDate(photoFrom) : `${formatCalendarDate(photoFrom)}–${formatCalendarDate(photoTo)}`;
-    headline = `${subject} — ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
+    headline = `${subject}: ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
   }
 
   // ── Bullets: only facts we counted. Each maps 1:1 to rows the portal shows.
@@ -407,7 +407,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   }
   if (photoCount > 0 && photoFrom && photoTo) {
     const range = photoFrom === photoTo ? formatCalendarDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
-    bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range} — see the Photos section.`);
+    bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range}. See the Photos section.`);
   }
 
   return {
@@ -538,7 +538,7 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     push({
       id: 'contract',
       kind: 'contract',
-      title: 'Contract waiting for your signature',
+      title: 'Contract Waiting for Your Signature',
       // NOTE: `detail` never bakes a live day count. The static portal caches
       // this list in a snapshot and re-ages it in the browser, so the elapsed
       // number lives in `waitingDays` / `daysOverdue` (rendered in the badge)
@@ -608,14 +608,14 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     } else if (urgency === 'due_soon') {
       detail = `Due ${formatCalendarDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
     } else if (dueDate) {
-      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready. Earlier is easier to schedule.`;
     } else {
       detail = 'Pick a finish so your contractor can order it and hold the schedule.';
     }
     push({
       id: sel.id,
       kind: 'selection',
-      title: `${category} — pick your option`,
+      title: `${category}: pick your option`,
       detail,
       urgency,
       dueDate: dueDate ?? undefined,

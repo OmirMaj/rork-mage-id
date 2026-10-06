@@ -155,7 +155,7 @@ const POLL_MS = 250;
 const MEASURE_TIMEOUT_MS = 180;
 const HAND_HIDE_MS = 4000;
 const EXIT_TOAST_MS = 2600;
-const EXIT_TOAST = 'Tutorial closed — replay it from Help → Tutorials';
+const EXIT_TOAST = 'Tutorial closed. Replay it from Help > Tutorials.';
 const HOLE_RADIUS = Tokens.radius.md + 4;
 /** Routes a new user is still inside while onboarding finishes; the boot
  *  waits for the navigator to leave them before pushing the sample. */
@@ -491,7 +491,7 @@ export function TutorialHost() {
       // the machine drops every signal that names another project.
       const sandbox = await bootSandbox(def, opts.sandboxProjectId ?? null);
       if (!sandbox) {
-        showAlert('Couldn’t open the sample project', 'The sample didn’t load. Try again in a moment.');
+        showAlert('Couldn’t Open the Sample Project', 'The sample didn’t load. Try again in a moment.');
         return false;
       }
       const sandboxId = sandbox.id;
@@ -1169,7 +1169,7 @@ function buildPresentation(s: RunState, ui: UiFacts): TutorialPresentation {
       primary: h?.primary ? { key: 'primary', label: h.primary.label } : null,
       secondary: h?.secondary ? { key: 'secondary', label: h.secondary.label } : null,
       chain: h?.chain ? { key: 'chain', label: h.chain.label } : null,
-      quiz: ui.quizTopic ? { key: 'quiz', label: t('settings.learn.finaleQuiz', 'Take the skills check') } : null,
+      quiz: ui.quizTopic ? { key: 'quiz', label: t('settings.learn.finaleQuiz', 'Take the Skills Check') } : null,
     };
     return { ...out, finale };
   }

@@ -37,10 +37,10 @@ export function submittalBallInCourt(s: Pick<Submittal, 'currentStatus' | 'revie
   }
 }
 
-/** "Cycle n" (the highest cycle number), or "Not sent" before the first. */
+/** "Cycle n" (the highest cycle number), or "Not Sent" before the first. */
 export function submittalCycleLabel(s: Pick<Submittal, 'reviewCycles'>): string {
   const cycles = s.reviewCycles ?? [];
-  if (cycles.length === 0) return 'Not sent';
+  if (cycles.length === 0) return 'Not Sent';
   let n = 0;
   for (const c of cycles) {
     const k = typeof c?.cycleNumber === 'number' && Number.isFinite(c.cycleNumber) ? c.cycleNumber : 0;
@@ -74,7 +74,7 @@ export type SubmittalLogFilter = 'open' | 'late' | 'in_review' | 'approved' | 'a
 export const SUBMITTAL_LOG_FILTERS: readonly { key: SubmittalLogFilter; label: string }[] = [
   { key: 'open', label: 'Open' },
   { key: 'late', label: 'Late' },
-  { key: 'in_review', label: 'In review' },
+  { key: 'in_review', label: 'In Review' },
   { key: 'approved', label: 'Approved' },
   { key: 'all', label: 'All' },
 ];
@@ -98,10 +98,10 @@ export function submittalLogChipCounts(rows: readonly SubmittalLike[], now: Date
 
 const STATUS_LABEL: Readonly<Record<SubmittalStatus, string>> = {
   pending: 'Pending',
-  in_review: 'In review',
+  in_review: 'In Review',
   approved: 'Approved',
-  approved_as_noted: 'Approved as noted',
-  revise_resubmit: 'Revise & resubmit',
+  approved_as_noted: 'Approved as Noted',
+  revise_resubmit: 'Revise and Resubmit',
   rejected: 'Rejected',
 };
 

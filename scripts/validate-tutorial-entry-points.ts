@@ -84,7 +84,7 @@ console.log('\nhub cards:');
 ok('contractor sees all three wave-A tutorials in hub order',
   JSON.stringify(ids(ctx())) === JSON.stringify(['daily-report-voice', 'punch-walk', 'invoice-to-self']), JSON.stringify(ids(ctx())));
 ok('grouped On site then Money', JSON.stringify(groups(ctx())) === JSON.stringify(['site', 'money']), JSON.stringify(groups(ctx())));
-ok('section labels are the spec words', hubSections(ctx(), WAVE_A).map(s => s.label).join('|') === 'On site|Money');
+ok('section labels are the spec words', hubSections(ctx(), WAVE_A).map(s => s.label).join('|') === 'On Site|Money');
 ok('…the whole build: every contractor tutorial is on the hub exactly once, every section has a label',
   (() => {
     const all = hubSections(ctx());
@@ -107,8 +107,8 @@ ok('punch on Free is missing Business', missingTierFor(punch, free) === 'busines
 ok('invoice on Free is missing Pro', missingTierFor(invoice, free) === 'pro');
 ok('invoice on Pro is missing nothing', missingTierFor(invoice, pro) === null);
 ok('the daily report needs no plan', missingTierFor(dfr, free) === null);
-ok("pass ON, Free: 'Business — practise free on the sample'", tierTagFor(punch, free, true) === 'Business — practise free on the sample');
-ok("pass ON, Free: 'Pro — practise free on the sample'", tierTagFor(invoice, free, true) === 'Pro — practise free on the sample');
+ok("pass ON, Free: 'Business — practise free on the sample'", tierTagFor(punch, free, true) === 'Business. Practise free on the sample.');
+ok("pass ON, Free: 'Pro — practise free on the sample'", tierTagFor(invoice, free, true) === 'Pro. Practise free on the sample.');
 ok('owned feature: no tag', tierTagFor(punch, all, true) === null);
 ok('pass OFF: never a "practise free" tag', tierTagFor(punch, free, false) === null);
 ok('pass OFF, Free: only the daily report is offered',

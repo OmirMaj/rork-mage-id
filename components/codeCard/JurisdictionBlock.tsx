@@ -20,9 +20,9 @@ export interface JurisdictionBlockProps {
   testID?: string;
 }
 
-export const EDITION_MISSING = 'Not confirmed for this address';
+export const EDITION_MISSING = 'Not Confirmed for This Address';
 export const EDITION_MISSING_LINE = 'MAGE has no verified adoption record here. Ask your building department which edition applies.';
-export const OFFICE_MISSING = 'Not found for this address';
+export const OFFICE_MISSING = 'Not Found for This Address';
 export const OFFICE_UNVERIFIED = 'Contact details not verified by MAGE';
 
 function openSource(url: string | null) {
@@ -65,19 +65,19 @@ export function JurisdictionBlock({ info, sunlight, testID }: JurisdictionBlockP
       <View style={styles.row}>
         <View style={styles.icon}><Landmark size={17} color={P.ink} strokeWidth={1.9} /></View>
         <View style={styles.text}>
-          <Text style={styles.eyebrow}>Code in force</Text>
+          <Text style={styles.eyebrow}>Code in Force</Text>
           <Text style={styles.value}>{info.editionLabel ?? EDITION_MISSING}</Text>
           {info.editionLabel
-            ? src(editionSrc, info.editionSourceUrl, 'Source not on file', 'Code')
+            ? src(editionSrc, info.editionSourceUrl, 'Source Not on File', 'Code')
             : <Text style={styles.srcOff}>{EDITION_MISSING_LINE}</Text>}
         </View>
       </View>
       <View style={[styles.row, styles.rowRule]}>
         <View style={styles.icon}><Building2 size={17} color={P.ink} strokeWidth={1.9} /></View>
         <View style={styles.text}>
-          <Text style={styles.eyebrow}>Permit office</Text>
+          <Text style={styles.eyebrow}>Permit Office</Text>
           <Text style={styles.value}>{info.permitOfficeTitle ?? OFFICE_MISSING}</Text>
-          {info.permitOfficeTitle ? src(officeSrc, info.permitOfficeSourceUrl, OFFICE_UNVERIFIED, 'Permit office') : null}
+          {info.permitOfficeTitle ? src(officeSrc, info.permitOfficeSourceUrl, OFFICE_UNVERIFIED, 'Permit Office') : null}
         </View>
       </View>
     </Card>

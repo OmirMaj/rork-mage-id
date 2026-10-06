@@ -226,12 +226,12 @@ export function buildCarryForwardAgendaItems(open: OpenOACAction[]): OACAgendaIt
       items.push({
         id: `oac-carry-${o.action.id}`,
         section: 'action_items',
-        title: `Carried forward (OAC #${o.meetingNumber}) — ${shortDescription(o.action.description)}`,
+        title: `Carried forward (OAC #${o.meetingNumber}): ${shortDescription(o.action.description)}`,
         // The row's OWN spelling, not the group's. Grouping folds "Owner" and
         // "owner" together for ordering, but each line still prints the words
         // that were written down — normalising free text on the way to the
         // screen is how a record stops matching the minutes it came from.
-        detail: `${(o.action.ballInCourt ?? '').trim() || 'Owner unnamed'} · ${actionDueLabel(o)}`,
+        detail: `${(o.action.ballInCourt ?? '').trim() || 'Owner Unnamed'} · ${actionDueLabel(o)}`,
         status: overdue ? 'urgent' : o.needsChasing ? 'warn' : 'info',
         referenceId: o.action.id,
         referenceType: 'oac_action',
@@ -346,7 +346,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'safety',
-      title: 'Safety review',
+      title: 'Safety Review',
       detail: recentDfrs.length > 0
         ? `${recentDfrs.length} DFRs reviewed; no incidents reported.`
         : 'No DFRs filed in the last 7 days. Confirm jobsite is staffed and walks are happening.',
@@ -369,7 +369,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'schedule',
-      title: `Schedule status — ${inProgress.length} in progress, ${overdue.length} overdue`,
+      title: `Schedule status: ${inProgress.length} in progress, ${overdue.length} overdue`,
       detail: schedule.healthScore != null
         ? `Health score: ${schedule.healthScore}/100. ${overdue.length > 0 ? `${overdue.length} task(s) past expected end.` : 'On track.'}`
         : `${overdue.length} task(s) past expected end. ${blocked.length} not started despite being scheduled.`,
@@ -391,7 +391,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'schedule',
-      title: 'Schedule review',
+      title: 'Schedule Review',
       detail: 'No active schedule loaded for this project. Review milestones manually.',
       status: 'warn',
     });
@@ -415,7 +415,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       title: `${openRfis.length} open RFI${openRfis.length === 1 ? '' : 's'}${overdueRfis.length > 0 ? ` (${overdueRfis.length} overdue)` : ''}`,
       detail: openRfis.slice(0, 5).map(r => {
         const age = daysBetween(r.dateSubmitted);
-        return `• #${r.number} ${r.subject} — ${age}d open${r.assignedTo ? ` (waiting on ${r.assignedTo})` : ''}`;
+        return `• #${r.number} ${r.subject}, ${age}d open${r.assignedTo ? ` (waiting on ${r.assignedTo})` : ''}`;
       }).join('\n'),
       status: overdueRfis.length > 0 ? 'urgent' : agingRfis.length > 0 ? 'warn' : 'info',
     });
@@ -437,13 +437,13 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'rfis',
-      title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue — oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
+      title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue, oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
       detail: overdueRfis.slice(0, 3).map(r => {
         const age = daysBetween(r.dateSubmitted);
         // Whole local days past the due DAY (not rounded elapsed ms from a
         // UTC-midnight parse, which said 4 for a three-day-old due date).
         const dueAge = r.dateRequired ? -(daysUntilCalendarDay(calendarDayOf(r.dateRequired)) ?? 0) : 0;
-        return `• #${r.number} ${r.subject} — ${age}d open, ${dueAge}d past due`;
+        return `• #${r.number} ${r.subject}, ${age}d open, ${dueAge}d past due`;
       }).join('\n'),
       status: 'urgent',
       referenceId: oldestOverdue.id,
@@ -476,7 +476,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       section: 'change_orders',
       title: pendingCOs.length > 0
         ? `${pendingCOs.length} change order${pendingCOs.length === 1 ? '' : 's'} awaiting owner approval`
-        : `Change order log review`,
+        : `Change Order Log Review`,
       detail: [
         approvedCOTotal !== 0 ? `Approved net: $${approvedCOTotal.toLocaleString()}` : null,
         ...pendingCOs.slice(0, 3).map(c => `• #${c.number} ${c.description?.slice(0, 60) ?? ''} — $${(c.changeAmount ?? 0).toLocaleString()}`),
@@ -489,14 +489,14 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
   items.push({
     id: createId('agenda'),
     section: 'decisions',
-    title: 'Open decisions needed from owner / architect',
+    title: 'Open Decisions Needed from Owner / Architect',
     detail: '(Add any decisions you need cleared today.)',
     status: 'info',
   });
   items.push({
     id: createId('agenda'),
     section: 'open_discussion',
-    title: 'Open discussion',
+    title: 'Open Discussion',
     status: 'info',
   });
 
@@ -510,7 +510,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     section: 'next_meeting',
     // Static, count-free strings on purpose: mergeAgenda de-dups on the title,
     // and a number in either field would re-append this row on every Refresh.
-    title: 'Next meeting + action items',
+    title: 'Next Meeting + Action Items',
     detail: 'Confirm next OAC date, owner of action items, due-bys.',
     status: 'info',
   });

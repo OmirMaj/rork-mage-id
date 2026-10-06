@@ -106,8 +106,8 @@ export function StationDetail({ station, project, today, savedAnswer, onAsk, sho
   const styles = useThemedStyles(makeStyles);
   const { t, tn } = useT();
   const groups: { key: Group; label: string; items: RouteItem[] }[] = [
-    { key: 'needed', label: t('office.permitPath.detail.needed', 'What’s needed'), items: station.items.filter((i) => groupOf(i) === 'needed') },
-    { key: 'who', label: t('office.permitPath.detail.who', 'Who does it'), items: station.items.filter((i) => groupOf(i) === 'who') },
+    { key: 'needed', label: t('office.permitPath.detail.needed', 'What’s Needed'), items: station.items.filter((i) => groupOf(i) === 'needed') },
+    { key: 'who', label: t('office.permitPath.detail.who', 'Who Does It'), items: station.items.filter((i) => groupOf(i) === 'who') },
     { key: 'documents', label: t('office.permitPath.detail.documents', 'Documents'), items: station.items.filter((i) => groupOf(i) === 'documents') },
   ];
   const askIds = station.items.filter((i) => i.certainty === 'unknown' && i.askQuestionId).map((i) => i.askQuestionId as string);
@@ -144,7 +144,7 @@ export function StationDetail({ station, project, today, savedAnswer, onAsk, sho
       ))}
 
       <View style={styles.group} testID={`${testID}-duration`}>
-        <Text style={styles.eyebrow}>{t('office.permitPath.detail.howLong', 'How long')}</Text>
+        <Text style={styles.eyebrow}>{t('office.permitPath.detail.howLong', 'How Long')}</Text>
         <Text style={[styles.itemText, d.kind === 'unknown' && styles.unknownText]}>{d.label}</Text>
         {d.detail ? <Text style={styles.muted}>{d.detail}</Text> : null}
         <Text style={styles.muted}>{durationSourceLine(d, day)}</Text>

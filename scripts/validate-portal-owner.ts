@@ -172,7 +172,7 @@ expect('duplicate field notes are collapsed', n.workNotes.length, 2);
 expect('period label reads as a date range', n.periodLabel, 'Jun 1 – Jun 30, 2026');
 expect('hasActivity + no gap when the period has content', [n.hasActivity, n.gap], [true, undefined]);
 ok('headline names the milestones and cites the photos',
-  n.headline === 'This billing period covers Framing complete and Rough electrical complete — 3 photos from Jun 3–Jun 7.',
+  n.headline === 'This billing period covers Framing complete and Rough electrical complete: 3 photos from Jun 3–Jun 7.',
   `got: ${n.headline}`);
 ok('no out-of-window work text leaks into the narrative',
   !JSON.stringify(n).includes('BEFORE WINDOW') && !JSON.stringify(n).includes('AFTER WINDOW'));

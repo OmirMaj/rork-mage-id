@@ -358,7 +358,7 @@ function buildWatching(input: ComposeBriefInput, now: Date): BriefItem[] {
     const first = cash.dangerWeeks[0];
     const horizon = input.cashHorizonWeeks ?? 12;
     const more = cash.dangerWeeks.length > 1
-      ? ` — ${cash.dangerWeeks.length} negative weeks in the ${horizon}-week forecast`
+      ? `, ${cash.dangerWeeks.length} negative weeks in the ${horizon}-week forecast`
       : '';
     items.push({
       id: 'cash-danger',
@@ -511,7 +511,7 @@ export function quietBriefDetail(brief: MorningBrief): string {
     const screen = WHERE_UNCHECKED_LIVES[domain];
     if (screen && !screens.includes(screen)) screens.push(screen);
   }
-  const tail = screens.length > 0 ? ` — see ${joinWords(screens)} for ${unchecked.length === 1 ? 'that' : 'those'}` : '';
+  const tail = screens.length > 0 ? `. See ${joinWords(screens)} for ${unchecked.length === 1 ? 'that' : 'those'}` : '';
   return `${first} Not checked here: ${joinWords(unchecked)}${tail}.`;
 }
 
@@ -551,7 +551,7 @@ export function briefIsEmpty(brief: MorningBrief): boolean {
  * (quietBriefDetail). No first person: the VOICE rule at the top of this file
  * reserves "I" for the brain's own did-for-you lines.
  */
-export const QUIET_MORNING_LINE = 'Quiet morning — nothing overdue in what was checked';
+export const QUIET_MORNING_LINE = 'Quiet morning. Nothing overdue in what was checked.';
 
 /** One-line rollup for the home card: "3 need you · 2 watching · brain did
  *  4 things". Zero segments are dropped; a fully empty brief reads the

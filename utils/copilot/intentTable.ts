@@ -7,18 +7,18 @@ import type { CopilotCapabilityId } from './types';
  *  classifier matches against. Add an entry here when a new field capability
  *  is registered. */
 export const INTENTS: { id: CopilotCapabilityId; label: string; hint: string }[] = [
-  { id: 'daily_report', label: 'Daily report', hint: 'log the end of the day — crew on site, work done, weather, issues' },
+  { id: 'daily_report', label: 'Daily Report', hint: 'log the end of the day — crew on site, work done, weather, issues' },
   { id: 'schedule', label: 'Schedule', hint: 'build or adjust the project schedule / timeline' },
   { id: 'estimate', label: 'Estimate', hint: 'price out a scope of work / create an estimate' },
-  { id: 'change_order', label: 'Change order', hint: 'a change the owner wants — added scope and cost' },
+  { id: 'change_order', label: 'Change Order', hint: 'a change the owner wants — added scope and cost' },
   { id: 'rfi', label: 'RFI', hint: 'a question for the architect or engineer (request for information)' },
   { id: 'submittal', label: 'Submittal', hint: 'a submittal, shop drawing, or product sample for review' },
-  { id: 'punch', label: 'Punch item', hint: 'a punch-list defect that needs fixing' },
+  { id: 'punch', label: 'Punch Item', hint: 'a punch-list defect that needs fixing' },
   { id: 'invoice', label: 'Billing', hint: 'bill the client / a progress draw / an invoice' },
-  { id: 'safety_incident', label: 'Safety incident', hint: 'a safety incident, injury, or near-miss' },
+  { id: 'safety_incident', label: 'Safety Incident', hint: 'a safety incident, injury, or near-miss' },
   { id: 'warranty', label: 'Warranty', hint: 'log a warranty on installed work — roof, HVAC, appliance, etc.' },
-  { id: 'toolbox_talk', label: 'Toolbox talk', hint: 'run a jobsite safety meeting / toolbox talk / tailgate talk' },
-  { id: 'new_project', label: 'New project', hint: 'start / set up a brand-new project or job from scratch' },
+  { id: 'toolbox_talk', label: 'Toolbox Talk', hint: 'run a jobsite safety meeting / toolbox talk / tailgate talk' },
+  { id: 'new_project', label: 'New Project', hint: 'start / set up a brand-new project or job from scratch' },
   { id: 'jha', label: 'JHA', hint: 'a job hazard analysis / JSA — hazards + controls for a task' },
   { id: 'lead', label: 'Lead', hint: 'a new sales lead / homeowner inquiry / potential client' },
   { id: 'permit', label: 'Permit', hint: 'log a building/trade permit — pulled, approved, or expiring' },
@@ -76,7 +76,7 @@ export function normalizeSplitActions(raw: unknown): SplitAction[] {
 /** The editor's capability id, surfaced to the hub as its own intent. */
 export const SCHEDULE_EDIT_INTENT = {
   id: 'scheduleEdit' as const,
-  label: 'Change the schedule',
+  label: 'Change the Schedule',
   hint: 'add, move, remove, lengthen or re-link tasks on a schedule that already exists',
 };
 

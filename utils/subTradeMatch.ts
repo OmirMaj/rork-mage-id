@@ -169,7 +169,7 @@ export function matchSubForPhase(
  *  `rationale` (599) is the string the generator already writes its reasoning
  *  into, which is where a reader looks for why a task says what it says. */
 export function assignmentNote(match: SubTradeMatch): string {
-  return `Assigned to ${match.subName} — ${match.reason}. Change it on the task if that is wrong.`;
+  return `Assigned to ${match.subName}: ${match.reason}. Change it on the task if that is wrong.`;
 }
 
 /** A short, honest summary for the generator's result banner. */
@@ -179,6 +179,6 @@ export function summariseAssignments(outcomes: readonly SubTradeOutcome[]): stri
   if (matched === 0 && ambiguous === 0) return '';
   const parts: string[] = [];
   if (matched > 0) parts.push(`${matched} task${matched === 1 ? '' : 's'} assigned to a sub by trade`);
-  if (ambiguous > 0) parts.push(`${ambiguous} left unassigned — more than one sub for that trade`);
+  if (ambiguous > 0) parts.push(`${ambiguous} left unassigned (more than one sub for that trade)`);
   return parts.join('; ') + '.';
 }

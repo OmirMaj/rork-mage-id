@@ -136,7 +136,7 @@ console.log('defs');
   const spec: [string, string, string, number, string][] = [
     ['contract-from-estimate', 'Set Up a Contract from the Estimate', 'Start date and payment terms set, ready to sign', 45, 'client'],
     ['pay-app-period', 'Fill in a pay application period', 'A draft pay application for this period', 45, 'money'],
-    ['closeout-binder', 'Build a closeout binder', 'A draft binder with every section in one place', 35, 'client'],
+    ['closeout-binder', 'Build a Closeout Binder', 'A draft binder with every section in one place', 35, 'client'],
   ];
   for (const [id, title, endsWith, seconds, group] of spec) {
     const d = byId.get(id);
@@ -250,7 +250,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   // ── binder: the outbound fence + the save ──
   const deliver = callbackBody(BD, 'handleDeliver');
   ok('binder: handleDeliver refuses a sample before it writes, publishes or notifies',
-    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
+    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
   ok('binder: Deliver and Re-deliver are disabled on a sample, with the reason above the bar',
     (BD.match(/disabled=\{delivering \|\| sampleJob\}/g) ?? []).length === 2 && /testID="binder-sample-note">\{SAMPLE_DOC_NOT_SENT\}/.test(BD));
   const bsave = callbackBody(BD, 'handleSave');

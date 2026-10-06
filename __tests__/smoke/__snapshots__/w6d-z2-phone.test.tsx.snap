@@ -10,35 +10,35 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b1) daily-report, new report, jobsite 124 Park Slope (wttr answers) 1`] = `
 {
   "lines": 1159,
-  "sha256": "84840e40425a4094afa216c058e74672feaf19a086f40d145ccf2d322e9df2c1",
+  "sha256": "27905a70dbd63f8a0ca6c09590ff7a4e0b94b980ce41053973c0de1ddc020bf9",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report, new report, location 'United States' 1`] = `
 {
   "lines": 1159,
-  "sha256": "5d000890aceebf7707162ec537a7b4e0ad0ded454934aaf14b989d334ec07fd5",
+  "sha256": "7a4312ca798e11f02bb612b053e50eb8b806907b03763db4b52d5085d3d7cfd3",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c1) construction-ai, tier enterprise (Code Check) 1`] = `
 {
   "lines": 831,
-  "sha256": "3044fdb7dabbbbca5af5c2d2cdadbf61bcde34e19423751e781fc3eed9f7fdc7",
+  "sha256": "7b7ed3d63bd005b59286ad29f61b5970f3d6ca2ebe4038a7b407afa819859d97",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c2) construction-ai, tier enterprise (Project Roadmap) 1`] = `
 {
   "lines": 796,
-  "sha256": "5a996653c1e543c1f2cf1dc17a7186b847134a74e2aee53202733ccd39ccddb3",
+  "sha256": "be95233f373a1bd98e50d8b7170b8ae8c7e3bf17fad4fafc1795da18ff8b25e6",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c3) construction-ai, tier pro (Code Check) 1`] = `
 {
   "lines": 834,
-  "sha256": "10e56c6444c01915b842907f8e11596cf308654b9af609cbadc712c1a500283c",
+  "sha256": "4093d4b75019a6011b1e726e422f63cd8535211bb7bcc2b3df6eb5bb697b707e",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 2060,
-  "sha256": "278940ec431c2d93a8e744436c5864a72b0a450d54bd07efb130957879a4319a",
+  "sha256": "0e7634fd466a3d368828e04dfbef76b25661dc93ae0941208b98d3f6a79aca52",
 }
 `;
 

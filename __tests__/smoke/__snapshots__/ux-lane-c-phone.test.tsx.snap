@@ -52,7 +52,7 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (g) /invoice, a paid invoi
 exports[`Lane C golden — the phone (390 × 844 iOS) (h) /invoice, a new invoice on the fixture job 1`] = `
 {
   "lines": 1025,
-  "sha256": "9572e9b724b381b9664368f57e9740d9201db198da4c165bcb563621b162f9af",
+  "sha256": "2f7dbcfa3170190ad85ca029d88758e97e13655efe650a6569946cf115fd7282",
 }
 `;
 
@@ -73,7 +73,7 @@ exports[`Lane C golden — the phone (390 × 844 iOS) (j) /lien-waivers for the 
 exports[`Lane C golden — the phone (390 × 844 iOS) (k) /sub-portal-setup for a sub on the fixture job 1`] = `
 {
   "lines": 490,
-  "sha256": "d7862d52bb413f68fb62fa755f50d528968f4798cd41d71d916a6b96ac03a1bc",
+  "sha256": "acc9b30f8d8aaa768c576341d02f9e8c170442b4561cc3fccc5e9cabbf0e856c",
 }
 `;
 

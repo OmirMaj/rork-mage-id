@@ -194,7 +194,7 @@ for (const [text, want] of ROWS) {
   const all = ROWS.map(([t]) => one(t, HEN.id)).flat();
   const editorDoor = (p: AskActionProposal) => p.capabilityId === 'schedule' && (p.schedule?.kind === 'edit' || (p.schedule?.kind === 'pick' && p.schedule.then === 'edit'));
   ok('every label comes from INTENTS (the editor door from SCHEDULE_EDIT_INTENT)', all.every((p) => p.capabilityId === 'estimateEdit' || p.label === (editorDoor(p) ? SCHEDULE_EDIT_INTENT.label : labels.get(p.capabilityId))));
-  ok('SCHEDULE_EDIT_INTENT is still the editor label source', SCHEDULE_EDIT_INTENT.label === 'Change the schedule');
+  ok('SCHEDULE_EDIT_INTENT is still the editor label source', SCHEDULE_EDIT_INTENT.label === 'Change the Schedule');
 }
 
 // ─── 2. negatives (Ask keeps answering) ────────────────────────────────────

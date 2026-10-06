@@ -269,11 +269,11 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     if (c) pick(c.id);
   };
   useHotkeys([
-    { combo: '1', handler: pickNth(0), label: 'Pick choice 1', group: 'Skills check' },
-    { combo: '2', handler: pickNth(1), label: 'Pick choice 2', group: 'Skills check' },
-    { combo: '3', handler: pickNth(2), label: 'Pick choice 3', group: 'Skills check' },
-    { combo: '4', handler: pickNth(3), label: 'Pick choice 4', group: 'Skills check' },
-    { combo: 'enter', handler: () => { if (stateRef.current.phase.kind === 'answered') next(); }, label: 'Next question', group: 'Skills check' },
+    { combo: '1', handler: pickNth(0), label: 'Pick choice 1', group: 'Skills Check' },
+    { combo: '2', handler: pickNth(1), label: 'Pick choice 2', group: 'Skills Check' },
+    { combo: '3', handler: pickNth(2), label: 'Pick choice 3', group: 'Skills Check' },
+    { combo: '4', handler: pickNth(3), label: 'Pick choice 4', group: 'Skills Check' },
+    { combo: 'enter', handler: () => { if (stateRef.current.phase.kind === 'answered') next(); }, label: 'Next Question', group: 'Skills Check' },
   ], { scope: 'page', enabled: isDesktopWeb });
 
   // ── The pinned bar ──────────────────────────────────────────────────────
@@ -300,17 +300,17 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
   if (phase.kind === 'intro') {
     if (!loaded) bar = null;
     else if (availability.kind === 'open') {
-      bar = <Button label={t('settings.learn.start', 'Start the check')} variant="primary" fullWidth onPress={begin} testID="skills-check-start" />;
+      bar = <Button label={t('settings.learn.start', 'Start the Check')} variant="primary" fullWidth onPress={begin} testID="skills-check-start" />;
     } else if (availability.kind === 'locked') {
       // The intro already says why (skills-check-locked), right above.
-      bar = <Button label={t('settings.learn.practiseFirst', 'Practice the tutorial')} variant="primary" fullWidth onPress={practise} testID="skills-check-practise" />;
+      bar = <Button label={t('settings.learn.practiseFirst', 'Practice the Tutorial')} variant="primary" fullWidth onPress={practise} testID="skills-check-practise" />;
     } else {
       bar = <Button label={t('settings.learn.done', 'Done')} variant="secondary" fullWidth onPress={leave} testID="skills-check-done" />;
     }
   } else if (phase.kind === 'answered') {
     bar = (
       <Button
-        label={isLast ? t('settings.learn.seeResult', 'See your result') : t('settings.learn.next', 'Next question')}
+        label={isLast ? t('settings.learn.seeResult', 'See Your Result') : t('settings.learn.next', 'Next Question')}
         variant="primary"
         fullWidth
         onPress={next}
@@ -321,7 +321,7 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     if (phase.kind === 'naming' && nameBlocked) blockedReason = nameReason;
     bar = (
       <Button
-        label={phase.kind === 'issuing' ? t('settings.learn.issuing', 'Issuing…') : t('settings.learn.issue', 'Issue certificate')}
+        label={phase.kind === 'issuing' ? t('settings.learn.issuing', 'Issuing…') : t('settings.learn.issue', 'Issue Certificate')}
         variant="primary"
         fullWidth
         loading={phase.kind === 'issuing'}
@@ -334,8 +334,8 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     // A fragment, not a wrapper: the ActionBar sizes each button on desktop.
     bar = (
       <>
-        <Button label={t('settings.learn.tryAgain', 'Try again')} variant="primary" fullWidth onPress={restart} testID="skills-check-retry" />
-        <Button label={t('settings.learn.practiseAgain', 'Practice the tutorial again')} variant="secondary" fullWidth onPress={practise} testID="skills-check-practise-again" />
+        <Button label={t('settings.learn.tryAgain', 'Try Again')} variant="primary" fullWidth onPress={restart} testID="skills-check-retry" />
+        <Button label={t('settings.learn.practiseAgain', 'Practice the Tutorial Again')} variant="secondary" fullWidth onPress={practise} testID="skills-check-practise-again" />
       </>
     );
   } else if (phase.kind === 'refused' && phase.reason === 'revoked') {
@@ -349,7 +349,7 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     if (!fresh && nameBlocked) blockedReason = nameReason;
     bar = (
       <Button
-        label={t('settings.learn.tryAgain', 'Try again')}
+        label={t('settings.learn.tryAgain', 'Try Again')}
         variant="primary"
         fullWidth
         disabled={!fresh && nameBlocked}
@@ -360,7 +360,7 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
   } else if (phase.kind === 'issued') {
     bar = (
       <>
-        <Button label={t('settings.learn.seeCertificates', 'See your certificates')} variant="primary" fullWidth
+        <Button label={t('settings.learn.seeCertificates', 'See Your Certificates')} variant="primary" fullWidth
           onPress={() => router.replace('/skills-certificates')} testID="skills-check-see-certificates" />
         <Button label={t('settings.learn.done', 'Done')} variant="secondary" fullWidth onPress={leave} testID="skills-check-done" />
       </>
@@ -408,7 +408,7 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
                 {availability.kind === 'passed' ? (
                   <View style={styles.status} testID="skills-check-already">
                     <Text style={[Type.bodyCompactEmphasized, { color: colors.successLabel }]}>
-                      {t('settings.learn.hubPassed', 'Skills check: passed')}
+                      {t('settings.learn.hubPassed', 'Skills Check: Passed')}
                     </Text>
                     <Text style={[Type.footnote, styles.alreadySub, { color: colors.textSecondary }]}>
                       {t('settings.learn.alreadyIssued', 'Issued {date} to {name}.', {

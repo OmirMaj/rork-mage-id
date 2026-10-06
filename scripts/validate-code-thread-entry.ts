@@ -138,7 +138,7 @@ check("permits are owner-only, disabled with 'Permits are managed by the project
   && /\{blocked \? <Text style=\{styles\.caption\}>\{PERMIT_OWNER_ONLY_TEXT\}<\/Text> : null\}/.test(cta));
 check('the permit add asks first, with the Applied text',
   cta.includes("'Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.'")
-  && /showAlert\('Add to permits', PERMIT_CONFIRM_TEXT,/.test(cta));
+  && /showAlert\('Add to Permits', PERMIT_CONFIRM_TEXT,/.test(cta));
 check('a permit is built by permitDraftFromCodeItem and written through addPermit',
   /addPermit\(\s*permitDraftFromCodeItem\(\{/.test(cta));
 check("'Schedule via Roadmap' opens the roadmap mode, with its caption, and records nothing",
@@ -200,9 +200,9 @@ const btn = stripComments(read('components', 'codeThread', 'CodeCheckThisButton.
 check('CodeCheckThisButton closes first, then pushes codeCheckRoute after 350 ms on iOS',
   /onBeforeNavigate\?\.\(\);\s*const href = codeCheckRoute\(\{ projectId, source, sourceId \}\);\s*setTimeout\(\(\) => router\.push\(href\), Platform\.OS === 'ios' \? IOS_MODAL_NAV_DELAY_MS : 0\);/.test(btn)
   && count(btn, 'router.push(') === 1);
-check("the icon variant is labelled 'Code check this sheet' with a 12 pt hitSlop; the row says 'Code check this item'",
-  btn.includes('accessibilityLabel="Code check this sheet"') && btn.includes('hitSlop={12}')
-  && btn.includes('>Code check this item</Text>') && count(btn, /testID=\{testID\}/g) === 2);
+check("the icon variant is labelled 'Code Check This Sheet' with a 12 pt hitSlop; the row says 'Code Check This Item'",
+  btn.includes('accessibilityLabel="Code Check This Sheet"') && btn.includes('hitSlop={12}')
+  && btn.includes('>Code Check This Item</Text>') && count(btn, /testID=\{testID\}/g) === 2);
 
 const sheet = stripComments(read('components', 'codeThread', 'SavedCodeCheckSheet.tsx'));
 const runAgain = bodyOf(sheet, 'const runAgain = () =>');
@@ -233,7 +233,7 @@ check("the card says where the checks are saved: CODE_CHECKS_CAPTION[syncState],
   && card.includes('<Text testID="codethread-sync-caption" style={styles.caption}>{CODE_CHECKS_CAPTION[syncState]}</Text>')
   && /export const CODE_CHECKS_LOCAL_CAPTION = CODE_CHECKS_CAPTION\.local;/.test(card));
 check("'Code check this job' opens the Code Check for the job (source project)",
-  card.includes('label="Code check this job"')
+  card.includes('label="Code Check This Job"')
   && /router\.push\(codeCheckRoute\(\{ projectId: project\.id, source: 'project' \}\)\)/.test(card));
 check("up to 3 rows, then 'See all N'",
   /const COLLAPSED_ROWS = 3;/.test(card) && card.includes('`See all ${checks.length}`'));

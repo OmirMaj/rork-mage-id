@@ -86,7 +86,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
 
   const create = () => {
     if (!projectId || !subject.trim() || !question.trim()) {
-      showAlert('Missing details', 'Pick a project and fill in the subject and question.');
+      showAlert('Missing Details', 'Pick a project and fill in the subject and question.');
       return;
     }
     addRFI({
@@ -144,7 +144,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
                   </ScrollView>
                 </>
               )}
-              <Text style={styles.label}>Email text</Text>
+              <Text style={styles.label}>Email Text</Text>
               <TextInput
                 style={styles.textArea}
                 value={email}
@@ -162,7 +162,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
               <TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="What's it about?" placeholderTextColor={t.textMuted} />
               <Text style={styles.label}>Question</Text>
               <TextInput style={styles.textArea} value={question} onChangeText={setQuestion} placeholder="The question to answer" placeholderTextColor={t.textMuted} multiline textAlignVertical="top" />
-              <Text style={styles.label}>Ball in court</Text>
+              <Text style={styles.label}>Ball in Court</Text>
               <View style={styles.chipRow}>
                 {BALL.map(b => (
                   <TouchableOpacity key={b} style={[styles.ballChip, b === ball && styles.chipOn]} onPress={() => setBall(b)} activeOpacity={0.85}>
@@ -170,7 +170,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.label}>Needed by (optional)</Text>
+              <Text style={styles.label}>Needed by (Optional)</Text>
               <TextInput style={styles.input} value={dateRequired} onChangeText={setDateRequired} placeholder="2026-09-15" placeholderTextColor={t.textMuted} autoCapitalize="none" />
             </>
           )}

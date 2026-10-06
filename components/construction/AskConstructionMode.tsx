@@ -627,10 +627,10 @@ export function useCodeCardWiring({ project, info, infoFor, sample = false, test
   const sendToSub = useCallback((recipient: SubRecipient, text: string) => {
     const url = smsUrlFor(recipient.phone, text, Platform.OS);
     if (!url) {
-      showAlert('No phone number', `${recipient.name} has no phone number in Subs. Add one there, or copy the text instead.`);
+      showAlert('No Phone Number', `${recipient.name} has no phone number in Subs. Add one there, or copy the text instead.`);
       return;
     }
-    void Linking.openURL(url).catch(() => showAlert('Couldn\u2019t open Messages', 'Copy the text and send it from your phone.'));
+    void Linking.openURL(url).catch(() => showAlert('Couldn\u2019t Open Messages', 'Copy the text and send it from your phone.'));
   }, []);
 
   const addAll = useCallback((items: readonly CodeCardItem[]) => {
@@ -953,7 +953,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
       testID="construction-ask-run"
     >
       {loading ? <ActivityIndicator color="#FFF" /> : <MageAIMark size={18} color="#FFF" />}
-      <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get answer'}</Text>
+      <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get Answer'}</Text>
     </TouchableOpacity>
   );
 
@@ -989,7 +989,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
       // Looked at, not used: muted and never tappable, so "Sources"
       // means only what the answer rests on.
       <View testID="construction-ask-consulted">
-        <Text style={styles.consultedLabel}>Also checked</Text>
+        <Text style={styles.consultedLabel}>Also Checked</Text>
         <Text style={styles.consultedText}>
           {consultedSummary(result.consulted.map(c => c.label))}
         </Text>
@@ -1027,7 +1027,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
 
       {projects.length > 0 && (
         <>
-          <Text style={styles.label}>Link a project (optional)</Text>
+          <Text style={styles.label}>Link a Project (Optional)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity
@@ -1035,7 +1035,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
                 onPress={() => setProjectId(null)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.chipText, projectId === null && styles.chipTextActive]}>No project</Text>
+                <Text style={[styles.chipText, projectId === null && styles.chipTextActive]}>No Project</Text>
               </TouchableOpacity>
               {projects.map((p) => {
                 const active = p.id === projectId;
@@ -1068,7 +1068,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
         </>
       )}
 
-      <Text style={styles.label}>Your question</Text>
+      <Text style={styles.label}>Your Question</Text>
       {tutorialOn ? (
         // The tutorial's sample question rides in the same spotlight hole as
         // the box. It is about the job's records — never a code question.
@@ -1115,7 +1115,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
           testID="construction-ask-upgrade"
         >
           <MageAIMark size={18} color="#FFF" />
-          <Text style={styles.runBtnText}>See Business plan</Text>
+          <Text style={styles.runBtnText}>See Business Plan</Text>
         </TouchableOpacity>
       )}
 
@@ -1156,7 +1156,7 @@ export default function AskConstructionMode({ projects, bottomInset, entryProjec
                   testID="construction-ask-retry"
                 >
                   <RotateCcw size={14} color={Colors.primary} strokeWidth={2} />
-                  <Text style={styles.retryText}>Try again</Text>
+                  <Text style={styles.retryText}>Try Again</Text>
                 </TouchableOpacity>
               ) : null}
             </>

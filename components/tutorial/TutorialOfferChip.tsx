@@ -143,11 +143,11 @@ export function TutorialOfferChip({
       <Text style={[Type.footnote, styles.copy, { color: colors.text }]} numberOfLines={2}>
         {chipCopy(def)}
       </Text>
-      <Button label="Show me" variant="secondary" size="sm" onPress={onShowMe} testID={`${testID}-show`} />
+      <Button label="Show Me" variant="secondary" size="sm" onPress={onShowMe} testID={`${testID}-show`} />
       <Pressable
         onPress={onDismiss}
         accessibilityRole="button"
-        accessibilityLabel="Don't offer this tutorial again"
+        accessibilityLabel="Don't Offer This Tutorial Again"
         hitSlop={8}
         style={styles.close}
         testID={`${testID}-dismiss`}

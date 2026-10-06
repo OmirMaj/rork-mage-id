@@ -23,7 +23,7 @@ export interface NewProjectApplied { route: '/project-detail'; projectId: string
  */
 export const PROJECT_CAP_ERROR_CODE = 'project_cap';
 export const PROJECT_CAP_APPLY_MESSAGE =
-  'Free covers one job of your own, and this would make a second. See plans to take the cap off — nothing was created.';
+  'Free covers one job of your own, and this would make a second. See plans to take the cap off. Nothing was created.';
 export function projectCapError(): Error & { code: string } {
   return Object.assign(new Error(PROJECT_CAP_APPLY_MESSAGE), { code: PROJECT_CAP_ERROR_CODE });
 }
@@ -59,7 +59,7 @@ const clean = (v: unknown): string => {
 
 export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProjectApplied> = {
   id: 'new_project',
-  label: 'Start a project',
+  label: 'Start a Project',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
@@ -70,13 +70,13 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
   topicChecklist: [
     { label: 'Name', hint: 'what to call the job' },
     { label: 'Type', hint: 'renovation / new build / addition…' },
-    { label: 'Finish', hint: 'economy → luxury' },
+    { label: 'Finish', hint: 'economy to luxury' },
   ],
   copy: {
     voiceTitle: 'Start a project',
     composeEyebrow: 'START A NEW PROJECT',
     composeQuestion: 'What are we building?',
-    composeHint: 'Name it and describe the job — I’ll set it up and drop you inside.',
+    composeHint: 'Name it and describe the job. I’ll set it up and drop you inside.',
     reviewHeadline: 'Here’s your project, ready to open.',
     reviewSub: 'Review the basics, then create it. You’ll add the estimate and schedule next.',
     buildingLabel: 'Setting up the project…',

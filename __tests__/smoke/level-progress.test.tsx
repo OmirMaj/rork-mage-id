@@ -65,23 +65,23 @@ describe('honest long waits', () => {
 
   describe('WorkProgress', () => {
     it('a real elapsed clock: "0:14 · usually 60–90 s" at 14 s; the title never rotates', () => {
-      const r = render(<WorkProgress title="Reading the spec book" typical="usually 60–90 s" facts={['a', 'b', 'c']} />);
+      const r = render(<WorkProgress title="Reading the Spec Book" typical="usually 60–90 s" facts={['a', 'b', 'c']} />);
       expect(r.getByTestId('work-progress-elapsed').props.children).toBe('0:00 · usually 60–90 s');
       advance(14000);
       expect(r.getByTestId('work-progress-elapsed').props.children).toBe('0:14 · usually 60–90 s');
-      expect(r.getByTestId('work-progress-title').props.children).toBe('Reading the spec book');
+      expect(r.getByTestId('work-progress-title').props.children).toBe('Reading the Spec Book');
       advance(60000);
-      expect(r.getByTestId('work-progress-title').props.children).toBe('Reading the spec book');
+      expect(r.getByTestId('work-progress-title').props.children).toBe('Reading the Spec Book');
       expect(r.getByTestId('work-progress-elapsed').props.children).toBe('1:14 · usually 60–90 s');
       r.unmount();
     });
 
     it('no count → no rule; count 12 of 48 → a scaleX 0.25 fill from the left, "12 of 48 pages"', () => {
-      const a = render(<WorkProgress title="Rendering pages" />);
+      const a = render(<WorkProgress title="Rendering Pages" />);
       expect(a.queryByTestId('work-progress-fill')).toBeNull();
       expect(a.queryByText(/ of /)).toBeNull();
       a.unmount();
-      const b = render(<WorkProgress title="Rendering pages" count={{ done: 12, total: 48, unit: 'pages' }} />);
+      const b = render(<WorkProgress title="Rendering Pages" count={{ done: 12, total: 48, unit: 'pages' }} />);
       const st = flat(b.getByTestId('work-progress-fill').props.style);
       expect(st.transform).toEqual([{ scaleX: 0.25 }]);
       expect(st.transformOrigin).toBe('left');
@@ -94,9 +94,9 @@ describe('honest long waits', () => {
 
     it('done → the summary replaces the title, holds 600 ms, then onDone (once)', () => {
       const onDone = jest.fn();
-      const r = render(<WorkProgress title="Reading the spec book" summary="Read 48 pages in 1:12" onDone={onDone} />);
+      const r = render(<WorkProgress title="Reading the Spec Book" summary="Read 48 pages in 1:12" onDone={onDone} />);
       advance(5000);
-      r.rerender(<WorkProgress title="Reading the spec book" summary="Read 48 pages in 1:12" onDone={onDone} done />);
+      r.rerender(<WorkProgress title="Reading the Spec Book" summary="Read 48 pages in 1:12" onDone={onDone} done />);
       expect(r.getByTestId('work-progress-title').props.children).toBe('Read 48 pages in 1:12');
       advance(599);
       expect(onDone).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('honest long waits', () => {
         <WorkProgress
           title="Reading spec sections"
           steps={[
-            { label: 'Rendering pages', state: 'done', tookMs: 1200 },
+            { label: 'Rendering Pages', state: 'done', tookMs: 1200 },
             { label: 'Reading spec sections', state: 'current' },
             { label: 'Drafting the log', state: 'next' },
           ]}
@@ -146,7 +146,7 @@ describe('honest long waits', () => {
 
     it('native: a 64-wide level and never the crane', () => {
       windowOf(1280);
-      const r = render(<WorkProgress title="Reading the spec book" />);
+      const r = render(<WorkProgress title="Reading the Spec Book" />);
       const mark = r.getByTestId('level-mark', H);
       expect(flat(mark.props.style).width).toBe(64);
       expect(r.queryByTestId('crane-svg', H)).toBeNull();
@@ -157,7 +157,7 @@ describe('honest long waits', () => {
     it('web 1280 wide: the crane in a 280 × 247.1 box and no 64 level; 200 wide: the level at 64, no crane', () => {
       asWeb();
       windowOf(1280);
-      const a = render(<WorkProgress title="Reading the spec book" />);
+      const a = render(<WorkProgress title="Reading the Spec Book" />);
       const crane = a.getByTestId('crane-mark-web', H);
       // The box, whether CraneMarkWeb draws an Svg (width/height props) or the
       // WEB lane's composited divs (a width/height style).
@@ -167,7 +167,7 @@ describe('honest long waits', () => {
       expect(a.queryAllByTestId('level-mark', H).filter((n) => flat(n.props.style).width === 64)).toHaveLength(0);
       a.unmount();
       windowOf(200);
-      const b = render(<WorkProgress title="Reading the spec book" />);
+      const b = render(<WorkProgress title="Reading the Spec Book" />);
       expect(b.queryByTestId('crane-mark-web', H)).toBeNull();
       expect(b.queryByTestId('crane-svg', H)).toBeNull();
       expect(flat(b.getByTestId('level-mark', H).props.style).width).toBe(64);
@@ -176,14 +176,14 @@ describe('honest long waits', () => {
   });
 
   describe('CodeCheckLoader', () => {
-    it('a timer-driven activeStep never ticks anything; the list reads "What MAGE checks"', () => {
+    it('a timer-driven activeStep never ticks anything; the list reads "What MAGE Checks"', () => {
       const r = render(<CodeCheckLoader steps={STEPS} activeStep={0} />);
       for (let s = 0; s <= 5; s++) {
         r.rerender(<CodeCheckLoader steps={STEPS} activeStep={s} />);
         expect(r.queryAllByTestId('progress-step-tick', H)).toHaveLength(0);
         expect(r.queryAllByTestId('progress-step-current', H)).toHaveLength(0);
         expect(r.getAllByTestId('progress-step-neutral', H)).toHaveLength(STEPS.length);
-        expect(r.getByTestId('code-check-steps-header').props.children).toBe('What MAGE checks');
+        expect(r.getByTestId('code-check-steps-header').props.children).toBe('What MAGE Checks');
       }
       expect(r.getByText('Recalling the code that likely governs this project')).toBeTruthy();
       r.unmount();

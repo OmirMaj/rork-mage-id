@@ -96,7 +96,7 @@ export function decidePushAsk(input: PushAskInput): PushAskDecision {
 }
 
 /**
- * What "Notify me" actually turns on, one entry per notification the ask
+ * What "Notify Me" actually turns on, one entry per notification the ask
  * names. Tapping it calls NotificationContext.enablePush() and NOTHING else —
  * it registers the device token; it switches no sender on. So a claim is
  * allowed here only if its push is ON BY DEFAULT once a token exists: each is a
@@ -139,7 +139,7 @@ export interface PushAskCopy {
   /** What we would actually send — the PUSH_ASK_CLAIMS (examples, each a push
    *  that is on by default once the token is registered), the note that other
    *  job alerts come too and can be muted, and the brief note. The
-   *  morning brief is NOT promised: "Notify me" doesn't turn it on (see
+   *  morning brief is NOT promised: "Notify Me" doesn't turn it on (see
    *  PUSH_ASK_CLAIMS). Nothing here promises a notification the app will not
    *  produce. */
   body: string;
@@ -154,14 +154,14 @@ export const PUSH_ASK_COPY: Record<PushAskMoment, PushAskCopy> = {
   estimate_shared: {
     title: 'Want to know when they respond?',
     body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings > Push and Email Preferences. A morning brief is off unless you turn it on in Settings > Push and Email Preferences.',
-    confirm: 'Notify me',
-    decline: 'Not now',
+    confirm: 'Notify Me',
+    decline: 'Not Now',
   },
   project_created: {
     title: 'Want this job to reach you?',
     body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings > Push and Email Preferences. A morning brief is off unless you turn it on in Settings > Push and Email Preferences.',
-    confirm: 'Notify me',
-    decline: 'Not now',
+    confirm: 'Notify Me',
+    decline: 'Not Now',
   },
 };
 

@@ -256,7 +256,7 @@ console.log('\nscreen wiring');
     && /sizeBlock: \(fileBytes\) => submittalFileSizeBlock\(\{ fileName: file\.name, fileBytes, packageBytes, coverSheet: coverSheetAvailable \}\)/.test(sub));
   ok('#57 Send checks the stored sizes before anything is resolved or sent',
     /submittalPackageSizeBlock\(\{\s*sizes: await storedAttachmentSizes\(sent\.attachments \?\? \[\]\), coverSheet: coverSheetAvailable,?\s*\}\)/.test(sub)
-    && /if \(sizeBlock\) \{\s*showAlert\('Too large to email', sizeBlock\);\s*return;/.test(sub)
+    && /if \(sizeBlock\) \{\s*showAlert\('Too Large to Email', sizeBlock\);\s*return;/.test(sub)
     && sub.indexOf('if (sizeBlock) {') < sub.indexOf('const result = await sendEmail({'));
   ok("#57 the server's size refusal is shown in words", /attachmentsTooLargeMessage\(result\.error\)/.test(sub));
   ok('#57 dropped files are not logged as a clean round',

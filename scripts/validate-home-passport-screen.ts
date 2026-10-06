@@ -141,7 +141,7 @@ console.log('\n── honest copy (Phase 0, 2026-09-23) ──');
   ok('the screen passes the card no onShare (the screen owns the share button)',
     /<HomePassportCard[\s\S]*?\/>/.test(visible) && !/onShare=/.test((visible.match(/<HomePassportCard[\s\S]*?\/>/) ?? [''])[0]));
   ok('the screen\'s share button says who gets it: a copy for the client, wired to the handoff',
-    /accessibilityLabel="Share a copy with your client"/.test(visible) && />Share a copy with your client</.test(visible)
+    /accessibilityLabel="Share a Copy with Your Client"/.test(visible) && />Share a Copy with Your Client</.test(visible)
     && /onPress=\{\(\) => void onShare\(\)\}/.test(visible) && /shareText\(\{ message: buildPassportHandoff\(passport\) \}\)/.test(visible));
   ok('no "next contractor" framing on the screen', !/next contractor/i.test(visible));
   // The card renders under the screen's own note, so its copy is on the same

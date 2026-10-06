@@ -2,8 +2,7 @@
   "version": 1,
   "counts": {
     "app/(tabs)/construction-ai/index.tsx": {
-      "R14": 1,
-      "R17": 1
+      "R14": 1
     },
     "app/(tabs)/discover/tools.tsx": {
       "R19": 1
@@ -68,9 +67,7 @@
       "R16": 1
     },
     "app/rfi.tsx": {
-      "R01": 2,
-      "R13": 1,
-      "R16": 1
+      "R01": 2
     },
     "app/safety-osha.tsx": {
       "R10": 2
@@ -123,9 +120,6 @@
     },
     "components/schedule/InteractiveGantt.tsx": {
       "R16": 2
-    },
-    "components/subs/SubCredentialCard.tsx": {
-      "R16": 3
     }
   },
   "raises": [

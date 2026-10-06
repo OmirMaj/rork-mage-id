@@ -1091,7 +1091,7 @@ export function proposalBlockReason(
   if (contract && (contract.status === 'sent' || contract.status === 'signed')) {
     return {
       code: 'contract-superseded',
-      gc: `A construction agreement has already been ${contract.status} on this project — it supersedes the proposal.`,
+      gc: `A construction agreement has already been ${contract.status} on this project. It supersedes the proposal.`,
     };
   }
 
@@ -1113,7 +1113,7 @@ export function proposalBlockReason(
   if (!est || !est.id || !(est.grandTotal > 0)) {
     return {
       code: 'no-estimate',
-      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+      gc: 'Needs a priced estimate on this project. Build one and this turns on.',
     };
   }
 
@@ -1134,7 +1134,7 @@ export function proposalBlockReason(
   if (!(view.projectTotal > 0)) {
     return {
       code: 'no-estimate',
-      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+      gc: 'Needs a priced estimate on this project. Build one and this turns on.',
     };
   }
   const priced = view.scopeGroups.filter(g => g.total !== 0);
@@ -1519,10 +1519,10 @@ export function ownerSafeCloseoutCarry(
 const PERMIT_TYPE_LABEL: Record<string, string> = {
   building: 'Building', electrical: 'Electrical', plumbing: 'Plumbing',
   mechanical: 'Mechanical', demolition: 'Demolition', grading: 'Grading',
-  fire: 'Fire', occupancy: 'Certificate of occupancy',
-  special_inspection: 'Special inspection', hot_work: 'Hot work',
-  shutdown: 'Utility shutdown', after_hours: 'After-hours work',
-  landlord_approval: 'Landlord approval', elevator_dock: 'Elevator / loading dock',
+  fire: 'Fire', occupancy: 'Certificate of Occupancy',
+  special_inspection: 'Special Inspection', hot_work: 'Hot Work',
+  shutdown: 'Utility Shutdown', after_hours: 'After-Hours Work',
+  landlord_approval: 'Landlord Approval', elevator_dock: 'Elevator / Loading Dock',
   other: 'Permit',
 };
 
@@ -1530,11 +1530,11 @@ const PERMIT_TYPE_LABEL: Record<string, string> = {
  *  "Applied for", not "Pending approval" — the portal does not know whether
  *  the jurisdiction has looked at it. */
 const PERMIT_STATUS_LABEL: Record<string, string> = {
-  applied: 'Applied for', under_review: 'Under review', approved: 'Approved',
+  applied: 'Applied For', under_review: 'Under Review', approved: 'Approved',
   denied: 'Denied', expired: 'Expired',
-  inspection_scheduled: 'Inspection scheduled',
-  inspection_passed: 'Inspection passed',
-  inspection_failed: 'Inspection failed',
+  inspection_scheduled: 'Inspection Scheduled',
+  inspection_passed: 'Inspection Passed',
+  inspection_failed: 'Inspection Failed',
 };
 
 /**
@@ -2771,7 +2771,7 @@ export function portalInviteFallbackText(args: {
   const access = args.passcodeOn
     ? `No app to install. Open it on your phone or computer. The portal asks for a passcode: ${args.companyName} will send it to you in a separate message.`
     : 'No app to install, no password to remember. Open it on your phone or computer.';
-  return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n— ${args.companyName}`;
+  return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n${args.companyName}`;
 }
 
 /** What a read of the server's key came back with (ok:false = the read itself failed). */

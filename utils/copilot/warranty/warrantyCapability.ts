@@ -25,7 +25,7 @@ const isCategory = (v: unknown): v is WarrantyCategory =>
 
 export const warrantyCapability: CopilotCapability<WarrantyDraft, WarrantyApplied> = {
   id: 'warranty',
-  label: 'Log a warranty',
+  label: 'Log a Warranty',
   aiFeature: 'voiceCapture',
   maxQuestions: 3,
   askThreshold: 0.4,
@@ -42,7 +42,7 @@ export const warrantyCapability: CopilotCapability<WarrantyDraft, WarrantyApplie
     voiceTitle: 'Log a warranty',
     composeEyebrow: 'WHAT’S UNDER WARRANTY',
     composeQuestion: 'What are we covering?',
-    composeHint: 'The system + who backs it — I’ll track the term and warn you before it lapses.',
+    composeHint: 'The system and who backs it. I’ll track the term and warn you before it lapses.',
     reviewHeadline: 'Here’s your warranty, ready to track.',
     reviewSub: 'Review the term, then log it. MAGE computes the expiry and reminds you before coverage ends.',
     buildingLabel: 'Logging the warranty…',

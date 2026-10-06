@@ -251,13 +251,13 @@ describe('lane P1 — the phone is unchanged (golden)', () => {
 
   const CASES: [string, 'ios' | 'web', string, (() => void) | null][] = [
     ['plans list, iOS 390', 'ios', `/plans?${P}`, () => { expect(screen.getByText('S-201')).toBeTruthy(); }],
-    ['plans project picker, iOS 390', 'ios', '/plans', () => { expect(screen.getByText('Pick a project')).toBeTruthy(); }],
+    ['plans project picker, iOS 390', 'ios', '/plans', () => { expect(screen.getByText('Pick a Project')).toBeTruthy(); }],
     ['plans with the Ask sheet open, iOS 390', 'ios', `/plans?${P}&ask=1`, () => { expect(screen.getByTestId('plans-ask-modal')).toBeTruthy(); }],
     ['viewer A-101 Rev 2, iOS 390', 'ios', `/plan-viewer?sheetId=${A101_R2}`, () => { expect(screen.getByTestId('plan-viewer-revision-row')).toBeTruthy(); }],
     ['viewer A-101 Rev 1 (superseded banner), iOS 390', 'ios', `/plan-viewer?sheetId=${A101_R1}`, () => { expect(screen.getByTestId('plan-viewer-superseded-banner')).toBeTruthy(); }],
     ['viewer with the pin sheet open, iOS 390', 'ios', `/plan-viewer?sheetId=${A101_R2}&punchId=punch-1`, () => { expect(screen.getByTestId('pin-raise-rfi')).toBeTruthy(); }],
     ['plans list, web 390', 'web', `/plans?${P}`, () => { expect(screen.getByText('S-201')).toBeTruthy(); }],
-    ['plans project picker, web 390', 'web', '/plans', () => { expect(screen.getByText('Pick a project')).toBeTruthy(); }],
+    ['plans project picker, web 390', 'web', '/plans', () => { expect(screen.getByText('Pick a Project')).toBeTruthy(); }],
     ['plans with the Ask sheet open, web 390', 'web', `/plans?${P}&ask=1`, () => { expect(screen.getByTestId('plans-ask-modal')).toBeTruthy(); }],
     ['viewer A-101 Rev 2, web 390', 'web', `/plan-viewer?sheetId=${A101_R2}`, () => { expect(screen.getByTestId('plan-viewer-revision-row')).toBeTruthy(); }],
     ['viewer A-101 Rev 1 (superseded banner), web 390', 'web', `/plan-viewer?sheetId=${A101_R1}`, () => { expect(screen.getByTestId('plan-viewer-superseded-banner')).toBeTruthy(); }],
@@ -421,7 +421,7 @@ describe('lane P1 — desktop web 1512', () => {
     await pump(2);
     expect(screen.queryAllByTestId(/^plan-rail-sheet-/)).toHaveLength(0);
     expect(await AsyncStorage.getItem('mageid_plan_rail_open')).toBe('false');
-    expect(screen.getByLabelText('Show sheet list')).toBeTruthy();
+    expect(screen.getByLabelText('Show Sheet List')).toBeTruthy();
   });
 
   it('/plan-viewer: a stored closed rail stays closed', async () => {
@@ -433,7 +433,7 @@ describe('lane P1 — desktop web 1512', () => {
     await mountRouteChecked(`/plan-viewer?sheetId=${A101_R2}`);
     await pump();
     expect(screen.queryAllByTestId(/^plan-rail-sheet-/)).toHaveLength(0);
-    expect(screen.getByLabelText('Show sheet list')).toBeTruthy();
+    expect(screen.getByLabelText('Show Sheet List')).toBeTruthy();
   });
 
   it('/plan-viewer: the toolbar becomes a column beside the canvas', async () => {

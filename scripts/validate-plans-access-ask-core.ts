@@ -92,7 +92,7 @@ console.log('\n#73 the plan screens open for the job, not only for the tier');
     && planControlBlock(effectivePlanRole(null, { ownerUserId: 'u1' }, 'u1'), 'delete', { isError: true }) === null);
   ok('…but a collaborator\'s null role is never inferred', effectivePlanRole(null, { ownerUserId: 'gc' }, 'u1') === null
     && effectivePlanRole(null, {}, 'u1') === null && effectivePlanRole('viewer', { ownerUserId: 'u1' }, 'u1') === 'viewer');
-  ok('a viewer may not mark up, and is told to ask for a field seat', /field seat/.test(planControlBlock('viewer', 'markup') ?? ''));
+  ok('a viewer may not mark up, and is told to ask for Field access', /Field access/.test(planControlBlock('viewer', 'markup') ?? ''));
   ok('field / editor / owner may mark up', ['field', 'editor', 'owner'].every(r => planControlBlock(r as 'field', 'markup') === null));
   ok('an unresolved role may not mark up', !!planControlBlock(null, 'markup'));
 
@@ -236,7 +236,7 @@ console.log('\n#78 answers come only from the current revision');
   ok('only-old-revisions never says "not in your plans"', /isn't indexed yet/.test(staleMatchesNote(2, false) ?? '') && !/couldn't find/i.test(staleMatchesNote(2, false) ?? ''));
   ok('a mixed answer still says what was left out', /2 matches came from a superseded or deleted sheet/.test(staleMatchesNote(2, true) ?? ''));
   ok('nothing dropped, nothing said', staleMatchesNote(0, true) === null);
-  ok('the index button names changed sheets', changedSinceIndexLabel(3) === 'Index 3 changed sheets — answers may be from older revisions');
+  ok('the index button names changed sheets', changedSinceIndexLabel(3) === 'Index 3 changed sheets. Answers may be from older revisions.');
   ok('an unreadable manifest claims nothing', changedSinceIndexLabel(null) === null);
 
   const ayp = code('utils/plans/askYourPlans.ts');
@@ -345,10 +345,10 @@ console.log('\n#163 Ask has its own door');
   ok('the viewer\'s Ask button opens it too', /pathname: '\/plans' as never, params: \{ projectId: sheet\.projectId, ask: '1' \}/.test(code('app/plan-viewer.tsx')));
   ok('`ask=1` opens the sheet on arrival', /useState<boolean>\(params\.ask === '1'\)/.test(plans));
   const panel = code('components/plans/AskPlansPanel.tsx');
-  ok('the Business lock has a way through it', /label="See Business plan"/.test(panel));
+  ok('the Business lock has a way through it', /label="See Business Plan"/.test(panel));
   const pi = code('app/plan-intelligence.tsx');
   ok('the estimate picker lists current sheets only', /getPlanSheetsForProject\(projectId\)\.filter\(s => !s\.superseded\)/.test(pi));
-  ok('the picker says a tap starts an estimate', /Estimate rooms from a sheet/.test(pi) && /uses your AI allowance/.test(pi));
+  ok('the picker says a tap starts an estimate', /Estimate Rooms from a Sheet/.test(pi) && /uses your AI allowance/.test(pi));
   ok('the estimating screen no longer hosts the Ask box', !/<AskPlansPanel/.test(pi));
   const byId = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
   ok('search "ask your plans" lands on Plans', byId.get('plans')?.synonyms.includes('ask your plans') === true);

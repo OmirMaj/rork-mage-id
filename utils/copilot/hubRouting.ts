@@ -14,10 +14,10 @@ export type HubOutcome =
   | { kind: 'no_match' }
   | { kind: 'failed'; message: string };
 
-export const NO_MATCH_COPY = 'Not sure which one that is — pick below.';
-export const NO_SIGNAL_COPY = 'No signal — pick one below; what you typed comes with you.';
-export const SESSION_EXPIRED_COPY = 'Session expired — sign in again.';
-export const ROUTER_FAILED_COPY = 'Couldn’t sort that out — pick one below; what you typed comes with you.';
+export const NO_MATCH_COPY = 'Not sure which one that is. Pick below.';
+export const NO_SIGNAL_COPY = 'No signal. Pick one below; what you typed comes with you.';
+export const SESSION_EXPIRED_COPY = 'Session expired. Sign in again.';
+export const ROUTER_FAILED_COPY = 'Couldn’t sort that out. Pick one below; what you typed comes with you.';
 
 /** "Add three tasks after rough-in: A, B, C" can come back from the splitter
  *  as three 'schedule' actions — three queue cards, each opening the editor
@@ -50,7 +50,7 @@ export function mergeScheduleActions(actions: SplitAction[], utterance?: string)
 export function scheduleCardsLast(actions: SplitAction[]): SplitAction[] {
   return [...actions.filter(a => a.capabilityId !== 'schedule'), ...actions.filter(a => a.capabilityId === 'schedule')];
 }
-export const SCHEDULE_CARD_LAST_COPY = 'Opens the schedule — handle the others first';
+export const SCHEDULE_CARD_LAST_COPY = 'Opens the schedule. Handle the others first.';
 
 /** `utterance`: what he typed, so a multi-part schedule request stays whole
  *  (mergeScheduleActions). */

@@ -15,14 +15,14 @@ import { PDF_PALETTE as P, PDF_FONT_DISPLAY } from '@/utils/pdfDesign';
 
 // Labels printed on the packet come from maps, never from the raw enum.
 const PROJECT_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', estimated: 'Estimated', in_progress: 'In progress', completed: 'Completed', closed: 'Closed',
+  draft: 'Draft', estimated: 'Estimated', in_progress: 'In Progress', completed: 'Completed', closed: 'Closed',
 };
 const INVOICE_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', sent: 'Sent', partially_paid: 'Partially paid', paid: 'Paid', overdue: 'Overdue',
+  draft: 'Draft', sent: 'Sent', partially_paid: 'Partially Paid', paid: 'Paid', overdue: 'Overdue',
 };
 const INVOICE_TYPE_LABEL: Record<string, string> = { full: 'Full', progress: 'Progress' };
 const PUNCH_STATUS_LABEL: Record<string, string> = {
-  open: 'Open', in_progress: 'In progress', ready_for_review: 'Ready for review', closed: 'Closed',
+  open: 'Open', in_progress: 'In Progress', ready_for_review: 'Ready for Review', closed: 'Closed',
 };
 const QUALITY_LABEL: Record<string, string> = {
   economy: 'Economy', standard: 'Standard', premium: 'Premium', luxury: 'Luxury',
