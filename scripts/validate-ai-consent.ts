@@ -1464,7 +1464,7 @@ function partC5(files: string[]) {
     && describeError(new Error(AI_CONSENT_OFF_MESSAGE), { action: 'x' }).body === AI_CONSENT_OFF_MESSAGE);
   const other = describeError(plain, { action: 'run the risk forecast' });
   ok('describeError(any other failure): unchanged copy, and never the raw text',
-    other.title === "That didn't go through" && other.body.startsWith("MAGE couldn't run the risk forecast.") && !other.body.includes('Gemini 503'));
+    other.title === "That didn't go through." && other.body.startsWith("MAGE couldn't run the risk forecast.") && !other.body.includes('Gemini 503'));
   const untyped: string[] = [];
   let typedThrows = 0;
   for (const [file, code] of codeOf) {

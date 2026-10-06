@@ -1617,7 +1617,7 @@ export function invoiceRoleBlockedCopy(
         body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this project yet."} Invoices open once MAGE can check who owns the project.`,
       };
     case 'collaborator':
-      return { title: 'Only the Project Owner Bills', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
+      return { title: 'Only the project owner bills.', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
     default:
       return { title: 'You’re not on this project', body: `This project is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
   }

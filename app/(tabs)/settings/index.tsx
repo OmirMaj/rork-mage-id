@@ -895,7 +895,7 @@ export default function SettingsScreen() {
     // onboarding. They belong to this same account, so keeping them leaks
     // nothing; the profile re-read still overwrites them when it lands.
     if (sourceFailed) {
-      showAlert('Reset Needs a Connection', 'MAGE can’t reach your account right now, so your projects couldn’t reload after a reset. Nothing was changed. Try again when you’re back online.');
+      showAlert('Reset needs a connection.', 'MAGE can’t reach your account right now, so your projects couldn’t reload after a reset. Nothing was changed. Try again when you’re back online.');
       return;
     }
     await dropPendingWrites();
@@ -905,7 +905,7 @@ export default function SettingsScreen() {
       if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
     } catch (e) {
       console.warn('[Settings] device reset failed:', rawErrorMessage(e));
-      showAlert('Reset Didn’t Finish', 'MAGE couldn’t clear this device’s saved copy. Nothing on your account was changed. Try again.');
+      showAlert('Reset didn’t finish.', 'MAGE couldn’t clear this device’s saved copy. Nothing on your account was changed. Try again.');
       return;
     }
     // Reload instead of zeroing. The old code emptied the caches with
@@ -1000,7 +1000,7 @@ export default function SettingsScreen() {
                     style: 'destructive',
                     onPress: async (input?: string) => {
                       if (input !== 'DELETE') {
-                        showAlert('Confirmation Didn\'t Match', 'Type DELETE in all caps to confirm.');
+                        showAlert('Confirmation didn\'t match.', 'Type DELETE in all caps to confirm.');
                         return;
                       }
                       await runDeleteAccount();

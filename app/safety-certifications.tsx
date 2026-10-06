@@ -294,7 +294,7 @@ function SafetyCertificationsInner() {
         const msg = e instanceof Error ? e.message : '';
         setScanNote(msg || t('safety.cert.cardScanningIsntAvailable', "Card scanning isn't available on your plan right now."));
         showAlert(
-          code === 'tier_required' ? t('safety.cert.notIncludedInYour', 'Not Included in Your Plan') : t('safety.cert.youveHitThisMonths', "You've hit this month's limit"),
+          code === 'tier_required' ? t('safety.cert.notIncludedInYour', 'Not Included in Your Plan') : t('safety.cert.youveHitThisMonths', "You've hit this month's limit."),
           msg || t('safety.cert.cardScanningIsntAvailable', "Card scanning isn't available on your plan right now."),
           [
             { text: t('safety.cert.notNow', 'Not Now'), style: 'cancel' },

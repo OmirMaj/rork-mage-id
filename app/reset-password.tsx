@@ -92,7 +92,7 @@ export default function ResetPasswordScreen() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      showAlert("Passwords Don't Match", 'Enter the same password in both fields.');
+      showAlert("Passwords don't match.", 'Enter the same password in both fields.');
       return;
     }
 

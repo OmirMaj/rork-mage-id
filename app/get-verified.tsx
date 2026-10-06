@@ -83,8 +83,8 @@ export default function GetVerifiedScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust and credibility</Text>
-          <Text style={styles.title}>Get verified</Text>
+          <Text style={styles.eyebrow}>Trust and Credibility</Text>
+          <Text style={styles.title}>Get Verified</Text>
         </View>
       </View>
       <ProfileLoadNotice testID="get-verified-loading" />
@@ -140,7 +140,7 @@ function GetVerifiedForm() {
     // Checked as a real calendar day, not a shape: '2026-02-30' matches the
     // placeholder, and the profile's date column would refuse it along with
     // the rest of the settings save.
-    if (expires.trim() && !licenceExpiryColumnValue(expires)) return 'Enter the expiration date as YYYY-MM-DD, e.g. 2027-06-30.';
+    if (expires.trim() && !licenceExpiryColumnValue(expires)) return 'Enter the expiration date as YYYY-MM-DD, like 2027-06-30.';
     return null;
   }, [licenseNumber, jurisdiction, expires]);
 
@@ -215,12 +215,12 @@ function GetVerifiedForm() {
 
       const res = await sendEmail({
         to: VERIFY_INBOX,
-        subject: `Verification request — ${companyName}`,
+        subject: `Verification request: ${companyName}`,
         html,
         replyTo: user.email ?? undefined,
         attachments: docUri ? [docUri] : undefined,
       });
-      if (!res.success) throw new Error(res.error ?? 'Send failed');
+      if (!res.success) throw new Error(res.error ?? 'Send Failed');
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubmitted(true);
@@ -239,7 +239,7 @@ function GetVerifiedForm() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.successWrap}>
           <View style={styles.successIcon}><CheckCircle2 size={40} color={themeColors.success} strokeWidth={1.75} /></View>
-          <Text style={styles.successTitle}>Request sent</Text>
+          <Text style={styles.successTitle}>Request Sent</Text>
           <Text style={styles.successBody}>
             Our team will review your license and verify your account, usually within 1–2 business days.
             Once verified, you&apos;ll be eligible for &quot;Verified pros only&quot; projects.
@@ -262,8 +262,8 @@ function GetVerifiedForm() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust and credibility</Text>
-          <Text style={styles.title}>Get verified</Text>
+          <Text style={styles.eyebrow}>Trust and Credibility</Text>
+          <Text style={styles.title}>Get Verified</Text>
         </View>
       </View>
 
@@ -282,36 +282,36 @@ function GetVerifiedForm() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>License number *</Text>
+          <Text style={styles.label}>License Number *</Text>
           <TextInput
             style={styles.input}
             value={licenseNumber}
             onChangeText={setLicenseNumber}
-            placeholder="e.g. 1024567"
+            placeholder="1024567"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="characters"
           />
 
-          <Text style={[styles.label, { marginTop: 14 }]}>License type</Text>
+          <Text style={[styles.label, { marginTop: 14 }]}>License Type</Text>
           <TextInput
             style={styles.input}
             value={licenseType}
             onChangeText={setLicenseType}
-            placeholder="e.g. General Contractor (B)"
+            placeholder="General Contractor (B)"
             placeholderTextColor={themeColors.textMuted}
           />
 
-          <Text style={[styles.label, { marginTop: 14 }]}>Issuing state *</Text>
+          <Text style={[styles.label, { marginTop: 14 }]}>Issuing State *</Text>
           <TouchableOpacity
             style={[styles.input, styles.selectInput]}
             onPress={() => setShowStatePicker(true)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Issuing state"
+            accessibilityLabel="Issuing State"
             testID="get-verified-state"
           >
             <Text style={jurisdiction ? styles.selectText : styles.selectPlaceholder}>
-              {US_STATES.find(st => st.code === jurisdiction)?.name ?? 'Choose a state'}
+              {US_STATES.find(st => st.code === jurisdiction)?.name ?? 'Choose a State'}
             </Text>
             <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -321,7 +321,7 @@ function GetVerifiedForm() {
             </Text>
           ) : null}
 
-          <Text style={[styles.label, { marginTop: 14 }]}>Expiration date</Text>
+          <Text style={[styles.label, { marginTop: 14 }]}>Expiration Date</Text>
           <TextInput
             style={styles.input}
             value={expires}
@@ -338,7 +338,7 @@ function GetVerifiedForm() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>License document or photo</Text>
+          <Text style={styles.label}>License Document or Photo</Text>
           <Text style={styles.helper}>Optional but speeds up review. A clear photo of your license card or certificate.</Text>
           {docUri ? (
             <View style={styles.docPreview}>
@@ -350,7 +350,7 @@ function GetVerifiedForm() {
           ) : (
             <TouchableOpacity style={styles.docPick} onPress={pickDocument} activeOpacity={0.85}>
               <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.docPickText}>Add document</Text>
+              <Text style={styles.docPickText}>Add Document</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -374,7 +374,7 @@ function GetVerifiedForm() {
           ) : (
             <>
               <Send size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.submitBtnText}>Request verification</Text>
+              <Text style={styles.submitBtnText}>Request Verification</Text>
             </>
           )}
         </TouchableOpacity>
@@ -388,7 +388,7 @@ function GetVerifiedForm() {
         <View style={[styles.modalOverlay, fState.overlay]}>
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fState.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Issuing state</Text>
+              <Text style={styles.modalTitle}>Issuing State</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>

@@ -229,7 +229,7 @@ export function ShellDockHost({ visible = true, suppressId = null }: { visible?:
       // on its own suppressing page a Cmd+J would flip an invisible dock, and
       // it would come back hidden later with no visible way to tell why.
       {...(visible && !suppressedNow ? { onToggle: toggle } : null)}
-      title={options.title ?? 'Side panel'}
+      title={options.title ?? 'Side Panel'}
       panelId="shell-dock"
       defaultWidth={options.width}
       // The page's column: the window less the sidebar the shell is showing

@@ -157,7 +157,7 @@ console.log('\n1. utils/sampleGuard — the rule');
   const plan = G.sampleSendPlan({ name: DEMO_FLAVORS.small.name }, 'gc@example.com');
   ok('a sample: locked to him, no portal post, no pay link, nobody notified, "Send to me"',
     plan.sample === true && plan.to === 'gc@example.com' && plan.postToPortal === false && plan.mintPayLink === false
-      && plan.notifyOthers === false && plan.buttonLabel === 'Send to me' && plan.note === G.SAMPLE_SEND_NOTE, JSON.stringify(plan));
+      && plan.notifyOthers === false && plan.buttonLabel === 'Send to Me' && plan.note === G.SAMPLE_SEND_NOTE, JSON.stringify(plan));
   const noEmail = G.sampleSendPlan({ name: DEMO_FLAVORS.small.name }, null);
   ok('a sample with no email on record: to is null (never the client)', noEmail.sample === true && noEmail.to === null);
 
@@ -173,7 +173,7 @@ console.log('\n1. utils/sampleGuard — the rule');
   const copy = [G.SAMPLE_SEND_NOTE, G.SAMPLE_NOTHING_SENT, G.SAMPLE_PAY_SPECIMEN_NOTE, G.SAMPLE_SEND_TO_ME_LABEL];
   ok('the guard copy is honest and plain (no emoji, says "sample")',
     copy.every(c => !/\p{Extended_Pictographic}/u.test(c)) && /sample/i.test(G.SAMPLE_SEND_NOTE) && /sample/i.test(G.SAMPLE_NOTHING_SENT));
-  // It sits on the invoice screen whose "Send to me" really emails him, so a
+  // It sits on the invoice screen whose "Send to Me" really emails him, so a
   // blanket "nothing is sent" is false; it must name what it refuses.
   ok('the refusal copy names what it refuses, never "nothing is sent"',
     !/nothing is sent/i.test(G.SAMPLE_NOTHING_SENT) && /reminder/i.test(G.SAMPLE_NOTHING_SENT) && /pay link/i.test(G.SAMPLE_NOTHING_SENT));

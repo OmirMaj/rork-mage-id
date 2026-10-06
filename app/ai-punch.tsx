@@ -329,7 +329,7 @@ function AiPunchScreenInner() {
     // whole fix and this early return becomes the bug.
     if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
       showAlert(
-        t('field.punch.ai.punchFromPhotosIs', 'Punch from Photos Is on the Pro Plan'),
+        t('field.punch.ai.punchFromPhotosIs', 'Punch from Photos is on the Pro plan.'),
         t('field.punch.ai.youWereInvitedTo', 'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.'),
         // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
         // at least deep-linked here, and losing that would trade one dead end

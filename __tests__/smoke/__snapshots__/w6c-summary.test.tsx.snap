@@ -2,14 +2,14 @@
 
 exports[`lane DC — Summary on the phone (golden, 390 × 844 iOS) /(tabs)/summary, the fixture world 1`] = `
 {
-  "lines": 778,
-  "sha256": "2cd3dbefed869ddcb6a4c0a8cc1d827bc3ae682fda3f344122d383037a804fca",
+  "lines": 776,
+  "sha256": "65f3a2a2a28182f8d4d41e32891134ca24bc130b1fb61e13bb07aeae4990e0e8",
 }
 `;
 
 exports[`lane DC — Summary on the phone (golden, 390 × 844 iOS) /(tabs)/summary, with a job on site today 1`] = `
 {
-  "lines": 862,
-  "sha256": "aa5b8e68e3f1a9f002f8ef7241b0f2b236f28fd09bb7e0594c62416a2b2c5830",
+  "lines": 860,
+  "sha256": "5e225f7c607c4ea08f4eeac92c533459f0ab453a0e2d0ae67c1dfbb7fb8f90d5",
 }
 `;

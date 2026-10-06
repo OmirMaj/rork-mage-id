@@ -1211,7 +1211,7 @@ const NO_VERBATIM = 'Write every requirement in your own words. Never quote or r
   const dq = read('components/buildingRecord/DraftQuestionButton.tsx');
   ok('the town branch routes with routeOfficeQuestion', /routeOfficeQuestion\(office\)/.test(dq));
   ok('the town branch is decided before any hook, by askTownKind', /if \(project && askTownKind\(project\) === 'town'\) \{/.test(between(dq, 'export function DraftQuestionButton(', 'function DraftQuestionInner(')));
-  ok('a town that cannot be found says so instead of opening nothing', dq.includes("'Town not found'"));
+  ok('a town that cannot be found says so instead of opening nothing', dq.includes("'Town Not Found'"));
 
   // Plan Set Code Sweep.
   const sweep = read('components/plans/PlanSweepPanel.tsx');

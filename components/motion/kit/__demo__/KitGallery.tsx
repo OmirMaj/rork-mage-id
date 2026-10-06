@@ -32,9 +32,9 @@ export function galleryPalette(mode: 'light' | 'dark'): ThemeColors {
 
 const REPORTS = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}`, title: `Daily report ${i + 1}`, note: i % 3 === 0 ? 'Crew of 6, concrete pour' : 'Framing, second floor' }));
 const LINES = [
-  { key: 'sill', cents: 140000, label: 'Rotted sill plate' },
-  { key: 'wire', cents: 82000, label: 'Knob-and-tube wiring' },
-  { key: 'drain', cents: 61000, label: 'Cast-iron drain' },
+  { key: 'sill', cents: 140000, label: 'Rotted Sill Plate' },
+  { key: 'wire', cents: 82000, label: 'Knob-and-Tube Wiring' },
+  { key: 'drain', cents: 61000, label: 'Cast-Iron Drain' },
 ];
 const BIDS = [
   { key: 'b1', label: 'Concrete', evidence: ['$48,200', 'Includes pump'] },
@@ -63,7 +63,7 @@ export function KitGallery({ mode = 'light', armed = true, thinking = true, test
         <ChatTurn role="user" live={armed} variant="page" style={s.bubble}><Text style={text}>Which RFIs are late?</Text></ChatTurn>
         <ThinkingRow
           visible={thinking}
-          label="Reading your records"
+          label="Reading Your Records"
           stillLabel="Still working on it"
           a11yLabel="Reading your records"
           textStyle={s.muted}

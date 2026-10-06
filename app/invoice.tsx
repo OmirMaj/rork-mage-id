@@ -1208,7 +1208,7 @@ function InvoiceInner() {
       const outcome = await markMilestoneInvoiced(contractId, milestoneId, invoice.id);
       if (outcome === 'already') {
         showAlert(
-          'Milestone Was Already Billed',
+          'Milestone was already billed.',
           `Invoice #${invoice.number} was created, but this contract milestone had already been invoiced elsewhere. Check the payment schedule so the client isn't billed twice.`,
         );
       } else if (outcome !== 'flipped') {
@@ -1230,7 +1230,7 @@ function InvoiceInner() {
     if (sendingRef.current) return;
     if (!projectId) return;
     if (billingBlocked) {
-      showAlert('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills.', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     if (lineItems.length === 0) {
@@ -1315,7 +1315,7 @@ function InvoiceInner() {
     // #34: the sheet must not reopen and queue a second send mid-flight.
     if (sendingRef.current) return;
     if (billingBlocked) {
-      showAlert('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills.', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     // Same wait as handleSave: never open Send on terms still "Checking…".
@@ -1370,7 +1370,7 @@ function InvoiceInner() {
   // handleConfirmSend below.
   const runConfirmSend = useCallback(async (): Promise<'left' | void> => {
     if (billingBlocked) {
-      showAlert('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills.', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     // Last line of the sample invariant: whatever the sheet shows, a sample's
@@ -1907,7 +1907,7 @@ function InvoiceInner() {
       if (!pdfUri) {
         const proceedWithoutPdf = await new Promise<boolean>((resolve) => {
           showAlert(
-            'PDF Could Not Be Attached',
+            'PDF could not be attached.',
             Platform.OS === 'web'
               ? `The web app cannot generate the invoice PDF file, so nothing can be attached to this email.\n\nWe can still email ${options.recipient.trim()} the invoice summary: amount due, terms${payLinkUrl ? ' and the Pay button' : ''}. To send the PDF itself, use Share instead and save it from the print dialog, or send from the iPhone app.`
               : `The invoice PDF could not be generated on this device, so nothing can be attached.\n\nWe can still email ${options.recipient.trim()} the invoice summary without it.`,
@@ -2518,7 +2518,7 @@ function InvoiceInner() {
       return;
     }
     if (amt > retentionPending + 0.001) {
-      showAlert('More Than Is Pending', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
+      showAlert('More than is pending.', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
       return;
     }
     // MONEY-F7: ONE meaning — released = now collectible. The amount flows
@@ -2543,7 +2543,7 @@ function InvoiceInner() {
       },
     );
     if (!outcome) {
-      showAlert('More Than Is Pending', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
+      showAlert('More than is pending.', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
       return;
     }
     updateInvoice(existingInvoice.id, outcome.patch);
@@ -2601,7 +2601,7 @@ function InvoiceInner() {
     // the rest of the balance is real.
     if (pendingBankPayment && !confirmedDespitePending.current) {
       showAlert(
-        'A Bank Payment Is Processing',
+        'A bank payment is processing.',
         `${pendingBankPayment.line}. It is credited automatically when it clears. Record a different payment anyway?`,
         [
           { text: 'Cancel', style: 'cancel' },
@@ -3474,7 +3474,7 @@ function InvoiceInner() {
                 onPress={() => {
                   if (!qboClosedFlag) { void handleSendReminder(); return; }
                   showAlert(
-                    'QuickBooks Shows This Invoice Closed',
+                    'QuickBooks shows this invoice closed.',
                     // The reason follows the flag's own kind (void / refund
                     // gap / credit) — one fixed sentence was wrong for two.
                     `${qboClosedFlagAlertReason(qboClosedFlag)} Send a reminder to the client anyway?`,

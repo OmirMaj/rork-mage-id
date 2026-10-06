@@ -1,9 +1,9 @@
 // scripts/validate-w5-push-unsub-copy.ts — wave 5, lane push-unsub:
-// the push ask promises only what "Notify me" turns on; the digest copy says
+// the push ask promises only what "Notify Me" turns on; the digest copy says
 // where the digest goes.
 //
 //   #132  The one push-permission ask promised "a short brief each morning".
-//         Tapping "Notify me" only registers the device token; the brief is
+//         Tapping "Notify Me" only registers the device token; the brief is
 //         morning-digest, which runs only for profiles.digest_enabled = true —
 //         default false, set by nothing in this flow — so it never came. The
 //         same body also promised a push when "an invoice goes past due", and
@@ -37,7 +37,7 @@ function ok(name: string, cond: boolean, detail?: string) {
 
 // ── 1. the confirm action turns on the token and nothing else ────────────────
 // (NotificationContext is read, never edited, by this lane.) If a later change
-// makes "Notify me" also switch the brief on, this check is where the claim
+// makes "Notify Me" also switch the brief on, this check is where the claim
 // list may grow to include it — and not before.
 const nc = read('contexts/NotificationContext.tsx');
 ok('"Notify me" calls enablePush() and nothing else',
@@ -137,13 +137,13 @@ ok('morning-digest only runs for digest_enabled = true', /\.eq\('digest_enabled'
 ok('digestRecipientLine names the sign-in address', digestRecipientLine(' gc@builder.com ') === 'Sent to your sign-in address, gc@builder.com.');
 ok('digestRecipientLine says nothing without an address', digestRecipientLine('') === null && digestRecipientLine(null) === null && digestRecipientLine(undefined) === null);
 const sent = morningPreviewCopy({ sent: true }, 'gc@builder.com');
-ok('a sent preview says which inbox', sent.title === 'Preview sent' && sent.message.startsWith('Sent to your sign-in address, gc@builder.com. Check your inbox'), sent.message);
+ok('a sent preview says which inbox', sent.title === 'Preview Sent' && sent.message.startsWith('Sent to your sign-in address, gc@builder.com. Check your inbox'), sent.message);
 ok('an older caller (no address) still gets the plain sent copy', morningPreviewCopy({ sent: true }).message.startsWith('Check your inbox'));
 const noEmail = morningPreviewCopy({ sent: false, reason: 'no_email' });
 const unknownCopy = morningPreviewCopy({ sent: false, reason: 'recipient_unknown' });
 ok('recipient_unknown (lookup failed) says try again — never "no address" or "no projects"',
-  unknownCopy.title === 'Preview not sent' && /Try again/.test(unknownCopy.message) && !/project/i.test(unknownCopy.title + unknownCopy.message), unknownCopy.message);
-ok('no_email now describes an account signed in without an address', /signed in without an email address/.test(noEmail.message) && noEmail.title === 'No email address', noEmail.message);
+  unknownCopy.title === 'Preview Not Sent' && /Try again/.test(unknownCopy.message) && !/project/i.test(unknownCopy.title + unknownCopy.message), unknownCopy.message);
+ok('no_email now describes an account signed in without an address', /signed in without an email address/.test(noEmail.message) && noEmail.title === 'No Email Address', noEmail.message);
 
 console.info(`\n${fail === 0 ? `validate-w5-push-unsub-copy: ${pass} checks passed` : `${fail} of ${pass + fail} checks FAILED`}\n`);
 process.exit(fail === 0 ? 0 : 1);

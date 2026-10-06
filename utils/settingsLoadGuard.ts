@@ -355,17 +355,17 @@ export function applyHeldSettings(loaded: AppSettings, held: Partial<AppSettings
 // ─── What a blocked control and a label say ─────────────────────────────────
 
 /** Shown when a gate is pressed while the profile read is still out. */
-export const PROFILE_LOADING_REASON = 'Loading your company profile — try again in a second.';
+export const PROFILE_LOADING_REASON = 'Loading your company profile. Try again in a second.';
 export const PROFILE_FAILED_TITLE = 'Couldn’t load your company profile';
 /** Said plainly, with what still works: his jobs are on the phone; what
  *  waits is anything that prints his company details or terms. */
-export const PROFILE_FAILED_REASON = 'MAGE can’t be reached right now — check your signal. Your jobs on this phone still open and save. Anything that prints your company name, contact details or payment terms waits until your profile loads.';
+export const PROFILE_FAILED_REASON = 'MAGE can’t be reached right now. Check your signal. Your jobs on this phone still open and save. Anything that prints your company name, contact details or payment terms waits until your profile loads.';
 
 /** The alert a profile-gated press shows before the profile has loaded. */
 export function profileGateNotice(input: { failed: boolean }): { title: string; message: string } {
   return input.failed
     ? { title: PROFILE_FAILED_TITLE, message: PROFILE_FAILED_REASON }
-    : { title: 'One second', message: PROFILE_LOADING_REASON };
+    : { title: 'One Second', message: PROFILE_LOADING_REASON };
 }
 
 export type SavedTermsStatus = 'loading' | 'failed' | 'ready';
@@ -374,7 +374,7 @@ export type SavedTermsStatus = 'loading' | 'failed' | 'ready';
  *  may well have set it. */
 export const SAVED_TERMS_PENDING_LABEL: Record<Exclude<SavedTermsStatus, 'ready'>, string> = {
   loading: 'Loading…',
-  failed: 'Couldn’t load',
+  failed: 'Couldn’t Load',
 };
 
 /**

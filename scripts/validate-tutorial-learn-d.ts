@@ -126,7 +126,7 @@ console.log('lane D tutorials\nfixtures');
   ok('legal rule: the set-up ids are not (and neither is "design" / "assign")',
     notLegal.every(x => !isLegalOrOutboundTarget(x)), notLegal.filter(isLegalOrOutboundTarget).join(', '));
   ok('legal rule: the three named LOOK-ONLY targets are on the list', ['contract.sign', 'payApp.certifyExplain', 'binder.deliver'].every(x => (LANE_D_LEGAL_TARGETS as readonly string[]).includes(x)));
-  ok('the sample refusal is the spec\'s sentence', SAMPLE_DOC_NOT_SENT === 'Sample job — contracts, pay applications and binders never go out from a sample.');
+  ok('the sample refusal is the spec\'s sentence', SAMPLE_DOC_NOT_SENT === 'Sample job. Contracts, pay applications and binders never go out from a sample.');
 }
 
 // ── 2. defs ─────────────────────────────────────────────────────────────────

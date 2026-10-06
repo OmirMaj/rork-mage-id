@@ -146,7 +146,7 @@ describe('Contacts register (real DOM, 1512)', () => {
     expect(split.open).not.toHaveBeenCalled();
     const [title, , buttons] = lastAlert();
     expect(title).toBe('Discard changes?');
-    expect(buttons!.map((b) => b.text)).toEqual(['Keep editing', 'Discard']);
+    expect(buttons!.map((b) => b.text)).toEqual(['Keep Editing', 'Discard']);
     await act(async () => { buttons![1].onPress?.(); });
     expect(split.open).toHaveBeenCalledWith('con-2');
   });
@@ -177,7 +177,7 @@ describe('Contacts register (real DOM, 1512)', () => {
     await click(byId(el, 'contacts-register-csv')!);
     const call = (deliverTextFile as jest.Mock).mock.calls[0];
     expect(call[0]).toBe(`contacts-${localDay(new Date())}.csv`);
-    expect(String(call[1]).split('\r\n')[0]).toContain('Name,First name,Last name,Company,Role');
+    expect(String(call[1]).split('\r\n')[0]).toContain('Name,First Name,Last Name,Company,Role');
   });
 
   it("'n' outside a field opens New", async () => {

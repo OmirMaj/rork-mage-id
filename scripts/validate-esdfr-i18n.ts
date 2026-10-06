@@ -60,7 +60,7 @@ console.log('\ndailyLogCompletion — English unchanged, Spanish whole sentences
   const oldEmpty = (c: DailyLogCompletion) => {
     if (!c.hasRecord || c.emptyDayFilings === 0) return null;
     const n = c.emptyDayFilings;
-    return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.`;
+    return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count: a filed day with nothing on it still keeps the record unbroken.`;
   };
   const oldGap = (c: DailyLogCompletion) => {
     if (!c.hasRecord || c.missedDays === 0) return null;

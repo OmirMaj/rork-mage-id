@@ -8,7 +8,7 @@
 // few of those fixes live in shared tables that one careless edit reverts for
 // every screen at once, so this guard pins the tables, not individual screens:
 //
-//   1. The purchase alerts say "You're on Pro", never "Welcome to Pro!".
+//   1. The purchase alerts say "You're on Pro.", never "Welcome to Pro!".
 //   2. Every Title Case feature string a caller hands components/Paywall has a
 //      sentence-case heading in FEATURE_TITLE (the key itself stays, callers
 //      and FEATURE_PITCH match on it).
@@ -70,7 +70,7 @@ for (const f of ['app/paywall.tsx', 'components/Paywall.tsx', 'app/onboarding-pa
   ok(`${f}: no "Welcome to …!"`, !/Welcome to [^'"`]*!/.test(src));
   ok(`${f}: no "Purchase Failed" / "Please try again."`, !/Purchase Failed|Please try again\./.test(src));
 }
-ok('app/paywall.tsx: the Pro alert says "You\'re on Pro"', /showAlert\("You're on Pro", 'Every Pro feature is on for your account\.'\)/.test(read('app/paywall.tsx')));
+ok('app/paywall.tsx: the Pro alert says "You\'re on Pro"', /showAlert\("You're on Pro.", 'Every Pro feature is on for your account\.'\)/.test(read('app/paywall.tsx')));
 
 // ── 2. Paywall headings ─────────────────────────────────────────────────────
 console.log('\n2. Paywall headings for Title Case feature strings');

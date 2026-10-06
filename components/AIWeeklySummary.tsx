@@ -29,8 +29,8 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  on_track: { icon: CheckCircle2, color: Colors.successDark, label: 'On track', bg: Colors.successLight },
-  at_risk: { icon: AlertTriangle, color: Colors.warningLabel, label: 'At risk', bg: Colors.warningLight },
+  on_track: { icon: CheckCircle2, color: Colors.successDark, label: 'On Track', bg: Colors.successLight },
+  at_risk: { icon: AlertTriangle, color: Colors.warningLabel, label: 'At Risk', bg: Colors.warningLight },
   behind: { icon: AlertTriangle, color: "#C84038", label: 'Behind', bg: Colors.errorLight },
   ahead: { icon: TrendingUp, color: "#1565C0", label: 'Ahead', bg: Colors.infoLight },
 } as const;
@@ -128,7 +128,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={18} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>Full project analysis</Text>
+            <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
@@ -136,13 +136,13 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
         {paywallReason ? (
           <View style={styles.loadingState}>
             <MageAIMark size={40} color={themeColors.accent} />
-            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>On the Pro plan</Text>
+            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>On the Pro Plan</Text>
             <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
           </View>
         ) : error && !result ? (
           <View style={styles.loadingState}>
             <AlertTriangle size={28} color={themeColors.dangerLabel} strokeWidth={1.75} />
-            <Text style={[styles.headerTitle, { textAlign: 'center' }]}>Analysis didn&apos;t run</Text>
+            <Text style={[styles.headerTitle, { textAlign: 'center' }]}>Analysis Didn’t Run</Text>
             <Text style={[styles.loadingSubtext, { textAlign: 'center', paddingHorizontal: 32 }]}>{error}</Text>
             <TouchableOpacity
               style={styles.retryBtn}
@@ -150,7 +150,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               activeOpacity={0.85}
               accessibilityRole="button"
             >
-              <Text style={styles.retryBtnText}>Try again</Text>
+              <Text style={styles.retryBtnText}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : isLoading && !result ? (
@@ -165,7 +165,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             </View>
 
             <View style={styles.overviewCard}>
-              <Text style={styles.sectionLabel}>Portfolio overview</Text>
+              <Text style={styles.sectionLabel}>Portfolio Overview</Text>
               <View style={styles.overviewGrid}>
                 <View style={styles.overviewItem}>
                   <Text style={styles.overviewValue}>{result.portfolioSummary?.totalProjects ?? 0}</Text>
@@ -173,11 +173,11 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                 </View>
                 <View style={styles.overviewItem}>
                   <Text style={[styles.overviewValue, { color: themeColors.successLabel }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>On track</Text>
+                  <Text style={styles.overviewLabel}>On Track</Text>
                 </View>
                 <View style={styles.overviewItem}>
                   <Text style={[styles.overviewValue, { color: Colors.warningLabel }]}>{result.portfolioSummary?.atRisk ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>At risk</Text>
+                  <Text style={styles.overviewLabel}>At Risk</Text>
                 </View>
                 <View style={styles.overviewItem}>
                   <Text style={styles.overviewValue}>{result.portfolioSummary?.tasksCompletedThisWeek ?? 0}</Text>
@@ -185,7 +185,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                 </View>
               </View>
               <View style={styles.combinedValue}>
-                <Text style={styles.combinedLabel}>Combined portfolio value</Text>
+                <Text style={styles.combinedLabel}>Combined Portfolio Value</Text>
                 <Text style={styles.combinedAmount}>{formatCurrency(result.portfolioSummary?.combinedValue ?? 0)}</Text>
               </View>
             </View>
@@ -197,7 +197,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               <View style={styles.issuesSection}>
                 <View style={styles.issuesHeader}>
                   <AlertTriangle size={16} color={"#C84038"} strokeWidth={1.75} />
-                  <Text style={styles.issuesTitle}>Issues breakdown</Text>
+                  <Text style={styles.issuesTitle}>Issues Breakdown</Text>
                   <View style={styles.issuesCountPill}>
                     <Text style={styles.issuesCountText}>{result.criticalIssues.length}</Text>
                   </View>
@@ -253,7 +253,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                               <Wrench size={11} color={Colors.successDark} strokeWidth={1.75} />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>Next step</Text>
+                              <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>Next Step</Text>
                               <Text style={[styles.issueRowText, styles.issueRowFixText]}>{iss.fix}</Text>
                             </View>
                           </View>
@@ -266,7 +266,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               <View style={styles.noIssuesCard}>
                 <CheckCircle2 size={20} color={themeColors.successLabel} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.noIssuesTitle}>Nothing critical to flag</Text>
+                  <Text style={styles.noIssuesTitle}>Nothing Critical to Flag</Text>
                   <Text style={styles.noIssuesBody}>
                     MAGE found no blocking issues this week. Project status is below.
                   </Text>

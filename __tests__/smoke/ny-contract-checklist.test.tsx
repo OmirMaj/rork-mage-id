@@ -116,20 +116,20 @@ const C = 'To be confirmed by counsel';
 const P = 'Printed from your company profile.';
 const GOLDEN_BROOKLYN = [
   'summary: 4 missing · 2 to check',
-  `a-name: Your company name | Found | ${P} | GBL § 771(1)(a)`,
-  `a-address: Your business address | Found | ${P} | GBL § 771(1)(a)`,
-  `a-phone: Your phone number | Found | ${P} | GBL § 771(1)(a)`,
-  `a-licence: Your license number, if one is required | Found | New York City and some counties license home improvement contractors. | ${C} | GBL § 771(1)(a)`,
-  'b-dates: Start date and substantial completion date | Found | Set a start date and a duration on this contract. | GBL § 771(1)(b)',
-  `b-contingencies: What could change the completion date | Missing | Say what could delay the work. | ${C} | GBL § 771(1)(b)`,
-  'c-scope: A description of the work | Found | Write the scope above. | GBL § 771(1)(c)',
-  `c-materials: Materials, with make and model | Found wording, check it | Name the make and model of materials you supply. | ${C} | GBL § 771(1)(c)`,
-  'c-price: The agreed price | Found | Set the contract value. | GBL § 771(1)(c)',
-  `d-lien: Mechanic’s lien notice | Missing | A notice to the owner about liens if subs or suppliers go unpaid. Add this notice in your contract terms. | ${C} | GBL § 771(1)(d)`,
-  `e-escrow: Escrow notice for payments before completion | Missing | How payments received before the work is done are held. Add this notice in your contract terms. | ${C} | GBL § 771(1)(e)`,
-  'f-schedule: Progress payment schedule | Found | Amounts tied to stages of the work. | GBL § 771(1)(f)',
-  `h-cancel: Three-day right to cancel | Missing | The owner may cancel until midnight of the third business day after signing. Add this notice in your contract terms. | ${C} | GBL § 771(1)(h)`,
-  `i-insurance: Insurance disclosure | Found wording, check it | Your insurance details, as the law asks. Found wording. Check it with your counsel. | ${C} | GBL § 771(1)(i)`,
+  `a-name: Your Company Name | Found | ${P} | GBL § 771(1)(a)`,
+  `a-address: Your Business Address | Found | ${P} | GBL § 771(1)(a)`,
+  `a-phone: Your Phone Number | Found | ${P} | GBL § 771(1)(a)`,
+  `a-licence: Your License Number, If One Is Required | Found | New York City and some counties license home improvement contractors. | ${C} | GBL § 771(1)(a)`,
+  'b-dates: Start Date and Substantial Completion Date | Found | Set a start date and a duration on this contract. | GBL § 771(1)(b)',
+  `b-contingencies: What Could Change the Completion Date | Missing | Say what could delay the work. | ${C} | GBL § 771(1)(b)`,
+  'c-scope: A Description of the Work | Found | Write the scope above. | GBL § 771(1)(c)',
+  `c-materials: Materials, with Make and Model | Found wording, check it | Name the make and model of materials you supply. | ${C} | GBL § 771(1)(c)`,
+  'c-price: The Agreed Price | Found | Set the contract value. | GBL § 771(1)(c)',
+  `d-lien: Mechanic’s Lien Notice | Missing | A notice to the owner about liens if subs or suppliers go unpaid. Add this notice in your contract terms. | ${C} | GBL § 771(1)(d)`,
+  `e-escrow: Escrow Notice for Payments Before Completion | Missing | How payments received before the work is done are held. Add this notice in your contract terms. | ${C} | GBL § 771(1)(e)`,
+  'f-schedule: Progress Payment Schedule | Found | Amounts tied to stages of the work. | GBL § 771(1)(f)',
+  `h-cancel: Three-Day Right to Cancel | Missing | The owner may cancel until midnight of the third business day after signing. Add this notice in your contract terms. | ${C} | GBL § 771(1)(h)`,
+  `i-insurance: Insurance Disclosure | Found wording, check it | Your insurance details, as the law asks. Found wording. Check it with your counsel. | ${C} | GBL § 771(1)(i)`,
   'disclaimer: This is a checklist, not legal advice.',
 ];
 
@@ -141,7 +141,7 @@ async function pump(n = 4) {
     });
   }
 }
-const NY_TITLE = 'Some New York Items Are Missing';
+const NY_TITLE = 'Some New York items are missing.';
 const nyCalls = (spy: jest.SpyInstance) => spy.mock.calls.filter((c) => c[0] === NY_TITLE);
 const buttonsOf = (call: unknown[]) => call[2] as AlertButton[];
 
@@ -247,7 +247,7 @@ function goldens(): void {
     // A missing profile item offers the company profile.
     const onOpenProfile = jest.fn();
     const g1b = render(<NyContractChecklist project={BROOKLYN} contract={nyDraft()} branding={{ ...BRANDING, phone: '' }} onOpenProfile={onOpenProfile} />);
-    expect(textOf(g1b, 'contract-ny-item-a-phone')).toBe('Your phone number | Missing | Add it in your company profile. | Open company profile | GBL § 771(1)(a)');
+    expect(textOf(g1b, 'contract-ny-item-a-phone')).toBe('Your Phone Number | Missing | Add it in your company profile. | Open company profile | GBL § 771(1)(a)');
     fireEvent.press(g1b.getByTestId('contract-ny-profile-a-phone'));
     expect(onOpenProfile).toHaveBeenCalledTimes(1);
     g1b.unmount();

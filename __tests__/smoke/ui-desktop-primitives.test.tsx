@@ -437,7 +437,7 @@ describe('desktop (1512 web): the desktop rules', () => {
     expect(flat(r.getByTestId('rail-p0').props.style)).toMatchObject({ height: 32, maxWidth: 240 });
     fireEvent.press(r.getByText('3 more'));
     expect(r.queryByTestId('rail-p11')).toBeTruthy();
-    expect(r.getByText('Show fewer')).toBeTruthy();
+    expect(r.getByText('Show Fewer')).toBeTruthy();
   });
 
   it('ChipRail wraps; mode="scroll" keeps a VISIBLE scrollbar', () => {

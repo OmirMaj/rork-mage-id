@@ -78,7 +78,7 @@ if (P) {
   ok('an untouched field takes live, no conflict', P.rebaseFormOnLiveWithConflicts(opened, opened, live).conflicts.length === 0);
   ok('the same text on both sides is not a conflict', P.rebaseFormOnLiveWithConflicts(opened, { ...form, response: live.response }, live).conflicts.length === 0);
   ok('rebaseFormOnLive is the same rebase', JSON.stringify(P.rebaseFormOnLive(opened, form, live)) === JSON.stringify(r.next));
-  ok('the reason names the choice', /keep theirs, or replace it with yours/.test(P.RFI_RESPONSE_CONFLICT_REASON));
+  ok('the reason names the choice', /Keep theirs, or replace it with yours/.test(P.RFI_RESPONSE_CONFLICT_REASON));
 }
 {
   const eff = RFI.slice(RFI.indexOf('const lastLiveRef = useRef(existingRFI)'), RFI.indexOf('const lastLiveRef = useRef(existingRFI)') + 2400);

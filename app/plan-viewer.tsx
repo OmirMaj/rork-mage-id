@@ -332,7 +332,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   const saveSheetNumber = useCallback(() => {
     if (!sheet || numberDraft === null) return;
     const plan = planRenumber(sheet, numberDraft, projectSheets);
-    if (plan.kind === 'invalid') { showAlert('That Is Not a Sheet Number', plan.reason); return; }
+    if (plan.kind === 'invalid') { showAlert('That is not a sheet number.', plan.reason); return; }
     setNumberDraft(null);
     if (plan.kind === 'noop') return;
     patchQueue.current = [...plan.patches];

@@ -282,23 +282,23 @@ function buildDrivers(a: {
   const drivers: string[] = [];
 
   if (a.sampleSize === 0) {
-    drivers.push('No closed proposals yet — using sensible defaults. The recommendation sharpens as you mark leads won or lost.');
+    drivers.push('No closed proposals yet, so this uses sensible defaults. The recommendation sharpens as you mark leads won or lost.');
   } else {
     drivers.push(`Your proposal win rate is ${pct(a.winRate)} (${a.wins} of ${a.wins + a.losses} closed).`);
   }
 
   if (a.losses > 0) {
     if (a.priceLossShare >= 0.5) {
-      drivers.push(`Price was the dealbreaker in ${pct(a.priceLossShare)} of your losses — buyers here are price-sensitive, so odds fall fast as you mark up.`);
+      drivers.push(`Price was the dealbreaker in ${pct(a.priceLossShare)} of your losses. Buyers here are price-sensitive, so odds fall fast as you mark up.`);
     } else if (a.priceLossShare > 0) {
-      drivers.push(`Only ${pct(a.priceLossShare)} of your losses were about price — you have room to hold margin.`);
+      drivers.push(`Only ${pct(a.priceLossShare)} of your losses were about price. You have room to hold margin.`);
     } else {
-      drivers.push('None of your losses were tagged "price" — price isn\'t what\'s costing you jobs, so don\'t leave margin on the table.');
+      drivers.push('None of your losses were tagged "price". Price isn\'t what\'s costing you jobs, so don\'t leave margin on the table.');
     }
   }
 
   if (a.competitorCount > 1) {
-    drivers.push(`${a.competitorCount} bidders in play — the curve is shifted down to reflect a crowded bid.`);
+    drivers.push(`${a.competitorCount} bidders in play. The curve is shifted down to reflect a crowded bid.`);
   }
 
   const dMarkup = a.recommended.markup - a.typicalMarkup;
@@ -307,17 +307,17 @@ function buildDrivers(a: {
     const evGain = a.recommended.expectedProfit - a.atTypical.expectedProfit;
     drivers.push(
       `Recommended markup ${Math.round(a.recommended.markup * 100)}% is ${Math.round(Math.abs(dMarkup) * 100)} pts ${dir} than your usual ${Math.round(a.typicalMarkup * 100)}%` +
-      (evGain > 0 ? ` — worth ~$${Math.round(evGain).toLocaleString()} more in expected profit.` : '.'),
+      (evGain > 0 ? `, worth about $${Math.round(evGain).toLocaleString()} more in expected profit.` : '.'),
     );
   } else {
-    drivers.push(`Your usual ${Math.round(a.typicalMarkup * 100)}% markup is already near the expected-value optimum — nice instincts.`);
+    drivers.push(`Your usual ${Math.round(a.typicalMarkup * 100)}% markup is already near the expected-value optimum.`);
   }
 
   // Honest band — the optimum is a region, not a single number.
   const bandLo = Math.round(a.recommendedRange.lowMarkup * 100);
   const bandHi = Math.round(a.recommendedRange.highMarkup * 100);
   if (bandHi > bandLo) {
-    drivers.push(`Any markup from ${bandLo}% to ${bandHi}% is within a whisker of the best expected profit — treat the recommendation as a range, not a single number.`);
+    drivers.push(`Any markup from ${bandLo}% to ${bandHi}% is within a whisker of the best expected profit. Treat the recommendation as a range, not a single number.`);
   }
 
   // Censoring caveat — the model was held at the GC's own typical markup rather
@@ -327,7 +327,7 @@ function buildDrivers(a: {
   }
 
   if (a.confidence === 'low') {
-    drivers.push('Confidence: low — fewer than 5 closed proposals. Treat this as a starting point, not gospel.');
+    drivers.push('Confidence: low. Fewer than 5 closed proposals. Treat this as a starting point, not gospel.');
   }
 
   return drivers;

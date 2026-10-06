@@ -297,7 +297,7 @@ console.log('\ncomponents/CreateMenu.tsx');
   const g = greenLines(c);
   const allowed = [
     /<Plus size=\{16\} color=\{themeColors\.accent\} strokeWidth=\{2\} \/>/,
-    /<Text style=\{\[Type\.headline, \{ color: themeColors\.accent \}\]\}>Add a sub<\/Text>/,
+    /<Text style=\{\[Type\.headline, \{ color: themeColors\.accent \}\]\}>Add a Sub<\/Text>/,
     /<ToolGlyph Icon=\{Plus\} color=\{themeColors\.accentLabel\} \/>/,
     /<Text style=\{\[Type\.headline, \{ color: themeColors\.accent \}\]\} numberOfLines=\{1\}>/,
     /jobBarAction: \{ color: t\.accent, fontWeight: '600' as const \},/,
@@ -314,7 +314,7 @@ console.log('\napp/project-detail.tsx');
   ok('a Tile has no colour', /type Tile = \{ key: SectionKey; label: string; icon: React\.ComponentType<\{[^}]*\}>; count: number \| null \};/.test(p) && !/colorFor\(/.test(p));
   ok('a group has a sheet letter, not a colour',
     /\{ key: 'field', label: 'Field Ops', sheet: 'F', icon: \w+, tileKeys:/.test(p) && /\{ key: 'money', label: 'Money', sheet: 'M', icon: \w+, tileKeys:/.test(p)
-    && /\{ key: 'docs', label: 'Documentation', sheet: 'D', icon: \w+, tileKeys:/.test(p) && /\{ key: 'people', label: 'People & Communication', sheet: 'P', icon: \w+, tileKeys:/.test(p));
+    && /\{ key: 'docs', label: 'Documentation', sheet: 'D', icon: \w+, tileKeys:/.test(p) && /\{ key: 'people', label: 'People and Communication', sheet: 'P', icon: \w+, tileKeys:/.test(p));
   ok('no tinted quick-action / tile / group chip style is left', !/quickActionIcon|sectionTileIcon|tileGroupHeaderIcon|tileGroupBadge|sectionTileBadge/.test(p));
 
   const tiles = region(PROJECT, 'const renderTile = (tile: Tile) => {', '{!isDesktop && (\n        <Modal');

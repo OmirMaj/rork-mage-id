@@ -118,7 +118,7 @@ console.log('\nC. one record key everywhere:');
       && /const rid = recordIdOf\(m\.table, m\.data\);\s*if \(!opts\?\.ledgerRetry && rid !== null\)/.test(Q));
   ok("the flush's park check uses it", /const headId = recordIdOf\(group\[0\]\.table, group\[0\]\.data\);\s*if \(headId !== null\)/.test(Q));
   ok('project_financials / building_access_rules / sub_portal_snapshots have sheet labels',
-    labelForTable('project_financials') === 'Project budget & terms' && labelForTable('building_access_rules') !== 'building_access_rules'
+    labelForTable('project_financials') === 'Project Budget and Terms' && labelForTable('building_access_rules') !== 'building_access_rules'
       && labelForTable('sub_portal_snapshots') !== 'sub_portal_snapshots');
   const fin: SyncFailure = { id: 'd1', kind: 'write', label: 'x', reason: 'r', at: 1, userId: A, table: 'project_financials', recordId: 'p1', operation: 'upsert', row: { project_id: 'p1', target_budget: 100000 }, queuedAt: 1 };
   const plan = parkBehindUnsavedIn([fin], { id: 'd2', kind: 'write', label: 'x', reason: 'w', at: 2, userId: A, table: 'project_financials', recordId: 'p1', operation: 'upsert', row: { project_id: 'p1', target_budget: 150000 }, queuedAt: 2 });

@@ -203,7 +203,7 @@ function ItemRow({ item, isDesktop, statusWord, counsel, openProfile, openProfil
  */
 export function askNyMissingItems(missing: number, actions: { onReview: () => void; onContinue: () => void }): void {
   showAlert(
-    t('office.nyContract.alert.title', 'Some New York Items Are Missing'),
+    t('office.nyContract.alert.title', 'Some New York items are missing.'),
     tn('office.nyContract.alert.body', missing, {
       one: '{count} item on the New York checklist is missing. You can still send it.',
       other: '{count} items on the New York checklist are missing. You can still send it.',

@@ -945,7 +945,7 @@ function WipReportScreenInner() {
     // what the screen shows" defect this wave is closing one row up.
     if (viewingFrozen) {
       showAlert(
-        'You’re viewing a saved period',
+        'You’re viewing a saved period.',
         'Save period snapshots your current figures. Tap Live first, check the period end, then save.',
       );
       return;
@@ -974,7 +974,7 @@ function WipReportScreenInner() {
     };
     if (duplicate) {
       showAlert(
-        'Another Period Already Ends There',
+        'Another period already ends there.',
         `You already have a ${periodEndDate} snapshot${duplicate.lockedAt ? ', and it is locked' : ''}. `
         + 'Saving a second one leaves two documents claiming the same period end.',
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Save Anyway', onPress: save }],

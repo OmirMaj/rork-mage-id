@@ -72,7 +72,7 @@ ok('the sweep is selectTenantKeysToWipe + multiRemove', /selectTenantKeysToWipe\
   ok('RESET_KEEPS names ProjectContext\'s USER_ROLE_KEY and ONBOARDING_KEY', !!role && !!onb && keeps.includes(`'${role}'`) && keeps.includes(`'${onb}'`), `role=${role} onboarding=${onb} keeps=${keeps}`);
   const refuse = reset.indexOf('if (sourceFailed) {');
   ok('the reset is refused (before anything is dropped) while the account is unreachable', refuse > -1 && refuse < dropAt
-    && /if \(sourceFailed\) \{\s*showAlert\('Reset Needs a Connection'[\s\S]{0,300}?return;\s*\}/.test(reset)
+    && /if \(sourceFailed\) \{\s*showAlert\('Reset needs a connection.'[\s\S]{0,300}?return;\s*\}/.test(reset)
     && src.includes('}, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);'));
 }
 ok('never AsyncStorage.clear()', !/AsyncStorage\.clear\(/.test(src));

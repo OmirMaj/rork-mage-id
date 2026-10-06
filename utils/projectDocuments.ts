@@ -227,7 +227,7 @@ export async function resolveDfrPhotosForDocument(
  * `Linking.openURL('')` / `window.open('')` did nothing at all — a tap with no
  * answer (#160). The caller shows the message.
  */
-export const OPEN_DOCUMENT_NO_LINK = "Couldn't get a link to this file — no signal or the server didn't answer. Try again when you're back online.";
+export const OPEN_DOCUMENT_NO_LINK = "Couldn't get a link to this file. No signal, or the server didn't answer. Try again when you're back online.";
 
 export async function openSavedDocument(publicUrl: string): Promise<void> {
   if (!/^https?:\/\//i.test((publicUrl ?? '').trim())) throw new Error(OPEN_DOCUMENT_NO_LINK);

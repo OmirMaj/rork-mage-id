@@ -4407,7 +4407,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
         </Text>
       </View>
       <View
-        accessibilityLabel="More actions"
+        accessibilityLabel="More Actions"
         accessibilityRole="button"
         accessibilityState={
           {

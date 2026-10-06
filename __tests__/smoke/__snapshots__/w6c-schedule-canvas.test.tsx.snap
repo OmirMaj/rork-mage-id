@@ -9775,7 +9775,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -10985,7 +10985,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -12184,7 +12184,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -13382,7 +13382,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -18733,7 +18733,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -19925,7 +19925,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -21106,7 +21106,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -22286,7 +22286,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not started",
+                                                            "Not Started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -24381,7 +24381,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "In progress",
+                                                "In Progress",
                                                 " · ",
                                                 "1",
                                               ],
@@ -24420,7 +24420,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "Not started",
+                                                "Not Started",
                                                 " · ",
                                                 "4",
                                               ],
@@ -26669,7 +26669,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "In progress",
+                                                "In Progress",
                                                 " · ",
                                                 "1",
                                               ],
@@ -26708,7 +26708,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "Not started",
+                                                "Not Started",
                                                 " · ",
                                                 "4",
                                               ],
@@ -31116,7 +31116,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -31951,7 +31951,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -32775,7 +32775,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -33598,7 +33598,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -42623,7 +42623,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -43490,7 +43490,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -44346,7 +44346,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -45201,7 +45201,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not started",
+                                                                    "Not Started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {

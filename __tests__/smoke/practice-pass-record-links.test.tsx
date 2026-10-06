@@ -240,14 +240,14 @@ describe('practice pass — record links cannot reach a real job', () => {
     await settle();
     const s2 = getTutorialState();
     expect(s2.status === 'running' ? (s2.paused ? s2.paused.reason : 'live') : s2.status).not.toBe('restored');
-    expect(tree.queryByText('Send to me')).not.toBeNull();
+    expect(tree.queryByText('Send to Me')).not.toBeNull();
   });
 });
 
 // Round 3: the same Resume offer on a wall that is NOT the run's checkpoint
 // (a real job's /invoice, any /punch-list). The host pushes the sample screens,
 // so the wall must pop first, or its <Modal visible> stays presented over the
-// resumed tutorial (iOS pageSheet / RN-web portal) and 'Not now' pops the
+// resumed tutorial (iOS pageSheet / RN-web portal) and 'Not Now' pops the
 // sample screen instead of the wall.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function restoreRun(tutorialId: RunId) {

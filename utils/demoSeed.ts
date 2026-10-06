@@ -121,7 +121,7 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
     location: '481 Maplewood Ave, Glen Ridge NJ 07028',
     squareFootage: meta.squareFootage,
     quality: 'standard',
-    description: 'Demo project — bread-and-butter residential remodel: replace old kitchen + 2 baths in a 1980s ranch. Tap Delete on the project tile to wipe it.',
+    description: 'Demo project: bread-and-butter residential remodel: replace old kitchen + 2 baths in a 1980s ranch. Tap Delete on the project tile to wipe it.',
     createdAt: isoDaysAgo(45),
     updatedAt: isoNow,
     estimate: {
@@ -155,8 +155,8 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
 
   // Invoices — 2: a paid deposit + an outstanding progress bill.
   invoiceTemplate(ctx, projectId, [
-    { number: 1, pct: 20, daysAgoIssue: 38, daysAgoDue: 8, amount: 84_480, paid: 84_480, status: 'paid', label: 'Deposit — 20%' },
-    { number: 2, pct: 35, daysAgoIssue: 5, daysAgoDue: -25, amount: 63_360, paid: 0, status: 'sent', label: 'Progress — 35% complete' },
+    { number: 1, pct: 20, daysAgoIssue: 38, daysAgoDue: 8, amount: 84_480, paid: 84_480, status: 'paid', label: 'Deposit, 20%' },
+    { number: 2, pct: 35, daysAgoIssue: 5, daysAgoDue: -25, amount: 63_360, paid: 0, status: 'sent', label: 'Progress, 35% complete' },
   ]);
 
   // 4 daily reports
@@ -171,7 +171,7 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
   ctx.addRFI({
     projectId,
     subject: 'Confirm cabinet pull spec',
-    question: 'Owner showed two pull options at last walk — confirm satin nickel #4827 vs. matte black #5318.',
+    question: 'Owner showed two pull options at last walk, confirm satin nickel #4827 vs. matte black #5318.',
     priority: 'normal',
     status: 'answered',
     assignedTo: 'Sarah (Owner)',
@@ -184,7 +184,7 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
   } as unknown as Omit<RFI, 'id' | 'number' | 'createdAt' | 'updatedAt'>);
   ctx.addRFI({
     projectId,
-    subject: 'Discovered cracked DWV stack — repair or replace section?',
+    subject: 'Discovered cracked DWV stack, repair or replace section?',
     question: 'Removed kitchen wall and found a hairline crack on the 3" cast-iron DWV. Patching with epoxy clamp will hold but inspector may flag. Replace 8\' section instead?',
     priority: 'urgent',
     status: 'open',
@@ -200,17 +200,17 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
     { description: 'Touch-up paint behind range hood after install', priority: 'low', status: 'open', location: 'Kitchen' },
     { description: 'Caulk transition between hall bath floor + door jamb', priority: 'medium', status: 'open', location: 'Hall Bath' },
     { description: 'Repair drywall ding next to primary bath door', priority: 'low', status: 'open', location: 'Primary Bath' },
-    { description: 'Re-shim primary vanity — slight rock', priority: 'medium', status: 'in_progress', location: 'Primary Bath' },
+    { description: 'Re-shim primary vanity, slight rock', priority: 'medium', status: 'in_progress', location: 'Primary Bath' },
     { description: 'Replace cracked outlet plate (during paint)', priority: 'low', status: 'closed', location: 'Kitchen' },
     { description: 'Sand + finish edge of new threshold', priority: 'low', status: 'closed', location: 'Hall Bath' },
   ]);
 
   // 8 photos
   photoTemplate(ctx, projectId, [
-    { i: 0, daysAgo: 30, tag: 'before', location: 'Kitchen — looking northwest' },
+    { i: 0, daysAgo: 30, tag: 'before', location: 'Kitchen, looking northwest' },
     { i: 1, daysAgo: 28, tag: 'before', location: 'Primary bath' },
-    { i: 2, daysAgo: 22, tag: 'progress', location: 'Demo complete — kitchen' },
-    { i: 3, daysAgo: 14, tag: 'progress', location: 'Plumbing rough — primary' },
+    { i: 2, daysAgo: 22, tag: 'progress', location: 'Demo complete, kitchen' },
+    { i: 3, daysAgo: 14, tag: 'progress', location: 'Plumbing rough, primary' },
     { i: 4, daysAgo: 10, tag: 'progress', location: 'Electrical rough' },
     { i: 5, daysAgo: 6, tag: 'progress', location: 'Drywall hung' },
     { i: 6, daysAgo: 3, tag: 'progress', location: 'Tile under-mount install' },
@@ -231,9 +231,9 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
     changeAmount: 3_840,
     newContractTotal: meta.total + 3_840,
     lineItems: [
-      { id: generateUUID(), description: 'LED strip — 22 LF', quantity: 22, unit: 'lf', unitPrice: 38, total: 836 },
+      { id: generateUUID(), description: 'LED strip, 22 LF', quantity: 22, unit: 'lf', unitPrice: 38, total: 836 },
       { id: generateUUID(), description: 'Driver + dimmer module', quantity: 1, unit: 'ea', unitPrice: 240, total: 240 },
-      { id: generateUUID(), description: 'Labor — install + integration with existing switch', quantity: 8, unit: 'hr', unitPrice: 95, total: 760 },
+      { id: generateUUID(), description: 'Labor, install + integration with existing switch', quantity: 8, unit: 'hr', unitPrice: 95, total: 760 },
       { id: generateUUID(), description: 'Markup', quantity: 1, unit: 'lump', unitPrice: 2_004, total: 2_004 },
     ],
     createdAt: isoDaysAgo(12),
@@ -259,7 +259,7 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
     location: '124 Park Slope, Brooklyn NY 11215',
     squareFootage: meta.squareFootage,
     quality: 'premium',
-    description: 'Demo project — full-gut renovation of a 3-story brownstone. New mechanicals, custom millwork throughout, designer kitchen + 4 baths. Tap Delete on the project tile to wipe it.',
+    description: 'Demo project: full-gut renovation of a 3-story brownstone. New mechanicals, custom millwork throughout, designer kitchen + 4 baths. Tap Delete on the project tile to wipe it.',
     createdAt: isoDaysAgo(45),
     updatedAt: isoNow,
     estimate: {
@@ -281,21 +281,21 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
   } as unknown as Project);
 
   invoiceTemplate(ctx, projectId, [
-    { number: 1, pct: 15, daysAgoIssue: 40, daysAgoDue: 10, amount: 76_780, paid: 76_780, status: 'paid', label: 'Deposit — 15%' },
-    { number: 2, pct: 30, daysAgoIssue: 20, daysAgoDue: -3, amount: 76_780, paid: 50_000, status: 'partially_paid', label: 'Progress — 30%' },
-    { number: 3, pct: 45, daysAgoIssue: 4, daysAgoDue: -25, amount: 76_780, paid: 0, status: 'sent', label: 'Progress — 45%' },
+    { number: 1, pct: 15, daysAgoIssue: 40, daysAgoDue: 10, amount: 76_780, paid: 76_780, status: 'paid', label: 'Deposit, 15%' },
+    { number: 2, pct: 30, daysAgoIssue: 20, daysAgoDue: -3, amount: 76_780, paid: 50_000, status: 'partially_paid', label: 'Progress, 30%' },
+    { number: 3, pct: 45, daysAgoIssue: 4, daysAgoDue: -25, amount: 76_780, paid: 0, status: 'sent', label: 'Progress, 45%' },
   ]);
 
   dailyReportTemplate(ctx, projectId, [
     { daysAgo: 1, temp: '64°F', conditions: 'Clear', work: 'Demo of west wall complete. Started rough framing for the new kitchen island.', crew: [{ trade: 'Carpentry', company: 'Henderson Build', headcount: 3, hours: 8 }, { trade: 'Electrical', company: 'Volt Bros Electric', headcount: 2, hours: 8 }] },
-    { daysAgo: 3, temp: '58°F', conditions: 'Cloudy', work: 'MEP rough-in continues — electrical pulled to all 1F outlets. Plumbing rough for primary bath underway.', crew: [{ trade: 'Electrical', company: 'Volt Bros Electric', headcount: 2, hours: 8 }, { trade: 'Plumbing', company: 'Cobblestone Plumbing', headcount: 2, hours: 8 }] },
+    { daysAgo: 3, temp: '58°F', conditions: 'Cloudy', work: 'MEP rough-in continues, electrical pulled to all 1F outlets. Plumbing rough for primary bath underway.', crew: [{ trade: 'Electrical', company: 'Volt Bros Electric', headcount: 2, hours: 8 }, { trade: 'Plumbing', company: 'Cobblestone Plumbing', headcount: 2, hours: 8 }] },
     { daysAgo: 5, temp: '52°F', conditions: 'Rain', work: 'Indoor work only. Drywall delivery received. Insulation crew finished walls + ceiling on 2F.', crew: [{ trade: 'Insulation', company: 'GreenWall Insulation', headcount: 3, hours: 8 }] },
   ]);
 
   ctx.addRFI({
     projectId,
-    subject: 'Knob-and-tube wiring discovered in NE corner — replace or splice?',
-    question: 'Knob-and-tube wiring discovered in NE corner — replace or splice?',
+    subject: 'Knob-and-tube wiring discovered in NE corner, replace or splice?',
+    question: 'Knob-and-tube wiring discovered in NE corner, replace or splice?',
     priority: 'urgent',
     status: 'open',
     assignedTo: 'D. Henderson (Architect)',
@@ -314,7 +314,7 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
     dateSubmitted: isoDaysAgo(12),
     dateRequired: isoDaysAgo(7),
     dateResponded: isoDaysAgo(10),
-    response: 'Confirmed — herringbone in primary bath.',
+    response: 'Confirmed, herringbone in primary bath.',
     submittedBy: 'Henderson Build',
     attachments: [],
   } as unknown as Omit<RFI, 'id' | 'number' | 'createdAt' | 'updatedAt'>);
@@ -326,7 +326,7 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
   ]);
 
   photoTemplate(ctx, projectId, [
-    { i: 0, daysAgo: 30, tag: 'before', location: 'Kitchen — west wall' },
+    { i: 0, daysAgo: 30, tag: 'before', location: 'Kitchen, west wall' },
     { i: 1, daysAgo: 22, tag: 'progress', location: 'Primary bath rough-in' },
     { i: 2, daysAgo: 14, tag: 'progress', location: 'Living room subfloor' },
     { i: 3, daysAgo: 8, tag: 'progress', location: 'Stairwell framing' },
@@ -338,7 +338,7 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
     projectId,
     number: 1,
     date: isoDaysAgo(15),
-    description: 'Owner-requested upgrade: subway tile → marble herringbone for primary bath',
+    description: 'Owner-requested upgrade: subway tile to marble herringbone for primary bath',
     reason: 'Owner direction at site walk',
     status: 'approved',
     scheduleImpactDays: 3,
@@ -346,7 +346,7 @@ async function seedMedium(ctx: SeedCtx): Promise<{ projectId: string }> {
     changeAmount: 4_280,
     newContractTotal: meta.total + 4_280,
     lineItems: [
-      { id: generateUUID(), description: 'Marble tile (herringbone) — primary bath', quantity: 110, unit: 'sf', unitPrice: 24.50, total: 2_695 },
+      { id: generateUUID(), description: 'Marble tile (herringbone), primary bath', quantity: 110, unit: 'sf', unitPrice: 24.50, total: 2_695 },
       { id: generateUUID(), description: 'Additional labor for herringbone install', quantity: 1, unit: 'lump', unitPrice: 1_585, total: 1_585 },
     ],
     createdAt: isoDaysAgo(15),
@@ -373,7 +373,7 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
     location: '847 Bay Ridge Pkwy, Brooklyn NY 11209',
     squareFootage: meta.squareFootage,
     quality: 'premium',
-    description: 'Demo project — ground-up 4-story, 24-unit luxury condominium. Garden-level parking, rooftop amenity, custom millwork, full MEP build-out. Tap Delete on the project tile to wipe it.',
+    description: 'Demo project: ground-up 4-story, 24-unit luxury condominium. Garden-level parking, rooftop amenity, custom millwork, full MEP build-out. Tap Delete on the project tile to wipe it.',
     createdAt: isoDaysAgo(240),
     updatedAt: isoNow,
     estimate: {
@@ -396,12 +396,12 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
 
   // 6 invoices — staggered to look like a real AIA pay-app cadence.
   invoiceTemplate(ctx, projectId, [
-    { number: 1, pct: 5,  daysAgoIssue: 220, daysAgoDue: 190, amount: 719_260,   paid: 719_260,   status: 'paid', label: 'Mobilization + earthwork' },
-    { number: 2, pct: 15, daysAgoIssue: 180, daysAgoDue: 150, amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'Foundation + slab' },
-    { number: 3, pct: 25, daysAgoIssue: 130, daysAgoDue: 100, amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'Structural frame complete' },
-    { number: 4, pct: 35, daysAgoIssue: 80,  daysAgoDue: 50,  amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'MEP rough-in' },
-    { number: 5, pct: 45, daysAgoIssue: 35,  daysAgoDue: 5,   amount: 1_438_520, paid: 1_100_000, status: 'partially_paid', label: 'Drywall + interior framing' },
-    { number: 6, pct: 55, daysAgoIssue: 6,   daysAgoDue: -24, amount: 1_438_520, paid: 0,         status: 'sent', label: 'Finishes — phase 1' },
+    { number: 1, pct: 5,  daysAgoIssue: 220, daysAgoDue: 190, amount: 719_260,   paid: 719_260,   status: 'paid', label: 'Mobilization + Earthwork' },
+    { number: 2, pct: 15, daysAgoIssue: 180, daysAgoDue: 150, amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'Foundation + Slab' },
+    { number: 3, pct: 25, daysAgoIssue: 130, daysAgoDue: 100, amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'Structural Frame Complete' },
+    { number: 4, pct: 35, daysAgoIssue: 80,  daysAgoDue: 50,  amount: 1_438_520, paid: 1_438_520, status: 'paid', label: 'MEP Rough-In' },
+    { number: 5, pct: 45, daysAgoIssue: 35,  daysAgoDue: 5,   amount: 1_438_520, paid: 1_100_000, status: 'partially_paid', label: 'Drywall + Interior Framing' },
+    { number: 6, pct: 55, daysAgoIssue: 6,   daysAgoDue: -24, amount: 1_438_520, paid: 0,         status: 'sent', label: 'Finishes, phase 1' },
   ]);
 
   // 8 daily reports across 5 levels — bigger crews, more trades.
@@ -412,20 +412,20 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
       { trade: 'Carpentry', company: 'Bay Ridge Build', headcount: 6, hours: 8 },
       { trade: 'Cleanup', company: 'Bay Ridge Build', headcount: 2, hours: 6 },
     ] },
-    { daysAgo: 3,  temp: '63°F', conditions: 'Cloudy',         work: 'Elevator install — phase 2 underway. HVAC ductwork commissioning starting on 2F. Building dept inspection tomorrow at 9 AM.', crew: [
+    { daysAgo: 3,  temp: '63°F', conditions: 'Cloudy',         work: 'Elevator install, phase 2 underway. HVAC ductwork commissioning starting on 2F. Building dept inspection tomorrow at 9 AM.', crew: [
       { trade: 'Elevator', company: 'Otis NYC', headcount: 4, hours: 8 },
       { trade: 'HVAC', company: 'NorthEast Mechanical', headcount: 5, hours: 8 },
       { trade: 'Electrical', company: 'Volt Bros Electric', headcount: 8, hours: 8 },
     ] },
-    { daysAgo: 6,  temp: '60°F', conditions: 'Rain',           work: 'Indoor work continues — exterior masonry pulled. Interior painters started prime coats on 1F + 2F units.', crew: [
+    { daysAgo: 6,  temp: '60°F', conditions: 'Rain',           work: 'Indoor work continues, exterior masonry pulled. Interior painters started prime coats on 1F + 2F units.', crew: [
       { trade: 'Painting', company: 'CityWide Painters', headcount: 7, hours: 8 },
       { trade: 'Carpentry', company: 'Bay Ridge Build', headcount: 6, hours: 8 },
     ] },
-    { daysAgo: 10, temp: '58°F', conditions: 'Cloudy',         work: 'Roof membrane work resumed — 60% complete. Window install on east elevation finished today.', crew: [
+    { daysAgo: 10, temp: '58°F', conditions: 'Cloudy',         work: 'Roof membrane work resumed, 60% complete. Window install on east elevation finished today.', crew: [
       { trade: 'Roofing', company: 'CapShield Roofing', headcount: 6, hours: 8 },
       { trade: 'Glazier', company: 'Pier 8 Glass', headcount: 4, hours: 8 },
     ] },
-    { daysAgo: 14, temp: '64°F', conditions: 'Partly cloudy',  work: 'Drywall delivery — 1,400 sheets. Stored in basement secure area. Lobby millwork install began.', crew: [
+    { daysAgo: 14, temp: '64°F', conditions: 'Partly cloudy',  work: 'Drywall delivery, 1,400 sheets. Stored in basement secure area. Lobby millwork install began.', crew: [
       { trade: 'Carpentry', company: 'Bay Ridge Build', headcount: 8, hours: 8 },
       { trade: 'Drywall', company: 'Tristate Drywall', headcount: 9, hours: 8 },
     ] },
@@ -433,10 +433,10 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
       { trade: 'Plumbing', company: 'Cobblestone Plumbing', headcount: 6, hours: 8 },
       { trade: 'Electrical', company: 'Volt Bros Electric', headcount: 8, hours: 8 },
     ] },
-    { daysAgo: 30, temp: '50°F', conditions: 'Snow',           work: 'Site closed before noon — 4" accumulation. Crew dispatched home with full pay per safety policy.', crew: [
+    { daysAgo: 30, temp: '50°F', conditions: 'Snow',           work: 'Site closed before noon, 4" accumulation. Crew dispatched home with full pay per safety policy.', crew: [
       { trade: 'GC', company: 'Bay Ridge Build', headcount: 12, hours: 4 },
     ] },
-    { daysAgo: 60, temp: '38°F', conditions: 'Cold',           work: 'Steel structural frame topped out — ceremony with owners + design team. Photos attached.', crew: [
+    { daysAgo: 60, temp: '38°F', conditions: 'Cold',           work: 'Steel structural frame topped out, ceremony with owners + design team. Photos attached.', crew: [
       { trade: 'Steel', company: 'Apex Iron Works', headcount: 11, hours: 8 },
     ] },
   ]);
@@ -444,11 +444,11 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
   // 6 RFIs — multi-trade, mix of open + answered.
   ([
     { subject: 'Verify firestop assembly at penthouse mechanical chase', priority: 'urgent', status: 'open', daysAgo: 2, days: -3, assigned: 'M. Tan (Architect)', q: 'UL firestop drawing references W-L-3013 but submittal shows W-L-3007. Confirm which assembly is approved for penthouse mechanical chase.' },
-    { subject: 'Lobby chandelier — confirm finish on canopy', priority: 'normal', status: 'answered', daysAgo: 14, days: -7, response: 'Polished nickel canopy confirmed.', assigned: 'M. Tan (Architect)', q: 'Spec calls for polished nickel canopy but submittal shows brushed brass. Which is correct?' },
-    { subject: 'Elevator pit waterproofing — owner finish vs. spec', priority: 'urgent', status: 'answered', daysAgo: 38, days: -28, response: 'Use spec\'d Bituthene 4000 — change to owner upgrade is rejected.', assigned: 'M. Tan (Architect)', q: 'Owner requested elastomeric upgrade for elevator pit waterproofing. Spec calls for Bituthene 4000. Confirm direction.' },
-    { subject: 'Unit 4B kitchen — relocate microwave outlet?', priority: 'normal', status: 'open', daysAgo: 5, days: 0, assigned: 'Owner', q: 'Owner of 4B requested OTR microwave outlet move 12" left to clear hood spec. Confirm scope + cost impact.' },
-    { subject: 'Roof drain leader location — amend plumbing plan', priority: 'normal', status: 'answered', daysAgo: 70, days: -60, response: 'Drain location confirmed at amendment line; revised plumbing plan A-301 r3 issued.', assigned: 'M. Tan (Architect)', q: 'Plumbing plan shows roof drain leader 4" off existing column. Field condition shows 18". Confirm revised location.' },
-    { subject: '2F balcony railings — verify glass thickness', priority: 'normal', status: 'open', daysAgo: 9, days: -2, assigned: 'M. Tan (Architect)', q: 'Submittal shows 1/2" laminated; spec calls for 5/8". Building code requires 5/8" for guard heights >36". Confirm.' },
+    { subject: 'Lobby chandelier, confirm finish on canopy', priority: 'normal', status: 'answered', daysAgo: 14, days: -7, response: 'Polished nickel canopy confirmed.', assigned: 'M. Tan (Architect)', q: 'Spec calls for polished nickel canopy but submittal shows brushed brass. Which is correct?' },
+    { subject: 'Elevator pit waterproofing, owner finish vs. spec', priority: 'urgent', status: 'answered', daysAgo: 38, days: -28, response: 'Use spec\'d Bituthene 4000, change to owner upgrade is rejected.', assigned: 'M. Tan (Architect)', q: 'Owner requested elastomeric upgrade for elevator pit waterproofing. Spec calls for Bituthene 4000. Confirm direction.' },
+    { subject: 'Unit 4B kitchen, relocate microwave outlet?', priority: 'normal', status: 'open', daysAgo: 5, days: 0, assigned: 'Owner', q: 'Owner of 4B requested OTR microwave outlet move 12" left to clear hood spec. Confirm scope + cost impact.' },
+    { subject: 'Roof drain leader location, amend plumbing plan', priority: 'normal', status: 'answered', daysAgo: 70, days: -60, response: 'Drain location confirmed at amendment line; revised plumbing plan A-301 r3 issued.', assigned: 'M. Tan (Architect)', q: 'Plumbing plan shows roof drain leader 4" off existing column. Field condition shows 18". Confirm revised location.' },
+    { subject: '2F balcony railings, verify glass thickness', priority: 'normal', status: 'open', daysAgo: 9, days: -2, assigned: 'M. Tan (Architect)', q: 'Submittal shows 1/2" laminated; spec calls for 5/8". Building code requires 5/8" for guard heights >36". Confirm.' },
   ] as const).forEach(r => {
     ctx.addRFI({
       projectId,
@@ -470,24 +470,24 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
     // Drywall + paint
     { description: 'Touch-up paint at 3F-12 living room corner', priority: 'low', status: 'open', location: 'Unit 3F-12' },
     { description: 'Re-skim seam at unit 2F-08 hallway ceiling', priority: 'medium', status: 'open', location: 'Unit 2F-08' },
-    { description: 'Patch drywall behind 4F-22 kitchen — visible after cabinet install', priority: 'medium', status: 'in_progress', location: 'Unit 4F-22' },
+    { description: 'Patch drywall behind 4F-22 kitchen, visible after cabinet install', priority: 'medium', status: 'in_progress', location: 'Unit 4F-22' },
     { description: 'Touch-up paint above lobby chandelier mount', priority: 'low', status: 'closed', location: 'Lobby' },
     // Plumbing
-    { description: 'Adjust 1F-04 primary bath shower diverter — sluggish', priority: 'high', status: 'open', location: 'Unit 1F-04' },
+    { description: 'Adjust 1F-04 primary bath shower diverter, sluggish', priority: 'high', status: 'open', location: 'Unit 1F-04' },
     { description: 'Caulk transition between vanity + countertop in 2F-09', priority: 'medium', status: 'open', location: 'Unit 2F-09' },
     { description: 'Replace cracked toilet flange at 3F-15', priority: 'high', status: 'in_progress', location: 'Unit 3F-15' },
     { description: 'Test hot-water re-circ pump on penthouse', priority: 'medium', status: 'closed', location: 'Penthouse' },
     // Electrical
     { description: 'Rotate dimmer wallplate to vertical at 1F-02 living room', priority: 'low', status: 'open', location: 'Unit 1F-02' },
-    { description: '4F-21 kitchen island — outlet pop-up not retracting smoothly', priority: 'medium', status: 'in_progress', location: 'Unit 4F-21' },
+    { description: '4F-21 kitchen island, outlet pop-up not retracting smoothly', priority: 'medium', status: 'in_progress', location: 'Unit 4F-21' },
     { description: 'Replace flickering recessed at 2F-07 bath #2', priority: 'medium', status: 'closed', location: 'Unit 2F-07' },
     // Tile + flooring
-    { description: '3F-13 primary bath — tile cracked at floor drain edge', priority: 'high', status: 'open', location: 'Unit 3F-13' },
+    { description: '3F-13 primary bath, tile cracked at floor drain edge', priority: 'high', status: 'open', location: 'Unit 3F-13' },
     { description: 'Re-grout shower niche at 4F-23', priority: 'medium', status: 'in_progress', location: 'Unit 4F-23' },
-    { description: 'Lobby floor — buff scratch near elevator', priority: 'low', status: 'closed', location: 'Lobby' },
+    { description: 'Lobby floor, buff scratch near elevator', priority: 'low', status: 'closed', location: 'Lobby' },
     // Doors + millwork
-    { description: 'Adjust hinge at 2F-10 entry — slight rub', priority: 'low', status: 'open', location: 'Unit 2F-10' },
-    { description: 'Re-set 3F-14 closet door — out of plumb', priority: 'medium', status: 'in_progress', location: 'Unit 3F-14' },
+    { description: 'Adjust hinge at 2F-10 entry, slight rub', priority: 'low', status: 'open', location: 'Unit 2F-10' },
+    { description: 'Re-set 3F-14 closet door, out of plumb', priority: 'medium', status: 'in_progress', location: 'Unit 3F-14' },
     // Exterior
     { description: 'Caulk window perimeter at east elevation, 4F units', priority: 'high', status: 'open', location: 'East elevation' },
     { description: 'Touch-up paint at lobby door jamb after install', priority: 'low', status: 'closed', location: 'Lobby entry' },
@@ -495,31 +495,31 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
 
   // 25 photos — broader site coverage.
   photoTemplate(ctx, projectId, [
-    { i: 100, daysAgo: 220, tag: 'before', location: 'Site — pre-mobilization' },
+    { i: 100, daysAgo: 220, tag: 'before', location: 'Site, pre-mobilization' },
     { i: 101, daysAgo: 200, tag: 'progress', location: 'Excavation complete' },
-    { i: 102, daysAgo: 180, tag: 'progress', location: 'Foundation pour — west pier' },
+    { i: 102, daysAgo: 180, tag: 'progress', location: 'Foundation pour, west pier' },
     { i: 103, daysAgo: 150, tag: 'progress', location: 'Slab on grade poured' },
     { i: 104, daysAgo: 130, tag: 'progress', location: 'Steel frame topped out' },
-    { i: 105, daysAgo: 110, tag: 'progress', location: 'Floor decking — 3F' },
-    { i: 106, daysAgo: 95,  tag: 'progress', location: 'Exterior sheathing — north' },
-    { i: 107, daysAgo: 80,  tag: 'progress', location: 'Window install — south elevation' },
-    { i: 108, daysAgo: 65,  tag: 'progress', location: 'Roofing membrane — phase 1' },
-    { i: 109, daysAgo: 55,  tag: 'progress', location: 'MEP rough-in — Unit 2F-09' },
-    { i: 110, daysAgo: 48,  tag: 'progress', location: 'Drywall hung — 1F units' },
-    { i: 111, daysAgo: 40,  tag: 'progress', location: 'Tile install — Unit 1F-04 primary bath' },
-    { i: 112, daysAgo: 35,  tag: 'progress', location: 'Cabinet delivery — staging area' },
+    { i: 105, daysAgo: 110, tag: 'progress', location: 'Floor decking, 3F' },
+    { i: 106, daysAgo: 95,  tag: 'progress', location: 'Exterior sheathing, north' },
+    { i: 107, daysAgo: 80,  tag: 'progress', location: 'Window install, south elevation' },
+    { i: 108, daysAgo: 65,  tag: 'progress', location: 'Roofing membrane, phase 1' },
+    { i: 109, daysAgo: 55,  tag: 'progress', location: 'MEP rough-in, Unit 2F-09' },
+    { i: 110, daysAgo: 48,  tag: 'progress', location: 'Drywall hung, 1F units' },
+    { i: 111, daysAgo: 40,  tag: 'progress', location: 'Tile install, Unit 1F-04 primary bath' },
+    { i: 112, daysAgo: 35,  tag: 'progress', location: 'Cabinet delivery, staging area' },
     { i: 113, daysAgo: 30,  tag: 'progress', location: 'Lobby millwork install' },
-    { i: 114, daysAgo: 25,  tag: 'progress', location: 'Painting — Unit 3F-15' },
+    { i: 114, daysAgo: 25,  tag: 'progress', location: 'Painting, Unit 3F-15' },
     { i: 115, daysAgo: 20,  tag: 'progress', location: 'Elevator car arrived on site' },
-    { i: 116, daysAgo: 16,  tag: 'progress', location: 'Penthouse — exterior decking' },
+    { i: 116, daysAgo: 16,  tag: 'progress', location: 'Penthouse, exterior decking' },
     { i: 117, daysAgo: 12,  tag: 'progress', location: 'Lobby chandelier installed' },
-    { i: 118, daysAgo: 8,   tag: 'progress', location: 'Unit 4F-22 kitchen — cabinets in' },
+    { i: 118, daysAgo: 8,   tag: 'progress', location: 'Unit 4F-22 kitchen, cabinets in' },
     { i: 119, daysAgo: 6,   tag: 'progress', location: 'Roof deck pavers laid' },
-    { i: 120, daysAgo: 4,   tag: 'progress', location: 'Punch walk — Unit 2F-08' },
-    { i: 121, daysAgo: 3,   tag: 'progress', location: 'Drywall 4F — unit 22' },
-    { i: 122, daysAgo: 2,   tag: 'progress', location: 'Ceiling fan install — Unit 3F-13' },
-    { i: 123, daysAgo: 1,   tag: 'progress', location: 'Garage line stripe — final coat' },
-    { i: 124, daysAgo: 0,   tag: 'progress', location: 'East elevation — punch walk' },
+    { i: 120, daysAgo: 4,   tag: 'progress', location: 'Punch walk, Unit 2F-08' },
+    { i: 121, daysAgo: 3,   tag: 'progress', location: 'Drywall 4F, unit 22' },
+    { i: 122, daysAgo: 2,   tag: 'progress', location: 'Ceiling fan install, Unit 3F-13' },
+    { i: 123, daysAgo: 1,   tag: 'progress', location: 'Garage line stripe, final coat' },
+    { i: 124, daysAgo: 0,   tag: 'progress', location: 'East elevation, punch walk' },
   ], [40.6228, -74.0290]);
 
   // 4 change orders — owner-driven + field-condition mix.
@@ -527,34 +527,34 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
   ([
     {
       number: 1, daysAgo: 110,
-      description: 'Owner upgrade: standard cabinet pulls → custom brass throughout (24 units)',
+      description: 'Owner upgrade: standard cabinet pulls to custom brass throughout (24 units)',
       reason: 'Owner direction at design-team meeting.',
       status: 'approved' as const,
       scheduleImpactDays: 0,
       changeAmount: 38_400,
       lineItems: [
-        { description: 'Custom brass pulls — 24 units', quantity: 384, unit: 'ea', unitPrice: 95, total: 36_480 },
+        { description: 'Custom brass pulls, 24 units', quantity: 384, unit: 'ea', unitPrice: 95, total: 36_480 },
         { description: 'Re-stock charge for original pulls', quantity: 1, unit: 'lump', unitPrice: 1_920, total: 1_920 },
       ],
     },
     {
       number: 2, daysAgo: 65,
-      description: 'Field condition: encountered abandoned fuel tank during excavation — remediation',
+      description: 'Field condition: encountered abandoned fuel tank during excavation, remediation',
       reason: 'Geotechnical site condition not disclosed in original drawings.',
       status: 'approved' as const,
       scheduleImpactDays: 12,
       changeAmount: 184_500,
       lineItems: [
         { description: 'Fuel tank removal + soil testing', quantity: 1, unit: 'lump', unitPrice: 78_000, total: 78_000 },
-        { description: 'Contaminated soil removal — 240 CY', quantity: 240, unit: 'cy', unitPrice: 285, total: 68_400 },
+        { description: 'Contaminated soil removal, 240 CY', quantity: 240, unit: 'cy', unitPrice: 285, total: 68_400 },
         { description: 'Replacement clean fill', quantity: 240, unit: 'cy', unitPrice: 92, total: 22_080 },
         { description: 'Schedule extension overhead', quantity: 12, unit: 'day', unitPrice: 1_335, total: 16_020 },
       ],
     },
     {
       number: 3, daysAgo: 28,
-      description: 'Add penthouse outdoor kitchen — gas line, hood, plumbing rough',
-      reason: 'Owner upgrade — buyer of penthouse PH2 requested at deposit.',
+      description: 'Add penthouse outdoor kitchen, gas line, hood, plumbing rough',
+      reason: 'Owner upgrade, buyer of penthouse PH2 requested at deposit.',
       status: 'pending' as const,
       scheduleImpactDays: 5,
       changeAmount: 92_750,
@@ -568,13 +568,13 @@ async function seedLarge(ctx: SeedCtx): Promise<{ projectId: string }> {
     },
     {
       number: 4, daysAgo: 6,
-      description: 'Lobby finish upgrade: terrazzo → book-matched marble',
-      reason: 'Owner direction — design refresh after preview event.',
+      description: 'Lobby finish upgrade: terrazzo to book-matched marble',
+      reason: 'Owner direction, design refresh after preview event.',
       status: 'pending' as const,
       scheduleImpactDays: 8,
       changeAmount: 67_200,
       lineItems: [
-        { description: 'Marble slab — book-matched, lobby floor', quantity: 480, unit: 'sf', unitPrice: 78, total: 37_440 },
+        { description: 'Marble slab, book-matched, lobby floor', quantity: 480, unit: 'sf', unitPrice: 78, total: 37_440 },
         { description: 'Demo + dispose original terrazzo install', quantity: 1, unit: 'lump', unitPrice: 9_800, total: 9_800 },
         { description: 'Marble install labor + sealer', quantity: 1, unit: 'lump', unitPrice: 14_400, total: 14_400 },
         { description: 'Markup', quantity: 1, unit: 'lump', unitPrice: 5_560, total: 5_560 },
@@ -675,7 +675,7 @@ function invoiceTemplate(ctx: SeedCtx, projectId: string, specs: InvoiceSpec[]) 
       paymentTerms: 'net_30',
       notes: '',
       lineItems: [
-        { id: generateUUID(), description: `${inv.label} — ${inv.pct}% completion`, quantity: 1, unit: 'lump', unitPrice: subtotal, total: subtotal, billedPercent },
+        { id: generateUUID(), description: `${inv.label}, ${inv.pct}% completion`, quantity: 1, unit: 'lump', unitPrice: subtotal, total: subtotal, billedPercent },
       ],
       subtotal,
       taxRate: SAMPLE_TAX_RATE,
@@ -720,7 +720,7 @@ function dailyReportTemplate(ctx: SeedCtx, projectId: string, specs: DfrSpec[]) 
         hoursWorked: c.hours,
       })),
       workPerformed: d.work,
-      materialsDelivered: i === 0 ? ['Drywall — multiple pallets', 'Insulation — R-21 rolls'] : [],
+      materialsDelivered: i === 0 ? ['Drywall, multiple pallets', 'Insulation, R-21 rolls'] : [],
       issuesAndDelays: '',
       photos: [],
       status: i === 0 ? 'sent' : 'draft',

@@ -372,7 +372,7 @@ export default function CostXrayScreen() {
         const message = String((e as Error)?.message ?? '') || 'Cost X-Ray is not available on your plan right now.';
         setError(`${message} Your photos are saved to the project.`);
         showAlert(
-          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit",
+          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit.",
           message,
           [
             { text: 'Not Now', style: 'cancel' },

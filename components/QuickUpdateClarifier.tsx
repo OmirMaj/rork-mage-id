@@ -80,7 +80,7 @@ interface Props {
 function actionChips(t: ThemeColors): { key: ClarifierAction; label: string; Icon: typeof Percent; color: string }[] {
   return [
     { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: t.accentLabel },
-    { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: t.successLabel },
+    { key: 'mark_complete',   label: 'Mark Complete',Icon: CheckCircle2, color: t.successLabel },
     { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
     { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: neutralInk(t) },
     { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: t.warningLabel },
@@ -196,7 +196,7 @@ export default function QuickUpdateClarifier({
           {fX.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Clarify update</Text>
+              <Text style={styles.title}>Clarify Update</Text>
               <Text style={styles.subtitle} numberOfLines={1}>
                 {projectName}
               </Text>
@@ -266,7 +266,7 @@ export default function QuickUpdateClarifier({
           {needsText && (
             <View style={styles.noteWrap}>
               <Text style={styles.valueLabel}>
-                {action === 'log_issue' ? 'Issue details' : 'Note'}
+                {action === 'log_issue' ? 'Issue Details' : 'Note'}
               </Text>
               <TextInput
                 style={styles.noteInput}
@@ -359,7 +359,7 @@ export default function QuickUpdateClarifier({
             activeOpacity={0.85}
             testID="clarifier-apply"
           >
-            <Text style={[styles.applyBtnLabel, !canSubmit && { color: themeColors.textMuted }]}>Apply update</Text>
+            <Text style={[styles.applyBtnLabel, !canSubmit && { color: themeColors.textMuted }]}>Apply Update</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

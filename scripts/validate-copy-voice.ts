@@ -64,7 +64,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync, existsSync } from '
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, isAbsolute, resolve } from 'node:path';
 import ts from 'typescript';
-import { titleCase, isTitleCase } from './copy-title-case';
+import { titleCase, isTitleCase, isSentenceTitle, sentenceTitleProblem } from './copy-title-case';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -80,7 +80,7 @@ const STRICT_ONLY_DIRS = ['utils', 'constants'];
  * grow: a lane that converts more files adds them and raises this number in
  * the same change. A shorter list, or a list this number does not match, fails.
  */
-const CONVERTED_PINNED = 660;
+const CONVERTED_PINNED = 863;
 
 type RuleId =
   | 'R01' | 'R02' | 'R03' | 'R04' | 'R05' | 'R06' | 'R07' | 'R08' | 'R09' | 'R10'
@@ -217,7 +217,7 @@ const RE = {
   R20dash: /[—–]/,
   R20spaced: /[A-Za-z0-9)”"'’.] - [A-Za-z(“"'‘]/,
   R21: /&/,
-  R21fixed: /\b[A-Z]&[A-Z]\b|&(?:nbsp|apos|quot|lt|gt|#\d+);/g,
+  R21fixed: /\b[A-Z]&[A-Z]\b|&(?:nbsp|apos|quot|lt|gt|middot|bull|#\d+);/g,
   R22: /\b(?:e\.g\.|i\.e\.)/i,
   R23: /[→←⇒⇐➔➜➝➞]|(?:^|\s)(?:->|=>|<-)(?:\s|$)/,
   R24: /\bunlimited\b/i,
@@ -260,10 +260,20 @@ function isStrictLabel(str: Str): boolean {
   return false;
 }
 
+/** The fault in a sentence alert title, or null. Names on the allow-list keep their capitals. */
+function sentenceTitleIssue(t: string, ctx: Ctx): string | null {
+  // A multi-word name (Home Passport, Schedule Pro) is blanked to one fixed token first.
+  const blanked = ctx.nounRe ? t.replace(ctx.nounRe, 'N0') : t;
+  return sentenceTitleProblem(blanked, (w) => ctx.nounWords.has(w));
+}
+
 /** R15: a label of two to eight words, with no number in it, must be in Title Case. */
-function breaksLabelCase(str: Str): boolean {
+function breaksLabelCase(str: Str, ctx: Ctx): boolean {
   if (!isStrictLabel(str)) return false;
   const t = str.text.trim();
+  // An alert title that is a full sentence or a question is written as one (VOICE.md §3):
+  // sentence case and closing punctuation. Anything else is a label and falls through.
+  if (str.kind === 'alertTitle' && wordCount(t) >= 2 && isSentenceTitle(t)) return sentenceTitleIssue(t, ctx) !== null;
   const n = wordCount(t);
   if (n < 2 || n > (str.kind === 'jsx' ? 6 : 8)) return false;
   // Data, or a value the app fills in. A digit INSIDE a name (G702/G703) is not a number.
@@ -274,11 +284,11 @@ function breaksLabelCase(str: Str): boolean {
 }
 
 /** The strict rules a string breaks. R15 needs a position; R20-R24 read every string. */
-function strictRules(str: Str): RuleId[] {
+function strictRules(str: Str, ctx: Ctx): RuleId[] {
   const s = str.text;
   const out: RuleId[] = [];
   if (RE.R24.test(s)) out.push('R24');
-  if (str.kind !== 'raw' && breaksLabelCase(str)) out.push('R15');
+  if (str.kind !== 'raw' && breaksLabelCase(str, ctx)) out.push('R15');
   const prose = /[A-Za-z]/.test(s) && /\s/.test(s.trim());
   // A lone "—" is an empty cell; an en dash between two numbers is a range.
   if (/[A-Za-z]/.test(s) && RE.R20dash.test(s.replace(/\d\s?–\s?\$?\d/g, '0'))) out.push('R20');
@@ -683,7 +693,7 @@ function extract(fileName: string, text: string): FileScan {
 
 // ── Scanning ─────────────────────────────────────────────────────────────────
 
-type Hit = { file: string; line: number; rule: RuleId; text: string; span?: [number, number] };
+type Hit = { file: string; line: number; rule: RuleId; text: string; span?: [number, number]; sentence?: boolean };
 
 /**
  * mode 'ratchet+strict': a converted file under SCOPE_DIRS (every rule).
@@ -700,8 +710,10 @@ function scanSource(file: string, text: string, ctx: Ctx, mode: ScanMode = 'ratc
   const strict = mode === 'ratchet+strict' || mode === 'strict';
   for (const s of strings) {
     if (ratchet) for (const rule of stringRules(s, ctx)) hits.push({ file, line: s.line, rule, text: s.text });
-    for (const rule of strictRules(s)) {
-      if (strict || GLOBAL_STRICT.includes(rule)) hits.push({ file, line: s.line, rule, text: s.text, span: s.span });
+    for (const rule of strictRules(s, ctx)) {
+      // A sentence alert title is fixed by hand (--fix-labels would Title Case it): no span.
+      const sentence = rule === 'R15' && s.kind === 'alertTitle' && isSentenceTitle(s.text);
+      if (strict || GLOBAL_STRICT.includes(rule)) hits.push({ file, line: s.line, rule, text: s.text, span: sentence ? undefined : s.span, sentence });
     }
   }
   if (ratchet) lines.forEach((l, i) => {
@@ -801,7 +813,29 @@ const FIXTURES: Fixture[] = [
   { rule: 'R15', flag: false, src: `const KIND_LABEL = { punch: 'Punch List' } as const; const KIND_NOTE = { punch: 'Punch list' };` },
   { rule: 'R15', flag: false, src: `const a = <Screen title="Waiting on Others" />; const b = <Screen title="Sign In to MAGE ID" />;` },
   { rule: 'R15', flag: false, src: `const o = { label: 'AIA-Style G702/G703 Pay Apps' }; const p = { label: 'Email Me a Sign-In Link' };` },
-  { rule: 'R15', flag: false, src: `showAlert('Delete this change order?', 'This cannot be undone.'); showAlert("You're offline", 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert('Delete this change order?', 'This cannot be undone.'); showAlert("You're offline.", 'x');` },
+  // Alert titles: a full sentence or a question is a sentence (sentence case, closing punctuation);
+  // a noun phrase or a short command is a label (Title Case). Both directions.
+  { rule: 'R15', flag: true, src: `showAlert('Milestone Was Already Billed', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Milestone was already billed', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Takeoffs Are on the Pro Plan.', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Delete This Sheet?', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert("You're offline", 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Saved, but the Sub Hasn’t Been Told', 'x');` },
+  { rule: 'R15', flag: true, src: 'showAlert(`${name} is on the Pro plan`, body);' },
+  { rule: 'R15', flag: true, src: `showAlert('Only the Project Owner Bills.', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Delete scan', 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert("Couldn't send invoice", 'x');` },
+  { rule: 'R15', flag: true, src: `showAlert('Not signed in', 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert('Milestone was already billed.', 'x'); showAlert('Takeoffs are on the Pro plan.', 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert('Delete this sheet?', 'x'); showAlert('Ready to file?', 'x'); showAlert('Remove this photo?', 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert('Saved, but the sub hasn’t been told.', 'x'); showAlert('That is not an email address.', 'x');` },
+  { rule: 'R15', flag: false, src: 'showAlert(`${name} is on the Pro plan.`, body); showAlert("You\'re on Business.", body);' },
+  { rule: 'R15', flag: false, src: `showAlert('QuickBooks shows this invoice closed.', 'x'); showAlert('Only the project owner bills.', 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert('Delete Scan', 'x'); showAlert('Not Signed In', 'x'); showAlert('Upgrade Required', 'x');` },
+  { rule: 'R15', flag: false, src: `showAlert("Couldn't Send Invoice", 'x'); showAlert("Can't Delete This Item", 'x'); showAlert('Invoice Not Sent', 'x');` },
+  // The sentence test is for alert titles only: a button or a row is still a label.
+  { rule: 'R15', flag: true, src: `const a = <Button title="Portal is off" />;` },
   { rule: 'R15', flag: false, src: `const o = { label: 'Overdue 3 days' }; const a = <Text style={styles.rowSub}>Overdue RFIs and submittals</Text>;` },
   { rule: 'R15', flag: false, src: `const a = <Text style={styles.body}>Pay app for March</Text>; const b = <Button title="Sending invoice…" />;` },
   { rule: 'R16', flag: true, src: `const o = { label: 'no cost basis' };` },
@@ -886,6 +920,10 @@ type Planted = { name: string; rule: RuleId; append: string };
 const PLANTED: Planted[] = [
   { name: 'a sentence-case button', rule: 'R15', append: `\nexport const PlantedA = () => <Button title="Send invoice" />;\n` },
   { name: 'a sentence-case alert title', rule: 'R15', append: `\nexport const plantedB = () => showAlert('Portal saved', 'Your client can open it now.');\n` },
+  { name: 'a sentence alert title typed in Title Case', rule: 'R15', append: `\nexport const plantedK = () => showAlert('Milestone Was Already Billed.', 'Pick another one.');\n` },
+  { name: 'a sentence alert title with no closing punctuation', rule: 'R15', append: `\nexport const plantedL = () => showAlert('Takeoffs are on the Pro plan', 'See plans.');\n` },
+  { name: 'a question alert title typed in Title Case', rule: 'R15', append: `\nexport const plantedM = () => showAlert('Delete This Sheet?', 'It is removed from the set.');\n` },
+  { name: 'a label alert title (a short command) typed in sentence case', rule: 'R15', append: `\nexport const plantedN = () => showAlert('Delete scan', 'It is removed.');\n` },
   { name: 'a sentence-case tab title through t()', rule: 'R15', append: `\nexport const plantedC = { title: t('nav.tab.planted', 'Cash flow') };\n` },
   { name: 'an em dash gluing two halves', rule: 'R20', append: `\nexport const PlantedD = () => <Text>These are sample projects — create your own.</Text>;\n` },
   { name: 'an em dash in a string no position reads', rule: 'R20', append: `\nexport const plantedE = 'Free covers one project — Pro takes the cap off.';\n` },
@@ -1053,8 +1091,10 @@ function main(): number {
     const seen = new Set<string>();
     const hits = scanSource(f.key, readFileSync(f.abs, 'utf8'), ctx, f.mode).filter((h) => {
       // A strict hit found twice (once in its position, once by the whole-file read) is one hit.
+      // The text is part of the key: two different strings on one line are two hits, so an
+      // allow-listed string never hides its neighbour.
       if (STRICT_RULES.includes(h.rule)) {
-        const k = `${h.rule}|${h.line}`;
+        const k = `${h.rule}|${h.line}|${h.text}`;
         if (seen.has(k)) return false;
         seen.add(k);
       }
@@ -1146,10 +1186,12 @@ function main(): number {
     failed = true;
     console.log(`  FAIL  copy style — ${strictHits.length} string(s) break docs/VOICE.md §3 / §4:`);
     for (const h of strictHits) {
-      const fix = h.rule === 'R15' ? `  (Title Case: "${titleCase(h.text).slice(0, 80)}")` : '';
+      const fix = h.rule !== 'R15' ? ''
+        : h.sentence ? '  (an alert title that is a sentence: sentence case, ending in "." or "?")'
+        : `  (Title Case: "${titleCase(h.text).slice(0, 80)}")`;
       console.log(`        ${h.file}:${h.line}  ${h.rule} ${RULE_NAMES[h.rule]}  "${h.text.slice(0, 120)}"${fix}`);
     }
-    console.log('        (R15: Title Case on a label, or make it a sentence with a period. R20: no dash as punctuation.');
+    console.log('        (R15: Title Case on a label; an alert title that is a full sentence or a question is sentence case with its period or question mark. R20: no dash as punctuation.');
     console.log('         R21: "and", not "&". R22: no "e.g." / "i.e.". R23: no arrows. R24: never "unlimited".)');
   } else {
     console.log(`  PASS  copy style (R15, R20-R23 are zero in the ${converted.length} converted files; R24 is zero everywhere)`);

@@ -86,7 +86,7 @@ import type { BriefItem } from '@/utils/brief/composeBrief';
  *
  * @deprecated superseded by QUIET_CLOSE_HEADLINE; pinned only by the validator.
  */
-export const QUIET_CLOSE_LINE = 'Clean close — nothing left on the table this week.';
+export const QUIET_CLOSE_LINE = 'Clean close. Nothing left on the table this week.';
 
 /**
  * The headline the Friday Close actually shows when all five legs come back
@@ -130,7 +130,7 @@ export const QUIET_CLOSE_HEADLINE = "Nothing open in this week's five checks";
  * "losing money".
  */
 export const QUIET_CLOSE_SCOPE_NOTE =
-  'RFIs, permits and job margin are not part of this check — see Waiting On and Margin Alerts for those.';
+  'RFIs, permits and job margin are not part of this check. See Waiting On and Margin Alerts for those.';
 
 // ─── Bill-leg WIP row shape ───────────────────────────────────────────────────
 
@@ -281,8 +281,8 @@ function buildBillLeg(
       // keyed on it (dedupe, dismissal anchors) shifts under this change.
       id: row.isAuto ? `leak-co-${row.id}` : `draft-co-${row.id}`,
       text: row.isAuto
-        ? `CO #${row.coNumber} drafted from scan — ${fmtMoney(row.amount)} — review & send`
-        : `${prefix}CO #${row.coNumber} drafted — ${fmtMoney(row.amount)} — not sent yet`,
+        ? `CO #${row.coNumber} drafted from scan · ${fmtMoney(row.amount)} · review and send`
+        : `${prefix}CO #${row.coNumber} drafted · ${fmtMoney(row.amount)} · not sent yet`,
       severity: 'medium',
       route: { pathname: '/change-order', params: { coId: row.id, projectId: row.projectId } },
     });
@@ -295,7 +295,7 @@ function buildBillLeg(
     if ((co.changeAmount ?? 0) <= 0 || co.status !== 'draft') continue;
     items.push({
       id: `leak-co-${co.id}`,
-      text: `CO #${co.number} drafted from scan — ${fmtMoney(co.changeAmount)} — review & send`,
+      text: `CO #${co.number} drafted from scan · ${fmtMoney(co.changeAmount)} · review and send`,
       severity: 'medium',
       route: { pathname: '/change-order', params: { coId: co.id, projectId: co.projectId } },
     });
@@ -311,7 +311,7 @@ function buildBillLeg(
     });
   }
 
-  return { id: 'bill', title: 'Bill what you earned', items };
+  return { id: 'bill', title: 'Bill What You Earned', items };
 }
 
 // ─── LEG 2: chase what you're owed ───────────────────────────────────────────
@@ -374,10 +374,10 @@ function buildChaseLeg(
     // goes — "Invoice #3 (Project)" reads like a job actually called Project.
     // If the name is not known, do not put anything in its place.
     const projSuffix = proj?.name ? ` (${proj.name})` : '';
-    let text = `Invoice #${inv.number}${projSuffix}: ${fmtMoney(balance)} — ${daysOverdue}d overdue`;
+    let text = `Invoice #${inv.number}${projSuffix}: ${fmtMoney(balance)} · ${daysOverdue}d overdue`;
     const predicted = predMap.get(inv.id);
     if (predicted) {
-      text += ` — predicted landing ${predicted}`;
+      text += ` · predicted landing ${predicted}`;
     }
     // HONESTY: dunning already auto-chases. We show state, not "send reminder".
     items.push({
@@ -388,7 +388,7 @@ function buildChaseLeg(
     });
   }
 
-  return { id: 'chase', title: "Chase what you're owed", items };
+  return { id: 'chase', title: "Chase What You're Owed", items };
 }
 
 // ─── LEG 3: close this week's plan ───────────────────────────────────────────
@@ -416,7 +416,7 @@ function buildCloseLeg(
         : 'Rough week';
       items.push({
         id: 'ppc-close',
-        text: `${emoji}${verdict} — committed ${ppcRecord.committed}, finished ${ppcRecord.completed} (${pctDisplay}% PPC)`,
+        text: `${emoji}${verdict}: committed ${ppcRecord.committed}, finished ${ppcRecord.completed} (${pctDisplay}% PPC)`,
         severity: ppcRecord.ppc < 0.6 ? 'medium' : undefined,
         route: { pathname: '/last-planner' },
         // A RECAP of the finished week, not open work — informational so the
@@ -440,7 +440,7 @@ function buildCloseLeg(
     }
   }
 
-  return { id: 'close', title: "Close this week's plan", items };
+  return { id: 'close', title: "Close This Week's Plan", items };
 }
 
 // ─── LEG 4: commit next week ──────────────────────────────────────────────────
@@ -462,7 +462,7 @@ function buildCommitLeg(
     });
   }
 
-  return { id: 'commit', title: 'Commit next week', items };
+  return { id: 'commit', title: 'Commit Next Week', items };
 }
 
 // ─── LEG 5: tell the clients ──────────────────────────────────────────────────
@@ -528,12 +528,12 @@ export function homeownerDigestLine(now: Date): string {
   const today = localDateISO(now);
 
   if (localDateISO(previous) === today) {
-    return `Portal homeowner digest is sent automatically — today's went out at ${fmtLocalTime(previous)}`;
+    return `Portal homeowner digest is sent automatically. Today's went out at ${fmtLocalTime(previous)}`;
   }
   if (localDateISO(next) === today) {
-    return `Portal homeowner digest is sent automatically — today's goes out at ${fmtLocalTime(next)}`;
+    return `Portal homeowner digest is sent automatically. Today's goes out at ${fmtLocalTime(next)}`;
   }
-  return `Portal homeowner digest is sent automatically — next one ${WEEKDAY_NAMES[next.getDay()]} at ${fmtLocalTime(next)}, nothing goes out today`;
+  return `Portal homeowner digest is sent automatically. Next one ${WEEKDAY_NAMES[next.getDay()]} at ${fmtLocalTime(next)}, nothing goes out today`;
 }
 
 function buildClientsLeg(
@@ -546,7 +546,7 @@ function buildClientsLeg(
   if (unsentClientItemCount != null && unsentClientItemCount > 0) {
     items.push({
       id: 'unsent-client',
-      text: `${unsentClientItemCount} unsent client item${unsentClientItemCount === 1 ? '' : 's'} — review outbox`,
+      text: `${unsentClientItemCount} unsent client item${unsentClientItemCount === 1 ? '' : 's'} · review outbox`,
       severity: 'medium',
       route: { pathname: '/client-outbox' },
     });
@@ -580,7 +580,7 @@ function buildClientsLeg(
     });
   }
 
-  return { id: 'clients', title: 'Tell the clients', items };
+  return { id: 'clients', title: 'Tell the Clients', items };
 }
 
 // ─── Deduplication guard ─────────────────────────────────────────────────────

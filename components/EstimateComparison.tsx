@@ -212,7 +212,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
       ? ` and ${evicted.length - 1} other${evicted.length > 2 ? 's' : ''}`
       : '';
     showAlert(
-      'Saving This Drops Your Oldest Version',
+      'Saving this drops your oldest version.',
       `This device keeps ${MAX_SAVED_VERSIONS} versions. Saving "${version.name}" removes `
         + `"${dropped.name}" ($${Math.round(dropped.grandTotal).toLocaleString('en-US')}, saved `
         + `${new Date(dropped.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`

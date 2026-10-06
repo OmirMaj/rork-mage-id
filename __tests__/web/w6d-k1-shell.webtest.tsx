@@ -12,7 +12,7 @@
  *   • Cmd+J on an EMPTY dock opens Ask; with content it hides / shows it;
  *   • the g-chords route through the sidebar's rules ('g' 'r' → /rfi?projectId)
  *     and a 'g' that meets no chord falls through to the page's own 'j';
- *   • '?' opens the Keyboard shortcuts sheet (with its 'Go to' group), and a
+ *   • '?' opens the Keyboard shortcuts sheet (with its 'Go To' group), and a
  *     '?' typed in a field is the field's;
  *   • Enter in the dock's composer sends, Shift+Enter does not (the REAL
  *     AskConversation, its data hooks stood in);
@@ -190,7 +190,7 @@ function hiddenByDisplay(el: HTMLElement | null): boolean {
 /** Docks `node` under `id` on mount (a DockOpener, like a screen would). */
 function DockOpener({ node, id }: { node: React.ReactNode; id?: string }) {
   const dock = useShellDock();
-  React.useEffect(() => { dock.open(node, { title: id === ATTENTION_DOCK_ID ? 'Action required' : 'Ask MAGE', id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { dock.open(node, { title: id === ATTENTION_DOCK_ID ? 'Action Required' : 'Ask MAGE', id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 /** Reads the dock API into the DOM, and offers openAsk() on a button. */
@@ -302,7 +302,7 @@ describe('the keyboard shell', () => {
   it("'g' then 'j' falls through to the page's own 'j' (no 'g j' chord)", async () => {
     const nextRow = jest.fn();
     function Table() {
-      useHotkeys([{ combo: 'j', handler: nextRow, label: 'Next row', group: 'Table' }], { scope: 'page' });
+      useHotkeys([{ combo: 'j', handler: nextRow, label: 'Next Row', group: 'Table' }], { scope: 'page' });
       return null;
     }
     await mount(shell({ children: <Table /> }));
@@ -319,7 +319,7 @@ describe('the keyboard shell', () => {
     await press(document.body, { key: '?', shiftKey: true });
     await settle();
     const text = document.body.textContent ?? '';
-    expect(text).toContain('Keyboard shortcuts');
+    expect(text).toContain('Keyboard Shortcuts');
     expect(document.querySelector('[data-testid="shortcut-group-Go to"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="shortcut-group-App"]')).not.toBeNull();
     expect(text).toContain('G then R');
@@ -332,7 +332,7 @@ describe('the keyboard shell', () => {
     await act(async () => { field.focus(); });
     await press(field, { key: '?', shiftKey: true });
     await settle();
-    expect(document.body.textContent ?? '').not.toContain('Keyboard shortcuts');
+    expect(document.body.textContent ?? '').not.toContain('Keyboard Shortcuts');
   });
 });
 

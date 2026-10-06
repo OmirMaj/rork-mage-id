@@ -183,7 +183,7 @@ function noopSubscription(): EventSubscription {
 export class ArTrackUnavailableError extends Error {
   readonly code = 'E_AR_NOT_IN_THIS_BUILD';
   constructor() {
-    super("This build doesn't include the AR module. It can only arrive in a new iPhone build — an over-the-air update can't add native code.");
+    super("This build doesn't include the AR module. It can only arrive in a new iPhone build. An over-the-air update can't add native code.");
     this.name = 'ArTrackUnavailableError';
   }
 }

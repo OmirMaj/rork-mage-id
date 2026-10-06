@@ -1167,7 +1167,7 @@ function NoticeFormModal({
   const save = () => {
     if (violations.length > 0) {
       showAlert(
-        'This notice needs more',
+        'This notice needs more.',
         `Add ${violations.join(', and ')}.`,
       );
       return;

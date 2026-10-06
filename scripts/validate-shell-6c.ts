@@ -461,9 +461,9 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 no chord starts with, or uses, a key DataTable owns (j, k, x, /)',
     G_CHORDS.every((c) => parseCombo(c.combo).every((st) => !RESERVED_SINGLE_KEYS.includes(st.key))));
   const expected: Record<string, string> = {
-    'g h': 'Projects', 'g b': 'Summary', 'g o': 'Job overview', 'g s': 'Schedule', 'g d': 'Daily reports',
-    'g r': 'RFIs', 'g u': 'Submittals', 'g c': 'Change orders', 'g i': 'Invoices', 'g p': 'Punch list',
-    'g w': 'Waiting on others', 'g n': 'Inbox', 'g a': 'Action required',
+    'g h': 'Projects', 'g b': 'Summary', 'g o': 'Job Overview', 'g s': 'Schedule', 'g d': 'Daily Reports',
+    'g r': 'RFIs', 'g u': 'Submittals', 'g c': 'Change Orders', 'g i': 'Invoices', 'g p': 'Punch List',
+    'g w': 'Waiting on Others', 'g n': 'Inbox', 'g a': 'Action Required',
   };
   ok('K1 the chord letters and labels are the approved set (D5)',
     eq(Object.fromEntries(G_CHORDS.map((c) => [c.combo, c.label])), expected));
@@ -670,12 +670,12 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 r3: Cmd+J opens Ask only on an EMPTY dock the host can show Ask in',
     /when: \(\) => dock\.content == null && dock\.canShow\(ASK_DOCK_ID\),/.test(keys) && /combo: 'mod\+j', label: 'Ask MAGE', group: 'App',/.test(keys));
   ok("K1 ShellHotkeys: '?' opens the sheet; the chords go through chordTarget + routeHref at GLOBAL scope",
-    /\{ combo: '\?', label: 'Keyboard shortcuts', group: 'App', handler: openShortcutSheet \}/.test(keys)
+    /\{ combo: '\?', label: 'Keyboard Shortcuts', group: 'App', handler: openShortcutSheet \}/.test(keys)
     && /router\.push\(routeHref\(t\.pathname, t\.params\)\)/.test(keys) && /useHotkeys\(bindings, \{ scope: 'global' \}\);/.test(keys)
     && /chordsFor\(userRole\)/.test(keys));
   const sheet = code(read('components/desktop/ShortcutSheet.tsx'));
   ok('K1 ShortcutSheet: a <Sheet size="form"> that snapshots hotkeys.list() on open (never a live store)',
-    /<Sheet size="form" title="Keyboard shortcuts"/.test(sheet) && /if \(visible\) setRows\(hotkeys\.list\(\)\);/.test(sheet)
+    /<Sheet size="form" title="Keyboard Shortcuts"/.test(sheet) && /if \(visible\) setRows\(hotkeys\.list\(\)\);/.test(sheet)
     && !/useSyncExternalStore\([^)]*hotkeys/.test(sheet));
   ok('K1 ShortcutSheet: dialog-scope and disabled rows are left out; App, Go to, Navigation lead',
     /if \(r\.scope === 'dialog' \|\| !r\.enabled\) continue;/.test(sheet) && /const GROUP_ORDER = \['App', 'Go to', 'Navigation'\];/.test(sheet));

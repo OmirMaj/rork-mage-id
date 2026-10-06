@@ -253,10 +253,10 @@ console.log('\n#157 voice fill:');
 
   const both = voiceUnappliedNote(150000, '2027-06-01') ?? '';
   ok('budget + start: one line, both named, both destinations',
-    both === 'Heard budget $150,000 and start June 1, 2027 — not saved here; set the budget on the estimate and the start date on the schedule.', both);
+    both === 'Heard budget $150,000 and start June 1, 2027. Not saved here; set the budget on the estimate and the start date on the schedule.', both);
   ok('money to the cent when there are cents', formatHeardMoney(80000.5) === '$80,000.50' && formatHeardMoney(80000) === '$80,000');
-  ok('budget only', voiceUnappliedNote(25000, '') === 'Heard budget $25,000 — not saved here; set it on the estimate.', voiceUnappliedNote(25000, '') ?? '');
-  ok('start only', voiceUnappliedNote(0, '2027-01-31') === 'Heard start January 31, 2027 — not saved here; set it on the schedule.', voiceUnappliedNote(0, '2027-01-31') ?? '');
+  ok('budget only', voiceUnappliedNote(25000, '') === 'Heard budget $25,000. Not saved here; set it on the estimate.', voiceUnappliedNote(25000, '') ?? '');
+  ok('start only', voiceUnappliedNote(0, '2027-01-31') === 'Heard start January 31, 2027. Not saved here; set it on the schedule.', voiceUnappliedNote(0, '2027-01-31') ?? '');
   ok('nothing unapplied → null', voiceUnappliedNote(0, '') === null && voiceUnappliedNote(undefined, undefined) === null);
   ok('a non-calendar start is quoted, not guessed', (voiceUnappliedNote(0, 'next spring') ?? '').includes('start next spring'));
   // A calendar day, never new Date('YYYY-MM-DD') (the previous evening west of UTC).

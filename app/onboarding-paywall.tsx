@@ -361,7 +361,7 @@ export default function OnboardingPaywallScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       showAlert(
-        "You're on " + (activePlan === 'pro' ? 'Pro' : 'Business'),
+        `You're on ${activePlan === 'pro' ? 'Pro' : 'Business'}.`,
         'Every ' + (activePlan === 'pro' ? 'Pro' : 'Business') + ' feature is on for your account.',
       );
       void leaveToNextScreen();

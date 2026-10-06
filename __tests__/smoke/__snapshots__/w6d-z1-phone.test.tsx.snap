@@ -3,7 +3,7 @@
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) Android 1000 x 700 (native tablet) renders exactly as before 1`] = `
 {
   "lines": 710,
-  "sha256": "677d40fbb6d67fd0f14b8ca96b53d006ca0afd45a2f07df74851f5373753555c",
+  "sha256": "1bf368c6fd071a7eff60be1399809201d007675c06fc29925b6152c27148e9e3",
 }
 `;
 
@@ -17,14 +17,14 @@ exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) iOS 390 (phon
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) native 1512 (the Pro canvas on a device that is not a browser) renders exactly as before 1`] = `
 {
   "lines": 792,
-  "sha256": "924ee00537f8748344a22f97d99d878176b95953075da7387a9f3267b8d666b7",
+  "sha256": "95317e9eff04c35503146e8783bc1782a57ae1a16cce28140cda15bd1c43514f",
 }
 `;
 
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) web 820 (tablet split, local layout bar) renders exactly as before 1`] = `
 {
   "lines": 705,
-  "sha256": "362706b09c9b0165263d6fed192edfee77099b0bad6dc8760b8a1ae781381ca3",
+  "sha256": "a5e0f4cbd3357db779d34025f234141254930cdb1bdd54ec8900e84ea3ec7b31",
 }
 `;
 

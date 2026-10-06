@@ -175,7 +175,7 @@ export function parseFailures(raw: string | null | undefined): SyncFailure[] {
     out.push({
       id: r.id,
       kind: r.kind,
-      label: typeof r.label === 'string' ? r.label : 'Unsaved change',
+      label: typeof r.label === 'string' ? r.label : 'Unsaved Change',
       reason: typeof r.reason === 'string' ? r.reason : 'could not be sent',
       at: r.at,
       userId: typeof r.userId === 'string' ? r.userId : undefined,
@@ -531,10 +531,10 @@ export function knownRefusalOf(
  *  and the one thing he can do about it. */
 export function knownRefusalToast(reason: string | null | undefined): string | null {
   if (reason === FREE_PLAN_PROJECT_CAP_REASON) {
-    return `${FREE_PLAN_PROJECT_CAP_REASON}. The job is kept under Not saved on the sync badge — Retry once you have upgraded or deleted a job.`;
+    return `${FREE_PLAN_PROJECT_CAP_REASON}. The job is kept under Not saved on the sync badge. Retry once you have upgraded or deleted a job.`;
   }
   if (reason === SAFETY_RECORDS_DELETE_REASON) {
-    return `${SAFETY_RECORDS_DELETE_REASON}. Its injury and near-miss records must be kept — mark the job Closed instead.`;
+    return `${SAFETY_RECORDS_DELETE_REASON}. Its injury and near-miss records must be kept. Mark the job Closed instead.`;
   }
   return null;
 }
@@ -565,35 +565,35 @@ export function humanDropReason(reason: string): string {
  *  least true. */
 const TABLE_LABELS: Record<string, string> = {
   projects: 'Project',
-  daily_reports: 'Daily report',
-  field_tickets: 'Field ticket',
-  punch_items: 'Punch item',
-  change_orders: 'Change order',
+  daily_reports: 'Daily Report',
+  field_tickets: 'Field Ticket',
+  punch_items: 'Punch Item',
+  change_orders: 'Change Order',
   invoices: 'Invoice',
-  photos: 'Photo record',
+  photos: 'Photo Record',
   rfis: 'RFI',
   submittals: 'Submittal',
-  time_entries: 'Time entry',
-  portal_messages: 'Client message',
-  delay_events: 'Delay record',
-  safety_incidents: 'Safety incident',
-  toolbox_talks: 'Toolbox talk',
+  time_entries: 'Time Entry',
+  portal_messages: 'Client Message',
+  delay_events: 'Delay Record',
+  safety_incidents: 'Safety Incident',
+  toolbox_talks: 'Toolbox Talk',
   deliveries: 'Delivery',
   // Integration round 2: rows keyed on project_id / sub_portal_id. A refused
   // write of one now carries a record id and parks what follows, so it shows
   // on the sheet — as the thing he would recognise, not the table name.
-  project_financials: 'Project budget & terms',
-  building_access_rules: 'Building access rules',
-  sub_portal_snapshots: 'Sub portal page',
+  project_financials: 'Project Budget and Terms',
+  building_access_rules: 'Building Access Rules',
+  sub_portal_snapshots: 'Sub Portal Page',
   // Integration round 3: the profile row (settings, payment terms,
   // notification choices, the push token) is one record — its line used to
   // read the raw table name on the sheet and in every "Not sent yet" toast.
-  profiles: 'Profile & settings',
+  profiles: 'Profile and Settings',
   // Wave 5 (portfolio): the public project page's on/off flag.
-  public_profiles: 'Project page',
+  public_profiles: 'Project Page',
   // List round 3: the account copies of saved code checks and the desktop takeoff.
-  code_checks: 'Saved code check',
-  takeoff_docs: 'Desktop takeoff',
+  code_checks: 'Saved Code Check',
+  takeoff_docs: 'Desktop Takeoff',
   // Lane HEALTH (H1): the account copy of a backcharge against a sub.
   backcharges: 'Backcharge',
 };

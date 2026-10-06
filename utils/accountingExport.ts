@@ -136,7 +136,7 @@ export function buildAccountingCsv(
     // shrinks the line to nothing.
     const retentionHeld = roundCents(pendingRetentionHeld(inv));
     if (retentionHeld > 0) {
-      const desc = `Retainage withheld${inv.retentionPercent ? ` (${inv.retentionPercent}% of work value)` : ''} — not collectible until released`;
+      const desc = `Retainage withheld${inv.retentionPercent ? ` (${inv.retentionPercent}% of work value)` : ''} (not collectible until released)`;
       if (format === 'xero') {
         rows.push([
           customer, String(inv.number), issue, due, desc, '1',
@@ -190,7 +190,7 @@ export async function exportProjectAccountingCsv(input: {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(fileUri, {
       mimeType: 'text/csv',
-      dialogTitle: 'Export invoices to accounting',
+      dialogTitle: 'Export Invoices to Accounting',
       UTI: 'public.comma-separated-values-text',
     });
   }

@@ -43,17 +43,17 @@ export interface ShellChord {
 export const G_CHORDS: readonly ShellChord[] = [
   { combo: 'g h', label: 'Projects', target: { kind: 'route', route: '/(tabs)/(home)' }, contractorOnly: false },
   { combo: 'g b', label: 'Summary', target: { kind: 'route', route: '/(tabs)/summary' }, contractorOnly: true },
-  { combo: 'g o', label: 'Job overview', target: { kind: 'overview' }, contractorOnly: true },
+  { combo: 'g o', label: 'Job Overview', target: { kind: 'overview' }, contractorOnly: true },
   { combo: 'g s', label: 'Schedule', target: { kind: 'schedule' }, contractorOnly: true },
-  { combo: 'g d', label: 'Daily reports', target: { kind: 'job-tool', feature: 'daily-report', route: '/daily-report' }, contractorOnly: true },
+  { combo: 'g d', label: 'Daily Reports', target: { kind: 'job-tool', feature: 'daily-report', route: '/daily-report' }, contractorOnly: true },
   { combo: 'g r', label: 'RFIs', target: { kind: 'job-tool', feature: 'rfi', route: '/rfi' }, contractorOnly: true },
   { combo: 'g u', label: 'Submittals', target: { kind: 'job-tool', feature: 'submittal', route: '/submittal' }, contractorOnly: true },
-  { combo: 'g c', label: 'Change orders', target: { kind: 'job-tool', feature: 'change-order', route: '/change-order' }, contractorOnly: true },
+  { combo: 'g c', label: 'Change Orders', target: { kind: 'job-tool', feature: 'change-order', route: '/change-order' }, contractorOnly: true },
   { combo: 'g i', label: 'Invoices', target: { kind: 'job-tool', feature: 'invoice', route: '/invoice' }, contractorOnly: true },
-  { combo: 'g p', label: 'Punch list', target: { kind: 'job-tool', feature: 'punch-list', route: '/punch-list' }, contractorOnly: true },
-  { combo: 'g w', label: 'Waiting on others', target: { kind: 'route', route: '/waiting-on' }, contractorOnly: true },
+  { combo: 'g p', label: 'Punch List', target: { kind: 'job-tool', feature: 'punch-list', route: '/punch-list' }, contractorOnly: true },
+  { combo: 'g w', label: 'Waiting on Others', target: { kind: 'route', route: '/waiting-on' }, contractorOnly: true },
   { combo: 'g n', label: 'Inbox', target: { kind: 'route', route: '/notifications-inbox' }, contractorOnly: false },
-  { combo: 'g a', label: 'Action required', target: { kind: 'route', route: '/attention' }, contractorOnly: true },
+  { combo: 'g a', label: 'Action Required', target: { kind: 'route', route: '/attention' }, contractorOnly: true },
 ];
 
 /** Single keys DataTable owns on every log page — no chord may start with or

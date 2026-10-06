@@ -241,7 +241,7 @@ describe('PORTALFIX behavior — the phone', () => {
     await phoneSetup();
     await act(async () => { onlineManager.setOnline(false); });
     await press('portal-reset-link-btn');
-    expect(lastAlert().title).toBe('You\u2019re offline');
+    expect(lastAlert().title).toBe('You\u2019re offline.');
     expect(lastAlert().message).toMatch(/needs a connection/);
     expect(lastAlert().message).toMatch(/never saved to send later/);
     expect(mockAlerts.some(a => a.title === 'Reset the link?')).toBe(false);
@@ -312,7 +312,7 @@ describe('PORTALFIX behavior — the phone', () => {
     expect(said).toBeTruthy();
     // Never the claim the review caught: nothing here says the old link works.
     expect(allAlertText()).not.toMatch(/still works/);
-    expect(allAlertText()).not.toMatch(/Link not reset/);
+    expect(allAlertText()).not.toMatch(/Link Not Reset/);
     expect(said!.message).toMatch(/couldn\u2019t confirm whether the link was reset/);
     expect(said!.message).toMatch(/may have stopped working/);
     expect(said!.message).toMatch(/Open this screen again/);

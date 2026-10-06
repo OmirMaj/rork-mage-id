@@ -550,7 +550,7 @@ export default function BillFromEstimateScreen() {
     if (!project || !projectId) return;
     if (creatingDraftRef.current) return;
     if (roleGate !== 'open') {
-      showAlert('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills.', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     if (subtotal <= 0) {

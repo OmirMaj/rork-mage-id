@@ -2361,7 +2361,7 @@ function ScheduleProScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
-      showAlert('PDF Export Is on the Pro Plan', 'See plans to add it.');
+      showAlert('PDF export is on the Pro plan.', 'See plans to add it.');
       return;
     }
     if (namedBaselines.length === 0) {

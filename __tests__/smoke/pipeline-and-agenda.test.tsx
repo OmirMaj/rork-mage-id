@@ -56,7 +56,7 @@ describe('StatusPipeline — the labels are not the thing that gives way', () =>
     const stages = stagesFor('oac');
     expect(stages).toHaveLength(5);
     expect(stages.map(s => s.label)).toEqual(
-      ['Draft', 'Scheduled', 'In progress', 'Concluded', 'Distributed'],
+      ['Draft', 'Scheduled', 'In Progress', 'Concluded', 'Distributed'],
     );
   });
 

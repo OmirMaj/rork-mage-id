@@ -1,5 +1,5 @@
 /**
- * Code cards, lane CCWIRE — "Draft a question" for New York, New Jersey and
+ * Code cards, lane CCWIRE — "Draft a Question" for New York, New Jersey and
  * Connecticut towns. BEHAVIOUR ONLY, no snapshot.
  *
  * Rendered on its own with the place lookup and the AI relay stubbed (no
@@ -134,7 +134,7 @@ describe('Draft a question: NY / NJ / CT towns (code cards)', () => {
     render(
       <DraftQuestionButton project={project('t-c', MASSAPEQUA)} hideTrigger open onOpenChange={(o) => { closes.push(o); }} testID="dq" />,
     );
-    expect(mockAlerts.map((a) => a[0])).toEqual(['Town not found']);
+    expect(mockAlerts.map((a) => a[0])).toEqual(['Town Not Found']);
     expect(closes).toEqual([false]);
     expect(screen.queryByTestId('dq-question')).toBeNull();
   });

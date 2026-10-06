@@ -59,7 +59,7 @@ export interface OneMindAnswer {
 }
 
 const COLD_START_ANSWER =
-  "I don't have anything to answer from yet — no projects, invoices, leads or " +
+  "I don't have anything to answer from yet: no projects, invoices, leads or " +
   'daily reports are logged. Create your first project (or say it to the ' +
   'Copilot) and I can start answering from your real data.';
 
@@ -99,7 +99,7 @@ export async function askOneMind(
 
   const scopeLabel =
     scope.scope === 'project'
-      ? `One project — ${bundle.projects.find(p => p.id === scope.projectId)?.name ?? 'unknown'}`
+      ? `One project: ${bundle.projects.find(p => p.id === scope.projectId)?.name ?? 'unknown'}`
       : 'Whole business';
 
   const prompt = composeOneMindPrompt({ question, turns, blocks, scopeLabel });
@@ -130,7 +130,7 @@ export async function askOneMind(
       const body = display || text;
       return {
         answer: truncated
-          ? `${body}\n\n— That is as far as MAGE got before running out of room. Ask a narrower question (one job, or one thing) and it can finish the thought.`
+          ? `${body}\n\nThat is as far as MAGE got before running out of room. Ask a narrower question (one job, or one thing) and it can finish the thought.`
           : body,
         truncated,
         citations: toCitations(blocks, refs),

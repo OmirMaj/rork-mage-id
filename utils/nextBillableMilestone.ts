@@ -326,7 +326,7 @@ export function remindAllConfirm(rows: readonly OverdueRemindRow[]): { title: st
   const lines: string[] = [];
   if (c > 0) lines.push([...clients.values()].join(', '));
   if (noEmail.length > 0) {
-    lines.push(`No client email on file for invoice${noEmail.length === 1 ? '' : 's'} ${noEmail.join(', ')} — ${noEmail.length === 1 ? 'that one' : 'those'} will not go out.`);
+    lines.push(`No client email on file for invoice${noEmail.length === 1 ? '' : 's'} ${noEmail.join(', ')}. ${noEmail.length === 1 ? 'That one' : 'Those'} will not go out.`);
   }
   lines.push('Each one follows the same rules as the invoice screen: nothing goes to a sample job, and anything sent in the last 24 hours waits.');
   return { title, message: lines.join('\n\n'), confirmLabel: `Send ${n}` };

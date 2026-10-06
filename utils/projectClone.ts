@@ -253,7 +253,7 @@ export function voiceUnappliedNote(
   const where = budget != null && startLabel
     ? 'set the budget on the estimate and the start date on the schedule'
     : budget != null ? 'set it on the estimate' : 'set it on the schedule';
-  return `Heard ${heard} — not saved here; ${where}.`;
+  return `Heard ${heard}. Not saved here; ${where}.`;
 }
 
 // ─── Home's project list: Burn, and the status filter ───────────────────────

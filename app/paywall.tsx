@@ -266,7 +266,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchasePro();
-      showAlert("You're on Pro", 'Every Pro feature is on for your account.');
+      showAlert("You're on Pro.", 'Every Pro feature is on for your account.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -283,7 +283,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseBusiness();
-      showAlert("You're on Business", 'Every Business feature is on for your account.');
+      showAlert("You're on Business.", 'Every Business feature is on for your account.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -300,7 +300,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseEnterprise();
-      showAlert("You're on Enterprise", 'Every Enterprise feature is on for your account, with the highest AI usage limits.');
+      showAlert("You're on Enterprise.", 'Every Enterprise feature is on for your account, with the highest AI usage limits.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;

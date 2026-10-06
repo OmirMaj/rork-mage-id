@@ -166,17 +166,17 @@ function GenerativeSetupInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Set up project' }} />
+        <Stack.Screen options={{ title: 'Set Up Project' }} />
         <EmptyState
           icon={<Boxes size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No project to set up"
+          title="No Project to Set Up"
           message="Generative setup turns an estimate into buyout packages, a submittal log and a draft schedule. To use it:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate so there are line items to break out.',
             'Tap “Set up project” to build the rest.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -196,7 +196,7 @@ function GenerativeSetupInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Generative setup · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Generative Setup · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -216,7 +216,7 @@ function GenerativeSetupInner() {
         ) : !hasEstimate ? (
           <View style={styles.infoCard}>
             <MageAIMark size={26} color={t.accent} />
-            <Text style={styles.infoTitle}>Build an estimate first</Text>
+            <Text style={styles.infoTitle}>Build an Estimate First</Text>
             <Text style={styles.infoBody}>
               Generative setup breaks your estimate into buyout packages and a submittal
               log. This project doesn&apos;t have an estimate with line items yet.
@@ -233,7 +233,7 @@ function GenerativeSetupInner() {
             {/* Buyout packages */}
             <SectionCard
               icon={<Boxes size={18} color={t.accent} strokeWidth={1.75} />}
-              title="Buyout packages"
+              title="Buyout Packages"
               count={plan?.packages.length ?? 0}
               subtitle={
                 (plan?.packages.length ?? 0) > 0
@@ -264,7 +264,7 @@ function GenerativeSetupInner() {
             {/* Submittal log */}
             <SectionCard
               icon={<ClipboardCheck size={18} color={t.info} strokeWidth={1.75} />}
-              title="Submittal log starter"
+              title="Submittal Log Starter"
               count={plan?.submittals.length ?? 0}
               subtitle={
                 (plan?.submittals.length ?? 0) > 0
@@ -288,7 +288,7 @@ function GenerativeSetupInner() {
             {/* Draft schedule */}
             <SectionCard
               icon={<CalendarRange size={18} color={t.success} strokeWidth={1.75} />}
-              title="Draft schedule"
+              title="Draft Schedule"
               count={null}
               subtitle={
                 hasSchedule
@@ -337,7 +337,7 @@ function GenerativeSetupInner() {
             ) : (
               <>
                 <MageAIMark size={17} color="#fff" />
-                <Text style={styles.ctaText}>Generate setup</Text>
+                <Text style={styles.ctaText}>Generate Setup</Text>
               </>
             )}
           </TouchableOpacity>
@@ -400,7 +400,7 @@ function SuccessView({
       <View style={styles.successIcon}>
         <Check size={30} color="#fff" strokeWidth={2.5} />
       </View>
-      <Text style={styles.successTitle}>Project scaffolded</Text>
+      <Text style={styles.successTitle}>Project Scaffolded</Text>
       <View style={styles.successStats}>
         {result.packages > 0 && (
           <Text style={styles.successStat}>{result.packages} buyout package{result.packages === 1 ? '' : 's'} created</Text>
@@ -417,7 +417,7 @@ function SuccessView({
       {result.scheduleCreated && (
         <TouchableOpacity style={styles.successPrimary} onPress={onReviewSchedule} activeOpacity={0.85}>
           <CalendarRange size={16} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.successPrimaryText}>Review schedule</Text>
+          <Text style={styles.successPrimaryText}>Review Schedule</Text>
         </TouchableOpacity>
       )}
 
@@ -427,19 +427,19 @@ function SuccessView({
         activeOpacity={0.85}
       >
         {result.scheduleCreated ? (
-          <Text style={styles.successLinkText}>Open buyout</Text>
+          <Text style={styles.successLinkText}>Open Buyout</Text>
         ) : (
           <>
-            <Text style={styles.successPrimaryText}>Open buyout</Text>
+            <Text style={styles.successPrimaryText}>Open Buyout</Text>
             <ArrowRight size={16} color="#fff" strokeWidth={1.75} />
           </>
         )}
       </TouchableOpacity>
       <TouchableOpacity style={styles.successLink} onPress={onOpenMargin} activeOpacity={0.8}>
-        <Text style={styles.successLinkText}>See projected margin</Text>
+        <Text style={styles.successLinkText}>See Projected Margin</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.successLink} onPress={onDone} activeOpacity={0.8}>
-        <Text style={[styles.successLinkText, { color: t.textSecondary }]}>Back to project</Text>
+        <Text style={[styles.successLinkText, { color: t.textSecondary }]}>Back to Project</Text>
       </TouchableOpacity>
     </View>
   );

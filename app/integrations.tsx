@@ -37,7 +37,7 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
       case 'disconnected':
         return { label: item.tier === 'link' ? 'Open' : 'Connect', color: themeColors.accent, bgColor: themeColors.accent + '14', icon: Plug };
       case 'coming_soon':
-        return { label: 'Not live yet', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
+        return { label: 'Not Live Yet', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
       case 'error':
         return { label: 'Error', color: Colors.errorDark, bgColor: Colors.errorLight, icon: WifiOff };
       default:
@@ -151,7 +151,7 @@ export default function IntegrationsScreen() {
 
     if (item.externalUrl) {
       Linking.openURL(item.externalUrl).catch(() => {
-        showAlert('Couldn’t open the link', 'Try again.');
+        showAlert('Couldn’t Open the Link', 'Try again.');
       });
       return;
     }
@@ -167,12 +167,12 @@ export default function IntegrationsScreen() {
         `${item.name} not yet available`,
         'This integration isn’t built yet. MAGE can email you at your account address when it is.',
         [
-          { text: 'Maybe later', style: 'cancel' },
+          { text: 'Maybe Later', style: 'cancel' },
           {
-            text: 'Notify me',
+            text: 'Notify Me',
             onPress: () => {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              showAlert('You’re on the list', `MAGE emails you when ${item.name} sync is live.`);
+              showAlert('You’re on the list.', `MAGE emails you when ${item.name} sync is live.`);
             },
           },
         ]
@@ -208,12 +208,12 @@ export default function IntegrationsScreen() {
         <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
         <View style={styles.gateWrap} testID="integrations-owner-gate">
           <Plug size={26} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.gateTitle}>QuickBooks Online lives in Settings</Text>
+          <Text style={styles.gateTitle}>QuickBooks Online lives in Settings.</Text>
           <Text style={styles.gateText}>
             The integrations catalog is a preview and does not connect anything yet. Your accounting sync is set up from the QuickBooks screen.
           </Text>
           <TouchableOpacity style={styles.gateBtn} onPress={() => router.push('/qbo-setup')} accessibilityRole="button" testID="integrations-open-qbo">
-            <Text style={styles.gateBtnText}>Open QuickBooks setup</Text>
+            <Text style={styles.gateBtnText}>Open QuickBooks Setup</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -265,7 +265,7 @@ export default function IntegrationsScreen() {
               <Text style={[styles.heroStatValue, { color: '#9E9E9E' }]}>
                 {integrations.filter(i => i.status === 'coming_soon').length}
               </Text>
-              <Text style={styles.heroStatLabel}>Not live yet</Text>
+              <Text style={styles.heroStatLabel}>Not Live Yet</Text>
             </View>
           </View>
         </View>
@@ -295,14 +295,14 @@ export default function IntegrationsScreen() {
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Search size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No integrations found</Text>
+            <Text style={styles.emptyTitle}>No Integrations Found</Text>
             <Text style={styles.emptyDesc}>Try a different category or search term</Text>
           </View>
         ) : (
           <View style={styles.listSection}>
             {filtered.filter(i => i.status === 'connected').length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>Active connections</Text>
+                <Text style={styles.sectionLabel}>Active Connections</Text>
                 {filtered.filter(i => i.status === 'connected').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -320,7 +320,7 @@ export default function IntegrationsScreen() {
 
             {filtered.filter(i => i.status === 'coming_soon').length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Not live yet</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Not Live Yet</Text>
                 {filtered.filter(i => i.status === 'coming_soon').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}

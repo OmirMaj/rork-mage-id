@@ -187,14 +187,14 @@ export function ToolbarActions({ actions, breadcrumbs, maxVisible, style, testID
           onPress={openMenu}
           style={isDesktop ? styles.iconButton : styles.phoneButton}
           accessibilityRole="button"
-          accessibilityLabel="More actions"
+          accessibilityLabel="More Actions"
           testID={testID ? `${testID}-more` : undefined}
         >
           <Ellipsis {...Tokens.iconSize.default} color={t.textSecondary} />
         </Pressable>
       ) : null}
       <Modal visible={menu !== null} transparent animationType="none" onRequestClose={() => setMenu(null)}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(null)} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(null)} accessibilityRole="button" accessibilityLabel="Close Menu" />
         {menu ? (
           <View style={menuDrop ? [styles.menu, { top: menu.top, left: menu.left }, menuDrop] : [styles.menu, { top: menu.top, left: menu.left }]} accessibilityRole="menu">
             {overflow.map((a) => {

@@ -41,7 +41,7 @@ export const NOTICE_PERIOD_PRESETS: readonly number[] = [7, 14, 21];
 export const ASSUMED_NOTICE_PERIOD_DAYS = 7;
 
 /** The label every deadline built from an assumed period must carry. */
-export const ASSUMED_LABEL = 'assumed — verify your contract';
+export const ASSUMED_LABEL = 'assumed, verify your contract';
 
 /**
  * Recording a notice in MAGE is not the same act as sending it, and the
@@ -164,7 +164,7 @@ export function reservationViolations(notice: Pick<DelayNotice, 'kind' | 'reserv
   const hasAmount = typeof notice.reservedAmount === 'number' && Number.isFinite(notice.reservedAmount) && notice.reservedAmount > 0;
   const hasDays = typeof notice.reservedDaysClaimed === 'number' && Number.isFinite(notice.reservedDaysClaimed) && notice.reservedDaysClaimed > 0;
   if (!hasAmount && !hasDays) {
-    missing.push('a stated amount — dollars, days, or both');
+    missing.push('a stated amount: dollars, days, or both');
   }
   return missing;
 }
@@ -187,10 +187,10 @@ export function noticeViolations(notice: DelayNotice): string[] {
 }
 
 const METHOD_LABEL: Record<DelayNoticeMethod, string> = {
-  portal: 'Client portal',
+  portal: 'Client Portal',
   email: 'Email',
-  hand_delivered: 'Hand delivered',
-  certified_mail: 'Certified mail',
+  hand_delivered: 'Hand Delivered',
+  certified_mail: 'Certified Mail',
   courier: 'Courier',
   other: 'Other',
 };
@@ -251,21 +251,21 @@ export function suggestClassification(cause: DelayCause): DelayClassification | 
 }
 
 export const CLASSIFICATION_LABEL: Record<DelayClassification, string> = {
-  excusable_compensable: 'Excusable + compensable (time and money)',
-  excusable_noncompensable: 'Excusable, non-compensable (time only)',
-  nonexcusable: 'Non-excusable (neither)',
-  unclassified: 'Not classified yet',
+  excusable_compensable: 'Excusable + Compensable (Time and Money)',
+  excusable_noncompensable: 'Excusable, Non-Compensable (Time Only)',
+  nonexcusable: 'Non-Excusable (Neither)',
+  unclassified: 'Not Classified Yet',
 };
 
 export const CAUSE_LABEL: Record<DelayCause, string> = {
   weather: 'Weather',
-  owner_directed_change: 'Owner-directed change',
-  late_rfi_response: 'Late RFI response',
-  differing_site_condition: 'Differing site condition',
-  owner_supplied_item: 'Owner-supplied item',
-  permit_or_inspection: 'Permit or inspection',
-  design_revision: 'Design revision',
-  contractor_caused: 'Our own delay',
+  owner_directed_change: 'Owner-Directed Change',
+  late_rfi_response: 'Late RFI Response',
+  differing_site_condition: 'Differing Site Condition',
+  owner_supplied_item: 'Owner-Supplied Item',
+  permit_or_inspection: 'Permit or Inspection',
+  design_revision: 'Design Revision',
+  contractor_caused: 'Our Own Delay',
   other: 'Other',
 };
 

@@ -102,7 +102,7 @@ const LEGACY_NO_EXPIRY_PREF = 'none';
  * but the user. So Save, Copy, Share, invites, a new link and a reset all stop
  * here with this reason, and the screen says it at the top.
  */
-const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
+const SAMPLE_PORTAL_NOTE = 'Sample job. A client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
 
 /**
  * Who this account is to the project, for the purpose of the share link.
@@ -993,7 +993,7 @@ function ClientPortalSetupScreenInner() {
     if (!linkPending) return false;
     if (linkOwnerOnly) {
       showAlert(
-        'Only the Project Owner Can Share This Link',
+        'Only the project owner can share this link.',
         'The client link carries the key that lets your client sign change orders, and that key stays with the project owner’s account. Ask the owner to send it.',
       );
     } else if (linkNeedsSave) {
@@ -1359,7 +1359,7 @@ function ClientPortalSetupScreenInner() {
   const warnIfExpired = useCallback((): boolean => {
     if (linkExpiry.kind !== 'expired') return false;
     showAlert(
-      'This link has expired',
+      'This link has expired.',
       `${linkExpiry.label}. Anyone opening it sees a dead page. Generate a new one before you send it.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -1707,7 +1707,7 @@ function ClientPortalSetupScreenInner() {
     if (!id || !project?.clientPortal?.enabled) return;
     if (isOfflineNow()) {
       // Nothing was sent, so this one is known.
-      showAlert('You’re offline', 'Resetting the link needs a connection. Nothing was sent, so your client’s link is unchanged.');
+      showAlert('You’re offline.', 'Resetting the link needs a connection. Nothing was sent, so your client’s link is unchanged.');
       return;
     }
     // The key this device holds now: what the server's key is compared with
@@ -1746,7 +1746,7 @@ function ClientPortalSetupScreenInner() {
     // also what stops a second reset on top of an unconfirmed one.
     if (warnIfLinkPending()) return;
     if (isOfflineNow()) {
-      showAlert('You’re offline', 'Resetting the link needs a connection. It changes who can open your client’s portal, so it happens on the server right away and is never saved to send later. Try again when you’re back online.');
+      showAlert('You’re offline.', 'Resetting the link needs a connection. It changes who can open your client’s portal, so it happens on the server right away and is never saved to send later. Try again when you’re back online.');
       return;
     }
     showAlert('Reset the link?', 'Your client’s old link stops working. Send them the new one.', [
@@ -2308,7 +2308,7 @@ function ClientPortalSetupScreenInner() {
                 // failure is not "no invites" either.
                 if (errs.includes('portal_disabled')) {
                   // #134: the function refuses a disabled portal outright.
-                  showAlert('Portal Is Off', 'Nothing was emailed. Turn the portal on to email your client.');
+                  showAlert('Portal is off.', 'Nothing was emailed. Turn the portal on to email your client.');
                 } else if (sent > 0) {
                   showAlert('Preview Sent', recap === 'plain_ai_off'
                     ? AI_ACCOUNT_COPY.previewSentPlain(sent)
@@ -2319,18 +2319,18 @@ function ClientPortalSetupScreenInner() {
                   // The closing email only goes out through the weekly recap's
                   // Friday run, which skips portals with the recap off — so
                   // promise it only when the recap is on.
-                  showAlert('Project Is Closed', portal.weeklyDigest?.enabled
+                  showAlert('Project is closed.', portal.weeklyDigest?.enabled
                     ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the project is complete and when the portal link closes.'
                     : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out. Tell your client yourself when the portal link closes.');
                 } else if (errs.includes('portal_link_ended')) {
-                  showAlert('Portal Link Has Ended', 'Send your client a new portal link before previewing the weekly update.');
+                  showAlert('Portal link has ended.', 'Send your client a new portal link before previewing the weekly update.');
                 } else if (errs.length === 0 || errs.includes('no_invites')) {
                   showAlert('No Invites Yet', 'Add a portal invite (with their email) before previewing the weekly recap.');
                 } else if (errs.every(e => e === 'unsubscribed')) {
                   // Every invite unsubscribed from the weekly recap (or from all
                   // MAGE ID email) with a link in one of these emails. Only they
                   // can turn it back on.
-                  showAlert('Your Client Turned These Emails Off', 'Everyone on this portal unsubscribed from the weekly recap, so nothing was sent. Only they can turn it back on, from "Manage email preferences" at the bottom of any MAGE ID email.');
+                  showAlert('Your client turned these emails off.', 'Everyone on this portal unsubscribed from the weekly recap, so nothing was sent. Only they can turn it back on, from "Manage email preferences" at the bottom of any MAGE ID email.');
                 } else {
                   const refusal = errs.find(e => e !== 'unsubscribed') ?? errs[0];
                   showAlert('Preview Not Sent', `The email service refused it: ${refusal.replace(/^[^:]*:\s*/, '')}`);

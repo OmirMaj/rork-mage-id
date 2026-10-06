@@ -80,7 +80,7 @@ describe('Price watch card', () => {
     // stud 4.00 → 4.40 (+10%) on 200 ea at 15% markup: 920 → 1012 (+$92).
     expect(screen.getByText('Rivera kitchen · 1 line is up 10% on your latest receipts')).toBeTruthy();
     fireEvent.press(screen.getByText('Reprice (+$92)'));
-    expect(screen.getByText(/Grand total \$1,085\.00 → \$1,177\.00/)).toBeTruthy();
+    expect(screen.getByText(/Grand total \$1,085\.00 to \$1,177\.00/)).toBeTruthy();
     expect(mockCtx.updateProject).not.toHaveBeenCalled();
     fireEvent.press(screen.getByTestId('pricewatch-confirm-p1'));
     expect(mockCtx.updateProject).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe('Price watch card', () => {
     mockReceipts = [receipt('r1', 'Yard A', daysAgo(1), 'Plywood', 'sheet', 10, 50)];
     mockCtx.projects = [];
     render(<PriceWatchCard projectId="p1" />, { wrapper: Wrapper });
-    expect(screen.getByText('Price watch compares your reviewed receipts — it needs the same item from two suppliers.')).toBeTruthy();
+    expect(screen.getByText('Price watch compares your reviewed receipts. It needs the same item from two suppliers.')).toBeTruthy();
   });
 });
 

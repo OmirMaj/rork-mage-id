@@ -1729,7 +1729,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const days = incidentClassInput.daysRestricted ?? 0;
     if (days > 0) {
       showAlert(
-        t('field.dfr.restrictedDaysAreCounted', 'Restricted Days Are Counted'),
+        t('field.dfr.restrictedDaysAreCounted', 'Restricted days are counted.'),
         tn('field.dfr.daysOfRestrictionAre', days, { one: '{count} day of restriction are entered, which makes this a restricted-work case. Clear the day count to untick it.', other: '{count} days of restriction are entered, which makes this a restricted-work case. Clear the day count to untick it.' }),
       );
       return;
@@ -2977,7 +2977,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const typed = cur.isManual && Boolean(cur.temperature || cur.conditions || cur.wind);
     if (!typed) { void readLiveWeather(); return; }
     showAlert(
-      t('field.dfr.weather.replaceTitle', 'Replace What You Typed?'),
+      t('field.dfr.weather.replaceTitle', 'Replace what you typed?'),
       t('field.dfr.weather.replaceBody', 'The weather you typed will be replaced with the current reading from OpenWeather.'),
       [
         { text: t('field.dfr.weather.keepMine', 'Keep Mine'), style: 'cancel' },
@@ -3605,7 +3605,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // copy — drawing now would show up on a later re-print of a report the
     // recipient already has. Say so before opening, rather than silently.
     if (target.lockedNote) {
-      showAlert(t('field.dfr.thisReportWasAlready', 'This report was already sent'), target.lockedNote, [
+      showAlert(t('field.dfr.thisReportWasAlready', 'This report was already sent.'), target.lockedNote, [
         { text: t('field.dfr.cancel', 'Cancel'), style: 'cancel' },
         { text: t('field.dfr.markUpAnyway', 'Mark Up Anyway'), onPress: open },
       ]);
@@ -3681,7 +3681,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       filedByName: filedBy.document ?? undefined,
     })).catch((e: unknown) => {
       console.warn('[DFR] print failed', e);
-      showAlert(t('field.dfr.printDidNotOpen', 'Print Did Not Open'), describeError(e, { action: 'open the print view', title: t('field.dfr.error.printTitle', "Couldn't Open the Print View") }).body);
+      showAlert(t('field.dfr.printDidNotOpen', 'Print did not open.'), describeError(e, { action: 'open the print view', title: t('field.dfr.error.printTitle', "Couldn't Open the Print View") }).body);
     });
   }, [project, documentReport, brandingOrBlank, galleryPhotos, documentClassification, filedBy.document, t]);
 
@@ -3833,7 +3833,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         }
         console.warn('[DailyReport] Email send failed:', result.error);
         showAlert(
-          t('field.dfr.savedTheEmailDid', 'Saved, but the Email Did Not Send'),
+          t('field.dfr.savedTheEmailDid', 'Saved, but the email did not send.'),
           fileSaved
             ? t('field.dfr.send.emailFailedFiled', 'The report is saved on this project as a draft. The email failed: {error} A PDF copy is in project files.', { error: String(result.error) })
             : t('field.dfr.send.emailFailed', 'The report is saved on this project as a draft. The email failed: {error}', { error: String(result.error) }),

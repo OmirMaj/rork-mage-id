@@ -82,7 +82,7 @@ export type DocumentChip = 'all' | Exclude<DocumentBucket, 'void'>;
 /** The phone's filter chips, in its order and words. */
 export const DOCUMENT_CHIPS: readonly { key: DocumentChip; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'at_risk', label: 'At risk' },
+  { key: 'at_risk', label: 'At Risk' },
   { key: 'awaiting', label: 'Waiting' },
   { key: 'draft', label: 'Saved' },
   { key: 'done', label: 'Done' },
@@ -109,7 +109,7 @@ export function documentChipMatches(row: Pick<DocumentRegisterRow, 'status'>, ch
  * official AIA form. (mocks/documents documentTypeInfo says "AIA-style billing",
  * which the client view prints; app/documents.tsx prints this shorter tag.)
  */
-export const PAY_APP_TYPE_TAG = 'Pay app';
+export const PAY_APP_TYPE_TAG = 'Pay App';
 
 /** The phone card's type tag words (mocks/documents documentTypeInfo). */
 const TYPE_LABEL: Readonly<Record<string, string>> = {

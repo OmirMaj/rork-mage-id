@@ -631,7 +631,7 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   const sunday = new Date(2026, 8, 6, 9, 0, 0);
   const sundayLine = homeownerDigestLine(sunday);
   assert(
-    !sundayLine.includes('today\'s went out') && !sundayLine.includes('today\'s goes out'),
+    !sundayLine.includes('Today\'s went out') && !sundayLine.includes('Today\'s goes out'),
     `Sunday must not claim a send today (got "${sundayLine}")`,
   );
   assert(
@@ -650,7 +650,7 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   const fridayEarly = new Date(2026, 8, 4, 6, 0, 0);
   const fridayEarlyLine = homeownerDigestLine(fridayEarly);
   assert(
-    fridayEarlyLine.includes("today's goes out at"),
+    fridayEarlyLine.includes("Today's goes out at"),
     `Friday morning uses future tense (got "${fridayEarlyLine}")`,
   );
 
@@ -658,14 +658,14 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   const fridayLate = new Date(2026, 8, 4, 23, 30, 0);
   const fridayLateLine = homeownerDigestLine(fridayLate);
   assert(
-    fridayLateLine.includes("today's went out at") || fridayLateLine.includes("today's goes out at"),
+    fridayLateLine.includes("Today's went out at") || fridayLateLine.includes("Today's goes out at"),
     `Friday evening still reports today's send (got "${fridayLateLine}")`,
   );
 
   // Mid-week — no claim of a send, and it names a real upcoming day.
   const wednesdayLine = homeownerDigestLine(new Date(2026, 8, 2, 12, 0, 0));
   assert(
-    wednesdayLine.includes('nothing goes out today') && wednesdayLine.includes('next one'),
+    wednesdayLine.includes('nothing goes out today') && wednesdayLine.includes('Next one'),
     `Wednesday points at the next send instead (got "${wednesdayLine}")`,
   );
 
@@ -737,7 +737,7 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
 
   // Verify QUIET_CLOSE_LINE is exported
   assert(
-    QUIET_CLOSE_LINE === 'Clean close — nothing left on the table this week.',
+    QUIET_CLOSE_LINE === 'Clean close. Nothing left on the table this week.',
     'QUIET_CLOSE_LINE is correct',
   );
 

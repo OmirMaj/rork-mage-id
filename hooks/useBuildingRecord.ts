@@ -63,8 +63,8 @@ const HOUR_MS = 60 * 60 * 1000;
 export const BUILDING_RECORD_STALE_MS = 12 * HOUR_MS;
 
 const NO_MATCH_TEXT =
-  "NYC's address search found no building at this address — nothing was checked. Check the job's street address.";
-const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read — nothing was checked.';
+  "NYC's address search found no building at this address, so nothing was checked. Check the job's street address.";
+const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read, so nothing was checked.';
 
 function parseStoredConfirm(raw: string | null): StoredBuildingConfirm | null {
   if (!raw) return null;

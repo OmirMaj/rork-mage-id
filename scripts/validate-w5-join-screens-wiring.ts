@@ -235,7 +235,7 @@ console.log('\n#61 — Delete and the OSHA log:');
   const pd = read('app/project-detail.tsx');
   ok('the confirm lists the safety records that go (JHAs, toolbox talks, hazards)', /its safety records \(JHAs, toolbox talks, hazards\)/.test(pd));
   ok('a job with incidents is refused up front, with Mark closed', /if \(deleteSafety\.refusal\) \{ showDeleteRefusal\(deleteSafety\.refusal, true\); return; \}/.test(pd)
-    && /\{ text: 'Mark closed', onPress: markJobClosed \}/.test(pd));
+    && /\{ text: 'Mark Closed', onPress: markJobClosed \}/.test(pd));
   ok('deleteProject gets the hydrated incident count and its refusal is shown', /await deleteProject\(id, knownIncidents !== undefined && knownIncidents > 0 \? \{ safetyIncidentCount: knownIncidents \} : undefined\)/.test(pd)
     && /showDeleteRefusal\(res\.reason, res\.action === DELETE_SAFETY_ACTION\)/.test(pd));
   ok('the count is passed only once the safety log has hydrated', /const knownIncidents = jobSafety\.hydrated \? jobSafety\.incidents : undefined;/.test(pd));
@@ -277,7 +277,7 @@ console.log('\n#74 — a claimed crew worker:');
   ok('a stashed /claim-crew is replayed before the persona question', /if \(route === 'claim-crew'\) \{ router\.replace\(pending as never\); return; \}/.test(layout)
     && /await setPendingDeepLink\(pending\);/.test(layout) && /if \(authLoading \|\| projectLoading \|\| !isAuthenticated \|\| userRole !== null \|\| claimReplayRef\.current\) return;/.test(layout));
   ok('Tools and the sidebar read "My profile" (no chip / lock) for them',
-    /crewAsProfile\(row\) \? 'My profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
+    /crewAsProfile\(row\) \? 'My Profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
     && /if \(crewAsProfile\(row\)\) return undefined;/.test(read('app/(tabs)/discover/tools.tsx'))
     && /const label = asProfile \? 'My Profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
     && /const locked = !asProfile && /.test(read('components/DesktopSidebar.tsx')));

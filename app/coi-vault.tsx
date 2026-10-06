@@ -89,7 +89,7 @@ function InsuranceAuditLink({ desktop }: { desktop?: boolean }) {
     <NavRow
       variant="card"
       Icon={ShieldCheck}
-      title="Insurance audit pack — payments vs certificates"
+      title="Insurance Audit Pack: Payments vs Certificates"
       subtitle="Which sub payments had a workers' comp certificate covering the date"
       onPress={() => router.push('/insurance-audit')}
       style={desktop ? { marginHorizontal: 16, marginTop: 12, marginBottom: 4 } : { marginBottom: 12 }}
@@ -315,7 +315,7 @@ function COIVaultInner() {
     } catch (err) {
       if (isFileGone(err)) {
         setBusy(null);
-        showAlert("Couldn't read that file", 'Pick the certificate again.');
+        showAlert("Couldn't Read That File", 'Pick the certificate again.');
         return;
       }
       // Offline or refused: keep the local file as a labelled preview on this
@@ -376,9 +376,9 @@ function COIVaultInner() {
     if (!activeSub) return;
     // The web picker takes both kinds in one dialog.
     if (Platform.OS === 'web') { void pickFrom('files'); return; }
-    showAlert('Add a certificate', 'A photo of the certificate, or the PDF the carrier sent?', [
+    showAlert('Add a Certificate', 'A photo of the certificate, or the PDF the carrier sent?', [
       { text: 'Photo', onPress: () => { void pickFrom('photos'); } },
-      { text: 'PDF or file', onPress: () => { void pickFrom('files'); } },
+      { text: 'PDF or File', onPress: () => { void pickFrom('files'); } },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [activeSub, pickFrom]);
@@ -409,7 +409,7 @@ function COIVaultInner() {
       disabled={busy !== null}
       testID="coi-upload"
       accessibilityRole="button"
-      accessibilityLabel={busy === 'uploading' ? 'Uploading certificate' : busy === 'reading' ? 'Reading certificate' : 'Upload COI'}
+      accessibilityLabel={busy === 'uploading' ? 'Uploading Certificate' : busy === 'reading' ? 'Reading Certificate' : 'Upload COI'}
     >
       {busy
         ? <><ActivityIndicator size="small" color="#fff" /><Text style={styles.uploadBtnText}>{busy === 'uploading' ? 'Uploading…' : 'Reading…'}</Text></>
@@ -419,7 +419,7 @@ function COIVaultInner() {
   const coiDetailBody = activeSub ? (
     <>
       <View style={styles.titleBlock}>
-        <Text style={styles.eyebrow}>Insurance vault</Text>
+        <Text style={styles.eyebrow}>Insurance Vault</Text>
         <Text style={styles.title}>{activeSub.companyName}</Text>
         <Text style={styles.subtitle}>{subCOIs.length} certificate{subCOIs.length === 1 ? '' : 's'} on file</Text>
       </View>
@@ -427,7 +427,7 @@ function COIVaultInner() {
       {subCOIs.length === 0 ? (
         <View style={styles.emptyState}>
           <MageCOI size={36} color={themeColors.textMuted} />
-          <Text style={styles.emptyTitle}>No COIs yet</Text>
+          <Text style={styles.emptyTitle}>No COIs Yet</Text>
           <Text style={styles.emptyBody}>
             Upload the sub&apos;s certificate of insurance, as a photo or the carrier&apos;s PDF, and record
             each policy&apos;s expiry so you&apos;re reminded before it lapses. Anything MAGE ID reads
@@ -454,7 +454,7 @@ function COIVaultInner() {
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveSubId(null)} hitSlop={10} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.headerBackText}>All subs</Text>
+            <Text style={styles.headerBackText}>All Subs</Text>
           </TouchableOpacity>
           {uploadButton}
         </View>
@@ -479,14 +479,14 @@ function COIVaultInner() {
           detailBody={coiDetailBody}
         />
       ) : (<>
-      <Stack.Screen options={{ title: 'Sub insurance' }} />
+      <Stack.Screen options={{ title: 'Sub Insurance' }} />
       <FeatureHeader
-        eyebrow="COI tracker"
-        title="Make sure your subs are insured"
+        eyebrow="COI Tracker"
+        title="Make Sure Your Subs Are Insured"
         subtitle="Upload each sub's certificate (photo or PDF) and record each policy's expiry. You're reminded 30 days before it lapses."
         explainer={{
-          term: 'Certificate of insurance (COI)',
-          definition: 'A COI is a one-page document a subcontractor\'s insurer issues showing what coverage the sub carries — General Liability, Workers\' Comp, Auto, sometimes specialty endorsements like "Additional Insured" naming you. If a sub causes damage or injury and isn\'t insured, it can come back on you.',
+          term: 'Certificate of Insurance (COI)',
+          definition: 'A COI is a one-page document a subcontractor\'s insurer issues showing what coverage the sub carries: General Liability, Workers\' Comp, Auto, sometimes specialty endorsements like "Additional Insured" naming you. If a sub causes damage or injury and isn\'t insured, it can come back on you.',
           whenToUse: [
             'Before letting a sub start work on your site',
             'Annually when each sub\'s policy renews',
@@ -502,7 +502,7 @@ function COIVaultInner() {
           <AlertTriangle size={16} color={complianceSummary.expired > 0 ? themeColors.dangerLabel : Colors.warning} strokeWidth={2.4} />
           <View style={{ flex: 1 }}>
             <Text style={styles.complianceBannerTitle}>
-              {complianceSummary.expired > 0 ? 'Action required' : 'Heads up'}
+              {complianceSummary.expired > 0 ? 'Action Required' : 'Heads Up'}
             </Text>
             <View style={styles.complianceBannerPillRow}>
               {complianceSummary.expired > 0 && (
@@ -542,7 +542,7 @@ function COIVaultInner() {
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
             <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No subs yet</Text>
+            <Text style={styles.emptyTitle}>No Subs Yet</Text>
             <Text style={styles.emptyBody}>
               Add subs from the Subs screen first, then come back here to upload their COIs.
             </Text>
@@ -598,8 +598,8 @@ function COIVaultInner() {
 // ── Per-COI card (detail view) ──────────────────────────────────
 
 const COVERAGE_TYPES: { key: COICoverageType; label: string }[] = [
-  { key: 'general_liability', label: 'General liability' },
-  { key: 'workers_comp', label: "Workers' comp" },
+  { key: 'general_liability', label: 'General Liability' },
+  { key: 'workers_comp', label: "Workers' Comp" },
   { key: 'auto', label: 'Auto' },
   { key: 'umbrella', label: 'Umbrella' },
   { key: 'professional', label: 'Professional' },
@@ -653,7 +653,7 @@ function COICard({
       if (Platform.OS === 'web') await Linking.openURL(url);
       else await WebBrowser.openBrowserAsync(url);
     } catch {
-      showAlert("Couldn't open the certificate", 'Try again.');
+      showAlert("Couldn't Open the Certificate", 'Try again.');
     }
   }, []);
 
@@ -703,7 +703,7 @@ function COICard({
           <Icon size={16} color={color} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.coiTitle}>Certificate uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
+          <Text style={styles.coiTitle}>Certificate Uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
           <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI confidence ${v.confidence}%` : ''}</Text>
         </View>
         <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} /></TouchableOpacity>
@@ -713,21 +713,21 @@ function COICard({
       {localPreview ? (
         <View>
           {pdf ? (
-            <View style={styles.fileRow}><FileText size={16} color={themeColors.textSecondary} strokeWidth={1.75} /><Text style={styles.fileRowText}>PDF certificate</Text></View>
+            <View style={styles.fileRow}><FileText size={16} color={themeColors.textSecondary} strokeWidth={1.75} /><Text style={styles.fileRowText}>PDF Certificate</Text></View>
           ) : (
             <Image source={{ uri: localPreview }} style={styles.coiImage} resizeMode="contain" />
           )}
-          <Text style={styles.fileNote} testID="coi-not-uploaded">Not uploaded yet — only on this phone. It uploads the next time you open the vault online.</Text>
+          <Text style={styles.fileNote} testID="coi-not-uploaded">Not uploaded yet. Only on this phone. It uploads the next time you open the vault online.</Text>
         </View>
       ) : pendingUpload?.lost && !coi.fileUri ? (
-        <Text style={styles.fileNote} testID="coi-file-lost">The picked file was cleared from this phone before it uploaded — delete this certificate and upload it again.</Text>
+        <Text style={styles.fileNote} testID="coi-file-lost">The picked file was cleared from this phone before it uploaded. Delete this certificate and upload it again.</Text>
       ) : file.state === 'loading' ? (
         <ActivityIndicator style={{ marginTop: 10 }} color={themeColors.textMuted} />
       ) : file.state === 'ok' ? (
         pdf ? (
-          <TouchableOpacity style={styles.fileRow} onPress={() => { void openFile(file.url); }} accessibilityRole="button" accessibilityLabel="Open certificate" testID="coi-open-pdf">
+          <TouchableOpacity style={styles.fileRow} onPress={() => { void openFile(file.url); }} accessibilityRole="button" accessibilityLabel="Open Certificate" testID="coi-open-pdf">
             <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={[styles.fileRowText, { color: themeColors.accent }]}>Open certificate</Text>
+            <Text style={[styles.fileRowText, { color: themeColors.accent }]}>Open Certificate</Text>
           </TouchableOpacity>
         ) : (
           <Image source={{ uri: file.url }} style={styles.coiImage} resizeMode="contain" />
@@ -735,10 +735,10 @@ function COICard({
       ) : (
         <Text style={styles.fileNote} testID="coi-file-missing">
           {location === 'stored'
-            ? "Couldn't load the certificate file — you may be offline. Reopen the vault to try again."
+            ? "Couldn't load the certificate file. You may be offline. Reopen the vault to try again."
             : !coi.fileUri
-              ? 'Certificate file not on this device — it is waiting to upload from the phone that picked it, or re-upload it here.'
-              : 'Certificate file not on this device — re-upload it.'}
+              ? 'Certificate file not on this device. It is waiting to upload from the phone that picked it, or re-upload it here.'
+              : 'Certificate file not on this device. Upload it again.'}
         </Text>
       )}
 
@@ -760,7 +760,7 @@ function COICard({
         </View>
       ) : v?.overallStatus === 'pass' ? (
         <View style={[styles.findingsCard, { borderColor: themeColors.success + '30' }]}>
-          <Text style={[styles.findingsLabel, { color: themeColors.successLabel }]}>No findings</Text>
+          <Text style={[styles.findingsLabel, { color: themeColors.successLabel }]}>No Findings</Text>
           <Text style={styles.findingText}>Every coverage on file is in date.</Text>
         </View>
       ) : null}
@@ -773,20 +773,20 @@ function COICard({
             {aiExpiryWaiting
               ? 'Check the AI-read expiry against the certificate and tap Confirm'
               : readUnavailable || stored.length === 0 ? 'Type the expiry from the certificate' : 'Add the expiry date for at least one policy'}
-            {' '}— a confirmed expiry sets the sub&apos;s COI expiry and turns on the 30 / 14 / 7-day reminders.
+            {'. '}A confirmed expiry sets the sub&apos;s COI expiry and turns on the 30 / 14 / 7-day reminders.
           </Text>
         ) : null}
         {draft.map((c, i) => (
           <View key={i} style={styles.coverageEditRow}>
             {hasUnconfirmedAi(c) ? (
               <View style={styles.unconfirmedRow}>
-                <Text style={styles.unconfirmedText}>Read by AI — unconfirmed, not counted yet</Text>
+                <Text style={styles.unconfirmedText}>Read by AI. Unconfirmed, not counted yet.</Text>
                 <TouchableOpacity
                   onPress={() => replaceRow(i, confirmAiCoverage(c))}
                   testID={`coi-confirm-${i}`}
                   style={styles.confirmBtn}
                   accessibilityRole="button"
-                  accessibilityLabel="Confirm this coverage matches the certificate"
+                  accessibilityLabel="Confirm This Coverage Matches the Certificate"
                 >
                   <CheckCircle2 size={12} color={themeColors.successLabel} strokeWidth={1.75} />
                   <Text style={[styles.confirmBtnText, { color: themeColors.successLabel }]}>Confirm</Text>
@@ -824,24 +824,24 @@ function COICard({
               />
             </View>
             <View style={styles.inlineRow}>
-              <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking({ row: i, field: 'effectiveDate' })} accessibilityRole="button" accessibilityLabel="Effective date">
+              <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking({ row: i, field: 'effectiveDate' })} accessibilityRole="button" accessibilityLabel="Effective Date">
                 <Calendar size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
                 <Text style={[styles.dateBtnText, !c.effectiveDate && !!c.aiEffectiveDate && { color: themeColors.warningLabel }]}>
                   {c.effectiveDate
                     ? `Effective ${formatCalendarDay(c.effectiveDate)}`
-                    : c.aiEffectiveDate ? `AI read: effective ${formatCalendarDay(c.aiEffectiveDate)} — unconfirmed` : 'Effective date'}
+                    : c.aiEffectiveDate ? `AI read: effective ${formatCalendarDay(c.aiEffectiveDate)} (unconfirmed)` : 'Effective Date'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking({ row: i, field: 'expiresAt' })} accessibilityRole="button" accessibilityLabel="Expiry date" testID={`coi-expiry-${i}`}>
+              <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking({ row: i, field: 'expiresAt' })} accessibilityRole="button" accessibilityLabel="Expiry Date" testID={`coi-expiry-${i}`}>
                 <Calendar size={13} color={c.expiresAt ? themeColors.text : themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.dateBtnText, !c.expiresAt && { color: c.aiExpiresAt ? themeColors.warningLabel : themeColors.accent }]}>
                   {c.expiresAt
                     ? `Expires ${formatCalendarDay(c.expiresAt)}`
-                    : c.aiExpiresAt ? `AI read: expires ${formatCalendarDay(c.aiExpiresAt)} — unconfirmed` : 'Expiry date'}
+                    : c.aiExpiresAt ? `AI read: expires ${formatCalendarDay(c.aiExpiresAt)} (unconfirmed)` : 'Expiry Date'}
                 </Text>
               </TouchableOpacity>
               {draft.length > 1 ? (
-                <TouchableOpacity onPress={() => { setDraft(d => d.filter((_, idx) => idx !== i)); setDirty(true); }} hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove this coverage">
+                <TouchableOpacity onPress={() => { setDraft(d => d.filter((_, idx) => idx !== i)); setDirty(true); }} hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove This Coverage">
                   <Trash2 size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : null}
@@ -851,7 +851,7 @@ function COICard({
         <View style={styles.inlineRow}>
           <TouchableOpacity onPress={() => { setDraft(d => [...d, emptyRow()]); setDirty(true); }} style={styles.addRowBtn} accessibilityRole="button">
             <Plus size={13} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={[styles.addRowText, { color: themeColors.accent }]}>Add coverage</Text>
+            <Text style={[styles.addRowText, { color: themeColors.accent }]}>Add Coverage</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={saveCoverages}
@@ -861,7 +861,7 @@ function COICard({
             accessibilityState={{ disabled: !dirty }}
             testID="coi-save-coverages"
           >
-            <Text style={styles.uploadBtnText}>{dirty ? 'Save coverages' : stored.length > 0 ? 'Saved' : 'Save coverages'}</Text>
+            <Text style={styles.uploadBtnText}>{dirty ? 'Save Coverages' : stored.length > 0 ? 'Saved' : 'Save Coverages'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -873,7 +873,7 @@ function COICard({
         value={picking ? (draft[picking.row]?.[picking.field]
           ?? draft[picking.row]?.[picking.field === 'expiresAt' ? 'aiExpiresAt' : 'aiEffectiveDate'] ?? '') : ''}
         allowFuture
-        title={picking?.field === 'effectiveDate' ? 'Policy effective' : 'Policy expires'}
+        title={picking?.field === 'effectiveDate' ? 'Policy Effective' : 'Policy Expires'}
         onClose={() => setPicking(null)}
         onChange={(iso) => {
           // DatePickerModal emits noon-UTC of the picked day, so the date part
@@ -914,8 +914,8 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none', t: ThemeColors): 
     // Success TEAL (successLabel is its AA text ink), never the brand green —
     // the old #2E7D44 was indistinguishable from a brand-green action.
     case 'pass': return { Icon: ShieldCheck, color: t.successLabel,     label: 'Valid' };
-    case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review needed' };
-    case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
+    case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review Needed' };
+    case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action Required' };
     case 'none':
     default:     return { Icon: Shield,      color: neutralInk(t),      label: 'No COI' };
   }

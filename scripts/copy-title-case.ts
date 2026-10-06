@@ -72,8 +72,12 @@ function want(toks: Tok[], i: number): 'cap' | 'small' | 'either' | 'fixed' {
   const t = toks[i];
   if (!/[A-Za-z]/.test(t.core)) return 'fixed';
   if (t.core.split(/[-/]/).every((p) => !/[A-Za-z]/.test(p) || isFixed(p))) return 'fixed';
-  const prev = toks.slice(0, i).reverse().find((x) => /[A-Za-z0-9]/.test(x.core));
-  const next = toks.slice(i + 1).find((x) => /[A-Za-z0-9]/.test(x.core));
+  if (/^\.[a-z0-9]+$/.test(t.core)) return 'fixed'; // a file extension: (.json), .csv
+  if (/^\$\/[a-z]+$/.test(t.core)) return 'fixed'; // a unit: $/hr, $/yr, $/sf
+  if (/^vs$/i.test(t.core) && t.close.startsWith('.') && i > 0 && i < toks.length - 1) return 'small'; // "vs." is one small word
+  const prev = toks.slice(0, i).reverse().find((x) => /[A-Za-z0-9%$]/.test(x.core));
+  // A unit sign after the word counts as a word, so "Step Down to a %" keeps its small "a".
+  const next = toks.slice(i + 1).find((x) => /[A-Za-z0-9%$]/.test(x.core));
   const startsRun = !prev || /[:.?!]$/.test(prev.close) || t.open.length > 0 || /^[·|•/&+]$/.test(toks[i - 1]?.raw ?? '');
   const endsRun = !next || /[)\]"”]/.test(t.close) || /[:.?!]/.test(t.close) || /^[·|•]$/.test(toks[i + 1]?.raw ?? '');
   const low = t.core.toLowerCase();
@@ -125,4 +129,73 @@ export function isTitleCase(s: string): boolean {
     if (w === 'cap') return t.core === capWord(t.core);
     return t.core === lowerFirst(t.core);
   });
+}
+
+// ── Alert titles: a sentence or a label? (docs/VOICE.md §3, "Alert title") ────
+//
+// An alert title that is a full sentence or a question is written as a
+// sentence: sentence case, closing punctuation ("Delete this sheet?", "Takeoffs
+// are on the Pro plan.", "You're offline."). A title that is a noun phrase or a
+// short command stays a label, in Title Case ("Delete Scan", "Not Signed In",
+// "Couldn't Send Invoice", "Upgrade Required").
+//
+// A script cannot parse English, so the test is a fixed one that a person can
+// run in their head. A title is a SENTENCE when any of these is true:
+//   1. it ends in "?" or "." ;
+//   2. it opens with a pronoun subject (You, You're, This, It, We, There,
+//      That's, They, I'm, …);
+//   3. a helping verb from HELPING_VERBS stands anywhere AFTER its first word,
+//      so there is a subject in front of it ("Milestone was already billed.",
+//      "Saved, but the sub hasn't been told."). A helping verb as the FIRST
+//      word has no subject ("Couldn't Send Invoice", "Can't Delete This Item")
+//      and the title stays a label.
+// A sentence whose verb is not a helping verb ("Only the project owner bills.")
+// is caught by rule 1: type it with its period and the guard holds it to
+// sentence case from then on.
+
+/** Helping verbs: one of these after the first word means subject + verb. */
+export const HELPING_VERBS: ReadonlySet<string> = new Set([
+  'is', "isn't", 'are', "aren't", 'was', "wasn't", 'were', "weren't",
+  'has', "hasn't", 'have', "haven't", 'had', "hadn't",
+  'can', "can't", 'cannot', 'could', "couldn't", 'will', "won't", 'would', "wouldn't",
+  'does', "doesn't", "don't", 'did', "didn't", 'must', 'should', "shouldn't",
+  'need', 'needs',
+]);
+
+/** A title that opens like this has a pronoun for its subject. */
+export const SENTENCE_OPENER = /^(?:You|You['’](?:re|ve|ll|d)|This|It|It['’]s|We|We['’](?:re|ve|ll)|There|There['’]s|That['’]s|They|They['’](?:re|ve|ll)|I['’](?:m|ll|ve))(?![A-Za-z'’])/;
+
+function plainWord(raw: string): string {
+  return raw.toLowerCase().replace(/’/g, "'").replace(/[^a-z']/g, '');
+}
+
+/** True when an alert title is a full sentence or a question (see the three tests above). */
+export function isSentenceTitle(s: string): boolean {
+  const t = s.trim();
+  if (/[?.]$/.test(t) && !/\.\.\.$/.test(t)) return true;
+  if (SENTENCE_OPENER.test(t)) return true;
+  const words = t.split(/\s+/).map(plainWord);
+  return words.slice(1).some((w) => HELPING_VERBS.has(w));
+}
+
+/**
+ * What is wrong with a sentence title, or null when it is written correctly.
+ * `isName(word)` says a word is a proper noun, a plan name or a feature name and
+ * keeps its capital inside a sentence; the caller blanks multi-word names first.
+ */
+export function sentenceTitleProblem(s: string, isName: (word: string) => boolean = () => false): string | null {
+  const t = s.trim();
+  if (!/[?.…]$/.test(t)) return 'a sentence title ends with a period or a question mark';
+  const { toks } = tokenize(t);
+  if (toks.length && /^[a-z]/.test(toks[0].core)) return 'a sentence title starts with a capital';
+  for (let i = 1; i < toks.length; i++) {
+    const tk = toks[i];
+    if (!/^[A-Z]/.test(tk.core)) continue;
+    if (/[.?!:]$/.test(toks[i - 1].close) || tk.open.length > 0) continue; // a new sentence, or a quoted name
+    if (tk.core.split(/[-/]/).every((p) => !/[A-Za-z]/.test(p) || isFixed(p))) continue; // RFI, QuickBooks, G702/G703
+    if (/^I(?:['’](?:m|ll|ve|d))?$/.test(tk.core)) continue;
+    if (isName(tk.core.replace(/['’]s$/, ''))) continue;
+    return `"${tk.core}" is capitalized inside a sentence title (sentence case; a name goes on properNouns)`;
+  }
+  return null;
 }

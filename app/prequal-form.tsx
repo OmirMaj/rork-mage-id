@@ -240,7 +240,7 @@ export default function PrequalFormScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ErrorState
-          title={loadError?.title ?? "That Didn't Go Through"}
+          title={loadError?.title ?? "That didn't go through."}
           body={loadError?.body ?? 'MAGE couldn\'t open your prequal packet. Try again in a moment.'}
           onRetry={() => { setLoadError(null); setLoadState('loading'); setReloadNonce(n => n + 1); }}
           onBack={() => router.back()}

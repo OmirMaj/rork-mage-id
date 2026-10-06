@@ -129,7 +129,7 @@ console.log('\n#55 / #93 app/(tabs)/estimate/full.tsx + components/PDFPreSendShe
   const estAt = sheet.indexOf("case 'estimate': {");
   const est = estAt < 0 ? '' : sheet.slice(estAt, sheet.indexOf("case 'invoice':", estAt));
   ok('#93: the estimate sections block is found', est.length > 0);
-  ok('#93: Bulk Savings defaults OFF', /\{ id: 'bulk_savings', label: 'Bulk savings breakdown', enabled: false \}/.test(est) && !/enabled: true/.test(est));
+  ok('#93: Bulk Savings defaults OFF', /\{ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: false \}/.test(est) && !/enabled: true/.test(est));
   ok('#93: no dead estimate toggles (Line Items / Cost Summary / Schedule / Branding)', !/line_items|cost_summary|schedule_summary|'branding'/.test(est));
   ok('#93: the sections block hides when there is nothing to toggle', /\{sections\.length > 0 && \(/.test(sheet));
 }

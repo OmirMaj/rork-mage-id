@@ -886,7 +886,7 @@ function TakeoffEstimateInner() {
       // Replace button in front of him that doReplace will only refuse.
       const blocked = !isMarkupSet(markupPct);
       showAlert(
-        'This project already has an estimate',
+        'This project already has an estimate.',
         `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
           ? `Appending these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} carries that estimate's own markup across. Replacing it needs your markup first. Set it on the row above the Save button.`
           : `Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`}`,

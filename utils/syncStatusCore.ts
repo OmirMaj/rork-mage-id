@@ -38,7 +38,7 @@
 // But "we could not look" must never DEMOTE something we already know. A
 // recorded failure outranks `readFailed`, because the ledger is a separate read
 // from the queues: one corrupt queue used to turn a red "2 didn't sync" into a
-// neutral "Sync unknown" that told the user nothing had been deleted. See the
+// neutral "Sync Unknown" that told the user nothing had been deleted. See the
 // precedence comment in computeSyncStatus.
 
 /** Raw depths, as read from the device. */
@@ -100,11 +100,11 @@ export function discardConfirmBody(kind: UnsavedDiscardKind): string {
     case 'create':
       return 'It was never saved to MAGE. Discarding removes it from this phone and it cannot be recovered.';
     case 'edit':
-      return 'Your change was not saved to MAGE. Discarding drops the change — MAGE keeps the last saved version, and this phone goes back to it.';
+      return 'Your change was not saved to MAGE. Discarding drops the change. MAGE keeps the last saved version, and this phone goes back to it.';
     case 'delete':
-      return 'The delete was not saved to MAGE. Discarding cancels it — the record stays on MAGE and will reappear on this phone.';
+      return 'The delete was not saved to MAGE. Discarding cancels it. The record stays on MAGE and will reappear on this phone.';
     default:
-      return 'This change was not saved to MAGE. Discarding drops it for good — if the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.';
+      return 'This change was not saved to MAGE. Discarding drops it for good. If the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.';
   }
 }
 
@@ -121,7 +121,7 @@ export interface UnsavedSource {
   recordKey?: string;
 }
 
-export const NOT_SAVED_LEAD = 'Not saved to MAGE — ';
+export const NOT_SAVED_LEAD = 'Not saved to MAGE: ';
 
 /**
  * One line per record, newest first. A record is retryable only if EVERY
@@ -265,7 +265,7 @@ export function computeSyncStatus(
       badge: `${failed} didn’t sync`,
       title: `${failed} item${one ? '' : 's'} not saved to MAGE`,
       detail:
-        `${one ? 'It is' : 'They are'} not on the server and will not be sent unless you retry — MAGE has stopped trying. `
+        `${one ? 'It is' : 'They are'} not on the server and will not be sent unless you retry. MAGE has stopped trying. `
         + `${action}${what}${alsoPending}`,
     };
   }
@@ -277,9 +277,9 @@ export function computeSyncStatus(
     return {
       tone: 'unknown', pending: 0, failed: 0, depths,
       visible: true,
-      badge: 'Sync unknown',
-      title: 'Couldn’t check your sync queue',
-      detail: `This device wouldn’t let MAGE read its saved-work queue, so we can’t tell you what is still waiting. Nothing has been deleted — reopen the app to try again.`,
+      badge: 'Sync Unknown',
+      title: 'Couldn’t Check Your Sync Queue',
+      detail: `This device wouldn’t let MAGE read its saved-work queue, so we can’t tell you what is still waiting. Nothing has been deleted. Reopen the app to try again.`,
     };
   }
 
@@ -291,7 +291,7 @@ export function computeSyncStatus(
       title: `${describeDepths(depths)} waiting to sync`,
       detail:
         `Saved ${where} and not yet on the server. MAGE sends ${pending === 1 ? 'it' : 'them'} automatically `
-        + `the next time you have signal or wifi — you can close the app, it keeps ${pending === 1 ? 'it' : 'them'}. `
+        + `the next time you have signal or wifi. You can close the app, it keeps ${pending === 1 ? 'it' : 'them'}. `
         + `If something can’t be sent after several tries, this badge turns red and tells you exactly what.`,
     };
   }

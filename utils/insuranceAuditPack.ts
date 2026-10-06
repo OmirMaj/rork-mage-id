@@ -46,13 +46,13 @@ export const AUDIT_COVERAGE_TYPES = ['workers_comp', 'general_liability'] as con
 export type AuditCoverageType = (typeof AUDIT_COVERAGE_TYPES)[number];
 
 export const COVERAGE_TYPE_LABEL: Record<AuditCoverageType, string> = {
-  workers_comp: "Workers' comp",
-  general_liability: 'General liability',
+  workers_comp: "Workers' Comp",
+  general_liability: 'General Liability',
 };
 
 /** Fixed note — on the screen, in the CSV and in the PDF. */
 export const EXEMPTION_NOTE =
-  "Workers' comp exemptions (e.g. a sole proprietor with no employees) are not tracked in MAGE — a sub marked not covered may hold an exemption certificate. Confirm with your carrier or auditor.";
+  "Workers' comp exemptions (a sole proprietor with no employees, for example) are not tracked in MAGE. A sub marked not covered may hold an exemption certificate. Confirm with your carrier or auditor.";
 
 /** What MAGE reads as a sub payment — the same two sources the 1099 export
  *  reads (utils/tax1099Export COVERAGE_NOTE_WITH_RECORDED_BILLS). */
@@ -60,16 +60,16 @@ export const AUDIT_SOURCES_NOTE =
   'Reads sub-portal invoices marked paid and bills you recorded against a subcontract. A check, ACH or cash payment with no record in MAGE is not here.';
 
 export const PORTAL_LOAD_FAILED_PREFIX =
-  "Portal payments couldn't be loaded — totals below leave them out.";
+  "Portal payments couldn't be loaded. Totals below leave them out.";
 
 export const EXPORT_BLOCKED_PORTAL =
-  "Export needs the sub-portal payments. Reconnect and tap Retry — without them the file would leave out every payment made through the portal.";
+  "Export needs the sub-portal payments. Reconnect and tap Retry. Without them the file would leave out every payment made through the portal.";
 
 export const EMPTY_HEADLINE = 'No dated sub payments recorded in this period';
 
 /** The row note for a payment whose project is unknown. */
 export const PROJECT_UNKNOWN_NOTE =
-  'project unknown — only certificates not tied to one job were checked';
+  'project unknown, so only certificates not tied to one job were checked';
 
 /** The row note for a GC-recorded bill dated by when it was entered. */
 export const DATE_RECORDED_NOTE = 'date recorded, not payment date';
@@ -93,12 +93,12 @@ export type CoverageStatus =
   | 'undated';
 
 export const STATUS_LABEL: Record<CoverageStatus, string> = {
-  covered: 'Certificate spans this date',
-  not_covered: 'Not covered on this date',
-  no_certificate: 'No certificate on file',
-  dates_missing: 'Certificate is missing dates',
-  unconfirmed: 'AI-read dates, not yet confirmed',
-  undated: "Payment date unknown — can't be tested",
+  covered: 'Certificate Spans This Date',
+  not_covered: 'Not Covered on This Date',
+  no_certificate: 'No Certificate on File',
+  dates_missing: 'Certificate Is Missing Dates',
+  unconfirmed: 'AI-Read Dates, Not Confirmed Yet',
+  undated: "Payment Date Unknown, Can't Be Tested",
 };
 
 /** A GC-recorded sub payment with its project and the basis of its date. */
@@ -513,7 +513,7 @@ export function buildInsuranceAudit(input: InsuranceAuditInput): InsuranceAudit 
         || p.status.workers_comp === 'dates_missing')),
       undatedCommitmentCents: undated,
       commitmentNote: undated > 0
-        ? `Commitments also record ${formatCents(undated)} paid to date with no payment dates — not tested against a certificate; confirm against your books.`
+        ? `Commitments also record ${formatCents(undated)} paid to date with no payment dates. They were not tested against a certificate; confirm against your books.`
         : null,
     };
   });
@@ -624,16 +624,16 @@ export function toPdfHtml(audit: InsuranceAudit, branding?: CompanyBranding | nu
     .map(s => `<p style="margin:0 0 6px">${escHtml(s.name)}: ${escHtml(s.commitmentNote ?? '')}</p>`).join('');
   const body = `
     ${pdfTitle({
-      eyebrow: "Workers' comp audit",
-      title: 'Sub payments vs. certificates of insurance',
+      eyebrow: "Workers' Comp Audit",
+      title: 'Sub Payments vs. Certificates of Insurance',
       subtitle: audit.periodLabel,
-      meta: gcName ? [{ label: 'Prepared by', value: gcName }] : undefined,
+      meta: gcName ? [{ label: 'Prepared By', value: gcName }] : undefined,
     })}
     <p style="margin:0 0 14px;font-size:13px">${escHtml(audit.headline)}</p>
     ${pdfStatGrid([
-      { label: 'Paid in period', value: formatCents(audit.paidTotalCents) },
-      { label: 'No WC certificate on the date', value: formatCents(audit.uncoveredWcCents), accent: audit.uncoveredWcCents > 0 ? 'error' : undefined },
-      { label: "Can't tell from the records", value: formatCents(audit.cantTellWcCents), accent: audit.cantTellWcCents > 0 ? 'brand' : undefined },
+      { label: 'Paid in Period', value: formatCents(audit.paidTotalCents) },
+      { label: 'No WC Certificate on the Date', value: formatCents(audit.uncoveredWcCents), accent: audit.uncoveredWcCents > 0 ? 'error' : undefined },
+      { label: "Can't Tell from the Records", value: formatCents(audit.cantTellWcCents), accent: audit.cantTellWcCents > 0 ? 'brand' : undefined },
     ])}
     ${pdfSectionHeader('Payments')}
     ${pdfTable([
@@ -645,5 +645,5 @@ export function toPdfHtml(audit: InsuranceAudit, branding?: CompanyBranding | nu
     <p style="margin:0;font-size:11px">${escHtml(EXEMPTION_NOTE)}</p>
   `;
   // pdfShell only names the document; the branding header is not drawn here.
-  return pdfShell({ bodyHtml: body, branding: (branding ?? {}) as CompanyBranding, title: `Insurance audit — ${audit.periodLabel}` });
+  return pdfShell({ bodyHtml: body, branding: (branding ?? {}) as CompanyBranding, title: `Insurance audit: ${audit.periodLabel}` });
 }

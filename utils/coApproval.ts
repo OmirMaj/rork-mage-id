@@ -88,7 +88,7 @@ export function coApprovalLine(
       kind: 'client_signed',
       who, day, hash,
       text: `Electronically signed by ${who} in the client portal${onDay(day)}`
-        + (hash ? ` — record SHA-256 ${hash}…` : '') + '.',
+        + (hash ? `, record SHA-256 ${hash}…` : '') + '.',
     };
   }
 

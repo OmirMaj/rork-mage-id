@@ -176,22 +176,22 @@ export function movePaletteSelection(i: number, delta: number, n: number): numbe
 export function paletteLaneLabel(lane: PaletteLane, jobName?: string | null): string {
   switch (lane) {
     case 'job-actions': return jobName ? `Actions for ${jobName}` : 'Actions';
-    case 'recent-jobs': return 'Recent jobs';
+    case 'recent-jobs': return 'Recent Jobs';
     case 'brain': return 'MAGE Brain';
     case 'projects': return 'Projects';
     case 'actions': return 'Actions';
     case 'ask': return 'Ask';
-    case 'features': return 'Go to';
+    case 'features': return 'Go To';
     case 'records': return 'Records';
-    case 'recent-searches': return 'Recent searches';
+    case 'recent-searches': return 'Recent Searches';
   }
 }
 
 export const BRAIN_ROWS: readonly { action: BrainAction; label: string; sublabel?: string }[] = [
-  { action: 'ask', label: 'Ask MAGE anything', sublabel: 'Opens beside the page' },
-  { action: 'voice', label: 'Voice capture', sublabel: 'Speak a log, a punch item, an update' },
-  { action: 'help', label: 'Help & tips' },
-  { action: 'shortcuts', label: 'Keyboard shortcuts' },
+  { action: 'ask', label: 'Ask MAGE Anything', sublabel: 'Opens beside the page' },
+  { action: 'voice', label: 'Voice Capture', sublabel: 'Speak a log, a punch item, an update' },
+  { action: 'help', label: 'Help and Tips' },
+  { action: 'shortcuts', label: 'Keyboard Shortcuts' },
 ];
 
 // ── Rows ─────────────────────────────────────────────────────────────────────

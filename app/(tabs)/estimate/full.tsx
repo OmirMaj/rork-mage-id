@@ -1300,7 +1300,7 @@ export default function EstimateScreen() {
       if (!pdfUri) {
         const proceedWithoutPdf = await new Promise<boolean>((resolve) => {
           showAlert(
-            'PDF Could Not Be Attached',
+            'PDF could not be attached.',
             Platform.OS === 'web'
               ? `The web app can't create the estimate PDF, so nothing can be attached to this email.\n\nYou can still email ${options.recipient.trim()} the estimate summary: project, item count and total. To send the PDF itself, use Share and save it from the print dialog, or send from the iPhone app.`
               : `The estimate PDF couldn't be created on this device, so nothing can be attached.\n\nYou can still email ${options.recipient.trim()} the estimate summary without it.`,

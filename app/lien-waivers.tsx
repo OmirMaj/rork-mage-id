@@ -426,7 +426,7 @@ function LienWaiversScreenInner() {
     } else if (isOfflineError(res.error)) {
       // A waiver is created on the server (it carries the id the signing link
       // is built on), so offline it cannot be saved yet — say that, not "failed".
-      showAlert('You’re offline', 'The waiver was not saved. This phone has no signal. Your entries are still in the form. Tap Create again once you’re back online.');
+      showAlert('You’re offline.', 'The waiver was not saved. This phone has no signal. Your entries are still in the form. Tap Create again once you’re back online.');
     } else {
       console.warn('[LienWaivers] create failed:', res.error);
       showAlert("Couldn't Save the Waiver", `The waiver was not saved. ${ownSentence(res.error) ?? 'Try again.'}`);
@@ -501,7 +501,7 @@ function LienWaiversScreenInner() {
     const email = (typed ?? '').trim();
     if (!email) return;   // they cancelled or cleared the field
     if (!email.includes('@') || /\s/.test(email)) {
-      showAlert('That Is Not an Email Address', `"${email}" has no "@" in it, so there is nowhere to send the waiver.`);
+      showAlert('That is not an email address.', `"${email}" has no "@" in it, so there is nowhere to send the waiver.`);
       return;
     }
     const saved = await saveLienWaiver({ ...w, id: w.id, subEmail: email });
@@ -555,14 +555,14 @@ function LienWaiversScreenInner() {
         // that status — so the sub would be handed a live link to a release this
         // contractor had already cancelled.
         showAlert(
-          'This waiver is voided',
+          'This waiver is voided.',
           `It was cancelled, so ${w.subName} is not being asked to sign it. Create a new waiver if you need one.`,
         );
         return;
       }
       if (result.outcome === 'already_signed') {
         showAlert(
-          'This waiver is already signed',
+          'This waiver is already signed.',
           `${w.subName} has signed it. Re-sending would replace the signed document with a fresh unsigned one, so it is refused.`,
         );
         return;
@@ -576,7 +576,7 @@ function LienWaiversScreenInner() {
         // to paste.
         await refresh();
         showAlert(
-          'Email Did Not Go Out',
+          'Email did not go out.',
           'The waiver is ready to sign but the email was not accepted. Copy the signing link and send it yourself.',
           [
             { text: 'Close', style: 'cancel' },
@@ -587,7 +587,7 @@ function LienWaiversScreenInner() {
       }
       if (result.outcome === 'not_provisioned') {
         showAlert(
-          'Signing Is Not Switched On Yet',
+          'Signing is not switched on yet.',
           'Sub-signed waivers need a database update that has not been applied to this account yet. Until then, use Record paper waiver.',
         );
         return;
@@ -595,7 +595,7 @@ function LienWaiversScreenInner() {
       if (isOfflineError(result.error ?? '')) {
         // The token is minted on the server row before the email goes, so this
         // is online-only by design (an optimistic token is a link that 404s).
-        showAlert('You’re offline', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent. Try again once you’re back online.');
+        showAlert('You’re offline.', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent. Try again once you’re back online.');
         return;
       }
       showAlert('Could Not Send', result.error || 'The signing request did not go out. Try again.');
@@ -660,7 +660,7 @@ function LienWaiversScreenInner() {
     const current = fresh.ok && fresh.waiver ? fresh.waiver : w;
     if (fresh.ok && fresh.waiver) setWaivers(prev => prev.map(x => x.id === w.id ? current : x));
     if (fresh.ok && !fresh.waiver) {
-      showAlert('This waiver is gone', 'It is no longer on the project. It may have been deleted on another device.');
+      showAlert('This waiver is gone.', 'It is no longer on the project. It may have been deleted on another device.');
       void refresh();
       return;
     }
@@ -1258,7 +1258,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
       return;
     }
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      showAlert('Email Looks Off', 'Either fix the email or leave it blank.');
+      showAlert('Email looks off.', 'Either fix the email or leave it blank.');
       return;
     }
     const link = picked && picked.name === trimmedName ? picked : null;

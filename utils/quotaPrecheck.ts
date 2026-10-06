@@ -84,13 +84,13 @@ export function drawingAnalysesRefusal(
   if (!bucket || bucket.remaining > 0) return null;
   if (bucket.cap <= 0) {
     return {
-      title: 'Drawing analysis isn’t on your plan',
+      title: 'Drawing analysis isn’t on your plan.',
       body: 'AI takeoffs, spec-book imports, Compare Drawings and the drawing analyzer are part of Pro. Upgrade to run one.',
     };
   }
   return {
-    title: 'No drawing analyses left this month',
-    body: `You’ve used all ${bucket.cap} drawing analyses this month — takeoffs, spec-book imports, Compare Drawings and the drawing analyzer share them. ${resetLabel}.\n\nNothing was uploaded, and no takeoff pages were used.`,
+    title: 'No Drawing Analyses Left This Month',
+    body: `You’ve used all ${bucket.cap} drawing analyses this month. Takeoffs, spec-book imports, Compare Drawings and the drawing analyzer share them. ${resetLabel}.\n\nNothing was uploaded, and no takeoff pages were used.`,
   };
 }
 
@@ -113,7 +113,7 @@ export async function confirmDrawingAnalysesLeft(router: Router): Promise<boolea
       [
         { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
         {
-          text: 'See plans',
+          text: 'See Plans',
           onPress: () => {
             router.push('/paywall' as never);
             resolve(false);
@@ -155,11 +155,11 @@ export function showAiRefusal(err: unknown, router: Router): string | null {
   // line, with no dialog and no retry button to tap in the meantime.
   if (kind === 'hourly') return message;
   showAlert(
-    edgeErrorCode(err) === 'tier_required' ? 'Not included in your plan' : 'You’ve hit this month’s limit',
+    edgeErrorCode(err) === 'tier_required' ? 'Not Included in Your Plan' : 'You’ve hit this month’s limit.',
     message,
     [
-      { text: 'Not now', style: 'cancel' },
-      { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+      { text: 'Not Now', style: 'cancel' },
+      { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
     ],
   );
   return message;
@@ -192,7 +192,7 @@ export async function confirmQuotaFits(pageCount: number, fileName: string, rout
   if (quota.cap === 0) {
     return new Promise<boolean>((resolve) => {
       showAlert(
-        'Takeoffs are a Pro feature',
+        'Takeoffs are a Pro feature.',
         `AI Takeoff isn't included on your current plan. Upgrade to Pro to start uploading plan PDFs.`,
         [
           { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
@@ -211,12 +211,12 @@ export async function confirmQuotaFits(pageCount: number, fileName: string, rout
   if (pageCount > quota.remaining) {
     return new Promise<boolean>((resolve) => {
       showAlert(
-        `${fileName} won't fit this month`,
+        `${fileName} won't fit this month.`,
         `That PDF is ${pageCount} pages but you have ${quota.remaining} of ${quota.cap} takeoff pages remaining this month.\n\nTrim the PDF to ${quota.remaining} pages or fewer, or upgrade your plan for more headroom.`,
         [
           { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
           {
-            text: 'Upgrade plan',
+            text: 'Upgrade Plan',
             onPress: () => {
               router.push('/paywall' as never);
               resolve(false);

@@ -118,9 +118,9 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
         {fX.showHandle && <View style={styles.handle} />}
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Pick a sample project</Text>
+            <Text style={styles.title}>Pick a Sample Project</Text>
             <Text style={styles.subtitle}>
-              Each loads right away. Remove one later from Settings → Reset, or tap Delete on its project tile.
+              Each loads right away. Remove one later from Settings &gt; Reset, or tap Delete on its project tile.
             </Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -181,7 +181,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
                 </View>
 
                 <View style={[styles.cta, { backgroundColor: fill }]}>
-                  <Text style={styles.ctaText}>Load this sample</Text>
+                  <Text style={styles.ctaText}>Load This Sample</Text>
                   <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
                 </View>
               </TouchableOpacity>

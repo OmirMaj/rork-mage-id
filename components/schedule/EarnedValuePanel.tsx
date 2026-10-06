@@ -88,7 +88,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tileLabel}>Planned Vs. Earned</Text>
+            <Text style={styles.tileLabel}>Planned vs. Earned</Text>
             <Text style={styles.tileSub}>
               {formatMoneyCompact(snapshot.totalEarnedValue)} earned · {formatMoneyCompact(snapshot.totalPlannedValue)} planned
             </Text>

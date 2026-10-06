@@ -309,7 +309,7 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
     const tree = await desk('/coi-vault');
     expect(screen.getByTestId('coi-vault-register')).toBeTruthy();
     expect(screen.queryByTestId(`coi-sub-${S1}`)).toBeNull();
-    expect(screen.queryByText('Make sure your subs are insured')).toBeNull();
+    expect(screen.queryByText('Make Sure Your Subs Are Insured')).toBeNull();
     expect(flat(screen.getByTestId(`coi-vault-register-table-row-${S1}`).props.style).minHeight).toBe(36);
     // S2 (10 days) before S1 (2027), and S3 (no expiry) last.
     const rows = testIdsInOrder(tree.toJSON()).filter((id) => /^coi-vault-register-table-row-sub-r2-\d$/.test(id));
@@ -346,8 +346,8 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
     expect(screen.getByTestId('coi-vault-record-strip')).toBeTruthy();
     expect(screen.getAllByTestId('coi-upload')).toHaveLength(1);
     expect(screen.getAllByTestId('coi-coverages')).toHaveLength(1);
-    expect(screen.queryByText('All subs')).toBeNull();
-    expect(screen.getAllByText('Action required').length).toBeGreaterThan(0);
+    expect(screen.queryByText('All Subs')).toBeNull();
+    expect(screen.getAllByText('Action Required').length).toBeGreaterThan(0);
   });
 
   it('an unsaved coverage row holds the record: another row asks "Discard changes?" first', async () => {
@@ -388,8 +388,8 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
       await desk('/coi-vault');
       await act(async () => { fireEvent.press(screen.getByTestId(`coi-vault-register-table-row-${S1}-check`)); });
       await pump(2);
-      await act(async () => { fireEvent.press(screen.getByText('Request renewal')); });
-      expect(spy).toHaveBeenCalledWith('Request renewal', 'MAGE ID can’t send a renewal request to a sub yet — you get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.');
+      await act(async () => { fireEvent.press(screen.getByText('Request Renewal')); });
+      expect(spy).toHaveBeenCalledWith('Request Renewal', 'MAGE ID can’t send a renewal request to a sub yet. You get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.');
     } finally {
       spy.mockRestore();
     }

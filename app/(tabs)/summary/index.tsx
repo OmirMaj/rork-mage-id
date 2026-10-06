@@ -270,14 +270,14 @@ export default function SummaryScreen() {
         <EmptyState
           icon={<CloudOff size={36} color={themeColors.warningLabel} strokeWidth={1.75} />}
           accent={themeColors.warningLabel}
-          title="Couldn't reach MAGE"
-          message="Your briefing needs a live read of your projects, and the last one didn't come back. Nothing here is missing — this device just has nothing cached to show yet."
+          title="Couldn't Reach MAGE"
+          message="Your briefing needs a live read of your projects, and the last one didn't come back. Nothing here is missing. This device just has nothing cached to show yet."
           steps={[
             'Check that you have signal or Wi-Fi.',
             'Tap Try again below.',
-            "If it keeps failing, sign out and back in — the session may have expired.",
+            "If it keeps failing, sign out and back in. The session may have expired.",
           ]}
-          actionLabel="Try again"
+          actionLabel="Try Again"
           onAction={retryRemoteReads}
         />
       </View>
@@ -299,14 +299,14 @@ export default function SummaryScreen() {
         </View>
         <EmptyState
           icon={<FolderOpen size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title="No projects yet"
-          message="Your daily briefing rolls up today's schedule, this week, money, and what needs you — across every project. To populate it:"
+          title="No Projects Yet"
+          message="Your daily briefing rolls up today's schedule, this week, money, and what needs you, across every project. To populate it:"
           steps={[
             'Open the Projects tab from the sidebar.',
             'Tap New project, or Try a sample project.',
             'Come back here once you have estimates, invoices, or a schedule flowing.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -329,7 +329,7 @@ export default function SummaryScreen() {
     >
       <CloudOff size={14} color={themeColors.warningLabel} strokeWidth={2} />
       <Text style={styles.unreachableText}>{unreachableLine}</Text>
-      <Text style={styles.unreachableRetry}>Try again</Text>
+      <Text style={styles.unreachableRetry}>Try Again</Text>
     </TouchableOpacity>
   );
   // An undated schedule has real day numbers and no calendar position, so it
@@ -374,7 +374,7 @@ export default function SummaryScreen() {
       activeOpacity={0.75}
     >
       <Briefcase size={16} color={themeColors.accent} />
-      <Text style={styles.businessStripText}>Your business</Text>
+      <Text style={styles.businessStripText}>Your Business</Text>
       <Text style={styles.businessStripSub}>Margins · pipeline · clients · weather</Text>
       <ChevronRight size={14} color={themeColors.textSecondary} />
     </TouchableOpacity>

@@ -653,7 +653,7 @@ const touch = (body: string, occurredAt: string): LeadTouch =>
 // MONEY-LEDGER-1 — ONE contract, ONE billed-to-date.
 //
 // Every contract MAGE creates carries a 25/25/25/25 payment schedule, and the
-// contract screen puts the milestone "Create invoice" action and a button into
+// contract screen puts the milestone "Create Invoice" action and a button into
 // /bill-from-estimate side by side. A milestone invoice used to be invisible to
 // the estimate-keyed ledger, so the billing screen printed "Already Billed
 // $0.00" over 25/50/75/100% quick-fill buttons: bill the deposit, quick-fill
@@ -2557,7 +2557,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   const lockedIdx = signBody.indexOf('contractTermsLocked(c)');
   ok('…and a draft that already carries his signature says why, before anything else in the press',
     lockedIdx > 0 && emptyIdx > lockedIdx && placeholderIdx > lockedIdx && askIdx > lockedIdx
-    && /showAlert\(\s*'This contract is already signed',/.test(signBody)
+    && /showAlert\(\s*'This contract is already signed.',/.test(signBody)
     && signBody.indexOf('return;', lockedIdx) < emptyIdx,
     `locked@${lockedIdx} empty@${emptyIdx} placeholder@${placeholderIdx} ask@${askIdx}`);
   // W2 MOMSIGN (A1): the sign sheet is a signing ceremony. The terms states

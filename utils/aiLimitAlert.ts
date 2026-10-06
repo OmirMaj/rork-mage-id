@@ -69,23 +69,23 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
   // Free-tier-only paths — no countdown, just a paywall nudge.
   if (reason === 'pro_only') {
     showAlert(
-      'Pro feature',
+      'Pro Feature',
       message ?? 'This AI feature is part of Pro. Upgrade to unlock.',
       [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'See Pro plans', onPress: () => router.push('/paywall' as never) },
+        { text: 'Not Now', style: 'cancel' },
+        { text: 'See Pro Plans', onPress: () => router.push('/paywall' as never) },
       ],
     );
     return;
   }
   if (reason === 'lifetime_cap') {
     showAlert(
-      'Free trials used',
+      'Free Trials Used',
       // Never "unlimited": no plan is uncapped (Pro is LIMITS.pro — 30 a day,
       // 6 advanced), and the paywall prints that table two taps away.
       message ?? `You've used your free AI trials. Pro includes ${LIMITS.pro.daily} AI requests a day, ${LIMITS.pro.smart} of them advanced.`,
       [
-        { text: 'Not now', style: 'cancel' },
+        { text: 'Not Now', style: 'cancel' },
         { text: 'Upgrade to Pro', onPress: () => router.push('/paywall' as never) },
       ],
     );
@@ -124,7 +124,7 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
 
   showAlert(title, body, [
     // Not "Wait until tomorrow": the reset is often later TODAY (8 PM in New York).
-    { text: 'Wait for the reset', style: 'cancel' },
+    { text: 'Wait for the Reset', style: 'cancel' },
     { text: buttonLabel, onPress: () => router.push('/paywall' as never) },
   ]);
   // Lightweight haptic so the user feels the limit kick rather than just

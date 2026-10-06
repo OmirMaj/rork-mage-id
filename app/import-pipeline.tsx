@@ -63,7 +63,7 @@ export default function ImportPipelineScreen() {
   const handleParse = useCallback(() => {
     const parsed = parseImportBlob(blob);
     if (parsed.length === 0) {
-      showAlert('Nothing to import', 'Paste one client per line — name first, then phone, email, project, or budget in any order.');
+      showAlert('Nothing to Import', 'Paste one client per line: name first, then phone, email, project, or budget in any order.');
       return;
     }
     setDrafts(parsed);
@@ -82,9 +82,9 @@ export default function ImportPipelineScreen() {
       for (const d of drafts) addLead(draftToLeadInput(d));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Pipeline imported',
+        'Pipeline Imported',
         `${drafts.length} client${drafts.length === 1 ? '' : 's'} added to your pipeline as qualified leads. Open any one to draft an Instant Bid.`,
-        [{ text: 'View pipeline', onPress: () => router.replace('/leads' as never) }],
+        [{ text: 'View Pipeline', onPress: () => router.replace('/leads' as never) }],
       );
     } finally {
       setImporting(false);
@@ -122,8 +122,8 @@ export default function ImportPipelineScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Bring your book of business</Text>
-          <Text style={styles.title}>Import your clients</Text>
+          <Text style={styles.eyebrow}>Bring Your Book of Business</Text>
+          <Text style={styles.title}>Import Your Clients</Text>
         </View>
       </View>
 
@@ -134,7 +134,7 @@ export default function ImportPipelineScreen() {
           onPress={() => { setMode('paste'); setReviewing(false); }}
         >
           <ClipboardPaste size={14} color={mode === 'paste' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={[styles.segmentText, mode === 'paste' && styles.segmentTextActive]}>Paste list</Text>
+          <Text style={[styles.segmentText, mode === 'paste' && styles.segmentTextActive]}>Paste List</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.segment, isDesktop && segmentedDesktop.segment, mode === 'contacts' && styles.segmentActive]}
@@ -142,7 +142,7 @@ export default function ImportPipelineScreen() {
         >
           <Users size={14} color={mode === 'contacts' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'contacts' && styles.segmentTextActive]}>
-            From contacts{importableContacts.length > 0 ? ` · ${importableContacts.length}` : ''}
+            From Contacts{importableContacts.length > 0 ? ` · ${importableContacts.length}` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -157,7 +157,7 @@ export default function ImportPipelineScreen() {
             <View style={styles.pitch}>
               <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.pitchText}>
-                Paste your client list — one per line. We&apos;ll read the name, phone, email,
+                Paste your client list, one per line. We&apos;ll read the name, phone, email,
                 project, and budget in any order. Copy a column straight from a spreadsheet,
                 Notes, or a text.
               </Text>
@@ -211,7 +211,7 @@ export default function ImportPipelineScreen() {
             <View style={styles.reviewActions}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={() => setReviewing(false)} activeOpacity={0.8}>
                 <X size={15} color={themeColors.text} strokeWidth={1.75} />
-                <Text style={styles.secondaryBtnText}>Back to edit</Text>
+                <Text style={styles.secondaryBtnText}>Back to Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { flex: 1 }, (importing || drafts.length === 0) && styles.primaryBtnDisabled]}
@@ -231,7 +231,7 @@ export default function ImportPipelineScreen() {
           importableContacts.length === 0 ? (
             <View style={styles.emptyCard}>
               <Users size={26} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No contacts to import</Text>
+              <Text style={styles.emptyTitle}>No Contacts to Import</Text>
               <Text style={styles.emptyBody}>
                 Every contact is already in your pipeline, or you haven&apos;t added contacts yet.
                 Use the Paste tab to bring in your client list.

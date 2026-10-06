@@ -191,11 +191,11 @@ console.log('\n#25 email summary: crew, materials, incident, a link — no photo
   ok('the crew is broken out per trade and company', html.includes('Framing — Ortiz Builders') && html.includes('3 × 8 h = 24 h') && html.includes('Electrical — Volt &amp; Co'));
   ok('materials delivered are listed', html.includes('20 sheets drywall — ABC Supply'));
   ok('the incident is inline with its classification', html.includes('Cut hand on flashing') && html.includes('Not recordable: first aid only'));
-  ok('the filed PDF is the button', /href="https:\/\/x\.supabase\.co\/storage\/v1\/object\/sign\/project-documents[^"]*"[^>]*>Open the full report \(PDF\)/.test(html));
+  ok('the filed PDF is the button', /href="https:\/\/x\.supabase\.co\/storage\/v1\/object\/sign\/project-documents[^"]*"[^>]*>Open the Full Report \(PDF\)/.test(html));
   ok('…and the email says how long the link works', html.includes('the link works for 30 days'));
   ok('no photo is embedded in the email', !/<img[^>]+(data:image|photo)/i.test(html.replace(/<img[^>]*logo[^>]*>/gi, '')));
   const noLink = em.buildDailyReportEmailHtml({ ...baseEmail, date: '2026-09-14', weather: { conditions: '', temperature: '', wind: '' }, photoCount: 2 });
-  ok('without a filed copy the email never promises a link', !noLink.includes('Open the full report') && noLink.includes('2 photos are on this report'));
+  ok('without a filed copy the email never promises a link', !noLink.includes('Open the Full Report') && noLink.includes('2 photos are on this report'));
 }
 
 // ── #25 the filed PDF ────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@ const dfrBase = {
   ok('the photo prints (embedded) instead of "N photos attached"', html.includes('src="data:image/jpeg;base64,QUJD"') && !/photos? attached — see digital copy/.test(html));
   ok('its markup is drawn over it', html.includes('viewBox="0 0 1 1"') && html.includes('marked up'));
   ok('a photo that could not be loaded says so (never a blank image)', html.includes('could not be loaded into the PDF'));
-  ok('a photo still only on the phone says so', html.includes('Not uploaded yet — this photo is still only on the phone that took it.'));
+  ok('a photo still only on the phone says so', html.includes('Not uploaded yet. This photo is still only on the phone that took it.'));
   ok('the incident block is on the record with its classification',
     html.includes('>Incident<') && html.includes('Ladder slipped') && html.includes('Recordable — medical treatment beyond first aid.') && html.includes('<strong>OSHA recordable:</strong> Yes'));
   ok('an injured worker\'s name is not printed on a document the client can open', !html.includes('J. Ruiz') && html.includes('recorded on the incident case'));
@@ -424,7 +424,7 @@ console.log('\n#25 round 1: incident photos stay off the client-linked record:')
   const sent = P.dfrPhotoMarkupTarget({ photoId: 'a', galleryIds: ['a'], reportSent: true }) as { action: string; lockedNote?: string };
   ok('markup on a sent report says it will not change what went out', sent.action === 'annotate' && /not the report that went out/.test(sent.lockedNote ?? ''));
   ok('the tile asks before opening the annotator on a sent report',
-    /reportSent: reportIsSent/.test(DFR_CODE) && /if \(target\.lockedNote\) \{\s*showAlert\(t\('field\.dfr\.thisReportWasAlready', 'This report was already sent'\), target\.lockedNote/.test(DFR_CODE));
+    /reportSent: reportIsSent/.test(DFR_CODE) && /if \(target\.lockedNote\) \{\s*showAlert\(t\('field\.dfr\.thisReportWasAlready', 'This report was already sent.'\), target\.lockedNote/.test(DFR_CODE));
 }
 
 // ── #124 a blocked window throws ─────────────────────────────────────────────
@@ -499,20 +499,20 @@ console.log('\n#35/#131/#129 change-order email:');
     ...base, portalUrl: 'https://mageid.app/p/abc', portalNeedsPasscode: true,
     taxRatePct: 8.25, taxAmount: 82.5, totalWithTax: 1082.5, originalContractSum: 50000, priorApprovedChangesTotal: 500,
   });
-  ok('#35 the portal link is the CTA', /href="https:\/\/mageid\.app\/p\/abc"[^>]*>Review and sign/.test(withPortal));
+  ok('#35 the portal link is the CTA', /href="https:\/\/mageid\.app\/p\/abc"[^>]*>Review and Sign/.test(withPortal));
   ok('#35 never "one tap"', !/one tap/i.test(withPortal));
   ok('#35 the passcode is mentioned when the portal asks for one', withPortal.includes('asks for the passcode'));
   const noPortal = em.buildChangeOrderEmailHtml({ ...base });
   ok('#35 no portal → no portal wording at all, just reply', !/portal/i.test(noPortal.replace(/project:[^,]*/g, '')) && noPortal.includes('Reply to this email with your decision.'));
-  ok('#131 tax rows and the tax-inclusive total', withPortal.includes('Sales tax (8.25%)') && withPortal.includes('+$82.50') && withPortal.includes('CO total incl. tax') && withPortal.includes('+$1,082.50'));
-  ok('#131 the new contract total is labelled pre-tax', withPortal.includes('New contract total (pre-tax)'));
+  ok('#131 tax rows and the tax-inclusive total', withPortal.includes('Sales Tax (8.25%)') && withPortal.includes('+$82.50') && withPortal.includes('CO Total Incl. Tax') && withPortal.includes('+$1,082.50'));
+  ok('#131 the new contract total is labelled pre-tax', withPortal.includes('New Contract Total (Pre-Tax)'));
   ok('#131 the headline (title + preheader) is the tax-inclusive figure', withPortal.includes('+$1,082.50 change request') && withPortal.includes('+$1,082.50 incl. tax.'));
   ok('#129 G701 build-up: original, prior approved, contract before this CO',
-    withPortal.includes('Original contract sum') && withPortal.includes('$50,000.00')
-      && withPortal.includes('Net change by prior approved COs') && withPortal.includes('+$500.00')
-      && withPortal.includes('Contract sum prior to this CO') && withPortal.includes('$50,500.00'));
+    withPortal.includes('Original Contract Sum') && withPortal.includes('$50,000.00')
+      && withPortal.includes('Net Change by Prior Approved COs') && withPortal.includes('+$500.00')
+      && withPortal.includes('Contract Sum Prior to This CO') && withPortal.includes('$50,500.00'));
   ok('the description and name are escaped', withPortal.includes('Add &lt;header&gt; &amp; post') && !withPortal.includes('<header>'));
-  ok('no tax → no tax rows and no "(pre-tax)" label', !noPortal.includes('Sales tax') && !noPortal.includes('(pre-tax)') && noPortal.includes('+$1,000.00 change request'));
+  ok('no tax → no tax rows and no "(pre-tax)" label', !noPortal.includes('Sales Tax') && !noPortal.includes('(pre-tax)') && noPortal.includes('+$1,000.00 change request'));
   ok('the CO screen hands the builder a typed options object',
     /const emailOpts: Parameters<typeof buildChangeOrderEmailHtml>\[0\] = \{/.test(CO_CODE) && /const html = buildChangeOrderEmailHtml\(emailOpts\);/.test(CO_CODE));
 }
@@ -530,14 +530,14 @@ console.log('\n#129/#131 change-order PDF:');
   printedHtml = '';
   await pdf.generateChangeOrderPDFUri(co, project, branding);
   ok('"Original contract value" is gone', !printedHtml.includes('Original contract value'));
-  ok('G701: original sum = contract before this CO − prior approved', printedHtml.includes('Original contract sum') && printedHtml.includes('$50,000.00') && printedHtml.includes('Net change by prior approved COs'));
-  ok('the contract sum before this CO is labelled as such', printedHtml.includes('Contract sum prior to this CO') && printedHtml.includes('$50,500.00'));
-  ok('tax rows from the frozen fields', printedHtml.includes('Sales tax (8.25%)') && printedHtml.includes('CO total incl. tax') && printedHtml.includes('+$1,082.50'));
-  ok('the new contract total is labelled pre-tax', printedHtml.includes('New contract total (pre-tax)'));
+  ok('G701: original sum = contract before this CO − prior approved', printedHtml.includes('Original Contract Sum') && printedHtml.includes('$50,000.00') && printedHtml.includes('Net Change by Prior Approved COs'));
+  ok('the contract sum before this CO is labelled as such', printedHtml.includes('Contract Sum Prior to This CO') && printedHtml.includes('$50,500.00'));
+  ok('tax rows from the frozen fields', printedHtml.includes('Sales Tax (8.25%)') && printedHtml.includes('CO Total Incl. Tax') && printedHtml.includes('+$1,082.50'));
+  ok('the new contract total is labelled pre-tax', printedHtml.includes('New Contract Total (Pre-Tax)'));
   const legacy = { ...co, taxRatePct: undefined, taxAmount: undefined, totalWithTax: undefined, priorApprovedChangesTotal: undefined } as typeof co;
   printedHtml = '';
   await pdf.generateChangeOrderPDFUri(legacy, project, branding);
-  ok('an older CO without the prior total gets the one label its number supports', printedHtml.includes('Contract sum prior to this CO') && !printedHtml.includes('Original contract sum') && !printedHtml.includes('Sales tax'));
+  ok('an older CO without the prior total gets the one label its number supports', printedHtml.includes('Contract Sum Prior to This CO') && !printedHtml.includes('Original Contract Sum') && !printedHtml.includes('Sales Tax'));
 }
 
 // ── #150 / #57 submittal ─────────────────────────────────────────────────────

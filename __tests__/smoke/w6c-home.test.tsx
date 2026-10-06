@@ -4,7 +4,7 @@
  * The founder, on a 1512 × 945 MacBook: "the website app... really isn't
  * utilizing the space a computer screen gives you". Lane F puts a sortable
  * portfolio table first on the desktop Home, makes the action rail the one
- * attention list (with 'See all' to a real /attention page), and fixes the
+ * attention list (with 'See All' to a real /attention page), and fixes the
  * vanishing new job. Every one of those edits is `isDesktop && …`, a
  * `responsive.isDesktop ? <desktop/> : <today's JSX>` switch, a sheet frame
  * whose phone branch is null, or a 6b primitive whose phone branch returns

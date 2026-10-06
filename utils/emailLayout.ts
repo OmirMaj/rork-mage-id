@@ -321,11 +321,11 @@ const GROWTH_BADGE_URL = growthLink('email');
 function brandLineHtml(growthBadge?: boolean): string {
   if (growthBadge) {
     return `<p style="margin:0;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.6;">
-        Built with <a href="${GROWTH_BADGE_URL}" style="color:${BRAND};font-weight:800;text-decoration:none;">MAGE ID</a> — project management for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free →</a>
+        Built with <a href="${GROWTH_BADGE_URL}" style="color:${BRAND};font-weight:800;text-decoration:none;">MAGE ID</a>, project management for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free</a>
       </p>`;
   }
   return `<p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
-        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
+        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a>, the operating system for general contractors.
       </p>`;
 }
 

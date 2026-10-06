@@ -146,7 +146,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
         // The record label is English data from the sync ledger
         // (utils/syncStatusCore), so only English grammar carries it; any
         // other language gets a label-free sentence (docs/I18N.md §3.5).
-        showAlert(t('field.chrome.savedOnThisDevice', 'Saved on this device'), lang === 'en'
+        showAlert(t('field.chrome.savedOnThisDevice', 'Saved on This Device'), lang === 'en'
           // i18n-keep-english: English-only branch; the ledger label is English data, other languages read field.chrome.sendsNextSignal
           ? `${line.label} will be sent the next time you have signal.`
           : t('field.chrome.sendsNextSignal', 'It will be sent the next time you have signal.'));
@@ -167,9 +167,9 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
     const otherBody = (): string => {
       switch (line.discards) {
         case 'create': return t('field.chrome.discardBody.create', 'It was never saved to MAGE. Discarding removes it from this phone and it cannot be recovered.');
-        case 'edit': return t('field.chrome.discardBody.edit', 'Your change was not saved to MAGE. Discarding drops the change — MAGE keeps the last saved version, and this phone goes back to it.');
-        case 'delete': return t('field.chrome.discardBody.delete', 'The delete was not saved to MAGE. Discarding cancels it — the record stays on MAGE and will reappear on this phone.');
-        default: return t('field.chrome.discardBody.unknown', 'This change was not saved to MAGE. Discarding drops it for good — if the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.');
+        case 'edit': return t('field.chrome.discardBody.edit', 'Your change was not saved to MAGE. Discarding drops the change. MAGE keeps the last saved version, and this phone goes back to it.');
+        case 'delete': return t('field.chrome.discardBody.delete', 'The delete was not saved to MAGE. Discarding cancels it. The record stays on MAGE and will reappear on this phone.');
+        default: return t('field.chrome.discardBody.unknown', 'This change was not saved to MAGE. Discarding drops it for good. If the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.');
       }
     };
     showAlert(
@@ -184,7 +184,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
         ? (english ? discardConfirmBody(line.discards) : otherBody())
         : t('field.chrome.dismissNoticeBody', '{line}.\n\nDismissing this notice doesn’t recover the data. You need to re-enter it.', { line: line.line }),
       [
-        { text: t('field.chrome.keepIt', 'Keep it'), style: 'cancel' },
+        { text: t('field.chrome.keepIt', 'Keep It'), style: 'cancel' },
         {
           text: line.canRetry ? t('field.chrome.discard', 'Discard') : t('field.chrome.dismiss', 'Dismiss'),
           style: 'destructive',

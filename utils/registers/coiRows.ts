@@ -28,8 +28,8 @@ export type CoiCheck = 'pass' | 'warn' | 'fail' | 'none';
  *  (scripts/validate-registers-sub-coi.ts pins them against that function). */
 export const COI_CHECK_LABEL: Readonly<Record<CoiCheck, string>> = {
   pass: 'Valid',
-  warn: 'Review needed',
-  fail: 'Action required',
+  warn: 'Review Needed',
+  fail: 'Action Required',
   none: 'No COI',
 };
 
@@ -152,7 +152,7 @@ const text = (s: string | null | undefined): string | null => (typeof s === 'str
 
 const SOURCE_LABEL: Readonly<Record<VaultCoiSource, string | null>> = {
   certificate: 'Certificate',
-  record: 'Typed on the sub record',
+  record: 'Typed on the Sub Record',
   none: null,
 };
 
@@ -160,13 +160,13 @@ export const COI_CSV_COLUMNS: readonly RegisterCsvColumn<CoiRegisterRow>[] = [
   { key: 'sub', label: 'Sub', csvValue: (r) => text(r.sub) },
   { key: 'trade', label: 'Trade', csvValue: (r) => text(r.trade) },
   { key: 'check', label: 'Check', csvValue: (r) => COI_CHECK_LABEL[r.check] },
-  { key: 'expiry', label: 'Earliest expiry', csvValue: (r) => r.expiryDay },
-  { key: 'source', label: 'Expiry from', csvValue: (r) => SOURCE_LABEL[r.expirySource] },
-  { key: 'daysLeft', label: 'Days left', csvValue: (r) => r.daysLeft },
+  { key: 'expiry', label: 'Earliest Expiry', csvValue: (r) => r.expiryDay },
+  { key: 'source', label: 'Expiry From', csvValue: (r) => SOURCE_LABEL[r.expirySource] },
+  { key: 'daysLeft', label: 'Days Left', csvValue: (r) => r.daysLeft },
   { key: 'status', label: 'Status', csvValue: (r) => text(r.statusLabel) },
   { key: 'certs', label: 'Certificates', csvValue: (r) => r.certCount },
-  { key: 'policies', label: 'Policies on file', csvValue: (r) => r.policyCount },
-  { key: 'issues', label: 'Endorsement issues', csvValue: (r) => r.issueCount },
-  { key: 'firstIssue', label: 'First issue', csvValue: (r) => text(r.firstIssue) },
-  { key: 'lastUpload', label: 'Last upload', csvValue: (r) => r.lastUploadAt },
+  { key: 'policies', label: 'Policies on File', csvValue: (r) => r.policyCount },
+  { key: 'issues', label: 'Endorsement Issues', csvValue: (r) => r.issueCount },
+  { key: 'firstIssue', label: 'First Issue', csvValue: (r) => text(r.firstIssue) },
+  { key: 'lastUpload', label: 'Last Upload', csvValue: (r) => r.lastUploadAt },
 ];

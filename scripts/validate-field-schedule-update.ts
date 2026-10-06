@@ -346,9 +346,9 @@ console.log('\nthe daily-report progress ripple:');
   ok('...the local copy is only written after the server took it, and only for what it took',
     body.indexOf('sendFieldTaskPatches(supabase, proj.id, patches)') < body.indexOf('applyFieldTaskPatches(live.tasks, accepted)')
     && /const accepted = patches\.filter\(\(p\) => !sent\.missing\.includes\(p\.id\)\);/.test(body)
-    && /if \(!sent\.ok\) \{[\s\S]*?showAlert\('Schedule not updated'/.test(body));
+    && /if \(!sent\.ok\) \{[\s\S]*?showAlert\('Schedule Not Updated'/.test(body));
   ok('...a refused ripple is reported, never confirmed',
-    /The daily report itself saved — its progress did not reach the schedule\./.test(body));
+    /The daily report itself saved\. Its progress did not reach the schedule\./.test(body));
   // The mic writes the schedule and files the report in the same tick; a
   // ripple rebuilt from the render-time `projects` closure put back a task the
   // same update had just lowered. It must read the live ref, both before the
@@ -372,9 +372,9 @@ console.log('\nthe daily-report progress ripple:');
   ok('the voice mic routes schedule progress by the project\'s role',
     /const writePath = scheduleWritePathForRole\(proj\.myRole\);/.test(body));
   ok('...viewer: refused with the reason, never "tasks updated"',
-    /if \(writePath === 'none'\) \{\s*summaryParts\.push\(`schedule not updated — you have view-only access/.test(body));
+    /if \(writePath === 'none'\) \{\s*summaryParts\.push\(`schedule not updated: you have view-only access/.test(body));
   ok('...field: sent through the field RPC, and a failure is said, not counted',
-    /const sent = await sendFieldTaskPatches\(supabase, proj\.id, patches\);\s*if \(!sent\.ok\) \{\s*summaryParts\.push\(`schedule not updated — \$\{sent\.message\}`\);/.test(body)
+    /const sent = await sendFieldTaskPatches\(supabase, proj\.id, patches\);\s*if \(!sent\.ok\) \{\s*summaryParts\.push\(`schedule not updated: \$\{sent\.message\}`\);/.test(body)
       && body.indexOf("writePath === 'field_rpc'") < body.indexOf('await sendFieldTaskPatches('));
   ok('...the row PATCH is reached only on the owner/editor path',
     (body.match(/ctx\.updateProject\(proj\.id, \{ schedule: \{ \.\.\.schedule, tasks: updatedTasks \} \}\)/g) ?? []).length === 1

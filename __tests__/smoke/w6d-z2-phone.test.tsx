@@ -138,6 +138,26 @@ const GOLDEN_CLOCK = new Date('2026-09-25T14:31:00.000Z').getTime();
 const outerFs = require('node:fs') as { readFileSync: { constructor: FunctionConstructor } };
 const OuterDate = outerFs.readFileSync.constructor('return Date')() as DateConstructor;
 
+// The ZONE is pinned as well as the clock. The daily report's weather line
+// prints the wall clock and the UTC offset of the device that took the reading
+// ("From OpenWeather at 10:31 AM UTC-4."), and both come from the process time
+// zone (utils/weatherService.ts stores -getTimezoneOffset() with the reading).
+// With only the instant pinned, golden b1 held "UTC-4" because the machine that
+// recorded it sits in New York: any other machine, CI in UTC, or a zone whose
+// clocks have changed, printed another time and offset and broke the hash.
+// jest hands each test file a COPY of process.env, so the zone is set on the
+// real process (the same outer-realm reach as OuterDate above); Node re-reads
+// TZ on that assignment. It is put back when this file ends, because the
+// worker goes on to run other suites.
+const outerProcess = outerFs.readFileSync.constructor('return process')() as NodeJS.Process;
+const GOLDEN_ZONE = 'America/New_York';
+const ZONE_BEFORE = outerProcess.env.TZ;
+outerProcess.env.TZ = GOLDEN_ZONE;
+afterAll(() => {
+  if (ZONE_BEFORE === undefined) delete outerProcess.env.TZ;
+  else outerProcess.env.TZ = ZONE_BEFORE;
+});
+
 // What OpenWeather's current-conditions endpoint answers for the jobsite. The
 // service's transport is replaced below, so no request leaves the test.
 const OPENWEATHER_NOW = {
@@ -358,6 +378,13 @@ function mountReschedule() {
 
 // ── 1. GOLDEN, phone ───────────────────────────────────────────────────────
 describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
+  it('the zone is pinned: the golden clock reads 10:31 AM, UTC-4, on any machine and in any season', () => {
+    const at = new Date(GOLDEN_CLOCK);
+    expect(at.getTimezoneOffset()).toBe(240);
+    expect([at.getHours(), at.getMinutes()]).toEqual([10, 31]);
+    expect(new OuterDate(GOLDEN_CLOCK).getTimezoneOffset()).toBe(240);
+  });
+
   jest.setTimeout(120000);
 
   it('(a) contract with a draft (the Save draft / Sign & send row)', async () => {

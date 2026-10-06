@@ -149,7 +149,7 @@ import type { Commitment } from '../types';
 function cmt(over: Partial<Commitment>): Commitment {
   return {
     id: 'c1', projectId: 'P1', number: 'C-1001', type: 'subcontract',
-    description: 'Electrical rough-in', amount: 10000, signedDate: '2026-07-01',
+    description: 'Electrical Rough-In', amount: 10000, signedDate: '2026-07-01',
     status: 'active', createdAt: '2026-07-01', updatedAt: '2026-07-01', ...over,
   };
 }

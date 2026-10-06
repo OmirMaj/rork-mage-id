@@ -184,7 +184,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   /** A locked plan: say what unlocks it, never a dead button. */
   const explainLocked = useCallback((what: string) => {
     showAlert(
-      `${what} is on the Pro plan`,
+      `${what} is on the Pro plan.`,
       `Upgrade to send invoice reminders from here. The row still opens the record.`,
       [
         { text: 'Not Now', style: 'cancel' },

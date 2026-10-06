@@ -64,17 +64,17 @@ export default function ReferralPrompt({
           </TouchableOpacity>
 
           <View style={styles.iconWrap}><PartyPopper size={32} color={colors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.title}>Project won{jobName ? ` · ${jobName}` : ''}</Text>
+          <Text style={styles.title}>Project Won{jobName ? ` · ${jobName}` : ''}</Text>
           <Text style={styles.body}>
             Know another contractor who could use MAGE ID? Send them a link.
           </Text>
 
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} testID="referral-share">
             <Share2 size={16} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.shareBtnText}>Refer a contractor</Text>
+            <Text style={styles.shareBtnText}>Refer a Contractor</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.laterBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={styles.laterBtnText}>Maybe later</Text>
+            <Text style={styles.laterBtnText}>Maybe Later</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -65,10 +65,10 @@ function coiDocStatus(
 ): DocRowStatus {
   if (expiryDay && expiryDay < today) return { bucket: 'expired', label: 'Expired', tone: 'danger' };
   const v = validation?.overallStatus;
-  if (v === 'fail') return { bucket: 'at_risk', label: 'Failed check', tone: 'danger' };
-  if (v === 'warn') return { bucket: 'at_risk', label: 'Needs review', tone: 'warning' };
-  if (v === 'pass') return { bucket: 'done', label: 'Passed check', tone: 'success' };
-  return { bucket: 'awaiting', label: 'Awaiting review', tone: 'warning' };
+  if (v === 'fail') return { bucket: 'at_risk', label: 'Failed Check', tone: 'danger' };
+  if (v === 'warn') return { bucket: 'at_risk', label: 'Needs Review', tone: 'warning' };
+  if (v === 'pass') return { bucket: 'done', label: 'Passed Check', tone: 'success' };
+  return { bucket: 'awaiting', label: 'Awaiting Review', tone: 'warning' };
 }
 
 /** An AIA pay app's standing, from what the app actually knows: the Stripe
@@ -80,12 +80,12 @@ function payAppDocStatus(
   portal: { status?: string; viewedAt?: string } | undefined,
 ): DocRowStatus {
   if (paidAt || invoiceStatus === 'paid') return { bucket: 'done', label: 'Paid', tone: 'success' };
-  if (invoiceStatus === 'partially_paid') return { bucket: 'awaiting', label: 'Partly paid', tone: 'warning' };
+  if (invoiceStatus === 'partially_paid') return { bucket: 'awaiting', label: 'Partly Paid', tone: 'warning' };
   if (invoiceStatus === 'overdue') return { bucket: 'awaiting', label: 'Overdue', tone: 'danger' };
   if (portal?.status === 'sent') {
-    return { bucket: 'awaiting', label: portal.viewedAt ? 'Viewed by client' : 'Sent to client', tone: 'warning' };
+    return { bucket: 'awaiting', label: portal.viewedAt ? 'Viewed by Client' : 'Sent to Client', tone: 'warning' };
   }
-  if (invoiceStatus === 'sent') return { bucket: 'awaiting', label: 'Awaiting payment', tone: 'warning' };
+  if (invoiceStatus === 'sent') return { bucket: 'awaiting', label: 'Awaiting Payment', tone: 'warning' };
   return { bucket: 'draft', label: 'Saved', tone: 'neutral' };
 }
 
@@ -257,10 +257,10 @@ export default function DocumentsScreen() {
       // Permits are approved or passed, never 'Signed'.
       const status: DocRowStatus = expired || p.status === 'expired' ? { bucket: 'expired', label: 'Expired', tone: 'danger' }
         : p.status === 'approved' ? { bucket: 'done', label: 'Approved', tone: 'success' }
-        : p.status === 'inspection_passed' ? { bucket: 'done', label: 'Inspection passed', tone: 'success' }
+        : p.status === 'inspection_passed' ? { bucket: 'done', label: 'Inspection Passed', tone: 'success' }
         : p.status === 'denied' ? { bucket: 'void', label: 'Denied', tone: 'muted' }
-        : p.status === 'inspection_failed' ? { bucket: 'awaiting', label: 'Inspection failed', tone: 'danger' }
-        : p.status === 'inspection_scheduled' ? { bucket: 'awaiting', label: 'Inspection scheduled', tone: 'warning' }
+        : p.status === 'inspection_failed' ? { bucket: 'awaiting', label: 'Inspection Failed', tone: 'danger' }
+        : p.status === 'inspection_scheduled' ? { bucket: 'awaiting', label: 'Inspection Scheduled', tone: 'warning' }
         : { bucket: 'awaiting', label: 'Pending', tone: 'warning' };
       out.push({
         id: 'permit-' + p.id,
@@ -278,11 +278,11 @@ export default function DocumentsScreen() {
     // Submittals
     for (const s of submittals) {
       const status: DocRowStatus = s.currentStatus === 'approved' ? { bucket: 'done', label: 'Approved', tone: 'success' }
-        : s.currentStatus === 'approved_as_noted' ? { bucket: 'done', label: 'Approved as noted', tone: 'success' }
+        : s.currentStatus === 'approved_as_noted' ? { bucket: 'done', label: 'Approved as Noted', tone: 'success' }
         : s.currentStatus === 'rejected' ? { bucket: 'void', label: 'Rejected', tone: 'muted' }
-        : s.currentStatus === 'revise_resubmit' ? { bucket: 'awaiting', label: 'Revise & resubmit', tone: 'warning' }
+        : s.currentStatus === 'revise_resubmit' ? { bucket: 'awaiting', label: 'Revise and Resubmit', tone: 'warning' }
         : s.currentStatus === 'pending' ? { bucket: 'draft', label: 'Pending', tone: 'neutral' }
-        : { bucket: 'awaiting', label: 'In review', tone: 'warning' };
+        : { bucket: 'awaiting', label: 'In Review', tone: 'warning' };
       out.push({
         id: 'submittal-' + s.id,
         projectId: s.projectId,
@@ -310,7 +310,7 @@ export default function DocumentsScreen() {
         title: `AIA-style G702 · App #${a.applicationNumber}`,
         status: payAppDocStatus(a.paidAt, a.invoiceId ? invoiceStatusById.get(a.invoiceId) : undefined, a.portalState),
         createdAt: a.applicationDate ?? a.savedAt ?? new Date().toISOString(),
-        notes: a.payLinkUrl ? 'Pay link active' : undefined,
+        notes: a.payLinkUrl ? 'Pay Link Active' : undefined,
       });
     }
 
@@ -343,7 +343,7 @@ export default function DocumentsScreen() {
   // permits and every pay app, none of which anybody signed.
   const filters: { id: 'all' | DocBucket; label: string }[] = [
     { id: 'all', label: 'All' },
-    { id: 'at_risk', label: 'At risk' },
+    { id: 'at_risk', label: 'At Risk' },
     { id: 'awaiting', label: 'Waiting' },
     { id: 'draft', label: 'Saved' },
     { id: 'done', label: 'Done' },
@@ -363,8 +363,8 @@ export default function DocumentsScreen() {
       pending: documents.filter(d => d.status.bucket === 'awaiting').length,
       done: documents.filter(d => d.status.bucket === 'done').length,
       expired: documents.filter(d => d.status.bucket === 'expired').length,
-      coiFailed: coiRisk.filter(d => d.status.label === 'Failed check').length,
-      coiReview: coiRisk.filter(d => d.status.label === 'Needs review').length,
+      coiFailed: coiRisk.filter(d => d.status.label === 'Failed Check').length,
+      coiReview: coiRisk.filter(d => d.status.label === 'Needs Review').length,
       expiringSoon: documents.filter(d => isExpiringSoon(d, nowMs)).length,
     };
   }, [documents]);
@@ -413,7 +413,7 @@ export default function DocumentsScreen() {
               {/* No contracts here: contracts are not aggregated into this feed,
                   so the old 'Every contract, …' promise was false (#161). */}
               <Text style={styles.docsHeroSub}>
-                Your COIs, permits, submittals and AIA-style pay apps across your projects — in one feed. Tap any card to open it where it lives.
+                Your COIs, permits, submittals and AIA-style pay apps across your projects, in one feed. Tap any card to open it where it lives.
               </Text>
             </View>
             <View style={styles.alertsRow}>
@@ -486,7 +486,7 @@ export default function DocumentsScreen() {
               <View style={styles.filesCard} testID="documents-project-files">
                 <View style={styles.filesHead}>
                   <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.filesTitle}>Uploaded files and scans</Text>
+                  <Text style={styles.filesTitle}>Uploaded Files and Scans</Text>
                 </View>
                 <Text style={styles.filesBody}>
                   Files you upload and documents filed by Scan anything are kept in each project&apos;s Files, not in this feed.
@@ -546,18 +546,18 @@ export default function DocumentsScreen() {
                 // second one is the user's own filter, not an empty account.
                 <EmptyState
                   icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.75} />}
-                  title={documents.length === 0 ? 'Nothing filed yet' : 'Nothing under this filter'}
+                  title={documents.length === 0 ? 'Nothing Filed Yet' : 'Nothing Under This Filter'}
                   message={
                     documents.length === 0
-                      ? 'This screen collects documents — it does not create them. Each kind is filed on its own screen and shows up here automatically.'
-                      : `You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${filters.find(f => f.id === selectedFilter)?.label ?? selectedFilter}". Nothing is missing — this is the filter, not the feed.`
+                      ? 'This screen collects documents. It does not create them. Each kind is filed on its own screen and shows up here automatically.'
+                      : `You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${filters.find(f => f.id === selectedFilter)?.label ?? selectedFilter}". Nothing is missing. This is the filter, not the feed.`
                   }
                   steps={documents.length === 0 ? [
                     'COIs: add a subcontractor certificate in the COI Vault.',
                     'Permits: log an application on the Permits screen.',
-                    'Submittals and pay apps: open a project — both are filed inside one.',
+                    'Submittals and pay apps: open a project. Both are filed inside one.',
                   ] : undefined}
-                  actionLabel={documents.length === 0 ? 'Open COI Vault' : 'Show all'}
+                  actionLabel={documents.length === 0 ? 'Open COI Vault' : 'Show All'}
                   onAction={() => {
                     if (documents.length === 0) router.push('/coi-vault' as never);
                     else setSelectedFilter('all');

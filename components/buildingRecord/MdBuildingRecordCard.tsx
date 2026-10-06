@@ -33,9 +33,9 @@ import { mdRecordCredit } from '@/utils/contentCredits';
 const COMPACT_LINES = 3;
 
 function checkedLabel(iso: string | null | undefined): string {
-  if (!iso) return 'Checked — date unknown';
+  if (!iso) return 'Checked, date unknown';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Checked — date unknown';
+  if (Number.isNaN(d.getTime())) return 'Checked, date unknown';
   const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   return `Checked ${day}, ${time}`;
@@ -93,14 +93,14 @@ export function MdBuildingRecordCard({
       body = md.outside ? (
         <View style={styles.stack}>
           <Text style={styles.line} testID="mdrecord-outside">{mdOutsideText(md.outside.county)}</Text>
-          <Button label="Look up again" onPress={md.lookup} variant="secondary" size="sm" testID="mdrecord-lookup" />
+          <Button label="Look Up Again" onPress={md.lookup} variant="secondary" size="sm" testID="mdrecord-lookup" />
         </View>
       ) : (
         <View style={styles.stack}>
           <Text style={styles.muted}>
             Permits, open notices, zoning, historic and flood maps from Baltimore City or Baltimore County open data. You confirm the parcel first.
           </Text>
-          <Button label="Look up this parcel" onPress={md.lookup} variant="secondary" size="sm" testID="mdrecord-lookup" />
+          <Button label="Look Up This Parcel" onPress={md.lookup} variant="secondary" size="sm" testID="mdrecord-lookup" />
         </View>
       );
       break;
@@ -151,10 +151,10 @@ export function MdBuildingRecordCard({
               style={styles.linkBtn}
               onPress={() => setShowAll(true)}
               accessibilityRole="button"
-              accessibilityLabel="Show all building record lines"
+              accessibilityLabel="Show All Building Record Lines"
               testID="mdrecord-show-all"
             >
-              <Text style={styles.link}>Show all</Text>
+              <Text style={styles.link}>Show All</Text>
             </TouchableOpacity>
           ) : null}
           {links.length ? (
@@ -192,8 +192,8 @@ export function MdBuildingRecordCard({
           ) : null}
           <View style={styles.footer}>
             <Text style={styles.muted} testID="mdrecord-checked">{checkedLabel(rec?.fetchedAt)}</Text>
-            <TouchableOpacity style={styles.linkBtn} onPress={md.changeBuilding} accessibilityRole="button" accessibilityLabel="Change building" testID="mdrecord-change">
-              <Text style={styles.link}>Change building</Text>
+            <TouchableOpacity style={styles.linkBtn} onPress={md.changeBuilding} accessibilityRole="button" accessibilityLabel="Change Building" testID="mdrecord-change">
+              <Text style={styles.link}>Change Building</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -215,7 +215,7 @@ export function MdBuildingRecordCard({
   return (
     <Card radius="card" pad={14} style={compact ? styles.wrapCompact : styles.wrap} testID="mdrecord-card">
       <View style={styles.eyebrowRow}>
-        <EyebrowLabel tone="neutral">Building record</EyebrowLabel>
+        <EyebrowLabel tone="neutral">Building Record</EyebrowLabel>
         {sideName && md.phase !== 'confirm' ? (
           <Text style={styles.sideTag} numberOfLines={1} testID="mdrecord-side">{sideName}</Text>
         ) : null}

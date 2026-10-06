@@ -536,7 +536,7 @@ function SafetyIncidentsInner() {
     // restricted case whose restriction flag is off.
     if (daysRestrictedNum > 0) {
       showAlert(
-        t('safety.incident.restrictedDaysAreCounted', 'Restricted Days Are Counted'),
+        t('safety.incident.restrictedDaysAreCounted', 'Restricted days are counted.'),
         tn('safety.incident.daysOfRestrictionAre', daysRestrictedNum, { one: '{count} day of restriction is entered above, which makes this a restricted-work case. Clear the day count to untick it.', other: '{count} days of restriction are entered above, which makes this a restricted-work case. Clear the day count to untick it.' }),
       );
       return;

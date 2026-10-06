@@ -19,7 +19,7 @@
 //  C. The Leave dialog never offers more buttons than Android's Alert shows (3).
 //  D. A refusal that lands after someone else signed in writes nothing into the
 //     new user's ledger.
-//  E. "Open Not saved" from the Record Payment sheet closes that Modal first
+//  E. "Open Not Saved" from the Record Payment sheet closes that Modal first
 //     (iOS shows one at a time), and the pill always re-presents its sheet.
 //
 // Run: bun run scripts/validate-w4-final-fix-sync.ts
@@ -100,7 +100,7 @@ console.log('\nC. the Leave dialog fits Android\'s three buttons');
   const count = (c: ReturnType<typeof leaveDialogCopy>) => 1 + (c.offerSyncFirst ? 1 : 0) + (c.offerOpenNotSaved ? 1 : 0) + 1; // Cancel … Leave
   const android = leaveDialogCopy('Henderson', 3, 1, 3);
   ok('queued + Not saved on Android: 3 buttons — Open Not saved and Leave anyway kept, Sync first dropped',
-    count(android) === 3 && android.offerOpenNotSaved && !android.offerSyncFirst && android.leaveLabel === 'Leave anyway', android);
+    count(android) === 3 && android.offerOpenNotSaved && !android.offerSyncFirst && android.leaveLabel === 'Leave Anyway', android);
   const ios = leaveDialogCopy('Henderson', 3, 1, 4);
   ok('...iOS / web keep all four', count(ios) === 4 && ios.offerSyncFirst && ios.offerOpenNotSaved);
   const qOnly = leaveDialogCopy('Henderson', 3, 0, 3);

@@ -246,7 +246,7 @@ export function recomputeValidation(
       issues.push({
         code: 'expires_within_30_days',
         severity: 'warning',
-        message: `${humanCoverage(cov.type)} expires ${day} — request renewal now.`,
+        message: `${humanCoverage(cov.type)} expires ${day}. Request renewal now.`,
       });
     }
   }
@@ -271,7 +271,7 @@ export function recomputeValidation(
     issues.push({
       code: 'ai_dates_unconfirmed',
       severity: 'info',
-      message: `Coverage read by AI${read ? ` (earliest expiry it read: ${read})` : ''} — nothing is counted until you check each row against the certificate and tap Confirm.`,
+      message: `Coverage read by AI${read ? ` (earliest expiry it read: ${read})` : ''}. Nothing is counted until you check each row against the certificate and tap Confirm.`,
     });
   }
 

@@ -522,13 +522,13 @@ ok('5e. the screen says why, at the top', /testID="portal-setup-sample"/.test(SE
 // enabled portal, a server key or a published snapshot.
 const reasonSentences = S.SAMPLE_PORTAL_REASON.split(/(?<=\.)\s+/);
 const setupNote = /const SAMPLE_PORTAL_NOTE = '([^']*)';/.exec(read('app/client-portal-setup.tsx'))?.[1].replace(/\\u2014/g, '—') ?? '';
-ok('5f. one plain reason for every door: the setup screen\'s note carries both sentences of SAMPLE_PORTAL_REASON',
-  reasonSentences.length === 2 && /^Sample job — a client portal never goes out from a sample\.$/.test(reasonSentences[0])
+ok('5f. one plain reason for every door: the setup screen\'s note carries every sentence of SAMPLE_PORTAL_REASON',
+  reasonSentences.length === 3 && reasonSentences[0] === 'Sample job.' && /^A client portal never goes out from a sample\.$/.test(reasonSentences[1])
   && reasonSentences.every(x => setupNote.includes(x)), setupNote);
 {
   const at = DETAIL.indexOf('testID="portal-enable-btn"');
   const press = at < 0 ? '' : DETAIL.slice(at, DETAIL.indexOf('activeOpacity', at));
-  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_PORTAL_REASON\); return; \}/);
+  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_PORTAL_REASON\); return; \}/);
   const writeAt = press.search(/updateProject\(/);
   ok('5g. the project page\'s Enable Client Portal button refuses a sample before any write, and says why',
     guardAt >= 0 && writeAt > guardAt && /enabled: true/.test(press)

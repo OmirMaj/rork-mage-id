@@ -47,8 +47,8 @@ export interface WorkflowStage {
 const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   punch: [
     { key: 'open', label: 'Open' },
-    { key: 'in_progress', label: 'In progress' },
-    { key: 'ready_for_review', label: 'Ready for review' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'ready_for_review', label: 'Ready for Review' },
     { key: 'closed', label: 'Closed', terminal: true },
   ],
   // Application path only. Ends at approved — the permit is issued. The labels
@@ -56,7 +56,7 @@ const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   // not this module's job.
   permit: [
     { key: 'applied', label: 'Applied' },
-    { key: 'under_review', label: 'In review' },
+    { key: 'under_review', label: 'In Review' },
     { key: 'approved', label: 'Approved', terminal: true },
   ],
   // The second loop, rendered separately once a permit is issued.
@@ -72,14 +72,14 @@ const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   prequal: [
     { key: 'draft', label: 'Draft' },
     { key: 'invited', label: 'Invited' },
-    { key: 'in_progress', label: 'In progress' },
+    { key: 'in_progress', label: 'In Progress' },
     { key: 'submitted', label: 'Submitted' },
     { key: 'approved', label: 'Approved', terminal: true },
   ],
   oac: [
     { key: 'draft', label: 'Draft' },
     { key: 'scheduled', label: 'Scheduled' },
-    { key: 'in_progress', label: 'In progress' },
+    { key: 'in_progress', label: 'In Progress' },
     { key: 'concluded', label: 'Concluded' },
     { key: 'distributed', label: 'Distributed', terminal: true },
   ],
@@ -375,7 +375,7 @@ export function coiStatus(
     .map(r => remainingOf(r, now));
 
   if (ends.length === 0) {
-    return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
+    return { key: 'unknown', label: 'No Expiry on File', tone: 'neutral' };
   }
   if (ends.some(e => e.expired)) return { key: 'expired', label: 'Expired', tone: 'bad' };
   const days = Math.min(...ends.map(e => e.days));
@@ -419,12 +419,12 @@ export function warrantyStatus(
   if (openClaims.length > 0) {
     return {
       key: 'claimed',
-      label: left?.expired && end.kind !== 'none' ? `Claim open · warranty ended ${endDayLabel(end)}` : 'Claim open',
+      label: left?.expired && end.kind !== 'none' ? `Claim open · warranty ended ${endDayLabel(end)}` : 'Claim Open',
       tone: 'warn',
     };
   }
   if (!left) {
-    return { key: 'unknown', label: 'No end date', tone: 'neutral' };
+    return { key: 'unknown', label: 'No End Date', tone: 'neutral' };
   }
   if (left.expired) return { key: 'expired', label: 'Expired', tone: 'bad' };
   const windowDays = Number.isFinite(w.reminderDays) && (w.reminderDays as number) > 0

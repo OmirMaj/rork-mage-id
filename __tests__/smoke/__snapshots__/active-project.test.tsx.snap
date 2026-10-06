@@ -70,7 +70,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               }
             }
           >
-            Pick a project
+            Pick a Project
           </Text>
           <View
             accessibilityState={
@@ -535,7 +535,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
               }
             >
-              New project
+              New Project
             </Text>
           </View>
         </View>
@@ -767,7 +767,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               }
             }
           >
-            Pick a project
+            Pick a Project
           </Text>
           <View
             accessibilityState={
@@ -1232,7 +1232,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
               }
             >
-              New project
+              New Project
             </Text>
           </View>
         </View>
@@ -1442,7 +1442,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               }
             }
           >
-            No projects yet
+            No Projects Yet
           </Text>
           <Text
             style={
@@ -1514,7 +1514,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
               }
             >
-              Create a project
+              Create a Project
             </Text>
           </View>
         </View>

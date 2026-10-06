@@ -631,7 +631,7 @@ export function buildReadmeText(
   const exportedAt = new Date().toLocaleString('en-US');
   const scope = opts.projectId ? `Project ${opts.projectId.slice(0, 8)}` : 'All projects';
   const lines: string[] = [
-    `MAGE ID — Project Archive`,
+    `MAGE ID Project Archive`,
     `Generated: ${exportedAt}`,
     `Scope: ${scope}`,
     ``,
@@ -695,7 +695,7 @@ export function buildReadmeText(
   lines.push(``);
   lines.push(`  ${NOT_EXPORTED.join(', ')}.`);
   lines.push(``);
-  lines.push(`This bundle is YOUR property. There is no lock-in — you can`);
+  lines.push(`This bundle is YOUR property. There is no lock-in: you can`);
   lines.push(`migrate to any other tool, hand it off to your accountant, or`);
   lines.push(`keep it as a permanent record. Built with MAGE ID. mageid.app`);
   return lines.join('\n');

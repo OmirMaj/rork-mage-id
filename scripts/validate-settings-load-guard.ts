@@ -2,7 +2,7 @@
 // replaced by DEFAULT / blank settings: not on a failed first read, not by an
 // edit made while it loads, not by a launch read landing after an edit. And a
 // GC on site with no signal and no cached profile is told so, with a Retry,
-// instead of "One second" forever.
+// instead of "One Second" forever.
 //
 // WHY THIS EXISTS (post-ship review of 357d0a34, findings 13 / 14 / 15 / 105 /
 // 106). Each of these ended in a full-row profiles UPDATE of blanks:
@@ -14,9 +14,9 @@
 //       Verified seeded their forms from DEFAULT and saved the blanks;
 //   15  the launch read landed after an edit, snapped it back on screen and
 //       on the device, and the next settings write erased it on the server;
-//  105  a stalled first read showed "One second" with no Retry, forever on
+//  105  a stalled first read showed "One Second" with no Retry, forever on
 //       Android (OkHttp has no timeout);
-//  106  Settings, Company Profile and the estimate review said "Not set"
+//  106  Settings, Company Profile and the estimate review said "Not Set"
 //       about terms that had not loaded yet.
 //
 // The rules are pure (utils/settingsLoadGuard.ts) and EXECUTED here, then the
@@ -238,7 +238,7 @@ console.log('\nsettings load — (105/106) the refusal has a way out; labels nev
 {
   const loading = profileGateNotice({ failed: false });
   const failed = profileGateNotice({ failed: true });
-  check('still loading → "One second" + the loading reason', loading.title === 'One second' && loading.message === PROFILE_LOADING_REASON);
+  check('still loading → "One second" + the loading reason', loading.title === 'One Second' && loading.message === PROFILE_LOADING_REASON);
   check('failed / unreachable → says his profile could not be loaded, blames the signal, and says what still works',
     failed.title === PROFILE_FAILED_TITLE && /could’?n.t load your company profile/i.test(failed.title)
     && /signal/.test(failed.message) && /still open/.test(failed.message) && failed.message === PROFILE_FAILED_REASON);
@@ -557,12 +557,12 @@ console.log('\nsettings load — React Query behaviour the rules depend on');
 }
 {
   // Digest controls refuse (with the reason + Retry) until the profile loads,
-  // never the bare 'One second', and the card does not claim "Off".
+  // never the bare 'One Second', and the card does not claim "Off".
   const ns = read('app/notifications-settings.tsx');
   check('notifications-settings refuses digest writes until settingsLoaded',
     /const updateDigest = useCallback\([^)]*\) => \{\s*if \(refuseUntilLoaded\(\)\) return;/.test(ns)
     && /const setDigestEmail = useCallback\(async \(v: boolean\) => \{\s*if \(refuseUntilLoaded\(\)\) return;/.test(ns)
-    && /if \(settingsLoaded\) return false;/.test(ns) && !/'One second'/.test(ns));
+    && /if \(settingsLoaded\) return false;/.test(ns) && !/'One Second'/.test(ns));
   check('…and the digest card says loading / could-not-load instead of "Off"',
     /\{!settingsLoaded\s*\? \(profileFailed/.test(ns));
 }

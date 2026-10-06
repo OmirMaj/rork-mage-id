@@ -62,7 +62,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
     });
   }, [query]);
 
-  const triggerLabel = value ? csiDivisionLabel(value) : 'Pick CSI division';
+  const triggerLabel = value ? csiDivisionLabel(value) : 'Pick CSI Division';
 
   const select = (code: string | undefined) => {
     onChange(code);
@@ -77,7 +77,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
         onPress={() => setOpen(true)}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel={value ? `CSI division ${triggerLabel}` : 'Pick CSI division'}
+        accessibilityLabel={value ? `CSI division ${triggerLabel}` : 'Pick CSI Division'}
         testID={testID}
       >
         <Text
@@ -105,7 +105,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
         )}
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fCsi.card]}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>CSI MasterFormat division</Text>
+            <Text style={styles.sheetTitle}>CSI MasterFormat Division</Text>
             <TouchableOpacity
               onPress={() => setOpen(false)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}

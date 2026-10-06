@@ -71,8 +71,8 @@ export async function armWeekCloseNudge(opts: {
     await Notifications.scheduleNotificationAsync({
       identifier: WEEK_CLOSE_NUDGE_IDENTIFIER,
       content: {
-        title: 'Friday close',
-        body: 'Friday close is ready — bill what you earned.',
+        title: 'Friday Close',
+        body: 'Friday close is ready. Bill what you earned.',
         data: { kind: 'week_close' },
         sound: 'default',
       },

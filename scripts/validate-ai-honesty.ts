@@ -70,9 +70,9 @@ ok('both → learned count is the MEASURED count and the seeds are named separat
   const l = groundingChipLabel({ measured: 2, seeded: 3 });
   return l.includes('2 learned rates') && l.includes('3 rates you set') && !l.includes('5 learned');
 })());
-ok('nothing → market-averages default', groundingChipLabel({ measured: 0, seeded: 0 }) === 'Priced from market averages — MAGE has none of your rates yet');
+ok('nothing → market-averages default', groundingChipLabel({ measured: 0, seeded: 0 }) === 'Priced from market averages. MAGE has none of your rates yet.');
 ok('nothing → caller-supplied empty label wins', groundingChipLabel({ measured: 0, seeded: 0 }, { emptyLabel: 'cold' }) === 'cold');
-ok('negative / NaN counts are treated as zero', groundingChipLabel({ measured: NaN, seeded: -2 }) === 'Priced from market averages — MAGE has none of your rates yet');
+ok('negative / NaN counts are treated as zero', groundingChipLabel({ measured: NaN, seeded: -2 }) === 'Priced from market averages. MAGE has none of your rates yet.');
 
 console.log('\nestimateThinkingSteps (re-review B1 — the loader is a claim too):');
 ok('seeded-only counts select the STATED copy — "rates you set", never "your history"', (() => {

@@ -109,7 +109,7 @@ export const EN: EnCatalog = {
   "office.permitPath.save.deleteTitle": "Delete this answer?",
   "office.permitPath.save.failed": "The answer wasn’t saved. Check your connection and try again.",
   "office.permitPath.save.how": "How",
-  "office.permitPath.save.keep": "Keep it",
+  "office.permitPath.save.keep": "Keep It",
   "office.permitPath.save.link": "Link (Optional)",
   "office.permitPath.save.linkBad": "Links start with https://",
   "office.permitPath.save.name": "Their Name",

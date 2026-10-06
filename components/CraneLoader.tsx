@@ -98,7 +98,7 @@ function CraneStatus({ label, facts, factIntervalMs, style }: Required<Pick<Cran
         <Text style={[Type.headline, styles.status, { color: colors.text }]} numberOfLines={2}>{label}</Text>
         {rotating && (
           <Animated.View style={[styles.factWrap, { opacity: factFade }]}>
-            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While you wait</Text>
+            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While You Wait</Text>
             <Text style={[Type.footnote, styles.factText, { color: colors.textSecondary }]}>{facts![factIdx]}</Text>
           </Animated.View>
         )}

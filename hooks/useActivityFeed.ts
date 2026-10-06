@@ -16,12 +16,12 @@ import type { EntityRef } from '@/types';
 
 // Status labels come from a map, never from the raw enum (docs/VOICE.md §6).
 const CO_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under Review', approved: 'Approved',
   rejected: 'Rejected', revised: 'Revised', void: 'Void',
 };
 const SUBMITTAL_STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending', in_review: 'In review', approved: 'Approved', approved_as_noted: 'Approved as noted',
-  revise_resubmit: 'Revise and resubmit', rejected: 'Rejected',
+  pending: 'Pending', in_review: 'In Review', approved: 'Approved', approved_as_noted: 'Approved as Noted',
+  revise_resubmit: 'Revise and Resubmit', rejected: 'Rejected',
 };
 
 export type ActivityAction =
@@ -77,7 +77,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         ref: { kind: 'changeOrder', id: co.id, projectId },
         timestamp: co.updatedAt ?? co.date,
         action: co.status === 'approved' ? 'completed' : 'updated',
-        title: `CO #${co.number} — ${co.description}`,
+        title: `CO #${co.number} · ${co.description}`,
         summary: `${CO_STATUS_LABEL[co.status] ?? co.status} · ${formatMoneyShort(co.changeAmount)}`,
       });
     }
@@ -126,7 +126,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         ref: { kind: 'rfi', id: rfi.id, projectId },
         timestamp: rfi.dateResponded ?? rfi.dateSubmitted,
         action: rfi.status === 'closed' ? 'closed' : rfi.status === 'answered' ? 'completed' : 'created',
-        title: `RFI #${rfi.number} — ${rfi.subject}`,
+        title: `RFI #${rfi.number} · ${rfi.subject}`,
         summary: `${rfi.assignedTo || 'Unassigned'} · ${rfi.priority}`,
       });
     }
@@ -138,7 +138,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         ref: { kind: 'submittal', id: sub.id, projectId },
         timestamp: sub.updatedAt ?? sub.submittedDate,
         action: sub.currentStatus === 'approved' ? 'completed' : 'updated',
-        title: `Submittal #${sub.number} — ${sub.title}`,
+        title: `Submittal #${sub.number} · ${sub.title}`,
         summary: `${sub.specSection || 'No spec'} · ${SUBMITTAL_STATUS_LABEL[sub.currentStatus] ?? sub.currentStatus}`,
       });
     }
@@ -150,7 +150,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         ref: { kind: 'photo', id: ph.id, projectId },
         timestamp: ph.timestamp ?? ph.createdAt,
         action: 'uploaded',
-        title: ph.tag ? `Photo · ${ph.tag}` : 'Photo uploaded',
+        title: ph.tag ? `Photo · ${ph.tag}` : 'Photo Uploaded',
         summary: ph.location || undefined,
       });
     }

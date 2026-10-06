@@ -374,7 +374,7 @@ ok('signup\'s watcher closes the confirm modal before navigating',
   }
   ok('signInElsewhereAction: no route token → none', tabA.signInElsewhereAction({ routeToken: 'nope', accountMeta: {}, sharedOriginTabs: true }) === 'none');
   ok('the confirm modal has the "confirmed elsewhere" state and signup passes it',
-    /if \(confirmedElsewhere\) \{[\s\S]*?Email confirmed[\s\S]*?Your invite opened in the tab the confirmation link opened/.test(MODAL)
+    /if \(confirmedElsewhere\) \{[\s\S]*?Email Confirmed[\s\S]*?Your invite opened in the tab the confirmation link opened/.test(MODAL)
     && /confirmedElsewhere=\{confirmedElsewhere\}/.test(SIGNUP));
 }
 

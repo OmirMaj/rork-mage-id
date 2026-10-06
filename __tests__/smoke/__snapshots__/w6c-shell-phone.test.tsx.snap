@@ -843,7 +843,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Start by voice",
+                                    "Start by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -2148,7 +2148,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Capture a client inquiry — voice or form",
+                                    "Capture a client inquiry by voice or form",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -2435,7 +2435,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Lead by voice",
+                                    "Lead by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -2450,7 +2450,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Say what the client told you — MAGE files the lead",
+                                    "Say what the client told you. MAGE files the lead",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -3753,7 +3753,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Progress draw",
+                                    "Progress Draw",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -3768,7 +3768,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — AIA-style G702/G703",
+                                    "Bill the next draw, AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -4096,7 +4096,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Buyout package",
+                                    "Buyout Package",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -4432,7 +4432,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Sub sign-off — proof they've been paid",
+                                    "Sub sign-off: proof they've been paid",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -5696,7 +5696,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Clock in",
+                                    "Clock In",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -6174,7 +6174,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Delivery arrived",
+                                    "Delivery Arrived",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -6189,7 +6189,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "A truck showed up — log it with the ticket",
+                                    "A truck showed up. Log it with the ticket",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -6451,7 +6451,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Code check",
+                                    "Code Check",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -6799,7 +6799,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Send lineup",
+                                    "Send Lineup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -7078,7 +7078,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Photo / markup",
+                                    "Photo / Markup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -7469,7 +7469,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "AI inclusions & exclusions from your estimate",
+                                    "AI inclusions and exclusions from your estimate",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -8712,7 +8712,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Plan / drawing",
+                                    "Plan / Drawing",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -10507,7 +10507,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Client portal invite",
+                                    "Client Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -10789,7 +10789,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Sub portal invite",
+                                    "Sub Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -11143,7 +11143,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Cash Flow setup",
+                                    "Cash Flow Setup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -12680,7 +12680,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Start by voice",
+                                    "Start by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -13993,7 +13993,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Capture a client inquiry — voice or form",
+                                    "Capture a client inquiry by voice or form",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -14282,7 +14282,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Lead by voice",
+                                    "Lead by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -14297,7 +14297,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Say what the client told you — MAGE files the lead",
+                                    "Say what the client told you. MAGE files the lead",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -15608,7 +15608,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Progress draw",
+                                    "Progress Draw",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -15623,7 +15623,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — AIA-style G702/G703",
+                                    "Bill the next draw, AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -15953,7 +15953,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Buyout package",
+                                    "Buyout Package",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -16291,7 +16291,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Sub sign-off — proof they've been paid",
+                                    "Sub sign-off: proof they've been paid",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -17561,7 +17561,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Clock in",
+                                    "Clock In",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -18041,7 +18041,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Delivery arrived",
+                                    "Delivery Arrived",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -18056,7 +18056,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "A truck showed up — log it with the ticket",
+                                    "A truck showed up. Log it with the ticket",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -18320,7 +18320,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Code check",
+                                    "Code Check",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -18670,7 +18670,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Send lineup",
+                                    "Send Lineup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -18951,7 +18951,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Photo / markup",
+                                    "Photo / Markup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -19344,7 +19344,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "AI inclusions & exclusions from your estimate",
+                                    "AI inclusions and exclusions from your estimate",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -20595,7 +20595,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Plan / drawing",
+                                    "Plan / Drawing",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -22402,7 +22402,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Client portal invite",
+                                    "Client Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -22686,7 +22686,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Sub portal invite",
+                                    "Sub Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -23042,7 +23042,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Cash Flow setup",
+                                    "Cash Flow Setup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -24585,7 +24585,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Start by voice",
+                                    "Start by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -25898,7 +25898,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Capture a client inquiry — voice or form",
+                                    "Capture a client inquiry by voice or form",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -26187,7 +26187,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Lead by voice",
+                                    "Lead by Voice",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -26202,7 +26202,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Say what the client told you — MAGE files the lead",
+                                    "Say what the client told you. MAGE files the lead",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -27513,7 +27513,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Progress draw",
+                                    "Progress Draw",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -27528,7 +27528,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Bill the next draw — AIA-style G702/G703",
+                                    "Bill the next draw, AIA-style G702/G703",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -27858,7 +27858,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Buyout package",
+                                    "Buyout Package",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -28196,7 +28196,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Sub sign-off — proof they've been paid",
+                                    "Sub sign-off: proof they've been paid",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -29466,7 +29466,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Clock in",
+                                    "Clock In",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -29946,7 +29946,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Delivery arrived",
+                                    "Delivery Arrived",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -29961,7 +29961,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "A truck showed up — log it with the ticket",
+                                    "A truck showed up. Log it with the ticket",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -30225,7 +30225,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Code check",
+                                    "Code Check",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -30575,7 +30575,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Send lineup",
+                                    "Send Lineup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -30856,7 +30856,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Photo / markup",
+                                    "Photo / Markup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -31249,7 +31249,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "AI inclusions & exclusions from your estimate",
+                                    "AI inclusions and exclusions from your estimate",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -32500,7 +32500,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Plan / drawing",
+                                    "Plan / Drawing",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -34307,7 +34307,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Client portal invite",
+                                    "Client Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -34591,7 +34591,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Sub portal invite",
+                                    "Sub Portal Invite",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -34947,7 +34947,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Cash Flow setup",
+                                    "Cash Flow Setup",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -36083,7 +36083,7 @@ exports[`CreateMenu on a phone picker mode, 390 ios 1`] = `
                 {
                   "children": [
                     "RFI",
-                    " → which project?",
+                    ": which project?",
                   ],
                   "props": {
                     "numberOfLines": 1,
@@ -37084,7 +37084,7 @@ exports[`CreateMenu on a phone picker mode, web 390 1`] = `
                 {
                   "children": [
                     "RFI",
-                    " → which project?",
+                    ": which project?",
                   ],
                   "props": {
                     "numberOfLines": 1,
@@ -38091,7 +38091,7 @@ exports[`CreateMenu on a phone picker mode, web 820 1`] = `
                 {
                   "children": [
                     "RFI",
-                    " → which project?",
+                    ": which project?",
                   ],
                   "props": {
                     "numberOfLines": 1,
@@ -42344,7 +42344,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                   "children": [
                                                                                     {
                                                                                       "children": [
-                                                                                        "How You Get Paid · Couldn’t load your profile, tap to retry",
+                                                                                        "How You Get Paid · Couldn’t Load your profile, tap to retry",
                                                                                       ],
                                                                                       "props": {
                                                                                         "style": {
@@ -42357,7 +42357,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                     },
                                                                                   ],
                                                                                   "props": {
-                                                                                    "accessibilityLabel": "How You Get Paid · Couldn’t load your profile, tap to retry. Opens your payment terms.",
+                                                                                    "accessibilityLabel": "How You Get Paid · Couldn’t Load your profile, tap to retry. Opens your payment terms.",
                                                                                     "accessibilityRole": "button",
                                                                                     "accessibilityState": {
                                                                                       "busy": undefined,
@@ -91356,7 +91356,7 @@ exports[`UniversalSearch on a phone open, "gantt", 390 ios 1`] = `
                           "children": [
                             {
                               "children": [
-                                "Go to · ",
+                                "Go To · ",
                                 "1",
                               ],
                               "props": {
@@ -91520,7 +91520,7 @@ exports[`UniversalSearch on a phone open, "gantt", 390 ios 1`] = `
                             },
                             {
                               "children": [
-                                "Pro scheduler",
+                                "Pro Scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -91551,7 +91551,7 @@ exports[`UniversalSearch on a phone open, "gantt", 390 ios 1`] = `
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro scheduler",
+                            "accessibilityLabel": "Pro Scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -91880,7 +91880,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                           "children": [
                             {
                               "children": [
-                                "Ask and capture",
+                                "Ask and Capture",
                               ],
                               "props": {
                                 "style": {
@@ -92141,7 +92141,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Ask MAGE anything",
+                                    "Ask MAGE Anything",
                                   ],
                                   "props": {
                                     "style": {
@@ -92154,7 +92154,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                                 },
                                 {
                                   "children": [
-                                    "Your projects, costs, schedule — answered",
+                                    "Your projects, costs and schedule, answered",
                                   ],
                                   "props": {
                                     "style": {
@@ -92430,7 +92430,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Voice capture",
+                                    "Voice Capture",
                                   ],
                                   "props": {
                                     "style": {
@@ -92718,7 +92718,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                               "children": [
                                 {
                                   "children": [
-                                    "Help and tips",
+                                    "Help and Tips",
                                   ],
                                   "props": {
                                     "style": {
@@ -92854,7 +92854,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                           "children": [
                             {
                               "children": [
-                                "Go to",
+                                "Go To",
                               ],
                               "props": {
                                 "style": {
@@ -93779,7 +93779,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                             },
                             {
                               "children": [
-                                "Daily reports",
+                                "Daily Reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -93810,7 +93810,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily reports",
+                            "accessibilityLabel": "Daily Reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -94365,7 +94365,7 @@ exports[`UniversalSearch on a phone open, empty query, 390 ios 1`] = `
                         },
                         {
                           "children": [
-                            "Type what you need — a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
+                            "Type what you need: a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
                           ],
                           "props": {
                             "style": {

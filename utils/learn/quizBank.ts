@@ -166,7 +166,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Emails the client and makes a pay link'], ['b', 'Sends the invoice to you, with no pay link'], ['c', 'Saves it without sending anything']],
       correctId: 'b',
       why: 'A sample invoice goes only to you, so you see what a client gets. No pay link is made.',
-      source: { file: 'utils/sampleGuard.ts', mustContain: 'this goes to you, not a client. No pay link is made.' },
+      source: { file: 'utils/sampleGuard.ts', mustContain: 'This goes to you, not a client. No pay link is made.' },
     },
     {
       id: 'q2',

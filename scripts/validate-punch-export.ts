@@ -382,8 +382,8 @@ eq('sheet group holds the pinned and no-position unlocated items', M.sections[0]
 eq('unplaced group: no pin, a missing sheet, an undated item', M.sections[0].groups[6]?.rows.map(r => r.number), [5, 8, 22]);
 ok('rows inside every group ascend by number', M.sections.every(s => s.groups.every(g => g.rows.every((r, i) => i === 0 || g.rows[i - 1].number < r.number))));
 eq('rows are the CSV order (ascending number)', M.rows.map(r => r.number), Array.from({ length: 22 }, (_, i) => i + 1));
-eq('pipeline label', statusLabel('ready_for_review'), 'Ready for review');
-eq('row status label', rowOf(M, ID.i03)?.statusLabel, 'Ready for review');
+eq('pipeline label', statusLabel('ready_for_review'), 'Ready for Review');
+eq('row status label', rowOf(M, ID.i03)?.statusLabel, 'Ready for Review');
 eq('an open item with a stale closedAt has no closed day', rowOf(M, ID.i05)?.closedDay, null);
 eq('a closed item has its closed day', rowOf(M, ID.f2)?.closedDay, '2026-09-06');
 eq('plan refs in all four states', [ID.i06, ID.i15, ID.i16, ID.i01].map(id => rowOf(M, id)?.plan.state), ['pinned', 'no-position', 'sheet-missing', 'none']);

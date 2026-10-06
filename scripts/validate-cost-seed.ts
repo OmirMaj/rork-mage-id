@@ -903,7 +903,7 @@ ok('the sub-bid copy never cites a job count for a seeded rate',
 // it visible, so it is now a surface that can lie, and gets pinned like one.
 const seededChip = rateProvenanceChipModel(lookupRate(SEEDED_ONLY, 'Framing', 'SF'));
 const earnedChip = rateProvenanceChipModel(lookupRate(EARNED_ONLY, 'Framing', 'SF'));
-expect('the chip on a stated rate reads Your rate', seededChip?.label, 'Your rate');
+expect('the chip on a stated rate reads Your rate', seededChip?.label, 'Your Rate');
 ok('…and never cites a job count, because there are none',
   !/\d+ jobs?\b/.test(seededChip?.label ?? ''), seededChip?.label);
 expect('…in the NEUTRAL tone, never the measured one', seededChip?.tone, 'stated');

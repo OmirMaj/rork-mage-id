@@ -1192,7 +1192,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // random id into the marker, poisoning the next real sign-in into a second
       // full wipe. Say what happened and touch nothing.
       if ((data.user.identities?.length ?? 0) === 0) {
-        throw new Error('An account with this email already exists — sign in instead.');
+        throw new Error('An account with this email already exists. Sign in instead.');
       }
 
       // #72: only a sign-up that returned a SESSION hands the device over here.
@@ -1234,7 +1234,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         });
         const result = await sendEmail({
           to: email.toLowerCase().trim(),
-          subject: 'Welcome to MAGE ID — let\'s get you building',
+          subject: 'Welcome to MAGE ID. Let\'s get you building',
           html,
           replyTo: 'support@mageid.app',
         });
@@ -1265,7 +1265,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const result = await LocalAuth.authenticateAsync({
       promptMessage: 'Sign in to MAGE ID',
       cancelLabel: 'Cancel',
-      fallbackLabel: 'Use password',
+      fallbackLabel: 'Use Password',
       disableDeviceFallback: false,
     });
 
@@ -1775,7 +1775,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       return false;
     } catch (err) {
       console.error('[Auth] Google sign-in error:', err);
-      showAlert('Couldn’t sign in', 'Google sign-in didn’t finish. Try again.');
+      showAlert('Couldn’t Sign In', 'Google sign-in didn’t finish. Try again.');
       throw err;
     }
   }, [beginSignIn, completeSignIn]);
@@ -1895,7 +1895,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return false;
       }
       console.error('[Auth] Apple sign-in error:', err);
-      showAlert('Couldn’t sign in', 'Apple sign-in didn’t finish. Try again.');
+      showAlert('Couldn’t Sign In', 'Apple sign-in didn’t finish. Try again.');
       throw err;
     }
   }, [beginSignIn, completeSignIn]);

@@ -10,9 +10,9 @@ import type { PermitType, TaskStatus } from '@/types';
 
 /** Task status → sentence-case label. Keys are the stored enum values. */
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  on_hold: 'On hold',
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  on_hold: 'On Hold',
   done: 'Complete',
 };
 
@@ -79,29 +79,29 @@ export function taskStatusLabel(s: TaskStatus | string | null | undefined): stri
 
 /** Permit type → the name a GC says out loud ("Building permit"). */
 export const PERMIT_TYPE_LABEL: Record<PermitType, string> = {
-  building: 'Building permit',
-  electrical: 'Electrical permit',
-  plumbing: 'Plumbing permit',
-  mechanical: 'Mechanical permit',
-  demolition: 'Demolition permit',
-  grading: 'Grading permit',
-  fire: 'Fire permit',
-  occupancy: 'Certificate of occupancy',
-  special_inspection: 'Special inspection',
-  hot_work: 'Hot work permit',
-  shutdown: 'System shutdown permit',
-  after_hours: 'After-hours work permit',
-  landlord_approval: 'Landlord approval',
-  elevator_dock: 'Elevator and dock reservation',
+  building: 'Building Permit',
+  electrical: 'Electrical Permit',
+  plumbing: 'Plumbing Permit',
+  mechanical: 'Mechanical Permit',
+  demolition: 'Demolition Permit',
+  grading: 'Grading Permit',
+  fire: 'Fire Permit',
+  occupancy: 'Certificate of Occupancy',
+  special_inspection: 'Special Inspection',
+  hot_work: 'Hot Work Permit',
+  shutdown: 'System Shutdown Permit',
+  after_hours: 'After-Hours Work Permit',
+  landlord_approval: 'Landlord Approval',
+  elevator_dock: 'Elevator and Dock Reservation',
   other: 'Permit',
 };
 
 /** Extra permit types the app has seen in imported / legacy data. */
 const EXTRA_PERMIT_TYPE_LABEL: Record<string, string> = {
-  fire_alarm: 'Fire alarm permit',
-  sprinkler: 'Sprinkler permit',
-  sign: 'Sign permit',
-  roofing: 'Roofing permit',
+  fire_alarm: 'Fire Alarm Permit',
+  sprinkler: 'Sprinkler Permit',
+  sign: 'Sign Permit',
+  roofing: 'Roofing Permit',
 };
 
 export function permitTypeLabel(type: string | null | undefined): string {

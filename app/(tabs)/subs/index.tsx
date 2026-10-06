@@ -386,7 +386,7 @@ export default function SubsScreen() {
     // fixed while the GC is looking at it, not silently dropped by the server.
     const tin = taxIdLast4.trim();
     if (tin && !/^[0-9]{4}$/.test(tin)) {
-      showAlert('TIN needs 4 digits', `Enter the last 4 digits of the TIN from the W-9 (you have ${tin.length}), or leave it blank.`);
+      showAlert('TIN needs 4 digits.', `Enter the last 4 digits of the TIN from the W-9 (you have ${tin.length}), or leave it blank.`);
       return;
     }
 
@@ -473,7 +473,7 @@ export default function SubsScreen() {
     if (paidCommitments.length > 0) parts.push(`${paidCommitments.length} commitment${paidCommitments.length === 1 ? '' : 's'} showing ${money(committedPaid)} paid to date`);
     if (parts.length > 0) {
       showAlert(
-        `${sub.companyName} has payments on record`,
+        `${sub.companyName} has payments on record.`,
         `On record: ${parts.join('; ')}. They'll still appear on the 1099 export, but their TIN and address will be gone. Keep them unless you're sure.`,
         [
           { text: 'Keep Them', style: 'cancel' },

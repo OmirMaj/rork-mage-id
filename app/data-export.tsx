@@ -98,7 +98,7 @@ export default function DataExportScreen() {
   // homeowner / accountant might want).
   const applyArchivePreset = useCallback(() => {
     if (scope !== 'project' || !projectId) {
-      showAlert('Pick a project first', 'The archive preset bundles a single project. Switch scope to "Single project" and pick one above.');
+      showAlert('Pick a Project First', 'The archive preset bundles a single project. Switch scope to "Single project" and pick one above.');
       return;
     }
     setFormat('both');
@@ -164,7 +164,7 @@ export default function DataExportScreen() {
 
   const handleGenerate = useCallback(async () => {
     if (scope === 'project' && !projectId) {
-      showAlert('Pick a project', 'Select which project to export first.');
+      showAlert('Pick a Project', 'Select which project to export first.');
       return;
     }
     try {
@@ -198,14 +198,14 @@ export default function DataExportScreen() {
         // #131: web downloads every file straight away — there is no list
         // below to tap. Say what happened, in his number.
         showAlert(
-          'Export downloaded',
+          'Export Downloaded',
           `Downloaded ${result.deliveredFileCount} file${result.deliveredFileCount === 1 ? '' : 's'} to your browser\u2019s Downloads. If the browser asks to allow multiple downloads, allow it, or choose JSON for a single file.${photoNote}`,
         );
       } else if (result.fileUris.length === 1) {
         await shareExportedFile(result.fileUris[0], 'MAGE ID Data Export');
       } else {
         showAlert(
-          'Export ready',
+          'Export Ready',
           `${summarizeExport(result)}${photoNote}\n\nTap a file below to share it.`,
         );
       }
@@ -237,7 +237,7 @@ export default function DataExportScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroIcon}><FolderDown size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.heroTitle}>Export my data</Text>
+          <Text style={styles.heroTitle}>Export My Data</Text>
           <Text style={styles.heroSub}>
             Bundle your projects, invoices, change orders, pay apps, RFIs, daily reports, time and safety records
             into a portable file you own. Photos go as records with temporary links (24 h), not the photo files.
@@ -253,7 +253,7 @@ export default function DataExportScreen() {
             activeOpacity={0.8}
           >
             <Package size={14} color={scope === 'all' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
-            <Text style={[styles.segmentTxt, scope === 'all' && styles.segmentTxtActive]}>All projects</Text>
+            <Text style={[styles.segmentTxt, scope === 'all' && styles.segmentTxtActive]}>All Projects</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, scope === 'project' && styles.segmentBtnActive]}
@@ -261,7 +261,7 @@ export default function DataExportScreen() {
             activeOpacity={0.8}
           >
             <CheckCircle2 size={14} color={scope === 'project' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
-            <Text style={[styles.segmentTxt, scope === 'project' && styles.segmentTxtActive]}>Single project</Text>
+            <Text style={[styles.segmentTxt, scope === 'project' && styles.segmentTxtActive]}>Single Project</Text>
           </TouchableOpacity>
         </View>
 
@@ -330,7 +330,7 @@ export default function DataExportScreen() {
         <View style={styles.row}>
           <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Include photo links</Text>
+            <Text style={styles.rowLabel}>Include Photo Links</Text>
             <Text style={styles.rowSub}>Photo records with temporary links (24 h), not the photo files. Off leaves the link column blank.</Text>
           </View>
           <Switch
@@ -347,7 +347,7 @@ export default function DataExportScreen() {
         <View style={[styles.row, scope !== 'project' && { opacity: 0.5 }]}>
           <View style={styles.rowIcon}><FileJson size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Closeout PDF (handoff packet)</Text>
+            <Text style={styles.rowLabel}>Closeout PDF (Handoff Packet)</Text>
             <Text style={styles.rowSub}>
               {scope === 'project'
                 ? 'Includes contract, COs, payments, warranties, finishes and punch list. Takes about 5 seconds.'
@@ -366,7 +366,7 @@ export default function DataExportScreen() {
         <View style={styles.row}>
           <View style={styles.rowIcon}><Info size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>README.txt orientation file</Text>
+            <Text style={styles.rowLabel}>README.txt Orientation File</Text>
             <Text style={styles.rowSub}>A plain-text file that explains each part of the export.</Text>
           </View>
           <Switch
@@ -385,36 +385,36 @@ export default function DataExportScreen() {
           style={styles.presetBtn}
         >
           <Package size={14} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.presetText}>Use &quot;Full project archive&quot; preset</Text>
+          <Text style={styles.presetText}>Use “Full Project Archive” Preset</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionLabel}>What&apos;s included</Text>
+        <Text style={styles.sectionLabel}>What’s Included</Text>
         <View style={styles.summaryCard}>
           <SummaryLine label="Projects" value={totals.projects} />
           <SummaryLine label="Invoices" value={totals.invoices} />
-          <SummaryLine label="Change orders" value={totals.changeOrders} />
-          <SummaryLine label="Daily reports" value={totals.dailyReports} />
-          <SummaryLine label="Punch items" value={totals.punchItems} />
+          <SummaryLine label="Change Orders" value={totals.changeOrders} />
+          <SummaryLine label="Daily Reports" value={totals.dailyReports} />
+          <SummaryLine label="Punch Items" value={totals.punchItems} />
           <SummaryLine label="RFIs" value={totals.rfis} />
           <SummaryLine label="Submittals" value={totals.submittals} />
-          <SummaryLine label="AIA-style pay apps" value={totals.aiaPayApps} />
+          <SummaryLine label="AIA-Style Pay Apps" value={totals.aiaPayApps} />
           <SummaryLine label="Commitments / POs" value={totals.commitments} />
-          <SummaryLine label="T&M tickets" value={totals.fieldTickets} />
-          <SummaryLine label="Time entries" value={totals.timeEntries} />
-          <SummaryLine label="Safety incidents" value={totals.safetyIncidents} />
+          <SummaryLine label="T&M Tickets" value={totals.fieldTickets} />
+          <SummaryLine label="Time Entries" value={totals.timeEntries} />
+          <SummaryLine label="Safety Incidents" value={totals.safetyIncidents} />
           {(totals.managedProperties > 0 || totals.workOrders > 0) && (
             <>
-              <SummaryLine label="Managed properties" value={totals.managedProperties} />
-              <SummaryLine label="Work orders" value={totals.workOrders} />
+              <SummaryLine label="Managed Properties" value={totals.managedProperties} />
+              <SummaryLine label="Work Orders" value={totals.workOrders} />
             </>
           )}
-          <SummaryLine label="Photo records (links, not files)" value={totals.photos} />
+          <SummaryLine label="Photo Records (Links, Not Files)" value={totals.photos} />
           <SummaryLine label="Contacts" value={totals.contacts} last />
         </View>
 
         {lastResult && (
           <>
-            <Text style={styles.sectionLabel}>Last export</Text>
+            <Text style={styles.sectionLabel}>Last Export</Text>
             <View style={styles.resultCard}>
               <Text style={styles.resultHeader}>{summarizeExport(lastResult)}</Text>
               {Platform.OS === 'web' ? (
@@ -457,7 +457,7 @@ export default function DataExportScreen() {
           ) : (
             <>
               <Download size={18} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.primaryBtnTxt}>Export and share</Text>
+              <Text style={styles.primaryBtnTxt}>Export and Share</Text>
             </>
           )}
         </TouchableOpacity>

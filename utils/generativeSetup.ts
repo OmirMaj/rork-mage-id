@@ -67,8 +67,8 @@ export interface GenerativeSetupPlan {
  */
 const DIVISION_PHASE: Record<string, string> = {
   '02': 'Sitework', '31': 'Sitework', '32': 'Sitework', '33': 'Sitework',
-  '03': 'Foundation', '04': 'Structure & Shell', '05': 'Structure & Shell',
-  '06': 'Structure & Shell', '07': 'Structure & Shell', '08': 'Structure & Shell',
+  '03': 'Foundation', '04': 'Structure and Shell', '05': 'Structure and Shell',
+  '06': 'Structure and Shell', '07': 'Structure and Shell', '08': 'Structure and Shell',
   '21': 'MEP', '22': 'MEP', '23': 'MEP', '26': 'MEP', '27': 'MEP', '28': 'MEP',
   '09': 'Finishes', '10': 'Finishes', '11': 'Finishes', '12': 'Finishes',
 };
@@ -81,15 +81,15 @@ const DIVISION_SUBMITTALS: Record<string, string> = {
   '03': 'Concrete mix design',
   '04': 'Masonry product data',
   '05': 'Structural steel shop drawings',
-  '06': 'Millwork & casework shop drawings',
-  '07': 'Roofing & waterproofing — product data + warranty',
-  '08': 'Doors, frames & windows shop drawings',
-  '09': 'Finish samples — paint, tile, flooring',
+  '06': 'Millwork and casework shop drawings',
+  '07': 'Roofing and waterproofing: product data and warranty',
+  '08': 'Doors, frames and windows shop drawings',
+  '09': 'Finish samples: paint, tile, flooring',
   '10': 'Specialties product data',
   '14': 'Elevator shop drawings',
   '22': 'Plumbing fixtures product data',
   '23': 'HVAC equipment product data',
-  '26': 'Electrical fixtures & gear product data',
+  '26': 'Electrical fixtures and gear product data',
 };
 
 /** Normalize an estimate item to a 2-digit CSI division, classifying on the
@@ -102,7 +102,7 @@ function divisionFor(item: LinkedEstimateItem): string {
 }
 
 function divisionTitle(num: string): string {
-  if (num === UNCATEGORIZED) return 'General Requirements & Uncategorized';
+  if (num === UNCATEGORIZED) return 'General Requirements and Uncategorized';
   return CSI_DIVISION_BY_NUMBER[num]?.title ?? `Division ${num}`;
 }
 

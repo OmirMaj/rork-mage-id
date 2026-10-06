@@ -79,10 +79,10 @@ export default function UpgradeSheet({ visible, onClose, limit, featureLabel }: 
 
           <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade} activeOpacity={0.9} testID="upgrade-sheet-cta">
             <MageAIMark size={16} color="#FFF" />
-            <Text style={styles.upgradeBtnText}>See plans</Text>
+            <Text style={styles.upgradeBtnText}>See Plans</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="upgrade-sheet-dismiss">
-            <Text style={styles.notNowText}>Not now</Text>
+            <Text style={styles.notNowText}>Not Now</Text>
           </TouchableOpacity>
         </View>
       </BlurView>

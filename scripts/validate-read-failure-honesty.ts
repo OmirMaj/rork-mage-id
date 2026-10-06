@@ -76,7 +76,7 @@ console.log('\nread-failure honesty');
     /useCoreData\(\)/.test(summary) && /sourceFailed/.test(summary));
   ok('summary: "No projects yet" is unreachable while the source is failing',
     /projects\.length === 0 && sourceFailed/.test(summary)
-    && summary.indexOf('projects.length === 0 && sourceFailed') < summary.indexOf('title="No projects yet"'));
+    && summary.indexOf('projects.length === 0 && sourceFailed') < summary.indexOf('title="No Projects Yet"'));
   ok('summary: the failed-read state says what happened and offers the retry, not onboarding copy',
     /Couldn't reach MAGE/.test(summary) && /onAction=\{retryRemoteReads\}/.test(summary));
   ok('summary: a partial failure (cached projects, failing reads) is disclosed above the briefing',
@@ -172,7 +172,7 @@ console.log('\nread-failure honesty');
   ok('documents: the empty state names the create homes this read-only aggregator collects from',
     /COI Vault/.test(docs) && /Permits/.test(docs) && /actionLabel=/.test(docs));
   ok('documents: an empty FILTER is told apart from an empty account',
-    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing under this filter'/.test(docs));
+    /documents\.length === 0 \? 'Nothing Filed Yet' : 'Nothing Under This Filter'/.test(docs));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -31,6 +31,6 @@ exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) SchedulerMe
 exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) TaskInspector (embedded false), the trade picker opened through its button 1`] = `
 {
   "lines": 254,
-  "sha256": "99ee59d46972856d89346a16e2cf6f3f253c336a72f685d1196b04bfe2d0c568",
+  "sha256": "079f07c9c78ed26283b831cd779c0ee8efb7369106db79c0e5ee69d158117f63",
 }
 `;

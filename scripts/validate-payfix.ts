@@ -13,7 +13,7 @@
 //   3. The CO copilot never turns "field condition" (or anything it did not
 //      hear as one) into "client request"; its example to the model offers no
 //      reason; the CO screen labels field condition as itself.
-//   4. G702 line 1 and the change order's "Original contract sum" read the
+//   4. G702 line 1 and the change order's "Original Contract Sum" read the
 //      SIGNED contract; the estimate is the fallback only when nothing is
 //      signed, and the SCREEN says so. The PDF prints no source note at all.
 //   5. The G702 header (owner name, contract date, architect) carries forward
@@ -362,15 +362,15 @@ console.log('\n2. Labels never imply an official AIA document');
   const SWEPT: [string, RegExp, string][] = [
     ['app/invoice.tsx', /Generate AIA-Style G702\/G703/, 'the invoice CTA'],
     ['app/documents.tsx', /AIA-style G702 · App #\$\{a\.applicationNumber\}/, 'the documents feed title'],
-    ['components/CreateMenu.tsx', /subtitle: 'Bill the next draw — AIA-style G702\/G703'/, 'the create-menu subtitle'],
+    ['components/CreateMenu.tsx', /subtitle: 'Bill the next draw, AIA-style G702\/G703'/, 'the create-menu subtitle'],
     ['components/registers/DocumentsRegister.tsx', /submittals and AIA-style pay apps across your projects/, 'the desktop documents register meta'],
-    ['constants/glossary.ts', /term: 'Pay app \(AIA-style G702\/G703\)'/, 'the glossary term'],
+    ['constants/glossary.ts', /term: 'Pay App \(AIA-Style G702\/G703\)'/, 'the glossary term'],
     ['utils/onboardingProfile.ts', /daily reports, AIA-style pay apps and AI takeoffs\./, 'the contractor role blurb'],
     ['utils/wip.ts', /LATEST saved AIA-style pay application/, 'the WIP provenance label'],
     ['utils/dataExport.ts', /aiaPayApps: 'AIA-style pay apps'/, 'the export file label'],
-    ['utils/registers/documentRows.ts', /export const PAY_APP_TYPE_TAG = 'Pay app';/, 'the document type tag'],
+    ['utils/registers/documentRows.ts', /export const PAY_APP_TYPE_TAG = 'Pay App';/, 'the document type tag'],
     ['contexts/ProjectContext.tsx', /aia_pay_app: 'AIA-style pay application'/, 'the portal-send item label'],
-    ['app/data-export.tsx', /label="AIA-style pay apps"/, 'the export summary line'],
+    ['app/data-export.tsx', /label="AIA-Style Pay Apps"/, 'the export summary line'],
   ];
   for (const [f, says, what] of SWEPT) {
     const text = read(f);
@@ -388,7 +388,7 @@ console.log('\n2. Labels never imply an official AIA document');
   ok('the export README line needs no AIA word at all ("Pay apps:")',
     /lines\.push\(`  Pay apps:        \$\{payload\.aiaPayApps\.length\}`\);/.test(read('utils/dataExport.ts')));
   eq('the desktop Type column and the phone tag say "Pay app", never "AIA Billing"',
-    [PAY_APP_TYPE_TAG, documentTypeLabel({ id: 'aia-1', type: 'aia_billing' } as never)], ['Pay app', 'Pay app']);
+    [PAY_APP_TYPE_TAG, documentTypeLabel({ id: 'aia-1', type: 'aia_billing' } as never)], ['Pay App', 'Pay App']);
   ok('…the phone card prints that word over the mock table’s',
     /const typeLabel = doc\.type === 'aia_billing' \? PAY_APP_TYPE_TAG : typeInfo\.label;/.test(read('app/documents.tsx'))
     && /\{typeLabel\}<\/Text>/.test(read('app/documents.tsx')) && !/\{typeInfo\.label\}/.test(read('app/documents.tsx')));
@@ -1140,7 +1140,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   // The premise: what leaves prints the SAVED record's stamp.
   const pdfSrc = read('utils/pdfGenerator.ts');
   ok('the PDF prints the saved record’s `originalContractValue` and `newContractTotal`',
-    /row\('Contract sum prior to this CO', money\(co\.originalContractValue\)\)/.test(pdfSrc) && /\$\{money\(co\.newContractTotal\)\}/.test(pdfSrc));
+    /row\('Contract Sum Prior to This CO', money\(co\.originalContractValue\)\)/.test(pdfSrc) && /\$\{money\(co\.newContractTotal\)\}/.test(pdfSrc));
   ok('…so does the proof packet', /contractBeforeCents: toCents\(co\.originalContractValue\),\n\s+newContractCents: toCents\(co\.newContractTotal\),/.test(read('utils/coProofPacket.ts')));
   // The premise of the approve hold: approving does not restamp the base.
   const ctx = read('contexts/ProjectContext.tsx');
@@ -1199,7 +1199,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
     /const prior = typeof frozen\.priorApprovedChangesTotal === 'number' && Number\.isFinite\(frozen\.priorApprovedChangesTotal\)\n\s+\? frozen\.priorApprovedChangesTotal : null;/.test(pdfSrc)
     && /if \(typeof frozen !== 'number' \|\| !Number\.isFinite\(frozen\)\) \{\n    return \{ originalContractValue: base, priorApprovedChanges: null, originalContractSum: null \};\n  \}\n  return \{ originalContractValue: base, priorApprovedChanges: frozen, originalContractSum: cents\(base - frozen\) \};/.test(src.fin));
   ok('…and prints the three rows with it, the stamp ALONE without it — which is exactly what the rows above say',
-    /const buildUp = prior != null\n\s+\? row\('Original contract sum', money\(co\.originalContractValue - prior\)\)\n\s+\+ \(prior !== 0 \? row\('Net change by prior approved COs', signed\(prior\)\) : ''\)\n\s+\+ row\('Contract sum prior to this CO', money\(co\.originalContractValue\)\)\n\s+: row\('Contract sum prior to this CO', money\(co\.originalContractValue\)\);/.test(pdfSrc));
+    /const buildUp = prior != null\n\s+\? row\('Original Contract Sum', money\(co\.originalContractValue - prior\)\)\n\s+\+ \(prior !== 0 \? row\('Net Change by Prior Approved COs', signed\(prior\)\) : ''\)\n\s+\+ row\('Contract Sum Prior to This CO', money\(co\.originalContractValue\)\)\n\s+: row\('Contract Sum Prior to This CO', money\(co\.originalContractValue\)\);/.test(pdfSrc));
   const recFn = src.fin.slice(src.fin.indexOf('export function changeOrderRecordRows('), src.fin.indexOf('/** Why Save / Send wait'));
   ok('changeOrderRecordRows takes one argument — the record — and reads its three fields and nothing live',
     /^export function changeOrderRecordRows\(\n  co: \{ status\?: string; originalContractValue\?: number; priorApprovedChangesTotal\?: number \} \| null \| undefined,\n\): ChangeOrderRecordRows \| null \{\n/.test(recFn)
@@ -1423,7 +1423,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
       rowTap.indexOf(HUB_REFUSE) > 0 && rowTap.indexOf(HUB_REFUSE) < rowTap.indexOf('setCoReflowPreview(co);') && rowTap.indexOf(HUB_REFUSE) < rowTap.indexOf('setApproveSheetCO(co);')],
     ['const hold = coApproveHold(co); if (hold) { refuseCoApprove(co, hold); return; }', true]);
   ok('…the refusal says the helper’s reason under "Not yet", and offers the screen where Save to Project is',
-    /\n  const refuseCoApprove = useCallback\(\(co: ChangeOrder, hold: string\) => \{\n    showAlert\('Not yet', hold, \[\n      \{ text: 'Cancel', style: 'cancel' \},\n      \{ text: `Open CO #\$\{co\.number\}`, onPress: \(\) => navigateFromTile\(\{ pathname: '\/change-order', params: \{ projectId: id, coId: co\.id \} \}\) \},\n    \]\);\n  \}, \[navigateFromTile, id\]\);\n/.test(src.hub));
+    /\n  const refuseCoApprove = useCallback\(\(co: ChangeOrder, hold: string\) => \{\n    showAlert\('Not Yet', hold, \[\n      \{ text: 'Cancel', style: 'cancel' \},\n      \{ text: `Open CO #\$\{co\.number\}`, onPress: \(\) => navigateFromTile\(\{ pathname: '\/change-order', params: \{ projectId: id, coId: co\.id \} \}\) \},\n    \]\);\n  \}, \[navigateFromTile, id\]\);\n/.test(src.hub));
   ok('…that tap is the ONLY way an approve opens on the page: one sheet open, and the one other preview open is for a change order ALREADY approved (placing its days)',
     count(hubCode, /setApproveSheetCO\((?!null\))/g) === 1 && count(hubCode, /setCoReflowPreview\((?!null\))/g) === 2
     && count(rowTap, /setApproveSheetCO\(co\);/g) === 1 && count(rowTap, /setCoReflowPreview\(co\);/g) === 1

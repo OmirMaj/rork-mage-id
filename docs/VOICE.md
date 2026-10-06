@@ -79,7 +79,7 @@ its Title Case form or it does not, so a script can check it.
 | Field labels and toggles | Title Case | Project Name, Sales Tax Rate, Auto-Name PDFs |
 | Badges, chips, status words | Title Case when it is only words. Sentence case when it carries a number or a date. | In Review, Reconnect Required; "Overdue 3 days · was due Oct 2" |
 | Empty-state title | Title Case | No Projects Yet |
-| Alert title | Title Case when it is a fragment. Sentence case with a question mark when it is a question. | Invoice Not Sent; "Delete this change order?" |
+| Alert title | A noun phrase or a short command is a label: Title Case, no period. A full sentence or a question is a sentence: sentence case, with its period or question mark. See "Alert titles" below. | Invoice Not Sent; Delete Scan; "Delete this change order?"; "Takeoffs are on the Pro plan." |
 | Alert buttons | Title Case | Delete and Sign Out, Not Now |
 | Toasts | Sentence case, past tense, no period | Invoice #12 sent |
 | Subtitles and helper text | Capital first letter. A fragment has no period. Full sentences end with periods. | "Overdue RFIs, submittals and sub confirmations" |
@@ -105,9 +105,48 @@ The one function that implements this is `titleCase()` in
 it.
 
 **A label that is really a sentence stays a sentence.** "You can't edit this
-project", "You're on Pro" and "Delete this change order?" keep sentence case.
-The guard treats a string as a sentence when it opens with You, This, It, We,
-There or That's, or ends in ".", "?", ":" or "…".
+project." and "Delete this change order?" keep sentence case. Outside an alert
+title the guard treats a string as a sentence when it opens with You, This, It,
+We, There or That's, or ends in ".", "?", ":" or "…".
+
+**Alert titles: one rule (decided 2026-10-06).** The lanes had split on this:
+some wrote "Milestone Was Already Billed", others "Delete this sheet?". The
+second way reads naturally, so it is the rule.
+
+- **A title that is a full sentence or a question is written as a sentence:**
+  sentence case, with its closing punctuation. "Delete this sheet?", "Ready to
+  file?", "Milestone was already billed.", "Takeoffs are on the Pro plan.",
+  "Saved, but the sub hasn't been told.", "That is not an email address.",
+  "You're offline.", "Only the project owner can send this."
+- **A title that is a noun phrase or a command of a few words stays a label:**
+  Title Case, no period. "Delete Scan", "Not Signed In", "Upgrade Required",
+  "Invoice Not Sent", "Couldn't Send Invoice", "Can't Delete This Item", "Check
+  the Date".
+- Names keep their capitals inside a sentence title: plan names (Pro,
+  Business), feature names (Punch from Photos, Home Passport), products
+  (QuickBooks), acronyms (PDF, RFI).
+
+A script cannot parse English, so the guard uses a test a person can run in
+their head (`isSentenceTitle()` in `scripts/copy-title-case.ts`). An alert
+title is a sentence when any one of these is true:
+
+1. It ends in "?" or ".".
+2. It opens with a pronoun subject: You, You're, This, It, We, There, That's,
+   They, I'm.
+3. A helping verb stands anywhere after its first word, so there is a subject
+   in front of it: is, isn't, are, aren't, was, wasn't, were, weren't, has,
+   hasn't, have, haven't, had, hadn't, can, can't, cannot, could, couldn't,
+   will, won't, would, wouldn't, does, doesn't, don't, did, didn't, must,
+   should, shouldn't, need, needs.
+
+A helping verb as the first word has no subject in front of it, so "Couldn't
+Send Invoice" and "Can't Delete This Item" are labels. A sentence whose verb is
+not on the list ("Only the project owner bills.", "QuickBooks shows this
+invoice closed.") is caught by test 1: type its period and the guard holds it
+to sentence case from then on. The same wording applies to a title handed to
+an alert through a constant or a `{ title, body }` object (`utils/errorCopy.ts`
+titles: "That didn't go through.", "MAGE hit a problem."), which the guard
+cannot see and a reader has to check.
 
 **Feature names are Title Case everywhere, including inside a sentence:**
 Ask MAGE, Code Check, Inspection Ready, Cost X-Ray, Home Passport, Quick Quote,
@@ -459,6 +498,9 @@ Title Case. Rows 23 on are from the Title Case pass (2026-10-05).
   count rise. The copy style (R15 label case, R20 no dash as punctuation, R21
   "and" not "&", R22 no "e.g." / "i.e.", R23 no arrows) is strict: zero hits,
   no baseline, enforced on the files in `scripts/copy-style-converted.json`.
+  R15 reads an alert title both ways: a sentence or a question must be
+  sentence case and end in "." or "?", anything else must be Title Case. The
+  guard's fixtures and planted mutations cover both directions.
   R24 (never "unlimited") is strict in every file under `app/`, `components/`,
   `hooks/`, `contexts/`, `utils/` and `constants/`.
 - **Converting more files.** Add them to `scripts/copy-style-converted.json`

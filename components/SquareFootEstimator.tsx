@@ -92,7 +92,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
 
   const renderStep1 = () => (
     <>
-      <Text style={s.stepTitle}>Choose a building type</Text>
+      <Text style={s.stepTitle}>Choose a Building Type</Text>
       <View style={s.categoryRow}>
         {SF_CATEGORIES.map(cat => {
           const isActive = selectedCategory === cat.id;
@@ -146,7 +146,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
     return (
       <>
         <TouchableOpacity style={s.backBtn} onPress={() => setStep(1)}>
-          <Text style={s.backBtnText}>← Change type</Text>
+          <Text style={s.backBtnText}>Change Type</Text>
         </TouchableOpacity>
         <Text style={s.stepTitle}>{selectedModel.buildingType}</Text>
         <Text style={s.stepSubtitle}>Choose a finish level and enter the size</Text>
@@ -172,7 +172,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           })}
         </View>
 
-        <Text style={s.fieldLabel}>Square footage</Text>
+        <Text style={s.fieldLabel}>Square Footage</Text>
         <View style={s.sqftRow}>
           <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(Math.max(0, sqft - 100)))}>
             <MinusIcon size={18} color={Colors.primary} strokeWidth={1.75} />
@@ -203,7 +203,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           <View style={s.resultCard}>
             <View style={s.resultHeader}>
               <Calculator size={16} color={Colors.primary} strokeWidth={1.75} />
-              <Text style={s.resultTitle}>Estimated cost range</Text>
+              <Text style={s.resultTitle}>Estimated Cost Range</Text>
             </View>
             {locationFactor !== 1 && (
               <View style={s.locationBadge}>
@@ -246,7 +246,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
       <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
-            <Text style={s.headerTitle}>Square-foot estimator</Text>
+            <Text style={s.headerTitle}>Square-Foot Estimator</Text>
             <Text style={s.headerSub}>Cost range by building type and size</Text>
           </View>
           <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>

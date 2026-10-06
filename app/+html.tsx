@@ -28,7 +28,7 @@ import {
 import { BRAND_ACCENT } from '@/constants/colors';
 
 const APP_NAME = 'MAGE ID';
-const APP_DESCRIPTION = 'The operating system for general contractors — plans, estimates, daily reports, pay applications, and a live client portal. One app for the jobsite.';
+const APP_DESCRIPTION = 'The operating system for general contractors: plans, estimates, daily reports, pay applications, and a live client portal. One app for the jobsite.';
 const THEME_COLOR_INK = '#0B0D10';
 // The brand, re-exported for web-only callers. Read from the colour module
 // (which has no imports, so it is safe in this static-render entry point)

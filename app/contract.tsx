@@ -491,7 +491,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           if (fresh.contract.status === 'void') return;
           setContract(fresh.contract);
           setTermsSource(null);
-          showAlert('This job already has a contract', 'Showing the saved contract. The unsaved draft that was on screen was not saved.');
+          showAlert('This job already has a contract.', 'Showing the saved contract. The unsaved draft that was on screen was not saved.');
         } else if (fresh.contract.id === focusContractId) {
           // Compared by CONTENT, not updatedAt: nothing bumps updated_at on a
           // write (no trigger, and writeContractRow does not set it), so a
@@ -538,7 +538,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
   const adoptExistingContract = useCallback((existing: ProjectContract) => {
     setContract(existing);
     setTermsSource(null);
-    showAlert('This job already has a contract', 'Nothing was saved, because a second contract would have been created. Showing the one on file.');
+    showAlert('This job already has a contract.', 'Nothing was saved, because a second contract would have been created. Showing the one on file.');
   }, []);
 
   // ── Milestone → invoice ──────────────────────────────────────────
@@ -931,7 +931,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     // second signature over the first.
     if (contractTermsLocked(c)) {
       showAlert(
-        'This contract is already signed',
+        'This contract is already signed.',
         'Your signature is on it, so its payment terms and warranty can no longer be changed here.',
       );
       return;
@@ -973,7 +973,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       const state = portalDeliveryState(p, userIdRef.current);
       if (state === 'collaborator') {
         showAlert(
-          'Only the Project Owner Can Send This',
+          'Only the project owner can send this.',
           'The client portal\'s signing link belongs to the account that owns this project, so the contract can\'t be emailed from yours. Ask the project owner to sign and send it, or use Sign together now if the client is with you.',
         );
         return;
@@ -1334,7 +1334,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     if (isSampleProject(p)) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     const state = portalDeliveryState(p, user?.id ?? null);
     if (state === 'collaborator') {
-      showAlert('Only the Project Owner Can Send This', 'The client portal\'s signing link belongs to the account that owns this project.');
+      showAlert('Only the project owner can send this.', 'The client portal\'s signing link belongs to the account that owns this project.');
       return;
     }
     if (state !== 'ready') {

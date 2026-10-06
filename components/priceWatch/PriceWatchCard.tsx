@@ -167,7 +167,7 @@ export function PriceWatchCard({ projectId }: { projectId?: string }) {
   if (reviewedCount < 2) {
     return (
       <View testID="pricewatch-card" style={styles.quietWrap}>
-        <Text style={styles.quietLine}>Price watch compares your reviewed receipts — it needs the same item from two suppliers.</Text>
+        <Text style={styles.quietLine}>Price watch compares your reviewed receipts. It needs the same item from two suppliers.</Text>
       </View>
     );
   }
@@ -178,7 +178,7 @@ export function PriceWatchCard({ projectId }: { projectId?: string }) {
   return (
     <View testID="pricewatch-card" style={styles.wrap}>
       <Card pad={Tokens.spacing.md} radius="md">
-        <EyebrowLabel tone="neutral" showDot={false}>Price watch</EyebrowLabel>
+        <EyebrowLabel tone="neutral" showDot={false}>Price Watch</EyebrowLabel>
         <Text style={styles.muted}>From receipts you reviewed.</Text>
 
         {spreads.length > 0 ? (
@@ -221,9 +221,9 @@ export function PriceWatchCard({ projectId }: { projectId?: string }) {
 
         {groups.length > 0 || repriced.size > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prices moved on an open estimate</Text>
+            <Text style={styles.sectionTitle}>Prices Moved on an Open Estimate</Text>
             {repriced.size > 0 ? (
-              <Text style={styles.muted}>Repriced from your receipts — the earlier estimate is kept in its revision history.</Text>
+              <Text style={styles.muted}>Repriced from your receipts. The earlier estimate is kept in its revision history.</Text>
             ) : null}
             {groups.map(g => {
               const n = g.drifts.length;
@@ -248,10 +248,10 @@ export function PriceWatchCard({ projectId }: { projectId?: string }) {
                   {isConfirming ? (
                     <View style={styles.confirm}>
                       <Text style={styles.confirmText}>
-                        {`Grand total ${unitMoney(g.grandBefore)} → ${unitMoney(g.grandAfter)}. Each line keeps its own markup.`}
+                        {`Grand total ${unitMoney(g.grandBefore)} to ${unitMoney(g.grandAfter)}. Each line keeps its own markup.`}
                       </Text>
                       <View style={styles.actions}>
-                        <Button label="Reprice now" variant="primary" size="sm" onPress={() => reprice(g)} testID={`pricewatch-confirm-${g.project.id}`} />
+                        <Button label="Reprice Now" variant="primary" size="sm" onPress={() => reprice(g)} testID={`pricewatch-confirm-${g.project.id}`} />
                         <Button label="Cancel" variant="secondary" size="sm" onPress={() => setConfirming(null)} testID={`pricewatch-cancel-${g.project.id}`} />
                       </View>
                     </View>

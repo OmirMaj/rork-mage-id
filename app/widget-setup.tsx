@@ -67,7 +67,7 @@ export default function WidgetSetupScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      showAlert('Could not copy', 'Select the code above and copy it manually.');
+      showAlert('Could Not Copy', 'Select the code above and copy it manually.');
     }
   };
 
@@ -86,7 +86,7 @@ export default function WidgetSetupScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Code size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Estimate widget</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Estimate Widget</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -97,8 +97,8 @@ export default function WidgetSetupScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Text style={styles.eyebrow}>On your own website</Text>
-          <Text style={styles.heroTitle}>Let visitors price their job</Text>
+          <Text style={styles.eyebrow}>On Your Own Website</Text>
+          <Text style={styles.heroTitle}>Let Visitors Price Their Job</Text>
           <Text style={styles.heroSub}>
             Paste one line into your site and visitors get a ballpark: a published national range
             for the scope, not your prices. Everyone who fills it in arrives here as a lead, with the
@@ -117,7 +117,7 @@ export default function WidgetSetupScreen() {
           <View style={styles.warn}>
             <AlertTriangle size={15} color={Colors.warningLabel} strokeWidth={2} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.warnTitle}>Set your company name first</Text>
+              <Text style={styles.warnTitle}>Set Your Company Name First</Text>
               <Text style={styles.warnText}>
                 The widget shows visitors your company name when their details are sent. Add it in
                 Settings. Until then, the snippet below is a placeholder.
@@ -125,9 +125,9 @@ export default function WidgetSetupScreen() {
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/settings' as never)}
                 accessibilityRole="button"
-                accessibilityLabel="Open settings to set your company name"
+                accessibilityLabel="Open Settings to Set Your Company Name"
               >
-                <Text style={styles.warnLink}>Open settings</Text>
+                <Text style={styles.warnLink}>Open Settings</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -135,9 +135,9 @@ export default function WidgetSetupScreen() {
 
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.cardLabel}>Your embed code</Text>
+            <Text style={styles.cardLabel}>Your Embed Code</Text>
             <InfoBubble
-              title="How the widget works"
+              title="How the Widget Works"
               what="A single script tag renders a small estimate form on your own website. A visitor answers a few questions and sees a price range immediately."
               why="Most visitors leave without calling. This captures the ones who wanted a number, and sends them to you as a lead with their project details already filled in."
             />
@@ -150,7 +150,7 @@ export default function WidgetSetupScreen() {
             onPress={() => void copy()}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Copy the embed code"
+            accessibilityLabel="Copy the Embed Code"
             testID="widget-copy"
           >
             {copied ? (
@@ -159,7 +159,7 @@ export default function WidgetSetupScreen() {
               <Copy size={15} color={Colors.textOnAccent} strokeWidth={2.25} />
             )}
             <Text style={[styles.copyText, copied && { color: t.success }]}>
-              {copied ? 'Copied' : 'Copy embed code'}
+              {copied ? 'Copied' : 'Copy Embed Code'}
             </Text>
           </TouchableOpacity>
           {ready && (
@@ -172,7 +172,7 @@ export default function WidgetSetupScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Where to paste it</Text>
+          <Text style={styles.cardLabel}>Where to Paste It</Text>
           <Text style={styles.step}>1 · Open your website editor (Squarespace, Wix, WordPress…).</Text>
           <Text style={styles.step}>2 · Find the page where people ask for a quote.</Text>
           <Text style={styles.step}>3 · Add an embed / custom-HTML block and paste the code.</Text>
@@ -181,7 +181,7 @@ export default function WidgetSetupScreen() {
             style={styles.docsRow}
             onPress={() => void Linking.openURL(DOCS_URL)}
             accessibilityRole="link"
-            accessibilityLabel="Open the widget documentation and live demo"
+            accessibilityLabel="Open the Widget Documentation and Live Demo"
           >
             <ExternalLink size={13} color={t.accent} strokeWidth={2} />
             <Text style={styles.docsText}>See a live demo and full setup guide</Text>

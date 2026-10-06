@@ -494,7 +494,7 @@ export default function NotificationsSettingsScreen() {
       setDigestSuppression(state);
       if (state === 'all') {
         showAlert(
-          'All MAGE ID email is off for your address',
+          'All MAGE ID email is off for your address.',
           'You unsubscribed from every MAGE ID email using a link in one of them. Open "Manage email preferences" at the bottom of any MAGE ID email and tap "Turn email back on", then switch this on again.',
         );
         return;
@@ -593,7 +593,7 @@ export default function NotificationsSettingsScreen() {
       // bounce them to Settings instead.
       if (pushPermStatus === 'denied') {
         showAlert(
-          'Notifications Are Disabled',
+          'Notifications are disabled.',
           'Open iOS Settings and turn on notifications for MAGE ID.',
           [
             { text: 'Cancel' },

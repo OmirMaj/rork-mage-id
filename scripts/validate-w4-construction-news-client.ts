@@ -176,11 +176,11 @@ ok('screen: says where the words come from', /Headlines and summaries come from 
 ok('route file exists', existsSync(join(ROOT, 'app', 'construction-news.tsx')));
 const layout = read('app/_layout.tsx');
 ok("Stack registers /construction-news titled 'Construction news'",
-  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction news"/.test(layout));
-eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction news');
+  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction News"/.test(layout));
+eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction News');
 const tools = read('app/(tabs)/discover/tools.tsx');
 ok('Discover ▸ Tools has a Construction news tile (phone door)',
-  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction news'[^}]*section: 'INDUSTRY' \}/.test(tools)
+  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction News'[^}]*section: 'INDUSTRY' \}/.test(tools)
   && /'AI HUB', 'INDUSTRY', 'DECISIONS'/.test(tools));
 ok('the Tools tile opens its own route when it has no registry row',
   /row\.feature \? featureFor\(row\.feature\)\.route : row\.route/.test(tools) && /if \(!row\.feature\) return undefined;/.test(tools));
@@ -192,7 +192,7 @@ ok('DesktopSidebar has a Construction news row (desktop door, same label)',
 // Integration round 1: the ⌘K registry row landed (validate-feature-search
 // requires every sidebar route to be searchable), so the row names it.
 ok('the registry has a construction-news row on the same route, ungated',
-  /\{ id: 'construction-news', title: 'Construction news', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
+  /\{ id: 'construction-news', title: 'Construction News', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

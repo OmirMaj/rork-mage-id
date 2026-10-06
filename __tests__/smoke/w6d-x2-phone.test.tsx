@@ -369,7 +369,7 @@ const BATCH_E: [string, string, string[], (() => Promise<void>)?, string?][] = [
   ['materials/lumber', '/materials/lumber', ['Set Price Alert']],
   ['equipment-detail', '/equipment-detail', ['Log Usage']],
   ['equipment-detail (seeded machine)', '/equipment-detail', ['Log Usage'], seedEquipment, `equipmentId=${EQUIP_ID}`],
-  ['get-verified', '/get-verified', ['Issuing state']],
+  ['get-verified', '/get-verified', ['Issuing State']],
   ['qbo-review', '/qbo-review', ['Which project is this cost for?']],
   ['lead-detail', '/lead-detail', ['Why did this one go cold?']],
   ['company-profile', '/company-profile', ['Which state licenses you?', 'Draw Your Signature']],

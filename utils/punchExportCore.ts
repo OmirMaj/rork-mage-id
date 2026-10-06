@@ -1396,7 +1396,7 @@ export function exportFailureCopy(stage: PunchExportStage, err?: unknown): { tit
       };
     case 'popup-blocked-twice':
       return {
-        title: 'Pop-Ups Are Blocked',
+        title: 'Pop-ups are blocked.',
         body: 'Your browser blocked the print tab, so the report downloaded as an HTML file instead. Open it and use Print > Save as PDF, or allow pop-ups for this site and try again.',
       };
     case 'photos': {

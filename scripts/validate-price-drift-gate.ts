@@ -281,7 +281,7 @@ console.log('\n── 7. wiring');
   for (const id of ['pricewatch-drift-card', 'pricewatch-drift-sheet', 'pricewatch-drift-reprice', 'pricewatch-drift-keep', 'pricewatch-drift-continue']) {
     assert(check.includes(`testID="${id}"`), `testID ${id}`);
   }
-  assert(check.includes("'Sign at these prices'") && check.includes("'Send anyway'") && check.includes('"Reprice to today\'s receipts"') && check.includes('"Keep these prices"'),
+  assert(check.includes("'Sign at These Prices'") && check.includes("'Send Anyway'") && check.includes('"Reprice to Today\'s Receipts"') && check.includes('"Keep These Prices"'),
     'the four button labels');
   assert(!/supabase|sendEmail|shareText|setContractStatus|onSign\b/.test(check.replace(/\/\/.*$/gm, '')), 'the check sends and signs nothing');
   const gate = read('utils/priceDriftGate.ts');

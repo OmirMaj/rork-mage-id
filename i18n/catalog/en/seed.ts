@@ -58,7 +58,7 @@ export const EN_SEED: EnCatalog = {
   "settings.language.subtitle": "Pick the language MAGE ID uses for you on this device. It changes right away. The people you work with keep their own language.",
   "settings.language.outboundNote": "Texts, emails and portals you send go out in each person's language, not yours.",
   "settings.language.partialNote": "Spanish is being added screen by screen. Anything not translated yet shows in English.",
-  "settings.language.pseudoLabel": "Pseudo-locale (developer)",
+  "settings.language.pseudoLabel": "Pseudo-Locale (Developer)",
   "settings.language.pseudoHelper": "Accents every translated string and pads it 35%. Plain text left on screen was never translated.",
   "settings.language.a11yHint": "Opens the language picker",
   "common.action.save": "Save",

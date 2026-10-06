@@ -209,7 +209,7 @@ console.log('\n#55 — an edit writes only what changed, from the insert\'s own 
   ok('...offline it rides the queue as a guarded review_cycles patch (the server appends and renumbers), a close-in-place is refused with why',
     /rowPatch\(submittalMutableRow\(current\), \['reviewCycles', 'currentStatus'\], SUBMITTAL_FIELD_COLUMNS, now\)/.test(arc)
       && /if \(closesInPlace\) \{\s*(?:\/\/[^\n]*\n\s*)*return revert\(closeCycleHoldReason\(hold, provisionalNo\)\);/.test(arc));
-  ok('...a server refusal takes the provisional cycle back off and says why', /const revert = \(reason: string\)/.test(arc) && /showAlert\('Review cycle not saved', reason\)/.test(arc));
+  ok('...a server refusal takes the provisional cycle back off and says why', /const revert = \(reason: string\)/.test(arc) && /showAlert\('Review Cycle Not Saved', reason\)/.test(arc));
   ok('...and the server\'s number replaces the provisional one, then the list is re-read',
     /cycleNumber: serverNo/.test(arc) && /invalidateQueries\(\{ queryKey: \['submittals', userId\] \}\)/.test(arc));
   ok('...and it no longer rewrites review_cycles through updateSubmittal', !/updateSubmittal\(/.test(arc));

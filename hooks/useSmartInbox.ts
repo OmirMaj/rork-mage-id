@@ -360,7 +360,7 @@ export function useSmartInbox(): SmartInboxResult {
         severity: group.priority === 'high' ? 3 : group.priority === 'medium' ? 2 : 1,
         title: group.ids.length > 1
           ? `${group.ids.length} punch items ready to verify`
-          : `Punch item ready to verify`,
+          : `Punch Item Ready to Verify`,
         subtitle: `${pi.description}${projectSuffix}`,
         projectId: pi.projectId,
         projectName: projectNameById.get(pi.projectId),

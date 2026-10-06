@@ -114,12 +114,12 @@ interface CreateOption {
 
 const OPTIONS: CreateOption[] = [
   // Project-level
-  { label: 'Start by voice', subtitle: 'Say the project out loud and MAGE sets it up', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
+  { label: 'Start by Voice', subtitle: 'Say the project out loud and MAGE sets it up', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
   { label: 'Project', subtitle: 'Start a new project from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
   { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: MageEstimate, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
   { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: MageSchedule, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
-  { label: 'Lead', subtitle: 'Capture a client inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
-  { label: 'Lead by voice', subtitle: 'Say what the client told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
+  { label: 'Lead', subtitle: 'Capture a client inquiry by voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
+  { label: 'Lead by Voice', subtitle: 'Say what the client told you. MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
   { label: 'Quick Quote', subtitle: 'Fast bid for a small project', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
@@ -127,10 +127,10 @@ const OPTIONS: CreateOption[] = [
   { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: MageChangeOrder, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
   // "Progress draw", not "Progress Billing, AIA G702/G703" — the GC's word
   // (UX wave D3). The AIA words stay searchable.
-  { label: 'Progress draw', subtitle: 'Bill the next draw — AIA-style G702/G703', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703', 'progress billing', 'draw'], scoped: true, extraParams: { type: 'progress' } },
-  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
-  { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
-  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
+  { label: 'Progress Draw', subtitle: 'Bill the next draw, AIA-style G702/G703', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703', 'progress billing', 'draw'], scoped: true, extraParams: { type: 'progress' } },
+  { label: 'Buyout Package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
+  { label: 'Scope Sheet', subtitle: 'AI inclusions and exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
+  { label: 'Lien Waiver', subtitle: 'Sub sign-off: proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Field — the site's own rows (UX wave D3). Each is gated like its
   // destination through the registry `feature` (the lock chip), and carries
@@ -138,31 +138,31 @@ const OPTIONS: CreateOption[] = [
   // action, not on a list.
   { label: 'Daily Report', subtitle: 'What got done today on site', Icon: MageDailyReport, href: '/daily-report', feature: 'daily-report', category: 'field', keywords: ['dfr', 'log'], scoped: true },
   { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: MagePunch, href: '/punch-list', feature: 'punch-list', category: 'field', keywords: ['punch list'], scoped: true },
-  { label: 'Clock in', subtitle: 'Clock the crew in on this project', Icon: Clock, href: '/time-tracking', feature: 'time-tracking', category: 'field', keywords: ['time', 'crew', 'hours', 'timesheet', 'payroll'], scoped: true, extraParams: { [UX_PARAM.clockIn]: '1' } },
-  { label: 'Delivery arrived', subtitle: 'A truck showed up — log it with the ticket', Icon: Truck, href: '/deliveries', feature: 'deliveries', category: 'field', keywords: ['delivery', 'material', 'truck', 'ticket', 'received', 'supplier'], scoped: true, extraParams: { [UX_PARAM.arrived]: '1' } },
-  { label: 'Code check', subtitle: 'Check the work against code for this project', Icon: ShieldCheck, href: '/(tabs)/construction-ai', feature: 'construction-ai', category: 'field', keywords: ['code', 'inspection', 'inspector', 'building code'], scoped: true, extraParams: { [UX_PARAM.source]: SOURCE_PROJECT } },
-  { label: 'Send lineup', subtitle: 'Text tomorrow\'s lineup to the crew and subs', Icon: CalendarCheck, href: '/tomorrow-lineup', feature: 'tomorrow-lineup', category: 'field', keywords: ['lineup', 'tomorrow', 'crew text', 'dispatch'], scoped: true },
+  { label: 'Clock In', subtitle: 'Clock the crew in on this project', Icon: Clock, href: '/time-tracking', feature: 'time-tracking', category: 'field', keywords: ['time', 'crew', 'hours', 'timesheet', 'payroll'], scoped: true, extraParams: { [UX_PARAM.clockIn]: '1' } },
+  { label: 'Delivery Arrived', subtitle: 'A truck showed up. Log it with the ticket', Icon: Truck, href: '/deliveries', feature: 'deliveries', category: 'field', keywords: ['delivery', 'material', 'truck', 'ticket', 'received', 'supplier'], scoped: true, extraParams: { [UX_PARAM.arrived]: '1' } },
+  { label: 'Code Check', subtitle: 'Check the work against code for this project', Icon: ShieldCheck, href: '/(tabs)/construction-ai', feature: 'construction-ai', category: 'field', keywords: ['code', 'inspection', 'inspector', 'building code'], scoped: true, extraParams: { [UX_PARAM.source]: SOURCE_PROJECT } },
+  { label: 'Send Lineup', subtitle: 'Text tomorrow\'s lineup to the crew and subs', Icon: CalendarCheck, href: '/tomorrow-lineup', feature: 'tomorrow-lineup', category: 'field', keywords: ['lineup', 'tomorrow', 'crew text', 'dispatch'], scoped: true },
 
   // Documentation
   { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MageRFI, href: '/rfi', feature: 'rfi', category: 'docs', keywords: ['request for information'], scoped: true },
   { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: MageSubmittal, href: '/submittal', feature: 'submittal', category: 'docs', scoped: true },
   { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: PenTool, href: '/selections', feature: 'selections', category: 'docs', scoped: true },
-  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'field', keywords: ['picture'], scoped: true },
-  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: MagePlans, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
+  { label: 'Photo / Markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'field', keywords: ['picture'], scoped: true },
+  { label: 'Plan / Drawing', subtitle: 'Upload a PDF set, mark it up', Icon: MagePlans, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
   { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', feature: 'permits', category: 'docs', scoped: true },
   { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: MageCOI, href: '/coi-vault', feature: 'coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
 
   // People & meetings
   { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', feature: 'oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
-  { label: 'Client portal invite', subtitle: 'Give the client read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
-  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true, subPicker: true },
+  { label: 'Client Portal Invite', subtitle: 'Give the client read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
+  { label: 'Sub Portal Invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true, subPicker: true },
 
   // Closeout
   { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', feature: 'handover', category: 'docs', scoped: true },
   { label: 'Closeout Binder', subtitle: 'The PDF packet you give the client', Icon: BookOpen, href: '/closeout-binder', feature: 'closeout-binder', category: 'docs', scoped: true },
 
   // Tools
-  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', feature: 'cash-flow', category: 'tools', scoped: true },
+  { label: 'Cash Flow Setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', feature: 'cash-flow', category: 'tools', scoped: true },
   // AI Takeoff is a metered free demo (aiTakeoff freeLifetimeCap=1), NOT a
   // Pro-locked feature — the /takeoff screen has no canAccess gate, it only
   // meters via checkAILimit and gives free users 1 lifetime trial. Every
@@ -446,12 +446,12 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
         handleClose();
         setTimeout(() => {
           showAlert(
-            'Create a project first',
+            'Create a Project First',
             `Add a project, then you can attach a ${opt.label.toLowerCase()} to it.`,
             [
               { text: 'Cancel', style: 'cancel' },
               {
-                text: 'New project',
+                text: 'New Project',
                 onPress: () => {
                   const then = newJobThenFor(opt.label);
                   if (onCreateProject) onCreateProject(then);
@@ -552,7 +552,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                 <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
               <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
-                {subFor.opt.label} → which sub?
+                {subFor.opt.label}: which sub?
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
@@ -581,7 +581,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                         testID="createmenu-add-sub"
                       >
                         <Plus size={16} color={themeColors.accent} strokeWidth={2} />
-                        <Text style={[Type.headline, { color: themeColors.accent }]}>Add a sub</Text>
+                        <Text style={[Type.headline, { color: themeColors.accent }]}>Add a Sub</Text>
                       </TouchableOpacity>
                     </View>
                   );
@@ -601,7 +601,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>{sb.companyName}</Text>
                       <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                        {[onJob.has(sb.id) ? 'On this project' : null, sb.trade, sb.contactName].filter(Boolean).join(' · ') || 'Sub'}
+                        {[onJob.has(sb.id) ? 'On This Project' : null, sb.trade, sb.contactName].filter(Boolean).join(' · ') || 'Sub'}
                       </Text>
                     </View>
                     <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -617,7 +617,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                 <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
               <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
-                {pickFor.label} → which project?
+                {pickFor.label}: which project?
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
@@ -638,7 +638,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                   <ToolGlyph Icon={Plus} color={themeColors.accentLabel} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[Type.headline, { color: themeColors.accent }]} numberOfLines={1}>
-                      {defaultJob ? 'New project instead' : 'New project'}
+                      {defaultJob ? 'New Project Instead' : 'New Project'}
                     </Text>
                     <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
                       {newJobThenFor(pickFor.label) ? `Set up the project, then its ${pickFor.label.toLowerCase()}` : 'Set up the project first'}
@@ -693,7 +693,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                 <TouchableOpacity
                   onPress={() => setPickJob(p => !p)}
                   accessibilityRole="button"
-                  accessibilityLabel={pickJob ? `Create for ${defaultJob.name}` : 'Change the job'}
+                  accessibilityLabel={pickJob ? `Create for ${defaultJob.name}` : 'Change the Job'}
                   {...(isDesktopWeb ? null : { hitSlop: 8 })}
                   testID="createmenu-change-job"
                 >
@@ -725,7 +725,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
               {grouped.length === 0 && (
                 <View style={styles.emptyResult}>
                   <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
-                    No matches. Try &ldquo;invoice&rdquo;, &ldquo;rfi&rdquo;, &ldquo;buyout&rdquo;…
+                    No matches. Try “invoice”, “rfi”, “buyout”…
                   </Text>
                 </View>
               )}

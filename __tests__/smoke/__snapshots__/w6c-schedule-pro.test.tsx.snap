@@ -17,7 +17,7 @@ exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 wi
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro at native 1000 × 700 (the legacy branch) 1`] = `
 {
   "lines": 404,
-  "sha256": "7d451bb03566df0df20e950bea1a55c183f86a7ab31294f6b6dd5920d679ba00",
+  "sha256": "adcdcaf9e6653e647b0779c2b37ef905f808bdce7c829f0f4a8a21864402d8be",
 }
 `;
 
@@ -31,7 +31,7 @@ exports[`lane DB — golden (recorded on the untouched base) /schedule-pro?proje
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) EarnedValuePanel card + its sheet 1`] = `
 {
   "lines": 132,
-  "sha256": "c4676a5bc928fc35b36729cae3c86188e41eeaa9d8482e1473f15f2b07cea792",
+  "sha256": "191f7a6e50d0bc7a8d171efa155b49f45689522d358c28d753d7cdfe252ceeb7",
 }
 `;
 

@@ -200,7 +200,7 @@ function DrawingAnalyzerInner() {
       setError(message);
       if (code === 'monthly_cap_reached' || code === 'tier_required') {
         showAlert(
-          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit",
+          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit.",
           message,
           [
             { text: 'Not Now', style: 'cancel' },
@@ -301,7 +301,7 @@ function DrawingAnalyzerInner() {
     if (existing && existing.items.length > 0) {
       const blocked = !isMarkupSet(markupPct);
       showAlert(
-        'This project already has an estimate',
+        'This project already has an estimate.',
         `${target.name} has a ${formatMoney(existing.grandTotal ?? 0, 2)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
           ? `Appending these ${n} ${lineWord} carries that estimate's own markup across. Replacing it needs your markup first. Set it on the "Your Markup" row above the button.`
           : `Replace it (it stays in the estimate history), or append these ${n} ${lineWord} to it?`}`,

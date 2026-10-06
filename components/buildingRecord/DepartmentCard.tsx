@@ -92,7 +92,7 @@ function DepartmentCardBody({
 
   return (
     <Card testID={testID}>
-      <Card.Label>Building department</Card.Label>
+      <Card.Label>Building Department</Card.Label>
       {headline ? <Text style={s.note} testID={`${testID}-headline`}>{headline}</Text> : null}
       <Card.Title>{authorityName}</Card.Title>
 
@@ -105,12 +105,12 @@ function DepartmentCardBody({
         ) : null}
         <TouchableOpacity style={s.link} onPress={() => open(d.portalUrl)} accessibilityRole="link" testID={`${testID}-portal`}>
           <ExternalLink size={14} color={t.accentLabel} strokeWidth={2} />
-          <Text style={s.linkText}>{d.portalLabel ?? 'DOB NOW portal'}</Text>
+          <Text style={s.linkText}>{d.portalLabel ?? 'DOB NOW Portal'}</Text>
         </TouchableOpacity>
         {d.statusLookupUrl ? (
           <TouchableOpacity style={s.link} onPress={() => open(d.statusLookupUrl!)} accessibilityRole="link" testID={`${testID}-status`}>
             <ExternalLink size={14} color={t.accentLabel} strokeWidth={2} />
-            <Text style={s.linkText}>Look up a filing's status</Text>
+            <Text style={s.linkText}>Look Up a Filing's Status</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -155,7 +155,7 @@ function PermitOfficeLookup({
   if (lookup.status === 'idle' || lookup.status === 'loading') {
     return (
       <Card testID={`${testID}-loading`}>
-        <Card.Label>Building department</Card.Label>
+        <Card.Label>Building Department</Card.Label>
         <Text style={s.body}>Finding which town, village or city issues permits here…</Text>
       </Card>
     );
@@ -163,7 +163,7 @@ function PermitOfficeLookup({
   if (lookup.status === 'error') {
     return (
       <Card testID={`${testID}-error`}>
-        <Card.Label>Building department</Card.Label>
+        <Card.Label>Building Department</Card.Label>
         <Text style={s.body}>Couldn&apos;t reach the Census geocoder, so MAGE didn&apos;t look up the permit office. It will try again next time.</Text>
       </Card>
     );
@@ -189,7 +189,7 @@ function PermitOfficeLookup({
   if (answer.kind === 'unresolved' || !answer.office) {
     return (
       <Card testID={`${testID}-unresolved`}>
-        <Card.Label>Building department</Card.Label>
+        <Card.Label>Building Department</Card.Label>
         {answer.headline ? <Text style={s.note} testID={`${testID}-headline`}>{answer.headline}</Text> : null}
         <Card.Meta>From US Census geography</Card.Meta>
       </Card>
@@ -209,7 +209,7 @@ function PermitOfficeBody({
 
   return (
     <Card testID={testID}>
-      <Card.Label>Building department</Card.Label>
+      <Card.Label>Building Department</Card.Label>
       {headline ? <Text style={s.note} testID={`${testID}-headline`}>{headline}</Text> : null}
       <Card.Title>{o.title}</Card.Title>
       {o.subtitle ? <Text style={s.body}>{o.subtitle}</Text> : null}
@@ -236,7 +236,7 @@ function PermitOfficeBody({
           {o.portalUrl ? (
             <TouchableOpacity style={s.link} onPress={() => open(o.portalUrl!)} accessibilityRole="link" testID={`${testID}-portal`}>
               <ExternalLink size={14} color={t.accentLabel} strokeWidth={2} />
-              <Text style={s.linkText}>Permit portal</Text>
+              <Text style={s.linkText}>Permit Portal</Text>
             </TouchableOpacity>
           ) : null}
           {o.email ? (

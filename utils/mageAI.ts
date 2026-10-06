@@ -312,7 +312,7 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
         cached: false,
         fromCache: false,
         errorKind: 'validation',
-        error: 'AI response partially matched schema — showing defaulted fields.',
+        error: 'AI response partially matched schema. Showing defaulted fields.',
       };
       if (cacheKey) await setCache(cacheKey, result, cacheHours);
       return result;

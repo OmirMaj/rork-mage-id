@@ -32,7 +32,7 @@ export function JobLevelReason({ visible, onClose, reading, projectName, childre
   const styles = useThemedStyles(makeStyles);
   const { t } = useT();
   return (
-    <Sheet visible={visible} onClose={onClose} title={t('office.projectHealth.title', 'Project health')} subtitle={projectName} size="dialog" testID="joblevel-reason">
+    <Sheet visible={visible} onClose={onClose} title={t('office.projectHealth.title', 'Project Health')} subtitle={projectName} size="dialog" testID="joblevel-reason">
       {children ? <View style={styles.vial}>{children}</View> : null}
       <Text style={styles.label} testID="joblevel-reason-label">{reading.label}</Text>
       <View style={styles.reasons}>

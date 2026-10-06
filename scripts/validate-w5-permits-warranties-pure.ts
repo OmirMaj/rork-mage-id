@@ -5,7 +5,7 @@
 //   #135 warrantyStatus / coiStatus read a bare 'YYYY-MM-DD' end as UTC
 //        midnight — "Expired" from 8 pm the evening before (New York) or from
 //        noon ON the last day (Auckland). Now a whole local calendar day.
-//   #144 one logged claim pinned "Claim open" forever. Now only a claim with
+//   #144 one logged claim pinned "Claim Open" forever. Now only a claim with
 //        no resolvedAt is open; resolved → back on the dates.
 //   #136 the walk reminder read only substantialCompletionDate (0 closed jobs
 //        in production had one). Now SC ?? closedAt, with the source named.
@@ -109,7 +109,7 @@ console.log('\n#144 warrantyStatus — resolved claims hand the warranty back to
 {
   const now = local(2026, 9, 21, 12);
   eq('an open claim reads claimed', warrantyStatus({ endDate: '2027-09-22', claims: [{ id: 'a' }] }, now).key, 'claimed');
-  eq('…"Claim open"', warrantyStatus({ endDate: '2027-09-22', claims: [{ id: 'a' }] }, now).label, 'Claim open');
+  eq('…"Claim open"', warrantyStatus({ endDate: '2027-09-22', claims: [{ id: 'a' }] }, now).label, 'Claim Open');
   eq('every claim resolved → active again',
     warrantyStatus({ endDate: '2027-09-22', claims: [{ id: 'a', resolvedAt: '2026-04-02' }] }, now).key, 'active');
   eq('resolved claim + a past end date → expired (not "Claim open" forever)',

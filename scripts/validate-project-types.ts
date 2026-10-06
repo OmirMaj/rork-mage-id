@@ -92,7 +92,7 @@ ok('an Other job reads HIS words', projectTypeLabel({ type: 'other', projectType
 ok('…cleaned (whitespace collapsed and trimmed)', projectTypeLabel({ type: 'other', projectTypeOther: '  Whole-house \n repipe ' }) === 'Whole-house repipe');
 ok('an Other job with no words (an old client) reads "Other", never "other"', projectTypeLabel({ type: 'other' }) === 'Other' && projectTypeLabel({ type: 'other', projectTypeOther: '   ' }) === 'Other');
 ok('words on a NON-other job are ignored (stale description never shows)', projectTypeLabel({ type: 'roofing', projectTypeOther: 'Whole-house repipe' }) === 'Roofing');
-ok('award_rfp\'s off-union id reads "Awarded bid"', projectTypeLabel({ type: 'awarded_rfp' }) === 'Awarded bid');
+ok('award_rfp\'s off-union id reads "Awarded bid"', projectTypeLabel({ type: 'awarded_rfp' }) === 'Awarded Bid');
 ok('an unknown id is title-cased, not printed raw', projectTypeLabel({ type: 'solar_carport' }) === 'Solar Carport');
 ok('no type / no project → ""', projectTypeLabel({ type: '' }) === '' && projectTypeLabel(null) === '' && projectTypeLabel(undefined) === '');
 
@@ -302,7 +302,7 @@ ok('New Project: Create refuses Other with no words, and says why', /const typeB
 ok('New Project: the words are saved only for Other', /\.\.\.\(projectType === 'other' \? \{ projectTypeOther: cleanProjectTypeOther\(projectTypeOther\) \} : \{\}\),/.test(home));
 const detail = code(read('app/project-detail.tsx'));
 ok('Edit project: Other opens a description box, seeded from the Job', /editType === 'other' \? \(/.test(detail) && /setEditTypeOther\(project\.projectTypeOther \?\? ''\);/.test(detail));
-ok('Edit project: Save refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(editType, editTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the project', typeBlock\);\s*return;/.test(detail));
+ok('Edit project: Save refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(editType, editTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the Project', typeBlock\);\s*return;/.test(detail));
 ok('Edit project: leaving Other drops the words', /projectTypeOther: editType === 'other' \? cleanProjectTypeOther\(editTypeOther\) : undefined,/.test(detail));
 const row = code(read('components/ProjectRow.tsx'));
 const card = code(read('components/ProjectCard.tsx'));

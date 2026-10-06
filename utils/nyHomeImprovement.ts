@@ -146,20 +146,20 @@ export interface NyCheckResult {
 
 /** Item names and details. Legal paraphrase: plain English data, never routed through t(). */
 const LABELS: Record<NyCheckId, { label: string; detail: string }> = {
-  'a-name': { label: 'Your company name', detail: 'Printed from your company profile.' },
-  'a-address': { label: 'Your business address', detail: 'Printed from your company profile.' },
-  'a-phone': { label: 'Your phone number', detail: 'Printed from your company profile.' },
-  'a-licence': { label: 'Your license number, if one is required', detail: 'New York City and some counties license home improvement contractors.' },
-  'b-dates': { label: 'Start date and substantial completion date', detail: 'Set a start date and a duration on this contract.' },
-  'b-contingencies': { label: 'What could change the completion date', detail: 'Say what could delay the work.' },
-  'c-scope': { label: 'A description of the work', detail: 'Write the scope above.' },
-  'c-materials': { label: 'Materials, with make and model', detail: 'Name the make and model of materials you supply.' },
-  'c-price': { label: 'The agreed price', detail: 'Set the contract value.' },
-  'd-lien': { label: 'Mechanic’s lien notice', detail: 'A notice to the owner about liens if subs or suppliers go unpaid.' },
-  'e-escrow': { label: 'Escrow notice for payments before completion', detail: 'How payments received before the work is done are held.' },
-  'f-schedule': { label: 'Progress payment schedule', detail: 'Amounts tied to stages of the work.' },
-  'h-cancel': { label: 'Three-day right to cancel', detail: 'The owner may cancel until midnight of the third business day after signing.' },
-  'i-insurance': { label: 'Insurance disclosure', detail: 'Your insurance details, as the law asks.' },
+  'a-name': { label: 'Your Company Name', detail: 'Printed from your company profile.' },
+  'a-address': { label: 'Your Business Address', detail: 'Printed from your company profile.' },
+  'a-phone': { label: 'Your Phone Number', detail: 'Printed from your company profile.' },
+  'a-licence': { label: 'Your License Number, If One Is Required', detail: 'New York City and some counties license home improvement contractors.' },
+  'b-dates': { label: 'Start Date and Substantial Completion Date', detail: 'Set a start date and a duration on this contract.' },
+  'b-contingencies': { label: 'What Could Change the Completion Date', detail: 'Say what could delay the work.' },
+  'c-scope': { label: 'A Description of the Work', detail: 'Write the scope above.' },
+  'c-materials': { label: 'Materials, with Make and Model', detail: 'Name the make and model of materials you supply.' },
+  'c-price': { label: 'The Agreed Price', detail: 'Set the contract value.' },
+  'd-lien': { label: 'Mechanic’s Lien Notice', detail: 'A notice to the owner about liens if subs or suppliers go unpaid.' },
+  'e-escrow': { label: 'Escrow Notice for Payments Before Completion', detail: 'How payments received before the work is done are held.' },
+  'f-schedule': { label: 'Progress Payment Schedule', detail: 'Amounts tied to stages of the work.' },
+  'h-cancel': { label: 'Three-Day Right to Cancel', detail: 'The owner may cancel until midnight of the third business day after signing.' },
+  'i-insurance': { label: 'Insurance Disclosure', detail: 'Your insurance details, as the law asks.' },
 };
 
 const PROFILE_MISSING = 'Add it in your company profile.';

@@ -2820,7 +2820,7 @@ export const PORTAL_RESET_UNKNOWN_NOTE = 'We couldn\u2019t confirm whether the l
  * (which adds what stays off on that screen). utils/sampleGuard.ts promises
  * "no client-portal post" from a sample.
  */
-export const SAMPLE_PORTAL_REASON = 'Sample job \u2014 a client portal never goes out from a sample. Create a real project to share a portal with your client.';
+export const SAMPLE_PORTAL_REASON = 'Sample job. A client portal never goes out from a sample. Create a real project to share a portal with your client.';
 
 /**
  * The customer-facing portal origin. ONE definition on the client, mirroring

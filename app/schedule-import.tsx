@@ -324,7 +324,7 @@ export default function ScheduleImportScreen() {
         // be the general one or the count contradicts the label.
         const conflictLine = `${cpm.conflicts.length} scheduling ${cpm.conflicts.length === 1 ? 'conflict was' : 'conflicts were'} found. You can import anyway and fix them in Schedule Pro.`;
         showAlert(
-          existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule Has Conflicts',
+          existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule has conflicts.',
           existingCount > 0 ? `${replaceLine}\n\n${conflictLine}` : conflictLine,
           [
             { text: 'Cancel', style: 'cancel' },

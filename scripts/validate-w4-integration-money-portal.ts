@@ -98,7 +98,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   ok('paper: the evidence path (a private bucket path) is not printed', !paper.includes('u1/c1/page.jpg'));
 
   const noPhoto = homeownerBlock(await render({ name: 'Pat Paper', role: 'homeowner', method: 'paper', signedAt: '2026-09-10T12:00:00.000Z' }));
-  ok('paper with no photo on record never claims one', noPhoto.includes('no photo of the signed page on file') && !noPhoto.includes('— photo of the signed page on file'), noPhoto.slice(0, 900));
+  ok('paper with no photo on record never claims one', noPhoto.includes('No photo of the signed page on file') && !noPhoto.includes('Signed on paper, photo of the signed page on file'), noPhoto.slice(0, 900));
 
   const inPerson = await render({ name: 'Ina Person', role: 'homeowner', method: 'in_person', signedAt: '2026-09-10T18:30:00.000Z', signaturePaths: ['M1 1 L5 5'] });
   ok('in person: the method line says so', homeownerBlock(inPerson).includes('Signed in person on the contractor'), homeownerBlock(inPerson));

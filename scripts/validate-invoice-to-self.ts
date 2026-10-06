@@ -110,7 +110,7 @@ console.log('\n2. buildInvoiceEmailHtml (run)');
   ok('…and the financing block (no lender lead from a sample)', !sample.includes('id="fin"'));
   ok('…and shows the SAMPLE banner and the Pay specimen', sample.includes(CORE.sampleInvoiceBannerHtml()) && sample.includes(G.SAMPLE_PAY_SPECIMEN_NOTE));
   ok('…with the amount and invoice number the client would see', sample.includes('$63,360.00') && sample.includes('Invoice #3'));
-  ok('…and its preview line / eyebrow say Sample', /SAMPLE — sent to you only/.test(sample) && /Sample · Invoice #3/.test(sample));
+  ok('…and its preview line / eyebrow say Sample', /SAMPLE, sent to you only/.test(sample) && /Sample · Invoice #3/.test(sample));
   ok('the [Sample] subject helper is idempotent', G.sampleEmailSubject('Invoice #3: $63,360.00 due · X') === '[Sample] Invoice #3: $63,360.00 due · X'
     && G.sampleEmailSubject('[Sample] Invoice #3') === '[Sample] Invoice #3');
 }
@@ -130,7 +130,7 @@ console.log('\n3. utils/paywallPracticeOffer (run)');
   // Honest scope: the invoice tutorial DOES send — to him. So the promise is
   // about clients and subs, never "nothing is sent" (brain-center honesty).
   ok('…its sub-line promises nothing reaches a client or a sub (not "nothing is sent")',
-    /nothing goes to a client or a sub/.test(inv?.sub ?? '') && !/nothing is sent/i.test(inv?.sub ?? ''));
+    /Nothing goes to a client or a sub/.test(inv?.sub ?? '') && !/nothing is sent/i.test(inv?.sub ?? ''));
   ok('the pass switched off → the paywall is what it was', P({ passOn: false }) === null);
   ok('the default follows TUTORIAL_PRACTICE_PASS (ON)', OFFER.paywallPracticeOffer({ tutorialId: 'invoice-to-self', progress: empty, progressLoaded: true, runActive: false }) !== null);
   ok('no tutorial named → nothing', P({ tutorialId: null }) === null && P({ tutorialId: undefined }) === null);

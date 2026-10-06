@@ -120,7 +120,7 @@ export default function DataImportScreen() {
       const res = parseMageExport(text);
       if (!res.ok) {
         setParsed(null);
-        showAlert('Could not read that file', res.error);
+        showAlert('Could Not Read That File', res.error);
         return;
       }
       setParsed(res.result);
@@ -140,7 +140,7 @@ export default function DataImportScreen() {
       'Import these records?',
       `${totalToAdd} new ${totalToAdd === 1 ? 'record' : 'records'} will be added. Nothing already in your account is changed or removed.`
         + (heldProjects > 0
-          ? ` ${heldProjects} project${heldProjects === 1 ? '' : 's'} in the file will be left out — the free plan covers one project of your own.`
+          ? ` ${heldProjects} project${heldProjects === 1 ? '' : 's'} in the file will be left out. The Free plan covers one project of your own.`
           : ''),
       [
         { text: 'Cancel', style: 'cancel' },
@@ -179,11 +179,11 @@ export default function DataImportScreen() {
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}><FolderInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.heroTitle}>Import data</Text>
+          <Text style={styles.heroTitle}>Import Data</Text>
           <Text style={styles.heroSub}>
             Bring in a MAGE ID export (.json) to move to a new device or carry your book of business
             over when you switch tools. Restore currently brings back your projects, contacts, and
-            subcontractors — the rest of the file is preserved and read but not re-imported yet.
+            subcontractors. The rest of the file is preserved and read but not re-imported yet.
           </Text>
           <View style={styles.roBadge}>
             <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
@@ -193,7 +193,7 @@ export default function DataImportScreen() {
 
         {/* Pick */}
         <TouchableOpacity style={styles.pickBtn} onPress={pickFile} disabled={busy} activeOpacity={0.85} testID="pick-import-file">
-          {busy ? <ActivityIndicator color={themeColors.accent} /> : <><Upload size={18} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.pickBtnText}>{parsed ? 'Choose a different file' : 'Choose export file (.json)'}</Text></>}
+          {busy ? <ActivityIndicator color={themeColors.accent} /> : <><Upload size={18} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.pickBtnText}>{parsed ? 'Choose a Different File' : 'Choose Export File (.json)'}</Text></>}
         </TouchableOpacity>
 
         {parsed && (
@@ -204,7 +204,7 @@ export default function DataImportScreen() {
               {parsed.exportedAt && <Text style={styles.fileMeta}>{parsed.exportedAt.slice(0, 10)}</Text>}
             </View>
 
-            <Text style={styles.sectionLabel}>Will import</Text>
+            <Text style={styles.sectionLabel}>Will Import</Text>
             <View style={styles.card}>
               {plan.map((row, i) => (
                 <View key={row.key} style={[styles.planRow, i === plan.length - 1 && { borderBottomWidth: 0 }]}>
@@ -219,13 +219,13 @@ export default function DataImportScreen() {
 
             {heldProjects > 0 && (
               <>
-                <Text style={styles.sectionLabel}>Held back by your plan</Text>
+                <Text style={styles.sectionLabel}>Held Back by Your Plan</Text>
                 <View style={styles.hintCard}>
                   <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
                     {heldProjects} project{heldProjects === 1 ? '' : 's'} in this file won{'\u2019'}t be imported: the Free plan covers one project of your own, and a finished project still counts.
                     {' '}Pro removes the cap. Import the file again after upgrading (nothing is imported twice).
-                    <Text style={styles.hintLink} onPress={() => router.push('/paywall' as never)} testID="import-see-plans">{'  '}See plans</Text>
+                    <Text style={styles.hintLink} onPress={() => router.push('/paywall' as never)} testID="import-see-plans">{'  '}See Plans</Text>
                   </Text>
                 </View>
               </>
@@ -233,7 +233,7 @@ export default function DataImportScreen() {
 
             {deferredFound.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>In the file, not imported yet</Text>
+                <Text style={styles.sectionLabel}>In the File, Not Imported Yet</Text>
                 <View style={styles.hintCard}>
                   <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
@@ -270,7 +270,7 @@ export default function DataImportScreen() {
                 testID="run-import"
               >
                 {importing ? <ActivityIndicator color={Colors.textOnAccent} /> : (
-                  <><FolderInput size={18} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} ${totalToAdd === 1 ? 'record' : 'records'}` : 'Nothing new to import'}</Text></>
+                  <><FolderInput size={18} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} ${totalToAdd === 1 ? 'record' : 'records'}` : 'Nothing New to Import'}</Text></>
                 )}
               </TouchableOpacity>
             )}
@@ -281,7 +281,7 @@ export default function DataImportScreen() {
           <View style={styles.hintCard}>
             <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.hintText}>
-              Need a file? On any device with your data, go to Settings → Export my data → JSON, then bring that .json here.
+              Need a file? On any device with your data, go to Settings &gt; Export My Data &gt; JSON, then bring that .json here.
             </Text>
           </View>
         )}

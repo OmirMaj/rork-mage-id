@@ -67,7 +67,7 @@ export default function ActivityFeedScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.headerBtn}
-          accessibilityLabel="Go back"
+          accessibilityLabel="Go Back"
           testID="activity-back-btn"
         >
           <ChevronLeft size={24} color={themeColors.text} strokeWidth={1.75} />
@@ -90,12 +90,12 @@ export default function ActivityFeedScreen() {
       {items.length === 0 && sourceFailed ? (
         <ErrorState
           icon={<CloudOff size={32} color={themeColors.warningLabel} strokeWidth={1.75} />}
-          title="Couldn't reach MAGE"
-          body="This project's history didn't come back from the last read. Nothing has been deleted — this device just has nothing cached to show yet."
+          title="Couldn't Reach MAGE"
+          body="This project's history didn't come back from the last read. Nothing has been deleted. This device just has nothing cached to show yet."
           steps={[
             'Check that you have signal or Wi-Fi.',
             'Tap Try again below.',
-            'If it keeps failing, sign out and back in — the session may have expired.',
+            'If it keeps failing, sign out and back in. The session may have expired.',
           ]}
           onRetry={retryRemoteReads}
           testID="activity-unreachable"
@@ -103,9 +103,9 @@ export default function ActivityFeedScreen() {
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Activity size={32} color={themeColors.accent} strokeWidth={1.75} />}
-          title="No activity yet"
+          title="No Activity Yet"
           message="Every change order, RFI, daily report, invoice and photo shows up here when it's created."
-          actionLabel="Back to projects"
+          actionLabel="Back to Projects"
           onAction={() => router.replace('/(tabs)/(home)' as never)}
         />
       ) : (

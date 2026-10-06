@@ -45,7 +45,7 @@ import {
 import type { CertificateOfInsurance, Subcontractor } from '@/types';
 
 /** Bulk Request renewal stays off: the cron only emails the GC (30 / 14 / 7 / 0 days). */
-export const COI_RENEWAL_REASON = 'MAGE ID can’t send a renewal request to a sub yet — you get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.';
+export const COI_RENEWAL_REASON = 'MAGE ID can’t send a renewal request to a sub yet. You get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.';
 
 export interface CoiVaultRegisterProps {
   subcontractors: readonly Subcontractor[];
@@ -78,7 +78,7 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
   const columns: DataTableColumn<CoiRegisterRow>[] = useMemo(() => [
     { key: 'sub', label: 'Sub', flex: 1.5, minWidth: 160, sortValue: (r) => r.sub || null, value: (r) => r.sub || null },
     {
-      key: 'daysLeft', label: 'Days left', width: 90, numeric: true, sortValue: (r) => r.daysLeft,
+      key: 'daysLeft', label: 'Days Left', width: 90, numeric: true, sortValue: (r) => r.daysLeft,
       render: (r) => (
         <Text style={[styles.num, styles.right, { color: dayColor(r.daysLeft) }]}>{r.daysLeft === null ? '—' : String(r.daysLeft)}</Text>
       ),
@@ -88,7 +88,7 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
       render: (r) => <StatusPill label={COI_CHECK_LABEL[r.check]} tone={COI_CHECK_TONE[r.check]} size="compact" />,
     },
     {
-      key: 'expiry', label: 'Earliest expiry', width: 140, hideBelow: 650, sortValue: (r) => r.expiryDay,
+      key: 'expiry', label: 'Earliest Expiry', width: 140, hideBelow: 650, sortValue: (r) => r.expiryDay,
       render: (r) => {
         const label = logDayLabel(r.expiryDay, now);
         return (
@@ -104,15 +104,15 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
       render: (r) => <Text style={[styles.num, styles.right]}>{String(r.certCount)}</Text>,
     },
     {
-      key: 'policies', label: 'Policies on file', width: 100, numeric: true, hideBelow: 950, sortValue: (r) => r.policyCount,
+      key: 'policies', label: 'Policies on File', width: 100, numeric: true, hideBelow: 950, sortValue: (r) => r.policyCount,
       render: (r) => <Text style={[styles.num, styles.right]}>{r.policyCount === null ? '—' : String(r.policyCount)}</Text>,
     },
     {
-      key: 'issues', label: 'Endorsement issues', flex: 1.2, hideBelow: 1050, sortValue: (r) => r.issueCount,
+      key: 'issues', label: 'Endorsement Issues', flex: 1.2, hideBelow: 1050, sortValue: (r) => r.issueCount,
       value: (r) => (r.issueCount === null ? null : r.firstIssue ? `${r.issueCount} · ${r.firstIssue}` : String(r.issueCount)),
     },
     {
-      key: 'lastUpload', label: 'Last upload', width: 110, hideBelow: 1150, sortValue: (r) => r.lastUploadAt,
+      key: 'lastUpload', label: 'Last Upload', width: 110, hideBelow: 1150, sortValue: (r) => r.lastUploadAt,
       value: (r) => logDayLabel(r.lastUploadAt, now),
     },
   ], [now, dayColor, styles.num, styles.right]);
@@ -129,8 +129,8 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
         testID="coi-vault-record-strip"
         status={{ label: COI_CHECK_LABEL[open.check], tone: COI_CHECK_TONE[open.check] }}
         facts={[
-          { label: 'Earliest expiry', value: open.expiryDay ? `${logDayLabel(open.expiryDay, now) ?? open.expiryDay}${open.expirySource === 'record' ? ' (typed)' : ''}` : null },
-          { label: 'Days left', value: open.daysLeft === null ? null : String(open.daysLeft), tone: open.daysLeft !== null && open.daysLeft <= 0 ? 'danger' : undefined },
+          { label: 'Earliest Expiry', value: open.expiryDay ? `${logDayLabel(open.expiryDay, now) ?? open.expiryDay}${open.expirySource === 'record' ? ' (typed)' : ''}` : null },
+          { label: 'Days Left', value: open.daysLeft === null ? null : String(open.daysLeft), tone: open.daysLeft !== null && open.daysLeft <= 0 ? 'danger' : undefined },
           { label: 'Certificates', value: String(open.certCount) },
         ]}
       />
@@ -181,24 +181,24 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
                 { value: 'all', label: 'All', count: all.length },
                 { value: 'expired', label: 'Expired', count: summary.expired },
                 { value: 'expiring', label: 'Expiring <30d', count: summary.expiringSoon },
-                { value: 'missing', label: 'No COI on file', count: summary.missing },
+                { value: 'missing', label: 'No COI on File', count: summary.missing },
               ]}
             />
           )}
           bulkActions={[
             { key: 'csv', label: 'Export CSV', run: exportSelected },
-            { key: 'renewal', label: 'Request renewal', run: () => {}, disabledReason: COI_RENEWAL_REASON },
+            { key: 'renewal', label: 'Request Renewal', run: () => {}, disabledReason: COI_RENEWAL_REASON },
           ]}
           emptyState={chip === 'all' ? (
             <EmptyState
               icon={<Shield size={28} color={t.accent} strokeWidth={1.75} />}
-              title="No subs yet"
+              title="No Subs Yet"
               message="Add subs on the Subs screen first, then come back to upload their COIs."
             />
           ) : (
             <EmptyState
               icon={<Shield size={28} color={t.accent} strokeWidth={1.75} />}
-              title="Nothing under this filter"
+              title="Nothing Under This Filter"
               message="Pick another chip, or All."
             />
           )}

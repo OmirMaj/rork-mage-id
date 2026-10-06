@@ -17,7 +17,7 @@ export const PAYMENT_METHODS: readonly PaymentMethod[] = ['check', 'ach', 'card'
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   check: 'Check',
-  ach: 'ACH / transfer',
+  ach: 'ACH / Transfer',
   card: 'Card',
   cash: 'Cash',
   other: 'Other',
@@ -26,10 +26,10 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 /** What the reference field is called for each method — a check has a number,
  *  an ACH has a trace. Asking for the right thing is what makes it get filled. */
 export const REFERENCE_LABELS: Record<PaymentMethod, string> = {
-  check: 'Check number',
-  ach: 'Trace / confirmation number',
+  check: 'Check Number',
+  ach: 'Trace / Confirmation Number',
   card: 'Last 4 / confirmation',
-  cash: 'Receipt or note',
+  cash: 'Receipt or Note',
   other: 'Reference',
 };
 
@@ -83,8 +83,8 @@ export function needsReconciliation(inv: ReconcilableInvoice): boolean {
 export function reconciliationLabel(inv: ReconcilableInvoice): string | null {
   switch (reconciliationState(inv)) {
     case 'reconciled': return 'Reconciled';
-    case 'partial': return 'Missing detail';
-    case 'unreconciled': return 'No payment detail';
+    case 'partial': return 'Missing Detail';
+    case 'unreconciled': return 'No Payment Detail';
     default: return null;
   }
 }

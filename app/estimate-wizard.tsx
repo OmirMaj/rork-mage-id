@@ -1285,7 +1285,7 @@ function EstimateWizardScreenInner() {
   const confirmDiscard = useCallback((onDiscard: () => void) => {
     const sharedAt = sharedUnsavedRef.current;
     showAlert(
-      sharedAt ? 'You sent this estimate but haven\'t saved it' : 'This estimate isn\'t saved',
+      sharedAt ? 'You sent this estimate but haven\'t saved it.' : 'This estimate isn\'t saved.',
       sharedAt
         ? 'The PDF went to your client, but the line items and price are not on any project. Discard them and you cannot build the contract from what they were quoted.'
         : 'The line items and price are not on any project yet. Discarding loses them.',

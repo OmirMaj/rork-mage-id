@@ -11,7 +11,7 @@
 //   - aiService's dailyReportPromptDay and AIDailyReportGen's
 //     scheduleDraftBlockedReason, lifted and run against the real calendarDate;
 //   - utils/pdfGenerator for real (native modules stubbed): the DFR PDF's
-//     "Filed by" row and the CO PDF's client-approval line.
+//     "Filed By" row and the CO PDF's client-approval line.
 // Wiring that only exists inside the component or the migration is pinned by
 // source, each pin naming the defect it stops from coming back. The migration
 // itself (20260920140000) is executed twice in PGlite by the lane's harness
@@ -136,7 +136,7 @@ console.log('\n#63 who filed it:');
   ok('every PDF path passes filedByName (print, share, filed copy)', (code.match(/filedByName: filedBy\.document \?\? undefined/g) ?? []).length === 3);
   const html = pdf.buildDFRHtml({ id: 'r', projectId: 'p', date: '2026-09-15', weather: {}, manpower: [], workPerformed: 'x', materialsDelivered: [], issuesAndDelays: '', photos: [], status: 'sent', createdAt: '', updatedAt: '' } as never,
     { id: 'p', name: 'Maple', location: '' } as never, { companyName: 'Acme' } as never, { filedByName: 'Luis <R>' });
-  ok('the DFR PDF prints a "Filed by" row, escaped', /Filed by/.test(html) && html.includes('Luis &lt;R&gt;'));
+  ok('the DFR PDF prints a "Filed by" row, escaped', /Filed By/.test(html) && html.includes('Luis &lt;R&gt;'));
   const html2 = pdf.buildDFRHtml({ id: 'r', projectId: 'p', date: '2026-09-15', weather: {}, manpower: [], workPerformed: 'x', materialsDelivered: [], issuesAndDelays: '', photos: [], status: 'sent', createdAt: '', updatedAt: '' } as never,
     { id: 'p', name: 'Maple', location: '' } as never, { companyName: 'Acme' } as never, {});
   ok('…and none when the caller names nobody', !/Filed by/.test(html2));

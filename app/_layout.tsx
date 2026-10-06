@@ -550,23 +550,23 @@ const NO_HEADER_OVERRIDE = {} as const;
 function useFieldScreenTitles() {
   const { t } = useT();
   return React.useMemo(() => ({
-    dailyReport: t('nav.title.dailyReport', 'Daily report'),
-    punchList: t('nav.title.punchList', 'Punch list'),
-    timeTracking: t('nav.title.timeTracking', 'Time tracking'),
+    dailyReport: t('nav.title.dailyReport', 'Daily Report'),
+    punchList: t('nav.title.punchList', 'Punch List'),
+    timeTracking: t('nav.title.timeTracking', 'Time Tracking'),
     crew: t('nav.title.crew', 'Crew'),
     safety: t('nav.title.safety', 'Safety'),
     safetyJha: t('nav.title.safetyJha', 'JHAs'),
-    safetyToolbox: t('nav.title.safetyToolbox', 'Toolbox talks'),
+    safetyToolbox: t('nav.title.safetyToolbox', 'Toolbox Talks'),
     safetyIncidents: t('nav.title.safetyIncidents', 'Incidents'),
-    safetyHazards: t('nav.title.safetyHazards', 'Hazard log'),
+    safetyHazards: t('nav.title.safetyHazards', 'Hazard Log'),
     safetyInspections: t('nav.title.safetyInspections', 'Inspections'),
     safetyCertifications: t('nav.title.safetyCertifications', 'Certifications'),
-    safetyForms: t('nav.title.safetyForms', 'Forms library'),
-    safetyOsha: t('nav.title.safetyOsha', 'OSHA 300 log'),
-    photoTriage: t('nav.title.photoTriage', 'Photo triage'),
-    materialReceipt: t('nav.title.materialReceipt', 'Material receipt'),
+    safetyForms: t('nav.title.safetyForms', 'Forms Library'),
+    safetyOsha: t('nav.title.safetyOsha', 'OSHA 300 Log'),
+    photoTriage: t('nav.title.photoTriage', 'Photo Triage'),
+    materialReceipt: t('nav.title.materialReceipt', 'Material Receipt'),
     deliveries: t('nav.title.deliveries', 'Deliveries'),
-    tomorrowLineup: t('nav.title.tomorrowLineup', "Tomorrow's lineup"),
+    tomorrowLineup: t('nav.title.tomorrowLineup', "Tomorrow's Lineup"),
   }), [t]);
 }
 
@@ -1042,13 +1042,13 @@ function RootLayoutNav() {
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
-      <Stack.Screen name="buyout-package" options={{ title: 'Bid package' }} />
-      <Stack.Screen name="bid-leveling" options={{ title: 'Bid leveling', headerShown: false }} />
-      <Stack.Screen name="win-optimizer" options={{ title: 'Win optimizer', headerShown: false }} />
-      <Stack.Screen name="smart-proposal" options={{ title: 'Smart proposal', headerShown: false }} />
+      <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
+      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling', headerShown: false }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer', headerShown: false }} />
+      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal', headerShown: false }} />
       <Stack.Screen name="material-receipt" options={{ title: fieldTitle.materialReceipt, headerShown: false }} />
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner', headerShown: false }} />
-      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan intelligence', headerShown: false }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence', headerShown: false }} />
       {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
           A swipe-down (iOS) discarded it with no prompt; the in-app back
           button's confirm can't intercept the gesture. */}
@@ -1064,8 +1064,8 @@ function RootLayoutNav() {
       <Stack.Screen name="photo-triage" options={{ title: fieldTitle.photoTriage }} />
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
-      <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC export' }} />
-      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance audit pack', headerShown: false }} />
+      <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
+      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack', headerShown: false }} />
       <Stack.Screen name="tomorrow-lineup" options={{ title: fieldTitle.tomorrowLineup, headerShown: false }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
@@ -1106,7 +1106,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="project-detail"
         options={{
-          title: "Project details",
+          title: "Project Details",
           ...headerTitled,
         }}
       />
@@ -1130,7 +1130,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="bill-from-estimate"
         options={{
-          title: "Bill from estimate",
+          title: "Bill from Estimate",
           ...headerTitled,
         }}
       />
@@ -1185,7 +1185,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="payment-predictions"
         options={{
-          title: "Payment forecast",
+          title: "Payment Forecast",
           ...headerTitled,
         }}
       />
@@ -1236,32 +1236,32 @@ function RootLayoutNav() {
       <Stack.Screen
         name="oac-meeting"
         options={{
-          title: "OAC meetings",
+          title: "OAC Meetings",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="coi-vault"
         options={{
-          title: "COI vault",
+          title: "COI Vault",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="budget-dashboard"
         options={{
-          title: "Budget dashboard",
+          title: "Budget Dashboard",
           ...headerTitled,
         }}
       />
-      <Stack.Screen name="wip-report" options={{ title: 'WIP report', headerShown: false }} />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP Report', headerShown: false }} />
       {/* Construction News (founder request 2026-09-22): publisher feed
           headlines, merged by the construction-news edge function. Doors:
           the Discover ▸ Tools tile and the desktop sidebar's WORKSPACE row. */}
       <Stack.Screen
         name="construction-news"
         options={{
-          title: "Construction news",
+          title: "Construction News",
           ...headerTitled,
         }}
       />
@@ -1287,7 +1287,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="sub-scorecard"
-        options={{ title: 'Sub scorecard' }}
+        options={{ title: 'Sub Scorecard' }}
       />
       <Stack.Screen
         name="buyout-scope-gap"
@@ -1299,7 +1299,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-scorecard"
-        options={{ headerShown: false, title: 'Estimate scorecard' }}
+        options={{ headerShown: false, title: 'Estimate Scorecard' }}
       />
       <Stack.Screen
         name="deliveries"
@@ -1307,7 +1307,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="building-access"
-        options={{ headerShown: false, title: 'Building access' }}
+        options={{ headerShown: false, title: 'Building Access' }}
       />
       <Stack.Screen
         name="estimate-confidence"
@@ -1315,7 +1315,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-calibration"
-        options={{ title: 'Estimate calibration', headerShown: false }}
+        options={{ title: 'Estimate Calibration', headerShown: false }}
       />
       <Stack.Screen
         name="cost-database"
@@ -1374,7 +1374,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="sub-portal-setup"
         options={{
-          title: "Sub portal",
+          title: "Sub Portal",
           ...headerChrome,
         }}
       />
@@ -1385,7 +1385,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="public-profile-setup"
         options={{
-          title: "Public profile",
+          title: "Public Profile",
           ...headerChrome,
         }}
       />
@@ -1404,7 +1404,7 @@ function RootLayoutNav() {
           pushed screen, not a modal — a tutorial it starts pushes the sample
           hub and the real screen on top of it. */}
       <Stack.Screen name="tutorials" options={{ title: 'Tutorials' }} />
-      <Stack.Screen name="skills-check" options={{ title: 'Skills check' }} />
+      <Stack.Screen name="skills-check" options={{ title: 'Skills Check' }} />
       <Stack.Screen name="skills-certificates" options={{ title: 'Certificates' }} />
       <Stack.Screen
         name="drawing-analyzer"
@@ -1473,7 +1473,7 @@ function RootLayoutNav() {
       <Stack.Screen name="job-facts" options={{ headerShown: false }} />
       {/* Lane PPUI: Permit Path — the job's permit route; the screen draws its own header. */}
       <Stack.Screen name="permit-path" options={{ title: 'Permit Path', headerShown: false }} />
-      <Stack.Screen name="scan-room" options={{ title: 'Scan The Room', headerShown: false }} />
+      <Stack.Screen name="scan-room" options={{ title: 'Scan the Room', headerShown: false }} />
       <Stack.Screen
         name="photo-annotator"
         options={{ headerShown: false, presentation: 'modal' }}
@@ -1496,14 +1496,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="bid-detail"
         options={{
-          title: "Bid details",
+          title: "Bid Details",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-bid"
         options={{
-          title: "Post a bid",
+          title: "Post a Bid",
           ...headerTitled,
         }}
       />
@@ -1517,28 +1517,28 @@ function RootLayoutNav() {
       <Stack.Screen
         name="company-profile"
         options={{
-          title: "Company profile",
+          title: "Company Profile",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="job-detail"
         options={{
-          title: "Job details",
+          title: "Job Details",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="worker-detail"
         options={{
-          title: "Crew member profile",
+          title: "Crew Member Profile",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-job"
         options={{
-          title: "Post a job",
+          title: "Post a Job",
           ...headerTitled,
         }}
       />
@@ -1552,7 +1552,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="cash-flow"
         options={{
-          title: "Cash flow",
+          title: "Cash Flow",
           ...headerTitled,
         }}
       />
@@ -1587,7 +1587,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="weekly-snapshot"
         options={{
-          title: "This week",
+          title: "This Week",
           ...headerTitled,
         }}
       />
@@ -1608,49 +1608,49 @@ function RootLayoutNav() {
       <Stack.Screen
         name="qbo-review"
         options={{
-          title: "QuickBooks costs",
+          title: "QuickBooks Costs",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="integrations/qbo/callback"
         options={{
-          title: "QuickBooks connection",
+          title: "QuickBooks Connection",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-seeder"
         options={{
-          title: "Demo seeder",
+          title: "Demo Seeder",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-flagship-seeder"
         options={{
-          title: "Flagship seeder",
+          title: "Flagship Seeder",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-ar-measure"
         options={{
-          title: "AR measure (dev)",
+          title: "AR Measure (Dev)",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="report-inbox"
         options={{
-          title: "Report inbox",
+          title: "Report Inbox",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="profit-leak-history"
         options={{
-          title: "Profit leak history",
+          title: "Profit Leak History",
           headerShown: false,
         }}
       />
@@ -1664,21 +1664,21 @@ function RootLayoutNav() {
       <Stack.Screen
         name="aia-pay-app"
         options={{
-          title: "Pay app",
+          title: "Pay App",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="data-export"
         options={{
-          title: "Export my data",
+          title: "Export My Data",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="scope-sheet"
         options={{
-          title: "Scope sheet",
+          title: "Scope Sheet",
           ...headerTitled,
         }}
       />
@@ -1692,14 +1692,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="data-import"
         options={{
-          title: "Import data",
+          title: "Import Data",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="client-update"
         options={{
-          title: "Weekly client update",
+          title: "Weekly Client Update",
           ...headerTitled,
         }}
       />
@@ -1718,7 +1718,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="estimate-wizard"
         options={{
-          title: "Quick estimate",
+          title: "Quick Estimate",
           presentation: "modal",
           gestureEnabled: false,
           ...headerTitled,
@@ -1741,7 +1741,7 @@ function RootLayoutNav() {
           nothing flips. win-optimizer and the other self-headed tool screens
           carry the same headerShown:false on their own lines above;
           scripts/validate-static-header-hidden.ts keeps the two in step. */}
-      <Stack.Screen name="client-view" options={{ title: 'Client portal', headerShown: false }} />
+      <Stack.Screen name="client-view" options={{ title: 'Client Portal', headerShown: false }} />
         </Stack>
       </View>
       </NavThemeProvider>

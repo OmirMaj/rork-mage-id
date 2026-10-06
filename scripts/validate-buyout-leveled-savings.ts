@@ -130,7 +130,7 @@ ok('Job Costing lists the excluded scope as uncommitted, estimated — off the a
 
 ok('the cost breakdown never reconciles buyout savings into the estimate total (it printed them back as "Other / unreconciled")',
   /const explained = base \+ tax \+ markup \+ \(estimate\.contingency \?\? 0\);/.test(projectDetail)
-  && /Total after buyout savings/.test(projectDetail));
+  && /Total After Buyout Savings/.test(projectDetail));
 ok('…and labels a demo/legacy estimate\'s taxAmount and markupAmount instead of calling them unreconciled',
   /legacy\.taxAmount/.test(projectDetail) && /legacy\.markupAmount/.test(projectDetail) && /testID="cost-breakdown-markup"/.test(projectDetail));
 

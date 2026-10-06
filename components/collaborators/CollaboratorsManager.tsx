@@ -392,7 +392,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (!validEmail) return;
     if (inviteBlocked) { showAlert("Can't Send the Invite Yet", inviteBlocked); return; }
     // The client first: no role makes this invite safe (see the header).
-    if (clientReason) { showAlert("This is the project's client", clientReason); return; }
+    if (clientReason) { showAlert("This is the project's client.", clientReason); return; }
     // Someone already active on this job is never re-invited: the invite
     // resets his row to 'pending' and he loses the project until he accepts
     // again. Point at the row's role picker instead.
@@ -413,7 +413,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // request we know will fail.
     if (!seatPreview.allowed) {
       showAlert(
-        'Your Team Is Full',
+        'Your team is full.',
         `${seatPreview.message}\n\nField team members don't count toward it. If they only need the schedule, daily reports, photos and RFIs, invite them as Field.`,
         [
           { text: 'Not Now', style: 'cancel' },
@@ -440,7 +440,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // exactly the surprise that makes people distrust per-seat pricing.
     if (seatPreview.bills) {
       showAlert(
-        'This adds a paid team member',
+        'This adds a paid team member.',
         `${seatPreview.message}\n\nField access stays free. If they only need the schedule, daily reports and photos, invite them as Field instead.`,
         [
           { text: 'Cancel', style: 'cancel' },
@@ -476,14 +476,14 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (isBillableSeat(next) && !isBillableSeat(c.role)) {
       if (!canAccess('schedule_collaboration')) {
         showAlert(
-          `${label} access is on the Pro plan`,
+          `${label} access is on the Pro plan.`,
           `Editors and viewers count toward your team, which starts on Pro. ${c.email} can stay on Field for free, with the schedule, daily reports, photos and RFIs.`,
         );
         return;
       }
       const preview = seats.preview(next, c.email);
       if (!preview.allowed) {
-        showAlert('Your Team Is Full', `${preview.message}\n\n${c.email} can stay on Field, which doesn't count toward your team.`);
+        showAlert('Your team is full.', `${preview.message}\n\n${c.email} can stay on Field, which doesn't count toward your team.`);
         return;
       }
       if (preview.bills) seatLine = `\n\n${preview.message}`;

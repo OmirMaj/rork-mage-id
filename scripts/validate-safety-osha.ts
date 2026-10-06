@@ -195,7 +195,7 @@ console.log('\nOSHA 300A summary:');
   expect('300A page prints TRIR over the confirmed hours', htmlEst.includes('>6.00<'), true);
   const htmlProj = buildOsha300Html(rowsA, { name: 'Acme', year: '2026' },
     { hoursWorked: 100000, averageEmployees: 50, hoursSource: 'x', projectScoped: true });
-  expect('a project-scoped page is titled a project rate, not the 300A', htmlProj.includes('not the establishment 300A') && !htmlProj.includes('OSHA Form 300A —'), true);
+  expect('a project-scoped page is titled a project rate, not the 300A', htmlProj.includes('not the establishment 300A') && !htmlProj.includes('OSHA Form 300A:'), true);
 
   // Rates: cases × 200,000 / hours; never a number over an unknown denominator.
   expect('TRIR 3 cases / 100k h = 6', incidentRatePer200k(3, 100000), 6);

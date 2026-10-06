@@ -26,7 +26,7 @@ function ok(name: string, cond: boolean, extra = '') {
 }
 
 const sheet = (over: Partial<SheetLike> & { id: string }): SheetLike => ({
-  projectId: 'p1', name: 'Floor plan', createdAt: '2026-01-01T00:00:00.000Z', ...over,
+  projectId: 'p1', name: 'Floor Plan', createdAt: '2026-01-01T00:00:00.000Z', ...over,
 });
 
 console.log('\n1. the comparison base is a sheet that is actually in the field');
@@ -92,7 +92,7 @@ ok('each change can start a change order', /handleStartChangeOrder/.test(cd) && 
 ok('each drafted question can become an RFI', /addRFI\(rfiFromCandidate\(/.test(cd));
 ok('a multi-page revision PDF is flagged before the render is paid for',
   /countPdfPages\(asset\.uri\)/.test(cd) && cd.indexOf('countPdfPages(asset.uri)') < cd.indexOf('await uploadAndRenderPdf('));
-ok('Done no longer discards an unsaved comparison silently', /handleDone/.test(cd) && /Nothing from This Comparison Is Saved/.test(cd));
+ok('Done no longer discards an unsaved comparison silently', /handleDone/.test(cd) && /Nothing from this comparison is saved\./.test(cd));
 // B4 review: the guard has to key on a SAVED change order, not on the user
 // having navigated to the CO screen. Tapping "Start Change Order" and backing
 // out without saving used to count as saved, so Done left silently and the

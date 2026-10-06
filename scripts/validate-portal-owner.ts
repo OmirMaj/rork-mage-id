@@ -1886,7 +1886,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   ok('project-detail: "Terms needed" badge from proposalTermsState, only when the proposal is not blocked',
     /proposalTermsState\(\{ portal: project\?\.clientPortal/.test(pd)
     && /portalTerms\.state === 'unconfirmed'\s*\n\s*&& !proposalBlockReason\(project, portalBadgeContract \?\? undefined\)/.test(pd)
-    && /clientPortal: \{ label: 'Terms needed', tone: 'pending' \}/.test(pd));
+    && /clientPortal: \{ label: 'Terms Needed', tone: 'pending' \}/.test(pd));
   const a = pd.indexOf('const confirmPortalProposalTerms = useCallback(');
   const body = a >= 0 ? pd.slice(a, pd.indexOf('\n  }, [', a)) : '';
   ok('project-detail: the unconfirmed row stamps via updateProject with the two keys merged onto the saved portal',
@@ -2389,7 +2389,7 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
 // only in the GC's in-app preview; the homeowner's portal said nothing about
 // whether the job was on time. The page now computes it itself, against the
 // viewer's today — NOT from the snapshot, where a verdict frozen at publish
-// time would still say "On track" weeks later.
+// time would still say "On Track" weeks later.
 //
 // Held here, head-to-head:
 //   - the page's deriveSchedulePace vs utils/ownerConfidence ownerSchedulePace
@@ -2713,7 +2713,7 @@ console.log('\nno portal URL is built by string-concatenating a portalId:');
   ok('…prints that same link (token masked), not a bare URL',
     /maskPortalLinkToken\(portalLink\.replace\(\/\^https:\\\/\\\/\/, ''\)\)/.test(detail));
   ok('…and refuses to copy when there is no key',
-    /'Secure link on its way'/.test(detail) && /if \(!portalEntitled\) \{ openPortalPaywall\(\); return; \}/.test(detail));
+    /'Secure Link on Its Way'/.test(detail) && /if \(!portalEntitled\) \{ openPortalPaywall\(\); return; \}/.test(detail));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

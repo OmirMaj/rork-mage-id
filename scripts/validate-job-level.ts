@@ -371,7 +371,7 @@ console.log('\nC. source rules:');
     E.JOB_LEVEL_LEGEND.every((x) => reasonCode.includes(tLine(x.id, x.text))), E.JOB_LEVEL_LEGEND.filter((x) => !reasonCode.includes(tLine(x.id, x.text))).map((x) => x.id).join(','));
   ok('JobLevelReason: the legend sits UNDER the reasons, in textSecondary',
     /reading\.reasons\.map[\s\S]*testID="joblevel-legend"/.test(reasonCode) && /legendLine: \{[^}]*color: t\.textSecondary/.test(reasonCode));
-  ok('JobLevelReason: the title is "Project health" through t()', /t\('office\.projectHealth\.title', 'Project health'\)/.test(reasonCode));
+  ok('JobLevelReason: the title is "Project health" through t()', /t\('office\.projectHealth\.title', 'Project Health'\)/.test(reasonCode));
 
   // ── C+. The hub card ──
   const card = read('components/level/ProjectLevelCard.tsx');
@@ -391,7 +391,7 @@ console.log('\nC. source rules:');
     returnsNull === 1 && /if \(!pulse\.hasProject\) return null;/.test(cardCode) && !/reading\.kind/.test(cardCode));
   ok('ProjectLevelCard: testIDs project-level-card (default), project-level, project-level-legend',
     /testID = 'project-level-card'/.test(cardCode) && /testID="project-level-legend"/.test(cardCode));
-  ok('ProjectLevelCard: the title is a header ("Project health" through t())', /accessibilityRole="header">\{t\('office\.projectHealth\.title', 'Project health'\)\}/.test(cardCode));
+  ok('ProjectLevelCard: the title is a header ("Project health" through t())', /accessibilityRole="header">\{t\('office\.projectHealth\.title', 'Project Health'\)\}/.test(cardCode));
   ok('ProjectLevelCard: the compact legend is the bubble + colour lines, through t() with the engine\'s English',
     ['bubble', 'colour'].every((id) => cardCode.includes(tLine(id, E.JOB_LEVEL_LEGEND.find((x) => x.id === id)!.text))));
   ok('ProjectLevelCard: the surface is the Card primitive (no hand-rolled surface recipe)', /<Card /.test(cardCode) && !/backgroundColor: t\.surface/.test(cardCode));
@@ -399,7 +399,7 @@ console.log('\nC. source rules:');
   // ── C++. ProjectHero keeps one meaning for a bubble ──
   const hero = stripComments(read('components/ProjectHero.tsx'));
   ok('ProjectHero: no spring and no bubble remain (the Level lives in ProjectLevelCard)', !/Animated\.spring/.test(hero) && !/\bbubble\w*\b/i.test(hero), (hero.match(/Animated\.spring|\bbubble\w*\b/i) ?? [''])[0]);
-  ok('ProjectHero: the "Margin risk" words + band row stays', />Margin risk<\/Text>/.test(hero) && /\{riskBandLabel\(risk\.band\)\}/.test(hero));
+  ok('ProjectHero: the "Margin risk" words + band row stays', />Margin Risk<\/Text>/.test(hero) && /\{riskBandLabel\(risk\.band\)\}/.test(hero));
   ok('ProjectHero: no private vial / centre marks', !/styles\.(vial|centerMark)/.test(hero));
   // 2026-10-02: a warning state (health 'watch', risk 'moderate' / 'elevated')
   // wears the WARNING ink, never the brand accent (brand green reads "fine").

@@ -3,62 +3,62 @@
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, iOS 390 1`] = `
 {
   "lines": 444,
-  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
+  "sha256": "f015b2f48435303d3c3ff68e7b754b98e5c47e8b3e2b36501ac795253b78c143",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 390 1`] = `
 {
   "lines": 444,
-  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
+  "sha256": "f015b2f48435303d3c3ff68e7b754b98e5c47e8b3e2b36501ac795253b78c143",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 768 1`] = `
 {
   "lines": 444,
-  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
+  "sha256": "f015b2f48435303d3c3ff68e7b754b98e5c47e8b3e2b36501ac795253b78c143",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault?subId=S1 (the detail early return), iOS 390 1`] = `
 {
   "lines": 704,
-  "sha256": "a9a0c68eb7a214d7cf88a8360789e0f2290037808de2841256784f58ed822774",
+  "sha256": "bb385fefb153d619195e78a4ec6e8320dd5005d1a657703079e8161a5a97e4c8",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs add sheet (add-sub), iOS 390 1`] = `
 {
   "lines": 817,
-  "sha256": "c82a5e7a3703f80d58aac8a81188e80771335fab51e28324d4cc9a2ca372ab23",
+  "sha256": "1e579a71e6af455198bd3a75b55a513c99c5e0a8002bb5ee2d9493b1023ddf88",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, iOS 390 1`] = `
 {
   "lines": 817,
-  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
+  "sha256": "196a88bfac54d02d1944acb59fe0a58c216fbf89a3aebf868364d3b21b8ba887",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 390 1`] = `
 {
   "lines": 817,
-  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
+  "sha256": "196a88bfac54d02d1944acb59fe0a58c216fbf89a3aebf868364d3b21b8ba887",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 768 1`] = `
 {
   "lines": 817,
-  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
+  "sha256": "196a88bfac54d02d1944acb59fe0a58c216fbf89a3aebf868364d3b21b8ba887",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs detail open (sub-S1), iOS 390 1`] = `
 {
   "lines": 994,
-  "sha256": "cd1c451ab1c15a0273d316901d02a4bdf2e78ac5850de3284fbb557ee0297177",
+  "sha256": "053b9050ad5215cab76979872920cc25a35a90e0f17031581c144039d7be251d",
 }
 `;

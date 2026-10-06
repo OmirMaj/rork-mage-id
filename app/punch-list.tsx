@@ -1903,7 +1903,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     const remaining = MAX_WALK_SHOTS - walkShots.length;
     if (remaining <= 0) {
       showAlert(
-        t('field.punch.thatIsAFull', 'That Is a Full Walk'),
+        t('field.punch.thatIsAFull', 'That is a full walk.'),
         t('field.punch.youHavePhotosWaiting', 'You have {MAX_WALK_SHOTS} photos waiting for a description. File those first, then start another walk.', { MAX_WALK_SHOTS }),
       );
       setShowWalk(true);

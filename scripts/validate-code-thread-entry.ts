@@ -86,10 +86,10 @@ check("project-detail imports ProjectCodeChecksCard from '@/components/codeThrea
   /import\s+(?:\{\s*)?ProjectCodeChecksCard(?:\s*\})?\s+from\s+'@\/components\/codeThread\/ProjectCodeChecksCard'/.test(pd));
 check('project-detail mounts ScopeGapsCard mode="project" exactly once, keyed on project.id',
   count(pd, /<ScopeGapsCard\s+mode="project"\s+projectId=\{project\.id\}\s*\/>/g) === 1 && count(pd, '<ScopeGapsCard') === 1);
-// UX wave D4 renamed the button "Create proposal" and wrapped it (plus the
-// "From an older revision" row) in a fragment; the card still follows the block.
+// UX wave D4 renamed the button "Create Proposal" and wrapped it (plus the
+// "From an Older Revision" row) in a fragment; the card still follows the block.
 check('the ScopeGapsCard sits right after the "Create proposal" block',
-  /Create proposal<\/Text>\s*<\/TouchableOpacity>[\s\S]{0,900}?From an older revision<\/Text>[\s\S]{0,400}?<\/>\s*\);\s*\}\)\(\)\}\s*<ScopeGapsCard mode="project"/.test(pd));
+  /Create Proposal<\/Text>\s*<\/TouchableOpacity>[\s\S]{0,900}?From an Older Revision<\/Text>[\s\S]{0,400}?<\/>\s*\);\s*\}\)\(\)\}\s*<ScopeGapsCard mode="project"/.test(pd));
 check("project-detail imports the default ScopeGapsCard from '@/components/scopeGaps/ScopeGapsCard'",
   /import\s+ScopeGapsCard\s+from\s+'@\/components\/scopeGaps\/ScopeGapsCard'/.test(pd));
 

@@ -465,7 +465,7 @@ function PrequalManagerInner() {
     const what = kind === 'needs_changes' ? 'needs changes' : 'was not approved';
     if (!to || !link) {
       showAlert(
-        'Saved, but the Sub Hasn’t Been Told',
+        'Saved, but the sub hasn’t been told.',
         !to
           ? `The packet is marked "${what}", but there is no email on it. Tell ${sub?.companyName ?? 'the sub'} yourself, or send a renewal with their address.`
           : `The packet is marked "${what}", but it has no link to send. Send a renewal to give the sub a working link.`,

@@ -872,7 +872,7 @@ export function coUnconfirmedPriceBlocker(
   money: (n: number) => string,
 ): { kind: 'refuse'; title: string; message: string } | { kind: 'confirm'; title: string; message: string; lineIds: string[] } | null {
   if (/needs\s*price/i.test(description)) {
-    return { kind: 'refuse', title: 'The Description Still Says NEEDS PRICE', message: 'That note is internal and would go to your client as written. Price the work as line items and rewrite the description as the scope your client is approving.' };
+    return { kind: 'refuse', title: 'The description still says NEEDS PRICE.', message: 'That note is internal and would go to your client as written. Price the work as line items and rewrite the description as the scope your client is approving.' };
   }
   // Only a line MAGE tagged 'needs_price' (a daily-report or leak-sweep draft
   // line nobody priced) is refused. An untagged $0 line is one he typed on

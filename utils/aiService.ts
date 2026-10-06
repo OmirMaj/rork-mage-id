@@ -711,7 +711,7 @@ export async function analyzeChangeOrderImpact(
   const wordCount = changeDescription.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount < 8 && lineItems.length === 0) {
     return changeOrderImpactSchema.parse({
-      clarifyQuestion: 'What trade and work are involved in this change? (e.g. "electrical — add 4 recessed lights in the living room")',
+      clarifyQuestion: 'What trade and work are involved in this change? (for example, "electrical: add 4 recessed lights in the living room")',
     });
   }
 
@@ -1326,7 +1326,7 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // unparseable description). Better to show editable starter rows than a
   // $0 modal that looks broken.
   const stub: AIQuickEstimateResult = {
-    projectSummary: `Estimate for ${projectType || 'construction'} project — ${description.substring(0, 80)}`,
+    projectSummary: `Estimate for ${projectType || 'construction'} project: ${description.substring(0, 80)}`,
     materials: [
       { name: 'General Materials', category: 'hardware', unit: 'lot', quantity: 1, unitPrice: 5000, supplier: 'TBD' },
       { name: 'Lumber', category: 'lumber', unit: 'bf', quantity: 500, unitPrice: 1.20, supplier: 'Home Depot' },

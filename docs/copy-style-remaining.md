@@ -1,12 +1,14 @@
-# Copy style: what is still to convert
+# Copy style: what was converted, and what is left for the server pass
 
-Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOICE.md` sections 3 and 4. The guard is `scripts/validate-copy-voice.ts`.
+Written 2026-10-05 by lane COPYSTYLE (the trial lane); closed out 2026-10-06 by lane 5. The style is in `docs/VOICE.md` sections 3 and 4. The guard is `scripts/validate-copy-voice.ts`.
 
 ## Where things stand
 
-- **Converted: 660 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below. **Lane 2 (195 files, done 2026-10-06):** invoices and pay apps, change orders, payments, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax, the client portal setup and client view, and everything under schedule (Schedule Pro, the phone schedule, Last Planner, delays, weather); see its section below. **Lane 4 (178 files, done 2026-10-06):** the client portal setup and messages, RFIs, submittals, plans, permits and Permit Path, Code Check, Construction AI, Ask MAGE, the copilot, Inspection Ready, warranties, closeout, handover, subs, tutorials and skills checks, notifications and the team section; see its section below.
-- **Still to convert: 203 files with 1,886 strings the guard would fail today** (counted 2026-10-06 with lanes 1, 2, 3 and 4 in; all of it is lane 5, and one of the strings is the new screen title "Scan The Room" in `app/_layout.tsx`). Counts by rule: label not in Title Case 1,205, dash used as punctuation 497, "&" 141, "e.g." or "i.e." 22, arrows 21. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
-- The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
+- **The app is converted: 863 files**, listed in `scripts/copy-style-converted.json` (`CONVERTED_PINNED` = 863). That is every file the five lanes and the trial lane were given: `app/`, `components/`, `utils/`, `constants/`, `hooks/` and `contexts/`. The guard reads zero for R15 (label case), R20 (dash as punctuation), R21 ("&"), R22 ("e.g." / "i.e.") and R23 (arrows) in all of them, and R24 ("unlimited") is zero everywhere.
+- **Nothing in the app is still waiting for a lane.** To check: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"` prints 0 strict hits.
+- **What is NOT converted is everything that ships from the server or from the static sites.** It is listed under "Not converted: the to-do list for the server pass" at the end of this file. None of it can change without a deploy.
+- **What is left as typed inside the app** has an entry in `scripts/copy-voice-allowlist.json` (422 entries) with the reason: a string that is also a key, text the server compares, prompt text, legal and consent text, captions, another organization's name.
+- The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, was found by reading the `--dump`, and a few will have been missed. When you see one on a screen, fix it: nothing else is needed.
 
 ## How to run a lane
 
@@ -51,9 +53,9 @@ File lists do not overlap. A file went to the first group whose words match its 
 | 2. Money and schedule (**done**) | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 0 of 195 left | 0 of 2,164 left |
 | 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
 | 4. Office, AI and portal (**done**) | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 0 of 178 left | 0 of 1,678 left |
-| 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,885 of 1,886 left |
+| 5. Shell remainder and everything else (**done**) | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 0 of 203 left | 0 of 1,886 left |
 | **Total** | | **823** | **9,198** |
-| **Still to convert (lane 5)** | Less the handful of strings lanes 1 to 4 changed in lane 5's files. | **203** | **1,886** |
+| **Still to convert in the app** | | **0** | **0** |
 
 ### Lane 1. Estimate, bids and contract (144 files, 1,849 strings): DONE 2026-10-05
 
@@ -137,212 +139,49 @@ Things the next lanes will hit, found here:
 - **The bulk "Skipped" line** (`logBulkSkippedLine` in `utils/logs/rfiLogRows.ts`, also used by the invoice and change order logs in lane 2) no longer joins with a dash: "Skipped 3: #4, #7 (already sent); #2 (paid).".
 - **"so" inside a label** has no Title Case the guard accepts ("Cost so Far" is what it asks for). "Cost so far" became "Cost to Date".
 
-### Lane 5. Shell remainder and everything else (203 files, 1,886 strings when listed; 1,885 left on 2026-10-06)
+### Lane 5. Shell remainder and everything else (done, 2026-10-06)
 
-Strings the guard would fail, per file, largest first.
+Converted: all 203 files are on `scripts/copy-style-converted.json` and the guard reads zero for them. 188 of them changed (about 1,920 source lines, about 1,600 distinct strings). About 250 of those were labels the guard could not see, found by reading the dump: every value in `utils/routeTitle.ts` (about 125 route titles), the field screen titles that go through `t('nav.title.…')` in `app/_layout.tsx`, the glossary terms, and the table headers and stat rows of the PDFs and emails built in `utils/pdfGenerator.ts`, `utils/purchaseOrderPdf.ts` and `utils/emailService.ts`. English catalog shards were regenerated and 40 Spanish entries re-stamped (none re-worded: the meaning did not change). The file list is in git history (this section before the lane landed).
 
-```
- 143  app/project-detail.tsx
- 121  constants/flagshipProject.ts
-  79  utils/demoSeed.ts
-  72  utils/featureRegistry.ts
-  67  app/(tabs)/discover/tools.tsx
-  47  utils/pdfGenerator.ts
-  42  app/_layout.tsx
-  42  app/coi-vault.tsx
-  30  components/PDFPreSendSheet.tsx
-  29  app/(tabs)/discover/index.tsx
-  29  app/public-profile-setup.tsx
-  25  components/CreateMenu.tsx
-  24  app/data-export.tsx
-  24  components/UniversalMicButton.tsx
-  24  utils/arTrack/session.ts
-  24  utils/syncLedger.ts
-  23  utils/emailService.ts
-  22  app/documents.tsx
-  22  app/insurance-audit.tsx
-  22  app/retention.tsx
-  22  utils/insuranceAuditPack.ts
-  21  utils/statusLabels.ts
-  20  utils/errorCopy.ts
-  19  utils/weekClose/composeWeekClose.ts
-  18  app/business.tsx
-  18  app/get-verified.tsx
-  18  app/work-order.tsx
-  17  utils/noticeClock.ts
-  16  components/summary/ToolsSheet.tsx
-  15  app/contacts.tsx
-  15  components/NextStepHero.tsx
-  15  utils/coProofPacket.ts
-  14  app/generative-setup.tsx
-  14  utils/nyHomeImprovement.ts
-  13  components/AIWeeklySummary.tsx
-  12  app/widget-setup.tsx
-  12  components/AssemblyEditorModal.tsx
-  12  components/desktop/DataTable.tsx
-  12  components/followUp/PreventiveFollowUps.tsx
-  12  components/registers/CoiVaultRegister.tsx
-  11  app/import-pipeline.tsx
-  11  components/ProjectFilesBrowser.tsx
-  11  components/buildingRecord/BuildingRecordCard.tsx
-  11  components/buildingRecord/NjBuildingRecordCard.tsx
-  11  utils/jobFacts/buildJobFacts.ts
-  10  app/data-import.tsx
-  10  app/integrations.tsx
-  10  components/UniversalSearch.tsx
-  10  components/registers/DocumentsRegister.tsx
-  10  utils/automation/jurisdiction.ts
-  10  utils/registers/coiRows.ts
-  10  utils/systemOfAction.ts
-   9  app/(tabs)/summary/index.tsx
-   9  app/connect-claude.tsx
-   9  app/job-detail.tsx
-   9  app/job-facts.tsx
-   9  components/buildingRecord/MdBuildingRecordCard.tsx
-   9  utils/aiService.ts
-   9  utils/digestSettingsCopy.ts
-   9  utils/generativeSetup.ts
-   9  utils/quotaPrecheck.ts
-   9  utils/winOptimizer.ts
-   8  app/weekly-snapshot.tsx
-   8  components/RateOverrideModal.tsx
-   8  components/buildingRecord/DepartmentCard.tsx
-   8  components/buildingRecord/DraftQuestionButton.tsx
-   8  utils/oneMind/factBlocks.ts
-   8  utils/purchaseOrderPdf.ts
-   8  utils/syncStatusCore.ts
-   8  utils/workflowPipelines.ts
-   7  app/waiting-on.tsx
-   7  components/ConfirmEmailModal.tsx
-   7  components/ProductivityCalculator.tsx
-   7  components/SquareFootEstimator.tsx
-   7  constants/assemblies.ts
-   7  hooks/useActivityFeed.ts
-   7  utils/dataExport.ts
-   7  utils/projectContextPure.ts
-   6  app/activity-feed.tsx
-   6  components/HelpFab.tsx
-   6  components/buildingRecord/MdDraftQuestion.tsx
-   6  components/priceWatch/PriceWatchCard.tsx
-   6  contexts/ProjectContext.tsx
-   6  hooks/useCollectionSettled.ts
-   6  utils/aiLimitAlert.ts
-   6  utils/buildingAccess.ts
-   6  utils/buildingRecord.ts
-   6  utils/departmentQuestion.ts
-   6  utils/ownerConfidence.ts
-   6  utils/shellChords.ts
-   5  components/DemoSeedPickerModal.tsx
-   5  components/OfflineSyncPill.tsx
-   5  components/OwnerConfidenceCard.tsx
-   5  components/ProjectHero.tsx
-   5  components/priceWatch/PriceDriftCheck.tsx
-   5  constants/glossary.ts
-   5  utils/paletteRows.ts
-   5  utils/registers/registerCsv.ts
-   4  components/QuickUpdateClarifier.tsx
-   4  components/ToolScreenChrome.tsx
-   4  components/desktop/JobSwitcher.tsx
-   4  components/motion/kit/__demo__/KitGallery.tsx
-   4  contexts/AuthContext.tsx
-   4  hooks/useUniversalSearch.ts
-   4  utils/apReconciliation.ts
-   4  utils/arTrack/availability.ts
-   4  utils/coAdvance.ts
-   4  utils/emailLayout.ts
-   4  utils/followUp/rules.ts
-   4  utils/pdfDesign.ts
-   4  utils/sampleGuard.ts
-   4  utils/settingsLoadGuard.ts
-   3  app/+not-found.tsx
-   3  app/track-record.tsx
-   3  components/EntityActionSheet.tsx
-   3  components/ErrorBoundary.tsx
-   3  components/InfoBubble.tsx
-   3  components/LockedAccessCard.tsx
-   3  components/ReferralPrompt.tsx
-   3  components/portfolio/PortfolioTable.tsx
-   3  components/registers/ContactsRegister.tsx
-   3  utils/aiConsentCore.ts
-   3  utils/coProofPacketHtml.ts
-   3  utils/dataImport.ts
-   3  utils/offlineQueue.ts
-   3  utils/oneMind/answer.ts
-   3  utils/oneMind/composePrompt.ts
-   3  utils/oneMind/demoColdStart.ts
-   3  utils/queryPersist.ts
-   3  utils/roleBlinding.ts
-   2  app/project-files.tsx
-   2  components/CSIDivisionPicker.tsx
-   2  components/RevenueEarlyAccessCard.tsx
-   2  components/StatusPipeline.tsx
-   2  components/UpgradeSheet.tsx
-   2  components/desktop/NoticeStrip.tsx
-   2  components/desktop/SplitView.tsx
-   2  components/desktop/ToolbarActions.tsx
-   2  components/loaders/WorkProgress.tsx
-   2  components/moments-sites/COApproveSheet.tsx
-   2  components/summary/NeedsYou.tsx
-   2  hooks/useBuildingRecord.ts
-   2  hooks/useLeakCoDrafts.ts
-   2  hooks/useMdBuildingRecord.ts
-   2  hooks/useNjBuildingRecord.ts
-   2  hooks/useProjectCapGate.ts
-   2  utils/audioTranscribeCore.ts
-   2  utils/chaseNudge.ts
-   2  utils/coiValidator.ts
-   2  utils/dailyLogCompletion.ts
-   2  utils/entityActions.ts
-   2  utils/followUp/engine.ts
-   2  utils/groundingChip.ts
-   2  utils/invokeWithTimeout.ts
-   2  utils/location.ts
-   2  utils/mailtoComposer.ts
-   2  utils/oneMind/buildReadinessBlock.ts
-   2  utils/projectDocuments.ts
-   2  utils/projectRole.ts
-   2  utils/weekClose/nudge.ts
-   1  app/+html.tsx
-   1  components/ContactPickerModal.tsx
-   1  components/CraneLoader.tsx
-   1  components/DatePickerModal.tsx
-   1  components/FilterChipRow.tsx
-   1  components/LanguagePicker.tsx
-   1  components/desktop/LineItemGrid.tsx
-   1  components/desktop/ShellDock.tsx
-   1  components/desktop/ShellHotkeys.tsx
-   1  components/desktop/ShortcutSheet.tsx
-   1  components/desktop/webDocument.ts
-   1  components/level/JobLevelReason.tsx
-   1  components/level/ProjectLevelCard.tsx
-   1  components/logs/LogShell.tsx
-   1  components/project/ProjectOverviewColumns.tsx
-   1  components/registers/RegisterShell.tsx
-   1  components/search/CommandPalette.tsx
-   1  components/summary/TodayOnSite.tsx
-   1  constants/productivityRates.ts
-   1  hooks/useJurisdictionAnswers.ts
-   1  hooks/useSidebarRail.ts
-   1  hooks/useSmartInbox.ts
-   1  utils/accountingExport.ts
-   1  utils/arTrack/native.ts
-   1  utils/coApproval.ts
-   1  utils/csiMasterFormat.ts
-   1  utils/fileBytes.ts
-   1  utils/floatExplain.ts
-   1  utils/icsGenerator.ts
-   1  utils/laborSamples.ts
-   1  utils/mageAI.ts
-   1  utils/nextBillableMilestone.ts
-   1  utils/paywallPracticeOffer.ts
-   1  utils/portfolio/factLines.ts
-   1  utils/projectCap.ts
-   1  utils/projectClone.ts
-   1  utils/projectFiles.ts
-   1  utils/projectTypes.ts
-   1  utils/rateProvenance.ts
-   1  utils/recoveredValue.ts
-   1  utils/registers/documentRows.ts
-   1  utils/routeTitle.ts
-   1  utils/tradeInference.ts
-```
+What this lane left as typed, each with an allow-list entry and its reason:
+
+- **The four Discover early-access cards** (`app/(tabs)/discover/index.tsx`, headlines, bodies and footers): a founder decision, see below.
+- **Text the model reads.** The Ask MAGE fact blocks and prompt (`utils/oneMind/factBlocks.ts`, `composePrompt.ts`, `buildReadinessBlock.ts`), the prompt lines in `utils/aiService.ts`, the grounding line in `utils/groundingChip.ts`, the fact-block domain name `PIPELINE & CAPACITY`. The building-record lines in `utils/buildingRecord.ts` and the recipient lines in `utils/departmentQuestion.ts` are printed on the card AND sent in the record prompt block, and `validate-building-record` / `validate-baltimore-ai` hold every output byte-identical to a recorded baseline, so they keep their dashes. `csiDivisionLabel` ("Div 26 — Electrical") is printed into the profit-leak scope summary the model reads.
+- **Text stored on the device or the server and compared.** The two refusal reasons in `utils/syncLedger.ts` and `utils/offlineQueue.ts` ("Free plan allows 1 project — upgrade, or delete a job first", "This job has safety records — it was not deleted") are saved on queued records and matched as text. The `'Sample — '` project-name prefix (`utils/projectCap.ts`, `utils/demoSeed.ts`, two components). The `'Labor — '` line prefix in `utils/laborSamples.ts`. The trade value `Doors & Hardware`.
+- **Legal and consent text.** The AI consent lines in `utils/aiConsentCore.ts` (with their arrows and "Not now"), the T&M ticket attestation in `utils/pdfDesign.ts`, the notice-clock disclaimer in `utils/noticeClock.ts`.
+- **Held equal to a page this pass cannot change.** "Photo code check" on the project page (two of its eight copies are in `supabase/functions`). The schedule chips in `utils/ownerConfidence.ts` ("On track", "Minor delays", "Behind schedule" …) and the five row labels of `components/OwnerConfidenceCard.tsx` ("Invoiced to date" …) are the in-app copy of the static client portal page. "Use my location", "Location set" and "Location unavailable" in `utils/location.ts`: the iOS purpose string in `app.json` quotes the control word for word.
+- **Captions and fragments.** The audit-trail and evidence captions of the change order proof packet (`utils/coProofPacket.ts`, `utils/jobFacts/buildJobFacts.ts`), nouns printed after a count (`utils/dataExport.ts`), the rule nouns in `utils/buildingAccess.ts`, "per SF", default PDF file names ("Maple St - Estimate - Oct 2026"), a font URL and a script inside HTML.
+
+Not restyled and not on the allow-list, because the guard does not read them as labels: the proof packet's section titles and row labels (`COPROOF_COPY`, `utils/coProofPacketHtml.ts`), the values a PDF prints for a missing field ("Not set", "Not recorded"), `humanizeEnum()` in `utils/statusLabels.ts` (the fallback for an enum with no label map still writes sentence case, "Ready for review"; every enum a person sees should have a map), and the dev-only kit gallery.
+
+Things found here that a later pass will hit:
+
+- **The guard hid a second string on a line.** Its de-duplication keyed a strict hit on rule and line, so an allow-listed string hid any other string on the same line (`'Min $/hr *' : 'Min $/yr *'`). The key now includes the text. Units (`$/hr`), file extensions (`(.json)`), "vs." and a unit sign after a small word ("Step Down to a %", "% of Cost") are handled in `titleCase()` instead of by allow-list entries.
+- **`&middot;` and `&bull;`** are HTML entities, not "&": the guard skips them now.
+- **A title equal to an HTTP reason phrase leaks the raw error.** "Too Many Requests" is exactly what a 429 says, and `validate-error-copy` reads a title that contains the thrown text as a leak. The rate-limit title is "Request Limit Reached".
+- **A validator that waits on a button it looks up by text hangs when the text changes** (`validate-w5-photo-ai-errors` looked for "See plans"; `validate-ai-consent` was given the wrong casing by a mapped replacement and looped). Kill the stuck `bun` processes: a timeout on the parent does not.
+- **Mapped pin replacement is only safe one whole literal at a time, and still needs reading.** This lane built an old-to-new map from its own diff and applied it only to red validators and failing suites, never to a line that opens `it(` / `describe(`. It still rewrote fixture data (task titles, a package name, a consent constant) and seven validators had to be put back by hand.
+- **Line counts.** Two goldens in `w6c-summary` lost two lines each: the arrow after "See all {n}" and after each action label in `components/summary/NeedsYou.tsx` was its own text node, and it is gone. Every other re-recorded golden kept its line count (327 snapshots in 44 files).
+
+### The alert-title rule (decided 2026-10-06, applied in every lane's files)
+
+The lanes had split: lane 4 kept a title that is a sentence or a question in sentence case ("Delete this sheet?"), the others capitalised theirs ("Milestone Was Already Billed"). Lane 4's way is the rule, and it is written in `docs/VOICE.md` section 3: a full sentence or a question is sentence case with its period or question mark; a noun phrase or a short command is Title Case. `isSentenceTitle()` in `scripts/copy-title-case.ts` decides (it ends in "." or "?", or opens with a pronoun subject, or has a helping verb after its first word), R15 enforces both directions, and 19 fixtures and 4 planted mutations cover it. 121 alert titles changed in 50 files. A sentence whose verb is not a helping verb is only caught once it has its period: type it.
+
+### Left for a founder decision (unchanged, or changed in punctuation only)
+
+- **The four Discover early-access cards**, `app/(tabs)/discover/index.tsx` lines 503 to 532, exactly as typed: "Refer a lead, earn 5% if it closes", "One-tap Friday payouts to all your subs", "Lien waivers at point-of-payment", "Finance a truck or new equipment", with their bodies and footers (payout, escrow, 1099 and lender wording; the footers are internal notes).
+- **"MAGE Copilot"**: `utils/featureRegistry.ts` line 184 (the feature title), and the files lanes 3 and 4 listed.
+- **Price notation**: `utils/aiLimitAlert.ts` lines 38 to 40 ("$29/mo", "$79/mo", "$150/mo").
+- **Outcome and prediction wording** (dashes removed, words kept): `app/(tabs)/discover/tools.tsx` line 107 ("AI reads the floor plan room by room and learns your prices on every job"), line 156 ("The bid price that wins and profits, learned from your own win/loss history"), line 157 ("Good / better / best, priced to win. Send, track, close"); `components/NextStepHero.tsx` line 149 ("Most owners pay within 48 hours of a nudge.") and line 355 ("so every next bid gets sharper"); `utils/weekClose/composeWeekClose.ts` line 380 ("predicted landing"); the driver sentences in `utils/winOptimizer.ts` lines 285 to 330 ("worth about $… more in expected profit"); the tile "Estimate Accuracy · Bid vs Actual" in `app/project-detail.tsx` line 4241. Earlier lanes' list still stands: `app/payment-predictions.tsx` line 189, `utils/brain/accuracyReport.ts`, `utils/financing.ts`, the onboarding line "Each finished project makes the next estimate more accurate."
+
+## Not converted: the to-do list for the server pass
+
+None of this was touched by any lane. Each needs its own pass and a deploy, and several are held equal to an app string that was deliberately left alone until then.
+
+1. **Push and email text in `supabase/functions/`.** 24 function files quote strings that are also in the app (`_shared/email.ts`, `notify`, the digest and reminder functions, the AI relays' refusal sentences). Converting them changes what clients, subs and the contractor receive, so it ships with `supabase functions deploy`. Held in the app until then: "Photo code check", `PLAN_INDEX_REFUSAL`, the four `NEWS_TOPICS` with "&", the AI-off sentence in `utils/aiConsentCore.ts`, the daily-report notice rows ("Filed by", "Client portal").
+2. **The static portal pages** (`marketing/portal`: client, sub and architect pages, the email preferences page). They carry their own English ("Change orders", "Pay now", "Sign and make binding", "Check financing options", the schedule chips, "Invoiced to date"). Held in the app until then: the portal language pack's English labels (`utils/portalLanguages.ts`), the signing-off sentence in `utils/portalOwnerCore.ts`, `utils/ownerConfidence.ts`, `components/OwnerConfidenceCard.tsx`, the client-view button "Check financing options".
+3. **PDFs rendered on the server** (the closeout binder and Home Passport, the signed-contract and pay-app copies a function renders). The app-side PDF builders in `utils/` are converted; the closeout binder's section titles (`utils/closeoutBinderEngine.ts`) and the proof packet's (`COPROOF_COPY`) wait so the two renderers do not disagree.
+4. **The marketing site** (`marketing/`). Not app copy; its own voice pass.
+5. **Skills-check questions** (`utils/learn/quizBank.ts`): three questions and their choices still say "Sign & send" and "Revise & re-issue". Changing a question needs a `quizVersion` bump and a regenerated server key.
+6. **Voice sheet titles** ("Dictate this invoice", "Dictate today's report" …): each is hashed into the offline dictation queue key. They convert when the callers pass a stable `queueKey`.
+7. **Native strings in `app.json`** (permission purpose strings, the "Near me" and "Use my location" control words they quote): a native build.

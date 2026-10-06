@@ -35,14 +35,14 @@ export function resumeDigestErrorKind(error: RpcErrorLike): ResumeErrorKind {
 }
 
 export const RESUME_NETWORK_COPY = {
-  title: "Couldn't turn email back on",
+  title: "Couldn't Turn Email Back On",
   message: "MAGE couldn't reach the server. Check your connection and try again.",
 } as const;
 
 export function resumeRefusedCopy(error: RpcErrorLike): { title: string; message: string } {
   const code = (error.code ?? '').trim();
   return {
-    title: "Couldn't turn email back on",
+    title: "Couldn't Turn Email Back On",
     message: `The server refused the change, so the morning email stays off. Try again later. If it keeps happening, contact support.${code ? ` (Reference: ${code})` : ''}`,
   };
 }
@@ -80,19 +80,19 @@ export function morningPreviewCopy(
   if (data?.sent === true) {
     const where = digestRecipientLine(signInEmail);
     return {
-      title: 'Preview sent',
+      title: 'Preview Sent',
       message: `${where ? `${where} ` : ''}Check your inbox in a few seconds. The digest reads what you have right now. Add a location to a project to see weather and tasks.`,
     };
   }
   switch (data?.reason) {
     case 'suppressed_unsubscribed':
       return {
-        title: 'Your address unsubscribed',
+        title: 'Your address unsubscribed.',
         message: 'You unsubscribed from this email with a link in one of them, so nothing was sent. Turn the Email switch off and on again to resume it.',
       };
     case 'email_off':
       return {
-        title: 'Email is off',
+        title: 'Email is off.',
         message: 'The morning digest\'s Email switch is off, so no preview was emailed. Turn it on above, then preview again.',
       };
     case 'no_email':
@@ -100,17 +100,17 @@ export function morningPreviewCopy(
       // without one (the Company Profile email is used only then, and it is
       // empty too).
       return {
-        title: 'No email address',
+        title: 'No Email Address',
         message: 'You are signed in without an email address, so there is nowhere to send the preview.',
       };
     case 'recipient_unknown':
       return {
-        title: 'Preview not sent',
+        title: 'Preview Not Sent',
         message: "MAGE couldn't look up your sign-in email address, so no preview was sent. Try again in a few minutes.",
       };
     case 'send_failed':
       return {
-        title: 'Preview not sent',
+        title: 'Preview Not Sent',
         message: 'The email service did not accept the preview. Try again in a few minutes.',
       };
     case 'nothing_to_report':
@@ -118,7 +118,7 @@ export function morningPreviewCopy(
       // 'nothing_to_report', or an older function that gives no reason (its
       // only no-send cases were the ones this copy always described).
       return {
-        title: 'No projects to digest',
+        title: 'No Projects to Digest',
         message: 'Add an active project with a location to preview the digest. Each project\'s location sets its weather forecast.',
       };
   }

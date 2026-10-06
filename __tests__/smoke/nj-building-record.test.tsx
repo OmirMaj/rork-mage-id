@@ -127,7 +127,7 @@ describe('NJ building record', () => {
 
     expect(screen.getByText('Which tax lot is the project on?')).toBeTruthy();
     expect(screen.getByText('Block 199 Lot 1 · 94 WASHINGTON ST · Hoboken City')).toBeTruthy();
-    expect(within(screen.getByTestId('njrecord-candidate-1')).getByText(/\(near the address — confirm it's your lot\)$/)).toBeTruthy();
+    expect(within(screen.getByTestId('njrecord-candidate-1')).getByText(/\(near the address, confirm it's your lot\)$/)).toBeTruthy();
     // Even the one address match waits for his tap.
     expect(njCalls().some((c) => c.body.mode === 'nj_record')).toBe(false);
     expect(screen.queryByTestId('njrecord-headline')).toBeNull();

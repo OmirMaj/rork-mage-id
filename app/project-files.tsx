@@ -51,7 +51,7 @@ export default function ProjectFilesScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}>
           <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-          <Text style={styles.notFoundTitle}>Project not found</Text>
+          <Text style={styles.notFoundTitle}>Project Not Found</Text>
           <Text style={styles.notFoundBody}>
             This project link may have expired, or you may not have access. Open the
             Projects tab to pick another one.
@@ -60,7 +60,7 @@ export default function ProjectFilesScreen() {
             style={styles.primaryBtn}
             onPress={() => router.replace('/(tabs)/(home)' as never)}
           >
-            <Text style={styles.primaryBtnText}>Open projects</Text>
+            <Text style={styles.primaryBtnText}>Open Projects</Text>
           </TouchableOpacity>
         </View>
       </View>

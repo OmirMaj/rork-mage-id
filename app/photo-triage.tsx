@@ -599,7 +599,7 @@ function PhotoTriageInner() {
     // Punch List, so the chip explains instead of moving the entry.
     if (cls === 'punch' && !canPunch) {
       showAlert(
-        'Punch List Is on Business',
+        'Punch list is on Business.',
         'Your plan includes photo triage but not the punch list. Findings left in Punch are filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.',
         [
           { text: 'OK', style: 'cancel' },

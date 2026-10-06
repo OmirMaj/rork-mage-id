@@ -1066,7 +1066,7 @@ function ConstructionAIScreenInner() {
       patch = confirmZoning(roadmapProject, district.trim());
     } catch (err) {
       showAlert(
-        'That Is Not a Zoning District',
+        'That is not a zoning district.',
         err instanceof Error ? err.message : 'Enter the district the municipality assigned this parcel.',
       );
       return;

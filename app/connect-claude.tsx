@@ -183,7 +183,7 @@ export default function ConnectClaudeScreen() {
               <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.text }}>Data access is on the Pro plan</Text>
               <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 }}>Connect and browse the tools on any plan. Pulling your projects, costs and RFIs into Claude needs Pro.</Text>
             </View>
-            <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent }}>See plans</Text>
+            <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent }}>See Plans</Text>
           </TouchableOpacity>
         ) : null}
 
@@ -195,32 +195,32 @@ export default function ConnectClaudeScreen() {
               <Text style={styles.freshTitle}>Save this now. It won&apos;t be shown again.</Text>
             </View>
 
-            <Text style={styles.fieldLabel}>Connector URL (paste into Claude)</Text>
+            <Text style={styles.fieldLabel}>Connector URL (Paste into Claude)</Text>
             <TouchableOpacity style={styles.codeRow} onPress={() => copy(connectUrl, 'url')} activeOpacity={0.7}>
               <Text style={styles.codeText} numberOfLines={2}>{connectUrl}</Text>
               {copied === 'url' ? <Check size={16} color={themeColors.success} strokeWidth={1.75} /> : <Copy size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </TouchableOpacity>
 
-            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Token only (for header-based clients)</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Token Only (For Header-Based Clients)</Text>
             <TouchableOpacity style={styles.codeRow} onPress={() => copy(freshToken, 'tok')} activeOpacity={0.7}>
               <Text style={styles.codeText} numberOfLines={1}>{freshToken}</Text>
               {copied === 'tok' ? <Check size={16} color={themeColors.success} strokeWidth={1.75} /> : <Copy size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setFreshToken(null)} activeOpacity={0.8}>
-              <Text style={styles.dismissText}>I saved it</Text>
+              <Text style={styles.dismissText}>I Saved It</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Create a token */}
-        <Text style={styles.sectionLabel}>Create a connection</Text>
+        <Text style={styles.sectionLabel}>Create a Connection</Text>
         <View style={styles.createCard}>
           <TextInput
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="Label (e.g. Claude Desktop)"
+            placeholder="Claude Desktop"
             placeholderTextColor={themeColors.textMuted}
             maxLength={60}
           />
@@ -231,15 +231,15 @@ export default function ConnectClaudeScreen() {
             activeOpacity={0.85}
             testID="create-mcp-token"
           >
-            {creating ? <ActivityIndicator color="#FFFFFF" /> : <><Plus size={16} color="#FFFFFF" strokeWidth={1.75} /><Text style={styles.createBtnText}>Create token</Text></>}
+            {creating ? <ActivityIndicator color="#FFFFFF" /> : <><Plus size={16} color="#FFFFFF" strokeWidth={1.75} /><Text style={styles.createBtnText}>Create Token</Text></>}
           </TouchableOpacity>
         </View>
 
         {/* Setup steps */}
-        <Text style={styles.sectionLabel}>How to connect</Text>
+        <Text style={styles.sectionLabel}>How to Connect</Text>
         <View style={styles.stepsCard}>
           <Step n={1} text="Create a token above and copy the Connector URL it gives you." />
-          <Step n={2} text="In Claude, open Settings → Connectors → Add custom connector (or your MCP client's config)." />
+          <Step n={2} text="In Claude, open Settings > Connectors > Add custom connector (or your MCP client's config)." />
           <Step n={3} text="Paste the Connector URL as the MCP server URL and save." />
           <Step n={4} text='Ask away: "What is overdue right now?" or "How much money is unpaid across all jobs?"' last />
         </View>
@@ -252,7 +252,7 @@ export default function ConnectClaudeScreen() {
         </View>
 
         {/* Existing tokens */}
-        <Text style={styles.sectionLabel}>Your connections</Text>
+        <Text style={styles.sectionLabel}>Your Connections</Text>
         {loading ? (
           <ActivityIndicator color={themeColors.accent} style={{ marginVertical: 20 }} />
         ) : tokens.length === 0 ? (

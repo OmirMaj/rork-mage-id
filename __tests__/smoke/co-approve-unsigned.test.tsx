@@ -144,7 +144,7 @@ describe('"Client approved without signing" is the approve slide', () => {
     expect(mockNailIt).not.toHaveBeenCalled();
     expect(coWrites).toHaveLength(0);
     // The approve sheet is up: the #79 money line, then the slide.
-    expect(screen.getByText(/there is no client signature on this path/)).toBeTruthy();
+    expect(screen.getByText(/There is no client signature on this path/)).toBeTruthy();
 
     fireEvent(screen.getByTestId('co-approve-slide-track'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 358, height: 64 } } });
     await pump(1);
@@ -201,7 +201,7 @@ describe('"Client approved without signing" is the approve slide', () => {
     expect(alertSpy.mock.calls[0][1]).toBe(
       'The saved copy of this change order was built on a contract sum of $48,000.00. The contract sum is now $155,172.00. Open the change order and tap Save to Project to update the saved copy, then share, send or approve it.',
     );
-    expect(screen.queryByText(/there is no client signature on this path/)).toBeNull();
+    expect(screen.queryByText(/There is no client signature on this path/)).toBeNull();
     expect(screen.queryByTestId('co-approve-slide-track')).toBeNull();
     expect(approvals).toHaveLength(0);
     expect(mockNailIt).not.toHaveBeenCalled();

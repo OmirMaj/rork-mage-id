@@ -151,8 +151,8 @@ ok('selections omitted ≡ selections: [] (the list is exactly as before)', JSON
 {
   const shape = without.map(i => [i.id, i.kind, i.daysOverdue, i.severity, i.nudge]);
   const expected = [
-    ['co1', 'co_approval', 7, 'critical', 'Checking in on CO #7, sent 10 days ago. We can\'t schedule this work until it\'s approved — let us know if you have questions.'],
-    ['co2', 'co_approval', 7, 'critical', 'Checking in on CO #8, sent 10 days ago. We can\'t schedule this work until it\'s approved — let us know if you have questions.'],
+    ['co1', 'co_approval', 7, 'critical', 'Checking in on CO #7, sent 10 days ago. We can\'t schedule this work until it\'s approved. Let us know if you have questions.'],
+    ['co2', 'co_approval', 7, 'critical', 'Checking in on CO #8, sent 10 days ago. We can\'t schedule this work until it\'s approved. Let us know if you have questions.'],
   ];
   ok('co_approval ids/kinds/daysOverdue (d − 3)/nudges are unchanged', JSON.stringify(shape) === JSON.stringify(expected), shape);
   const c1 = without.find(i => i.id === 'co1')!;
@@ -179,7 +179,7 @@ ok('selections omitted ≡ selections: [] (the list is exactly as before)', JSON
   ok('only past-due, unchosen selections chase (due today / future / no date do not)', sels.map(i => i.id).sort().join() === 'selection:s1,selection:s6', sels.map(i => i.id));
   const s1 = sels.find(i => i.id === 'selection:s1')!;
   ok('selection item Shape', s1.title === 'Tile selection' && s1.waitingOn === 'the owner' && s1.daysOverdue === 6 && s1.severity === 'high' && s1.route.pathname === '/selections' && s1.route.params.projectId === 'p1', s1);
-  ok('selection nudge names the date and the matched task', s1.nudge === 'Checking in on the Tile selection — it was due Jun 5. We need it to keep the schedule on track for Tile.', s1.nudge);
+  ok('selection nudge names the date and the matched task', s1.nudge === 'Checking in on the Tile selection. It was due Jun 5. We need it to keep the schedule on track for Tile.', s1.nudge);
   ok('matched by name → the prefix on its consequence', !!s1.consequence && s1.consequence.startsWith('Matched by name: Tile. '), s1.consequence);
   const s6 = sels.find(i => i.id === 'selection:s6')!;
   ok('no matching task → the no_task sentence, and no " for …" in the nudge', s6.consequence === NO_TASK_TEXT && s6.nudge.endsWith('keep the schedule on track.'), s6);

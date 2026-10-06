@@ -84,7 +84,7 @@ export interface RemindInvoiceDeps {
 // ── Copy (the invoice screen's words, moved here verbatim) ──────────────────
 
 export const REMIND_SAMPLE_TITLE = 'Sample Job';
-export const REMIND_QBO_CLOSED_TITLE = 'QuickBooks Shows This Invoice Closed';
+export const REMIND_QBO_CLOSED_TITLE = 'QuickBooks shows this invoice closed.';
 export const REMIND_QBO_CONFIRM_LABEL = 'Send Anyway';
 export const REMIND_FAILED_TITLE = 'Reminder Not Sent';
 export const REMIND_FAILED_FALLBACK = 'Could not reach the reminder service. Try again in a moment.';

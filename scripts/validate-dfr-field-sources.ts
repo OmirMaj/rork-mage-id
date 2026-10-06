@@ -236,7 +236,7 @@ console.log('\nsafety handoff — the DFR verdict reads the restricted-day count
   ok('the box shows on while days are counted, and unticking is refused with the reason',
     /const restrictedShownOn = hasRestriction\(incidentClassInput\);/.test(DFR)
     && /onPress=\{toggleRestrictedDuty\}/.test(DFR)
-    && /'Restricted Days Are Counted'/.test(DFR));
+    && /'Restricted days are counted.'/.test(DFR));
 }
 
 // The roster re-seeds every minute while someone is on the clock. Ids must be

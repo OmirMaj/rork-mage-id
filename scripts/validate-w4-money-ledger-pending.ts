@@ -257,7 +257,7 @@ ok('every mint on the screen refuses while pending (Send, PDF send, re-mints go 
 ok('Regenerate (its own createPaymentLink call) refuses with the reason',
   /\/\/ #83: Regenerate is a mint too\.\s*if \(pendingBankPayment\) \{\s*showAlert\('Bank Payment Processing'/.test(INVOICE));
 ok('Record Payment asks first instead of silently double-counting',
-  /if \(pendingBankPayment && !confirmedDespitePending\.current\) \{\s*showAlert\(\s*'A Bank Payment Is Processing'/.test(INVOICE));
+  /if \(pendingBankPayment && !confirmedDespitePending\.current\) \{\s*showAlert\(\s*'A bank payment is processing.'/.test(INVOICE));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

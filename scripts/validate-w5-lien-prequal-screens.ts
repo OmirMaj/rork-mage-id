@@ -328,7 +328,7 @@ ok('#111 Needs Changes / Reject open an email with the note and the sub\'s link'
   /void emailDecision\(updated, 'needs_changes', note\)/.test(pm) && /void emailDecision\(updated, 'rejected', note\)/.test(pm)
   && /prequalInviteUrl\(packet\.inviteToken\)/.test(pm) && /mailto:\$\{to\}\?subject=/.test(pm));
 ok('#111 the GC is told what actually went out', /It is not sent until you tap Send there/.test(pm) && /Status Saved, Not Emailed/.test(pm)
-  && /Saved, but the Sub Hasn’t Been Told/.test(pm));
+  && /Saved, but the sub hasn’t been told\./.test(pm));
 ok('#111 the note can be resent', />Resend Note to the Sub</.test(pm) && /onResendNote=\{handleResendNote\}/.test(pm));
 ok('the list re-reads on focus and on pull', /useFocusEffect\(useCallback\(/.test(pm) && /invalidateQueries\(\{ queryKey: \['prequalPackets', user\?\.id\] \}\)/.test(pm)
   && /refreshControl=\{<RefreshControl/.test(pm));

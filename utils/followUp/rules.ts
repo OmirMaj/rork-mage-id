@@ -109,7 +109,7 @@ export const coPastItsOwnTurnaround: FollowUpRule = {
         costImpact: { amount: co.changeAmount, basis: 'the change order amount' },
         originatedAt: sentAt,
         nudge: ballName
-          ? `Following up on CO #${co.number} (${co.description}) — sent ${daysOut} days ago and still showing as ${co.status}. Can you confirm where it sits?`
+          ? `Following up on CO #${co.number} (${co.description}), sent ${daysOut} days ago and still showing as ${co.status}. Can you confirm where it sits?`
           : undefined,
       });
     }
@@ -169,7 +169,7 @@ export const rfiPastRequiredDate: FollowUpRule = {
         }],
         originatedAt: r.dateSubmitted,
         nudge: ballName
-          ? `Chasing RFI #${r.number} — "${r.subject}". We needed an answer by ${r.dateRequired.slice(0, 10)} and it is holding work. Where does it stand?`
+          ? `Chasing RFI #${r.number}, "${r.subject}". We needed an answer by ${r.dateRequired.slice(0, 10)} and it is holding work. Where does it stand?`
           : undefined,
       });
     }
@@ -254,7 +254,7 @@ export const coiExpiresBeforeSubIsOnSite: FollowUpRule = {
           floatDays: 0,
         },
         originatedAt: sub.coiExpiry,
-        nudge: `${sub.contactName || sub.companyName} — your certificate of insurance expires ${sub.coiExpiry} and you are scheduled on site ${startDate} for "${upcoming.title}". Please send a renewed COI before then or the building will turn the crew away.`,
+        nudge: `${sub.contactName || sub.companyName}, your certificate of insurance expires ${sub.coiExpiry} and you are scheduled on site ${startDate} for "${upcoming.title}". Please send a renewed COI before then or the building will turn the crew away.`,
       });
     }
     return out;

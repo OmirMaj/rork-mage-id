@@ -271,7 +271,7 @@ console.log('\n4. Source pins — the phone arm, the splits, the reasons');
 {
   const SCREENS = [
     { file: 'app/(tabs)/subs/index.tsx', register: 'SubsRegister', phone: ['renderItem={renderSub}', 'testID="subs-search"', 'testID="open-coi-vault"'], never: 3, any: 1 },
-    { file: 'app/coi-vault.tsx', register: 'CoiVaultRegister', phone: ['subcontractors.map(sub =>', "<Stack.Screen options={{ title: 'Sub insurance' }} />", 'eyebrow="COI tracker"'], never: 0, any: 1 },
+    { file: 'app/coi-vault.tsx', register: 'CoiVaultRegister', phone: ['subcontractors.map(sub =>', "<Stack.Screen options={{ title: 'Sub Insurance' }} />", 'eyebrow="COI Tracker"'], never: 0, any: 1 },
   ];
   for (const s of SCREENS) {
     const src = stripComments(read(s.file));
@@ -338,7 +338,7 @@ console.log('\n4. Source pins — the phone arm, the splits, the reasons');
     subsReg.includes("'Delete subs one at a time. Each is checked for payments on record so the 1099 export keeps their TIN and address.'")
     && /disabledReason: SUBS_BULK_DELETE_REASON/.test(subsReg));
   check('coi register: bulk Request renewal is disabled with its reason',
-    coiReg.includes("'MAGE ID can’t send a renewal request to a sub yet — you get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.'")
+    coiReg.includes("'MAGE ID can’t send a renewal request to a sub yet. You get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.'")
     && /disabledReason: COI_RENEWAL_REASON/.test(coiReg));
   check('coi register: the renewal reason matches coi-expiry-watch THRESHOLDS [30, 14, 7, 0]',
     /const THRESHOLDS = \[30, 14, 7, 0\] as const;/.test(read('supabase/functions/coi-expiry-watch/index.ts')));

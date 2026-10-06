@@ -293,7 +293,7 @@ export function restoreOutcome(
   if (result instanceof RestoreUnavailableError
     || (result instanceof Error && result.name === 'RestoreUnavailableError')) {
     return {
-      title: 'Restore Is in the Mobile App',
+      title: 'Restore is in the mobile app.',
       body: 'Purchases are restored in the MAGE ID iPhone or Android app. Open it, sign in with this account, and tap Restore on the plans screen.',
       leave: false,
     };

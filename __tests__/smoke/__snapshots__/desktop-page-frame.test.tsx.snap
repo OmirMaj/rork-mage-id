@@ -2105,7 +2105,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /rfi (s
                                             },
                                             {
                                               "children": [
-                                                "No projects yet",
+                                                "No Projects Yet",
                                               ],
                                               "props": {
                                                 "style": {
@@ -2329,7 +2329,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /rfi (s
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "Create a project",
+                                                    "Create a Project",
                                                   ],
                                                   "props": {
                                                     "style": {
@@ -6510,7 +6510,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                   "children": [
                                                                                     {
                                                                                       "children": [
-                                                                                        "How You Get Paid · Couldn’t load your profile, tap to retry",
+                                                                                        "How You Get Paid · Couldn’t Load your profile, tap to retry",
                                                                                       ],
                                                                                       "props": {
                                                                                         "style": {
@@ -6523,7 +6523,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                     },
                                                                                   ],
                                                                                   "props": {
-                                                                                    "accessibilityLabel": "How You Get Paid · Couldn’t load your profile, tap to retry. Opens your payment terms.",
+                                                                                    "accessibilityLabel": "How You Get Paid · Couldn’t Load your profile, tap to retry. Opens your payment terms.",
                                                                                     "accessibilityRole": "button",
                                                                                     "accessibilityState": {
                                                                                       "busy": undefined,

@@ -272,7 +272,7 @@ export function pdfShell(opts: {
   table { border-collapse: collapse; width: 100%; }
   td, th { vertical-align: top; }
   .num { font-variant-numeric: tabular-nums; }
-  /* Print rules — keep page breaks clean */
+  /* Print rules: keep page breaks clean */
   @media print {
     body { padding: 24px 28px; }
     .no-break { page-break-inside: avoid; }

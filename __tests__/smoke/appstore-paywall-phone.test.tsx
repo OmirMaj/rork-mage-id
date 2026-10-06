@@ -13,7 +13,7 @@
  *   - a plan with no package has no card, and no package at all is one honest
  *     state with a Retry — never an email, never "Not in the App Store yet";
  *   - a purchase failure never shows the store's own message;
- *   - nothing names Android, a beta, "Early access" or "Cancel anytime".
+ *   - nothing names Android, a beta, "Early Access" or "Cancel anytime".
  */
 
 import React from 'react';
@@ -177,7 +177,7 @@ async function modal(sub: Over, requiredTier: 'pro' | 'enterprise') {
   return screenText(tree.toJSON(), 'paywall-modal-close');
 }
 function expectNoForbidden(text: string) {
-  for (const bad of ['Android', 'Google Play', 'beta', 'Beta', 'Early access', 'Priority queue', 'Contact us', 'support@', 'by email', 'App Store yet', 'Cancel anytime']) {
+  for (const bad of ['Android', 'Google Play', 'beta', 'Beta', 'Early access', 'Early Access', 'Priority queue', 'Contact us', 'support@', 'by email', 'App Store yet', 'Cancel anytime']) {
     expect(text).not.toContain(bad);
   }
 }
@@ -229,7 +229,7 @@ describe('APPPAY — the purchase modal (components/Paywall) on iOS', () => {
     await modal(store(ALL), 'pro');
     await act(async () => { fireEvent.press(screen.getByTestId('paywall-upgrade-btn')); });
     await pump(2);
-    expect(mockAlerts.at(-1)).toEqual(['Pro isn’t available', PLAN_UNAVAILABLE]);
+    expect(mockAlerts.at(-1)).toEqual(['Pro isn’t available.', PLAN_UNAVAILABLE]);
   });
 
   it('only the annual package: no toggle, and Upgrade buys annual', async () => {

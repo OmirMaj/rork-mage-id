@@ -13,7 +13,7 @@ export const ES_SETTINGS: EsCatalog = {
   "settings.language.subtitle": { s: "Elige el idioma en que MAGE ID te habla en este dispositivo. Cambia al instante. Las personas con las que trabajas conservan su propio idioma.", src: "3b02e110" },
   "settings.language.outboundNote": { s: "Los mensajes, correos y portales que envías salen en el idioma de cada persona, no en el tuyo.", src: "d11b13e1" },
   "settings.language.partialNote": { s: "El español se está agregando pantalla por pantalla. Lo que aún no está traducido aparece en inglés.", src: "dcc9ef33" },
-  "settings.language.pseudoLabel": { s: "Pseudolocalización (desarrollador)", src: "57937b99", note: "Dev builds only" },
+  "settings.language.pseudoLabel": { s: "Pseudolocalización (desarrollador)", src: "94cd04d9", note: "Dev builds only" },
   "settings.language.pseudoHelper": { s: "Acentúa cada texto traducido y lo alarga un 35%. El texto normal que quede en pantalla nunca se tradujo.", src: "e388fc85", note: "Dev builds only" },
   "settings.language.a11yHint": { s: "Abre el selector de idioma", src: "7d9f4d2d" },
 };

@@ -150,7 +150,7 @@ export default function EntityActionSheet({
       case 'copyLink': {
         const link = getEntityDeepLink(entityRef, runtimeOrigin());
         if (!link) {
-          showAlert('No link', 'This item doesn\u2019t have a shareable link yet.');
+          showAlert('No Link', 'This item doesn\u2019t have a shareable link yet.');
           return;
         }
         const ok = await copyToClipboard(link);
@@ -158,7 +158,7 @@ export default function EntityActionSheet({
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (!ok) {
-          showAlert('Couldn’t copy link', 'Try again.');
+          showAlert('Couldn’t Copy Link', 'Try again.');
         }
         return;
       }
@@ -172,7 +172,7 @@ export default function EntityActionSheet({
             } else {
               const ok = await copyToClipboard(body);
               showAlert(
-                ok ? 'Copied' : 'Couldn’t copy',
+                ok ? 'Copied' : 'Couldn’t Copy',
                 ok ? 'Share text copied to the clipboard.' : 'Try again.',
               );
             }

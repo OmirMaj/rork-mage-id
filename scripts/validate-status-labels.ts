@@ -3,8 +3,8 @@
 //
 //   bun run scripts/validate-status-labels.ts [path/to/scheduleEngine.ts]
 //
-// 1. Every TASK_STATUS_LABEL value is sentence case (first letter capital,
-//    no later capitalized word unless it is an acronym).
+// 1. Every TASK_STATUS_LABEL value is Title Case (docs/VOICE.md section 3, 2026-10-05:
+//    a status word is a label). The one Title Case function decides.
 // 2. humanizeEnum turns stored enum values into sentence-case labels and keeps
 //    the acronym set upper-case.
 // 3. permitTypeLabel names known permit types and falls back for unknown ones.
@@ -27,6 +27,8 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+
+import { isTitleCase } from './copy-title-case';
 
 let failures = 0;
 let passes = 0;
@@ -52,15 +54,15 @@ function isSentenceCase(label: string): boolean {
 
 // 1. TASK_STATUS_LABEL
 for (const [key, label] of Object.entries(TASK_STATUS_LABEL)) {
-  check(`TASK_STATUS_LABEL.${key} is sentence case`, isSentenceCase(label), label);
+  check(`TASK_STATUS_LABEL.${key} is Title Case`, isTitleCase(label) && /^[A-Z]/.test(label), label);
 }
 eq('TASK_STATUS_LABEL.done', TASK_STATUS_LABEL.done, 'Complete');
-eq('TASK_STATUS_LABEL.in_progress', TASK_STATUS_LABEL.in_progress, 'In progress');
-eq('TASK_STATUS_LABEL.on_hold', TASK_STATUS_LABEL.on_hold, 'On hold');
-eq('TASK_STATUS_LABEL.not_started', TASK_STATUS_LABEL.not_started, 'Not started');
-eq('taskStatusLabel(in_progress)', taskStatusLabel('in_progress'), 'In progress');
+eq('TASK_STATUS_LABEL.in_progress', TASK_STATUS_LABEL.in_progress, 'In Progress');
+eq('TASK_STATUS_LABEL.on_hold', TASK_STATUS_LABEL.on_hold, 'On Hold');
+eq('TASK_STATUS_LABEL.not_started', TASK_STATUS_LABEL.not_started, 'Not Started');
+eq('taskStatusLabel(in_progress)', taskStatusLabel('in_progress'), 'In Progress');
 eq('taskStatusLabel(unknown) humanizes', taskStatusLabel('waiting_on_inspection'), 'Waiting on inspection');
-eq('taskStatusLabel(undefined)', taskStatusLabel(undefined), 'Not started');
+eq('taskStatusLabel(undefined)', taskStatusLabel(undefined), 'Not Started');
 
 // 2. humanizeEnum
 eq("humanizeEnum('pending_review')", humanizeEnum('pending_review'), 'Pending review');
@@ -80,9 +82,9 @@ for (const v of ['pending_review', 'net_30', 'in_progress', 'change_order_pendin
 }
 
 // 3. permitTypeLabel
-eq("permitTypeLabel('building')", permitTypeLabel('building'), 'Building permit');
-eq("permitTypeLabel('fire_alarm')", permitTypeLabel('fire_alarm'), 'Fire alarm permit');
-eq("permitTypeLabel('hot_work')", permitTypeLabel('hot_work'), 'Hot work permit');
+eq("permitTypeLabel('building')", permitTypeLabel('building'), 'Building Permit');
+eq("permitTypeLabel('fire_alarm')", permitTypeLabel('fire_alarm'), 'Fire Alarm Permit');
+eq("permitTypeLabel('hot_work')", permitTypeLabel('hot_work'), 'Hot Work Permit');
 eq("permitTypeLabel('curb_cut') (unknown)", permitTypeLabel('curb_cut'), 'Curb cut permit');
 eq('permitTypeLabel(undefined)', permitTypeLabel(undefined), 'Permit');
 

@@ -122,7 +122,7 @@ function TrackRecordInner() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Track record</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Track Record</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -136,7 +136,7 @@ function TrackRecordInner() {
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           {/* Hero */}
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>What MAGE called vs. what happened</Text>
+            <Text style={styles.eyebrow}>What MAGE Called vs. What Happened</Text>
             {summary.hitRatePct != null ? (
               <>
                 <Text style={styles.heroStat}>{summary.hitRatePct}% right</Text>
@@ -183,7 +183,7 @@ function TrackRecordInner() {
               {/* THE RECEIPTS — itemized proof */}
               {receipts.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>The receipts</Text>
+                  <Text style={styles.sectionLabel}>The Receipts</Text>
                   <View style={styles.receiptList}>
                     {shown.map((r) => (
                       <ReceiptRow key={r.id} r={r} styles={styles} t={t} />

@@ -387,8 +387,8 @@ export function dailyLogHeadline(c: DailyLogCompletion, lang: DisplayLang = 'en'
 export function dailyLogEmptyDayLine(c: DailyLogCompletion, lang: DisplayLang = 'en'): string | null {
   if (!c.hasRecord || c.emptyDayFilings === 0) return null;
   return tn('field.dfr.record.emptyDays', c.emptyDayFilings, {
-    one: '{count} of those days was logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.',
-    other: '{count} of those days were logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.',
+    one: '{count} of those days was logged with no work on site. Those count: a filed day with nothing on it still keeps the record unbroken.',
+    other: '{count} of those days were logged with no work on site. Those count: a filed day with nothing on it still keeps the record unbroken.',
   }, undefined, lang);
 }
 

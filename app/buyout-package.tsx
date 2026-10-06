@@ -436,7 +436,7 @@ export default function BuyoutPackageScreen() {
     const { fresh, alreadyLive } = splitAlreadyInvited(recipients, invites, Date.now());
     if (fresh.length === 0) {
       showAlert(
-        'They Already Have a Link',
+        'They already have a link.',
         `${alreadyLive.slice(0, 3).join(', ')} ${alreadyLive.length === 1 ? 'is' : 'are'} already invited to this package and the link still works. Use the copy button next to their name to send it again. A second invite would let the same sub file two bids.`,
       );
       return;
@@ -518,7 +518,7 @@ export default function BuyoutPackageScreen() {
       setPickedSubIds([]);
       await loadInvites();
       if (Platform.OS !== 'web' && failed.length === 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(failed.length > 0 ? 'Some Invites Did Not Go' : 'Subs Invited', lines.join('\n\n'));
+      showAlert(failed.length > 0 ? 'Some invites did not go.' : 'Subs Invited', lines.join('\n\n'));
     } catch (e) {
       // Nothing below sendBidInvites throws today, but a silent rejection here
       // would leave the sheet open with no spinner and no message — the GC taps
@@ -593,7 +593,7 @@ export default function BuyoutPackageScreen() {
       });
       setPendingInvites(await loadPendingBidInvites());
       if (Platform.OS !== 'web' && sent.length > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(sent.length > 0 ? 'Chased' : 'Nothing Was Emailed', lines.join('\n\n'));
+      showAlert(sent.length > 0 ? 'Chased' : 'Nothing was emailed.', lines.join('\n\n'));
     } finally {
       remindingRef.current = false;
       setReminding(false);

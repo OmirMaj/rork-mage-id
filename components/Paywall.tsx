@@ -676,7 +676,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
         await purchasePro(shownPeriod);
       }
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period: shownPeriod });
-      showAlert(`You're on ${tierLabel}`, `Every ${tierLabel} feature is on for your account.`);
+      showAlert(`You're on ${tierLabel}.`, `Every ${tierLabel} feature is on for your account.`);
       onClose();
     } catch (err: unknown) {
       const isCancelled =
@@ -694,7 +694,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       // and this alert used to send the reviewer to an email address.
       const rawMsg = err instanceof Error ? err.message : '';
       if (purchaseFailureKind(rawMsg, tierPackageAvailable) === 'unavailable') {
-        showAlert(`${tierLabel} isn’t available`, PLAN_UNAVAILABLE_MESSAGE);
+        showAlert(`${tierLabel} isn’t available.`, PLAN_UNAVAILABLE_MESSAGE);
       } else {
         showAlert("Couldn't Complete Purchase", "The purchase didn't go through. Try again.");
       }

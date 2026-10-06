@@ -87,7 +87,7 @@ export function buildAdvanceOffer(input: AdvanceInput, _nowMs?: number): Advance
     return ineligible(`Change orders under $${MIN_ADVANCE_CO.toLocaleString('en-US')} aren’t worth advancing.`);
   }
   // Very stale drafts (>120d) signal work that never gets billed.
-  if (ageDays > 120) return ineligible('This draft is over 120 days old — send it before financing it.');
+  if (ageDays > 120) return ineligible('This draft is over 120 days old. Send it before financing it.');
 
   const trustworthy = billedRate != null && gradedCount >= HISTORY_GATE;
 
@@ -105,18 +105,18 @@ export function buildAdvanceOffer(input: AdvanceInput, _nowMs?: number): Advance
     tier = 'moderate';
     advanceRate = 0.6;
     feeRate = 0.035;
-    reason = `${Math.round((billedRate as number) * 100)}% of your flagged work has billed across ${gradedCount} scans — solid, not spotless.`;
+    reason = `${Math.round((billedRate as number) * 100)}% of your flagged work has billed across ${gradedCount} scans. Solid, not spotless.`;
   } else if (trustworthy) {
     tier = 'thin';
     advanceRate = 0.4;
     feeRate = 0.05;
-    reason = `Only ${Math.round((billedRate as number) * 100)}% of your flagged work has billed so far — smaller advance until that improves.`;
+    reason = `Only ${Math.round((billedRate as number) * 100)}% of your flagged work has billed so far, so the advance is smaller until that improves.`;
   } else {
     // No graded history yet: a conservative base offer, honestly labelled.
     tier = 'thin';
     advanceRate = 0.4;
     feeRate = 0.05;
-    reason = `Not enough billing history yet (${gradedCount} of ${HISTORY_GATE} graded) — starting conservative.`;
+    reason = `Not enough billing history yet (${gradedCount} of ${HISTORY_GATE} graded), so this starts conservative.`;
   }
 
   // Staleness haircut: 60–120 days trims the advance.

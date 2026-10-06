@@ -125,7 +125,7 @@ console.info('\nA. edgeError reads the server sentence once; status without the 
   ok('…and its code', info.code === 'monthly_cap_reached');
   const e2 = httpError(502, 'not json');
   ok('edgeErrorStatus reads 502 without touching the body', edge.edgeErrorStatus(e2) === 502 && e2.reads === 0);
-  ok('edgeErrorStatus is null for a timeout (no context)', edge.edgeErrorStatus({ message: 'Took too long — try again.' }) === null);
+  ok('edgeErrorStatus is null for a timeout (no context)', edge.edgeErrorStatus({ message: 'Took too long. Try again.' }) === null);
   ok('edgeErrorStatus is null for nothing', edge.edgeErrorStatus(null) === null);
   const err = Object.assign(new Error('x'), { code: 'monthly_cap_reached' });
   ok('aiRefusalKind: monthly_cap_reached → plan', edge.aiRefusalKind(err) === 'plan');
@@ -180,11 +180,11 @@ const URLS = { photoUrls: ['https://x.supabase.co/storage/v1/object/sign/a.jpg?t
 }
 {
   invokeCalls = [];
-  invokeQueue = [() => ({ data: null, error: { message: 'Took too long — try again.' } })];
+  invokeQueue = [() => ({ data: null, error: { message: 'Took too long. Try again.' } })];
   let thrown: unknown = null;
   try { await triagePhotos(URLS); } catch (e) { thrown = e; }
   ok('the invokeWithTimeout timeout (no context) is not retried', invokeCalls.length === 1);
-  ok('…and keeps its own sentence', (thrown as Error)?.message === 'Took too long — try again.', String((thrown as Error)?.message));
+  ok('…and keeps its own sentence', (thrown as Error)?.message === 'Took too long. Try again.', String((thrown as Error)?.message));
 }
 
 // ── C. the other callers route through edgeFunctionError ─────────────────
@@ -225,7 +225,7 @@ const LABEL = nextAiResetLabel().monthly;
   ok('one left → no refusal', qp.drawingAnalysesRefusal({ used: 14, cap: 15, remaining: 1 }, LABEL) === null);
   const spent = qp.drawingAnalysesRefusal({ used: 15, cap: 15, remaining: 0 }, 'Resets Sep 30, 8:00 PM');
   ok('spent → a refusal naming the cap', !!spent && /all 15 drawing analyses/.test(spent.body), spent?.body);
-  ok('…and every tool that shares it', !!spent && /takeoffs/.test(spent.body) && /spec-book imports/.test(spent.body) && /Compare Drawings/.test(spent.body) && /drawing analyzer/.test(spent.body));
+  ok('…and every tool that shares it', !!spent && /Takeoffs/.test(spent.body) && /spec-book imports/.test(spent.body) && /Compare Drawings/.test(spent.body) && /drawing analyzer/.test(spent.body));
   ok('…with the REAL reset, not "the 1st"', !!spent && /Resets Sep 30, 8:00 PM\./.test(spent.body) && !/the 1st/.test(spent.body));
   ok('…and that nothing was uploaded or charged', !!spent && /Nothing was uploaded/.test(spent.body));
   const none = qp.drawingAnalysesRefusal({ used: 0, cap: 0, remaining: 0 }, LABEL);
@@ -236,8 +236,8 @@ const LABEL = nextAiResetLabel().monthly;
   invokeQueue = [() => ({ data: { tier: 'pro', features: { takeoff_pages: { used: 0, cap: 30, remaining: 30 }, analyze_drawings: { used: 15, cap: 15, remaining: 0 } } }, error: null })];
   const p = qp.confirmDrawingAnalysesLeft(router);
   await new Promise(r => setTimeout(r, 0));
-  ok('confirmDrawingAnalysesLeft blocks with a dialog when the bucket is spent', alerts.length === 1 && /No drawing analyses left/.test(alerts[0]?.title ?? ''), alerts[0]?.title);
-  const seePlans = alerts[0]?.buttons.find(b => /See plans|Upgrade/.test(b.text));
+  ok('confirmDrawingAnalysesLeft blocks with a dialog when the bucket is spent', alerts.length === 1 && /No Drawing Analyses Left/.test(alerts[0]?.title ?? ''), alerts[0]?.title);
+  const seePlans = alerts[0]?.buttons.find(b => /See Plans|Upgrade/.test(b.text));
   ok('…offering See plans and Cancel, never "proceed"', !!seePlans && alerts[0].buttons.some(b => b.text === 'Cancel') && !alerts[0].buttons.some(b => /proceed|anyway|continue/i.test(b.text)));
   seePlans?.onPress?.();
   ok('See plans routes to /paywall and resolves false', (await p) === false && pushes.includes('/paywall'));
@@ -263,13 +263,13 @@ console.info('\nE. showAiRefusal');
   const shown = qp.showAiRefusal(capErr, router);
   ok('a monthly cap returns the sentence with the REAL reset', shown === `Monthly photo-analysis limit reached (50 on pro). ${LABEL}.`, String(shown));
   ok('…in a dialog with See plans → /paywall and no "try again"',
-    alerts.length === 1 && alerts[0].buttons.some(b => b.text === 'See plans') && !alerts[0].buttons.some(b => /try again|retry/i.test(b.text)));
-  alerts[0]?.buttons.find(b => b.text === 'See plans')?.onPress?.();
+    alerts.length === 1 && alerts[0].buttons.some(b => b.text === 'See Plans') && !alerts[0].buttons.some(b => /try again|retry/i.test(b.text)));
+  alerts[0]?.buttons.find(b => b.text === 'See Plans')?.onPress?.();
   ok('See plans pushes /paywall', pushes.includes('/paywall'));
   alerts.length = 0;
   const tierErr = Object.assign(new Error('Photo Triage is part of Pro.'), { code: 'tier_required' });
   qp.showAiRefusal(tierErr, router);
-  ok('a tier refusal is titled as the plan, not a limit', alerts[0]?.title === 'Not included in your plan', alerts[0]?.title);
+  ok('a tier refusal is titled as the plan, not a limit', alerts[0]?.title === 'Not Included in Your Plan', alerts[0]?.title);
   alerts.length = 0;
   const hourly = Object.assign(new Error('Hourly limit reached (20 per hour). Try again in an hour.'), { code: 'hourly_limit' });
   ok('hourly: the server sentence as-is, no dialog', qp.showAiRefusal(hourly, router) === 'Hourly limit reached (20 per hour). Try again in an hour.' && alerts.length === 0);

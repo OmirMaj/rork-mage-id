@@ -469,9 +469,9 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
   const DESK: Array<[string, () => React.ReactElement, string, number]> = [
     ['EstimateLoadingOverlay', CASES.find(([n]) => n === 'EstimateLoadingOverlay')![2], 'Building your estimate', 440],
     ['InfoBubble', CASES.find(([n]) => n === 'InfoBubble')![2], 'What is float?', 440],
-    ['ReferralPrompt', CASES.find(([n]) => n === 'ReferralPrompt')![2], 'Refer a contractor', 440],
+    ['ReferralPrompt', CASES.find(([n]) => n === 'ReferralPrompt')![2], 'Refer a Contractor', 440],
     ['OfflineSyncPill (failed)', CASES.find(([n]) => n === 'OfflineSyncPill (failed)')![2], 'Not saved to MAGE', 560],
-    ['AssemblyEditorModal', CASES.find(([n]) => n === 'AssemblyEditorModal')![2], 'Create assembly', 720],
+    ['AssemblyEditorModal', CASES.find(([n]) => n === 'AssemblyEditorModal')![2], 'Create Assembly', 720],
     ['RateOverrideModal', CASES.find(([n]) => n === 'RateOverrideModal')![2], 'Done', 560],
     ['SubDailyUpdateModal', CASES.find(([n]) => n === 'SubDailyUpdateModal')![2], 'Save and Email', 560],
     ['TakeoffFieldVerifyButton (new)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (new)')![2], 'Save Verification', 440],
@@ -491,11 +491,11 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
   // QuickUpdateClarifier, another lane's file, whose sheet is not this lane's.
   it.each([
     ['ConfirmEmailModal', CASES.find(([n]) => n === 'ConfirmEmailModal')![2], 'omir@example.test', 440],
-    ['UpgradeSheet', CASES.find(([n]) => n === 'UpgradeSheet')![2], 'See plans', 440],
+    ['UpgradeSheet', CASES.find(([n]) => n === 'UpgradeSheet')![2], 'See Plans', 440],
     // The picker's title is 'Project'; no other sheet in this subtree has that word capitalised.
     ['QuickFieldUpdate (project picker)', CASES.find(([n]) => n === 'QuickFieldUpdate')![2], 'Project', 440],
     ['PropertyManagerHome (Add a property)', CASES.find(([n]) => n === 'PropertyManagerHome')![2], 'Add a Property', 560],
-    ['UniversalMicButton', CASES.find(([n]) => n === 'UniversalMicButton')![2], 'Voice action', 560],
+    ['UniversalMicButton', CASES.find(([n]) => n === 'UniversalMicButton')![2], 'Voice Action', 560],
     ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant Bid', 720],
     ['PunchExportSheet', CASES.find(([n]) => n === 'PunchExportSheet')![2], 'Export Punch List', 720],
   ] as Array<[string, () => React.ReactElement, string, number]>)('%s — in the app, a capped card with a fade', async (_n, make, text, width) => {

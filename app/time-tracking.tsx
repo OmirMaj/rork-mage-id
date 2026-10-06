@@ -1240,7 +1240,7 @@ function TimeTrackingScreenInner({ ownTier, practiceProjectId = null }: { ownTie
 
     const commit = (list: typeof members) => {
       if (list.length === 0) {
-        showAlert(t('field.time.nobodyClockedIn', 'Nobody Clocked In'), onClockNote ?? t('field.time.everyoneYouTickedWas', 'Everyone you ticked was left out.'));
+        showAlert(t('field.time.nobodyClockedIn', 'Nobody clocked in.'), onClockNote ?? t('field.time.everyoneYouTickedWas', 'Everyone you ticked was left out.'));
         return;
       }
       let made = 0;
@@ -1323,7 +1323,7 @@ function TimeTrackingScreenInner({ ownTier, practiceProjectId = null }: { ownTie
     setBatchOutOpen(false);
     if (Platform.OS !== 'web' && closed > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (closed === batchOutPlan.targets.length) nailIt(t('field.time.clockedOutOn', 'Clocked out {closed} on {project}', { closed, project: batchOutJobName }));
-    else showAlert(t('field.time.someWereAlreadyClocked', 'Some Were Already Clocked Out'), t('field.time.ofShiftsWereEnded', '{closed} of {length} shifts were ended. The rest had already ended. Nothing was changed on them.', { closed, length: batchOutPlan.targets.length }));
+    else showAlert(t('field.time.someWereAlreadyClocked', 'Some were already clocked out.'), t('field.time.ofShiftsWereEnded', '{closed} of {length} shifts were ended. The rest had already ended. Nothing was changed on them.', { closed, length: batchOutPlan.targets.length }));
   }, [batchOutPlan, batchOutText, doClockOut, batchOutJobName, t]);
 
   // ── Payroll export (#64, #68, #63, #151) ─────────────────────────────

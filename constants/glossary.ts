@@ -21,7 +21,7 @@ export interface GlossaryEntry {
 export const GLOSSARY: Record<string, GlossaryEntry> = {
   change_order: {
     key: 'change_order',
-    term: 'Change order',
+    term: 'Change Order',
     what: 'A written, priced agreement to add, remove, or modify work after the contract is signed.',
     why: 'Unbilled changes are the #1 way contractors lose money. A signed change order gets you paid for extra work instead of eating the cost.',
   },
@@ -33,21 +33,21 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   pay_app: {
     key: 'pay_app',
-    term: 'Pay app (AIA-style G702/G703)',
+    term: 'Pay App (AIA-Style G702/G703)',
     what: 'The standard progress-billing form showing how much of each line item is complete and what you are owed this period.',
     why: 'It is how one period of work gets billed, so the contractor and the owner can check the amount line by line before it is paid.',
   },
   lien_waiver: {
     key: 'lien_waiver',
-    term: 'Lien waiver',
+    term: 'Lien Waiver',
     what: 'A signed document where you (or a sub) give up the right to file a lien in exchange for getting paid.',
     why: 'Many owners ask for it before they release a payment. Tracking waivers keeps payments flowing and closeout clean.',
   },
   rfi: {
     key: 'rfi',
-    term: 'RFI (request for information)',
+    term: 'RFI (Request for Information)',
     what: 'A formal question to the architect or owner when the plans are unclear or conflict.',
-    why: 'An unanswered RFI stalls work. Fast turnaround protects the schedule — and protects you if the delay is someone else’s fault.',
+    why: 'An unanswered RFI stalls work. Fast turnaround protects the schedule, and it protects you if the delay is someone else’s fault.',
   },
   submittal: {
     key: 'submittal',
@@ -57,39 +57,39 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   punch_list: {
     key: 'punch_list',
-    term: 'Punch list',
+    term: 'Punch List',
     what: 'The list of small fixes and touch-ups to finish before the project is considered complete.',
     why: 'A tight punch list is the difference between a fast final payment and a project that drags on for weeks.',
   },
   critical_path: {
     key: 'critical_path',
-    term: 'Critical path',
-    what: 'The chain of tasks that sets your finish date — a delay to any one of them delays the whole project.',
+    term: 'Critical Path',
+    what: 'The chain of tasks that sets your finish date. A delay to any one of them delays the whole project.',
     why: 'It tells you exactly which slips actually matter, so you protect the finish date instead of chasing everything.',
   },
   float: {
     key: 'float',
-    term: 'Float (slack)',
+    term: 'Float (Slack)',
     what: 'How many days a task can slip before it starts pushing the project’s finish date.',
     why: 'Tasks with float can absorb delays; tasks with zero float cannot. It is where to spend your attention.',
   },
   ppc: {
     key: 'ppc',
-    term: 'PPC (percent plan complete)',
-    what: 'The share of the week’s committed tasks your crews actually finished — the core Last Planner metric.',
+    term: 'PPC (Percent Plan Complete)',
+    what: 'The share of the week’s committed tasks your crews actually finished. It is the core Last Planner metric.',
     why: 'PPC above about 80% means your schedule is reliable. A low number is an early warning the plan is slipping.',
   },
   evm: {
     key: 'evm',
-    term: 'Earned value',
+    term: 'Earned Value',
     what: 'Compares what you planned to have spent and completed by now against what you actually have.',
     why: 'It catches a project drifting over budget or behind schedule while there is still time to fix it.',
   },
   margin_risk: {
     key: 'margin_risk',
-    term: 'Margin risk',
+    term: 'Margin Risk',
     what: 'MAGE’s live score of how likely a project is to finish below its target profit.',
-    why: 'It flags projects losing margin before the money is gone — so you act now instead of finding out at closeout.',
+    why: 'It flags projects losing margin before the money is gone, so you act now instead of finding out at closeout.',
   },
   cost_xray: {
     key: 'cost_xray',
@@ -99,20 +99,20 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   estimate_confidence: {
     key: 'estimate_confidence',
-    term: 'Estimate confidence',
+    term: 'Estimate Confidence',
     what: 'How well each line of your estimate is backed by your own real cost history.',
     why: 'Low-confidence lines are where bids go wrong. It tells you exactly what to double-check before sending.',
   },
   living_estimate: {
     key: 'living_estimate',
-    term: 'Living estimate',
+    term: 'Living Estimate',
     what: 'Your estimate kept up to date against actual costs as the project runs, projecting the margin you’ll land at.',
     why: 'It turns the estimate from a one-time guess into an early-warning system for profit.',
   },
   buyout: {
     key: 'buyout',
     term: 'Buyout',
-    what: 'Turning the scope in your winning estimate into actual commitments — sub contracts and purchase orders.',
+    what: 'Turning the scope in your winning estimate into actual commitments: sub contracts and purchase orders.',
     why: 'A clean buyout locks in the prices you bid, so margin does not leak between winning and building.',
   },
 };

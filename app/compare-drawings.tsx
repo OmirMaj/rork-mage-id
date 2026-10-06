@@ -562,7 +562,7 @@ export default function CompareDrawingsScreen() {
     const foundSomething = (result?.changes.length ?? 0) > 0 || (result?.rfiCandidates.length ?? 0) > 0;
     if (savedSomething || !foundSomething) { router.back(); return; }
     showAlert(
-      'Nothing from This Comparison Is Saved',
+      'Nothing from this comparison is saved.',
       'File the revision, create an RFI, or start a change order first. Leaving now discards what the comparison found.',
       [
         { text: 'Stay', style: 'cancel' },

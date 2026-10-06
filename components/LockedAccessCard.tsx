@@ -29,7 +29,7 @@ export default function LockedAccessCard({ what = 'Financials', detail, style }:
       <Text style={styles.title}>{what} is hidden on field access</Text>
       <Text style={styles.detail}>
         {detail ??
-          'You have field access to this project — schedule, tasks, daily reports, photos and RFIs. Costs and margins stay with the project owner.'}
+          'You have field access to this project: schedule, tasks, daily reports, photos and RFIs. Costs and margins stay with the project owner.'}
       </Text>
     </View>
   );
@@ -67,11 +67,11 @@ export function FieldSendFailureBanner({
       </View>
       <View style={styles.bannerActions}>
         {onRetry ? (
-          <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry saving" hitSlop={8} testID={`${testID}-retry`}>
+          <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry Saving" hitSlop={8} testID={`${testID}-retry`}>
             <Text style={styles.bannerAction}>Retry</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+        <TouchableOpacity onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss Notice" hitSlop={8}>
           <Text style={styles.bannerAction}>Dismiss</Text>
         </TouchableOpacity>
       </View>

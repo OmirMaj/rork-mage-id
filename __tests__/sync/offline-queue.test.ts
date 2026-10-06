@@ -1410,7 +1410,7 @@ describe('integration round 1 — nothing overtakes an unsaved write of the same
     installScript(ok);
     await expect(supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'final — crane delivery 2pm' })).resolves.toBe('failed');
     expect(calls).toHaveLength(0); // round 0: a 0-row UPDATE reported 'synced'
-    expect(String(oops.mock.calls[0]?.[0])).toContain('Not sent yet (Daily report)');
+    expect(String(oops.mock.calls[0]?.[0])).toContain('Not sent yet (Daily Report)');
     const ledger = await readSyncFailuresOrThrow();
     expect(ledger).toHaveLength(1); // folded into the parked insert
     expect(ledger[0]).toMatchObject({ operation: 'insert', recordId: 'dr1', reason: 'the server refused it' });
@@ -1703,7 +1703,7 @@ describe('integration round 2 — rows keyed on project_id are one record in the
     installScript(pg('canceling statement due to statement timeout', '57014'));
     await expect(supabaseWriteDetailed('project_financials', 'upsert', { project_id: 'p1', user_id: USER_A, target_budget: 100000 })).resolves.toBe('failed');
     const [line] = await readSyncFailuresOrThrow();
-    expect(line).toMatchObject({ recordId: 'p1', label: 'Project budget & terms' });
+    expect(line).toMatchObject({ recordId: 'p1', label: 'Project Budget and Terms' });
     installScript(ok);
     calls.length = 0;
     await expect(supabaseWriteDetailed('project_financials', 'upsert', { project_id: 'p1', user_id: USER_A, target_budget: 150000 })).resolves.toBe('failed');
@@ -1772,7 +1772,7 @@ describe('integration round 3 — a record is keyed on its own table\'s primary 
     await expect(supabaseWriteDetailed('sub_portal_snapshots', 'upsert', snap('sub-electrician', 'electrician'))).resolves.toBe('failed');
     await expect(supabaseWriteDetailed('sub_portal_snapshots', 'upsert', snap('sub-plumber', 'plumber'))).resolves.toBe('synced');
     const [line] = await readSyncFailuresOrThrow();
-    expect(line).toMatchObject({ recordId: 'sub-electrician', label: 'Sub portal page' });
+    expect(line).toMatchObject({ recordId: 'sub-electrician', label: 'Sub Portal Page' });
     expect(line.row?.sub_portal_id).toBe('sub-electrician');
     calls.length = 0;
     await expect(retryUnsavedWrite(line.id)).resolves.toBe('synced');
@@ -1854,7 +1854,7 @@ describe('integration round 3 — the profile row: one refused save does not hol
     installScript(pg('canceling statement due to statement timeout', '57014'));
     await expect(supabaseWriteDetailed('profiles', 'update', settingsRow(8.25))).resolves.toBe('failed');
     const [line] = await readSyncFailuresOrThrow();
-    expect(line.label).toBe('Profile & settings');
+    expect(line.label).toBe('Profile and Settings');
     installScript(ok);
     calls.length = 0;
     oops.mockClear();

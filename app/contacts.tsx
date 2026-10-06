@@ -37,7 +37,7 @@ function createId(_prefix: string): string {
 const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: 'Client', label: 'Client' },
   { value: 'Architect', label: 'Architect' },
-  { value: "Owner's Rep", label: "Owner's rep" },
+  { value: "Owner's Rep", label: "Owner's Rep" },
   { value: 'Engineer', label: 'Engineer' },
   { value: 'Sub', label: 'Sub' },
   { value: 'Supplier', label: 'Supplier' },
@@ -48,8 +48,8 @@ const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   // which meant the contact list could not be filtered by the role that
   // actually predicts who is holding up the job.
   { value: 'Landlord', label: 'Landlord' },
-  { value: 'Building Engineer', label: 'Building engineer' },
-  { value: 'Property Manager', label: 'Property manager' },
+  { value: 'Building Engineer', label: 'Building Engineer' },
+  { value: 'Property Manager', label: 'Property Manager' },
   { value: 'Other', label: 'Other' },
 ];
 const contactRoleLabel = (role: ContactRole): string => CONTACT_ROLES.find(r => r.value === role)?.label ?? role;
@@ -159,7 +159,7 @@ export default function ContactsScreen() {
 
   const handleSave = useCallback(() => {
     if (!firstName.trim() && !lastName.trim() && !companyName.trim()) {
-      showAlert('Add a name', 'Enter a name or a company.');
+      showAlert('Add a Name', 'Enter a name or a company.');
       return;
     }
 
@@ -202,7 +202,7 @@ export default function ContactsScreen() {
   }, [firstName, lastName, companyName, role, email, phone, address, notes, editingContact, addContact, updateContact, resetForm]);
 
   const handleDelete = useCallback((contact: Contact) => {
-    showAlert('Delete contact', `Delete ${contact.firstName} ${contact.lastName}?`, [
+    showAlert('Delete Contact', `Delete ${contact.firstName} ${contact.lastName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: () => {
@@ -319,13 +319,13 @@ export default function ContactsScreen() {
 
           {financials && (
             <View style={styles.financialCard}>
-              <Text style={styles.financialTitle}>Financial summary</Text>
+              <Text style={styles.financialTitle}>Financial Summary</Text>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Total invoiced</Text>
+                <Text style={styles.financialLabel}>Total Invoiced</Text>
                 <Text style={styles.financialValue}>${financials.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Total paid</Text>
+                <Text style={styles.financialLabel}>Total Paid</Text>
                 <Text style={[styles.financialValue, { color: themeColors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.financialDivider} />
@@ -340,7 +340,7 @@ export default function ContactsScreen() {
 
           {linkedProjects.length > 0 && (
             <View style={styles.linkedSection}>
-              <Text style={styles.linkedTitle}>Linked projects</Text>
+              <Text style={styles.linkedTitle}>Linked Projects</Text>
               {linkedProjects.map(p => (
                 <TouchableOpacity
                   key={p.id}
@@ -474,11 +474,11 @@ export default function ContactsScreen() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<User size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={query || filterRole !== 'all' ? 'No contacts match' : 'No contacts yet'}
+              title={query || filterRole !== 'all' ? 'No Contacts Match' : 'No Contacts Yet'}
               message={query || filterRole !== 'all'
                 ? 'Try a different search term or clear the role filter to see everyone.'
                 : 'Add your clients, architects, engineers, inspectors and lenders here. RFIs, daily reports and invoices pull from this list.'}
-              actionLabel={!query && filterRole === 'all' ? 'Add first contact' : undefined}
+              actionLabel={!query && filterRole === 'all' ? 'Add First Contact' : undefined}
               onAction={!query && filterRole === 'all' ? openAddModal : undefined}
             />
           </View>
@@ -492,7 +492,7 @@ export default function ContactsScreen() {
           <View style={[styles.modalOverlay, fAdd.overlay]}>
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAdd.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingContact ? 'Edit contact' : 'New contact'}</Text>
+                <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -501,11 +501,11 @@ export default function ContactsScreen() {
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>First name</Text>
+                    <Text style={styles.formLabel}>First Name</Text>
                     <TextInput style={styles.formInput} value={firstName} onChangeText={setFirstName} placeholder="John" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Last name</Text>
+                    <Text style={styles.formLabel}>Last Name</Text>
                     <TextInput style={styles.formInput} value={lastName} onChangeText={setLastName} placeholder="Smith" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
@@ -539,7 +539,7 @@ export default function ContactsScreen() {
                 <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
                 <TouchableOpacity style={[styles.saveBtn, fAdd.footerButton]} onPress={handleSave} activeOpacity={0.85}>
-                  <Text style={styles.saveBtnText}>{editingContact ? 'Save changes' : 'Add contact'}</Text>
+                  <Text style={styles.saveBtnText}>{editingContact ? 'Save Changes' : 'Add Contact'}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>

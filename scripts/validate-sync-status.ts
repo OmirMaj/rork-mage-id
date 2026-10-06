@@ -117,7 +117,7 @@ console.log('\n── 4. "could not read" is never rendered as "all clear" ─�
   const s = computeSyncStatus(base({ readFailed: true, depths: { writes: 6, photos: 3, dictations: 0 } }));
   ok('an unreadable queue is visible', s.visible === true);
   ok('…with its own tone, not clear', s.tone === 'unknown', s.tone);
-  ok('…and says it could not check', /Couldn’t check/.test(s.title), s.title);
+  ok('…and says it could not check', /Couldn’t Check/.test(s.title), s.title);
   ok('…and never claims nothing is waiting', !/all clear|nothing/i.test(s.badge), s.badge);
   ok('…and reassures that nothing was deleted', /Nothing has been deleted/.test(s.detail), s.detail);
   ok('…and quotes no depth it could not read', s.pending === 0 && s.failed === 0,
@@ -197,7 +197,7 @@ console.log('\n── 7. the failure ledger ────────────
   ok('distinct failures stay distinct', labels.length === 2, JSON.stringify(labels));
   ok('a label carries the reason', labels[0].includes('retried 5 times'), labels[0]);
 
-  ok('a known table gets a human name', labelForTable('daily_reports') === 'Daily report');
+  ok('a known table gets a human name', labelForTable('daily_reports') === 'Daily Report');
   ok('an unknown table falls back to the true raw name', labelForTable('weird_table') === 'weird_table');
 }
 

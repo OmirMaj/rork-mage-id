@@ -2378,7 +2378,7 @@ function toastParked(table: string): void {
     const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { oops } = require('@/components/animations/NailItToast');
-    oops(`Not sent yet (${ledger.labelForTable(table)}): an earlier change to it is under Not saved. Tap the sync badge and Retry — they go in order.`);
+    oops(`Not sent yet (${ledger.labelForTable(table)}): an earlier change to it is under Not saved. Tap the sync badge and Retry. They go in order.`);
   } catch {/* toast host not mounted — the ledger line says it */}
 }
 

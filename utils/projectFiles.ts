@@ -178,7 +178,7 @@ export const DEFAULT_FOLDERS = [
   { key: 'photos', label: 'Photos', icon: 'Camera' },
   { key: 'permits', label: 'Permits', icon: 'Shield' },
   { key: 'closeout', label: 'Closeout', icon: 'BookOpen' },
-  { key: 'daily-reports', label: 'Daily reports', icon: 'ClipboardList' },
+  { key: 'daily-reports', label: 'Daily Reports', icon: 'ClipboardList' },
   { key: 'financials', label: 'Financials', icon: 'Receipt' },
 ] as const;
 

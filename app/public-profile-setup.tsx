@@ -43,10 +43,10 @@ export const PUBLISH_SWITCH_COPY =
   "Anyone with the link can view it. Turning this off takes the page down; links shared before this update can't be recalled.";
 
 /** Why a job can't be published from this account (see ownsForPortfolio). */
-export const OWNER_ONLY_REASON = "Project pages are published by the job's owner — ask them to publish it.";
+export const OWNER_ONLY_REASON = "Project pages are published by the job's owner. Ask them to publish it.";
 const SAMPLE_REASON = 'This is a sample job, so it has no public page. Publish one of your own jobs.';
 const NOT_ON_SERVER_REASON =
-  "This job hasn't synced yet — publish once it has. Until then the page would read \"taken down\".";
+  "This job hasn't synced yet. Publish once it has. Until then the page would read \"taken down\".";
 
 /** An alert with a Cancel and one go-ahead button, as a promise. Native only:
  *  on web an await before the copy / share / open loses the click's user
@@ -78,7 +78,7 @@ function openPreview(url: string): void {
     const w = (globalThis as unknown as { window?: { open?: (u: string, t: string) => { opener: unknown } | null } }).window;
     const tab = w?.open ? w.open(url, '_blank') : null;
     if (!tab) {
-      showAlert('Could not open preview', 'Your browser blocked the new tab. Copy the link and open it in a new tab.');
+      showAlert('Could Not Open Preview', 'Your browser blocked the new tab. Copy the link and open it in a new tab.');
       return;
     }
     try { tab.opener = null; } catch { /* cross-origin already */ }
@@ -92,7 +92,7 @@ function openPreview(url: string): void {
       try {
         await Linking.openURL(url);
       } catch {
-        showAlert('Could not open preview', 'Copy the link and open it in Safari.');
+        showAlert('Could Not Open Preview', 'Copy the link and open it in Safari.');
       }
     }
   })();
@@ -226,7 +226,7 @@ export default function PublicProfileSetupScreen() {
   const togglePublish = useCallback(async (val: boolean) => {
     if (!project) return;
     if (publishBlocked || !ownerId) {
-      showAlert("Can't publish this project", publishBlocked ?? 'Sign in to publish this page.');
+      showAlert("Can't Publish This Project", publishBlocked ?? 'Sign in to publish this page.');
       return;
     }
     touchedRef.current = true;
@@ -247,9 +247,9 @@ export default function PublicProfileSetupScreen() {
       return o;
     });
     if (outcome === 'queued') {
-      showAlert('Taking the page down', "You're offline. The page comes down as soon as this phone reconnects.");
+      showAlert('Taking the Page Down', "You're offline. The page comes down as soon as this phone reconnects.");
     } else if (outcome === 'failed') {
-      showAlert('The page is still up', "MAGE ID couldn't take the page down. Turn Publish on and off again to retry.");
+      showAlert('The page is still up.', "MAGE ID couldn't take the page down. Turn Publish on and off again to retry.");
     }
   }, [project, ownerId, publishBlocked, persist, profile.publishedAt]);
 
@@ -370,7 +370,7 @@ export default function PublicProfileSetupScreen() {
       void copyToClipboard(url).then(ok => {
         if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert(
-          ok ? 'Copied' : 'Couldn’t copy',
+          ok ? 'Copied' : 'Couldn’t Copy',
           ok ? 'The public profile link has been copied.' : 'Copy the link from the field instead.',
         );
       });
@@ -380,8 +380,8 @@ export default function PublicProfileSetupScreen() {
         url,
       }).then(outcome => {
         if (outcome === 'shared' || outcome === 'copied') persist({ publishedAt: new Date().toISOString() });
-        if (outcome === 'copied') showAlert('Link copied', 'Sharing is not available here, so the link was copied instead.');
-        if (outcome === 'failed') showAlert('Couldn’t share', 'Copy the link from the field instead.');
+        if (outcome === 'copied') showAlert('Link Copied', 'Sharing is not available here, so the link was copied instead.');
+        if (outcome === 'failed') showAlert('Couldn’t Share', 'Copy the link from the field instead.');
       });
     } else {
       openPreview(url);
@@ -411,7 +411,7 @@ export default function PublicProfileSetupScreen() {
             n === 1
               ? "This photo hasn't finished uploading from the phone that took it, so it can't go on the public page. Wait for the upload and share again, or share without it."
               : 'These ' + n + " photos haven't finished uploading from the phone that took them, so they can't go on the public page. Wait for the upload and share again, or share without them.",
-            'Share without them',
+            'Share Without Them',
           );
           if (!go) return;
         }
@@ -430,7 +430,7 @@ export default function PublicProfileSetupScreen() {
           const go = await confirmAsk(
             'This link is very long',
             `It is ${Math.round(url.length / 1000)} KB. Some texts, email apps and website link fields cut long links off, and a cut link opens as "Project not found". Shorten the story or testimonial to make it shorter.`,
-            'Use it anyway',
+            'Use It Anyway',
           );
           if (!go) return;
         }
@@ -453,7 +453,7 @@ export default function PublicProfileSetupScreen() {
     // An id that does not resolve (a deleted job) says so above the list.
     return (
       <>
-        <Stack.Screen options={{ title: 'Project page' }} />
+        <Stack.Screen options={{ title: 'Project Page' }} />
         <ScrollView
           {...fabScroll}
           style={styles.container}
@@ -463,7 +463,7 @@ export default function PublicProfileSetupScreen() {
             <View style={styles.heroIcon}>
               <Globe size={20} color={themeColors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.heroEyebrow}>Free portfolio page</Text>
+            <Text style={styles.heroEyebrow}>Free Portfolio Page</Text>
             <Text style={styles.heroTitle}>Which project do you want to show?</Text>
             <Text style={styles.heroBody}>
               {id
@@ -508,7 +508,7 @@ export default function PublicProfileSetupScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'Public profile',
+          title: 'Public Profile',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -526,7 +526,7 @@ export default function PublicProfileSetupScreen() {
           <View style={styles.heroIcon}>
             <Globe size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.heroEyebrow}>Free portfolio page</Text>
+          <Text style={styles.heroEyebrow}>Free Portfolio Page</Text>
           <Text style={styles.heroTitle}>{project.name}</Text>
           <Text style={styles.heroBody}>
             Showcase this project on a public page at{' '}
@@ -544,7 +544,7 @@ export default function PublicProfileSetupScreen() {
               <View style={styles.toggleLeft}>
                 <MageAIMark size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Publish project page</Text>
+                  <Text style={styles.toggleLabel}>Publish Project Page</Text>
                   <Text style={styles.toggleDesc} testID="public-profile-publish-copy">{PUBLISH_SWITCH_COPY}</Text>
                 </View>
               </View>
@@ -564,7 +564,7 @@ export default function PublicProfileSetupScreen() {
 
         {/* Share link: always shown, blocked with the reason while the page is off */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Share link</Text>
+          <Text style={styles.sectionTitle}>Share Link</Text>
           {profile.enabled && publicUrl ? (
             <View style={styles.linkBox}>
               <Globe size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -612,7 +612,7 @@ export default function PublicProfileSetupScreen() {
               <Text style={[styles.blockedReason, { flex: 1 }]} testID="public-profile-share-blocked">{outBlocked}</Text>
               {errorNow && !publishBlocked ? (
                 <TouchableOpacity onPress={handleRetry} accessibilityRole="button" testID="public-profile-retry">
-                  <Text style={styles.retryText}>Try again</Text>
+                  <Text style={styles.retryText}>Try Again</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -632,16 +632,16 @@ export default function PublicProfileSetupScreen() {
 
             {/* Headline + body */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Public copy</Text>
+              <Text style={styles.sectionTitle}>Public Copy</Text>
               <Text style={styles.label}>Headline</Text>
               <TextInput
                 style={styles.input}
                 value={profile.publicHeadline ?? ''}
                 onChangeText={v => persist({ publicHeadline: v })}
-                placeholder="e.g. Brownstone gut renovation, Park Slope"
+                placeholder="Brownstone gut renovation, Park Slope"
                 placeholderTextColor={themeColors.textMuted}
               />
-              <Text style={[styles.label, { marginTop: 12 }]}>Story (optional)</Text>
+              <Text style={[styles.label, { marginTop: 12 }]}>Story (Optional)</Text>
               <TextInput
                 style={[styles.input, styles.inputMulti]}
                 value={profile.publicBody ?? ''}
@@ -654,7 +654,7 @@ export default function PublicProfileSetupScreen() {
 
             {/* Slug */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>URL slug</Text>
+              <Text style={styles.sectionTitle}>URL Slug</Text>
               <Text style={styles.sectionSubtitle}>Lowercase letters and hyphens only.</Text>
               <TextInput
                 style={styles.input}
@@ -668,7 +668,7 @@ export default function PublicProfileSetupScreen() {
 
             {/* Testimonial */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Client testimonial (optional)</Text>
+              <Text style={styles.sectionTitle}>Client Testimonial (Optional)</Text>
               <Text style={styles.sectionSubtitle}>Shows up as a pull-quote on the public page if you fill both.</Text>
               <View style={styles.quoteRow}>
                 <Quote size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -685,14 +685,14 @@ export default function PublicProfileSetupScreen() {
                 style={[styles.input, { marginTop: 8 }]}
                 value={profile.testimonialAuthor ?? ''}
                 onChangeText={v => persist({ testimonialAuthor: v })}
-                placeholder="— Sarah Patel, Owner"
+                placeholder="Sarah Patel, Owner"
                 placeholderTextColor={themeColors.textMuted}
               />
             </View>
 
             {/* Location: the client's street address stays off by default (#78) */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Location shown publicly</Text>
+              <Text style={styles.sectionTitle}>Location Shown Publicly</Text>
               <Text style={[styles.statValue, !where.shown && { color: themeColors.textMuted }]} testID="public-profile-location-preview">
                 {where.shown || 'Nothing'}
               </Text>
@@ -707,7 +707,7 @@ export default function PublicProfileSetupScreen() {
               </Text>
               <View style={styles.statRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.statLabel}>Show location</Text>
+                  <Text style={styles.statLabel}>Show Location</Text>
                 </View>
                 <Switch
                   value={!(profile.hideStats ?? []).includes('address')}
@@ -724,7 +724,7 @@ export default function PublicProfileSetupScreen() {
               {!(profile.hideStats ?? []).includes('address') ? (
                 <View style={styles.statRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.statLabel}>Show street address</Text>
+                    <Text style={styles.statLabel}>Show Street Address</Text>
                     <Text style={styles.toggleDesc} numberOfLines={2}>{project.location?.trim() ? project.location.trim() : 'No address on this project'}</Text>
                   </View>
                   <Switch
@@ -741,11 +741,11 @@ export default function PublicProfileSetupScreen() {
 
             {/* Stats preview */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Stats shown publicly</Text>
+              <Text style={styles.sectionTitle}>Stats Shown Publicly</Text>
               {[
-                { key: 'value' as const, label: 'Contract value', value: snapshot?.project.contractValue ? formatMoney(snapshot.project.contractValue) : '—' },
+                { key: 'value' as const, label: 'Contract Value', value: snapshot?.project.contractValue ? formatMoney(snapshot.project.contractValue) : '—' },
                 { key: 'duration' as const, label: 'Duration', value: snapshot?.project.durationDays ? `${snapshot.project.durationDays} days` : '—' },
-                { key: 'sqft' as const, label: 'Square footage', value: project.squareFootage ? project.squareFootage.toLocaleString() + ' sf' : '—' },
+                { key: 'sqft' as const, label: 'Square Footage', value: project.squareFootage ? project.squareFootage.toLocaleString() + ' sf' : '—' },
               ].map(stat => {
                 const isHidden = (profile.hideStats ?? []).includes(stat.key);
                 return (

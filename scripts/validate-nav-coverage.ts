@@ -334,7 +334,7 @@ for (const route of ['/post-bid', '/smart-proposal']) {
 // Before wave 6b every project-tool row pushed a bare route ('/rfi'), so the
 // job the PM was looking at was dropped and the tool asked for it again —
 // every tool, every time (web-PM audit, blocker). And no row was a link, so
-// Cmd-click and "Copy link" did nothing.
+// Cmd-click and "Copy Link" did nothing.
 {
   ok('rail rows are RowLinks (real <a> on web), not router.push handlers',
     /<RowLink\b/.test(sidebarSrc) && !/router\.push\(route as any\)/.test(sidebarSrc)
@@ -434,7 +434,7 @@ ok('Discover ▸ Tools has a tile for /construction-news',
 
 const registrySrc = read(join('utils', 'featureRegistry.ts'));
 ok('featureRegistry indexes /post-bid as what it actually is',
-  /id: 'post-bid', title: 'Post a bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
+  /id: 'post-bid', title: 'Post a Bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
   "app/post-bid.tsx self-titles 'Post a bid' and is a publish-a-solicitation form with a "
   + "monthly quota. Indexing it as 'Post-Bid Analysis' with win/loss synonyms sent a GC "
   + 'searching "why lost" into a form that publishes a public bid opportunity.');
@@ -1456,10 +1456,10 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
   const menu = read(join('components', 'CreateMenu.tsx'));
   const rowOf = (label: string) => menu.split('\n').find(l => l.includes(`label: '${label}'`) && !/^\s*\/\//.test(l)) ?? '';
   const fieldRows: [string, string, RegExp | null][] = [
-    ['Clock in', 'time-tracking', /extraParams: \{ \[UX_PARAM\.clockIn\]: '1' \}/],
-    ['Delivery arrived', 'deliveries', /extraParams: \{ \[UX_PARAM\.arrived\]: '1' \}/],
-    ['Code check', 'construction-ai', /extraParams: \{ \[UX_PARAM\.source\]: SOURCE_PROJECT \}/],
-    ['Send lineup', 'tomorrow-lineup', null],
+    ['Clock In', 'time-tracking', /extraParams: \{ \[UX_PARAM\.clockIn\]: '1' \}/],
+    ['Delivery Arrived', 'deliveries', /extraParams: \{ \[UX_PARAM\.arrived\]: '1' \}/],
+    ['Code Check', 'construction-ai', /extraParams: \{ \[UX_PARAM\.source\]: SOURCE_PROJECT \}/],
+    ['Send Lineup', 'tomorrow-lineup', null],
   ];
   for (const [label, feature, flag] of fieldRows) {
     const line = rowOf(label);
@@ -1470,9 +1470,9 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
       && (!flag || flag.test(line)));
   }
   ok("D3 'Progress Billing' reads 'Progress draw' (the AIA words stay searchable)",
-    rowOf('Progress draw').includes("'progress billing'") && rowOf('Progress Billing') === '');
+    rowOf('Progress Draw').includes("'progress billing'") && rowOf('Progress Billing') === '');
   ok('D3 Sub portal invite asks which sub (subPicker) and pushes subPortalSetupHref(projectId, subId)',
-    /label: 'Sub portal invite'[^\n]*subPicker: true/.test(menu) && /router\.push\(subPortalSetupHref\(pid, sb\.id\)\)/.test(menu));
+    /label: 'Sub Portal Invite'[^\n]*subPicker: true/.test(menu) && /router\.push\(subPortalSetupHref\(pid, sb\.id\)\)/.test(menu));
   ok('D3 the phone default job is pickDefaultProjectId (never the resolver guess); desktop keeps the active job',
     /const pid = pickDefaultProjectId\(\{ activeProjectId, recentProjectIds, projects \}\);/.test(menu)
     && /const defaultJob = isDesktopWeb \? \(activeJob \? activeProject : null\) : phoneDefaultJob;/.test(menu));

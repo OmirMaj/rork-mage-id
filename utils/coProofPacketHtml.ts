@@ -51,7 +51,7 @@ export interface CoProofPacketHtmlOptions {
 }
 
 export const COPROOF_HTML_COPY = {
-  eyebrow: 'Proof packet',
+  eyebrow: 'Proof Packet',
   howBuiltHeading: 'How this packet was built',
   howBuiltBody: 'Every section below is copied from this job’s record in MAGE ID. Nothing in it was written by AI. Each item says why it is included, and each section says where its rows came from.',
   noApproval: 'No approval is recorded on this change order.',
@@ -63,12 +63,12 @@ export const COPROOF_HTML_COPY = {
 } as const;
 
 const CO_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under Review', approved: 'Approved',
   rejected: 'Rejected', revised: 'Revised', void: 'Void',
 };
 const DFR_STATUS_LABEL: Record<string, string> = { draft: 'Draft', sent: 'Sent' };
 const APPROVER_STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending', approved: 'Approved', rejected: 'Declined', changes_requested: 'Changes requested',
+  pending: 'Pending', approved: 'Approved', rejected: 'Declined', changes_requested: 'Changes Requested',
 };
 
 /** Whole cents, printed. The only money path in this file. */

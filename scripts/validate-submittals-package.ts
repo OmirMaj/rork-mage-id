@@ -155,7 +155,7 @@ console.log('\n#60 required date, not a guess');
   const outdoor = [task('o1', 'Outdoor lighting', 2), task('o2', 'Outdoor kitchen', 3, { phase: 'Exterior' })];
   eq('"Outdoor lighting" is not doors/hardware work', matchScheduleTaskForTrade('Doors/Hardware', outdoor), null);
   eq('…but "Hang doors" is', matchScheduleTaskForTrade('Doors/Hardware', [...outdoor, task('d1', 'Hang doors', 9)])?.id, 'd1');
-  eq('a word-start prefix still matches ("plumb" → "Plumbing rough-in")', matchScheduleTaskForTrade('Plumbing', [task('p1', 'Plumbing rough-in', 4)])?.id, 'p1');
+  eq('a word-start prefix still matches ("plumb" → "Plumbing rough-in")', matchScheduleTaskForTrade('Plumbing', [task('p1', 'Plumbing Rough-In', 4)])?.id, 'p1');
 
   // 7-day week, Mon 2026-10-05 start → startDay 11 = 2026-10-15; less 14 → 2026-10-01.
   const sched = { startDate: '2026-10-05', workingDaysPerWeek: 7, nonWorkingDates: [], tasks };
@@ -196,7 +196,7 @@ console.log('\n#60 chase list');
     createdAt: '2026-02-01', updatedAt: '2026-02-01', ...o,
   } as Submittal);
   const unsent = buildChaseList({ rfis: [], submittals: [sub({})], changeOrders: [], projects, nowMs: NOW });
-  eq('a never-sent overdue submittal is his', [unsent.length, unsent[0]?.unsent, unsent[0]?.waitingOn], [1, true, 'you — not sent yet']);
+  eq('a never-sent overdue submittal is his', [unsent.length, unsent[0]?.unsent, unsent[0]?.waitingOn], [1, true, 'you (not sent yet)']);
   ok('…and its nudge does not blame the reviewer', !/reviewer|awaiting review/i.test(unsent[0]?.nudge ?? ''), unsent[0]?.nudge);
   // The legacy stamp: every create path used to fill submittedDate on the day the row was made.
   const legacy = buildChaseList({ rfis: [], submittals: [sub({ submittedDate: '2026-02-01' })], changeOrders: [], projects, nowMs: NOW });

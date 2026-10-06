@@ -33,7 +33,7 @@ export interface PaywallPracticeOffer {
   sub: string;
 }
 
-export const PAYWALL_PRACTICE_SUB = 'Practise on a sample job — nothing goes to a client or a sub.';
+export const PAYWALL_PRACTICE_SUB = 'Practise on a sample job. Nothing goes to a client or a sub.';
 export const PAYWALL_RESUME_LABEL = 'Resume the tutorial on the sample job';
 
 /** A run that must not be ended by a wall met mid-run. A restored run is not

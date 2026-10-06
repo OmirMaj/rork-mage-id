@@ -1,5 +1,5 @@
 // validate-co-proof-screen.ts — pins the change order proof packet's screen
-// half: the "Proof packet" button on the CO screen, the share/print plumbing
+// half: the "Proof Packet" button on the CO screen, the share/print plumbing
 // (utils/coProofPacketShare.ts) and the CO document body it shares with the
 // CO PDF (utils/pdfGenerator.ts buildChangeOrderBodyHtml).
 //
@@ -171,7 +171,7 @@ ok('buildChangeOrderHtml wraps pdfHeader + buildChangeOrderBodyHtml(...) + pdfFo
 ok('the CO body is assembled in one place only', (GEN.match(/titleHtml \+ statusBadge/g) ?? []).length === 1);
 
 const body = G.buildChangeOrderBodyHtml(coSigned, project, branding);
-ok('the body carries the G701 rows', ['Original contract sum', 'Net change by prior approved COs', 'Contract sum prior to this CO', 'Sales tax (8.875%)', 'CO total incl. tax', 'New contract total'].every(s => body.includes(s)));
+ok('the body carries the G701 rows', ['Original Contract Sum', 'Net Change by Prior Approved COs', 'Contract Sum Prior to This CO', 'Sales Tax (8.875%)', 'CO Total Incl. Tax', 'New Contract Total'].every(s => body.includes(s)));
 ok('the body carries the sealed approval line', body.includes('Electronically signed by Dana Client in the client portal') && body.includes('data-co-approval="client_signed"'));
 ok('the body is body only (no <html, no letterhead, no footer disclaimer)',
   !body.includes('<html') && !body.includes(D.escHtml(D.PDF_DISCLAIMERS.changeOrder)) && !body.includes('Built with'));
@@ -182,7 +182,7 @@ await G.generateChangeOrderPDF(coSigned, project, branding);
 const coPdfHtml = printed[0]?.html ?? '';
 ok('the CO PDF is shell(pdfHeader + body + pdfFooter) byte for byte',
   coPdfHtml === D.pdfShell({
-    title: `Change order #${coSigned.number} — ${project.name}`,
+    title: `Change order #${coSigned.number}: ${project.name}`,
     branding,
     bodyHtml: D.pdfHeader(branding) + body + D.pdfFooter(branding, `Change order #${coSigned.number}`, D.PDF_DISCLAIMERS.changeOrder),
   }));
@@ -218,7 +218,7 @@ ok('the packet CO page is buildChangeOrderBodyHtml (not a copy)',
   const syncCalls = [...calls];
   const result = await p;
   ok('web: window.open runs synchronously in the tap, before anything is read', syncCalls[0] === 'window.open', JSON.stringify(syncCalls));
-  ok("web: resolves 'web_print' and writes the packet into the tab", result === 'web_print' && win.html.includes('Proof packet') && win.html.includes(body));
+  ok("web: resolves 'web_print' and writes the packet into the tab", result === 'web_print' && win.html.includes('Proof Packet') && win.html.includes(body));
   ok('web: nothing written', !calls.includes('WRITE'));
 
   // a failed build closes the tab and the error reaches the caller

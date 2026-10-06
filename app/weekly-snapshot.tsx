@@ -208,17 +208,17 @@ export default function WeeklySnapshotScreen() {
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Weekly snapshot' }} />
+        <Stack.Screen options={{ title: 'Weekly Snapshot' }} />
         <EmptyState
           icon={<TrendingUp size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No project to snapshot yet"
+          title="No Project to Snapshot Yet"
           message="Weekly snapshot rolls up daily reports, RFIs, invoices and photos for one project across 7 days. To see one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Log a few daily reports, photos, or invoices to give the snapshot something to summarize.',
             'Tap Weekly snapshot inside the project tile grid.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -226,8 +226,8 @@ export default function WeeklySnapshotScreen() {
   }
 
   const chips: FilterChip<WindowKey>[] = [
-    { value: 'thisWeek', label: 'This week' },
-    { value: 'lastWeek', label: 'Last week' },
+    { value: 'thisWeek', label: 'This Week' },
+    { value: 'lastWeek', label: 'Last Week' },
     { value: 'last30', label: 'Last 30 days' },
   ];
 
@@ -240,7 +240,7 @@ export default function WeeklySnapshotScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'This week',
+        title: 'This Week',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} testID="snapshot-back">
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
@@ -353,7 +353,7 @@ export default function WeeklySnapshotScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
-              <Text style={styles.cardLabel}>Budget burn</Text>
+              <Text style={styles.cardLabel}>Budget Burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>
             <ConcretePour value={burnPct} height={10} fillColor={burnPct < 0.85 ? themeColors.success : Colors.warning} />
@@ -365,7 +365,7 @@ export default function WeeklySnapshotScreen() {
 
         {/* Quick actions to the relevant detail tabs */}
         <View style={styles.actionsCard}>
-          <Text style={styles.actionsLabel}>Jump to</Text>
+          <Text style={styles.actionsLabel}>Jump To</Text>
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.actionBtn}
@@ -375,14 +375,14 @@ export default function WeeklySnapshotScreen() {
               }}
               testID="snapshot-back-to-project"
             >
-              <Text style={styles.actionBtnText}>Project details</Text>
+              <Text style={styles.actionBtnText}>Project Details</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: project.id, new: '1' } })}
               testID="snapshot-new-dfr"
             >
-              <Text style={styles.actionBtnText}>+ New daily report</Text>
+              <Text style={styles.actionBtnText}>+ New Daily Report</Text>
             </TouchableOpacity>
           </View>
         </View>

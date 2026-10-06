@@ -39,11 +39,11 @@ const slice = (src: string, start: string, end: string) => {
 
 const A = 'user-a';
 const refusedInsert: SyncFailure = {
-  id: 'direct-1', kind: 'write', label: 'Daily report', reason: 'the server refused it', at: 100, userId: A,
+  id: 'direct-1', kind: 'write', label: 'Daily Report', reason: 'the server refused it', at: 100, userId: A,
   table: 'daily_reports', recordId: 'dr1', operation: 'insert', row: { id: 'dr1', project_id: 'p1', notes: 'morning draft', weather: 'sun' }, queuedAt: 100,
 };
 const incoming = (op: SyncFailure['operation'], row: Record<string, unknown> | undefined, extra: Partial<SyncFailure> = {}): SyncFailure => ({
-  id: `parked-${op}`, kind: 'write', label: 'Daily report', reason: 'waiting behind an earlier change that was not saved', at: 100, userId: A,
+  id: `parked-${op}`, kind: 'write', label: 'Daily Report', reason: 'waiting behind an earlier change that was not saved', at: 100, userId: A,
   table: 'daily_reports', recordId: 'dr1', operation: op, ...(row ? { row } : {}), queuedAt: 100, ...extra,
 });
 
@@ -91,7 +91,7 @@ console.log('\nB. the ledger names the money, and counts records:');
   ok("a payment append's line names its amount", labelForWrite('invoices', append) === 'Invoice payment of $5,000.00', labelForWrite('invoices', append));
   ok('...to the cent', labelForWrite('invoices', { fn: 'invoice_append_payment', args: { p_entry: { amount: 0.1 + 0.2 } } }) === 'Invoice payment of $0.30'
     && labelForWrite('invoices', { fn: 'invoice_append_payment', args: { p_entry: { amount: 1234567.891 } } }) === 'Invoice payment of $1,234,567.89');
-  ok('any other write keeps the table label', labelForWrite('invoices') === 'Invoice' && labelForWrite('daily_reports') === 'Daily report');
+  ok('any other write keeps the table label', labelForWrite('invoices') === 'Invoice' && labelForWrite('daily_reports') === 'Daily Report');
   const ledger: SyncFailure[] = [
     { id: 'p1', kind: 'write', label: 'x', reason: 'r', at: 1, userId: A, table: 'invoices', recordId: 'inv1', operation: 'rpc', rpc: append },
     { id: 'p2', kind: 'write', label: 'x', reason: 'r', at: 2, userId: A, table: 'invoices', recordId: 'inv1', operation: 'update', row: { id: 'inv1' } },

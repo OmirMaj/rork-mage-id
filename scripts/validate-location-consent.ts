@@ -386,14 +386,14 @@ const EXPECTED_LABEL: Record<string, Record<string, string>> = {
     idle: 'Use my location',
     requesting: 'Getting location…',
     granted: 'Use my location',
-    denied: 'Location off — open Settings',
+    denied: 'Location off. Open Settings',
     unavailable: 'Location unavailable',
   },
   web: {
     idle: 'Use my location',
     requesting: 'Getting location…',
     granted: 'Use my location',
-    denied: 'Location blocked — allow it in your browser',
+    denied: 'Location blocked. Allow it in your browser',
     unavailable: 'Location unavailable',
   },
 };

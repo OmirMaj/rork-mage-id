@@ -267,7 +267,7 @@ function PortfolioTableBase({
         <Text
           style={[styles.cell, styles.numeric, r.arOver30 && { color: t.danger }]}
           numberOfLines={1}
-          accessibilityLabel={r.ar == null ? 'A/R unknown' : `A/R ${formatMoneyShort(r.ar)}${r.arOver30 ? ', over 30 days past due' : ''}`}
+          accessibilityLabel={r.ar == null ? 'A/R Unknown' : `A/R ${formatMoneyShort(r.ar)}${r.arOver30 ? ', over 30 days past due' : ''}`}
         >
           {r.ar == null ? UNKNOWN : formatMoneyShort(r.ar)}
         </Text>
@@ -283,7 +283,7 @@ function PortfolioTableBase({
     },
     {
       key: 'milestone',
-      label: 'Next milestone',
+      label: 'Next Milestone',
       width: W.milestone,
       hideBelow: HIDE.milestone,
       sortValue: (r) => r.nextMilestone?.dateISO ?? null,
@@ -296,7 +296,7 @@ function PortfolioTableBase({
     },
     {
       key: 'activity',
-      label: 'Last activity',
+      label: 'Last Activity',
       width: W.activity,
       hideBelow: HIDE.activity,
       sortValue: (r) => r.lastActivityISO,

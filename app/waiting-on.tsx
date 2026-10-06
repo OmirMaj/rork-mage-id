@@ -598,7 +598,7 @@ export default function WaitingOnScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Waiting on others</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Waiting on Others</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -606,7 +606,7 @@ export default function WaitingOnScreen() {
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>Parked with someone else</Text>
+            <Text style={styles.eyebrow}>Parked with Someone Else</Text>
             {summary.total > 0 ? (
               <>
                 <Text style={styles.heroStat}>
@@ -616,7 +616,7 @@ export default function WaitingOnScreen() {
                   {summary.critical > 0
                     ? `${summary.critical} over a week late. `
                     : ''}
-                  Each one has a follow-up written and ready — send it without typing.
+                  Each one has a follow-up written and ready. Send it without typing.
                 </Text>
                 {chasedCount > 0 && (
                   // The grounding chip for the chase counts below. All the app
@@ -628,7 +628,7 @@ export default function WaitingOnScreen() {
                   <View style={styles.groundingRow}>
                     <History size={12} color={t.textMuted} strokeWidth={2} />
                     <Text style={styles.groundingText}>
-                      {chasedCount} chased and still open. Counted when you tap Send —
+                      {chasedCount} chased and still open. Counted when you tap Send:
                       MAGE records that you sent it, not that anyone read it.
                     </Text>
                   </View>
@@ -643,7 +643,7 @@ export default function WaitingOnScreen() {
                     // "All clear" with warnings on screen underneath is the one
                     // sentence this screen must never write. Nobody being late
                     // is not the same as nothing going wrong.
-                    ? ` ${preventiveItems.length} ${preventiveItems.length === 1 ? 'thing is' : 'things are'} heading that way though — below.`
+                    ? ` ${preventiveItems.length} ${preventiveItems.length === 1 ? 'thing is' : 'things are'} heading that way, though. See below.`
                     : ''}
                 </Text>
               </>
@@ -681,7 +681,7 @@ export default function WaitingOnScreen() {
           ) : null}
           {selectionsLoad.status === 'failed' ? (
             <Text style={styles.cardNote} testID="ownerdelay-selections-failed">
-              Selections couldn’t load — not checked.
+              Selections couldn’t load. Not checked.
             </Text>
           ) : null}
 
@@ -771,7 +771,7 @@ export default function WaitingOnScreen() {
                   >
                     <Send size={13} color={t.accent} strokeWidth={2.25} />
                     <Text style={styles.sendText}>
-                      {chased ? 'Chase again' : 'Send follow-up'}
+                      {chased ? 'Chase Again' : 'Send Follow-Up'}
                     </Text>
                   </TouchableOpacity>
                 </View>

@@ -70,10 +70,10 @@ function sectionName(t: T, s: JobFactSection): string {
   switch (s) {
     case 'permits': return t('office.jobFacts.section.permits', 'Permits');
     case 'inspections': return t('office.jobFacts.section.inspections', 'Inspections');
-    case 'changeOrders': return t('office.jobFacts.section.changeOrders', 'Change orders');
-    case 'milestones': return t('office.jobFacts.section.milestones', 'Finished milestones');
+    case 'changeOrders': return t('office.jobFacts.section.changeOrders', 'Change Orders');
+    case 'milestones': return t('office.jobFacts.section.milestones', 'Finished Milestones');
     case 'photos': return t('office.jobFacts.section.photos', 'Photos');
-    case 'closeout': return t('office.jobFacts.section.closeout', 'Closeout and warranties');
+    case 'closeout': return t('office.jobFacts.section.closeout', 'Closeout and Warranties');
   }
 }
 
@@ -267,7 +267,7 @@ export default function JobFactsScreen() {
       t('office.jobFacts.revokeBody', 'Anyone who has it will see ‘no longer active.’ You can publish a new link later, but this one can’t be turned back on.'),
       [
         { text: t('office.jobFacts.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('office.jobFacts.revokeConfirm', 'Turn off link'), style: 'destructive', onPress: () => { void doRevoke(); } },
+        { text: t('office.jobFacts.revokeConfirm', 'Turn Off Link'), style: 'destructive', onPress: () => { void doRevoke(); } },
       ],
     );
   }, [link, offline, busy, t, doRevoke]);
@@ -284,7 +284,7 @@ export default function JobFactsScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ScreenHeader variant="tool" title={t('office.jobFacts.screenTitle', 'Job facts')} onBack={back} />
+        <ScreenHeader variant="tool" title={t('office.jobFacts.screenTitle', 'Job Facts')} onBack={back} />
         <View style={styles.pad}>
           <Text style={styles.body}>{t('office.jobFacts.noJob', 'Open a job first. Job facts are shared one job at a time.')}</Text>
         </View>
@@ -297,7 +297,7 @@ export default function JobFactsScreen() {
     <Card style={styles.block} testID="job-facts-link">
       <View style={styles.rowHead}>
         <Link2 size={18} color={c.accent} />
-        <Text style={styles.blockHead}>{t('office.jobFacts.linkHead', 'Your link')}</Text>
+        <Text style={styles.blockHead}>{t('office.jobFacts.linkHead', 'Your Link')}</Text>
       </View>
       {offline && (
         <View style={styles.warn} testID="job-facts-offline">
@@ -324,11 +324,11 @@ export default function JobFactsScreen() {
             </View>
           )}
           <View style={styles.actions}>
-            <Button label={copied ? t('office.jobFacts.copied', 'Copied') : t('office.jobFacts.copy', 'Copy link')} onPress={() => { void onCopy(); }} variant="secondary" size="sm"
+            <Button label={copied ? t('office.jobFacts.copied', 'Copied') : t('office.jobFacts.copy', 'Copy Link')} onPress={() => { void onCopy(); }} variant="secondary" size="sm"
               iconLeft={copied ? <Check size={16} color={c.successLabel} /> : <Copy size={16} color={c.text} />} testID="job-facts-copy" />
-            <Button label={t('office.jobFacts.refresh', 'Refresh facts')} onPress={() => { void onRefresh(); }} variant={stale ? 'primary' : 'secondary'} size="sm"
+            <Button label={t('office.jobFacts.refresh', 'Refresh Facts')} onPress={() => { void onRefresh(); }} variant={stale ? 'primary' : 'secondary'} size="sm"
               disabled={offline || !!busy || nothingOn} loading={busy === 'refresh'} testID="job-facts-refresh" />
-            <Button label={t('office.jobFacts.revoke', 'Turn off link')} onPress={onRevoke} variant="destructive" size="sm"
+            <Button label={t('office.jobFacts.revoke', 'Turn Off Link')} onPress={onRevoke} variant="destructive" size="sm"
               disabled={offline || !!busy} loading={busy === 'revoke'} iconLeft={<XCircle size={16} color={c.dangerLabel} />} testID="job-facts-revoke" />
           </View>
           <Text style={styles.dangerNote}>{t('office.jobFacts.revokeNote', 'Turning it off stops the link working for anyone who has it.')}</Text>
@@ -337,7 +337,7 @@ export default function JobFactsScreen() {
         <>
           <Text style={styles.muted}>{t('office.jobFacts.noLink', 'No live link for this job yet. Pick what to share, check the preview, then publish.')}</Text>
           <View style={styles.actions}>
-            <Button label={t('office.jobFacts.publish', 'Publish link')} onPress={() => { void onPublish(); }} size="sm"
+            <Button label={t('office.jobFacts.publish', 'Publish Link')} onPress={() => { void onPublish(); }} size="sm"
               disabled={offline || !!busy || nothingOn} loading={busy === 'publish'} testID="job-facts-publish" />
           </View>
           {nothingOn && !offline && <Text style={styles.muted}>{t('office.jobFacts.pickFirst', 'Turn on at least one section to publish.')}</Text>}
@@ -359,7 +359,7 @@ export default function JobFactsScreen() {
     <View>
       {linkCard}
       <Card style={styles.block} testID="job-facts-picker">
-        <Text style={styles.blockHead}>{t('office.jobFacts.pickHead', 'What the page shows')}</Text>
+        <Text style={styles.blockHead}>{t('office.jobFacts.pickHead', 'What the Page Shows')}</Text>
         <StaggerList
           items={JOB_FACT_SECTIONS}
           keyOf={(s) => s}
@@ -371,9 +371,9 @@ export default function JobFactsScreen() {
                 <Text style={styles.muted}>{sectionHint(t, s)}</Text>
                 {s === 'changeOrders' && sections.includes('changeOrders') && (
                   <View style={styles.subToggle}>
-                    <Text style={[styles.body, styles.flex]}>{t('office.jobFacts.amounts', 'Show dollar amounts')}</Text>
+                    <Text style={[styles.body, styles.flex]}>{t('office.jobFacts.amounts', 'Show Dollar Amounts')}</Text>
                     <Switch value={includeCoAmounts} onValueChange={setIncludeCoAmounts} trackColor={{ false: c.line, true: c.accent }}
-                      accessibilityLabel={t('office.jobFacts.amounts', 'Show dollar amounts')} testID="job-facts-amounts" />
+                      accessibilityLabel={t('office.jobFacts.amounts', 'Show Dollar Amounts')} testID="job-facts-amounts" />
                   </View>
                 )}
               </View>
@@ -417,7 +417,7 @@ export default function JobFactsScreen() {
   const photoUri = new Map(jobPhotos.map((p) => [p.id, p.uri]));
   const preview = payload && (
     <Card style={styles.block} testID="job-facts-preview">
-      <Text style={styles.eyebrow}>{t('office.jobFacts.previewEyebrow', 'Preview · what the viewer sees')}</Text>
+      <Text style={styles.eyebrow}>{t('office.jobFacts.previewEyebrow', 'Preview · What the Viewer Sees')}</Text>
       <Text style={styles.previewJob}>{payload.job.name}</Text>
       {payload.job.business && <Text style={styles.muted}>{payload.job.business}</Text>}
       <Text style={styles.muted}>
@@ -451,7 +451,7 @@ export default function JobFactsScreen() {
       {payload.leftOut.length > 0 && (
         <View style={[styles.warn, styles.gap]} testID="job-facts-leftout">
           <View style={styles.flex}>
-            <Text style={styles.warnHead}>{t('office.jobFacts.leftOutHead', 'Left out')}</Text>
+            <Text style={styles.warnHead}>{t('office.jobFacts.leftOutHead', 'Left Out')}</Text>
             {payload.leftOut.map((l) => <Text key={`${l.kind}:${l.reason}`} style={styles.warnText}>{leftOutLine(tn, l)}</Text>)}
           </View>
         </View>
@@ -467,7 +467,7 @@ export default function JobFactsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHeader
         variant="tool"
-        title={t('office.jobFacts.screenTitle', 'Job facts')}
+        title={t('office.jobFacts.screenTitle', 'Job Facts')}
         subtitle={t('office.jobFacts.subtitle', 'A read-only page with the facts you pick. Nothing is predicted.')}
         onBack={back}
         actions={<FileCheck size={20} color={c.accent} />}

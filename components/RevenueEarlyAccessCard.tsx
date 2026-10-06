@@ -155,12 +155,12 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
           <Text style={styles.headline}>{headline}</Text>
           {state === 'idle' && (
             <View style={styles.earlyAccessPill}>
-              <Text style={styles.earlyAccessPillText}>Early access</Text>
+              <Text style={styles.earlyAccessPillText}>Early Access</Text>
             </View>
           )}
           {state === 'done' && (
             <View style={[styles.earlyAccessPill, styles.earlyAccessPillDone]}>
-              <Text style={[styles.earlyAccessPillText, styles.earlyAccessPillDoneText]}>On the list</Text>
+              <Text style={[styles.earlyAccessPillText, styles.earlyAccessPillDoneText]}>On the List</Text>
             </View>
           )}
         </View>

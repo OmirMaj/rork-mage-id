@@ -252,7 +252,7 @@ export default function WorkProgress({
           <View style={styles.actions}>
             {onBackground ? (
               <Button
-                label="Keep working"
+                label="Keep Working"
                 variant="ghost"
                 size="sm"
                 onPress={onBackground}
@@ -267,7 +267,7 @@ export default function WorkProgress({
 
         {hasFacts ? (
           <Animated.View style={[styles.factWrap, { opacity: factFade }]}>
-            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While you wait</Text>
+            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While You Wait</Text>
             <Text style={[Type.footnote, styles.factText, { color: colors.textSecondary }]}>{facts![wrapIndex(factIdx, facts!.length)]}</Text>
           </Animated.View>
         ) : null}

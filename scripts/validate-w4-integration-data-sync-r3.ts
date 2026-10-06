@@ -14,7 +14,7 @@
 //   C. A Retry that takes lines off the sheet re-reads their tables, as a
 //      Discard does (invoices through refetchInvoicesNow); a project_financials
 //      line re-reads the projects list.
-//   D. Leave names the Not-saved part and opens the sheet; "Sync first" only
+//   D. Leave names the Not-saved part and opens the sheet; "Sync First" only
 //      for what a sync can send.
 //   E. The profile row: a write that shares no column with a refused settings
 //      save goes out (the push token); one that does still parks; the label.
@@ -178,7 +178,7 @@ console.log('\nD. Leave names what a sync cannot send:');
   const onlyUnsaved = leaveDialogCopy('Henderson', 2, 2);
   ok('only Not-saved lines: no "Sync first" (it looped), "Open Not saved" instead, named in the copy',
     !onlyUnsaved.offerSyncFirst && onlyUnsaved.offerOpenNotSaved && /under Not saved/.test(onlyUnsaved.message)
-      && onlyUnsaved.leaveLabel === 'Leave anyway', onlyUnsaved);
+      && onlyUnsaved.leaveLabel === 'Leave Anyway', onlyUnsaved);
   const mixed = leaveDialogCopy('Henderson', 3, 1);
   ok('mixed: both buttons; says 1 of the 3 is under Not saved',
     mixed.offerSyncFirst && mixed.offerOpenNotSaved && /1 of them is under Not saved/.test(mixed.message), mixed.message);
@@ -189,7 +189,7 @@ console.log('\nD. Leave names what a sync cannot send:');
   ok('the screen counts the Not-saved part and builds the dialog from both',
     /const unsaved = pending > 0 \? await countUnsavedForProject\(id\)\.catch\(\(\) => 0\) : 0;/.test(leave)
       && /const copy = leaveDialogCopy\(name, pending, unsaved, Platform\.OS === 'android' \? 3 : 4\);/.test(leave));
-  ok('"Open Not saved" opens the sheet', /copy\.offerOpenNotSaved \? \[\{ text: 'Open Not saved', onPress: \(\) => \{ requestSyncSheet\(\); \} \}\]/.test(flat(leave)));
+  ok('"Open Not saved" opens the sheet', /copy\.offerOpenNotSaved \? \[\{ text: 'Open Not Saved', onPress: \(\) => \{ requestSyncSheet\(\); \} \}\]/.test(flat(leave)));
   ok('a plain Leave re-opens only for MORE than the dialog said (not merely > 0 — that looped on Not-saved lines)',
     /if \(now > pending\) \{ handleLeaveRef\.current\(\); return; \}/.test(flat(leave)));
   ok('ProjectContext exposes countUnsavedForProject on the stable actions, by the Leave matcher',
@@ -200,7 +200,7 @@ console.log('\nD. Leave names what a sync cannot send:');
 
 console.log('\nE. the profile row:');
 {
-  ok('profiles has a sheet label', labelForTable('profiles') === 'Profile & settings');
+  ok('profiles has a sheet label', labelForTable('profiles') === 'Profile and Settings');
   const settings = line({ table: 'profiles', recordId: A, operation: 'update', row: { id: A, tax_rate: 8.25, location: 'TX' } });
   const token = { id: 'l2', kind: 'write' as const, label: 'x', reason: 'w', at: 2, userId: A, table: 'profiles', recordId: A, operation: 'update' as const, row: { id: A, push_token: 't' }, queuedAt: 2 };
   ok('a push token shares no column with the refused settings save → independent, not parked',

@@ -52,6 +52,9 @@ export function useShortcutSheetOpen(): boolean {
 // ── Grouping (pure) ─────────────────────────────────────────────────────────
 
 const GROUP_ORDER = ['App', 'Go to', 'Navigation'];
+/** A group name is also its key and its testID (shortcut-group-Go to), so the key stays as
+ *  registered and the heading prints from here (docs/VOICE.md section 3: a section header is Title Case). */
+const GROUP_HEADING: Record<string, string> = { 'Go to': 'Go To' };
 
 export interface ShortcutGroup { group: string; rows: ListedHotkey[] }
 
@@ -91,10 +94,10 @@ export function ShortcutSheet() {
   const groups = useMemo(() => groupShortcuts(rows), [rows]);
 
   return (
-    <Sheet size="form" title="Keyboard shortcuts" visible={visible} onClose={closeShortcutSheet} testID="shortcut-sheet">
+    <Sheet size="form" title="Keyboard Shortcuts" visible={visible} onClose={closeShortcutSheet} testID="shortcut-sheet">
       {groups.map(({ group, rows: list }) => (
         <View key={group} style={styles.group} testID={`shortcut-group-${group}`}>
-          <Text style={styles.groupLabel} accessibilityRole="header">{group}</Text>
+          <Text style={styles.groupLabel} accessibilityRole="header">{GROUP_HEADING[group] ?? group}</Text>
           {list.map((r) => (
             <View key={`${r.scope}|${r.combo}`} style={styles.row}>
               <Text style={styles.rowLabel} numberOfLines={1}>{r.label}</Text>

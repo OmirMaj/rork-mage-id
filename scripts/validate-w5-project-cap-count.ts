@@ -172,7 +172,7 @@ console.log('\ndata import — the cap applies to a backup file');
       && /projects: projectSplit\.admit,/.test(scr)
       && !/projects: parsed\.data\.projects \?\? \[\]/.test(scr)
       && /setResult\(\{ \.\.\.r, projectsHeld: heldProjects \}\)/.test(scr)
-      && /Held back by your plan/.test(scr));
+      && /Held Back by Your Plan/.test(scr));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

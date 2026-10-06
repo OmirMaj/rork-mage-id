@@ -22,7 +22,7 @@
 //
 //   A FAILED READ IS AN ERROR STATE. AN EMPTY ACCOUNT IS AN EMPTY STATE.
 //   Getting the second one wrong is worse than the bug it fixes — a brand-new
-//   GC told "Couldn't reach MAGE" on his first launch has no way in — so every
+//   GC told "Couldn't Reach MAGE" on his first launch has no way in — so every
 //   ordering assertion below also asserts the friendly copy SURVIVED.
 //
 // The copy half is executable: utils/errorCopy.ts is pure by design (no
@@ -271,7 +271,7 @@ for (const s of SAMPLES) {
   ok('the app-level boundary still restarts the bundle (it is above the router, and must)',
     /reloadAsync/.test(eb));
   ok('the route fallback re-labels its primary button — "Restart at home" is a lie one route down',
-    /primaryLabel="Go back"/.test(eb));
+    /primaryLabel="Go Back"/.test(eb));
   // …but NOT its testID. validate-contrast Check 7 (MISS-03) proves the crash
   // card offers a route out by grepping this file for the literal JSX
   // attribute `testID="error-boundary-home"`. The first draft of this wave
@@ -336,7 +336,7 @@ for (const s of SAMPLES) {
   ok('home: the list empty state reads sourceFailed', /sourceFailed, retryRemoteReads,/.test(home));
   // Mutation-testing note: `home.indexOf('sourceFailed ? (')` also matches
   // inside `!sourceFailed ? (`, so negating the condition — which shows a
-  // brand-new GC "Couldn't reach MAGE" on his first launch, the worst possible
+  // brand-new GC "Couldn't Reach MAGE" on his first launch, the worst possible
   // version of this — sailed straight past the first draft of this assertion.
   // Pin the CONSEQUENT of each arm, and that the condition is not negated.
   ok('home: the failed read is branched BEFORE the day-one onboarding card',
@@ -386,9 +386,9 @@ for (const s of SAMPLES) {
   const feed = src('app/activity-feed.tsx');
   ok('activity: the failed read is branched ahead of "No activity yet"',
     /items\.length === 0 && sourceFailed \? \(\s*<ErrorState/.test(feed)
-    && feed.indexOf('items.length === 0 && sourceFailed') < feed.indexOf('title="No activity yet"'));
+    && feed.indexOf('items.length === 0 && sourceFailed') < feed.indexOf('title="No Activity Yet"'));
   ok('activity: a genuinely quiet project still gets the friendly copy',
-    /title="No activity yet"/.test(feed));
+    /title="No Activity Yet"/.test(feed));
   ok('activity: the header stops reporting "0 events" as a fact it does not have',
     /\? 'Not loaded'/.test(feed));
 
@@ -437,7 +437,7 @@ for (const s of SAMPLES) {
   const rfi = src('app/rfi.tsx');
   ok('app/rfi.tsx: a refused send shows only a reader sentence, never the raw server text',
     /showAlert\("Couldn't Send the RFI", ownSentence\(result\.error \?\? null\) \?\? describeError\(result\.error \?\? null, \{ action: 'send the RFI', keptLocally: true \}\)\.body\);/.test(rfi)
-    && !/showAlert\('Send failed', result\.error/.test(rfi));
+    && !/showAlert\('Send Failed', result\.error/.test(rfi));
   const co = src('app/change-order.tsx');
   ok('app/change-order.tsx: the send catch folds in the thrown sentence when it is one',
     /const why = ownSentence\(e\) \?\? describeError\(e, \{ action: 'send the change order' \}\)\.body;/.test(co)
@@ -464,7 +464,7 @@ for (const s of SAMPLES) {
     if (blank.title !== plain.title || blank.body !== plain.body) bad = `${sm.label} (blank title)`;
   }));
   ok('a whole-sentence title replaces the title only (English body byte-identical; a blank title is ignored)', bad === '', bad);
-  ok('English with no title keeps the kind\'s title', describeError(new TypeError('Network request failed'), { action: 'save the report' }).title === "You're offline");
+  ok('English with no title keeps the kind\'s title', describeError(new TypeError('Network request failed'), { action: 'save the report' }).title === "You're offline.");
 
   setLang('es');
   let leak = '';
