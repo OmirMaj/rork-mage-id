@@ -147,7 +147,7 @@ Keep each bullet under 20 words. Do not hallucinate line items that aren't in th
   const d = res.data as WeeklyUpdateDraft;
   // Defensive shape check
   const draft: WeeklyUpdateDraft = {
-    subject: String(d.subject ?? `Weekly update — ${compact.projectName}`),
+    subject: String(d.subject ?? `Weekly update: ${compact.projectName}`),
     greeting: String(d.greeting ?? `Hi ${ownerName.split(' ')[0] || 'there'},`),
     summary: String(d.summary ?? ''),
     accomplishments: Array.isArray(d.accomplishments) ? d.accomplishments.map(String) : [],

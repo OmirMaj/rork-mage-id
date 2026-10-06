@@ -55,7 +55,7 @@ export interface ThresholdInfo {
 
 /** The disclosure that rides with a provisional threshold — screen and CSV alike. */
 export const THRESHOLD_PROVISIONAL_NOTE =
-  'indexed figure not yet published — $2,000 floor applied; confirm with your CPA';
+  'indexed figure not yet published; $2,000 floor applied; confirm with your CPA';
 
 /**
  * What this export counts, stated on every row (MONEY-1099-COV-1).
@@ -66,7 +66,7 @@ export const THRESHOLD_PROVISIONAL_NOTE =
  * print the same sentence the CSV does.
  */
 export const COVERAGE_NOTE =
-  'Counts sub-portal invoices marked paid — except those paid by card, which the card processor reports on Form 1099-K and are shown separately. Checks, ACH, cash and anything else recorded outside the portal are not in this figure';
+  'Counts sub-portal invoices marked paid, except those paid by card, which the card processor reports on Form 1099-K and are shown separately. Checks, ACH, cash and anything else recorded outside the portal are not in this figure';
 
 /**
  * The same sentence for a caller that PASSES `gcRecordedPayments` to
@@ -87,7 +87,7 @@ export const COVERAGE_NOTE =
  * itself so a future caller cannot get the pairing wrong.
  */
 export const COVERAGE_NOTE_WITH_RECORDED_BILLS =
-  'Counts sub-portal invoices marked paid plus bills you recorded against a subcontract — card-paid portal invoices are shown separately (the card processor reports them on Form 1099-K), and a check, ACH or cash payment with no record in MAGE is not in this figure';
+  'Counts sub-portal invoices marked paid plus bills you recorded against a subcontract. Card-paid portal invoices are shown separately (the card processor reports them on Form 1099-K), and a check, ACH or cash payment with no record in MAGE is not in this figure';
 
 /**
  * CARD PAYMENTS ARE NOT 1099-NEC MONEY (#100, audit 2026-09-22).
@@ -420,10 +420,10 @@ export function buildTax1099Dataset(opts: {
     const required = paid >= threshold;
     const uncountedCommitmentPaid = Math.round((undated.get(subId) ?? 0) * 100) / 100;
     const notes: string[] = [...leadingNotes];
-    if (required && !identity.tinLast4) notes.push('TIN missing — collect from W-9');
-    if (required && !identity.address) notes.push('Address missing — required on 1099');
+    if (required && !identity.tinLast4) notes.push('TIN missing: collect from W-9');
+    if (required && !identity.address) notes.push('Address missing: required on 1099');
     if (!identity.w9OnFile) notes.push('W-9 not on file');
-    if (!required && paid > 0) notes.push(`Below ${fmt(threshold)} (${opts.year} threshold, ${THRESHOLD_CITATION}) — 1099 not required but disclosed`);
+    if (!required && paid > 0) notes.push(`Below ${fmt(threshold)} (${opts.year} threshold, ${THRESHOLD_CITATION}): 1099 not required but disclosed`);
     // "No payments this year" was the line eleven subs got while the GC paid
     // every one of them by check. It now names the source it is speaking for.
     // Only claim to have looked where we actually looked. `gcRecordedPayments`
@@ -437,17 +437,17 @@ export function buildTax1099Dataset(opts: {
     }
     if (gcRecordedPaid > 0) {
       notes.push(
-        `${fmt(gcRecordedPaid)} of this total is bills you recorded against a subcontract; the tax year comes from the DATE ON THE DOCUMENT, not from when the check cleared — confirm any bill near a year end`,
+        `${fmt(gcRecordedPaid)} of this total is bills you recorded against a subcontract; the tax year comes from the DATE ON THE DOCUMENT, not from when the check cleared; confirm any bill near a year end`,
       );
     }
     if (cardPaid > 0) {
-      notes.push(`${fmt(cardPaid)} paid by card — reported by the card processor on Form 1099-K, excluded from this 1099-NEC total`);
+      notes.push(`${fmt(cardPaid)} paid by card: reported by the card processor on Form 1099-K, excluded from this 1099-NEC total`);
     }
     if (t.other > 0) {
-      notes.push(`${t.other} invoice${t.other === 1 ? '' : 's'} recorded as "other" — counted above. If paid through PayPal, Venmo or another payment app, the processor reports ${t.other === 1 ? 'it' : 'them'} on Form 1099-K, so confirm with your CPA`);
+      notes.push(`${t.other} invoice${t.other === 1 ? '' : 's'} recorded as "other": counted above. If paid through PayPal, Venmo or another payment app, the processor reports ${t.other === 1 ? 'it' : 'them'} on Form 1099-K, so confirm with your CPA`);
     }
     if (uncountedCommitmentPaid > 0) {
-      notes.push(`Commitments record ${fmt(uncountedCommitmentPaid)} paid to date with no payment dates — not counted above; confirm the year against your books`);
+      notes.push(`Commitments record ${fmt(uncountedCommitmentPaid)} paid to date with no payment dates: not counted above; confirm the year against your books`);
     }
     // THE COVERAGE SENTENCE DESCRIBES THIS ROW (#105, audit 2026-09-22). It was
     // COVERAGE_NOTE unconditionally, so a row whose total includes bills the GC

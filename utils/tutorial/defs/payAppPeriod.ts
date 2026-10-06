@@ -151,9 +151,9 @@ export const payAppPeriod: TutorialDef = {
   handoff: {
     pathname: '/aia-pay-app',
     projectParam: 'projectId',
-    realJobLabel: name => `Bill a period on ${name} →`,
+    realJobLabel: name => `Bill a period on ${name}`,
     feature: 'aia_pay_app',
-    paywallLabel: 'Pay apps come with Pro — see plans',
+    paywallLabel: 'Pay apps come with Pro. See Plans',
     roles: ['owner', 'editor'],
   },
 };

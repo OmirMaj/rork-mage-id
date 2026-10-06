@@ -633,7 +633,7 @@ export function buildSubBillOutflows(args: {
     const billNo = inv.invoiceNumber ? ` #${inv.invoiceNumber}` : '';
     rows.push({
       id: `subbill-${inv.id}`,
-      name: withJobName(names, inv.projectId ?? c?.projectId, `Approved sub bill — ${who}${billNo}, not yet paid`),
+      name: withJobName(names, inv.projectId ?? c?.projectId, `Approved sub bill: ${who}${billNo}, not yet paid`),
       amount: cash,
       frequency: 'one_time',
       category: 'subcontractor',

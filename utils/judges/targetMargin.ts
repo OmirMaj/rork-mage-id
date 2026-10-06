@@ -51,8 +51,8 @@ export function resolveTargetMargin(input: {
   return {
     ok: false,
     reason: input.estimateMarkupPct === undefined
-      ? 'Set your markup first — Bid Advisor prices the job at the markup you use, and you haven’t told MAGE yours yet.'
-      : 'No markup on this estimate or in your settings — set your markup first so the verdict is scored at your number, not a guess.',
+      ? 'Set your markup first. Bid Advisor prices the job at the markup you use, and you haven’t told MAGE yours yet.'
+      : 'No markup on this estimate or in your settings. Set your markup first so the verdict is scored at your number, not a guess.',
   };
 }
 

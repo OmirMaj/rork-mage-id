@@ -291,7 +291,7 @@ function buildHtml({
                     <span>${escapeHtml(v.title)}</span>
                   </div>`).join('')}
                 </div>`
-              : '<div class="baseline-list-title" style="color:#137333;">No slippages against baseline — on plan.</div>'}
+              : '<div class="baseline-list-title" style="color:#137333;">No slippages against baseline. On plan.</div>'}
           </div>
         `;
       })()
@@ -301,7 +301,7 @@ function buildHtml({
 <html>
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(projectName)} — MAGE Schedule${baseline ? ' — Baseline comparison' : ''}</title>
+<title>${escapeHtml(projectName)}: MAGE Schedule${baseline ? ', baseline comparison' : ''}</title>
 <style>
   @page { size: ${pageSize}; margin: ${paperSize === 'arch_d' || paperSize === 'arch_e' ? '24mm' : '18mm'}; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; margin: 0; font-size: ${scale.body}px; }

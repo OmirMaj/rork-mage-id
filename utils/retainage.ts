@@ -807,7 +807,7 @@ export function retainageReadiness(input: RetainageReadinessInput): RetainageRea
   const sealOn = input.punchSeal ? sealDay(input.punchSeal.sealedAt) : null;
 
   if (input.punchTotal <= 0) {
-    reasons.push('No punch list on file — nothing here says the punch is clear.');
+    reasons.push('No punch list on file. Nothing here says the punch is clear.');
   } else if (input.punchOpen === 0) {
     punchFact = true;
     reasons.push(`All ${input.punchTotal} punch item${input.punchTotal === 1 ? '' : 's'} closed.`);

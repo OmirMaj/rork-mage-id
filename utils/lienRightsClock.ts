@@ -77,12 +77,12 @@ export type LienClock =
   | { kind: 'unsupported'; state: string; reason: string };
 
 export const NO_LAST_WORK_REASON =
-  'No daily report on this job to date the last day of work — the clock runs from the last day you furnished work or materials.';
+  'No daily report on this job to date the last day of work. The clock runs from the last day you furnished work or materials.';
 export const STATE_UNKNOWN_REASON = "Add the job's state to see a lien deadline.";
 export const UNVERIFIED_SENTENCE =
-  "We couldn't verify New York's lien deadline today — ask your attorney before it's too late.";
+  "We couldn't verify New York's lien deadline today. Ask your attorney before it's too late.";
 export function unsupportedReason(state: string): string {
-  return `No lien-deadline table for ${state} yet — ask your attorney.`;
+  return `No lien-deadline table for ${state} yet. Ask your attorney.`;
 }
 
 export function lienClockFor(a: {

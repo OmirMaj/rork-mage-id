@@ -134,7 +134,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
   // "never recorded", and re-deriving a rate for an issued invoice would let a
   // later contract edit silently rewrite a document already in the client's inbox.
   if (isRecordedRetainageRate(input.invoice?.retentionPercent)) {
-    return { percent: input.invoice!.retentionPercent as number, source: 'invoice', label: 'Set on This Invoice', needsAsk: false };
+    return { percent: input.invoice!.retentionPercent as number, source: 'invoice', label: 'set on this invoice', needsAsk: false };
   }
 
   // 2 — carry from the most recent NON-DRAFT invoice on the job. Sorted by
@@ -169,7 +169,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
     return {
       percent: input.project!.retainagePercent as number,
       source: 'contract',
-      label: assumed ? 'Carried from Earlier Billing — Check Your Contract' : 'From Your Contract',
+      label: assumed ? 'carried from earlier billing — check your contract' : 'from your contract',
       needsAsk: false,
     };
   }
@@ -186,7 +186,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
 
   // 5 — nothing on file. The math gets 0 because it must get a number; the
   // screen gets a label that does NOT dress that 0 up as a decision.
-  return { percent: 0, source: 'unknown', label: 'Not on File — Retainage Not Held', needsAsk: true };
+  return { percent: 0, source: 'unknown', label: 'not on file — retainage not held', needsAsk: true };
 }
 
 /**

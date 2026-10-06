@@ -283,7 +283,7 @@ YOUR JOB
   if (!r.success) {
     return {
       adjustments: bids.map(b => ({
-        bidId: b.id, adjustment: 0, reason: aiConsentReason(r) ?? 'AI unavailable — review manually.',
+        bidId: b.id, adjustment: 0, reason: aiConsentReason(r) ?? 'AI unavailable. Review manually.',
         confidence: 0, adjustmentBasis: 'market_guess' as const,
       })),
       summary: '',

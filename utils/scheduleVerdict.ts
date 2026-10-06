@@ -31,7 +31,7 @@ const dayWord = (n: number) => (Math.abs(n) === 1 ? 'day' : 'days');
 /** Pure: map CPM/baseline numbers to a plain-language verdict. */
 export function scheduleVerdict(input: VerdictInput): ScheduleVerdict {
   const { slipDaysVsBaseline: slip, finishDateLabel, criticalDriverTitle, overdueCount } = input;
-  const finishClause = hasFinish(finishDateLabel) ? ` — finishing about ${finishDateLabel}` : '';
+  const finishClause = hasFinish(finishDateLabel) ? `, finishing about ${finishDateLabel}` : '';
 
   let tone: VerdictTone;
   let headline: string;

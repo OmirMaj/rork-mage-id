@@ -236,7 +236,7 @@ function candidatesFor(
   if (isNeg && !wasNeg) {
     out.push(makeAlert(cur, name, 'margin_negative', 'neg', 'worsened', 'critical',
       `${name} is projected to lose money`,
-      `Projected margin is ${pct(cur.marginPct)} — costs now exceed the contract. Act before more cost posts.`));
+      `Projected margin is ${pct(cur.marginPct)}. Costs now exceed the contract. Act before more cost posts.`));
   } else if (!isNeg && wasNeg) {
     out.push(makeAlert(cur, name, 'margin_negative', 'pos', 'recovered', 'info',
       `${name} is back above breakeven`,
@@ -274,7 +274,7 @@ function candidatesFor(
       out.push(cur.bidAtCost
         ? makeAlert(cur, name, 'health', cur.health, 'worsened', 'warning',
             `${name} was bid at cost`,
-            `This estimate carries no profit — the price equals the cost. Set your markup before the next invoice.`)
+            `This estimate carries no profit: the price equals the cost. Set your markup before the next invoice.`)
         : makeAlert(cur, name, 'health', cur.health, 'worsened', 'high',
             `${name} margin health is critical`,
             `Projected margin has slipped well off the bid. Trace the biggest variance now.`));
@@ -282,13 +282,13 @@ function candidatesFor(
   } else if (HEALTH_RANK[cur.health] > HEALTH_RANK[prev.health]) {
     out.push(makeAlert(cur, name, 'health', cur.health, 'worsened',
       cur.health === 'critical' ? 'high' : 'warning',
-      `${name} margin health → ${cur.health}`,
+      `${name} margin health is now ${cur.health}`,
       cur.health === 'critical'
         ? 'Margin has degraded to critical. This job needs attention this week.'
         : 'Margin slipped onto the watch list. Keep an eye on buyout and COs.'));
   } else if (HEALTH_RANK[cur.health] < HEALTH_RANK[prev.health] && HEALTH_RANK[prev.health] >= HEALTH_RANK.watch) {
     out.push(makeAlert(cur, name, 'health', cur.health, 'recovered', 'info',
-      `${name} margin health → ${cur.health}`,
+      `${name} margin health is now ${cur.health}`,
       'Margin health improved.'));
   }
 

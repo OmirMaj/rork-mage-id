@@ -642,23 +642,23 @@ export interface WipDerived {
  */
 export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   pay_app_contract_sum: 'Original contract sum on your LATEST saved AIA-style pay application',
-  estimate_grand_total: 'Linked Estimate — Grand Total (Priced)',
-  change_order_snapshot: 'Reconstructed from a Change Order’s Contract Snapshot',
-  target_budget: 'Target Budget You Entered in Project Setup',
-  gmp_cap: 'GMP Cap You Entered in Project Setup',
-  legacy_estimate_grand_total: 'Legacy Estimate — Grand Total',
-  estimate_base_total: 'Linked Estimate — Base Total (Cost Before Markup)',
-  signed_commitments: 'Signed Subcontracts and POs, Including CO Revisions',
+  estimate_grand_total: 'Linked estimate: grand total (priced)',
+  change_order_snapshot: 'Reconstructed from a change order’s contract snapshot',
+  target_budget: 'Target budget you entered in project setup',
+  gmp_cap: 'GMP cap you entered in project setup',
+  legacy_estimate_grand_total: 'Legacy estimate: grand total',
+  estimate_base_total: 'Linked estimate: base total (cost before markup)',
+  signed_commitments: 'Signed subcontracts and POs, including CO revisions',
   commitments_and_receipts:
-    'Subs paid to date plus material receipts — self-performed labor not included, so this is a lower bound',
+    'Subs paid to date plus material receipts (self-performed labor not included, so this is a lower bound)',
   recorded_actual_cost:
-    'Every cost recorded on this project — subs paid, material receipts, your own crews’ hours at your rates, '
+    'Every cost recorded on this project: subs paid, material receipts, your own crews’ hours at your rates, '
     + 'equipment days and permit fees',
   cost_incurred:
-    'Cost you have already paid out on this project — more than the estimate or the commitments, so it sets the floor',
+    'Cost you have already paid out on this project (more than the estimate or the commitments, so it sets the floor)',
   cost_to_complete_entered:
-    'Cost to date plus the cost to complete you entered — your own forecast for this period, not a figure MAGE derived',
-  none: 'No Source on File — Enter This Figure Yourself',
+    'Cost to date plus the cost to complete you entered (your own forecast for this period, not a figure MAGE derived)',
+  none: 'No source on file (enter this figure yourself)',
 };
 
 /**
@@ -840,8 +840,8 @@ export type WipCostOverrideSource = 'entered_on_this_device' | 'entered_and_sync
 export type WipCostToDateSource = WipSource | WipCostOverrideSource;
 
 export const WIP_COST_OVERRIDE_LABELS: Record<WipCostOverrideSource, string> = {
-  entered_on_this_device: 'Cost-to-date you entered on this device — not yet synced to your account',
-  entered_and_synced: 'Cost-to-Date You Entered, Synced Across Your Devices',
+  entered_on_this_device: 'Cost-to-date you entered on this device (not yet synced to your account)',
+  entered_and_synced: 'Cost-to-date you entered, synced across your devices',
 };
 
 /**
@@ -1037,7 +1037,7 @@ export function applyWipEtcEntry(
  * recorded" is the honest answer; picking the most likely branch would put a
  * guess in front of a banker in the same typeface as a fact.
  */
-export const WIP_SOURCE_UNRECORDED = 'Not recorded — this snapshot predates source tracking';
+export const WIP_SOURCE_UNRECORDED = 'Not recorded (this snapshot predates source tracking)';
 
 /**
  * The standing caveat on cost-to-date. The list row on app/wip-report.tsx has
@@ -1056,7 +1056,7 @@ export const WIP_SOURCE_UNRECORDED = 'Not recorded — this snapshot predates so
  */
 export const WIP_COST_TO_DATE_CAVEAT =
   'Cost to date counts subcontractor payments and material receipts. Self-performed '
-  + 'labor is not captured automatically — unless the line above says you entered the '
+  + 'labor is not captured automatically, unless the line above says you entered the '
   + 'figure, it is a LOWER BOUND, not the total cost incurred.';
 
 /** What an export says about cost-to-date when every row's figure is complete. */
@@ -1112,7 +1112,7 @@ export function describeCostToDateComponents(ctd: WipCostToDate): string {
   const named = parts.filter(([v]) => v > 0).map(([v, label]) => `${wipMoney(v)} ${label}`);
   if (named.length === 0) {
     return ctd.complete
-      ? 'No cost recorded on this project yet — no sub payments, no receipts, no crew hours, no '
+      ? 'No cost recorded on this project yet: no sub payments, no receipts, no crew hours, no '
         + 'equipment and no permit fees.'
       : 'No sub payments and no material receipts recorded on this project yet.';
   }
@@ -1824,7 +1824,7 @@ export function contractVsEstimateNote(
   if (Math.abs(gap) <= material) return '';
   return `This contract figure comes off your saved pay application and sits ${wipMoney(Math.abs(gap))} `
     + `${gap > 0 ? 'above' : 'below'} the ${wipMoney(estimateGrandTotal)} your estimate prices this project at. `
-    + 'MAGE uses the pay application, because that is the sum you certified to the owner — but if the '
+    + 'MAGE uses the pay application, because that is the sum you certified to the owner, but if the '
     + 'pay app was seeded from the wrong contract, every figure on this row is measured against it.';
 }
 
@@ -1859,11 +1859,11 @@ export function payAppContractHistoryNote(payApps: SavedAIAPayApp[]): string {
   if (hi - lo <= 1) return '';
   const latest = contractApps.reduce((a, b) =>
     (b.applicationNumber ?? 0) >= (a.applicationNumber ?? 0) ? b : a);
-  return `Your saved pay applications do not agree about the original contract sum — they range from `
+  return `Your saved pay applications do not agree about the original contract sum. They range from `
     + `${wipMoney(lo)} to ${wipMoney(hi)}. MAGE uses ${wipMoney(latest.originalContractSum)}, off `
     + `application #${latest.applicationNumber ?? '?'}, because that is the sum most recently `
     + 'certified to the owner. A new application re-reads the contract sum off your estimate, so this '
-    + 'usually just means the estimate moved between applications — but check the G702s before anyone '
+    + 'usually just means the estimate moved between applications, but check the G702s before anyone '
     + 'underwrites this row.';
 }
 
@@ -1882,7 +1882,7 @@ export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number)
   if (cost.basis === 'entered') {
     const etc = Math.max(0, cost.value - cost.incurredFloor);
     return `Cost basis: your cost to complete, ${wipMoney(etc)}, on top of the `
-      + `${wipMoney(cost.incurredFloor)} this project has already cost — ${wipMoney(cost.value)} at `
+      + `${wipMoney(cost.incurredFloor)} this project has already cost: ${wipMoney(cost.value)} at `
       + 'completion. That is your forecast for this period, not a figure MAGE derived, and every '
       + 'percentage, earned-revenue and margin figure on this row is measured against it.';
   }
@@ -1896,7 +1896,7 @@ export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number)
     // cost — but nothing self-performed and nothing bought outside a commitment
     // is in the figure, so on a self-perform-heavy job it is a floor, not a
     // forecast.
-    return `Cost basis: signed subcontracts and POs, ${wipMoney(cost.committedFloor)} — already above `
+    return `Cost basis: signed subcontracts and POs, ${wipMoney(cost.committedFloor)}, already above `
       + `the ${wipMoney(cost.estimateBasis)} cost line in your estimate, so what you have awarded now `
       + 'sets the cost at completion. Work you self-perform, and anything bought outside a '
       + 'subcontract or PO, is not in that figure.' + overspentNote(cost.value, costIncurred);
@@ -1988,7 +1988,7 @@ export function describePortfolioCostBasis(
   const overspent = overspentNote(total, costIncurred);
 
   if (onNothing.length === costs.length) {
-    return `Cost basis: nothing on file for any of these ${jobs(costs.length)} — there is no cost for `
+    return `Cost basis: nothing on file for any of these ${jobs(costs.length)}. There is no cost for `
       + 'the margin below to be measured against.';
   }
   if (onEstimate.length === costs.length) {
@@ -1997,7 +1997,7 @@ export function describePortfolioCostBasis(
       + 'price, so they are not added on top.' + overspent;
   }
   if (onCommitments.length === costs.length) {
-    return `Cost basis: signed subcontracts and POs on all ${jobs(costs.length)}, ${wipMoney(total)} — `
+    return `Cost basis: signed subcontracts and POs on all ${jobs(costs.length)}, ${wipMoney(total)}, `
       + 'each already above the estimate\'s own cost line. Self-performed work is not in that figure.'
       + overspent;
   }
@@ -2012,7 +2012,7 @@ export function describePortfolioCostBasis(
     parts.push(`signed commitments, already above estimate, on ${jobs(onCommitments.length)}`);
   }
   if (onNothing.length > 0) parts.push(`no cost on file for ${jobs(onNothing.length)}`);
-  return `Cost basis: mixed — ${parts.join('; ')}. Total ${wipMoney(total)}. Open a project for its `
+  return `Cost basis: mixed. ${parts.join('; ')}. Total ${wipMoney(total)}. Open a project for its `
     + 'own source.' + overspent;
 }
 

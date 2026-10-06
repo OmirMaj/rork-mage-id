@@ -190,7 +190,7 @@ export function weatherCheckMessage(opts: {
     return { tone: 'info', text: 'Add a jobsite address to check weather. Open the project, tap Edit, and type the address.' };
   }
   if (opts.loading) {
-    return { tone: 'info', text: `Still loading the forecast for ${opts.place} — tap again in a moment.` };
+    return { tone: 'info', text: `Still loading the forecast for ${opts.place}. Tap again in a moment.` };
   }
   if (opts.liveDays === 0) {
     return { tone: 'info', text: `Live weather for ${opts.place} isn't available right now, so nothing was checked.` };

@@ -208,7 +208,7 @@ Output JSON only. No prose.`;
   for (let i = 0; i < tasks.length; i++) {
     if (!safeTasks[i].coinedPhase) continue;
     coinedPhases.add(tasks[i].phase);
-    const note = `"${tasks[i].phase}" is not one of the app's standard phases — it was named for this scope. Rename it if you use a different word.`;
+    const note = `"${tasks[i].phase}" is not one of the app's standard phases. It was named for this scope. Rename it if you use a different word.`;
     tasks[i].rationale = tasks[i].rationale ? `${tasks[i].rationale} ${note}` : note;
   }
 

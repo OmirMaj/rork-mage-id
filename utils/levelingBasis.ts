@@ -266,7 +266,7 @@ export function exclusionsNeedPriceLine(n: number): string {
 
 export const LABEL_YOUR_PRICE = 'Your price';
 export const SET_YOUR_PRICE_CTA = 'Set your price for the excluded scope';
-export const SAVINGS_NEEDS_PRICE = 'Not shown — needs your price';
+export const SAVINGS_NEEDS_PRICE = 'Not shown. Needs your price';
 export const AWARD_NEEDS_PRICE_TITLE = 'Price the excluded scope first';
 
 interface BidReasonLike { id?: string; excludes?: string | null; normalizedAdjustmentReason?: string | null }

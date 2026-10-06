@@ -588,7 +588,7 @@ export function canReadLiveWeatherFor(
 /** Why the weather block will not fill itself in for a past (or future) day.
  *  Says what the app cannot do and what to do instead — never a silent blank. */
 export function backfilledWeatherNotice(reportDayLabel: string): string {
-  return `Weather for ${reportDayLabel} wasn't recorded. MAGE can read today's sky, not a past day's — type what you saw.`;
+  return `Weather for ${reportDayLabel} wasn't recorded. MAGE can read today's sky, not a past day's. Type what you saw.`;
 }
 
 /**
@@ -628,5 +628,5 @@ export function weatherProvenanceLine(opts: {
   // day. A record from before this guard shipped gets the caveat instead.
   return opts.reportIsToday
     ? 'Read live and saved with this report.'
-    : 'Saved as a fetched reading — MAGE cannot read a past day, so check it against what you saw.';
+    : 'Saved as a fetched reading. MAGE cannot read a past day, so check it against what you saw.';
 }

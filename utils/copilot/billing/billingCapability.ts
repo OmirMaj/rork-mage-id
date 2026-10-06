@@ -59,7 +59,7 @@ export const billingCapability: CopilotCapability<BillingDraft, BillingApplied> 
   }),
 
   apply: async (draft: BillingDraft, ctx: CopilotContext): Promise<BillingApplied> => {
-    if (!ctx.project?.linkedEstimate) throw new Error('Add an estimate first — billing draws against it.');
+    if (!ctx.project?.linkedEstimate) throw new Error('Add an estimate first. Billing draws against it.');
     const type = draft.billingType ?? 'progress';
     return { route: '/bill-from-estimate', projectId: ctx.projectId, params: { projectId: ctx.projectId, type } };
   },

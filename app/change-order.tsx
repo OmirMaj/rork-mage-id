@@ -3109,7 +3109,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     fill parses with AI) — it steps aside until the run ends. */}
                 {runOnThis ? null : (
                 <InlineVoiceFill
-                  title="Dictate This Change Order"
+                  title="Dictate this change order"
                   contextLine={project?.name ? `for ${project.name}` : undefined}
                   buttonLabel={existingCO ? 'Add Detail by Voice' : 'Fill Change Order by Voice'}
                   suggestions={[

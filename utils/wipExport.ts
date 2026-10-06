@@ -93,7 +93,7 @@ export function wipLiveAsOfNote(
   if (period.id !== 'live') return '';
   if (!liveAsOf || liveAsOf === period.periodEndDate) return '';
   return `Figures are as they stand on ${liveAsOf} and are not restated to the `
-    + `${period.periodEndDate} period end — MAGE does not keep an as-of ledger.`;
+    + `${period.periodEndDate} period end. MAGE does not keep an as-of ledger.`;
 }
 
 /**
@@ -231,7 +231,7 @@ export function wipPeriodToCSV(
   const noBasis = period.rows.filter((r) => !wipRowHasCostBasis(r));
   if (noBasis.length > 0) {
     const noBasisRow = new Array(CSV_COLUMNS.length).fill('');
-    noBasisRow[0] = `NO COST BASIS — ${noBasis.length} contract`
+    noBasisRow[0] = `NO COST BASIS: ${noBasis.length} contract`
       + `${noBasis.length === 1 ? '' : 's'} (${noBasis.map((r) => r.projectName).join(', ')}) `
       + `carr${noBasis.length === 1 ? 'ies' : 'y'} a contract value with no cost estimate, no signed `
       + 'commitment and nothing spent. '
@@ -324,13 +324,13 @@ function footnotesHtml(period: WipPeriodWithSources): string {
   const items = period.rows.map((r) => {
     const s = describeWipRowSources(r);
     return `<li><b>${escapeHtml(r.projectName)}</b><br/>`
-      + `Revised contract ${money(r.output.revisedContract)} — ${escapeHtml(s.originalContract)}<br/>`
+      + `Revised contract ${money(r.output.revisedContract)}: ${escapeHtml(s.originalContract)}<br/>`
       // The cost the ROW WAS STRUCK AGAINST, never the derivation it started
       // from. This footnote printed `input.totalEstimatedCost` — so a job whose
       // GC had entered a cost to complete got a footnote quoting MAGE's
       // superseded $620,000 beside a margin measured against his own $800,000,
       // on the page that exists to explain where the figures come from.
-      + `Total estimated cost ${money(wipRowCostAtCompletion(r))} — ${escapeHtml(s.totalEstimatedCost)}<br/>`
+      + `Total estimated cost ${money(wipRowCostAtCompletion(r))}: ${escapeHtml(s.totalEstimatedCost)}<br/>`
       // THE FULL COST-BASIS SENTENCE, WHEN THE ROW CARRIES ITS CANDIDATES (F19).
       // The line above names the BRANCH; this one says what the other candidates
       // were and what the convention between them costs the reader if it is wrong
@@ -343,7 +343,7 @@ function footnotesHtml(period: WipPeriodWithSources): string {
       + (wipRowCostBasisSentence(r)
         ? `<br/><span class="basis">${escapeHtml(wipRowCostBasisSentence(r) as string)}</span><br/>`
         : '<br/>')
-      + `Cost to date ${money(r.input.costToDate)} — ${escapeHtml(s.costToDate)}`
+      + `Cost to date ${money(r.input.costToDate)}: ${escapeHtml(s.costToDate)}`
       // WATCH FLAGS (F8 part 2). A 17th column would not fit and would not be
       // read; the reason a job is flagged is a SENTENCE, and this is the block
       // that already carries sentences. A row with no `flags` prints nothing —
@@ -403,7 +403,7 @@ function noCostBasisHtml(period: WipPeriodWithSources): string {
   if (rows.length === 0) return '';
   const names = rows.map((r) => escapeHtml(r.projectName)).join(', ');
   const contract = rows.reduce((sum, r) => sum + r.output.revisedContract, 0);
-  return `<div class="nobasis"><b>No cost basis — ${rows.length} contract${rows.length === 1 ? '' : 's'}
+  return `<div class="nobasis"><b>No cost basis: ${rows.length} contract${rows.length === 1 ? '' : 's'}
     totalling ${money(contract)}.</b> ${names} carr${rows.length === 1 ? 'ies' : 'y'} a contract value
     with no cost estimate, no signed subcontract or PO, and nothing spent. A contract with no cost
     basis has no measurable margin, so ${rows.length === 1 ? 'it is' : 'they are'} excluded from the
@@ -470,7 +470,7 @@ export function buildWipHtml(
     .basis { color: #555; }
     .caveat { margin-top: 10px; padding: 8px; background: #F6F6F4; border: 1px solid #D7DAD4; line-height: 1.45; }
   </style></head><body>
-    <h1>${escapeHtml(companyName)} — Work-in-progress schedule</h1>
+    <h1>${escapeHtml(companyName)}: Work-in-progress schedule</h1>
     <div class="sub">As of ${escapeHtml(period.periodEndDate)}${period.lockedAt ? ' · Locked' : ''}
       · Prepared by management on the percentage-of-completion (cost-to-cost) basis</div>
     ${asOfNote ? `<div class="asof">${escapeHtml(asOfNote)}</div>` : ''}

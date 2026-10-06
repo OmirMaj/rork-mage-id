@@ -32,7 +32,7 @@ function resolveRef(ref: string, tasks: ScheduleTask[]): Resolved {
   if (pool.length === 1) return { id: pool[0].id };
   if (pool.length === 0) return { error: `no task matching "${ref}"` };
   const names = pool.slice(0, 4).map(t => `“${t.title}”`).join(', ');
-  return { error: `"${ref}" could mean ${names}${pool.length > 4 ? ` and ${pool.length - 4} more` : ''} — say which` };
+  return { error: `"${ref}" could mean ${names}${pool.length > 4 ? ` and ${pool.length - 4} more` : ''}. Say which` };
 }
 
 /** New task ids are UUIDs (the same source createId uses). The counter this
@@ -337,7 +337,7 @@ function heldBy(task: ScheduleTask, tasks: ScheduleTask[], cpm: CpmResult | null
       const t = tasks.find(x => x.id === dep);
       if (t && f !== undefined && f > ef) { ef = f; pred = t; }
     }
-    if (pred) return `“${task.title}” waits on “${pred.title}” (finishes day ${calendarIndexToWorkingOrdinal(ef, cpmOptions)}) — shorten “${pred.title}” or unlink it`;
+    if (pred) return `“${task.title}” waits on “${pred.title}” (finishes day ${calendarIndexToWorkingOrdinal(ef, cpmOptions)}). Shorten “${pred.title}” or unlink it`;
   }
   return `moving “${task.title}” doesn't change when it can start (day ${day})`;
 }

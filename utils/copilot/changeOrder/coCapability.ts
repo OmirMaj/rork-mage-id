@@ -44,7 +44,7 @@ export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
   askThreshold: 0.4,
   suggestions: [
     'Owner wants to add a heat-pump upgrade, about $4,200 installed',
-    'Field condition — extra footing at the addition, roughly $1,800',
+    'Field condition, extra footing at the addition, roughly $1,800',
   ],
   topicChecklist: [
     { label: 'Change', hint: 'what the owner wants' },

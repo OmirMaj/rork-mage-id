@@ -215,7 +215,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     return {
       score: 0,
       grade: 'F',
-      summary: 'Empty schedule — add a few tasks to get a real score.',
+      summary: 'Empty schedule. Add a few tasks to get a real score.',
       checks: [{
         key: 'has_tasks',
         label: 'Schedule Populated',
@@ -258,7 +258,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'logic_completeness',
       label: 'Logic Completeness',
-      dcmaLabel: 'DCMA #1 — Logic',
+      dcmaLabel: 'DCMA #1: Logic',
       description: 'Tasks should connect to others via dependencies. Floaters reveal missing logic.',
       value: Math.max(0, value),
       weight,
@@ -295,7 +295,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'open_ends',
       label: 'Open Ends',
-      dcmaLabel: 'DCMA #1 — Logic (open ends)',
+      dcmaLabel: 'DCMA #1: Logic (open ends)',
       description: 'Pro schedules have one start and one finish. Multiple of either means detached chains.',
       value,
       weight,
@@ -322,7 +322,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'leads',
       label: 'Leads (Negative Lag)',
-      dcmaLabel: 'DCMA #2 — Leads',
+      dcmaLabel: 'DCMA #2: Leads',
       description: 'A negative lag pulls a task earlier than its predecessor allows. DCMA wants zero.',
       value,
       weight,
@@ -332,7 +332,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       severity: severityFromValue(value, weight),
       suggestion: leads.length === 0
         ? 'No leads. Every link waits for the work in front of it.'
-        : `Replace ${leads.length} lead${leads.length === 1 ? '' : 's'} with a real predecessor — split the upstream task instead of overlapping it.`,
+        : `Replace ${leads.length} lead${leads.length === 1 ? '' : 's'} with a real predecessor. Split the upstream task instead of overlapping it.`,
     });
 
     const lags = allLinks.filter(x => (x.l.lagDays ?? 0) > 0);
@@ -343,7 +343,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'lags',
       label: 'Lags',
-      dcmaLabel: 'DCMA #3 — Lags',
+      dcmaLabel: 'DCMA #3: Lags',
       description: 'A lag is waiting time with no task behind it. DCMA wants them on under 5% of links.',
       value: lagValue,
       weight: lagWeight,
@@ -352,7 +352,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       })),
       severity: severityFromValue(lagValue, lagWeight),
       suggestion: lags.length === 0
-        ? 'No lags — every wait is modelled as real work.'
+        ? 'No lags. Every wait is modelled as real work.'
         : `${lags.length} of ${allLinks.length} links carry a lag (${Math.round(lagRatio * 100)}%). Model long waits as tasks ("slab cure") so the client can see them.`,
     });
 
@@ -367,7 +367,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'relationship_types',
       label: 'Relationship Types',
-      dcmaLabel: 'DCMA #4 — Relationship types',
+      dcmaLabel: 'DCMA #4: Relationship types',
       description: 'At least 90% of links should be Finish-to-Start. SS/FF/SF are harder to read and easier to get wrong.',
       value: relValue,
       weight: relWeight,
@@ -394,7 +394,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'hard_constraints',
       label: 'Hard Date Pins',
-      dcmaLabel: 'DCMA #5 — Hard constraints',
+      dcmaLabel: 'DCMA #5: Hard constraints',
       description: 'Must-start-on / must-finish-on pins beat the logic. DCMA wants them on under 5% of tasks.',
       value,
       weight,
@@ -403,7 +403,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       })),
       severity: severityFromValue(value, weight),
       suggestion: hard.length === 0
-        ? 'No hard pins — the finish date is driven by the logic, which is what makes it defensible.'
+        ? 'No hard pins. The finish date is driven by the logic, which is what makes it defensible.'
         : `${hard.length} task${hard.length === 1 ? ' is' : 's are'} hard-pinned. Use "start no earlier than" instead unless the date is contractual.`,
     });
   }
@@ -422,8 +422,8 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'negative_float',
       label: 'Negative Float',
-      dcmaLabel: 'DCMA #7 — Negative float',
-      description: 'Negative float means the plan cannot be built as drawn — something has to give.',
+      dcmaLabel: 'DCMA #7: Negative float',
+      description: 'Negative float means the plan cannot be built as drawn. Something has to give.',
       value,
       weight,
       flagged: negative.slice(0, 8).map(x => ({
@@ -455,7 +455,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
         continue;
       }
       if (t.anchorType && t.anchorType !== 'none' && t.anchorType !== 'as-late-as-possible' && !parses(t.anchorDate)) {
-        bad.push({ id: t.id, title: t.title, reason: `${t.anchorType} pin with no usable date — the engine drops it silently` });
+        bad.push({ id: t.id, title: t.title, reason: `${t.anchorType} pin with no usable date, so the engine drops it silently` });
         continue;
       }
       if (t.deadline && !parses(t.deadline)) {
@@ -468,15 +468,15 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'invalid_dates',
       label: 'Invalid Dates',
-      dcmaLabel: 'DCMA #9 — Invalid dates',
-      description: 'Date fields that contradict themselves — an actual finish before its start, or a pin with no usable date.',
+      dcmaLabel: 'DCMA #9: Invalid dates',
+      description: 'Date fields that contradict themselves: an actual finish before its start, or a pin with no usable date.',
       value,
       weight,
       flagged: bad.slice(0, 8),
       severity: severityFromValue(value, weight),
       suggestion: bad.length === 0
         ? 'Every date on the schedule is internally consistent.'
-        : `Fix ${bad.length} row${bad.length === 1 ? '' : 's'} whose dates contradict themselves — an anchor with no date is dropped by the engine without a word.`,
+        : `Fix ${bad.length} row${bad.length === 1 ? '' : 's'} whose dates contradict themselves. An anchor with no date is dropped by the engine without a word.`,
     });
   }
 
@@ -491,7 +491,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       checks.push({
         key: 'cpli',
         label: 'Critical Path Length Index',
-        dcmaLabel: 'DCMA #13 — CPLI',
+        dcmaLabel: 'DCMA #13: CPLI',
         description: 'How the forecast finish compares to the promised one. Needs a baseline.',
         value: 0.5,
         weight,
@@ -515,15 +515,15 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       checks.push({
         key: 'cpli',
         label: 'Critical Path Length Index',
-        dcmaLabel: 'DCMA #13 — CPLI',
+        dcmaLabel: 'DCMA #13: CPLI',
         description: 'CPLI = (critical path length + project float) ÷ critical path length. 1.00 hits the baseline; DCMA fails under 0.95.',
         value,
         weight,
         flagged: [],
         severity: severityFromValue(value, weight),
         suggestion: cpli >= 1
-          ? `CPLI ${cpli.toFixed(2)} — the forecast finishes on or inside the baseline.`
-          : `CPLI ${cpli.toFixed(2)} — the forecast runs ${Math.abs(projectTotalFloat)} working ${Math.abs(projectTotalFloat) === 1 ? 'day' : 'days'} past the baseline. Recover time on the critical path or rebaseline and say why.`,
+          ? `CPLI ${cpli.toFixed(2)}. The forecast finishes on or inside the baseline.`
+          : `CPLI ${cpli.toFixed(2)}. The forecast runs ${Math.abs(projectTotalFloat)} working ${Math.abs(projectTotalFloat) === 1 ? 'day' : 'days'} past the baseline. Recover time on the critical path or rebaseline and say why.`,
       });
     }
   }
@@ -548,9 +548,9 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       flagged: [],
       severity: severityFromValue(value, weight),
       suggestion: ratio < 0.25
-        ? 'Few tasks are critical — usually means missing dependencies. Add predecessor links so a real chain forms.'
+        ? 'Few tasks are critical, which usually means missing dependencies. Add predecessor links so a real chain forms.'
         : ratio > 0.55
-          ? 'Almost everything is critical — the schedule is brittle. Add float by sequencing parallel tasks.'
+          ? 'Almost everything is critical, so the schedule is brittle. Add float by sequencing parallel tasks.'
           : 'Critical-path density is healthy.',
     });
   }
@@ -568,7 +568,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'long_tasks',
       label: 'Long Tasks',
-      dcmaLabel: 'DCMA #8 — High duration',
+      dcmaLabel: 'DCMA #8: High duration',
       description: `Tasks longer than ${longThreshold} working days hide several pieces of work. Break them down.`,
       value,
       weight,
@@ -679,8 +679,8 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       // "(proxy …)" label without a data date, because that is what it is, and
       // validate-schedule-health pins the partial-item wording either way.
       dcmaLabel: today != null
-        ? 'DCMA #11 — Missed tasks (proxy: missed finishes only)'
-        : 'DCMA #11 — Missed tasks (proxy: no data date)',
+        ? 'DCMA #11: Missed tasks (proxy: missed finishes only)'
+        : 'DCMA #11: Missed tasks (proxy: no data date)',
       description: today != null
         ? 'Work that should have finished by today still shows 0%. The plan is behind the field, or nobody is updating it.'
         : 'Tasks that should already be in progress but still show 0% suggest the plan isn\'t being maintained.',
@@ -699,7 +699,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
   {
     // RESOURCE conflicts only. This read `cpm.conflicts` whole, so a dependency
     // cycle, an anchor violation and (since 2026-09-12) a link to a deleted task
-    // all landed in a check labelled "DCMA #10 — Resources" and were reported to
+    // all landed in a check labelled "DCMA #10: Resources" and were reported to
     // the user as "crew conflicts — reassign or sequence the overlapping tasks",
     // which is advice that cannot fix any of them. levelResources is the only
     // producer of these two kinds (utils/cpm.ts), and they are what DCMA #10 is
@@ -714,7 +714,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'resource_overallocation',
       label: 'Resource Overallocation',
-      dcmaLabel: 'DCMA #10 — Resources',
+      dcmaLabel: 'DCMA #10: Resources',
       description: 'Same crew assigned to overlapping tasks creates a real-world conflict.',
       value,
       weight,
@@ -730,7 +730,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       severity: severityFromValue(value, weight),
       suggestion: conflicts.length === 0
         ? 'No crew conflicts detected.'
-        : `Resolve ${conflicts.length} crew conflict${conflicts.length === 1 ? '' : 's'} — reassign or sequence the overlapping tasks.`,
+        : `Resolve ${conflicts.length} crew conflict${conflicts.length === 1 ? '' : 's'}. Reassign or sequence the overlapping tasks.`,
     });
   }
 
@@ -751,9 +751,9 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       flagged: [],
       severity: severityFromValue(value, weight),
       suggestion: milestoneCount === 0
-        ? 'Add at least one milestone (e.g. foundation pour, dry-in, C of O) to anchor the schedule.'
+        ? 'Add at least one milestone (for example foundation pour, dry-in, C of O) to anchor the schedule.'
         : milestoneCount < target
-          ? `Add a few more milestones — ${target} total is a healthy target for this schedule size.`
+          ? `Add a few more milestones. ${target} total is a healthy target for this schedule size.`
           : 'Milestones are well distributed.',
     });
   }
@@ -770,7 +770,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'phase_grouping',
       label: 'Phase Grouping',
-      description: 'Tasks should sit under named phases (Demo, Frame, MEP, Finishes) — not all "General".',
+      description: 'Tasks should sit under named phases (Demo, Frame, MEP, Finishes), not all "General".',
       value,
       weight,
       flagged: [],

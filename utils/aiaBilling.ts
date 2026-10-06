@@ -299,8 +299,8 @@ export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract'
  *  plus the reopened-record case. */
 export const PAY_APP_CONTRACT_SUM_LABEL: Record<PayAppContractSumSource, string> = {
   ...CONTRACT_SUM_BASIS_LABEL,
-  estimate_not_contract: 'Estimate (Differs from the Signed Contract)',
-  carried_unread: 'Carried Forward (Signed Contract Not Checked)',
+  estimate_not_contract: 'Estimate (differs from the signed contract)',
+  carried_unread: 'Carried forward (signed contract not checked)',
 };
 
 /**
@@ -1207,10 +1207,10 @@ export function planG703CellEdit(
   if (col === 'percent') {
     if (!text.trim()) return { kind: 'ignore' };
     const n = parseGridNumber(text);
-    if (n === null) return { kind: 'invalid', reason: `"${text}" is not a percent — type a number from 0 to 100.` };
+    if (n === null) return { kind: 'invalid', reason: `"${text}" is not a percent. Type a number from 0 to 100.` };
     if (n < 0 || n > 100) return { kind: 'invalid', reason: 'Percent complete is 0–100.' };
     if (!(line.scheduledValue > 0)) {
-      return { kind: 'invalid', reason: 'Percent needs a positive scheduled value — type This period instead.' };
+      return { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This period instead.' };
     }
     return { kind: 'percent', percent: n };
   }
@@ -1219,7 +1219,7 @@ export function planG703CellEdit(
   if (!text.trim()) return { kind: 'patch', patch: { [field]: 0 } };
   const n = parseGridNumber(text);
   if (n === null) {
-    return { kind: 'invalid', reason: `"${text}" is not an amount — this line still bills ${formatMoney(line[field], 2)}` };
+    return { kind: 'invalid', reason: `"${text}" is not an amount. This line still bills ${formatMoney(line[field], 2)}` };
   }
   return { kind: 'patch', patch: { [field]: roundCents(n) } };
 }

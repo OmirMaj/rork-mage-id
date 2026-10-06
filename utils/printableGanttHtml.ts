@@ -215,7 +215,7 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
 <html>
 <head>
 <meta charset="utf-8" />
-<title>${esc(projectName)} — Schedule</title>
+<title>${esc(projectName)} Schedule</title>
 <style>
   @page { size: landscape; margin: 12mm; }
   * { box-sizing: border-box; }

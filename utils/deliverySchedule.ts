@@ -191,8 +191,8 @@ export function classifyDelivery(d: Delivery, nowMs: number = Date.now()): Deliv
       daysOut,
       flag: 'unconfirmed',
       label: daysOut === 0
-        ? 'Due Today — Not Confirmed'
-        : `Due in ${daysOut}d — not confirmed`,
+        ? 'Due Today, Not Confirmed'
+        : `Due in ${daysOut}d, not confirmed`,
     };
   }
 

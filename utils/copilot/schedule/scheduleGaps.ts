@@ -23,8 +23,8 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
   if (draft.startDate == null) {
     gaps.push({
       field: 'startDate', impact: 0.9, kind: 'date',
-      question: 'No start date is set — when do you break ground?',
-      groundedDefault: { value: null, basis: 'not derivable — must be chosen' },
+      question: 'No start date is set. When do you break ground?',
+      groundedDefault: { value: null, basis: 'not derivable, must be chosen' },
     });
   }
 
@@ -34,11 +34,11 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
     const c = unresolvedLead[0];
     gaps.push({
       field: 'longLeadMilestones', impact: 0.7, kind: 'choice',
-      question: `Your ${c.name.toLowerCase()} line is $${(c.total / 1000).toFixed(0)}k — that usually means a multi-week lead. Add a procurement milestone before install?`,
+      question: `Your ${c.name.toLowerCase()} line is $${(c.total / 1000).toFixed(0)}k. That usually means a multi-week lead. Add a procurement milestone before install?`,
       groundedDefault: { value: [c.name], basis: `$${c.total.toLocaleString()} category, no lead recorded` },
       choices: [
-        { label: 'Yes — Add the Milestone', value: [c.name], basis: 'keeps install off the critical path', recommended: true },
-        { label: 'No — Already on Site', value: [] },
+        { label: 'Yes, Add the Milestone', value: [c.name], basis: 'keeps install off the critical path', recommended: true },
+        { label: 'No, Already on Site', value: [] },
       ],
     });
   }
@@ -48,8 +48,8 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
     gaps.push({
       field: 'crewCap', impact: 0.4, kind: 'number',
       question: 'How many on the heaviest crew?',
-      groundedDefault: { value: 3, basis: 'no crew-size history yet — assuming 3' },
-      placeholder: 'e.g. 4',
+      groundedDefault: { value: 3, basis: 'no crew-size history yet, assuming 3' },
+      placeholder: '4',
     });
   }
 
@@ -57,7 +57,7 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
   if (draft.phased == null && d.occupiedLikely) {
     gaps.push({
       field: 'phased', impact: 0.5, kind: 'choice',
-      question: 'Occupied remodel by the look of it — phase it by area, or can trades overlap?',
+      question: 'Occupied remodel by the look of it. Phase it by area, or can trades overlap?',
       groundedDefault: { value: false, basis: 'defaulting to overlapping trades' },
       choices: [
         { label: 'Trades Can Overlap', value: false, recommended: true },

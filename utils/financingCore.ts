@@ -131,4 +131,4 @@ export function invoiceFinancingOnLine(partnerName: string): string {
 
 /** Financing is off: a link to Payments, where he brings his own lender. */
 export const INVOICE_FINANCING_SETUP_LINE =
-  'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →';
+  'Want to offer your client monthly payments? Bring your own lender. Set it up in Payments';

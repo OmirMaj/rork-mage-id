@@ -122,9 +122,9 @@ export const changeOrderDraft: TutorialDef = {
     pathname: '/change-order',
     projectParam: 'projectId',
     params: { new: '1' },
-    realJobLabel: name => `Write a change order on ${name} →`,
+    realJobLabel: name => `Write a change order on ${name}`,
     feature: 'change_orders_invoicing',
-    paywallLabel: 'Change orders come with Pro — see plans',
+    paywallLabel: 'Change orders come with Pro. See Plans',
     roles: ['owner', 'editor'],
   },
 };

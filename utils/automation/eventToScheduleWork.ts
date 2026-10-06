@@ -197,7 +197,7 @@ export function eventToScheduleWork(
     draft.anchorType = 'start-no-earlier';
     const bookBy = computeBookByISO(schedule, lead);
     if (bookBy) draft.anchorDate = bookBy;
-    draft.notes = 'Auto-scheduled: could not link to a gating task — pick a predecessor.';
+    draft.notes = 'Auto-scheduled: could not link to a gating task. Pick a predecessor.';
     return { tasks: [draft], unresolved: true };
   }
 

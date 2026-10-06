@@ -114,7 +114,7 @@ export function computeMarginRisk({
     detail: `Bid at ${pct1(m)} margin`,
     recommendation:
       m < 0.1
-        ? 'Razor-thin to start — protect scope and price every change.'
+        ? 'Razor-thin to start. Protect scope and price every change.'
         : 'Little cushion; defend margin on buyout and COs.',
   };
 
@@ -192,7 +192,7 @@ export function computeMarginRisk({
       le.pendingChangeOrders > 0
         ? `${money(le.pendingChangeOrders)} in unapproved change orders`
         : 'No pending change orders',
-    recommendation: 'Get pending COs signed — unbanked scope is margin at risk.',
+    recommendation: 'Get pending COs signed. Unbanked scope is margin at risk.',
   };
 
   // 7 — Overcommitted subs: commitments signed above their linked estimate.

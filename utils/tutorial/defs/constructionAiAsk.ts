@@ -106,9 +106,9 @@ export const constructionAiAsk: TutorialDef = {
     pathname: '/construction-ai',
     projectParam: 'projectId',
     params: { mode: 'ask' },
-    realJobLabel: name => `Ask about ${name} →`,
+    realJobLabel: name => `Ask about ${name}`,
     feature: 'construction_answer',
-    paywallLabel: 'Construction answers come with Business — see plans',
+    paywallLabel: 'Construction answers come with Business. See Plans',
     roles: ['owner', 'editor'],
   },
 };

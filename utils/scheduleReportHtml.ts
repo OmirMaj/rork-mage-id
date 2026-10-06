@@ -40,7 +40,7 @@ export function renderScheduleReportHtml(model: ScheduleReportModel, opts: Repor
   const fit = opts.fitToOnePage ? 'transform: scale(0.92); transform-origin: top left;' : '';
   const breakRule = opts.singleWallSheet ? '' : 'tr, .card, .band, .kpi, .stat, .wk { page-break-inside: avoid; } thead { display: table-header-group; }';
   return `<!doctype html><html><head><meta charset="utf-8"/>
-<title>${esc(model.header.projectName)} — MAGE Schedule Report</title>
+<title>${esc(model.header.projectName)}: MAGE Schedule Report</title>
 <style>
   @page { size: ${pageCss(opts.paperSize, opts.orientation)}; margin: ${margin}; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:#111; margin:0; font-size:${s.base}px; ${fit} }
@@ -230,7 +230,7 @@ function ganttHtml(model: ScheduleReportModel, opts: ReportOptions, s: Scale): s
     );
   }
   void s;
-  return `<div class="sh">Gantt — current vs baseline (▤ baseline · ▮ critical · ◆ milestone)</div>
+  return `<div class="sh">Gantt: current vs baseline (▤ baseline · ▮ critical · ◆ milestone)</div>
 <table class="G">${head}${body.join('')}</table>`;
 }
 

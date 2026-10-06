@@ -12,7 +12,7 @@ export function billingGaps(draft: BillingDraft, _grounding: Grounding): Gap[] {
   if (draft.billingType == null) {
     gaps.push({
       field: 'billingType', impact: 0.7, kind: 'choice',
-      question: 'What are you billing — progress to date, or the full contract?',
+      question: 'What are you billing: progress to date, or the full contract?',
       groundedDefault: { value: 'progress', basis: 'most draws are progress billing' },
       choices: [
         { label: 'Progress to Date', value: 'progress', recommended: true, basis: 'bill what’s complete so far' },
