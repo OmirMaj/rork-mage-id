@@ -4,7 +4,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 309,
   "modals": 4,
-  "sha256": "ef79c5a6de6d2bf75a569ee7cfccf54283213a52c3c293ba7cd3989b8484782a",
+  "sha256": "70d6a3db629a0d9606e5c2fa2cd19e0f235c4f36db16afa525399266034b405e",
 }
 `;
 
@@ -12,7 +12,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 533,
   "modals": 7,
-  "sha256": "8af132d8205aef506893025e901a8e99e7b48917d1655f624777d2fe584e3919",
+  "sha256": "e6d9020268d0414173f5ef52ca2d4680637ece2a2ad59609bbedc04f70b58cd6",
 }
 `;
 
@@ -36,7 +36,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 311,
   "modals": 4,
-  "sha256": "a724b30741fcf076c237b84f5e5f91f0fee90cf88300c73ce9df713bf39c3edd",
+  "sha256": "6b2281322fffb868cff6b014810d55ee790c2218b8e478dad39ab464545359b6",
 }
 `;
 
@@ -68,7 +68,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 34,
   "modals": 1,
-  "sha256": "67713cb3fc7d2ae264665c70e05ba99a3ab01261ae30084b758be316642eb989",
+  "sha256": "87559f42ff6d125d7196a063a8d932016c9bc2dd666630c4b4d932e0e08b03ee",
 }
 `;
 
@@ -76,7 +76,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 34,
   "modals": 1,
-  "sha256": "8fc58ffc0b6b9e5a6dfbee6175749e0919fe4cf82cc7be8ba42e10e740a47211",
+  "sha256": "fbee83e3bbe697b4f4fbe73a45a2fcacd53a118d680e219ca25c9e8eeffce9f5",
 }
 `;
 
@@ -116,7 +116,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 41,
   "modals": 1,
-  "sha256": "2faa5609eb96305fc34c5c9ab6f330b059f6f497efcba7e576a181814bcc9f1f",
+  "sha256": "728156a6546a555f21fc4020c6ac5a33006f72f397915bfc8f79535580971533",
 }
 `;
 
@@ -124,7 +124,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 41,
   "modals": 1,
-  "sha256": "bac47f3e562d84e5091c3b9db3a889a3b202d741bf1a1931fb864fba08b54d3e",
+  "sha256": "d61f92640259fd85fa19f97c8e353671d3399d4548684257956ac2c12f71267c",
 }
 `;
 

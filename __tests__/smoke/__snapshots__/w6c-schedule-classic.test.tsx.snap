@@ -3,42 +3,42 @@
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Board view 1`] = `
 {
   "lines": 2143,
-  "sha256": "4b8f7f906c1b86369b4bfd3000005b4a766377021e466f590b3660207830f9bb",
+  "sha256": "8b41bd580074789c06ca927d868a11daa38e6acf4296464206bfa792d0a7f4c6",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Gantt view 1`] = `
 {
   "lines": 1989,
-  "sha256": "39373daefe444273f78d97e2662f81762f9a1aa6876109badbcc36e7a6045fda",
+  "sha256": "964adb805dcb513f20a4d190be72b2045c31fbb0eb1fc579c965fb6093c49d0c",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Lookahead view 1`] = `
 {
   "lines": 2234,
-  "sha256": "71054d0805e096b8695ba14914055737e9db457210486dbbfae7ea7eed4086e0",
+  "sha256": "0f20955b3e94f08b0b105e439bd8291d04985264cdd3ce9775d093633fdcbe31",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Today view 1`] = `
 {
   "lines": 2194,
-  "sha256": "a7eee658c4f09a00dfc7689484a34dec1951b15a34ddd04d54f40a0a570556ff",
+  "sha256": "6785fb950bfd4c57dd634a44150387617ffc496cb4d721c3f442f6e1fac63a61",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/discover/schedule 1`] = `
 {
   "lines": 511,
-  "sha256": "fb2107177ad81408671f40001e069c13c15edc77056f6d4a0cd0f40e0a499cf1",
+  "sha256": "eee9166f217617e7cf034af322f343234436827e4167bcd6dedba973e0e728dc",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/schedule (MobileScheduleScreen) 1`] = `
 {
   "lines": 1817,
-  "sha256": "d3d59c427471550e70bc0b8e4abb1630fc38a9f3cdd1a99653bfded794378312",
+  "sha256": "793c600f62db695b9e2fd6037c5b1dc2ee299294402837690f5b7c0082590b11",
 }
 `;
 
@@ -52,35 +52,35 @@ exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /copilot-hu
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-review with a draft 1`] = `
 {
   "lines": 465,
-  "sha256": "ed66bc4020f4af690a0cd0b02e90fdfea01878497f36cbe251558d74f33fef13",
+  "sha256": "0f1fd596d060161dc8c84c8482590125ee6f09d15f78499ca2a8a97e11569c4b",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-wizard 1`] = `
 {
   "lines": 1874,
-  "sha256": "81838025373970e5475e4f7ceb1d16d215d9415e487f3716fe5f519c425584af",
+  "sha256": "ac865c84258373cfdf5443e407d6ece41bc6268fb21b63c4d56daba08de6d5ea",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) AddTaskModal, open 1`] = `
 {
   "lines": 111,
-  "sha256": "5449dc16a31f193ec7503dcaa36f7d352e4243d61e7d5b1464e70ba86a293cae",
+  "sha256": "21a96d01384366fe838aa64337e060cbd5d84aa47810ee6b084b752eeab5c601",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) BaselineManagerModal, open 1`] = `
 {
   "lines": 43,
-  "sha256": "b49a5c188f6af94312a0db88db0ef13a9f6bbf3ba4f575038083a6dca950cb6f",
+  "sha256": "fb6ed3a3e98c465dc19b4be575f8711edc19a9ee6da61ed893d2532e35ad2442",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) COScheduleReflowPreviewModal, open 1`] = `
 {
   "lines": 67,
-  "sha256": "d30b32ad7fc8f08d8606673a2ebf5513616fb2be888384610bb4dc1a25d26dec",
+  "sha256": "ba10e7cc6dbc858b6905f80ff3078af7eef78537874b7d4c390ebfe470cb7408",
 }
 `;
 
@@ -94,55 +94,55 @@ exports[`lane DC — the schedule tool sheets (golden, 390 phone) ClosuresModal,
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) CriticalPathPanel, open 1`] = `
 {
   "lines": 55,
-  "sha256": "8bb05eaca5bf29115792f06f2d787628b1ee0e6b922f5c93201f74969c258c21",
+  "sha256": "a7ffb3932c2142611481bc167133925c16ddf0022f9ebc016b5f3103d33bf85c",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) ExportSheet, open 1`] = `
 {
   "lines": 91,
-  "sha256": "b09165bd1328a415d8088fe16497012e35f23a83d32bc09fe5b93378c7e1b648",
+  "sha256": "9ddf7bbbbdfe62ce127edf301196fe17fd54132316d75a7656d861505ed2a0dd",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) LevelingPreviewModal, open 1`] = `
 {
   "lines": 47,
-  "sha256": "a51c76cbbc0733391bd751a20603ca863be7e69f2caaf1f4d2de40d51f907b09",
+  "sha256": "620570d43d2fcebe2ba2ada8f35cd46a0862004b4d55afb0ac7a15c024d24f7d",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) PredecessorPicker, open 1`] = `
 {
   "lines": 72,
-  "sha256": "e10508558b0c77c49d8b7f9b76c14e1d0d97f91793f37b3ec19d8931731c3eef",
+  "sha256": "66a33a491f31d4c6dfc7435a40dd1f18fe1a89db8d35da3003100a81389c9199",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) QuickBuildModal, open 1`] = `
 {
   "lines": 186,
-  "sha256": "612937c8a26b4d441c24b2cf8097ebb4293131468f4852a43c5600a86589fc70",
+  "sha256": "fc84d63c2011ee5ca0a300afa10f83f6ca6296c56370acc968dfc61fcfcfcf63",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleAuditModal, open 1`] = `
 {
   "lines": 20,
-  "sha256": "33d957f7f30819e060e8a592c369dc16aafa74b6ab77556bac9d0236fd8683bb",
+  "sha256": "27f8eab318524422d05557de929f9a0342d3659d4492bf32df2f40d0af5baae6",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleHealthDetail, open 1`] = `
 {
   "lines": 425,
-  "sha256": "f6e469557d33fbfa80df4b3cf84c843345d195b4b887716c2ec4b0ced83c90ba",
+  "sha256": "03f9f7953a3a5a7b601b0d5e1f24ae9b20a83d29956cffe9d984176caa2d4c3f",
 }
 `;
 
 exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleSettingsMenu, open 1`] = `
 {
   "lines": 291,
-  "sha256": "19053f2efa8fae4f51b4729001c05b852a55922d0364d01834ba7efe20366a70",
+  "sha256": "9029fbf93087fc4ad731b601e72a228c0fa71f57873f4acd1c229a9ef2603cbe",
 }
 `;

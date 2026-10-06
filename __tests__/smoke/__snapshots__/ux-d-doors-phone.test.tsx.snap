@@ -1167,7 +1167,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 ]
               }
             >
-              Low risk
+              Low Risk
             </Text>
           </View>
           <View
@@ -14730,7 +14730,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 }
               }
             >
-              Generate status report
+              Generate Status Report
             </Text>
           </View>
         </View>

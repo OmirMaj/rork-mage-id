@@ -365,7 +365,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
     // The card's words and inks, as the phone prints them (app/reports.tsx).
     const cardWord = (r: typeof aging.rows[number]) => {
       const isRetainageOnly = r.outstanding <= 0.5;
-      return isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`;
+      return isRetainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`;
     };
     for (const r of aging.rows) {
       const c = agingCells(r);

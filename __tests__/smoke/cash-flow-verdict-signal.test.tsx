@@ -265,7 +265,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
 
     // Name typed, amount box left empty: the save is blocked and says why.
     await act(async () => {
-      fireEvent.changeText(tree.getByPlaceholderText('e.g. Payroll'), 'Payroll');
+      fireEvent.changeText(tree.getByPlaceholderText('Payroll'), 'Payroll');
     });
     expect(tree.getByTestId('add-expense-btn').props.accessibilityState?.disabled).toBe(true);
     expect(collectText(tree.toJSON()).join(' | ')).toContain('needs a name and an amount above $0');
@@ -301,7 +301,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     await act(async () => { fireEvent.press(tree.getByText('Expected Income')); });
     await act(async () => { fireEvent.press(tree.getByText('Add Expected Payment')); });
     await act(async () => {
-      fireEvent.changeText(tree.getByPlaceholderText('e.g. Deposit from River Oak'), 'Harlow draw 2');
+      fireEvent.changeText(tree.getByPlaceholderText('Deposit from River Oak'), 'Harlow draw 2');
     });
 
     expect(tree.getByTestId('add-payment-btn').props.accessibilityState?.disabled).toBe(true);

@@ -2,7 +2,7 @@
 
 exports[`content rights golden — credited surfaces (a) weather reschedule modal, live forecast 1`] = `
 [
-  "Weather reschedule",
+  "Weather Reschedule",
   "Forecast vs. your weather-sensitive tasks.",
   "+1",
   "day",
@@ -15,14 +15,14 @@ exports[`content rights golden — credited surfaces (a) weather reschedule moda
   "Sep 25",
   "+1d lost",
   "Weather data provided by OpenWeather",
-  "Not now",
-  "Apply reschedule",
+  "Not Now",
+  "Apply Reschedule",
 ]
 `;
 
 exports[`content rights golden — credited surfaces (b) weather reschedule modal, simulated forecast 1`] = `
 [
-  "Weather reschedule",
+  "Weather Reschedule",
   "Forecast vs. your weather-sensitive tasks.",
   "Simulated weather. Not a forecast.",
   "Simulated forecast. This reschedule won't be recorded in the weather delay log. Live weather isn't available for this project right now.",
@@ -36,8 +36,8 @@ exports[`content rights golden — credited surfaces (b) weather reschedule moda
   "Sep 24",
   "Sep 25",
   "+1d lost",
-  "Not now",
-  "Apply reschedule",
+  "Not Now",
+  "Apply Reschedule",
 ]
 `;
 

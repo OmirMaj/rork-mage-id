@@ -3,7 +3,7 @@
 exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today view 1`] = `
 {
   "lines": 2179,
-  "sha256": "ecc0f2e0f37a4c173d2c39a608b3fd78641a1ad4adf49379df74bc636176564e",
+  "sha256": "f219ff0788e015631741a43dab884ac1e9ec8dab236ec31657199e3c8b2def6a",
 }
 `;
 
@@ -31,7 +31,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) deliveries 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code checks card) 1`] = `
 {
   "lines": 1611,
-  "sha256": "623f3720de87f0ea73aa47cad064d4124d665e0d92d27527a571c522a4b7ee9f",
+  "sha256": "dd511871e974da19f973e767365333de813778b6e11aad6641ab23f79c10cd2f",
 }
 `;
 
@@ -45,7 +45,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (answered rfi-1) 1`] = `
 {
   "lines": 847,
-  "sha256": "74cd0d314f6487adbf60f6cb06fecd5500e376823a6a4adffc33335d57853c04",
+  "sha256": "6bcbf1c5ed60f0d6b3621c9e1367962f1b04687f20cdc15a412f5d8e59abc66f",
 }
 `;
 
@@ -59,7 +59,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (new) 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (open rfi-2) 1`] = `
 {
   "lines": 863,
-  "sha256": "99aecf9f8cd6096f8ff2ac15185f98cdc0d774e8812d3c73134766e18443c5f3",
+  "sha256": "13098fdc34f1a4b7c04cfd6cb84300496f36c71d100383d0be257c19649598f6",
 }
 `;
 

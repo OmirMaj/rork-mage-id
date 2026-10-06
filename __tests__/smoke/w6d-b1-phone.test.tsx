@@ -224,7 +224,7 @@ describe('lane B1 — the phone is unchanged (golden, 390 × 844 iOS)', () => {
     const tree = await phoneRoute(`/job-costing?${P}`);
     // The status pill is drawn only by PhaseBar (the By-phase cards); a press
     // on it bubbles to the PhaseBar's own touchable.
-    const pills = screen.queryAllByText(/^(On track|Watch|Over|Unbudgeted)$/);
+    const pills = screen.queryAllByText(/^(On Track|Watch|Over|Unbudgeted)$/);
     expect(pills.length).toBeGreaterThan(0);
     fireEvent.press(pills[0]);
     await pump();

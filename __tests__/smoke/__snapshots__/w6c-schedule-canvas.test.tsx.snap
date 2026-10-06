@@ -5853,7 +5853,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                           "children": [
                                             {
                                               "children": [
-                                                "Task name",
+                                                "Task Name",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -6173,7 +6173,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                           "children": [
                                             {
                                               "children": [
-                                                "Due by",
+                                                "Due By",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -14852,7 +14852,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                           "children": [
                                             {
                                               "children": [
-                                                "Task name",
+                                                "Task Name",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -15181,7 +15181,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                           "children": [
                                             {
                                               "children": [
-                                                "Due by",
+                                                "Due By",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -23712,7 +23712,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "Health score",
+                                    "Health Score",
                                   ],
                                   "props": {
                                     "style": {
@@ -23742,7 +23742,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No baseline",
+                                    "No Baseline",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -23771,7 +23771,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "Critical path",
+                                    "Critical Path",
                                   ],
                                   "props": {
                                     "style": {
@@ -23845,7 +23845,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "Not linked",
+                                    "Not Linked",
                                   ],
                                   "props": {
                                     "style": {
@@ -23961,7 +23961,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                   "children": [
                                     {
                                       "children": [
-                                        "Earned value",
+                                        "Earned Value",
                                       ],
                                       "props": {
                                         "style": {
@@ -24145,7 +24145,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                   "children": [
                                     {
                                       "children": [
-                                        "Tasks by status",
+                                        "Tasks by Status",
                                       ],
                                       "props": {
                                         "style": {
@@ -24485,7 +24485,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "Critical path tasks",
+                                    "Critical Path Tasks",
                                   ],
                                   "props": {
                                     "style": {
@@ -24578,7 +24578,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24671,7 +24671,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24764,7 +24764,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24857,7 +24857,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24950,7 +24950,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -25043,7 +25043,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -26000,7 +26000,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "Health score",
+                                    "Health Score",
                                   ],
                                   "props": {
                                     "style": {
@@ -26030,7 +26030,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No baseline",
+                                    "No Baseline",
                                   ],
                                   "props": {
                                     "numberOfLines": 1,
@@ -26059,7 +26059,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "Critical path",
+                                    "Critical Path",
                                   ],
                                   "props": {
                                     "style": {
@@ -26133,7 +26133,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "Not linked",
+                                    "Not Linked",
                                   ],
                                   "props": {
                                     "style": {
@@ -26249,7 +26249,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                   "children": [
                                     {
                                       "children": [
-                                        "Earned value",
+                                        "Earned Value",
                                       ],
                                       "props": {
                                         "style": {
@@ -26433,7 +26433,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                   "children": [
                                     {
                                       "children": [
-                                        "Tasks by status",
+                                        "Tasks by Status",
                                       ],
                                       "props": {
                                         "style": {
@@ -26773,7 +26773,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "Critical path tasks",
+                                    "Critical Path Tasks",
                                   ],
                                   "props": {
                                     "style": {
@@ -26866,7 +26866,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -26959,7 +26959,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27052,7 +27052,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27145,7 +27145,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27238,7 +27238,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27331,7 +27331,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "No float",
+                                    "No Float",
                                   ],
                                   "props": {
                                     "style": {
@@ -28347,7 +28347,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                           "children": [
                             {
                               "children": [
-                                "Living plan",
+                                "Living Plan",
                               ],
                               "props": {
                                 "style": {
@@ -28514,7 +28514,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Task name",
+                                                        "Task Name",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -28642,7 +28642,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Due by",
+                                                        "Due By",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -34815,7 +34815,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "To do",
+                                                "To Do",
                                               ],
                                               "props": {
                                                 "style": {
@@ -38661,7 +38661,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                         },
                                                       ],
                                                       "props": {
-                                                        "accessibilityLabel": "Timeline background — double-tap to add a task at that day",
+                                                        "accessibilityLabel": "Timeline background, double-tap to add a task at that day",
                                                         "accessibilityState": {
                                                           "busy": undefined,
                                                           "checked": undefined,
@@ -39741,7 +39741,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                           "children": [
                             {
                               "children": [
-                                "Living plan",
+                                "Living Plan",
                               ],
                               "props": {
                                 "style": {
@@ -39915,7 +39915,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Task name",
+                                                        "Task Name",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -40049,7 +40049,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Due by",
+                                                        "Due By",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -46345,7 +46345,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "To do",
+                                                "To Do",
                                               ],
                                               "props": {
                                                 "style": {
@@ -50191,7 +50191,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                         },
                                                       ],
                                                       "props": {
-                                                        "accessibilityLabel": "Timeline background — double-tap to add a task at that day",
+                                                        "accessibilityLabel": "Timeline background, double-tap to add a task at that day",
                                                         "accessibilityState": {
                                                           "busy": undefined,
                                                           "checked": undefined,
@@ -52936,7 +52936,7 @@ exports[`golden: shared-schedule (InteractiveGantt's only non-Pro consumer) 1000
                             },
                             {
                               "children": [
-                                "To do",
+                                "To Do",
                               ],
                               "props": {
                                 "style": {
@@ -57466,7 +57466,7 @@ exports[`golden: shared-schedule (InteractiveGantt's only non-Pro consumer) 1000
                                         },
                                       ],
                                       "props": {
-                                        "accessibilityLabel": "Timeline background — double-tap to add a task at that day",
+                                        "accessibilityLabel": "Timeline background, double-tap to add a task at that day",
                                         "accessibilityState": {
                                           "busy": undefined,
                                           "checked": undefined,

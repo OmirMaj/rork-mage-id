@@ -3346,7 +3346,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
       }
     >
       <View
-        accessibilityLabel="Back to your projects"
+        accessibilityLabel="Back to Your Projects"
         accessibilityRole="link"
         accessibilityState={
           {
@@ -4592,7 +4592,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
     }
   >
     <View
-      accessibilityLabel="Project stage"
+      accessibilityLabel="Project Stage"
       accessibilityRole="tablist"
       style={
         [
@@ -8953,7 +8953,7 @@ exports[`flag ON, desktop web 1512 x 945: an owner with three people on the proj
   }
 >
   <View
-    accessibilityLabel="Back to your projects"
+    accessibilityLabel="Back to Your Projects"
     accessibilityRole="link"
     accessibilityState={
       {

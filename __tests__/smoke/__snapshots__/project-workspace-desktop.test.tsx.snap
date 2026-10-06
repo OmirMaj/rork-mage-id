@@ -1280,7 +1280,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              Low risk
+              Low Risk
             </Text>
           </View>
           <View
@@ -16578,7 +16578,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              Generate status report
+              Generate Status Report
             </Text>
           </View>
         </View>
