@@ -971,7 +971,7 @@ export default function CloseoutBinderScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel}>Home Passport</Text>
                   <Text style={styles.cardHelper}>
-                    Indexes this project&apos;s finishes, warranties, trades and photos so the client can ask their portal questions, like &ldquo;what paint is in the kitchen?&rdquo;, and get cited answers, plus a pre-answered FAQ.
+                    Indexes this project&apos;s finishes, warranties, trades and photos so the client can ask their portal questions, like “what paint is in the kitchen?”, and get cited answers, plus a pre-answered FAQ.
                   </Text>
                 </View>
                 <BookOpen size={18} color={themeColors.accent} strokeWidth={1.75} />

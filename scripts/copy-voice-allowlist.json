@@ -625,6 +625,882 @@
       "rule": "R15",
       "match": "Photo code check",
       "reason": "the feature's one name, pinned in eight files (two of them the server's) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the lane that converts CodeLookSheet and the analyze-photos function"
+    },
+    {
+      "file": "app/plans.tsx",
+      "rule": "R15",
+      "match": "Title block reads",
+      "reason": "the opening words of a sentence that continues through a JSX expression (\"Title block reads A-201. Use it?\")"
+    },
+    {
+      "file": "app/sub-portal-setup.tsx",
+      "rule": "R15",
+      "match": "Share with",
+      "reason": "the words before a value on one line (\"Share with {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/sub-portal-setup.tsx",
+      "rule": "R15",
+      "match": "Invoices from",
+      "reason": "the words before a value on one line (\"Share with {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/submittal.tsx",
+      "rule": "R21",
+      "match": "RFIs & Submittals",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/submittal.tsx",
+      "rule": "R15",
+      "match": "Dictate this submittal",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/(tabs)/construction-ai/index.tsx",
+      "rule": "R15",
+      "match": "Describe the work",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/oac-meeting.tsx",
+      "rule": "R15",
+      "match": "Capture meeting discussion",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/permits.tsx",
+      "rule": "R21",
+      "match": "Permits & Inspections",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R21",
+      "match": "RFIs & Submittals",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R15",
+      "match": "Dictate this RFI",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R15",
+      "match": "Record the answer",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/warranties.tsx",
+      "rule": "R15",
+      "match": "with an open claim",
+      "reason": "printed mid-sentence, after a count (\"2 with an open claim\"): only a standalone string starts with a capital (VOICE 3)"
+    },
+    {
+      "file": "app/warranties.tsx",
+      "rule": "R15",
+      "match": "missing an end date",
+      "reason": "printed mid-sentence, after a count (\"2 with an open claim\"): only a standalone string starts with a capital (VOICE 3)"
+    },
+    {
+      "file": "components/tutorial/TutorialHost.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "components/plans/AskPlansPanel.tsx",
+      "rule": "R15",
+      "match": "Title block reads",
+      "reason": "the opening words of a sentence that continues through a JSX expression (\"Title block reads A-201. Use it?\")"
+    },
+    {
+      "file": "components/brain/AskConversation.tsx",
+      "rule": "R15",
+      "match": "Ask by voice",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "utils/closeoutPacketGenerator.ts",
+      "rule": "R21",
+      "match": "wght@500;600;700;800&display=swap",
+      "reason": "the \"&\" is a query-string separator in the Google Fonts URL of the handoff packet HTML, not copy"
+    },
+    {
+      "file": "utils/codeThread/context.ts",
+      "rule": "R20",
+      "match": "- Estimate lines (name — quantity unit, category), first 0",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/inspectionPrep.ts",
+      "rule": "R22",
+      "match": "when the answer changes the list (e.g. \"Any basement bedrooms?\" Yes / No",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/planSheetBatchCore.ts",
+      "rule": "R20",
+      "match": "0 — Page 0",
+      "reason": "a stored sheet name and the prefix code matches saved sheets on (`${base} — page N`): changing it orphans pages already imported"
+    },
+    {
+      "file": "utils/planSheetBatchCore.ts",
+      "rule": "R20",
+      "match": "0 — page ",
+      "reason": "a stored sheet name and the prefix code matches saved sheets on (`${base} — page N`): changing it orphans pages already imported"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "-block numbers (NOT the Ask sheet — it has the askPlans layer)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "the question row — its mount completes the open-the-",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "TAKEOFF_RESULT in the real review — no upload, no AI call, no meter c",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "ows samplePlanAnswer(SAMPLE_PLAN) — no search, no AI call",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/fixturesB.ts",
+      "rule": "R15",
+      "match": "not read (sample counts)",
+      "reason": "a scale value printed after \"Scale:\" on the takeoff review, not a standalone label"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "schedule-back-to-job — the from=job link to the sample h",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "utton when his crew list is empty — the card says to add crew first",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "punch-item-<id> — the run's own item (opens the edi",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "the compose box (sample run only) — never presses Continue",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "LE (line + Hall), sample run only — he taps Save",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R21",
+      "match": "Riverbend Drywall & Acoustical Ceilings of Northern N",
+      "reason": "a made-up company's own name in a sizing fixture (VOICE 4: another organization's name keeps its \"&\")"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "(handleSaveDraft → saveDraftFrom) — never Sign & send",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R21",
+      "match": "aft → saveDraftFrom) — never Sign & send",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R23",
+      "match": "bar's Save draft (handleSaveDraft → saveDraftFrom) — never Sign & sen",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "Sign & send — LOOK ONLY, never a do step; refus",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R21",
+      "match": "Sign & send — LOOK ONLY, never a do step",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "aia-edit-draft — a SAVED period opens read-only (r",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "Schedule of values (G703) section — cards on phone, aia-g703 grid on ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "ar's Save to project (handleSave) — never Generate PDF / the certify ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "e Architect's certificate section — LOOK ONLY, never aia-save-certifi",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "binder-deliver (finalized only) — LOOK ONLY; refused on a sample",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": ", the finalize slide (draft only) — LOOK ONLY",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "n's own setPeriodTo (sample only) — never presses Save",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "wizard-save-sample — 'Save to the sample job' (a fixtu",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "wizard-open-sample-job — after the sample save, back to th",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "add-co-item-btn ('Custom' — opens the add-line sheet)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "save-co-draft ('Save to Project') — never send-co-btn",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R21",
+      "match": "the Overhead & profit row (ticket-markup); rates",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "ticket-save-unsigned ('Save') — never ticket-get-signature / tick",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "he scope answer (sample run only) — never presses Generate",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "eet prefilled with CO_SAMPLE.line — the user taps Add",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "work-performed-input — fallback when the preview card is",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "walk-pin-marker — its mount completes the drop-pin ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "oiceCaptureModal open (modalOpen) — its pageSheet covers the dfr-voic",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "r, all locations (NOT PlanPinStep — it has the planPin layer)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "PLE_NOTE.parsed, {metered:false}) — no AI call, no meter change",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/defs/index.ts",
+      "rule": "R20",
+      "match": "Sample — Sarah's Place",
+      "reason": "the sample project name: the 'Sample — ' prefix is matched by the app and exempted by the server"
+    },
+    {
+      "file": "utils/tutorial/defs/index.ts",
+      "rule": "R20",
+      "match": "Sample — Residential Build",
+      "reason": "the sample project name: the 'Sample — ' prefix is matched by the app and exempted by the server"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R20",
+      "match": "Not that — discard",
+      "reason": "a `mustContain` pin: a literal quoted from another file (code or that file's own string), held equal by validate-skill-quiz-bank"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": "(c.kind === 'plan' && !!c.ref)",
+      "reason": "a `mustContain` pin: a literal quoted from another file (code or that file's own string), held equal by validate-skill-quiz-bank"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R23",
+      "match": "withConfirmedImpactDays(() => handleSave('draft'))",
+      "reason": "a `mustContain` pin: a literal quoted from another file (code or that file's own string), held equal by validate-skill-quiz-bank"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": " a change order. What does Revise & re-issue do?",
+      "reason": "a skills-check question or choice: changing it needs a quizVersion bump and a regenerated server key (gen-skill-quiz-key), so it waits for the server pass"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": "Sign & send",
+      "reason": "a skills-check question or choice: changing it needs a quizVersion bump and a regenerated server key (gen-skill-quiz-key), so it waits for the server pass"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log the end of the day — crew on site, work done, weather,",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "a change the owner wants — added scope and cost",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log a warranty on installed work — roof, HVAC, appliance, etc.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "a job hazard analysis / JSA — hazards + controls for a task",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log a building/trade permit — pulled, approved, or expiring",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/types.ts",
+      "rule": "R20",
+      "match": "REPLACES the draft — an op you leave out is not applie",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/plans/planAnswer.ts",
+      "rule": "R22",
+      "match": "(e.g. \"Sheet S-201\"). If the answer is ",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/plans/planAnswer.ts",
+      "rule": "R20",
+      "match": "exed plans and suggest rephrasing — do NOT invent an answer.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/codeCard/echoCheck.ts",
+      "rule": "R20",
+      "match": "(^|[^A-Za-z0-9.$])0(?:[s,:;(–—-]{0,3}[\"“„«‘]|[s,:;(–—-]{1,3}'(?",
+      "reason": "a regular expression (the dash is inside a character class), not copy"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Materials & prices",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Labor & safety",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Codes & policy",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Equipment & tech",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Finish — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Supplier — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Warranty — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Supplier — materials",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Trade — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Contact — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Maintenance — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Photo — 00",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "That's not in your home's records — ask your contractor.",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "'s not in this building's records — ask your contractor.",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "t or property manager understands — no contractor jargon",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "a homeowner understands — no contractor jargon",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R22",
+      "match": "nce in parentheses for each fact, e.g. ",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "(Warranty — Trane HVAC). If the records do no",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/rfiLatency.ts",
+      "rule": "R20",
+      "match": " — 0 blew past their due date",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R15",
+      "match": "fire / egress",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R15",
+      "match": "zoning / site",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "0 — 0 0 \"0\" on 0 and wrote: \"0\"",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "No 0 inspection called yet with 0 — 0 inspection0 on file there, none",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "ctions of an item already counted — 0 distinct inspection0.",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "han 0 DISTINCT called inspections — too few to say anything about a p",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "s fewer than 0 called inspections — too few to say anything about a p",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "hat the inspectors actually wrote — the 0 most recent of 0 notes, ver",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "your jobs with this authority (0) — a note from one job is not a find",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " — 0 distinct item0, 0 re-inspection",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " — the inspector's note is in the an",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " 0 matched by place name — one may be a same-named town.",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/codeAmendments.ts",
+      "rule": "R20",
+      "match": "human pass 2026-09-13 — curl + pdftotext -layout of 19 NY",
+      "reason": "provenance metadata (`readBy`: who read the register and how), never printed"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "y California's own writing either — the Commission describes it as a ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "n years, so none are claimed here — but it DOES publish separately-ti",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "option. No NEC edition is claimed — the state reaches it through the ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "oes not enforce the IECC directly — it writes the Washington State En",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "rately by the Department of Labor & Industries (WAC 296-46B), and the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "Statewide code — local jurisdictions enforce it ra",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "municipalities adopt on top of it — ask the city or town which of the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ctrical edition is a cycle behind — the 2020 National Electrical Code",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "reference, effective 1 March 2024 — the year in its name is the Ohio ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "nstruction Code on 17 August 2026 — a very recent turnover, and the s",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ative Regulation Review Committee — confirm which code your permit da",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "esidential fact sheet era implies — the two chapters move independent",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": ". OSFM still lists the 2018 codes — in effect since 1 January 2019 — ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "eattle Department of Construction & Inspections (SDCI)",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "cal and plumbing codes from IAPMO — the 2021 Uniform Mechanical Code ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "on Code took effect 1 August 2025 — a full cycle ahead of most large ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "Regulatory and Economic Resources — Construction, Permitting and Buil",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ding-envelope products before use — windows, exterior glazing, wall c",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "are not on any model-code edition — they are Municipal Code chapters ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": " / 23.00) on top of the base code — MAGE could NOT verify which one B",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "8797, the 2025 triennial adoption — passed 12 December 2025, approved",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": ". This is still the code in force — the 2024 DC Construction Codes, b",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "lumbing and mechanical from IAPMO — the 2024 Uniform Plumbing Code an",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "C, IPC, IEBC, IFGC, IFC and ISPSC — but the energy code stayed on the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": " been in force since 13 June 2022 — but the city's \"Know the Code\" pa",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "timore City Department of Housing & Community Development (DHCD), Per",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "refused by iccViewerUrl — not a bare volume id",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "HTTP 0 — this volume id does not resolve; ",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "generic fallback title — this id does not resolve to a vol",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "This is the STATE adoption — MAGE has no city-level record for",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/rfiHoldTime.ts",
+      "rule": "R20",
+      "match": "the landlord or building engineer — counted on neither side, because ",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/codeAckCore.ts",
+      "rule": "R15",
+      "match": "Before you rely on a code answer",
+      "reason": "the one-time code-answer acknowledgement: its title, body and button are pinned word for word (__tests__/guards/code-ack.test.ts) and a style pass leaves the notice as written"
+    },
+    {
+      "file": "utils/permitOffices.ts",
+      "rule": "R21",
+      "match": "Town of Huntington Building & Housing Division",
+      "reason": "another organization's own name (VOICE 4)"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "MAGE ID PROPOSAL — THE DOCUMENT YOU ARE ACCEPTING",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "scope: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "allowance: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "payment: 0 — 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "payment: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/subCompliance.ts",
+      "rule": "R20",
+      "match": "vidence of a missing track record — do not read them as one.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/subCompliance.ts",
+      "rule": "R20",
+      "match": " commitments on record in MAGE ID — there is no track record here yet",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/pushPermissionAsk.ts",
+      "rule": "R20",
+      "match": "permission is already granted — register the token silently",
+      "reason": "an internal `because` reason for logs and tests, never shown"
     }
   ]
 }

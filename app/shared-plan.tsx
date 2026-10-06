@@ -112,8 +112,8 @@ export default function SharedPlanScreen() {
 
       <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.footNote}>
-          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill. Please
-          talk to {payload.gc ?? 'your contractor'} about anything you see here.
+          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill. Talk
+          to {payload.gc ?? 'your contractor'} about anything you see here.
         </Text>
       </ScrollView>
     </View>
