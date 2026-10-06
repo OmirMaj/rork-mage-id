@@ -155,7 +155,7 @@ const POLL_MS = 250;
 const MEASURE_TIMEOUT_MS = 180;
 const HAND_HIDE_MS = 4000;
 const EXIT_TOAST_MS = 2600;
-const EXIT_TOAST = 'Tutorial closed — replay it from Help → Tutorials';
+const EXIT_TOAST = 'Tutorial closed. Replay it from Help > Tutorials.';
 const HOLE_RADIUS = Tokens.radius.md + 4;
 /** Routes a new user is still inside while onboarding finishes; the boot
  *  waits for the navigator to leave them before pushing the sample. */

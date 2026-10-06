@@ -263,7 +263,7 @@ function SubScorecardInner() {
             <Text style={styles.note}>
               Reliability is built from deliveries you already track: the date you were
               promised versus the date it landed, and whether the supplier ever confirmed
-              before shipping. Early loads do not cancel late ones — a slip already cost a
+              before shipping. Early loads do not cancel late ones: a slip already cost a
               crew a day an early delivery does not give back. A supplier stays ungraded
               until there is enough history to defend the number, and an uninspected load
               is never counted as damage-free.
@@ -273,7 +273,7 @@ function SubScorecardInner() {
         <Text style={styles.lede}>
           {graded > 0
             ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} project history behind the grade.`
-            : `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} on file — none with signed commitments yet, so grades reflect paperwork only. Award work through Buyout and the scores get real.`}
+            : `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} on file, none with signed commitments yet, so grades reflect paperwork only. Award work through Buyout and the scores fill in.`}
         </Text>
 
         {result.cards.map(card => {
@@ -357,7 +357,7 @@ function SubScorecardInner() {
           Grades blend cost discipline on closed commitments, change-order growth on
           signed work, punch items bounced at review, schedule reliability on tasks
           assigned to the sub, and today&apos;s COI / license / W-9 standing. Factors
-          without enough linked data show as &quot;—&quot; and sit out of the blend. History depth
+          without enough linked data show as a dash and sit out of the blend. History depth
           moves confidence, not the grade, so a new sub with clean paper isn&apos;t punished.
         </Text>
         </>)}

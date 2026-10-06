@@ -53,7 +53,7 @@ export const CODE_LOOK_DISCLAIMER = 'Visual pre-check, not an inspection. Not a 
 export const CODE_LOOK_NOTHING_FLAGGED = "Nothing flagged in what's visible.";
 /** The same words as InspectionReadySheet's RECALL_CHIP (validator-checked;
  *  not imported — that would be a component → util → component cycle). */
-export const CODE_LOOK_RECALL_CHIP = 'From model recall — verify with your AHJ';
+export const CODE_LOOK_RECALL_CHIP = 'From model recall. Verify with your AHJ.';
 export const CODE_LOOK_ALWAYS_CANT_TELL: CodeLookCantTell = {
   what: 'Anything behind the finish or outside the frame',
   betterShot: 'A closer shot of each spot you want checked',
@@ -156,7 +156,7 @@ export function codeLookHeadline(r: CodeLookResult): string {
 export function trustLabel(c: CodeLookConfidence): string {
   if (c === 'high') return 'Clearly visible';
   if (c === 'med') return 'Probably visible';
-  return 'Hard to see — check on site';
+  return 'Hard to see. Check on site.';
 }
 
 // ─── Context for the model ────────────────────────────────────────────────────

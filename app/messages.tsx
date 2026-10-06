@@ -146,7 +146,7 @@ export default function MessagesScreen() {
           steps={[
             'Open Hire from the sidebar to see active hires, or Subs for your sub roster.',
             'Tap a person to open their profile.',
-            'Hit Message to start chatting — replies show up here automatically.',
+            'Hit Message to start chatting. Replies show up here automatically.',
           ]}
           actionLabel="Open Hiring"
           onAction={() => router.push('/(tabs)/discover/hire' as any)}

@@ -1001,7 +1001,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
         { label: 'New Permit Fee Structure (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/new_permit_fee_structure.pdf' },
         { label: 'Alteration Filing Fees (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/alteration_filing_fees.pdf' },
       ],
-      applicantOfRecordNote: 'In NYC the registered architect or engineer (or their expeditor) is usually the applicant of record and the one who talks to the plan examiner — not the GC.',
+      applicantOfRecordNote: 'In NYC the registered architect or engineer (or their expeditor) is usually the applicant of record and the one who talks to the plan examiner, not the GC.',
       sourceUrl: 'https://www.nyc.gov/site/buildings/dob/contact-us.page',
       checkedOn: '2026-09-26',
     },
@@ -2391,7 +2391,7 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
     return {
       facts: [resolved.reason],
       promptBlock: `JURISDICTION: unresolved. ${resolved.reason}\n${UNKNOWN_INSTRUCTION}`,
-      chipLabel: `No adoption record for this jurisdiction — this answer is model recall, not a code lookup. Verify the governing edition with the local building department.`,
+      chipLabel: `No adoption record for this jurisdiction. This answer is model recall, not a code lookup. Verify the governing edition with the local building department.`,
       grounded: false,
       cacheKey: 'unknown',
       viewerLinks: [],
@@ -2479,7 +2479,7 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
   return {
     facts,
     promptBlock: `JURISDICTION (verified adoption record):\n${facts.map((f) => `- ${f}`).join('\n')}\n${GROUNDED_INSTRUCTION}`,
-    chipLabel: `Grounded on ${entry.authorityName} — ${codes}. Adoption checked ${entry.checkedOn}. Code sections below are still model recall.`,
+    chipLabel: `Grounded on ${entry.authorityName}: ${codes}. Adoption checked ${entry.checkedOn}. Code sections below are still model recall.`,
     grounded: true,
     cacheKey: `${resolved.kind}:${entry.state}:${normalizePlace(scope)}`,
     viewerLinks: viewerLinksFor(resolved),

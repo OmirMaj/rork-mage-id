@@ -863,7 +863,7 @@ export default function CloseoutBinderScreen() {
               Your binder will pull live data from the project so the client gets a complete record:
             </Text>
             <View style={styles.previewList}>
-              <PreviewRow label="Finishes & Fixtures" value={`${selectionsCount} chosen`} />
+              <PreviewRow label="Finishes and Fixtures" value={`${selectionsCount} chosen`} />
               <PreviewRow label="Trades" value={`${projectCommitmentsCount} commitments`} />
               <PreviewRow label="Warranties" value={`${projectWarrantiesCount} on file`} />
               <PreviewRow label="Maintenance Schedule" value={`${maintenance.length} items`} />
@@ -1099,7 +1099,7 @@ export default function CloseoutBinderScreen() {
               </TouchableOpacity>
             ))}
             <Text style={styles.emptyHint}>
-              These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.
+              These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents. Verify before you send.
             </Text>
           </View>
           </MaybeScrollAnchor>
@@ -1241,10 +1241,10 @@ const AIA_FORM_LIST: {
   Icon: typeof FileText;
   color: string;
 }[] = [
-  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: '#16A34A' },
-  { id: 'G706',  title: 'G706 — Affidavit of Debts & Claims',    subtitle: 'Notarized — confirms all bills and claims are paid except as listed.',               Icon: FileText, color: '#1E5BC6' },
-  { id: 'G706A', title: 'G706A — Affidavit of Lien Releases',    subtitle: 'Notarized — confirms all lien waivers received except as listed.',                   Icon: FileText, color: '#1E5BC6' },
-  { id: 'G707',  title: 'G707 — Consent of Surety',              subtitle: 'Surety company approves final payment to contractor without releasing bond.',         Icon: Shield,   color: '#C26A00' },
+  { id: 'G704',  title: 'G704: Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: '#16A34A' },
+  { id: 'G706',  title: 'G706: Affidavit of Debts and Claims',    subtitle: 'Notarized. Confirms all bills and claims are paid except as listed.',               Icon: FileText, color: '#1E5BC6' },
+  { id: 'G706A', title: 'G706A: Affidavit of Lien Releases',    subtitle: 'Notarized. Confirms all lien waivers received except as listed.',                   Icon: FileText, color: '#1E5BC6' },
+  { id: 'G707',  title: 'G707: Consent of Surety',              subtitle: 'Surety company approves final payment to contractor without releasing bond.',         Icon: Shield,   color: '#C26A00' },
 ];
 
 // ── AIA form input modal ────────────────────────────────────────────

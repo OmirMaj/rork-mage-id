@@ -186,7 +186,7 @@ export async function answerFromMemory(question: string, allDocs: MemoryDoc[], o
   const matched = top.some(d => d.score > 0);
 
   if (docs.length === 0) {
-    return { answer: "This project has no records to remember yet — RFIs, daily reports, change orders, submittals and punch items will all become searchable here as you log them.", usedRefs: [], searched: 0, matched: false };
+    return { answer: "This project has no records to remember yet. RFIs, daily reports, change orders, submittals and punch items will all become searchable here as you log them.", usedRefs: [], searched: 0, matched: false };
   }
 
   const context = top.map(d => `[${d.ref}${d.date ? ` · ${d.date.slice(0, 10)}` : ''}] ${d.text}`).join('\n\n');

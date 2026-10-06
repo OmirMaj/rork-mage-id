@@ -301,7 +301,7 @@ export function restoreOutcome(
   if (typeof result === 'string' && result in TIER_RANK) {
     const t = result as SubscriptionTier;
     if (TIER_RANK[t] > 0) {
-      return { title: `Restored — you're on ${TIER_LABEL[t]}`, body: 'Your plan is active on this account.', leave: true };
+      return { title: `Restored. You're on ${TIER_LABEL[t]}.`, body: 'Your plan is active on this account.', leave: true };
     }
     return {
       title: 'Nothing to Restore',

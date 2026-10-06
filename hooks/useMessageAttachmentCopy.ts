@@ -189,7 +189,7 @@ export function useMessageAttachmentCopy(): MessageAttachmentCopy {
         seePlans: t('office.clientMessages.ai.seePlans', 'See plans'),
         notSaved: t('office.clientMessages.ai.notSaved', 'This reading is not saved. Close it and it is gone.'),
         notPosted: t('office.clientMessages.ai.notPosted', 'Nothing here is posted to the thread or sent to your client.'),
-        accountOff: t('office.clientMessages.ai.accountOff', 'Your account has not allowed AI features, so nothing was sent to Google. Check Settings → AI features, then try again.'),
+        accountOff: t('office.clientMessages.ai.accountOff', 'Your account has not allowed AI features, so nothing was sent to Google. Check Settings > AI Features, then try again.'),
         accountUnknown: t('office.clientMessages.ai.accountUnknown', "MAGE couldn't check your account's AI setting. Try again in a minute."),
         beforeNotice: t('office.clientMessages.ai.beforeNotice', 'This message was sent before your client was told about AI reading, so MAGE does not read it.'),
         moreNotRead: (count) => tn('office.clientMessages.ai.moreNotRead', count, { one: '(1 more not read)', other: '({count} more not read)' }),

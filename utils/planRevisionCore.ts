@@ -150,7 +150,7 @@ export function planRevisionStatus(
 
 /** The one line the crew has to read. Pinned by the validator so it can't
  *  drift into something softer than an instruction. */
-export const STALE_BANNER_TITLE = 'Superseded — do not build from this sheet';
+export const STALE_BANNER_TITLE = 'Superseded: Do Not Build from This Sheet';
 
 /**
  * Banner copy, or `null` for a sheet that is fine to build from. Lives here
@@ -171,14 +171,14 @@ export function staleBannerCopy(
     case 'ambiguous':
       return {
         title: STALE_BANNER_TITLE,
-        detail: `This is ${rev}. ${status.current.candidateIds.length} newer copies of this sheet number exist — confirm which one is current before you build.`,
+        detail: `This is ${rev}. ${status.current.candidateIds.length} newer copies of this sheet number exist. Confirm which one is current before you build.`,
       };
     default:
       // not_found (and the unreachable 'self', which `status.stale` already
       // filtered out): we know it's dead, we just can't point anywhere.
       return {
         title: STALE_BANNER_TITLE,
-        detail: `This is ${rev}. A newer revision replaced it, but it is not in this project — get the current sheet before you build.`,
+        detail: `This is ${rev}. A newer revision replaced it, but it is not in this project. Get the current sheet before you build.`,
       };
   }
 }

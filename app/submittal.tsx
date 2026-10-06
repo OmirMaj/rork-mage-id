@@ -676,7 +676,7 @@ function SubmittalForm() {
       if (resolved.unresolved.length > 0) {
         showAlert(
           'Not Sent',
-          `${resolved.unresolved.join(', ')} couldn't be prepared for the email. Check your connection and try again — nothing was sent.`,
+          `${resolved.unresolved.join(', ')} couldn't be prepared for the email. Check your connection and try again. Nothing was sent.`,
         );
         return;
       }
@@ -766,7 +766,7 @@ function SubmittalForm() {
       setEmailMessage('');
       setSendWithoutProductData(false);
       if (cycle.append) nailIt(`Submittal sent to ${emailRecipientName.trim() || emailRecipient.trim()}`);
-      else showAlert('Re-sent', `Sent to ${emailRecipientName.trim() || emailRecipient.trim()}. Cycle ${cycle.cycleNumber} is still out for review, so no new cycle was added — the reviewer's answer through the reply link closes it.`);
+      else showAlert('Re-sent', `Sent to ${emailRecipientName.trim() || emailRecipient.trim()}. Cycle ${cycle.cycleNumber} is still out for review, so no new cycle was added. The reviewer's answer through the reply link closes it.`);
     } catch (err) {
       console.error('[Submittal] Email send failed:', err);
       const copy = describeError(err, { action: 'send the submittal' });
@@ -1025,7 +1025,7 @@ function SubmittalForm() {
           style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={specSection}
           onChangeText={setSpecSection}
-          placeholder="e.g. 03300 - Cast-in-Place Concrete"
+          placeholder="03300 Cast-in-Place Concrete"
           placeholderTextColor={themeColors.textMuted}
         />
 
@@ -1077,7 +1077,7 @@ function SubmittalForm() {
               ) : (
                 <View style={{ flex: 1, gap: 6 }} testID="submittal-required-moved">
                   <Text style={styles.cycleHint}>
-                    {`Schedule moved: was ${formatCalendarDay(scheduleSource.stored)}, now ${formatCalendarDay(scheduleSource.live.requiredDate)} — "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI).`}
+                    {`Schedule moved: was ${formatCalendarDay(scheduleSource.stored)}, now ${formatCalendarDay(scheduleSource.live.requiredDate)}. "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI).`}
                   </Text>
                   <Button
                     label={`Update to ${formatCalendarDay(scheduleSource.live.requiredDate)}`}
@@ -1094,18 +1094,18 @@ function SubmittalForm() {
           </View>
         ) : (
           <Text style={styles.cycleHint} testID="submittal-required-empty">
-            No required date yet — set one, or it stays off the chase list.
+            No required date yet. Set one, or it stays off the chase list.
           </Text>
         )}
         {existingSubmittal && typeof existingSubmittal.leadDays === 'number' ? (
-          <Text style={styles.cycleHint}>{`Lead time: ${existingSubmittal.leadDays} days — estimated lead (AI) from the spec book.`}</Text>
+          <Text style={styles.cycleHint}>{`Lead time: ${existingSubmittal.leadDays} days, estimated lead (AI) from the spec book.`}</Text>
         ) : null}
 
         {/* #57: the product data IS the submittal. Files upload to the
             project's documents and ride on the reviewer email. */}
         {existingSubmittal ? (
           <View style={styles.attachSection} testID="submittal-attachments">
-            <Text style={styles.fieldLabel}>Product data & shop drawings</Text>
+            <Text style={styles.fieldLabel}>Product Data and Shop Drawings</Text>
             {productData.length === 0 ? (
               <Text style={styles.cycleHint}>Nothing attached yet. Attach the cut sheet, shop drawing or sample photo the architect is reviewing.</Text>
             ) : productData.map(entry => (
@@ -1296,7 +1296,7 @@ function SubmittalForm() {
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
               <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
-                {linkedTask ? linkedTask.title : linkedTaskId ? 'Linked task is no longer on the schedule — tap to relink' : 'None — Tap to Link a Task'}
+                {linkedTask ? linkedTask.title : linkedTaskId ? 'Linked task is no longer on the schedule. Tap to relink.' : 'None. Tap to Link a Task.'}
               </Text>
               <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -1411,7 +1411,7 @@ function SubmittalForm() {
                 style={styles.emailInput}
                 value={emailRecipientName}
                 onChangeText={setEmailRecipientName}
-                placeholder="e.g. Architect of Record"
+                placeholder="Architect of Record"
                 placeholderTextColor={themeColors.textMuted}
                 testID="submittal-email-name"
               />
@@ -1452,7 +1452,7 @@ function SubmittalForm() {
               ) : null}
               {resendCycle ? (
                 <Text style={styles.cycleHint} testID="submittal-resend-note">
-                  {`Cycle ${resendCycle} is still out for review, so this goes as a reminder for that round — no new cycle is added.`}
+                  {`Cycle ${resendCycle} is still out for review, so this goes as a reminder for that round. No new cycle is added.`}
                 </Text>
               ) : null}
               <TouchableOpacity

@@ -226,7 +226,7 @@ export function buildCarryForwardAgendaItems(open: OpenOACAction[]): OACAgendaIt
       items.push({
         id: `oac-carry-${o.action.id}`,
         section: 'action_items',
-        title: `Carried forward (OAC #${o.meetingNumber}) — ${shortDescription(o.action.description)}`,
+        title: `Carried forward (OAC #${o.meetingNumber}): ${shortDescription(o.action.description)}`,
         // The row's OWN spelling, not the group's. Grouping folds "Owner" and
         // "owner" together for ordering, but each line still prints the words
         // that were written down — normalising free text on the way to the
@@ -369,7 +369,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'schedule',
-      title: `Schedule status — ${inProgress.length} in progress, ${overdue.length} overdue`,
+      title: `Schedule status: ${inProgress.length} in progress, ${overdue.length} overdue`,
       detail: schedule.healthScore != null
         ? `Health score: ${schedule.healthScore}/100. ${overdue.length > 0 ? `${overdue.length} task(s) past expected end.` : 'On track.'}`
         : `${overdue.length} task(s) past expected end. ${blocked.length} not started despite being scheduled.`,
@@ -415,7 +415,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       title: `${openRfis.length} open RFI${openRfis.length === 1 ? '' : 's'}${overdueRfis.length > 0 ? ` (${overdueRfis.length} overdue)` : ''}`,
       detail: openRfis.slice(0, 5).map(r => {
         const age = daysBetween(r.dateSubmitted);
-        return `• #${r.number} ${r.subject} — ${age}d open${r.assignedTo ? ` (waiting on ${r.assignedTo})` : ''}`;
+        return `• #${r.number} ${r.subject}, ${age}d open${r.assignedTo ? ` (waiting on ${r.assignedTo})` : ''}`;
       }).join('\n'),
       status: overdueRfis.length > 0 ? 'urgent' : agingRfis.length > 0 ? 'warn' : 'info',
     });
@@ -437,13 +437,13 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'rfis',
-      title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue — oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
+      title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue, oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
       detail: overdueRfis.slice(0, 3).map(r => {
         const age = daysBetween(r.dateSubmitted);
         // Whole local days past the due DAY (not rounded elapsed ms from a
         // UTC-midnight parse, which said 4 for a three-day-old due date).
         const dueAge = r.dateRequired ? -(daysUntilCalendarDay(calendarDayOf(r.dateRequired)) ?? 0) : 0;
-        return `• #${r.number} ${r.subject} — ${age}d open, ${dueAge}d past due`;
+        return `• #${r.number} ${r.subject}, ${age}d open, ${dueAge}d past due`;
       }).join('\n'),
       status: 'urgent',
       referenceId: oldestOverdue.id,

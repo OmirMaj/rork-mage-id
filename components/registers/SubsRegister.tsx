@@ -44,7 +44,7 @@ import {
 import { SUB_TRADES, type Subcontractor } from '@/types';
 
 /** Bulk Delete stays off: the phone's delete checks each sub for money on record. */
-export const SUBS_BULK_DELETE_REASON = 'Delete subs one at a time — each is checked for payments on record so the 1099 export keeps his TIN and address.';
+export const SUBS_BULK_DELETE_REASON = 'Delete subs one at a time. Each is checked for payments on record so the 1099 export keeps their TIN and address.';
 
 export interface SubsRegisterProps {
   subcontractors: Subcontractor[];

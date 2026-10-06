@@ -124,8 +124,8 @@ function LicenseVerificationCard({
     if (!Number.isFinite(ms) || ms < 0) return { label: 'Not Verified', color: Colors.textMuted };
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
     if (days <= 90) return { label: `Verified ${days}d ago`, color: Colors.successLabel };
-    if (days <= 180) return { label: `Verified ${days}d ago — stale`, color: Colors.warningLabel };
-    return { label: `Verified ${days}d ago — re-check`, color: Colors.dangerLabel };
+    if (days <= 180) return { label: `Verified ${days}d ago (stale)`, color: Colors.warningLabel };
+    return { label: `Verified ${days}d ago (re-check)`, color: Colors.dangerLabel };
   };
 
   const license = verifiedAge(sub.licenseVerifiedAt);
@@ -162,7 +162,7 @@ function LicenseVerificationCard({
         <View style={vStyles.rowLeft}>
           <View style={[vStyles.dot, { backgroundColor: license.color }]} />
           <View style={{ flex: 1 }}>
-            <Text style={vStyles.label}>License — {license.label}</Text>
+            <Text style={vStyles.label}>License: {license.label}</Text>
             {target && (
               <Text style={vStyles.subLabel}>via {target.agencyName}</Text>
             )}
@@ -185,7 +185,7 @@ function LicenseVerificationCard({
         <View style={vStyles.rowLeft}>
           <View style={[vStyles.dot, { backgroundColor: coi.color }]} />
           <View style={{ flex: 1 }}>
-            <Text style={vStyles.label}>COI — {coi.label}</Text>
+            <Text style={vStyles.label}>COI: {coi.label}</Text>
             <Text style={vStyles.subLabel}>Confirm with the carrier or COI vault</Text>
           </View>
         </View>
@@ -423,7 +423,7 @@ export default function SubsScreen() {
   const openW9 = useCallback(async (path: string) => {
     const url = await signW9Url(path);
     if (!url) {
-      showAlert("Couldn't open the W-9", "The link couldn't be made — you may be offline, or the file was removed. Try again when you're online, or upload it again.");
+      showAlert("Couldn't open the W-9", "The link couldn't be made. You may be offline, or the file was removed. Try again when you're online, or upload it again.");
       return;
     }
     try {
@@ -561,9 +561,9 @@ export default function SubsScreen() {
           <Text style={[styles.detailStatusText, { color: statusColor }]} numberOfLines={2}>
             {status === 'unknown'
               ? (missingDocs.coi && missingDocs.license
-                  ? 'No license or COI expiry on file — insurance unverified'
+                  ? 'No license or COI expiry on file. Insurance unverified.'
                   : missingDocs.coi
-                    ? 'No COI expiry on file — insurance unverified'
+                    ? 'No COI expiry on file. Insurance unverified.'
                     : 'No license expiry on file')
               : getStatusLabel(status, sub)}
           </Text>
@@ -851,7 +851,7 @@ export default function SubsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>Sub Portals</Text>
                 <Text style={styles.prequalSub}>
-                  Self-serve link per sub — they review scope, submit invoices, see payment status
+                  Self-serve link per sub. They review scope, submit invoices and see payment status.
                 </Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
@@ -875,7 +875,7 @@ export default function SubsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>COI Vault</Text>
                 <Text style={styles.prequalSub}>
-                  Upload certificates (photo or PDF) and record each policy's expiry — you're reminded before it lapses
+                  Upload certificates (photo or PDF) and record each policy's expiry. You're reminded before it lapses.
                 </Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />

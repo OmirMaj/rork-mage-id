@@ -98,7 +98,7 @@ export default function SubPortalsListScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Sub Portals</Text>
         <Text style={styles.subtitle}>
-          One self-serve link per sub per project — they review scope, submit invoices, and track payment without asking you for updates.
+          One self-serve link per sub per project. They review scope, submit invoices, and track payment without asking you for updates.
         </Text>
       </View>
 

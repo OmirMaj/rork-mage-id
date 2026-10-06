@@ -205,7 +205,7 @@ function permitExpiryLine(permit: Permit, nowMs: number): { text: string; tone: 
 }
 
 /** "Scan saved" while the bytes are still in the upload queue (#67). */
-const SCAN_UPLOADING_NOTE = 'Scan saved — uploading, viewable once it lands.';
+const SCAN_UPLOADING_NOTE = 'Scan saved. Uploading, viewable once it lands.';
 
 function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
   permit: Permit;
@@ -291,7 +291,7 @@ function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
             <Text style={styles.permitJurisdiction}>{jurisdiction}</Text>
           ) : (
             <Text style={styles.permitJurisdictionUnset} testID={`permit-jurisdiction-unset-${permit.id}`}>
-              {JURISDICTION_UNSET} — tap to add
+              {JURISDICTION_UNSET}. Tap to add.
             </Text>
           );
         })()}
@@ -868,18 +868,18 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       setDobCheck(cur => {
         if (!cur || cur.permitNumber !== num) return cur;
         if (res.status === 'permit') return { permitNumber: num, busy: false, lookup: res.lookup, error: null };
-        return { permitNumber: num, busy: false, lookup: null, error: res.status === 'error' ? res.error : "DOB didn't answer — nothing was checked." };
+        return { permitNumber: num, busy: false, lookup: null, error: res.status === 'error' ? res.error : "DOB didn't answer. Nothing was checked." };
       });
     })();
   }, [form.permitNumber]);
 
   const handleSave = useCallback(() => {
     if (!form.projectId) {
-      showAlert('Pick a Project', 'Permits are tracked per project — pick which one this belongs to.');
+      showAlert('Pick a Project', 'Permits are tracked per project. Pick which one this belongs to.');
       return;
     }
     if (!form.jurisdiction.trim()) {
-      showAlert('Missing Jurisdiction', 'Add the issuing jurisdiction (e.g. "City of Phoenix, AZ").');
+      showAlert('Missing Jurisdiction', 'Add the issuing jurisdiction, such as "City of Phoenix, AZ".');
       return;
     }
     const project = projects.find(p => p.id === form.projectId);
@@ -1287,7 +1287,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       <View style={styles.permitSideBranchBadge}>
                         <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
                         <Text style={styles.permitSideBranchText}>
-                          {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} — not on the normal path
+                          {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} (not on the normal path)
                         </Text>
                       </View>
                     )}
@@ -1343,7 +1343,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 {pickerOpen === 'project' && (
                   <PickerOptions testID="permit-project-options">
                     {projects.length === 0 ? (
-                      <Text style={styles.pickerEmpty}>No projects yet — create one first.</Text>
+                      <Text style={styles.pickerEmpty}>No projects yet. Create one first.</Text>
                     ) : projects.map(p => (
                       <TouchableOpacity
                         key={p.id}
@@ -1412,7 +1412,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       style={styles.formInput}
                       value={form.inspectorName ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, inspectorName: t }))}
-                      placeholder='e.g. "Geotek Engineering — Lic. STX-4112"'
+                      placeholder="Geotek Engineering, Lic. STX-4112"
                       placeholderTextColor={themeColors.textMuted}
                     />
 
@@ -1433,7 +1433,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' as const }]}
                       value={form.lastReportSummary ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, lastReportSummary: t }))}
-                      placeholder="One-line summary of findings, e.g. 'Concrete sample 4-day compressive 4180 psi — passing'"
+                      placeholder="Concrete sample 4-day compressive 4180 psi, passing"
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
@@ -1464,7 +1464,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   style={styles.formInput}
                   value={form.permitNumber}
                   onChangeText={t => setForm(f => ({ ...f, permitNumber: t }))}
-                  placeholder="e.g. BP-2026-04521"
+                  placeholder="BP-2026-04521"
                   placeholderTextColor={themeColors.textMuted}
                 />
 
@@ -1504,7 +1504,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                             </Text>
                           ) : null}
                           {objections ? (
-                            <Text style={styles.dobLine}>DOB shows objections issued — your applicant of record answers them.</Text>
+                            <Text style={styles.dobLine}>DOB shows objections issued. Your applicant of record answers them.</Text>
                           ) : null}
                           {suggested ? (
                             <Button
@@ -1537,7 +1537,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   style={styles.formInput}
                   value={form.phase}
                   onChangeText={t => setForm(f => ({ ...f, phase: t }))}
-                  placeholder="e.g. Foundation, Rough-in, Final"
+                  placeholder="Foundation, Rough-in, Final"
                   placeholderTextColor={themeColors.textMuted}
                 />
 
@@ -1693,7 +1693,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                       style={styles.formInput}
                       value={logDraft.name}
                       onChangeText={t => setLogDraft(d => ({ ...d, name: t }))}
-                      placeholder="What was inspected — e.g. Rough electrical"
+                      placeholder="Rough electrical"
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TouchableOpacity
@@ -1803,9 +1803,9 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                         : scanState === 'uploading'
                           ? SCAN_UPLOADING_NOTE
                           : scanState === 'unavailable'
-                            ? "Couldn't load the saved scan — check your connection. It is still attached."
+                            ? "Couldn't load the saved scan. Check your connection. It is still attached."
                             : isDeviceLocalUri(form.attachmentUri)
-                              ? 'Scan attached — stored on this device only. Sign in to have it upload.'
+                              ? 'Scan attached and stored on this device only. Sign in to have it upload.'
                               // 'fresh': he just picked it, and it really is queued.
                               : 'Scan attached. It uploads on its own as soon as you have signal.'}
                   </Text>

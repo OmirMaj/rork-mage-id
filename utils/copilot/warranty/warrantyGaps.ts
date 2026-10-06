@@ -108,9 +108,9 @@ export function warrantyGaps(draft: WarrantyDraft, grounding: Grounding): Gap[] 
   if (draft.provider == null) {
     gaps.push({
       field: 'provider', impact: 0.55, kind: 'text',
-      question: 'Who backs it — the manufacturer or the sub who installed it?',
+      question: 'Who backs it: the manufacturer or the sub who installed it?',
       groundedDefault: { value: '', basis: 'note who to call on a claim' },
-      placeholder: 'e.g. GAF, or the installer',
+      placeholder: 'GAF, or the installer',
     });
   }
 

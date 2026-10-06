@@ -103,7 +103,7 @@ function BriefInner() {
   );
 
   const headline = brief.needsYou.length === 0
-    ? (sourceFailed ? 'Brief incomplete — MAGE was unreachable' : QUIET_MORNING_LINE)
+    ? (sourceFailed ? 'Brief incomplete. MAGE was unreachable.' : QUIET_MORNING_LINE)
     : `${brief.needsYou.length} need${brief.needsYou.length === 1 ? 's' : ''} you`;
 
   const openItem = (item: BriefItem) => {
@@ -123,7 +123,7 @@ function BriefInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     router.push({
       pathname: '/ask',
-      params: { seed: `About "${item.text}" — what's going on and what should I do?`, screen: 'brief' },
+      params: { seed: `About "${item.text}": what's going on and what should I do?`, screen: 'brief' },
     });
   };
 
@@ -233,7 +233,7 @@ function BriefInner() {
 
               {brief.needsYou.length === 0 && brief.watching.length === 0 && (
                 <Text style={styles.quietNote}>
-                  {sourceFailed ? `${unreachableLine} — nothing was read just now.` : quietBriefDetail(brief)}
+                  {sourceFailed ? `${unreachableLine} Nothing was read just now.` : quietBriefDetail(brief)}
                 </Text>
               )}
             </>

@@ -106,8 +106,8 @@ type ManualKey = typeof HANDOVER_MANUAL_KEYS[number];
 type Read<T> = { state: 'pending' } | { state: 'ok'; value: T } | { state: 'error'; error: string };
 const PENDING = { state: 'pending' } as const;
 
-export const HANDOVER_LOAD_FAILED = "Couldn't load — check your signal. Tap to retry.";
-export const HANDOVER_MANAGED_BY_OWNER = "Managed by the project owner — these records are kept on their account.";
+export const HANDOVER_LOAD_FAILED = "Couldn't load. Check your signal, then tap to retry.";
+export const HANDOVER_MANAGED_BY_OWNER = "Managed by the project owner. These records are kept on their account.";
 
 // Re-exported so the smoke suite can pin the whole-job invoice row next to the
 // single-invoice ladder below (__tests__/smoke/polish-copy-honesty.test.tsx).
@@ -147,17 +147,17 @@ export function finalInvoiceState(
     case 'overdue':
       return {
         status: 'partial',
-        detail: `Invoice #${inv.number} is overdue — chase it before you hand over the keys`,
+        detail: `Invoice #${inv.number} is overdue. Chase it before you hand over the keys.`,
       };
     case 'partially_paid':
       return {
         status: 'partial',
-        detail: `Invoice #${inv.number} part-paid — there is still a balance out`,
+        detail: `Invoice #${inv.number} is part-paid. There is still a balance out.`,
       };
     case 'sent':
-      return { status: 'partial', detail: `Invoice #${inv.number} sent — awaiting payment` };
+      return { status: 'partial', detail: `Invoice #${inv.number} sent, awaiting payment` };
     case 'draft':
-      return { status: 'open', detail: `Invoice #${inv.number} is still a draft — send it` };
+      return { status: 'open', detail: `Invoice #${inv.number} is still a draft. Send it.` };
   }
 }
 
@@ -422,7 +422,7 @@ export default function HandoverScreen() {
         key: 'permits_na',
         label: 'Permits and Final Inspection',
         detail: manualChecks['permits_na']
-          ? `No permits required on this job — confirmed ${new Date(manualChecks['permits_na']).toLocaleDateString()}`
+          ? `No permits required on this job. Confirmed ${new Date(manualChecks['permits_na']).toLocaleDateString()}`
           : 'No permits logged. Tap to confirm this project needed none, or log them on the Permits screen.',
         icon: Landmark,
         status: manualChecks['permits_na'] ? 'done' : 'open',
@@ -472,7 +472,7 @@ export default function HandoverScreen() {
       },
       {
         key: 'keys',
-        label: 'Keys & Access Transferred',
+        label: 'Keys and Access Transferred',
         detail: manualChecks['keys']
           ? `Confirmed ${new Date(manualChecks['keys']).toLocaleDateString()}`
           : 'Keys, garage remotes, alarm codes, smart-lock invites.',

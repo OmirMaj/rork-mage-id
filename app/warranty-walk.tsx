@@ -67,10 +67,10 @@ const DEFAULT_WALK_ITEMS: WalkItem[] = [
   { id: 'foundation-cracks',   phase: 'Structural',     title: 'Foundation: hairline cracks under 1/8"', hint: 'Normal settlement; flag anything wider or stair-stepping.' },
   { id: 'drywall-nailpops',    phase: 'Structural',     title: 'Drywall: Nail Pops, Seam Cracks, Corner-Bead', hint: 'Early settlement. One-time touch-up is typical.' },
   { id: 'roofing-flashing',    phase: 'Exterior',       title: 'Roof: Flashing, Ridge Caps, Attic for Leaks', hint: 'Look for water staining at top plates / valley penetrations.' },
-  { id: 'siding-caulk',        phase: 'Exterior',       title: 'Siding & Exterior Caulk: Shrinkage / Gaps', hint: 'Re-caulk where joints have separated; especially around windows.' },
+  { id: 'siding-caulk',        phase: 'Exterior',       title: 'Siding and Exterior Caulk: Shrinkage / Gaps', hint: 'Re-caulk where joints have separated; especially around windows.' },
   { id: 'gutters',             phase: 'Exterior',       title: 'Gutters: Pitch + Downspout Discharge', hint: 'Confirm 4–6 ft splash-block extension; no standing water.' },
   { id: 'window-operation',    phase: 'Doors/Windows',  title: 'Windows: Operation, Seals, Condensation', hint: 'Each opens, locks, and shows no failed insulating-glass fog.' },
-  { id: 'door-alignment',      phase: 'Doors/Windows',  title: 'Doors: Even Reveal, Latches, Weatherstrip', hint: 'Settling rotates jambs — check the latch throws fully.' },
+  { id: 'door-alignment',      phase: 'Doors/Windows',  title: 'Doors: Even Reveal, Latches, Weatherstrip', hint: 'Settling rotates jambs. Check the latch throws fully.' },
   { id: 'plumbing-leaks',      phase: 'Plumbing',       title: 'Plumbing: Under Sinks, Water Heater, Hose Bibs', hint: 'Open every sink trap area + check water heater pan.' },
   { id: 'plumbing-shutoffs',   phase: 'Plumbing',       title: 'Plumbing: Angle Stops, Supply Lines', hint: 'Each shutoff actuates; no calcified buildup or weeping.' },
   { id: 'electrical-gfci',     phase: 'Electrical',     title: 'Electrical: Every GFCI Test/Reset', hint: 'Kitchen, baths, garage, exterior. Replace any that fail.' },
@@ -304,7 +304,7 @@ export default function WarrantyWalkScreen() {
     if (recipients.length === 0) {
       showAlert(
         'No Client Email on File',
-        'Add your client as a portal invite (Project → Portal → Invites) to email them the walk summary.',
+        'Add your client as a portal invite (Project > Portal > Invites) to email them the walk summary.',
       );
       return;
     }
@@ -317,11 +317,11 @@ export default function WarrantyWalkScreen() {
       const emailWalkTitle = monthsAssumed ? 'Warranty walk' : walkTitle;
       const checkedRows = DEFAULT_WALK_ITEMS
         .filter(it => items[it.id]?.checked)
-        .map(it => `<li style="margin-bottom:6px;color:#4A5159;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">— ${escapeHtml(items[it.id].notes)}</span>` : ''}</li>`)
+        .map(it => `<li style="margin-bottom:6px;color:#4A5159;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">(${escapeHtml(items[it.id].notes)})</span>` : ''}</li>`)
         .join('');
       const flaggedRows = DEFAULT_WALK_ITEMS
         .filter(it => items[it.id]?.needsAttention)
-        .map(it => `<li style="margin-bottom:6px;color:#7A4500;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">— ${escapeHtml(items[it.id].notes)}</span>` : ''}</li>`)
+        .map(it => `<li style="margin-bottom:6px;color:#7A4500;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">(${escapeHtml(items[it.id].notes)})</span>` : ''}</li>`)
         .join('');
       const html = wrapEmailHtml({
         preheader: `${companyName} completed the ${emailWalk} for ${project.name}.`,
@@ -349,7 +349,7 @@ export default function WarrantyWalkScreen() {
         },
         growthBadge: isFree,
       });
-      const subject = `${project.name} — ${emailWalk} summary`;
+      const subject = `${project.name}: ${emailWalk} summary`;
       const results = await Promise.all(recipients.map(r => sendEmail({
         to: r.email,
         subject,
@@ -426,7 +426,7 @@ export default function WarrantyWalkScreen() {
               testID="warranty-walk-set-warranty"
             >
               <Text style={styles.heroNote}>
-                No warranty length is set, so these dates assume 12 months. Set yours in Settings → How you get paid ›
+                No warranty length is set, so these dates assume 12 months. Set yours in Settings &gt; How You Get Paid ›
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -434,8 +434,8 @@ export default function WarrantyWalkScreen() {
             <Text style={styles.heroNote} testID="warranty-walk-dates">
               Walk by {formatCalendarDay(schedule.walkDueDate)} · warranty ends {formatCalendarDay(schedule.warrantyExpiresAt)}
               {schedule.warrantyStartSource === 'closed'
-                ? ` — counted from the day you closed the job (${formatCalendarDay(schedule.warrantyStartDate)}). A G704 in the Closeout Binder sets the real substantial-completion date.`
-                : ` — counted from substantial completion (${formatCalendarDay(schedule.warrantyStartDate)}).`}
+                ? `, counted from the day you closed the job (${formatCalendarDay(schedule.warrantyStartDate)}). A G704 in the Closeout Binder sets the real substantial-completion date.`
+                : `, counted from substantial completion (${formatCalendarDay(schedule.warrantyStartDate)}).`}
             </Text>
           ) : null}
           {resumedFrom ? (

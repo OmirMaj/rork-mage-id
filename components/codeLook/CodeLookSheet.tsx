@@ -310,7 +310,7 @@ export default function CodeLookSheet({
             <View style={s.section} testID="codelook-cant-tell">
               <View style={s.sectionHead}>
                 <EyeOff size={15} color={t.textSecondary} strokeWidth={1.75} />
-                <Text style={s.sectionHeading}>Can&apos;t tell from this photo</Text>
+                <Text style={s.sectionHeading}>Can&apos;t Tell from This Photo</Text>
               </View>
               {run.result.cantTell.map((c, i) => (
                 <View key={`${i}_${c.what}`} style={s.item}>

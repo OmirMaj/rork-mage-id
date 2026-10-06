@@ -199,7 +199,7 @@ function SubDailyUpdateModalImpl({
           {fSub.showHandle && <View style={styles.handle} />}
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Today&apos;s update</Text>
+              <Text style={styles.title}>Today&apos;s Update</Text>
               <Text style={styles.sub}>{task.title}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -212,7 +212,7 @@ function SubDailyUpdateModalImpl({
           >
             {/* Progress slider — big, friendly, easy to tap on a phone. */}
             <View style={styles.section}>
-              <Text style={styles.label}>Today&apos;s progress</Text>
+              <Text style={styles.label}>Today&apos;s Progress</Text>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${progressNum}%` }]} />
                 <Text style={styles.progressText}>{progressNum}%</Text>

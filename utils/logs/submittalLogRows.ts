@@ -101,7 +101,7 @@ const STATUS_LABEL: Readonly<Record<SubmittalStatus, string>> = {
   in_review: 'In Review',
   approved: 'Approved',
   approved_as_noted: 'Approved as Noted',
-  revise_resubmit: 'Revise & Resubmit',
+  revise_resubmit: 'Revise and Resubmit',
   rejected: 'Rejected',
 };
 

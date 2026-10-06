@@ -172,7 +172,7 @@ function warrantiesGate(a: {
 }
 
 const WARRANTIES_OWNER_ONLY_NOTE =
-  "Warranties are kept on the project owner's account — ask them to log one. It appears in the closeout binder and handover.";
+  "Warranties are kept on the project owner's account. Ask them to log one. It appears in the closeout binder and handover.";
 
 export default function WarrantiesScreen() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -346,7 +346,7 @@ function WarrantiesScreenInner() {
     // components (2026-02-30), which new Date() used to accept silently.
     const startParsed = parseCalendarDay(startDate);
     if (!startParsed) {
-      showAlert('Check the Start Date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
+      showAlert('Check the Start Date', 'Enter the start date as YYYY-MM-DD, like 2026-07-14.');
       return;
     }
     const proj = projects.find(p => p.id === formProjectId);
@@ -410,7 +410,7 @@ function WarrantiesScreenInner() {
     // addMonths): a bare 'YYYY-MM-DD' parsed locally, never a UTC re-projection.
     const parsed = parseCalendarDay(claimDate);
     if (!parsed) {
-      showAlert('Check the Date', 'Enter the claim date as YYYY-MM-DD (e.g. 2026-07-14).');
+      showAlert('Check the Date', 'Enter the claim date as YYYY-MM-DD, like 2026-07-14.');
       return;
     }
     const cost = claimCost.trim() === '' ? undefined : parseLenientNumber(claimCost) ?? undefined;
@@ -432,7 +432,7 @@ function WarrantiesScreenInner() {
   const handleResolveClaim = useCallback((w: Warranty, claimId: string) => {
     showPrompt(
       'Mark this claim resolved?',
-      'Optional — one line on how it was fixed. The claim stays on the warranty as resolved.',
+      'Optional. One line on how it was fixed. The claim stays on the warranty as resolved.',
       (value: string) => {
         const resolution = (value ?? '').trim();
         updateWarranty(w.id, {
@@ -675,7 +675,7 @@ function WarrantiesScreenInner() {
                 )}
 
                 <Text style={styles.fieldLabel}>Title</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof, 10-year manufacturer" placeholderTextColor={themeColors.textMuted} />
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Roof, 10-year manufacturer" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.fieldLabel}>Category</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
@@ -691,7 +691,7 @@ function WarrantiesScreenInner() {
                 </ScrollView>
 
                 <Text style={styles.fieldLabel}>Provider or Manufacturer</Text>
-                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={themeColors.textMuted} />
+                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="GAF, Carrier, Kohler" placeholderTextColor={themeColors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -768,7 +768,7 @@ function WarrantiesScreenInner() {
                       style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
                       value={claimDesc}
                       onChangeText={setClaimDesc}
-                      placeholder="e.g. Roof leak over the kitchen window after the March storm"
+                      placeholder="Roof leak over the kitchen window after the March storm"
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                       testID="warranty-claim-description"

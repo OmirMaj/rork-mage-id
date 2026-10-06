@@ -23,7 +23,7 @@ export function rfiGaps(draft: RFIDraft, _grounding: Grounding): Gap[] {
   if (draft.assignedTo == null) {
     gaps.push({
       field: 'assignedTo', impact: 0.6, kind: 'choice',
-      question: 'Who should answer this — who do you send it to?',
+      question: 'Who should answer this? Who do you send it to?',
       groundedDefault: { value: 'Architect', basis: 'most RFIs go to the architect' },
       choices: ASSIGNEE_CHOICES,
     });
@@ -35,8 +35,8 @@ export function rfiGaps(draft: RFIDraft, _grounding: Grounding): Gap[] {
       question: 'How soon do you need an answer?',
       groundedDefault: { value: false, basis: 'standard turnaround' },
       choices: [
-        { label: 'Standard — About a Week', value: false, recommended: true },
-        { label: 'Urgent — 2-3 days', value: true },
+        { label: 'Standard (About a Week)', value: false, recommended: true },
+        { label: 'Urgent (2-3 Days)', value: true },
       ],
     });
   }

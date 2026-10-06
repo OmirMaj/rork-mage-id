@@ -203,7 +203,7 @@ export function reviewAwardCompliance(
     ? [`from ${certs === 1 ? 'the certificate' : `${certs} certificates`} in your COI vault`, verifiedAgo(sub.coiVerifiedAt, nowMs)]
         .filter(Boolean).join(', ')
     : certs > 0
-      ? 'typed on the sub’s record — the certificates in your vault carry no readable expiry'
+      ? 'typed on the sub’s record, because the certificates in your vault carry no readable expiry'
       : 'typed on the sub’s record, not checked against a certificate';
 
   let coi: AwardCoiState;
@@ -211,7 +211,7 @@ export function reviewAwardCompliance(
     coi = 'none';
     blockers.push(certs > 0
       ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so MAGE can’t confirm their insurance is in force. Open the COI vault and type the expiry under Coverages on their certificate, or enter the COI expiry on their record in the Subs tab.`
-      : `No COI on file for ${who} — nothing in the COI vault and no expiry on their record, so MAGE can’t confirm they are insured.`);
+      : `No COI on file for ${who}: nothing in the COI vault and no expiry on their record, so MAGE can’t confirm they are insured.`);
   } else if (coiMs < nowMs) {
     coi = 'expired';
     blockers.push(`${who}'s COI expired ${formatExpiryDay(coiRaw)} (${evidence}).`);
@@ -227,7 +227,7 @@ export function reviewAwardCompliance(
   // ── Licence leg — named, never blocking ──
   const licMs = parseExpiry(sub.licenseExpiry);
   if (licMs === null) {
-    notes.push(`No license expiry on file for ${who}${sub.licenseNumber?.trim() ? ` (license #${sub.licenseNumber.trim()})` : ''} — check the state board if this trade needs one.`);
+    notes.push(`No license expiry on file for ${who}${sub.licenseNumber?.trim() ? ` (license #${sub.licenseNumber.trim()})` : ''}. Check the state board if this trade needs one.`);
   } else if (licMs < nowMs) {
     notes.push(`${who}'s license expiry on file is ${formatExpiryDay(sub.licenseExpiry)}, which has passed. Check the state board before they start.`);
   } else if (licMs - nowMs < warnWindow) {

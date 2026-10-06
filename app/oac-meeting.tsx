@@ -683,7 +683,7 @@ function OACMeetingInner() {
         style={styles.attendeeInput}
         value={actionDraftDesc}
         onChangeText={setActionDraftDesc}
-        placeholder="e.g. Owner to approve the terrace radiant scope"
+        placeholder="Owner to approve the terrace radiant scope"
         placeholderTextColor={themeColors.textMuted}
         multiline
         testID="oac-action-desc"
@@ -696,7 +696,7 @@ function OACMeetingInner() {
         // Free text on purpose: the four parties this captures — owner,
         // architect, landlord, building engineer — are not Contacts,
         // subs or users anywhere in the app. Typed as said in the room.
-        placeholder="e.g. Owner / Sarah Chen, AIA / Building engineer"
+        placeholder="Owner / Sarah Chen, AIA / Building engineer"
         placeholderTextColor={themeColors.textMuted}
         testID="oac-action-owner"
       />
@@ -1036,7 +1036,7 @@ function OACMeetingInner() {
               <Text style={styles.cardLabel}>Action Items ({active.actionItems.length})</Text>
             </View>
             <Text style={styles.cardHelper}>
-              Who owes what out of this meeting. Tap a status to advance it — open, in progress, done. Tap the text to edit it.
+              Who owes what out of this meeting. Tap a status to advance it: open, in progress, done. Tap the text to edit it.
             </Text>
 
             {active.actionItems.length === 0 ? (
@@ -1110,7 +1110,7 @@ function OACMeetingInner() {
                   style={styles.attendeeInput}
                   value={newAttendeeName}
                   onChangeText={setNewAttendeeName}
-                  placeholder="e.g. Jane Okafor (Architect)"
+                  placeholder="Jane Okafor (Architect)"
                   placeholderTextColor={themeColors.textMuted}
                   autoFocus
                   testID="oac-attendee-name"

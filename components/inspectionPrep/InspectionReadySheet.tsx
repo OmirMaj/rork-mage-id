@@ -82,7 +82,7 @@ import {
 import { runInspectionRecall } from '@/utils/inspectionPrepAI';
 import { permitTypeLabel } from '@/utils/statusLabels';
 
-export const RECALL_CHIP = 'From model recall — verify with your AHJ';
+export const RECALL_CHIP = 'From model recall. Verify with your AHJ.';
 export const RECALL_NEEDS_PRO = 'Commonly checked items are on the Pro plan.';
 /** Said once, next to the viewer buttons it explains (the Code Check screen's own words). */
 export const RECALL_VIEWER_NOTE = "Opens ICC's free public viewer. MAGE ID is not affiliated with or endorsed by ICC.";
@@ -373,8 +373,8 @@ export default function InspectionReadySheet({
         <View style={[s.container, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }, f.card]} testID="inspection-ready-sheet">
           <View style={s.header}>
             <View style={s.headerBody}>
-              <Text style={s.sheetHeading}>{`Get ready for ${inspection.name} — ${dayLabel}`}</Text>
-              <Text style={s.authority}>{inspection.authority ?? 'Issuing authority not set — add it on the permit'}</Text>
+              <Text style={s.sheetHeading}>{`Get ready for ${inspection.name} · ${dayLabel}`}</Text>
+              <Text style={s.authority}>{inspection.authority ?? 'Issuing authority not set. Add it on the permit.'}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close" testID="inspection-ready-close">
               <X size={18} color={t.text} strokeWidth={1.75} />
@@ -506,7 +506,7 @@ export default function InspectionReadySheet({
               <View style={s.section}>
                 <View style={s.sectionHead}>
                   <HelpCircle size={15} color={t.warningLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>Not Sure — Verify on Site</Text>
+                  <Text style={s.sectionHeading}>Not Sure: Verify on Site</Text>
                 </View>
                 {byGroup.verify.map(renderItem)}
               </View>

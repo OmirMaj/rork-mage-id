@@ -107,7 +107,7 @@ export const closeoutBinder: TutorialDef = {
   handoff: {
     pathname: '/closeout-binder',
     projectParam: 'projectId',
-    realJobLabel: name => `Build the binder on ${name} →`,
+    realJobLabel: name => `Build the Binder on ${name}`,
     roles: ['owner', 'editor'],
   },
 };

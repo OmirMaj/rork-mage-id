@@ -303,7 +303,7 @@ export default function ExtractSubmittalsScreen() {
           `${added} submittal${added === 1 ? '' : 's'} logged, none sent yet.`,
           skipped > 0 ? `${skipped} already in the log ${skipped === 1 ? 'was' : 'were'} left out.` : '',
           dated < added
-            ? `${added - dated} ${added - dated === 1 ? 'has' : 'have'} no required date — no schedule task matched the trade. Set it on each submittal, or link a task.`
+            ? `${added - dated} ${added - dated === 1 ? 'has' : 'have'} no required date because no schedule task matched the trade. Set it on each submittal, or link a task.`
             : '',
           'Open each one from the project\'s Submittals to attach the product data and send it for review.',
         ].filter(Boolean).join('\n\n'),
@@ -325,7 +325,7 @@ export default function ExtractSubmittalsScreen() {
         <ToolHeader eyebrow="Spec Book · MAGE ID" title="Extract Submittals" />
         <ToolProjectPicker
           toolName="Extract submittals"
-          message="MAGE reads a spec book PDF and drafts the submittal log — every product data sheet, shop drawing and sample the spec calls for, filed into the project."
+          message="MAGE reads a spec book PDF and drafts the submittal log: every product data sheet, shop drawing and sample the spec calls for, filed into the project."
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -362,7 +362,7 @@ export default function ExtractSubmittalsScreen() {
               <View style={styles.heroIconWrap}>
                 <MageAIMark size={20} color={themeColors.accent} />
               </View>
-              <Text style={styles.heroTitle}>Spec Book → Submittal Log</Text>
+              <Text style={styles.heroTitle}>Spec Book to Submittal Log</Text>
               <Text style={styles.heroBody}>
                 Upload the architect&apos;s spec book PDF and MAGE pulls out every item that needs a submittal: cut sheets, mix designs, shop drawings, samples, certifications. Uncheck the ones you don&apos;t need and the rest go into {project.name}&apos;s submittal log.
               </Text>
@@ -383,8 +383,8 @@ export default function ExtractSubmittalsScreen() {
             <View style={styles.helperBox}>
               <Text style={styles.helperTitle}>What Works</Text>
               <Text style={styles.helperBody}>
-                • {SPEC_PAGES_PER_PASS} pages per pass — the review screen says which pages were read, and a longer book needs one pass per section.{'\n'}
-                • Lead times are AI estimates (14 days typical, 30 for long-lead items like mock-ups and custom fabrication). A required date is set only when a schedule task matches the trade — its start less the lead. Otherwise it stays blank for you to set.{'\n'}
+                • {SPEC_PAGES_PER_PASS} pages per pass. The review screen says which pages were read, and a longer book needs one pass per section.{'\n'}
+                • Lead times are AI estimates (14 days typical, 30 for long-lead items like mock-ups and custom fabrication). A required date is set only when a schedule task matches the trade: its start less the lead. Otherwise it stays blank for you to set.{'\n'}
                 • Architect-grade spec books work best (Division 02-33 with explicit &quot;Submittals&quot; sections). Quick scope letters give thinner results.
               </Text>
             </View>

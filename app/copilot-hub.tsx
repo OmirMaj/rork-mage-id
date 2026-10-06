@@ -241,7 +241,7 @@ export default function CopilotHubScreen() {
             <View style={styles.cardIcon}><MageAIMark size={18} color={colors.accent} accentColor={colors.accent} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>Ask MAGE</Text>
-              <Text style={styles.queueSub} numberOfLines={1}>Sounds like a question — get an answer from your data</Text>
+              <Text style={styles.queueSub} numberOfLines={1}>Sounds like a question. Get an answer from your data.</Text>
             </View>
             <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
           </TouchableOpacity>

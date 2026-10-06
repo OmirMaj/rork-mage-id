@@ -71,7 +71,7 @@ export default function SharedPlanScreen() {
           <AlertCircle size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
           <Text style={styles.errorChipText}>Bad Link</Text>
         </View>
-        <Text style={styles.errorTitle}>Couldn&apos;t open this link</Text>
+        <Text style={styles.errorTitle}>Couldn&apos;t Open This Link</Text>
         <Text style={styles.errorBody}>
           The share data is corrupted or this link is from an older version of MAGE ID. Ask your contractor for a fresh link.
         </Text>
@@ -112,7 +112,7 @@ export default function SharedPlanScreen() {
 
       <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.footNote}>
-          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill —
+          Rooms are shaded by the trade that&apos;s scheduled to be working in them. This is the plan, not a bill. Please
           talk to {payload.gc ?? 'your contractor'} about anything you see here.
         </Text>
       </ScrollView>

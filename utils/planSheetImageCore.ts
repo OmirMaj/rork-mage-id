@@ -169,7 +169,7 @@ export function floorPlanFailureReason(kind: FloorPlanFailure, detail?: string):
     case 'unsupported-format':
       return `Plans have to be a JPG or PNG${detail ? ` (this one is ${detail})` : ''}. Take a photo of the plan instead, or export it as a JPG.`;
     case 'too-large':
-      return `This image is ${detail ? `${detail} MB` : `over ${PLAN_SHEET_MAX_MB} MB`}. Plans must be under ${PLAN_SHEET_MAX_MB} MB. Take a photo of the plan instead — a phone photo is well under that.`;
+      return `This image is ${detail ? `${detail} MB` : `over ${PLAN_SHEET_MAX_MB} MB`}. Plans must be under ${PLAN_SHEET_MAX_MB} MB. Take a photo of the plan instead. A phone photo is well under that.`;
     case 'project-not-synced':
       return 'This project has not been saved to the cloud yet, so the plan cannot be stored against it. Open the project once with signal, then try again.';
     case 'not-configured':

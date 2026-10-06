@@ -15,7 +15,7 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
   maxQuestions: 2,
   askThreshold: 0.4,
   suggestions: [
-    'Tile submittal for the primary bath — porcelain, 12x24',
+    'Tile submittal for the primary bath: porcelain, 12x24',
     'Structural steel shop drawings for the moment frames',
   ],
   topicChecklist: [
@@ -27,7 +27,7 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
     voiceTitle: 'Log a submittal',
     composeEyebrow: 'WHAT ARE YOU SUBMITTING',
     composeQuestion: 'What’s the submittal?',
-    composeHint: 'The item + spec section — I’ll number it and log it.',
+    composeHint: 'The item and spec section. I’ll number it and log it.',
     reviewHeadline: 'Here’s your submittal, ready to track.',
     reviewSub: 'Review the item + spec section, then open it from Submittals to attach the product data and send it for review.',
     buildingLabel: 'Logging the submittal…',

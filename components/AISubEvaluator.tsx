@@ -127,7 +127,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       {grounding && !grounding.hasHistory ? (
         <View style={styles.noHistoryRow} testID="ai-sub-no-history">
           <FileText size={12} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.noHistoryText}>No signed commitments on record in MAGE ID — no track record to summarize yet.</Text>
+          <Text style={styles.noHistoryText}>No signed commitments on record in MAGE ID, so there is no track record to summarize yet.</Text>
         </View>
       ) : result.trackRecord && grounding?.hasHistory ? (
         <View style={styles.trackRow}>
@@ -161,7 +161,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         >
           <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rateNote}>
-            No loaded rate set for {sub.trade}. Set yours under Time tracking → Labor rates and it shows here.
+            No loaded rate set for {sub.trade}. Set yours under Time Tracking &gt; Labor Rates and it shows here.
           </Text>
         </TouchableOpacity>
       )}

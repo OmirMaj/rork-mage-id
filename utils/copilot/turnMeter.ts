@@ -82,7 +82,7 @@ export function draftHasContent(draft: unknown): boolean {
   });
 }
 
-export const LIMIT_REACHED_NOTE = 'AI limit reached — built from what you said so far.';
+export const LIMIT_REACHED_NOTE = 'AI limit reached. Built from what you said so far.';
 
 /** What a limit hit does to the interview. */
 export function onLimitHit(draft: unknown): 'review' | 'error' {

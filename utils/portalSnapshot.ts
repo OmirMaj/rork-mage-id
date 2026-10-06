@@ -1083,7 +1083,7 @@ export function proposalBlockReason(
   if (contract && (contract.status === 'sent' || contract.status === 'signed')) {
     return {
       code: 'contract-superseded',
-      gc: `A construction agreement has already been ${contract.status} on this project — it supersedes the proposal.`,
+      gc: `A construction agreement has already been ${contract.status} on this project. It supersedes the proposal.`,
     };
   }
 
@@ -1105,7 +1105,7 @@ export function proposalBlockReason(
   if (!est || !est.id || !(est.grandTotal > 0)) {
     return {
       code: 'no-estimate',
-      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+      gc: 'Needs a priced estimate on this project. Build one and this turns on.',
     };
   }
 
@@ -1126,7 +1126,7 @@ export function proposalBlockReason(
   if (!(view.projectTotal > 0)) {
     return {
       code: 'no-estimate',
-      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+      gc: 'Needs a priced estimate on this project. Build one and this turns on.',
     };
   }
   const priced = view.scopeGroups.filter(g => g.total !== 0);
@@ -2760,7 +2760,7 @@ export function portalInviteFallbackText(args: {
   const access = args.passcodeOn
     ? `No app to install. Open it on your phone or computer. The portal asks for a passcode: ${args.companyName} will send it to you in a separate message.`
     : 'No app to install, no password to remember. Open it on your phone or computer.';
-  return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n— ${args.companyName}`;
+  return `${hi}\n\nWe've set up a private portal for ${args.projectName} so you can follow along with the build.\n\nOpen it here:\n${args.link}\n\n${access}\n\n${args.companyName}`;
 }
 
 /** What a read of the server's key came back with (ok:false = the read itself failed). */
@@ -2809,7 +2809,7 @@ export const PORTAL_RESET_UNKNOWN_NOTE = 'We couldn\u2019t confirm whether the l
  * (which adds what stays off on that screen). utils/sampleGuard.ts promises
  * "no client-portal post" from a sample.
  */
-export const SAMPLE_PORTAL_REASON = 'Sample job \u2014 a client portal never goes out from a sample. Create a real project to share a portal with your client.';
+export const SAMPLE_PORTAL_REASON = 'Sample job. A client portal never goes out from a sample. Create a real project to share a portal with your client.';
 
 /**
  * The customer-facing portal origin. ONE definition on the client, mirroring

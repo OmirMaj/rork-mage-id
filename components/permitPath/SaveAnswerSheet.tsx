@@ -189,7 +189,7 @@ export function SaveAnswerSheet({
         value={saidByRole}
         onChangeText={setSaidByRole}
         maxLength={120}
-        placeholder={t('office.permitPath.save.roleHint', 'e.g. plans examiner')}
+        placeholder={t('office.permitPath.save.roleHint', 'Plans examiner')}
         placeholderTextColor={colors.textMuted}
         accessibilityLabel={t('office.permitPath.save.role', 'Their Title')}
         testID={id('role')}

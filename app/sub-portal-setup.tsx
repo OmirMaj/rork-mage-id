@@ -534,7 +534,7 @@ function SubPortalSetupEditor() {
     if (tokenState === 'failed') {
       showAlert(
         "Couldn't Set Up the Secure Link",
-        "The link's security key hasn't come back from the server — you may be offline. The sub couldn't submit invoices from the link as it is.",
+        "The link's security key hasn't come back from the server. You may be offline. The sub couldn't submit invoices from the link as it is.",
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Try Again', onPress: () => setTokenAttempt(n => n + 1) },
@@ -563,7 +563,7 @@ function SubPortalSetupEditor() {
   const [showSendModal, setShowSendModal] = useState(false);
 
   const shareMessage = useMemo(
-    () => `Hi ${sub?.contactName || sub?.companyName || ''}, here's your sub portal for ${project?.name ?? 'the project'}:\n\n${portalUrl}\n\nYou can review your scope and submit invoices from this page — no login needed.`,
+    () => `Hi ${sub?.contactName || sub?.companyName || ''}, here's your sub portal for ${project?.name ?? 'the project'}:\n\n${portalUrl}\n\nYou can review your scope and submit invoices from this page. No login needed.`,
     [sub?.contactName, sub?.companyName, project?.name, portalUrl],
   );
 
@@ -609,18 +609,18 @@ function SubPortalSetupEditor() {
       const greeting = sub.contactName?.split(' ')[0] || sub.companyName;
       const passcodeLine = link.requirePasscode && link.passcode
         ? `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
-             Your passcode is <strong style="color:#0B0D10;font-size:18px;letter-spacing:1px;">${link.passcode}</strong> — keep it private.
+             Your passcode is <strong style="color:#0B0D10;font-size:18px;letter-spacing:1px;">${link.passcode}</strong>. Keep it private.
            </p>`
         : '';
 
       const html = wrapEmailHtml({
-        preheader: `Your sub portal for ${project.name} is ready — review your scope and submit invoices.`,
+        preheader: `Your sub portal for ${project.name} is ready. Review your scope and submit invoices.`,
         eyebrow: 'Sub Portal',
         title: `${project.name}`,
         subtitle: `Hi ${greeting}, ${companyName} just set up your portal.`,
         bodyHtml: [
           `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
-             You can review your scope, see open punch items and schedule, and submit invoices for review — no app to install, no account to create. Bookmark the link below: your punch list on it is live, and you can mark items fixed from it. Contract and payment figures show the date your contractor last updated them.
+             You can review your scope, see open punch items and schedule, and submit invoices for review. There is no app to install and no account to create. Bookmark the link below: your punch list on it is live, and you can mark items fixed from it. Contract and payment figures show the date your contractor last updated them.
            </p>`,
           link.welcomeMessage ? emailQuote(link.welcomeMessage) : '',
           passcodeLine,
@@ -637,7 +637,7 @@ function SubPortalSetupEditor() {
         sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
       });
 
-      const subject = `${project.name} — your sub portal from ${companyName}`;
+      const subject = `${project.name}: your sub portal from ${companyName}`;
       const result = await sendEmail({
         to: recipientEmail,
         subject,
@@ -709,7 +709,7 @@ function SubPortalSetupEditor() {
   }, [submitted, checkOverpayment]);
 
   const handleReject = useCallback((id: string) => {
-    submitted.reject(id, 'Rejected — please check the details and resubmit.');
+    submitted.reject(id, 'Rejected. Please check the details and resubmit.');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [submitted]);
 
@@ -852,7 +852,7 @@ function SubPortalSetupEditor() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Share with {sub.contactName?.split(' ')[0] || 'sub'}</Text>
           <Text style={styles.sectionSubtitle}>
-            One link to review their scope, submit invoices, and track payment — no account needed.
+            One link to review their scope, submit invoices, and track payment. No account needed.
           </Text>
           <View style={styles.linkBox}>
             <Link size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1116,7 +1116,7 @@ function SubPortalSetupEditor() {
                           >
                             {shown
                               ? `${WAIVER_LABELS[shown.waiverType].short} release ${shown.status === 'requested' ? (shown.signRequestedAt ? 'sent, not signed' : 'drafted, not sent') : shown.status}`
-                              : releasesReadFailed ? 'Couldn\u2019t check lien releases \u2014 check your signal'
+                              : releasesReadFailed ? 'Couldn\u2019t check lien releases. Check your signal.'
                               : inv.status === 'paid' ? 'Paid · No Lien Release Collected' : 'No Lien Release Yet'}
                             {shown && needsUnconditional ? ' · unconditional still needed' : ''}
                           </Text>
@@ -1157,7 +1157,7 @@ function SubPortalSetupEditor() {
       <SendPortalLinkModal
         visible={showSendModal}
         onClose={() => setShowSendModal(false)}
-        subject={`Sub portal — ${project?.name ?? 'Project'}`}
+        subject={`Sub portal: ${project?.name ?? 'Project'}`}
         message={shareMessage}
         link={portalUrl}
       />

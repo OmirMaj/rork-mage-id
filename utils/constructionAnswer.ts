@@ -82,7 +82,7 @@ export const CONSTRUCTION_ANSWER_COPY: Record<ConstructionAnswerErrorCode, strin
   needs_business: 'Construction Answers is on the Business plan.',
   limit_reached: "You've reached this month's Construction Answers limit.",
   unauthenticated: 'Session expired. Sign in again.',
-  offline: "No connection — your question wasn't sent. Try again when you have signal.",
+  offline: "No connection. Your question wasn't sent. Try again when you have signal.",
   timeout: "That took too long, so MAGE stopped waiting. The answer may still count toward this month's limit. Try again, or narrow the question.",
   server_error: "Construction Answers couldn't finish that one. Try again.",
   not_configured: "Construction Answers isn't available yet.",
@@ -91,7 +91,7 @@ export const CONSTRUCTION_ANSWER_COPY: Record<ConstructionAnswerErrorCode, strin
 
 /** The server's own 400 for an over-long question, in plain words. */
 export const QUESTION_TOO_LONG_COPY =
-  'That question is too long — shorten it to under 4,000 characters and ask again.';
+  'That question is too long. Shorten it to under 4,000 characters and ask again.';
 
 /** How many "Also checked" labels to spell out before "+N more". */
 export const CONSULTED_SHOWN = 8;

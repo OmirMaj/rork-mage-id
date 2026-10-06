@@ -41,7 +41,7 @@ export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
     voiceTitle: 'Log a permit',
     composeEyebrow: 'A PERMIT UPDATE',
     composeQuestion: 'What’s the permit?',
-    composeHint: 'Which permit, who issued it, the number, expiry, fee — whatever you have.',
+    composeHint: 'Which permit, who issued it, the number, expiry, fee: whatever you have.',
     reviewHeadline: 'Here’s your permit, ready to log.',
     reviewSub: 'Review it, then save. It shows on the permit log and drives expiry + inspection reminders.',
     buildingLabel: 'Logging the permit…',

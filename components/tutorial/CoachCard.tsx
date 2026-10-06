@@ -126,7 +126,7 @@ export function CoachCard(p: CoachCardProps) {
           {p.skip ? (
             <Pressable onPress={p.onSkip} accessibilityRole="button" hitSlop={8} style={styles.link} testID="tutorial-skip-step">
               <Text style={[Type.footnoteEmphasized, { color: colors.textSecondary }]}>
-                {p.missing ? "Can't find it — Skip step" : 'Skip this step'}
+                {p.missing ? "Can't Find It? Skip Step" : 'Skip This Step'}
               </Text>
             </Pressable>
           ) : null}

@@ -404,7 +404,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     </p>
   ` : missingContactCount > 0 ? `
     <p style="margin:8px 2px 0;font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">
-      ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file — we never captured one. Contact us and we'll put you in touch.
+      ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file because we never captured one. Contact us and we'll put you in touch.
     </p>
   ` : '';
 
@@ -442,7 +442,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     in_review: 'In Review',
     approved: 'Approved',
     approved_as_noted: 'Approved as Noted',
-    revise_resubmit: 'Revise & Resubmit',
+    revise_resubmit: 'Revise and Resubmit',
     rejected: 'Rejected',
   };
   const projectSubmittals = (submittals ?? [])

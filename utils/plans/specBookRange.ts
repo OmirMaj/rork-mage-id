@@ -66,5 +66,5 @@ export function specCoverage(pdfPageCount: number | null, startPage: number, rea
 export function specUnreadWarning(c: SpecCoverage): string | null {
   if (c.complete || c.nextPage === null) return null;
   const tail = c.unread > 0 ? `${c.unread} page${c.unread === 1 ? '' : 's'}` : 'The rest of the book';
-  return `${tail} from page ${c.nextPage} on were not read — any submittal in those divisions is missing from this list.`;
+  return `${tail} from page ${c.nextPage} on were not read. Any submittal in those divisions is missing from this list.`;
 }

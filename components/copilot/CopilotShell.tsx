@@ -260,8 +260,8 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
           (iOS) keeps the review's follow-up box above the keyboard. */}
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {/* resolved defaults — shown, not asked */}
-        {[{ key: 'history', head: 'SET FROM YOUR HISTORY — NOTHING TO ASK', rows: fromHistory },
-          { key: 'assumed', head: 'ASSUMED — CHANGE ON THE GRID', rows: assumed }]
+        {[{ key: 'history', head: 'SET FROM YOUR HISTORY: NOTHING TO ASK', rows: fromHistory },
+          { key: 'assumed', head: 'ASSUMED: CHANGE ON THE GRID', rows: assumed }]
           .filter(g => g.rows.length > 0)
           .map(g => (
             <View key={g.key} style={styles.resolvedGroup}>
@@ -363,7 +363,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 <TouchableOpacity accessibilityRole="button" style={[styles.opt, styles.optRec]} activeOpacity={0.85} onPress={submitEntry} testID="copilot-gap-submit">
                   <View style={[styles.radio, styles.radioRec]} />
                   <View style={styles.optLab}>
-                    <Text style={styles.optText}>{entry.trim() ? 'Use This Answer' : 'Skip — Use the Default'}</Text>
+                    <Text style={styles.optText}>{entry.trim() ? 'Use This Answer' : 'Skip and Use the Default'}</Text>
                     <Text style={styles.optSub}>{state.currentGap.groundedDefault.basis}</Text>
                   </View>
                   <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
@@ -551,7 +551,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
           {state.phase === 'asking' && (
             <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={skip}>
               <Check size={14} color={colors.textMuted} strokeWidth={1.9} />
-              <Text style={styles.ghostText}>Build It Now — Skip the Rest</Text>
+              <Text style={styles.ghostText}>Build It Now and Skip the Rest</Text>
             </TouchableOpacity>
           )}
           {!onWebRoute && (

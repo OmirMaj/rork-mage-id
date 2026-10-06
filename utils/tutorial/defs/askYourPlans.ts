@@ -123,9 +123,9 @@ export const askYourPlans: TutorialDef = {
     pathname: '/plans',
     projectParam: 'projectId',
     params: { ask: '1' },
-    realJobLabel: name => `Ask the plans for ${name} →`,
+    realJobLabel: name => `Ask the Plans for ${name}`,
     feature: 'ask_your_plans',
-    paywallLabel: 'Ask your plans comes with Business — see plans',
+    paywallLabel: 'Ask Your Plans comes with Business. See plans.',
     roles: ['owner', 'editor'],
   },
 };

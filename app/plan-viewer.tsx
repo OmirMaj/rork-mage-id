@@ -583,7 +583,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             const dy = (next[1].y - next[0].y) * imgLayout.h;
             const px = Math.sqrt(dx * dx + dy * dy);
             if (px < MIN_CALIBRATION_PX) {
-              showAlert('Points Too Close', 'Tap two points that are further apart — the longer the reference, the more accurate the scale.');
+              showAlert('Points Too Close', 'Tap two points that are further apart. A longer reference gives a closer scale.');
               return [];
             }
             setCalibrationInput({ distanceFt: '', visible: true });
@@ -992,10 +992,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           ? (scaleFtPerPx
             ? (pointBuffer.length === 0 ? 'Tap the start of your measurement.' :
                pointBuffer.length === 1 ? 'Tap the end point.' :
-               measuredFt != null ? `${measuredFt.toFixed(1)} ft — tap again to re-measure.` : 'Measuring\u2026')
-            : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first \u2014 tap Calibrate.'))
-          : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
-             pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
+               measuredFt != null ? `${measuredFt.toFixed(1)} ft. Tap again to re-measure.` : 'Measuring\u2026')
+            : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first. Tap Calibrate.'))
+          : (pointBuffer.length === 0 ? 'Tap one end of a known reference, such as a dimensioned wall.' :
+             pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it. Enter the distance.')}
       </Text>
       <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
         <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
@@ -1039,7 +1039,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             } else {
               showAlert(
                 'Set Sheet Scale First',
-                'Tap two points a known distance apart (e.g. a door = 3 ft). Measuring turns on once the scale is set.',
+                'Tap two points a known distance apart (a door is 3 ft). Measuring turns on once the scale is set.',
                 [{ text: 'OK' }],
               );
             }
@@ -1194,7 +1194,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       ) : !sheet.superseded && previousSheet ? (
         <View style={styles.revRow} testID="plan-viewer-revision-row">
           <Text style={styles.revRowText}>
-            Rev {sheet.revision ?? 1}{sheet.sheetNumber ? ` of ${sheet.sheetNumber}` : ''} — replaced Rev {previousSheet.revision ?? 1}
+            Rev {sheet.revision ?? 1}{sheet.sheetNumber ? ` of ${sheet.sheetNumber}` : ''}, replaced Rev {previousSheet.revision ?? 1}
           </Text>
           <TouchableOpacity
             style={[styles.revCompareBtn, compareBlock ? styles.blockedBtn : null]}
@@ -1441,7 +1441,7 @@ function PinDetailModal({
                 value={draftLabel}
                 onChangeText={setDraftLabel}
                 onBlur={saveLabel}
-                placeholder={"Optional \u2014 e.g. \u201Ccracked tile\u201D"}
+                placeholder={"Cracked tile (optional)"}
                 style={styles.input}
                 multiline
               />
@@ -1453,7 +1453,7 @@ function PinDetailModal({
                 >
                   <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkCellTitle}>Take Photo</Text>
-                  <Text style={styles.linkCellSub}>Shoot & pin it here</Text>
+                  <Text style={styles.linkCellSub}>Shoot and pin it here</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('photo')}>
                   <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -1499,7 +1499,7 @@ function PinDetailModal({
                     <Text style={styles.linkedText} numberOfLines={1}>
                       {linkableRfis.length > 0
                         ? `Link an existing RFI (${linkableRfis.length} open)`
-                        : 'Link an existing RFI \u2014 none open without a pin'}
+                        : 'Link an existing RFI (none open without a pin)'}
                     </Text>
                     <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>

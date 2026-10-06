@@ -961,7 +961,7 @@ export function AskConversation(props: AskConversationProps) {
         onClose={() => setVoiceOpen(false)}
         onTranscriptReady={(t) => { setVoiceOpen(false); void ask(t); }}
         title="Ask by voice"
-        contextLine="Speak your question — I'll answer from your jobs."
+        contextLine="Speak your question. I'll answer from your jobs."
         suggestions={starters.map(s => s.q)}
       />
 

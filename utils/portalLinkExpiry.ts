@@ -252,7 +252,7 @@ export function linkState(
       kind: 'expiring_soon',
       daysLeft,
       label: handover
-        ? `Closes ${date} (${when}) — job handed over`
+        ? `Closes ${date} (${when}), job handed over`
         : `Link expires ${when}`,
     };
   }
@@ -261,8 +261,8 @@ export function linkState(
     kind: 'active',
     daysLeft,
     label: handover
-      ? `Closes ${date} — ${HANDOVER_GRACE_DAYS} days after handover`
-      : `Link active — expires in ${daysLeft} ${plural(daysLeft)}`,
+      ? `Closes ${date}, ${HANDOVER_GRACE_DAYS} days after handover`
+      : `Link active, expires in ${daysLeft} ${plural(daysLeft)}`,
   };
 }
 

@@ -230,7 +230,7 @@ export function useAskCopy(): AskCopy {
       readPlan: t('ai.ask.files.read.plan', 'plan page'),
       readPdf: (count: number) => tn('ai.ask.files.read.pdf', count, { one: 'PDF, 1 page', other: 'PDF, {count} pages' }),
       readPdfNoCount: t('ai.ask.files.read.pdfNoCount', 'PDF'),
-      readCaution: t('ai.ask.files.read.caution', 'AI reading — check the original'),
+      readCaution: t('ai.ask.files.read.caution', 'AI reading. Check the original.'),
       readPartial: t('ai.ask.files.read.partial', 'MAGE may not have got through all of it.'),
       readA11y: (count: number) => tn('ai.ask.files.read.a11y', count, { one: 'MAGE read 1 file', other: 'MAGE read {count} files' }),
     },

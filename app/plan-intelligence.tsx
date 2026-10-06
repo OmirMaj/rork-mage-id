@@ -394,7 +394,7 @@ function PlanIntelligenceInner() {
                   )}
 
                   <Text style={styles.sectionTitle}>Estimate Rooms from a Sheet</Text>
-                  <Text style={styles.note}>Tapping a sheet starts an AI room-by-room estimate — it uses your AI allowance.</Text>
+                  <Text style={styles.note}>Tapping a sheet starts an AI room-by-room estimate. It uses your AI allowance.</Text>
                   {planSheets.map(s => (
                     <TouchableOpacity key={s.id} style={styles.pickRow} onPress={() => void runAnalysis(s.imageUri, s.id, s.width, s.height)} activeOpacity={0.8}>
                       <FileImage size={16} color={t.textSecondary} strokeWidth={1.75} />
@@ -619,7 +619,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
             style={[styles.fieldInput, styles.fieldInputMultiline]}
             value={note}
             onChangeText={setNote}
-            placeholder='e.g. "client wants heated floors", "include in phase 2 only"'
+            placeholder="Client wants heated floors. Include in phase 2 only."
             placeholderTextColor={t.textMuted}
             multiline
           />

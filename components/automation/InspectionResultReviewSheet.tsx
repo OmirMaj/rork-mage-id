@@ -80,7 +80,7 @@ export function InspectionResultReviewSheet(
             {inspection.title}
           </Text>
           <Text style={styles.subtitle}>
-            Draft only — nothing changes until you confirm.
+            Draft only. Nothing changes until you confirm.
           </Text>
         </View>
       </View>

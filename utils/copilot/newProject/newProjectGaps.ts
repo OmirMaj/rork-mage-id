@@ -54,7 +54,7 @@ export function newProjectGaps(draft: NewProjectDraft, grounding: Grounding): Ga
     const def = g.usualType ?? 'renovation';
     gaps.push({
       field: 'type', impact: 0.55, kind: 'choice',
-      question: 'What kind of project is it? Something else — tap the mic and say it.',
+      question: 'What kind of project is it? For something else, tap the mic and say it.',
       groundedDefault: {
         value: def,
         basis: g.usualType ? 'what you build most' : 'your most common job type',

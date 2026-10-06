@@ -194,12 +194,12 @@ const PRESET_QUESTIONS: Record<CategoryKey, string[]> = {
   residential: [
     'Finishing a basement into a livable bedroom with an egress window and new HVAC branch.',
     'Converting a detached garage into an ADU with full kitchen and bathroom.',
-    'Adding a second story over a single-story ranch — existing foundation and framing.',
-    'Replacing a roof on a 1960s home — tear-off to sheathing plus new underlayment.',
+    'Adding a second story over a single-story ranch, on the existing foundation and framing.',
+    'Replacing a roof on a 1960s home: tear-off to sheathing plus new underlayment.',
   ],
   commercial: [
     'Tenant fit-out for a 1,500 sq ft coffee shop in an existing retail shell.',
-    'Converting a warehouse into a small office — new bathrooms, HVAC and lighting.',
+    'Converting a warehouse into a small office: new bathrooms, HVAC and lighting.',
     'Restaurant grease hood exhaust install and make-up air requirements.',
     'Interior demo of a 2,500 sq ft retail bay down to the shell.',
   ],
@@ -210,20 +210,20 @@ const PRESET_QUESTIONS: Record<CategoryKey, string[]> = {
     'Bringing knob-and-tube wiring up to code in a pre-war apartment.',
   ],
   plumbing: [
-    'Adding a full bathroom in a basement — new stack, pump-up ejector and vent.',
+    'Adding a full bathroom in a basement: new stack, pump-up ejector and vent.',
     'Replacing a 50-gallon atmospheric water heater with a tankless gas unit.',
     'Re-piping a house from galvanized to PEX with a new main shutoff.',
     'Installing a backflow preventer on an irrigation line to a public water main.',
   ],
   structural: [
-    'Removing a load-bearing wall between kitchen and living room — new LVL beam.',
+    'Removing a load-bearing wall between kitchen and living room with a new LVL beam.',
     'Cutting a new 6ft wide door opening in an exterior 2x6 load-bearing wall.',
-    'Adding a rooftop deck over an existing flat roof — checking framing capacity.',
+    'Adding a rooftop deck over an existing flat roof, checking framing capacity.',
     'Underpinning a foundation to add a basement below an existing slab on grade.',
   ],
   egress_fire: [
-    'Basement bedroom egress window — sizing, well and ladder requirements.',
-    'Multi-family building — common-path-of-travel and second means of egress.',
+    'Basement bedroom egress window: sizing, well and ladder requirements.',
+    'Multi-family building: common-path-of-travel and second means of egress.',
     'Fire-rated wall assembly between an attached garage and living space.',
     'Fire sprinkler retrofit triggers for a major residential renovation.',
   ],
@@ -235,8 +235,8 @@ const PRESET_QUESTIONS: Record<CategoryKey, string[]> = {
   ],
   zoning: [
     'Building a new deck at the rear setback line of a R4 zoning lot.',
-    'Adding an ADU to a single-family lot — checking parking and lot coverage.',
-    'Home-based contracting business — zoning restrictions and permit needs.',
+    'Adding an ADU to a single-family lot, checking parking and lot coverage.',
+    'Home-based contracting business: zoning restrictions and permit needs.',
     'Building height and FAR limits for a proposed 3-story addition.',
   ],
 };
@@ -1036,13 +1036,13 @@ function ConstructionAIScreenInner() {
     if (!roadmapProject) return [] as string[];
     const m: string[] = [];
     if (!roadmapProject.linkedEstimate?.items?.length) {
-      m.push('Add an estimate — the AI infers required permits from your scope line items.');
+      m.push('Add an estimate. The AI infers required permits from your scope line items.');
     }
     if (!roadmapProject.schedule?.tasks?.length) {
-      m.push('Build a schedule — inspections get sequenced to tasks with book-by dates.');
+      m.push('Build a schedule. Inspections get sequenced to tasks with book-by dates.');
     }
     if (!roadmapProject.location) {
-      m.push('Set the project location — permit rules and lead times are jurisdiction-specific.');
+      m.push('Set the project location. Permit rules and lead times are jurisdiction-specific.');
     }
     return m;
   }, [roadmapProject]);
@@ -1933,7 +1933,7 @@ ${SPECIFICS_RULE}`;
                     <Text style={styles.bidAdvisorTierText}>Business</Text>
                   </View>
                 </View>
-                <Text style={styles.bidAdvisorSubtitle}>Should I bid this — and at what price?</Text>
+                <Text style={styles.bidAdvisorSubtitle}>Should I bid this, and at what price?</Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -1972,8 +1972,8 @@ ${SPECIFICS_RULE}`;
                 {codeCheckProject && (
                   <Text style={styles.projectPrefillNote} testID="code-check-project-prefill">
                     {city.trim() || stateCode.trim()
-                      ? `Using ${codeCheckProject.name}'s location and scope — edit below to adjust`
-                      : `Using ${codeCheckProject.name}'s scope. It has no jobsite address on file — enter one below.`}
+                      ? `Using ${codeCheckProject.name}'s location and scope. Edit below to adjust.`
+                      : `Using ${codeCheckProject.name}'s scope. It has no jobsite address on file. Enter one below.`}
                   </Text>
                 )}
               </>
@@ -2118,7 +2118,7 @@ ${SPECIFICS_RULE}`;
             <TextInput
               value={scenario}
               onChangeText={onChangeScenario}
-              placeholder="Tap a popular question above, or write your own (e.g. converting a garage into a livable bedroom with a new egress window)."
+              placeholder="Tap a popular question above, or write your own, such as converting a garage into a livable bedroom with a new egress window."
               placeholderTextColor={Colors.textMuted}
               style={styles.textArea}
               multiline
@@ -2202,7 +2202,7 @@ ${SPECIFICS_RULE}`;
             {/* Project picker */}
             <Text style={styles.label}>Project</Text>
             {projects.length === 0 ? (
-              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet — create one first.</Text>
+              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet. Create one first.</Text>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row' as const, gap: 8 }}>
@@ -2335,10 +2335,10 @@ ${SPECIFICS_RULE}`;
                     <Text style={styles.permitAuthorityNote} testID="roadmap-permit-authority">
                       {roadmapAuthority
                         ? `Permits added here record ${roadmapAuthority} as the issuing jurisdiction.`
-                        : `MAGE has no verified building-department record for this jobsite, so permits added here are saved with a blank issuing jurisdiction — fill it in on the Permits screen.`}
+                        : `MAGE has no verified building-department record for this jobsite, so permits added here are saved with a blank issuing jurisdiction. Fill it in on the Permits screen.`}
                     </Text>
                     {roadmap.permits.length === 0 ? (
-                      <Text style={styles.roadmapEmptyNote}>No permits inferred — add an estimate scope, then Regenerate.</Text>
+                      <Text style={styles.roadmapEmptyNote}>No permits inferred. Add an estimate scope, then Regenerate.</Text>
                     ) : roadmap.permits.map((p) => (
                       <RoadmapPermitRow
                         key={p.id}
@@ -2384,7 +2384,7 @@ ${SPECIFICS_RULE}`;
                           activeOpacity={0.85}
                           testID="inspection-view-schedule"
                           accessibilityRole="button"
-                          accessibilityLabel="Scheduled — View in Schedule"
+                          accessibilityLabel="Scheduled, view in Schedule"
                         >
                           <Check size={16} color={styles.inspectionScheduledText.color} strokeWidth={2} />
                           <Text style={styles.inspectionScheduledText}>Scheduled · View in Schedule</Text>
@@ -2405,7 +2405,7 @@ ${SPECIFICS_RULE}`;
                     ) : null}
 
                     {roadmap.inspections.length === 0 ? (
-                      <Text style={styles.roadmapEmptyNote}>No inspections inferred — add a schedule, then Regenerate.</Text>
+                      <Text style={styles.roadmapEmptyNote}>No inspections inferred. Add a schedule, then Regenerate.</Text>
                     ) : roadmap.inspections.map((insp) => {
                       const gatingTask = insp.gatesTaskId
                         ? roadmapTasks.find((t) => t.id === insp.gatesTaskId)
@@ -2490,7 +2490,7 @@ ${SPECIFICS_RULE}`;
               </View>
               <Text style={styles.heroTitle}>Plan Review</Text>
               <Text style={styles.heroSubtitle}>
-                AI scans a floor plan or drawing for likely building-code issues — egress, stairs, clearances, fire and ADA.
+                AI scans a floor plan or drawing for likely building-code issues: egress, stairs, clearances, fire and ADA.
               </Text>
             </View>
 
@@ -2529,7 +2529,7 @@ ${SPECIFICS_RULE}`;
             {/* Project picker */}
             <Text style={styles.label}>Project</Text>
             {projects.length === 0 ? (
-              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet — create one first.</Text>
+              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet. Create one first.</Text>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row' as const, gap: 8 }}>
@@ -2602,7 +2602,7 @@ ${SPECIFICS_RULE}`;
                   {existingReview && !planLoading ? (
                     existingReview.findings.length === 0 ? (
                       <Text style={[styles.quotaText, { textAlign: 'left' as const, marginTop: 16 }]}>
-                        No likely code issues found — still verify with your AHJ.
+                        No likely code issues found. Still verify with your AHJ.
                       </Text>
                     ) : (
                       <View style={styles.findingsWrap}>
@@ -2613,7 +2613,7 @@ ${SPECIFICS_RULE}`;
                         <View style={styles.recallChip} testID="plan-review-recall-chip">
                           <Info size={12} color={themeColors.textSecondary} strokeWidth={2} />
                           <Text style={styles.recallChipText}>
-                            From model recall — verify with your AHJ before relying on a section number
+                            From model recall. Verify with your AHJ before relying on a section number.
                           </Text>
                         </View>
                         {planRungSummary ? (
@@ -2882,8 +2882,8 @@ function RungBadge({ ev, testID }: { ev: CitationEvidence; testID: string }) {
           {/* A cut quote must never be able to pass for the whole amendment. */}
           <Text style={styles.rungQuoteNote}>
             {ev.quoteComplete
-              ? `\u2014 ${ev.sourceLabel}, in full.`
-              : `\u2014 ${ev.sourceLabel}. This is the opening of the amendment, not all of it \u2014 open the register for the rest.`}
+              ? `Source: ${ev.sourceLabel}, in full.`
+              : `Source: ${ev.sourceLabel}. This is the opening of the amendment, not all of it. Open the register for the rest.`}
           </Text>
         </View>
       ) : null}
@@ -3541,7 +3541,7 @@ ${SPECIFICS_RULE}`;
               <View style={styles.recallChip} testID="code-check-recall-chip">
                 <Info size={12} color={themeColors.textSecondary} strokeWidth={2} />
                 <Text style={styles.recallChipText}>
-                  From model recall — verify with your AHJ before relying on a section number
+                  From model recall. Verify with your AHJ before relying on a section number.
                 </Text>
               </View>
               {/* The ladder's headline count. It sits BELOW the recall chip and
@@ -3588,7 +3588,7 @@ ${SPECIFICS_RULE}`;
                       onPress={() => toggleCode(c)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`${[c.code, c.section].filter(Boolean).join(' ')} — ${isOpen ? 'hide' : 'show'} detail`}
+                      accessibilityLabel={`${[c.code, c.section].filter(Boolean).join(' ')}, ${isOpen ? 'hide' : 'show'} detail`}
                       style={styles.codeDetailToggle}
                       testID={`code-detail-toggle-${i}`}
                     >
@@ -3773,7 +3773,7 @@ ${SPECIFICS_RULE}`;
                 </View>
               ) : null}
               {answeredCount >= MAX_FOLLOW_UPS ? (
-                <Text style={styles.threadCaption}>You’ve answered 3 questions — the check won’t ask more.</Text>
+                <Text style={styles.threadCaption}>You’ve answered 3 questions. The check won’t ask more.</Text>
               ) : askable.items.length > 0 ? (
                 <>
                   <Text style={styles.codeDetailHeading}>A Detail That Changes the Answer</Text>

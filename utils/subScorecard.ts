@@ -329,7 +329,7 @@ function buildCard(
       score: 0,
       weight: 0,
       applicable: false,
-      detail: noHistory ? 'No job history yet' : 'No closed commitments yet — final cost unproven',
+      detail: noHistory ? 'No job history yet' : 'No closed commitments yet, so final cost is unproven',
     });
   }
 
@@ -392,8 +392,8 @@ function buildCard(
       applicable: false,
       detail:
         subPunch.length === 0
-          ? 'Not enough linked data yet — no punch items assigned to this sub'
-          : `Not enough linked data yet — ${reviewedPunch.length} of ${MIN_REVIEWED_PUNCH} reviewed punch items needed`,
+          ? 'Not enough linked data yet: no punch items assigned to this sub'
+          : `Not enough linked data yet: ${reviewedPunch.length} of ${MIN_REVIEWED_PUNCH} reviewed punch items needed`,
     });
   }
 
@@ -428,10 +428,10 @@ function buildCard(
       applicable: false,
       detail:
         subTasks.linked === 0
-          ? 'Not enough linked data yet — no schedule tasks assigned to this sub'
+          ? 'Not enough linked data yet: no schedule tasks assigned to this sub'
           : measured.length === 0
-            ? `Not enough linked data yet — ${subTasks.linked} assigned task${subTasks.linked === 1 ? '' : 's'} without as-built dates`
-            : `Not enough linked data yet — ${measured.length} of ${MIN_MEASURED_TASKS} measured tasks needed`,
+            ? `Not enough linked data yet: ${subTasks.linked} assigned task${subTasks.linked === 1 ? '' : 's'} without as-built dates`
+            : `Not enough linked data yet: ${measured.length} of ${MIN_MEASURED_TASKS} measured tasks needed`,
     });
   }
 
@@ -474,8 +474,8 @@ function buildCard(
       applicable: false,
       detail:
         subRfis.length === 0
-          ? 'Not enough linked data yet — no RFIs assigned to this sub'
-          : `Not enough linked data yet — ${rfiHolds.length} of ${MIN_MEASURED_RFIS} measurable RFIs needed`,
+          ? 'Not enough linked data yet: no RFIs assigned to this sub'
+          : `Not enough linked data yet: ${rfiHolds.length} of ${MIN_MEASURED_RFIS} measurable RFIs needed`,
     });
   }
 
@@ -557,7 +557,7 @@ function buildCard(
   });
 
   const topDriver = paperworkOnly
-    ? `No job history yet — graded on paperwork only. ${ranked[0]?.detail ?? ''}`.trim()
+    ? `No job history yet. Graded on paperwork only. ${ranked[0]?.detail ?? ''}`.trim()
     : ranked[0]?.detail ?? '';
 
   return {

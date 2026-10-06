@@ -130,7 +130,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: 'pro_response',
-    label: 'RFI & Submittal Responses',
+    label: 'RFI and Submittal Responses',
     description: 'An architect, engineer, or reviewer answers an RFI or submittal you sent.',
     icon: <FileCheck size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'team',
@@ -211,10 +211,10 @@ const CATEGORIES: CategoryDef[] = [
 ];
 
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
-  leads:       { title: 'Website → You',        subtitle: 'When someone asks for a price on your website.' },
-  client:      { title: 'Client → You',         subtitle: 'When the client does something on the portal.' },
-  team:        { title: 'Your Team → You',      subtitle: 'When your field crew or a design pro sends something back.' },
-  sub:         { title: 'Subs → You',  subtitle: 'When a sub does something through a link you sent them.' },
+  leads:       { title: 'From Your Website',        subtitle: 'When someone asks for a price on your website.' },
+  client:      { title: 'From Your Client',         subtitle: 'When the client does something on the portal.' },
+  team:        { title: 'From Your Team',      subtitle: 'When your field crew or a design pro sends something back.' },
+  sub:         { title: 'From Your Subs',  subtitle: 'When a sub does something through a link you sent them.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
 };
 
@@ -717,7 +717,7 @@ export default function NotificationsSettingsScreen() {
                 <Text style={styles.digestTitle}>Send Me a Daily Brief</Text>
                 <Text style={styles.digestSubtitle} testID="digest-status">
                   {!settingsLoaded
-                    ? (profileFailed ? `${PROFILE_FAILED_TITLE} — tap the switch to retry` : 'Loading your digest setting…')
+                    ? (profileFailed ? `${PROFILE_FAILED_TITLE}. Tap the switch to retry.` : 'Loading your digest setting…')
                     : digestEnabled
                       ? `On · sends at ${formatHour(digestHour)} ${digestTimezone.split('/').pop()?.replace(/_/g, ' ')}`
                       : 'Off. Turn it on to get a brief each morning.'}
@@ -828,7 +828,7 @@ export default function NotificationsSettingsScreen() {
                   </View>
                   <Text style={styles.locationBody}>
                     {locationCoverage.total === 0
-                      ? 'Add a project with a street address (e.g. 1234 Main St, Austin, TX) to get jobsite weather.'
+                      ? 'Add a project with a street address, such as 1234 Main St, Austin, TX, to get jobsite weather.'
                       : locationCoverage.geocoded === locationCoverage.total
                         ? "Every project has a map location. Today's digest includes 24-hour wind, rain and temperature for each jobsite."
                         : `${locationCoverage.textOnly + locationCoverage.blank} project${locationCoverage.textOnly + locationCoverage.blank === 1 ? '' : 's'} ${locationCoverage.textOnly + locationCoverage.blank === 1 ? "doesn't" : "don't"} have a precise location yet. Edit the project, type the address and save.`}
@@ -868,7 +868,7 @@ export default function NotificationsSettingsScreen() {
                 {Platform.OS !== 'web' && (
                   <Text style={styles.nudgeNote}>
                     On this phone, your digest hour also schedules the morning
-                    brief nudge — a tap opens the in-app brief.
+                    brief nudge. A tap opens the in-app brief.
                   </Text>
                 )}
               </>
@@ -953,7 +953,7 @@ export default function NotificationsSettingsScreen() {
               <View style={styles.digestDivider} />
               {paceGateRows.length === 0 ? (
                 <Text style={styles.autonomyEmpty}>
-                  No graded pace calls yet. Apply &quot;Your pace&quot; suggestions on draft schedules and finish those tasks — each graded call builds the record. A trade qualifies at 60% beat-or-tie over 5 calls.
+                  No graded pace calls yet. Apply &quot;Your pace&quot; suggestions on draft schedules and finish those tasks. Each graded call builds the record. A trade qualifies at 60% beat-or-tie over 5 calls.
                 </Text>
               ) : (
                 paceGateRows.map(g => (
@@ -996,7 +996,7 @@ export default function NotificationsSettingsScreen() {
               <View style={styles.digestDivider} />
               {leakGate.n === 0 ? (
                 <Text style={styles.autonomyEmpty}>
-                  No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items — drafting qualifies at 50% billed over 5 scans.
+                  No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items. Drafting qualifies at 50% billed over 5 scans.
                 </Text>
               ) : (
                 <View style={styles.autonomyRow}>

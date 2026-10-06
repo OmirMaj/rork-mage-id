@@ -239,7 +239,7 @@ export default function PlansScreen() {
     let stopped: string | null = null;
     let unread = 0;
     for (let i = 0; i < sheetsToRead.length; i++) {
-      setPdfStatus(`Reading sheet numbers \u2014 ${i + 1} of ${sheetsToRead.length}\u2026`);
+      setPdfStatus(`Reading sheet numbers: ${i + 1} of ${sheetsToRead.length}\u2026`);
       const out = await extractSheet(sheetsToRead[i]);
       if (out.ok) {
         if (out.titleBlock?.sheetNumber) reads.push({ sheetId: sheetsToRead[i].id, sheetNumber: out.titleBlock.sheetNumber });
@@ -255,7 +255,7 @@ export default function PlansScreen() {
     setPdfStatus('');
     const suggestions = titleBlockSuggestions(allSheetsRef.current, reads);
     const notes: string[] = [];
-    if (unread > 0) notes.push(`${unread} page${unread === 1 ? '' : 's'} had no readable sheet number \u2014 number ${unread === 1 ? 'it' : 'them'} in the plan viewer.`);
+    if (unread > 0) notes.push(`${unread} page${unread === 1 ? '' : 's'} had no readable sheet number. Number ${unread === 1 ? 'it' : 'them'} in the plan viewer.`);
     if (stopped) notes.push(stopped);
     if (suggestions.length === 0) {
       showAlert('No Sheet Numbers Read', notes.join('\n\n') || 'No title block on these pages had a readable sheet number. Number them in the plan viewer.');
@@ -387,7 +387,7 @@ export default function PlansScreen() {
       refreshQuota();
       // Counts what was actually created, not what the renderer returned.
       const replacedNote = superseded.length > 0
-        ? ` ${superseded.length} earlier sheet${superseded.length === 1 ? ' from this set was' : 's from this set were'} replaced \u2014 the old copies are under \u201CShow superseded\u201D.`
+        ? ` ${superseded.length} earlier sheet${superseded.length === 1 ? ' from this set was' : 's from this set were'} replaced. The old copies are under \u201CShow superseded\u201D.`
         : '';
       const added = created.length > 0
         ? `${created.length} sheet${created.length === 1 ? '' : 's'} added.${replacedNote}`
@@ -404,7 +404,7 @@ export default function PlansScreen() {
         const read = await new Promise<boolean>((resolve) => {
           showAlert(
             'PDF Imported',
-            `${added}\n\nThese pages have no sheet numbers yet, so a later revision of this set can\u2019t replace them. MAGE can read the number printed in each title block \u2014 that uses ${n} AI plan read${n === 1 ? '' : 's'} from your monthly allowance. You confirm every number before it\u2019s saved.`,
+            `${added}\n\nThese pages have no sheet numbers yet, so a later revision of this set can\u2019t replace them. MAGE can read the number printed in each title block. That uses ${n} AI plan read${n === 1 ? '' : 's'} from your monthly allowance. You confirm every number before it\u2019s saved.`,
             [
               { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
               { text: `Read ${n} number${n === 1 ? '' : 's'}`, onPress: () => resolve(true) },
@@ -516,7 +516,7 @@ export default function PlansScreen() {
       // why). He chooses to go on; nothing opens on its own.
       // "Pick plan" then asks Camera or Library (#162) — a paper plan can be
       // photographed again right here.
-      showAlert('Pick the Plan Again', `The copy of \u201C${sheet.name}\u201D on this phone can\u2019t be saved. ${direct.reason}\n\nPhotograph the plan or pick it from your photos \u2014 its pins and punch items stay on this sheet.`, [
+      showAlert('Pick the Plan Again', `The copy of \u201C${sheet.name}\u201D on this phone can\u2019t be saved. ${direct.reason}\n\nPhotograph the plan or pick it from your photos. Its pins and punch items stay on this sheet.`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Pick Plan', onPress: () => { void repickAndAttach(sheet); } },
       ]);
@@ -610,14 +610,14 @@ export default function PlansScreen() {
           </View>
           <Text style={[styles.sheetName, s.superseded && styles.sheetNameSuperseded]} numberOfLines={2}>{s.name}</Text>
           {s.superseded ? (
-            <Text style={styles.supersededNote}>Replaced by a newer revision — do not build from it.</Text>
+            <Text style={styles.supersededNote}>Replaced by a newer revision. Do not build from it.</Text>
           ) : null}
           {imageState !== 'durable' ? (
             <View style={styles.imageIssueRow}>
               <Text style={styles.imageIssueText} numberOfLines={2}>
                 {imageState === 'missing'
-                  ? 'No image saved \u2014 this plan is blank on every device.'
-                  : 'Image is on this phone only \u2014 blank everywhere else.'}
+                  ? 'No image saved. This plan is blank on every device.'
+                  : 'Image is on this phone only. It is blank everywhere else.'}
               </Text>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation(); void handleRepairImage(s); }}
@@ -995,7 +995,7 @@ export default function PlansScreen() {
                     ? <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                     : <Square size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pickerRowTitle}>Title Block Reads {item.sheetNumber} — use it?</Text>
+                    <Text style={styles.pickerRowTitle}>Title block reads {item.sheetNumber}. Use it?</Text>
                     <Text style={styles.pickerRowSub} numberOfLines={1}>
                       {item.label}{item.duplicate ? ` \u00B7 another page also reads ${item.sheetNumber}` : ''}
                     </Text>

@@ -184,7 +184,7 @@ export interface RfiBulkCloseDeps {
 export type RfiClosePatch = Pick<RFI, 'status'> & Partial<Pick<RFI, 'ballInCourt' | 'handoffs'>>;
 
 export const RFI_CLOSE_SKIP = {
-  open: 'not answered yet — close it from its record',
+  open: 'not answered yet, so close it from its record',
   closed: 'already closed',
   void: 'void',
 } as const;

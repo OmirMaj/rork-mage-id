@@ -138,7 +138,7 @@ export function lienWaiverDetail(cov: WaiverCoverage): string {
   let s = `${withFinal} of ${cov.total} subs have a final waiver`;
   if (cov.conditional > 0) s += ` (${cov.conditional} conditional, awaiting payment)`;
   if (cov.progressOnly > 0) {
-    s += `. ${cov.progressOnly} ${cov.progressOnly === 1 ? 'has' : 'have'} progress waivers only — progress waivers don't cover final payment or retainage`;
+    s += `. ${cov.progressOnly} ${cov.progressOnly === 1 ? 'has' : 'have'} progress waivers only, and progress waivers don't cover final payment or retainage`;
   }
   return s;
 }
