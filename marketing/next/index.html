@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>MAGE ID: Watch A Job Get Built</title>
+  <meta name="description" content="MAGE ID is construction management for small general contractors. One app for the estimate, the schedule, the field, the billing and the handover. Free for one project. Pro is $29 a month." />
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700;800&amp;display=swap" />
+  <link rel="stylesheet" href="site.css" />
+  <script>document.documentElement.className = 'js';</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip To Content</a>
+
+  <header class="top">
+    <a class="brand" href="#main" aria-label="MAGE ID, top of page">
+      <img src="img/logo.png" alt="" width="31" height="36" />
+      <span>MAGE ID</span>
+    </a>
+    <nav class="navlinks" aria-label="Site">
+      <a href="/playbook.html">How It Works</a>
+      <a href="/features/">Features</a>
+      <a href="/compare/">Compare</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/demo.html">Demo</a>
+      <a href="/support.html">Support</a>
+    </nav>
+    <a class="btn small" href="https://app.mageid.app">Start Free</a>
+  </header>
+
+  <main id="main">
+
+    <!-- THE JOB: one drawn building, five stages. The drawing sticks; the words scroll. -->
+    <section class="job" id="job" aria-label="A job, from the first estimate to the handover">
+
+      <div class="step hero" data-step="0">
+        <p class="eyebrow">Construction Management For Small Contractors</p>
+        <h1>Watch A Job Get Built</h1>
+        <p class="lead">MAGE ID runs the whole job on your phone and your laptop, from the first estimate to the final payment. Free for one project. Pro is $29 a month.</p>
+        <div class="cta-row">
+          <a class="btn" href="https://app.mageid.app">Start Free</a>
+          <a class="btn ghost" href="#pricing">See Pricing</a>
+        </div>
+        <p class="cue" aria-hidden="true"><span class="cue-line"></span>Scroll To Break Ground</p>
+        <noscript><img class="still" src="img/scene-still.png" alt="Drawing of a finished five storey building on a New York corner lot" width="525" height="488" /></noscript>
+      </div>
+
+      <div class="scene" id="scene">
+        <div class="scene-stage" id="sceneStage"></div>
+
+        <div class="float" id="floatCard" aria-hidden="true"></div>
+
+        <div class="phone" id="phone" aria-hidden="true">
+          <img data-stage="1" src="img/screen-win.jpg" alt="" width="520" height="1127" loading="lazy" />
+          <img data-stage="2" src="img/screen-plan.jpg" alt="" width="520" height="1127" loading="lazy" />
+          <img data-stage="3" src="img/screen-build.jpg" alt="" width="520" height="1127" loading="lazy" />
+          <img data-stage="4" src="img/screen-paid.jpg" alt="" width="520" height="1127" loading="lazy" />
+          <img data-stage="5" src="img/screen-close.jpg" alt="" width="520" height="1127" loading="lazy" />
+        </div>
+
+        <p class="hint" id="hint"><span class="hint-dot" aria-hidden="true"></span>Click The Dots On The Site</p>
+
+        <div class="rail" id="rail" role="group" aria-label="Jump to a stage">
+          <button type="button" data-go="1"><b>01</b>Win It</button>
+          <button type="button" data-go="2"><b>02</b>Plan It</button>
+          <button type="button" data-go="3"><b>03</b>Build It</button>
+          <button type="button" data-go="4"><b>04</b>Get Paid</button>
+          <button type="button" data-go="5"><b>05</b>Close It</button>
+        </div>
+
+        <aside class="panel" id="panel" hidden aria-live="polite" aria-labelledby="panelTitle">
+          <button type="button" class="panel-x" id="panelClose" aria-label="Close panel">Close</button>
+          <p class="panel-tag" id="panelTag"></p>
+          <h3 id="panelTitle"></h3>
+          <p class="panel-sub" id="panelSub"></p>
+          <ul id="panelRows"></ul>
+          <p class="panel-note" id="panelNote"></p>
+        </aside>
+      </div>
+
+      <div class="steps">
+        <article class="step" data-step="1">
+          <p class="num">01</p>
+          <h2>Win It</h2>
+          <p class="say">Price the job from your own costs and send a proposal your client can sign.</p>
+          <ul class="tools">
+            <li>Estimates</li>
+            <li>Takeoff From Plans</li>
+            <li>Proposals And Contracts</li>
+          </ul>
+          <figure class="shot"><img src="img/screen-win.jpg" alt="MAGE ID project screen for The Henderson Residence showing a total estimate of $45,309" width="520" height="1127" loading="lazy" /></figure>
+        </article>
+
+        <article class="step" data-step="2">
+          <p class="num">02</p>
+          <h2>Plan It</h2>
+          <p class="say">Turn the estimate into a schedule with a real critical path, then share it with the client and the subs.</p>
+          <ul class="tools">
+            <li>Schedule And Critical Path</li>
+            <li>Bids From Subs</li>
+            <li>Client Selections</li>
+          </ul>
+          <figure class="shot"><img src="img/screen-plan.jpg" alt="MAGE ID schedule screen showing a timeline of work packages for The Henderson Residence" width="520" height="1127" loading="lazy" /></figure>
+        </article>
+
+        <article class="step" data-step="3">
+          <p class="num">03</p>
+          <h2>Build It</h2>
+          <p class="say">Run the field from the truck. Who was on site, what got done, and what is holding the job up.</p>
+          <ul class="tools">
+            <li>Daily Reports</li>
+            <li>RFIs And Submittals</li>
+            <li>Punch List And Photos</li>
+          </ul>
+          <figure class="shot"><img src="img/screen-build.jpg" alt="MAGE ID daily report screen with weather, work progress and a crew count of 9" width="520" height="1127" loading="lazy" /></figure>
+        </article>
+
+        <article class="step" data-step="4">
+          <p class="num">04</p>
+          <h2>Get Paid</h2>
+          <p class="say">Bill the work as it gets done, with invoices or AIA-style pay apps, and see what is still owed.</p>
+          <ul class="tools">
+            <li>Invoices And Pay Apps</li>
+            <li>Change Orders</li>
+            <li>Cash Flow</li>
+          </ul>
+          <figure class="shot"><img src="img/screen-paid.jpg" alt="MAGE ID cash flow screen with a 12 week chart of money coming in and going out" width="520" height="1127" loading="lazy" /></figure>
+        </article>
+
+        <article class="step" data-step="5">
+          <p class="num">05</p>
+          <h2>Close It</h2>
+          <p class="say">Walk it, close every punch item, and hand over the keys with the paperwork done.</p>
+          <ul class="tools">
+            <li>Walkthrough Checklist</li>
+            <li>Closeout Binder</li>
+            <li>Warranties</li>
+          </ul>
+          <figure class="shot"><img src="img/screen-close.jpg" alt="MAGE ID walkthrough day checklist with selections, punch list, warranties and closeout binder" width="520" height="1127" loading="lazy" /></figure>
+        </article>
+      </div>
+    </section>
+
+    <!-- WHAT IT IS, in one sentence -->
+    <section class="one" aria-label="What MAGE ID is">
+      <p class="one-line">MAGE ID is one app a small general contractor uses to <em>estimate</em>, <em>schedule</em>, <em>build</em>, <em>bill</em> and <em>close</em> a job.</p>
+      <dl class="facts">
+        <div><dt>Where It Runs</dt><dd>iPhone and any web browser</dd></div>
+        <div><dt>What It Costs</dt><dd>$0 for one project, then $29 a month</dd></div>
+        <div><dt>Who Joins Free</dt><dd>Your subs, your field crew and your clients</dd></div>
+      </dl>
+    </section>
+
+    <!-- YOUR PRICES, NOT OURS -->
+    <section class="prices" id="prices" aria-labelledby="pricesH">
+      <div class="prices-copy">
+        <p class="eyebrow">The Part Nobody Else Does</p>
+        <h2 id="pricesH">Your Prices, Not Ours</h2>
+        <p>Most estimating software prices your job from a catalog somebody else wrote. MAGE ID keeps a price book that only you can see, and every job you close writes its real costs into it.</p>
+        <p>The book starts empty. It fills with your subs, your supply house and your market. The assistant drafts the next estimate from it, and you approve every line before it goes out.</p>
+        <p class="fine">We do not publish an accuracy number. There are not enough closed jobs yet to earn one.</p>
+      </div>
+      <div class="book" id="book">
+        <div class="book-head">
+          <span>Your Price Book</span>
+          <span class="book-count" id="bookCount">From 5 closed jobs</span>
+        </div>
+        <ul class="book-rows" id="bookRows">
+          <li><span>Drywall, hung and finished</span><b>$3.10 per sq ft</b></li>
+          <li><span>Interior paint, two coats</span><b>$2.25 per sq ft</b></li>
+          <li><span>Rough plumbing, per fixture</span><b>$640 each</b></li>
+          <li><span>LVP flooring, installed</span><b>$6.80 per sq ft</b></li>
+          <li><span>Recessed light, wired</span><b>$185 each</b></li>
+        </ul>
+        <div class="book-foot">
+          <div class="lots" id="lots" aria-hidden="true"></div>
+          <button type="button" class="btn light" id="closeJob" hidden>Close A Job</button>
+        </div>
+        <p class="book-note">Example numbers, not real prices. Yours come from your own jobs.</p>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="pricing" id="pricing" aria-labelledby="pricingH">
+      <p class="eyebrow">Pricing</p>
+      <h2 id="pricingH">One Flat Price Per Company</h2>
+      <p class="pricing-lead">No per-seat fee and no per-project fee. Subs and field crew join free on every plan.</p>
+
+      <div class="plans">
+        <div class="plan">
+          <h3>Free</h3>
+          <p class="price"><span>$0</span></p>
+          <p class="per">One project, start to finish</p>
+          <ul>
+            <li>1 project, and finished jobs still count</li>
+            <li>Daily reports and a basic schedule</li>
+            <li>5 AI requests a day</li>
+            <li>Subs and field crew join free</li>
+          </ul>
+        </div>
+        <div class="plan pro">
+          <h3>Pro</h3>
+          <p class="price"><span>$29</span> a month</p>
+          <p class="per">The whole job, every job</p>
+          <ul>
+            <li>As many projects as you run</li>
+            <li>AI estimates, takeoff, AIA-style pay apps</li>
+            <li>30 AI requests a day, 30 takeoff pages a month</li>
+            <li>2 office seats on top of your own login</li>
+          </ul>
+        </div>
+        <div class="plan">
+          <h3>Business</h3>
+          <p class="price"><span>$79</span> a month</p>
+          <p class="per">Margin, bids and the back office</p>
+          <ul>
+            <li>Everything in Pro</li>
+            <li>Cost X-Ray, WIP report, QuickBooks sync</li>
+            <li>80 AI requests a day, 100 takeoff pages a month</li>
+            <li>5 office seats on top of your own login</li>
+          </ul>
+        </div>
+        <div class="plan">
+          <h3>Enterprise</h3>
+          <p class="price"><span>$150</span> a month</p>
+          <p class="per">For shops running takeoffs daily</p>
+          <ul>
+            <li>Everything in Business</li>
+            <li>The same tools, with the highest AI allowances</li>
+            <li>150 AI requests a day, 300 takeoff pages a month</li>
+            <li>15 office seats on top of your own login</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="straight">
+        <h3>Straight Answer: We Cannot Take Your Card Yet</h3>
+        <p>The Free plan is live on the web today. Paid plans are not self-serve yet, and the iPhone app is in TestFlight, not the App Store. Ask for access and we switch your plan on and send the invite.</p>
+        <p class="straight-links"><a href="/access.html">Ask For Access</a><a href="/pricing.html">See Every Plan Detail</a></p>
+      </div>
+    </section>
+
+    <!-- CLOSE -->
+    <section class="end" aria-labelledby="endH">
+      <div class="end-copy">
+        <p class="eyebrow">Your Lot Is Next</p>
+        <h2 id="endH">Start Your First Job Free</h2>
+        <p>One project, start to finish, no card. Open it in your browser now.</p>
+        <div class="cta-row">
+          <a class="btn" href="https://app.mageid.app">Start Free On The Web</a>
+          <a class="btn ghost" href="/access.html">Ask For The iPhone Invite</a>
+        </div>
+      </div>
+      <div class="end-lot" id="endLot"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-row">
+      <span>© 2026 MAGE ID</span>
+      <nav aria-label="Footer">
+        <a href="/playbook.html">How It Works</a>
+        <a href="/features/">Features</a>
+        <a href="/compare/">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+      </nav>
+    </div>
+    <nav class="trust-strip" aria-label="About this company" style="border-top:1px solid rgba(128,128,128,0.3)">
+      <a href="/proof.html">New product, no reviews yet, and we say so</a>
+      <a href="/who-built-this.html">Who built this</a>
+      <a href="/changelog.html">Changelog</a>
+      <a href="/switch.html">Switching</a>
+    </nav>
+    <p class="aia-notice">MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are registered trademarks of The American Institute of Architects, which is not affiliated with and does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract Documents. Check with yours before you submit.</p>
+  </footer>
+
+  <script src="scene.js" defer></script>
+</body>
+</html>
