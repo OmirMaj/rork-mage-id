@@ -583,7 +583,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             const dy = (next[1].y - next[0].y) * imgLayout.h;
             const px = Math.sqrt(dx * dx + dy * dy);
             if (px < MIN_CALIBRATION_PX) {
-              showAlert('Points Too Close', 'Tap two points that are further apart. A longer reference gives a closer scale.');
+              showAlert('Points Too Close', 'Tap two points that are further apart. The longer the reference, the more accurate the scale.');
               return [];
             }
             setCalibrationInput({ distanceFt: '', visible: true });
