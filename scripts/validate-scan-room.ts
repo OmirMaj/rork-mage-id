@@ -87,7 +87,7 @@ import { ES_SHARDS } from '../i18n/catalog/es';
 import { SURFACES } from '../i18n/surfaces';
 import type { LinkedEstimate, Project } from '../types';
 import {
-  FIXTURE_FILES, bathroomSpec, buildCapturedRoom, lShapeSpec, missingWallSpec, ring,
+  FIXTURE_FILES, bathroomSpec, buildCapturedRoom, lShapeSpec, ring,
   type RoomSpec,
 } from './fixtures/scan-room/builder';
 
