@@ -22,14 +22,24 @@
 // a priced line without one.
 //
 // NOTHING IS SAVED HERE. buildEstimatePatch needs `confirmed: true`, set only
-// by the person's tap on the confirm sheet, and returns the patch for the
-// caller to hand to updateProject. The pure core cannot write anything.
+// by the person's tap on the confirm sheet, AND `mayEdit: true` (his seat on
+// the project may change its estimate), and returns the patch for the caller
+// to hand to updateProject. The pure core cannot write anything.
+//
+// A PROJECT WITH NO ESTIMATE YET. The same confirm starts one, through the
+// app's own creation path: the lines at cost, then
+// utils/estimateLanding.buildNewEstimate at HIS stated markup (what
+// app/takeoff-estimate.tsx's Replace and the Drawing Analyzer do). A markup he
+// never chose is never written: with none on file the draft is blocked and
+// says so.
 //
 // Pure: no React, no storage. The caller passes the cost book and the clock.
 
 import type { LinkedEstimate, Project } from '@/types';
 import { lookupRate, type CostBookEntry, type CostDatabase } from '@/utils/costDatabase';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+import { buildNewEstimate } from '@/utils/estimateLanding';
+import { isMarkupSet, type MarkupPct } from '@/utils/estimateMarkup';
 import {
   KIND_UNIT, priceCondition,
   type ConditionPrice, type ConditionTotals, type RollupRow, type TakeoffCondition,
@@ -52,6 +62,12 @@ export interface OwnPriceClaim {
   jobCount: number;
   /** His own name for the trade the price came from. */
   trade: string;
+  /**
+   * False when the price came from one of his trades that is NOT the line's
+   * own default trade (his "Doors" for an interior door). The label then names
+   * the trade, so he can see which of his prices was used.
+   */
+  exactTrade: boolean;
 }
 
 export interface ScanDraftLine {
@@ -74,6 +90,8 @@ export interface ScanDraftLine {
 
 export interface ScanDraft {
   scanId: string;
+  /** The room's name, trimmed. '' blocks the push: the name goes on every estimate line. */
+  roomName: string;
   lines: ScanDraftLine[];
   /** Cost of the included, priced lines, in cents. His markup is added in the estimate. */
   totalCents: number;
@@ -97,26 +115,37 @@ export function scanConditionId(scanId: string, key: RecipeKey): string {
   return `scan:${scanId}:${key}`;
 }
 
-/** His own trade for a recipe line: the exact trade when his book has it, else the best word match, else the default. */
+/**
+ * EVERY word of his trade label must be one of the line's words. The takeoff
+ * matcher's default (0.34) takes a trade that shares ONE word, which priced an
+ * interior door from "Garage Door" and baseboard from "Base Cabinets" and
+ * called it his own price. The default is left alone for its other callers.
+ */
+export const STRICT_TRADE_MATCH = { minScore: 1 } as const;
+
+/** His own trade for a recipe line: the exact trade when his book has it, else a trade whose every word names this work, else the default. */
 export function resolveTrade(db: CostDatabase, line: RecipeLine): string {
   const unit = KIND_UNIT[line.kind];
   if (lookupRate(db, line.defaultTrade, unit)) return line.defaultTrade;
-  const m = matchOwnRate({ description: line.matchWords, unit }, db.entries);
+  const m = matchOwnRate({ description: line.matchWords, unit }, db.entries, STRICT_TRADE_MATCH);
   return m ? m.trade : line.defaultTrade;
 }
 
-function claimFor(entry: CostBookEntry): OwnPriceClaim {
+const sameTrade = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+function claimFor(entry: CostBookEntry, line: RecipeLine): OwnPriceClaim {
   const provenance = entry.provenance ?? 'earned';
   const model = provenanceClaimModel({ provenance, jobCount: entry.jobCount ?? 0, earnedBasis: entry.earnedBasis });
+  const exactTrade = sameTrade(entry.trade, line.defaultTrade);
   // No model = an earned entry with no measured job behind it. It may claim nothing beyond being his.
   return model
-    ? { tone: model.tone, provenance: model.provenance, jobCount: model.jobCount, trade: entry.trade }
-    : { tone: 'stated', provenance: 'seeded', jobCount: 0, trade: entry.trade };
+    ? { tone: model.tone, provenance: model.provenance, jobCount: model.jobCount, trade: entry.trade, exactTrade }
+    : { tone: 'stated', provenance: 'seeded', jobCount: 0, trade: entry.trade, exactTrade };
 }
 
 /** Price every recipe line for this room. Reads only: no estimate is touched. */
 export function buildScanDraft(
-  scan: Pick<RoomScan, 'id' | 'roomType' | 'capturedAt'>,
+  scan: Pick<RoomScan, 'id' | 'roomType' | 'capturedAt'> & { name?: string },
   q: ScanQuantities,
   db: CostDatabase,
   catalog: CatalogRater,
@@ -156,6 +185,8 @@ export function buildScanDraft(
         if (price.rateSource === 'override') source = 'engine';
       }
     }
+    // A sliver that rounds to nothing is not a line: it would read as work priced at $0.00.
+    if (!(price.qty > 0)) continue;
     const totals: ConditionTotals = {
       conditionId: condition.id, net, billable, unit, wallSf: null,
       unmeasuredCount: 0, measuredCount: 1, unmeasuredSheetIds: [], source: 'measured', aiReadQty: null,
@@ -171,7 +202,7 @@ export function buildScanDraft(
       rate: price.rate,
       amountCents: price.amountCents,
       source: price.amountCents == null ? null : source,
-      claim: source === 'yours' && price.entry ? claimFor(price.entry) : null,
+      claim: source === 'yours' && price.entry ? claimFor(price.entry, recipe) : null,
       included: !excluded.has(recipe.key),
       row: { condition, totals, price },
     });
@@ -180,6 +211,7 @@ export function buildScanDraft(
   const priced = live.filter((l) => l.amountCents != null);
   return {
     scanId: scan.id,
+    roomName: (scan.name ?? '').trim(),
     lines,
     totalCents: priced.reduce((s, l) => s + (l.amountCents as number), 0),
     pricedCount: priced.length,
@@ -195,15 +227,36 @@ export function draftPushLines(draft: ScanDraft): PushLine[] {
   return pushLinesFrom(draft.lines.filter((l) => l.included).map((l) => l.row)).lines;
 }
 
-export type DraftBlock = 'no_project' | 'nothing_priced' | 'no_estimate';
+export type DraftBlock = 'no_project' | 'no_access' | 'no_name' | 'nothing_priced' | 'no_markup';
 
-/** Why the draft cannot go to the estimate, or null. The takeoff's own rule (pushBlockReason), as a code the screen puts into words. */
-export function draftBlock(project: Project | null, draft: ScanDraft): DraftBlock | null {
+/** What the push needs to know beyond the draft: his seat on the project, and the markup he has stated. */
+export interface PushContext {
+  /** True only for a seat that may change this project's estimate (owner or editor). */
+  mayEdit: boolean;
+  /** His stated markup, or null when he was never asked. Used ONLY to start an estimate on a project that has none. */
+  markupPct: MarkupPct;
+}
+
+/** True when the confirm would START this project's estimate instead of adding to one. */
+export function startsEstimate(project: Project | null): boolean {
+  return !!project && !project.linkedEstimate;
+}
+
+/**
+ * Why the draft cannot go to the estimate, or null. A code the screen puts
+ * into words. A project with an estimate follows the takeoff's own rule
+ * (pushBlockReason). A project with none is not blocked for that: the confirm
+ * starts the estimate at his stated markup, and is blocked only when he has
+ * never stated one.
+ */
+export function draftBlock(project: Project | null, draft: ScanDraft, ctx: PushContext): DraftBlock | null {
   const lines = draftPushLines(draft);
   if (!project) return 'no_project';
+  if (ctx.mayEdit !== true) return 'no_access';
+  if (!draft.roomName) return 'no_name';
   if (!lines.length) return 'nothing_priced';
-  if (!project.linkedEstimate) return 'no_estimate';
-  return pushBlockReason(project, lines) ? 'no_estimate' : null;
+  if (!project.linkedEstimate) return isMarkupSet(ctx.markupPct) ? null : 'no_markup';
+  return pushBlockReason(project, lines) ? 'nothing_priced' : null;
 }
 
 export interface EstimatePatchResult {
@@ -214,29 +267,68 @@ export interface EstimatePatchResult {
   updated: number;
   beforeGrand: number;
   afterGrand: number;
+  /** True when this patch started the project's estimate. */
+  started: boolean;
 }
 
 /**
  * The project patch that puts the draft into the estimate, or null.
  *
  * `confirmed` must be the literal `true` from the person's tap on the confirm
- * sheet. Without it this returns null: there is no code path that builds a
- * patch, and so none that saves, before the person has said yes.
+ * sheet, and `mayEdit` the literal `true` from his seat on the project.
+ * Without both this returns null: there is no code path that builds a patch,
+ * and so none that saves, before the person has said yes or for a seat that
+ * may not change the estimate.
  * `pushed` is the scan's record of which estimate line each draft line became,
  * so pricing the same scan twice updates those lines instead of adding copies.
+ *
+ * NO ESTIMATE YET: the lines are laid down at cost by the same takeoff push
+ * (so each keeps its scan line id and its price source), then footed at his
+ * stated markup by buildNewEstimate, the app's one "new estimate from cost
+ * lines" writer. `now` is the new estimate's createdAt.
  */
 export function buildEstimatePatch(args: {
   confirmed: boolean;
+  mayEdit: boolean;
   project: Project | null;
   draft: ScanDraft;
   pushed: Record<string, string>;
   newId: () => string;
+  markupPct: MarkupPct;
+  now: string;
 }): EstimatePatchResult | null {
   if (args.confirmed !== true) return null;
-  if (draftBlock(args.project, args.draft) !== null) return null;
+  if (args.mayEdit !== true) return null;
+  if (draftBlock(args.project, args.draft, { mayEdit: args.mayEdit, markupPct: args.markupPct }) !== null) return null;
   const project = args.project as Project;
-  const est = project.linkedEstimate as LinkedEstimate;
-  const res = applyTakeoffPush(est, draftPushLines(args.draft), args.pushed, args.newId);
+  const lines = draftPushLines(args.draft);
+  if (!project.linkedEstimate) {
+    if (!isMarkupSet(args.markupPct)) return null;
+    const blank: LinkedEstimate = { id: '', items: [], globalMarkup: 0, baseTotal: 0, markupTotal: 0, grandTotal: 0, createdAt: args.now };
+    const atCost = applyTakeoffPush(blank, lines, {}, args.newId);
+    const footed = buildNewEstimate(atCost.next.items, args.markupPct, args.newId(), args.now);
+    const next: LinkedEstimate = { ...footed, globalMarkup: args.markupPct };
+    const patch = commitEstimatePatch(project, next, { reason: 'pre_overwrite' });
+    return { patch, next, pushed: atCost.pushed, added: atCost.added, updated: 0, beforeGrand: 0, afterGrand: next.grandTotal, started: true };
+  }
+  const est = project.linkedEstimate;
+  const res = applyTakeoffPush(est, lines, args.pushed, args.newId);
   const patch = commitEstimatePatch(project, res.next, { reason: 'pre_overwrite' });
-  return { patch, next: res.next, pushed: res.pushed, added: res.added, updated: res.updated, beforeGrand: res.beforeGrand, afterGrand: res.afterGrand };
+  return { patch, next: res.next, pushed: res.pushed, added: res.added, updated: res.updated, beforeGrand: res.beforeGrand, afterGrand: res.afterGrand, started: false };
+}
+
+/**
+ * Is the push in the project the app now holds? True when every line the
+ * patch wrote is on the project's estimate, under the id the patch gave it and
+ * carrying its scan line id. The screen says "Added to the estimate." only
+ * after this is true for the project read back from the app's own state.
+ */
+export function estimateHoldsPush(project: Project | null, res: Pick<EstimatePatchResult, 'pushed' | 'next'>): boolean {
+  const items = project?.linkedEstimate?.items;
+  if (!items || project?.linkedEstimate?.id !== res.next.id) return false;
+  const written = res.next.items.filter((it) => it.sourceTakeoffConditionId && res.pushed[it.sourceTakeoffConditionId] === it.materialId);
+  if (written.length === 0) return false;
+  return written.every((w) => items.some((it) =>
+    it.materialId === w.materialId && it.sourceTakeoffConditionId === w.sourceTakeoffConditionId
+    && it.quantity === w.quantity && it.unitPrice === w.unitPrice));
 }

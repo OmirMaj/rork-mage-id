@@ -3,7 +3,8 @@
 // where, and why nothing is sent to the server in this lane.
 //
 // NOTHING HERE RUNS ON ITS OWN. Every write is called from a tap: Save Scan on
-// the plan, or the confirm sheet on the priced draft.
+// the plan, the confirm sheet on the priced draft, or the confirm sheet on
+// Delete Scan.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
@@ -21,15 +22,21 @@ export async function loadSavedScans(projectId: string): Promise<SavedScanList> 
 /** Save one scan with its project. Returns false when the phone could not write it, so the screen can say so. */
 export async function saveScan(saved: SavedScan, rawJson?: string | null): Promise<boolean> {
   try {
-    const list = await loadSavedScans(saved.scan.projectId);
-    await AsyncStorage.setItem(roomScansKey(saved.scan.projectId), JSON.stringify(upsertSavedScan(list, saved)));
+    const before = await loadSavedScans(saved.scan.projectId);
+    const { list, dropped } = upsertSavedScan(before, saved);
+    await AsyncStorage.setItem(roomScansKey(saved.scan.projectId), JSON.stringify(list));
     if (rawJson) await AsyncStorage.setItem(roomScanRawKey(saved.scan.id), rawJson);
+    // A scan the cap pushed off the list takes its raw JSON with it.
+    for (const id of dropped) {
+      try { await AsyncStorage.removeItem(roomScanRawKey(id)); } catch { /* the scan itself is saved; a stray raw key is swept at the next tenant switch */ }
+    }
     return true;
   } catch {
     return false;
   }
 }
 
+/** Delete one saved scan and its raw JSON from this phone. Called only from the delete confirm sheet. */
 export async function deleteScan(projectId: string, scanId: string): Promise<boolean> {
   try {
     const list = await loadSavedScans(projectId);

@@ -101,6 +101,17 @@ export function parseTapeMeasure(input: string): number | null {
   return feetToMetres(totalFt);
 }
 
+/**
+ * Is a typed length so far from the scanned one that it is more likely a slip
+ * than a correction? More than double, or less than half. A bare "98" reads as
+ * 98 FEET; on a 98 inch wall that is twelve times the scan, and the sheet asks
+ * again instead of taking it. False when the scan gave no value to compare.
+ */
+export function tapeFarFromScan(typedM: number, scanM: number): boolean {
+  if (!(scanM > 0) || !(typedM > 0)) return false;
+  return typedM > scanM * 2 || typedM < scanM / 2;
+}
+
 /** Nominal interior door widths, in inches. */
 export const NOMINAL_DOOR_WIDTHS_IN = [24, 28, 30, 32, 34, 36] as const;
 

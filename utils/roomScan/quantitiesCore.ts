@@ -9,10 +9,14 @@
 //   Perimeter       the sum of the outline walls' lengths.
 //   Gross wall      length times height per outline wall (a slanted wall's own shape when iOS 17 gives one).
 //   Openings        width times height of every door, window and opening, clipped to its wall, counted ONCE.
+//                   Two openings that overlap on one wall (a door and an "opening" RoomPlan saw at the same
+//                   spot) are taken off as ONE shape: the area they cover together, never the sum.
+//                   An opening that matched no outline wall is not taken off at all, and the plan SAYS so.
 //   Net wall        gross less openings.
 //   Ceiling         the floor area. A ceiling that varies is flagged and shown as the flat equivalent.
-//   Baseboard       perimeter less the widths of doors and of openings that start at the floor.
-//   Crown           perimeter less the widths of openings that reach the ceiling.
+//   Baseboard       perimeter less the run covered by doors and by openings that start at the floor.
+//   Crown           perimeter less the run covered by openings that reach the ceiling.
+//                   (Overlapping runs on one wall are counted once.)
 //   Casing          two legs and a head per door, one side.
 //   Fixtures        kitchen and bath objects, counted by kind. Furniture is not a quantity.
 // No waste is added here. Waste belongs to pricing, where it is added once.
@@ -57,6 +61,37 @@ function clippedHeightM(o: ScanOpening, wall: ScanWall, scan: RoomScan): number 
   return h > 0 ? Math.max(0, Math.min(o.heightM, h - o.sillM)) : o.heightM;
 }
 
+/** The length covered by a set of [lo, hi] runs along one wall, overlaps counted once. */
+export function unionLength(runs: readonly (readonly [number, number])[]): number {
+  const sorted = runs.filter(([lo, hi]) => hi > lo).map(([lo, hi]) => [lo, hi] as [number, number]).sort((p, q) => p[0] - q[0]);
+  let total = 0;
+  let end = -Infinity;
+  for (const [lo, hi] of sorted) {
+    if (hi <= end) continue;
+    total += hi - Math.max(lo, end);
+    end = hi;
+  }
+  return total;
+}
+
+interface Rect { x0: number; x1: number; y0: number; y1: number }
+
+/** The area covered by rectangles on one wall face, overlaps counted once. */
+export function unionArea(rects: readonly Rect[]): number {
+  const live = rects.filter((r) => r.x1 > r.x0 && r.y1 > r.y0);
+  if (live.length === 0) return 0;
+  if (live.length === 1) return (live[0].x1 - live[0].x0) * (live[0].y1 - live[0].y0);
+  const xs = [...new Set(live.flatMap((r) => [r.x0, r.x1]))].sort((p, q) => p - q);
+  let area = 0;
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const lo = xs[i];
+    const hi = xs[i + 1];
+    const tall = unionLength(live.filter((r) => r.x0 <= lo && r.x1 >= hi).map((r) => [r.y0, r.y1] as const));
+    area += (hi - lo) * tall;
+  }
+  return area;
+}
+
 export function computeQuantities(scan: RoomScan, opts: { casingSides?: 1 | 2 } = {}): ScanQuantities {
   const flags = new Set<QuantityFlag>();
   const outline = scan.walls.filter((w) => w.onOutline);
@@ -78,20 +113,30 @@ export function computeQuantities(scan: RoomScan, opts: { casingSides?: 1 | 2 } 
   const seen = new Set<string>();
   const openings = scan.openings.filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
 
-  let openingM2 = 0;
-  let baseboardOutM = 0;
-  let crownOutM = 0;
+  // Per wall: the shapes cut out of its face, and the runs cut out of its base and its crown.
+  const cuts = new Map<string, { rects: Rect[]; base: [number, number][]; crown: [number, number][] }>();
   let casingM = 0;
   for (const o of openings) {
     const wall = o.wallId ? byId.get(o.wallId) : undefined;
     if (!wall) { flags.add('opening_without_wall'); continue; }
-    const w = clippedWidthM(o, wall);
+    const x0 = Math.max(0, o.offsetM);
+    const x1 = x0 + clippedWidthM(o, wall);
     const h = clippedHeightM(o, wall, scan);
-    openingM2 += w * h;
+    const cut = cuts.get(wall.id) ?? { rects: [], base: [], crown: [] };
+    cut.rects.push({ x0, x1, y0: o.sillM, y1: o.sillM + h });
     const atFloor = o.sillM < FLOOR_TOL_M;
-    if (o.kind === 'door' || (o.kind === 'opening' && atFloor)) baseboardOutM += w;
+    if (o.kind === 'door' || (o.kind === 'opening' && atFloor)) cut.base.push([x0, x1]);
     const wh = wallHeight(wall, scan);
-    if (o.kind === 'opening' && wh > 0 && o.sillM + o.heightM >= wh - CEILING_TOL_M) crownOutM += w;
+    if (o.kind === 'opening' && wh > 0 && o.sillM + o.heightM >= wh - CEILING_TOL_M) cut.crown.push([x0, x1]);
+    cuts.set(wall.id, cut);
+  }
+  let openingM2 = 0;
+  let baseboardOutM = 0;
+  let crownOutM = 0;
+  for (const cut of cuts.values()) {
+    openingM2 += unionArea(cut.rects);
+    baseboardOutM += unionLength(cut.base);
+    crownOutM += unionLength(cut.crown);
   }
   const doorsList = openings.filter((o) => o.kind === 'door');
   const windowsList = openings.filter((o) => o.kind === 'window');
@@ -174,6 +219,8 @@ export function scanFacts(scan: RoomScan, q: ScanQuantities): ScanFact[] {
   facts.push({ kind: 'walls_found', tone: scan.closure.closed ? 'ok' : 'check', found, needed });
   if (scan.closure.closed) {
     facts.push({ kind: 'outline_closed', tone: 'ok' });
+  } else if (scan.closure.crossing) {
+    facts.push({ kind: 'outline_crosses', tone: 'check', wallLabels: scan.closure.gapWallIds.map(label) });
   } else if (scan.closure.cause === 'typed') {
     facts.push({ kind: 'typed_open', tone: 'check', gapM: scan.closure.gapM, wallLabels: scan.closure.gapWallIds.map(label) });
   } else {
@@ -188,6 +235,13 @@ export function scanFacts(scan: RoomScan, q: ScanQuantities): ScanFact[] {
   if (q.flags.includes('over_size_limit')) facts.push({ kind: 'over_size', tone: 'check' });
   const off = scan.walls.filter((w) => !w.onOutline);
   if (off.length) facts.push({ kind: 'off_outline', tone: 'check', count: off.length, wallLabels: off.map((w) => w.label) });
+  if (q.flags.includes('opening_without_wall')) {
+    // Each opening once, as the quantities count them.
+    const ids = new Set(scan.openings.map((o) => o.id));
+    const outlineIds = new Set(outline.map((w) => w.id));
+    const lost = [...ids].filter((id) => { const o = scan.openings.find((x) => x.id === id); return !o?.wallId || !outlineIds.has(o.wallId); });
+    facts.push({ kind: 'opening_no_wall', tone: 'check', count: lost.length });
+  }
   const typed = scan.edits.length;
   if (typed) facts.push({ kind: 'typed_by_hand', tone: 'ok', count: typed });
   const adjusted = outline.filter((w) => w.lengthSource === 'adjusted');
@@ -206,4 +260,11 @@ export function pricingBlock(q: ScanQuantities): 'not_closed' | 'typed_lengths_d
   if (q.flags.includes('ceiling_height_missing')) return 'ceiling_height_missing';
   if (q.flags.includes('low_confidence_wall')) return 'low_confidence_wall';
   return null;
+}
+
+/** Why this SCAN cannot be priced yet: the room has no name (it goes on every estimate line), or one of the reasons above. */
+export function scanPricingBlock(scan: Pick<RoomScan, 'name'>, q: ScanQuantities): ReturnType<typeof pricingBlock> | 'no_name' {
+  const b = pricingBlock(q);
+  if (b) return b;
+  return scan.name.trim() ? null : 'no_name';
 }

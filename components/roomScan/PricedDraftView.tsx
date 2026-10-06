@@ -2,8 +2,14 @@
 // person reviews line by line before anything goes into the estimate.
 //
 // EVERY LINE SAYS WHERE ITS PRICE CAME FROM. "Your Price, 6 Past Jobs" only
-// for his own cost book. "Catalog Price" for a list price. "No Price Yet" for
-// a blank, which adds nothing to the total and is never shown as $0.
+// for his own cost book, and "Your Price For Doors, 3 Past Jobs" when it came
+// from one of his trades that is not the line's own. "Catalog Price" for a
+// list price. "No Price Yet" for a blank, which adds nothing to the total and
+// is never shown as $0.
+//
+// A PROJECT WITH NO ESTIMATE YET: the same button, and the confirm sheet says
+// it will START the estimate, at which markup. Nothing is started without the
+// yes either.
 //
 // NOTHING IS SAVED FROM THIS SCREEN WITHOUT A YES. Open In Estimate opens a
 // sheet that says what will happen. Only its confirm button calls onConfirm.
@@ -25,7 +31,14 @@ export interface PricedDraftViewProps {
   block: DraftBlock | null;
   /** How many lines the confirm would write. */
   pushCount: number;
-  result: 'idle' | 'added' | 'failed';
+  /** True when the project has no estimate and the confirm would start one. */
+  starting: boolean;
+  /** His stated markup, shown on the confirm sheet when the confirm starts the estimate. */
+  markupPct: number | null;
+  /** 'added' only after the estimate was seen to hold the lines. 'unconfirmed' when it was not. */
+  result: 'idle' | 'added' | 'failed' | 'unconfirmed';
+  /** True while a confirmed push is being written and checked. */
+  busy: boolean;
   onManualRate: (key: RecipeKey, rate: number | null) => void;
   onToggle: (key: RecipeKey) => void;
   onConfirm: () => void;
@@ -129,19 +142,20 @@ export function PricedDraftView(p: PricedDraftViewProps) {
         </View>
       )}
       {p.result === 'added' && <Text style={styles.okText} testID="scan-draft-added">{copy.addedBody}</Text>}
-      {p.result === 'failed' && <Text style={styles.errorText}>{copy.addFailedBody}</Text>}
-      <Button label={copy.openInEstimateLabel} variant="primary" onPress={() => setConfirming(true)} disabled={p.block != null} testID="scan-open-estimate" />
+      {p.result === 'failed' && <Text style={styles.errorText} testID="scan-draft-failed">{copy.addFailedBody}</Text>}
+      {p.result === 'unconfirmed' && <Text style={styles.errorText} testID="scan-draft-unconfirmed">{copy.unconfirmedBody}</Text>}
+      <Button label={copy.openInEstimateLabel} variant="primary" onPress={() => setConfirming(true)} disabled={p.block != null || p.busy} loading={p.busy} testID="scan-open-estimate" />
 
       <Sheet
         visible={confirming}
         onClose={() => setConfirming(false)}
         size="form"
-        title={copy.confirmTitleLabel}
+        title={p.starting ? copy.startTitleLabel : copy.confirmTitleLabel}
         testID="scan-confirm-sheet"
-        primaryAction={{ label: copy.confirmYesLabel, onPress: () => { setConfirming(false); p.onConfirm(); }, testID: 'scan-confirm-yes' }}
+        primaryAction={{ label: p.starting ? copy.startYesLabel : copy.confirmYesLabel, onPress: () => { setConfirming(false); p.onConfirm(); }, testID: 'scan-confirm-yes' }}
         secondaryAction={{ label: copy.confirmNoLabel, onPress: () => setConfirming(false), testID: 'scan-confirm-no' }}
       >
-        <Text style={styles.para}>{copy.confirmBody(p.pushCount, total)}</Text>
+        <Text style={styles.para} testID="scan-confirm-body">{p.starting && p.markupPct != null ? copy.startConfirmBody(p.pushCount, total, p.markupPct) : copy.confirmBody(p.pushCount, total)}</Text>
       </Sheet>
     </View>
   );

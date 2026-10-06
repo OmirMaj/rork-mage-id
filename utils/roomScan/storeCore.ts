@@ -69,10 +69,20 @@ export function parseSavedScans(raw: string | null | undefined): SavedScanList {
   return { version: 1, scans };
 }
 
-/** Put one scan in the list (newest first), replacing an older copy of the same scan. */
-export function upsertSavedScan(list: SavedScanList, saved: SavedScan): SavedScanList {
-  const rest = list.scans.filter((s) => s.scan.id !== saved.scan.id);
-  return { version: 1, scans: [saved, ...rest].slice(0, MAX_SCANS_PER_PROJECT) };
+/**
+ * Put one scan in the list (newest first), replacing an older copy of the same scan.
+ *
+ * `dropped` are the ids of scans the cap pushed off the end. Each has a raw
+ * JSON key of its own (roomScanRawKey) that the list no longer points at: the
+ * store removes those keys in the same save, or the 41st scan's raw JSON would
+ * sit on the phone for ever with nothing to delete it.
+ */
+export function upsertSavedScan(list: SavedScanList, saved: SavedScan): { list: SavedScanList; dropped: string[] } {
+  const all = [saved, ...list.scans.filter((s) => s.scan.id !== saved.scan.id)];
+  return {
+    list: { version: 1, scans: all.slice(0, MAX_SCANS_PER_PROJECT) },
+    dropped: all.slice(MAX_SCANS_PER_PROJECT).map((s) => s.scan.id),
+  };
 }
 
 export function removeSavedScan(list: SavedScanList, scanId: string): SavedScanList {

@@ -87,6 +87,8 @@ export interface ScanClosure {
   gapWallIds: string[];
   /** 'scan' = the walls never met. 'typed' = typed lengths opened a closed outline. */
   cause: 'scan' | 'typed';
+  /** True when the walls DID join into a ring but the ring crosses itself. It is treated as open: no floor area. `gapWallIds` are the walls that cross. */
+  crossing?: boolean;
 }
 
 export interface CeilingHeight {
@@ -116,7 +118,7 @@ export type RoomType = 'bathroom' | 'kitchen' | 'bedroom' | 'room';
 export interface RoomScan {
   id: string;
   projectId: string;
-  /** "Hall Bathroom", typed by the person. */
+  /** "Hall Bathroom", typed by the person. '' until he types one: a scan is never named for him. */
   name: string;
   version: 1;
   /** Native clock, ISO. */
@@ -183,6 +185,8 @@ export interface ScanFact {
     | 'walls_found'
     | 'outline_closed'
     | 'outline_open'
+    | 'outline_crosses'
+    | 'opening_no_wall'
     | 'typed_open'
     | 'low_confidence'
     | 'ceiling_missing'

@@ -135,6 +135,7 @@ export function addTapeCheck(scan: RoomScan, wallId: string, tapeM: number, at: 
 }
 
 export function renameScan(scan: RoomScan, name: string): RoomScan {
+  // An empty name is kept as empty (he cleared the field): pricing asks for one.
   const n = name.trim().slice(0, 60);
-  return n && n !== scan.name ? { ...scan, name: n } : scan;
+  return n !== scan.name ? { ...scan, name: n } : scan;
 }

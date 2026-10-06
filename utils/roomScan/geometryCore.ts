@@ -18,6 +18,12 @@
 // lines cross (or to the midpoint when they are parallel). If the walls form a
 // loop, that loop is the floor. If they do not, the room is OPEN and no floor
 // area is ever reported from it: the person is told which walls to check.
+//
+// WHICH LOOP, when the walls form more than one (a closet, a boxed-in column):
+// the one that covers the most ground, measured by its convex hull so the
+// answer does not turn with the room. NOT the one with the most walls: a
+// five-sided closet is not the room. And a loop whose walls CROSS each other
+// (a bow tie) has no floor a shoelace can measure: it is treated as open.
 
 import type { ParsedRoom, RawSurface } from './capturedRoomParser';
 import {
@@ -83,11 +89,49 @@ function lineCross(p: Pt, d: Pt, q: Pt, e: Pt): Pt | null {
   return add(p, mul(d, t));
 }
 
+/** Area of the convex hull of some points. The same for a room however it is turned. */
+export function hullArea(points: readonly Pt[]): number {
+  const pts = [...points].sort((p, q) => p.x - q.x || p.y - q.y);
+  if (pts.length < 3) return 0;
+  const half = (src: Pt[]): Pt[] => {
+    const out: Pt[] = [];
+    for (const p of src) {
+      while (out.length >= 2 && cross(sub(out[out.length - 1], out[out.length - 2]), sub(p, out[out.length - 1])) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return polygonArea([...half(pts), ...half([...pts].reverse())]);
+}
+
+/** Do two segments cross at a point inside both? Touching at a shared end does not count. */
+function segmentsCross(p1: Pt, p2: Pt, q1: Pt, q2: Pt): boolean {
+  const d1 = cross(sub(q2, q1), sub(p1, q1));
+  const d2 = cross(sub(q2, q1), sub(p2, q1));
+  const d3 = cross(sub(p2, p1), sub(q1, p1));
+  const d4 = cross(sub(p2, p1), sub(q2, p1));
+  const EPS = 1e-9;
+  return ((d1 > EPS && d2 < -EPS) || (d1 < -EPS && d2 > EPS)) && ((d3 > EPS && d4 < -EPS) || (d3 < -EPS && d4 > EPS));
+}
+
+/** The first pair of sides of a ring that cross each other (indices into the ring), or null for a simple ring. */
+export function ringCrossing(corners: readonly Pt[]): [number, number] | null {
+  const n = corners.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue; // neighbours round the end
+      if (segmentsCross(corners[i], corners[(i + 1) % n], corners[j], corners[(j + 1) % n])) return [i, j];
+    }
+  }
+  return null;
+}
+
 interface Seg { src: RawSurface; a: Pt; b: Pt; centreY: number }
 
 interface Loop { order: number[]; flipped: boolean[] }
 
-/** Join wall ends, then walk them. Returns the largest closed loop, or the chains when none closes. */
+/** Join wall ends, then walk them. Returns the closed loop that covers the most ground, or the chains when none closes. */
 function linkWalls(segs: Seg[]): { loop: Loop | null; chains: Loop[]; partner: (number | null)[] } {
   const ends: Pt[] = [];
   segs.forEach((s) => { ends.push(s.a, s.b); });
@@ -145,9 +189,11 @@ function linkWalls(segs: Seg[]): { loop: Loop | null; chains: Loop[]; partner: (
     }
     (isLoop ? loops : chains).push({ order, flipped });
   }
-  loops.sort((p, q) => q.order.length - p.order.length);
-  const loop = loops.length && loops[0].order.length >= 3 ? loops[0] : null;
-  return { loop, chains: loop ? [...loops.slice(1), ...chains] : [...loops, ...chains], partner };
+  // By the ground each covers, not by how many walls it has.
+  const ground = (l: Loop): number => hullArea(l.order.flatMap((idx) => [segs[idx].a, segs[idx].b]));
+  const ranked = loops.filter((l) => l.order.length >= 3).map((l) => ({ l, g: ground(l) })).sort((p, q) => q.g - p.g);
+  const loop = ranked.length ? ranked[0].l : null;
+  return { loop, chains: loop ? [...loops.filter((l) => l !== loop), ...chains] : [...loops, ...chains], partner };
 }
 
 function median(xs: number[]): number {
@@ -209,17 +255,26 @@ export function buildRoomScan(parsed: ParsedRoom, meta: BuildMeta): RoomScan {
     return l.flipped[k] ? { s, a: s.b, b: s.a } : { s, a: s.a, b: s.b };
   });
 
-  if (loop) {
-    let ring = oriented(loop);
-    const n = ring.length;
-    let maxGap = 0;
-    let corners: Pt[] = ring.map((cur, i) => {
-      const prev = ring[(i - 1 + n) % n];
-      maxGap = Math.max(maxGap, dist(prev.b, cur.a));
-      const mid = mul(add(prev.b, cur.a), 0.5);
-      const x = lineCross(prev.a, unit(sub(prev.b, prev.a)), cur.a, unit(sub(cur.b, cur.a)));
-      return x && dist(x, mid) <= 2 * SNAP_M ? x : mid;
-    });
+  // The loop's corners, and whether its sides cross each other.
+  let ring = loop ? oriented(loop) : [];
+  const n = ring.length;
+  let maxGap = 0;
+  let corners: Pt[] = ring.map((cur, i) => {
+    const prev = ring[(i - 1 + n) % n];
+    maxGap = Math.max(maxGap, dist(prev.b, cur.a));
+    const mid = mul(add(prev.b, cur.a), 0.5);
+    const x = lineCross(prev.a, unit(sub(prev.b, prev.a)), cur.a, unit(sub(cur.b, cur.a)));
+    return x && dist(x, mid) <= 2 * SNAP_M ? x : mid;
+  });
+  const crossing = loop ? ringCrossing(corners) : null;
+
+  if (loop && crossing) {
+    // The walls join into a ring, but the ring crosses itself. There is no
+    // floor to measure: OPEN, and the two walls that cross are named.
+    ring.forEach((r, i) => walls.push(mk(r.s, corners[i], corners[(i + 1) % n], true)));
+    closure = { closed: false, gapM: 0, gaps: 1, gapWallIds: [ring[crossing[0]].s.src.id, ring[crossing[1]].s.src.id], cause: 'scan', crossing: true };
+    for (const c of chains) for (const r of oriented(c)) walls.push(mk(r.s, r.a, r.b, false));
+  } else if (loop) {
     if (signedArea(corners) < 0) {
       // Clockwise: turn the ring round so the floor is counter-clockwise.
       ring = [...ring].reverse();

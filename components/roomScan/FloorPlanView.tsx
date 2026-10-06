@@ -30,7 +30,7 @@ export interface FloorPlanViewProps {
   facts: ScanFact[];
   copy: RoomScanCopy;
   scannedSub: string;
-  saveState: 'idle' | 'saved' | 'failed';
+  saveState: 'idle' | 'saved' | 'failed' | 'needsName';
   onEditWall: (wallId: string) => void;
   onEditCeiling: () => void;
   onEditOpening: (openingId: string, field: 'widthM' | 'heightM') => void;
@@ -45,6 +45,10 @@ export function FloorPlanView(p: FloorPlanViewProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeRoomScanStyles);
   const [width, setWidth] = useState(340);
+  // What is in the field, as typed. The scan's name is this, trimmed, and is
+  // set on EVERY keystroke (onChangeText): a tap on Save or See The Quantities
+  // with the keyboard still up finds the name already on the scan.
+  const [nameText, setNameText] = useState(scan.name);
   const onLayout = (e: LayoutChangeEvent) => { const w = e.nativeEvent.layout.width; if (w > 0 && Math.abs(w - width) > 1) setWidth(w); };
 
   const draw = useMemo(() => {
@@ -72,10 +76,10 @@ export function FloorPlanView(p: FloorPlanViewProps) {
         <TextInput
           testID="scan-name"
           style={styles.input}
-          defaultValue={scan.name}
+          value={nameText}
           placeholder={copy.namePlaceholder}
           placeholderTextColor={colors.textMuted}
-          onEndEditing={(e) => p.onRename(e.nativeEvent.text)}
+          onChangeText={(v) => { setNameText(v); p.onRename(v); }}
           accessibilityLabel={copy.nameLabel}
           maxLength={60}
         />
@@ -236,6 +240,7 @@ export function FloorPlanView(p: FloorPlanViewProps) {
 
       {p.saveState === 'saved' && <Text style={styles.okText}>{copy.savedNote}</Text>}
       {p.saveState === 'failed' && <Text style={styles.errorText}>{copy.saveFailedBody}</Text>}
+      {p.saveState === 'needsName' && <Text style={styles.errorText} testID="scan-name-needed">{copy.nameNeededBody}</Text>}
       <Button label={copy.saveLabel} variant="secondary" onPress={p.onSave} testID="scan-save" />
       <Button label={copy.seeQuantitiesLabel} variant="primary" onPress={p.onNext} testID="scan-see-quantities" />
     </View>

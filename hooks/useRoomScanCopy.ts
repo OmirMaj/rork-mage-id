@@ -19,7 +19,8 @@
 // knows is stated as a fact ("4 of 4 walls found"), never as a score.
 // A price says where it came from: "Your Price, 6 Past Jobs" only for his own
 // measured cost book, "Catalog Price" for a list price, "No Price Yet" for a
-// blank. scripts/validate-scan-room.ts reads the English shard and fails on
+// blank. When the price came from one of his trades that is not the line's own
+// trade, the label names it: "Your Price For Doors, 3 Past Jobs". scripts/validate-scan-room.ts reads the English shard and fails on
 // any of these.
 //
 // Never call t() at module scope: the object is rebuilt when the language
@@ -33,7 +34,8 @@ import type { RoomType, ScanFact } from '@/utils/roomScan/types';
 import { formatFeetInches } from '@/utils/roomScan/units';
 
 export type RoomScanEditKind = 'wall' | 'ceiling' | 'width' | 'height';
-export type RoomScanPricingBlock = 'not_closed' | 'typed_lengths_do_not_close' | 'low_confidence_wall' | 'ceiling_height_missing';
+export type RoomScanPricingBlock = 'not_closed' | 'typed_lengths_do_not_close' | 'low_confidence_wall' | 'ceiling_height_missing' | 'no_name';
+export type RoomScanSeatBlock = 'checking' | 'refused' | 'unknown';
 
 export interface RoomScanCopy {
   // ── the start ──
@@ -54,10 +56,23 @@ export interface RoomScanCopy {
   savedHeadingLabel: string;
   savedEmptyBody: string;
   savedRowSub: (date: string, walls: number) => string;
+  deleteA11yLabel: (name: string) => string;
+  deleteTitleLabel: string;
+  deleteBody: (name: string) => string;
+  deleteYesLabel: string;
+  deleteNoLabel: string;
+  deleteFailedBody: string;
+  leaveTitleLabel: string;
+  leaveBody: string;
+  leaveYesLabel: string;
+  leaveNoLabel: string;
+  seatBody: (b: RoomScanSeatBlock) => string;
+  retryLabel: string;
   // ── the plan ──
   scannedSub: (date: string, time: string) => string;
   nameLabel: string;
   namePlaceholder: string;
+  nameNeededBody: string;
   roomTypeLabel: string;
   roomTypeName: (t: RoomType) => string;
   ceilingLabel: string;
@@ -83,6 +98,8 @@ export interface RoomScanCopy {
   // ── fixing a number ──
   editTitleLabel: (kind: RoomScanEditKind) => string;
   editScanValueSub: (value: string) => string;
+  editReadsAsSub: (value: string) => string;
+  editFarBody: (typed: string, scan: string) => string;
   editInputLabel: string;
   editHintBody: string;
   editInvalidBody: string;
@@ -142,7 +159,11 @@ export interface RoomScanCopy {
   confirmBody: (count: number, total: string) => string;
   confirmYesLabel: string;
   confirmNoLabel: string;
+  startTitleLabel: string;
+  startConfirmBody: (count: number, total: string, markup: number) => string;
+  startYesLabel: string;
   addedBody: string;
+  unconfirmedBody: string;
   addFailedBody: string;
   paywallFeatureLabel: string;
 }
@@ -160,7 +181,7 @@ export function useRoomScanCopy(): RoomScanCopy {
       titleLabel: t('office.roomScan.titleLabel', 'Scan The Room'),
       unitWord,
       backLabel: t('office.roomScan.backLabel', 'Back'),
-      startBody: t('office.roomScan.start.body', 'Walk the room once with this iPhone. You get a floor plan, the quantities and a draft price from your own past jobs. A scan is a fast first measure, not a survey.'),
+      startBody: t('office.roomScan.start.body', 'Walk the room once with this iPhone. You get a floor plan, the quantities and a draft price, from your own past jobs where you have them. A scan is a fast first measure, not a survey.'),
       tipsHeadingLabel: t('office.roomScan.tips.headingLabel', 'Before You Scan'),
       tips: [
         t('office.roomScan.tips.lightsBody', 'Turn on the lights and open the curtains.'),
@@ -188,10 +209,29 @@ export function useRoomScanCopy(): RoomScanCopy {
       savedHeadingLabel: t('office.roomScan.saved.headingLabel', 'Saved Scans'),
       savedEmptyBody: t('office.roomScan.saved.emptyBody', 'No scans are saved for this project on this phone.'),
       savedRowSub: (date, walls) => tn('office.roomScan.saved.rowSub', walls, { one: '{date}, 1 wall', other: '{date}, {count} walls' }, { date }),
+      deleteA11yLabel: (name) => t('office.roomScan.saved.deleteA11yLabel', 'Delete {name}', { name }),
+      deleteTitleLabel: t('office.roomScan.saved.deleteTitleLabel', 'Delete This Scan'),
+      deleteBody: (name) => t('office.roomScan.saved.deleteBody', 'This deletes {name} from this phone. Lines already in the estimate stay there. A deleted scan cannot be brought back.', { name }),
+      deleteYesLabel: t('office.roomScan.saved.deleteYesLabel', 'Delete Scan'),
+      deleteNoLabel: t('office.roomScan.saved.deleteNoLabel', 'Keep It'),
+      deleteFailedBody: t('office.roomScan.saved.deleteFailedBody', 'The phone could not delete the scan. Try again.'),
+      leaveTitleLabel: t('office.roomScan.leave.titleLabel', 'Leave Without Saving'),
+      leaveBody: t('office.roomScan.leave.body', 'This scan is not saved. If you go back now, it is gone.'),
+      leaveYesLabel: t('office.roomScan.leave.yesLabel', 'Discard Scan'),
+      leaveNoLabel: t('office.roomScan.leave.noLabel', 'Stay Here'),
+      seatBody: (b) => {
+        switch (b) {
+          case 'checking': return t('office.roomScan.seat.checkingBody', 'Checking your access to this project.');
+          case 'refused': return t('office.roomScan.seat.refusedBody', 'Scan The Room adds lines to the estimate for this project. Only the project owner or an editor can do that. Ask the project owner.');
+          case 'unknown': return t('office.roomScan.seat.unknownBody', 'Your access to this project could not be checked. Check your signal and try again.');
+        }
+      },
+      retryLabel: t('office.roomScan.seat.retryLabel', 'Try Again'),
 
       scannedSub: (date, time) => t('office.roomScan.plan.scannedSub', 'Scanned {date}, {time}', { date, time }),
       nameLabel: t('office.roomScan.plan.nameLabel', 'Room Name'),
       namePlaceholder: t('office.roomScan.plan.namePlaceholderLabel', 'Hall Bathroom'),
+      nameNeededBody: t('office.roomScan.plan.nameNeededBody', 'Name the room first. The name goes on every estimate line.'),
       roomTypeLabel: t('office.roomScan.plan.roomTypeLabel', 'Room Type'),
       roomTypeName: (rt) => {
         switch (rt) {
@@ -242,6 +282,8 @@ export function useRoomScanCopy(): RoomScanCopy {
         switch (f.kind) {
           case 'walls_found': return t('office.roomScan.fact.wallsFoundBody', '{found} of {needed} walls found.', { found: f.found ?? 0, needed: f.needed ?? 0 });
           case 'outline_closed': return t('office.roomScan.fact.closedBody', 'The outline closed.');
+          case 'outline_crosses': return t('office.roomScan.fact.crossesBody', 'The walls cross each other, so there is no floor area. Check {walls}.', { walls });
+          case 'opening_no_wall': return tn('office.roomScan.fact.openingNoWallBody', f.count ?? 0, { one: '1 door, window or opening matched no wall, so it is not taken off the wall area. Check the wall area.', other: '{count} doors, windows or openings matched no wall, so they are not taken off the wall area. Check the wall area.' });
           case 'outline_open': return t('office.roomScan.fact.openBody', 'The outline did not close. Check {walls}. The gap is {gap}.', { walls, gap });
           case 'typed_open': return t('office.roomScan.fact.typedOpenBody', 'The typed lengths do not close the outline. Check {walls}. The gap is {gap}.', { walls, gap });
           case 'low_confidence': return t('office.roomScan.fact.lowBody', 'The scan was not sure of {walls}. Check with a tape.', { walls });
@@ -264,6 +306,8 @@ export function useRoomScanCopy(): RoomScanCopy {
         }
       },
       editScanValueSub: (value) => t('office.roomScan.edit.scanValueSub', 'The plan shows {value}', { value }),
+      editReadsAsSub: (value) => t('office.roomScan.edit.readsAsSub', 'Reads as {value}', { value }),
+      editFarBody: (typed, scan) => t('office.roomScan.edit.farBody', 'That reads as {typed}, and the plan shows {scan}. For inches, type the number and in, like 98 in. If the tape does say {typed}, tap Use This Number again.', { typed, scan }),
       editInputLabel: t('office.roomScan.edit.inputLabel', 'Tape Measurement'),
       editHintBody: t('office.roomScan.edit.hintBody', 'Type feet and inches, like 8 ft 2 in or 8 2.'),
       editInvalidBody: t('office.roomScan.edit.invalidBody', 'That does not read as a length. Type feet and inches, like 8 ft 2 in.'),
@@ -301,6 +345,7 @@ export function useRoomScanCopy(): RoomScanCopy {
           case 'typed_lengths_do_not_close': return t('office.roomScan.block.typedOpenBody', 'The typed lengths do not close the outline, so there is no floor to price. Check the walls on the plan first.');
           case 'low_confidence_wall': return t('office.roomScan.block.lowBody', 'The scan was not sure of one or more walls. Type each of them from a tape on the plan before you price, even if the number is the same.');
           case 'ceiling_height_missing': return t('office.roomScan.block.ceilingBody', 'Type the ceiling height on the plan before you price.');
+          case 'no_name': return t('office.roomScan.block.noNameBody', 'Name the room on the plan before you price. The name goes on every estimate line.');
         }
       },
 
@@ -330,10 +375,20 @@ export function useRoomScanCopy(): RoomScanCopy {
       lineWasteSub: (pct) => t('office.roomScan.price.lineWasteSub', 'Includes {pct} percent waste', { pct }),
       sourceLabel: (source, claim) => {
         if (source === 'yours' && claim) {
-          if (claim.provenance === 'seeded' || claim.jobCount < 1) return t('office.roomScan.source.yoursSetLabel', 'Your Set Price, No Past Jobs Yet');
-          if (claim.provenance === 'mixed') return tn('office.roomScan.source.yoursMixedLabel', claim.jobCount, { one: 'Your Price, 1 Past Job, Started From Your Set Price', other: 'Your Price, {count} Past Jobs, Started From Your Set Price' });
-          if (claim.tone === 'contracted') return tn('office.roomScan.source.yoursSignedLabel', claim.jobCount, { one: 'Your Price, Signed On 1 Job, Not Yet Paid', other: 'Your Price, Signed On {count} Jobs, Not Yet Paid' });
-          return tn('office.roomScan.source.yoursMeasuredLabel', claim.jobCount, { one: 'Your Price, 1 Past Job', other: 'Your Price, {count} Past Jobs' });
+          // Not the line's own trade: the label names which of his trades the price came from.
+          const trade = claim.trade;
+          if (claim.provenance === 'seeded' || claim.jobCount < 1) return claim.exactTrade
+            ? t('office.roomScan.source.yoursSetLabel', 'Your Set Price, No Past Jobs Yet')
+            : t('office.roomScan.source.yoursSetForLabel', 'Your Set Price For {trade}, No Past Jobs Yet', { trade });
+          if (claim.provenance === 'mixed') return claim.exactTrade
+            ? tn('office.roomScan.source.yoursMixedLabel', claim.jobCount, { one: 'Your Price, 1 Past Job, Started From Your Set Price', other: 'Your Price, {count} Past Jobs, Started From Your Set Price' })
+            : tn('office.roomScan.source.yoursMixedForLabel', claim.jobCount, { one: 'Your Price For {trade}, 1 Past Job, Started From Your Set Price', other: 'Your Price For {trade}, {count} Past Jobs, Started From Your Set Price' }, { trade });
+          if (claim.tone === 'contracted') return claim.exactTrade
+            ? tn('office.roomScan.source.yoursSignedLabel', claim.jobCount, { one: 'Your Price, Signed On 1 Job, Not Yet Paid', other: 'Your Price, Signed On {count} Jobs, Not Yet Paid' })
+            : tn('office.roomScan.source.yoursSignedForLabel', claim.jobCount, { one: 'Your Price For {trade}, Signed On 1 Job, Not Yet Paid', other: 'Your Price For {trade}, Signed On {count} Jobs, Not Yet Paid' }, { trade });
+          return claim.exactTrade
+            ? tn('office.roomScan.source.yoursMeasuredLabel', claim.jobCount, { one: 'Your Price, 1 Past Job', other: 'Your Price, {count} Past Jobs' })
+            : tn('office.roomScan.source.yoursMeasuredForLabel', claim.jobCount, { one: 'Your Price For {trade}, 1 Past Job', other: 'Your Price For {trade}, {count} Past Jobs' }, { trade });
         }
         if (source === 'engine') return t('office.roomScan.source.catalogLabel', 'No Past Jobs Yet, Catalog Price');
         if (source === 'manual') return t('office.roomScan.source.manualLabel', 'You Typed This Price');
@@ -357,7 +412,9 @@ export function useRoomScanCopy(): RoomScanCopy {
         switch (b) {
           case 'no_project': return t('office.roomScan.block.noProjectBody', 'Open a project to price this scan.');
           case 'nothing_priced': return t('office.roomScan.block.nothingPricedBody', 'No line has a price yet. Type a price on at least one line.');
-          case 'no_estimate': return t('office.roomScan.block.noEstimateBody', 'This project has no estimate yet. Start one in Estimate, then price this scan.');
+          case 'no_access': return t('office.roomScan.block.noAccessBody', 'Only the project owner or an editor can add lines to this estimate. Ask the project owner.');
+          case 'no_name': return t('office.roomScan.block.noNameBody', 'Name the room on the plan before you price. The name goes on every estimate line.');
+          case 'no_markup': return t('office.roomScan.block.noMarkupBody', 'This project has no estimate yet, and you have not chosen a markup. Choose your markup in Estimate, then come back to this scan.');
         }
       },
       confirmTitleLabel: t('office.roomScan.confirm.titleLabel', 'Add To The Estimate'),
@@ -367,7 +424,14 @@ export function useRoomScanCopy(): RoomScanCopy {
       }, { total }),
       confirmYesLabel: t('office.roomScan.confirm.yesLabel', 'Add To Estimate'),
       confirmNoLabel: t('office.roomScan.confirm.noLabel', 'Not Yet'),
+      startTitleLabel: t('office.roomScan.confirm.startTitleLabel', 'Start The Estimate'),
+      startConfirmBody: (count, total, markup) => tn('office.roomScan.confirm.startBody', count, {
+        one: 'This project has no estimate yet. This starts one with 1 line, {total} before markup, at your markup of {markup} percent. Nothing is sent to your client.',
+        other: 'This project has no estimate yet. This starts one with {count} lines, {total} before markup, at your markup of {markup} percent. Nothing is sent to your client.',
+      }, { total, markup }),
+      startYesLabel: t('office.roomScan.confirm.startYesLabel', 'Start Estimate'),
       addedBody: t('office.roomScan.price.addedBody', 'Added to the estimate. Check each line there before you send it.'),
+      unconfirmedBody: t('office.roomScan.price.unconfirmedBody', 'The estimate has not shown these lines yet. Open the estimate and check it before you price this scan again.'),
       addFailedBody: t('office.roomScan.price.addFailedBody', 'The estimate could not be saved. Nothing was changed.'),
       paywallFeatureLabel: t('office.roomScan.paywallFeatureLabel', 'Scan The Room'),
     };
