@@ -316,7 +316,7 @@ console.log('\n#137 — one active baseline for every reader:');
     baselineStampedOnTasks([task({ id: 'a', baselineStartDay: 2, baselineEndDay: 7 })], [v1, v2], 'v1') === undefined
       && baselineStampedOnTasks([task({ id: 'z' })], [v1, v2], 'v1') === undefined);
   const undo = slice(SP, 'const handleUndo = useCallback(', 'const handleRedo');
-  const redo = slice(SP, 'const handleRedo = useCallback(', '// Project Start Date');
+  const redo = slice(SP, 'const handleRedo = useCallback(', '// Project start date');
   ok('Schedule Pro: Undo and Redo make the active id follow the restored tasks, before the persist',
     /followRestoredBaseline\(n\.present\);\s*schedulePersist\(n\.present\);/.test(undo)
       && /followRestoredBaseline\(n\.present\);\s*schedulePersist\(n\.present\);/.test(redo)

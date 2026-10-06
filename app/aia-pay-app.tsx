@@ -1692,7 +1692,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     if (plan.invalid > 0 || plan.extraRows > 0) {
       const parts: string[] = [];
       if (plan.invalid > 0) {
-        parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out: not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit lines for Item, Description and Scheduled'}).`);
+        parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out: not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit Lines for Item, Description and Scheduled'}).`);
       }
       if (plan.extraRows > 0) {
         parts.push(`${plan.extraRows} pasted ${plan.extraRows === 1 ? 'row runs' : 'rows run'} past the last line. Add lines first. Pasting never adds lines to a pay app.`);
@@ -2644,7 +2644,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           <Text style={[styles.sovBasisNote, isDesktop && desktopProse]} testID="aia-sov-basis">
             {sovBasis === 'linked_estimate'
               ? 'Scheduled value is each line of the linked estimate plus each approved change order: the full contract, not this draw. This period is what invoice #' + invoice.number + ' bills against it. Tap Edit lines to change the schedule of values. Your changes stay, because a saved pay app is not rebuilt from the estimate when you reopen it.'
-              : 'This project has no itemized estimate linked, so the scheduled value column was rebuilt from invoice #' + invoice.number + ' and covers only the scope this invoice touched. Link the project\u2019s estimate (Estimate > Link to project) and refresh, or tap Edit lines and enter the agreed schedule of values.'}
+              : 'This project has no itemized estimate linked, so the scheduled value column was rebuilt from invoice #' + invoice.number + ' and covers only the scope this invoice touched. Link the project\u2019s estimate (Estimate > Link to project) and refresh, or tap Edit Lines and enter the agreed schedule of values.'}
           </Text>
 
           {sovReconciliation && !sovReconciliation.reconciled && (
@@ -2657,7 +2657,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 {sovReconciliation.difference > 0 ? 'overage' : 'gap'}. Percent complete comes from this
                 column and balance to finish from the contract sum, so they tell a bank two
                 different stories. Fix it in the project&apos;s estimate and its approved change orders and
-                tap the refresh button above, or tap Edit lines and correct the schedule of values here.
+                tap the refresh button above, or tap Edit Lines and correct the schedule of values here.
               </Text>
             </View>
           )}

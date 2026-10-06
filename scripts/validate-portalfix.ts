@@ -528,7 +528,7 @@ ok('5f. one plain reason for every door: the setup screen\'s note carries both s
 {
   const at = DETAIL.indexOf('testID="portal-enable-btn"');
   const press = at < 0 ? '' : DETAIL.slice(at, DETAIL.indexOf('activeOpacity', at));
-  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_PORTAL_REASON\); return; \}/);
+  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_PORTAL_REASON\); return; \}/);
   const writeAt = press.search(/updateProject\(/);
   ok('5g. the project page\'s Enable Client Portal button refuses a sample before any write, and says why',
     guardAt >= 0 && writeAt > guardAt && /enabled: true/.test(press)

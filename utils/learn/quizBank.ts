@@ -233,7 +233,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Apply it, then fix it by hand'], ['b', 'Ask again tomorrow'], ['c', 'Tap Not that and discard it']],
       correctId: 'c',
       why: 'Discard drops the proposal. The schedule stays as it was.',
-      source: { file: DIFF, mustContain: 'Not that — discard' },
+      source: { file: DIFF, mustContain: 'Not That, Discard' },
     },
     {
       id: 'q5',
@@ -424,7 +424,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Column C, Scheduled'], ['b', 'Column E, This period'], ['c', 'Column I, Retainage']],
       correctId: 'b',
       why: 'Column E is this period’s work. Completed and stored adds it to the work before it.',
-      source: { file: AIA, mustContain: "label: 'E This period'" },
+      source: { file: AIA, mustContain: "label: 'E This Period'" },
     },
     {
       id: 'q2',
@@ -432,7 +432,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Edit lines'], ['b', 'Print as saved'], ['c', 'Renumber']],
       correctId: 'a',
       why: 'Item, description and scheduled value can be typed only while Edit lines is on.',
-      source: { file: AIA, mustContain: "{sovEditing ? 'Done' : 'Edit lines'}" },
+      source: { file: AIA, mustContain: "{sovEditing ? 'Done' : 'Edit Lines'}" },
     },
     {
       id: 'q3',
@@ -440,7 +440,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'As a new blank pay app'], ['b', 'Straight into editing every line'], ['c', 'As the saved record, with editing the draft as its own tap']],
       correctId: 'c',
       why: 'A saved pay app opens as stored. Tap to edit it while it is still a draft.',
-      source: { file: AIA, mustContain: 'Edit this draft pay app' },
+      source: { file: AIA, mustContain: 'Edit This Draft Pay App' },
     },
     {
       id: 'q4',

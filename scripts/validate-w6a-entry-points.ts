@@ -398,9 +398,9 @@ const sbi = read('components/schedule/ScheduleBuilderInterview.tsx');
   const pickerAt = sbi.indexOf('if (!project) {');
   ok('a no-job arrival renders the job picker', pickerAt > 0 && /sb-job-picker/.test(sbi) && /pickableProjects\(projects\)/.test(sbi));
   ok('…before any question card, follow-up call or generation can run', pickerAt < sbi.indexOf('if (fetchingFollowups)') && pickerAt < sbi.indexOf("if (phase === 'generating')") && pickerAt < sbi.indexOf('<Animated.View'));
-  ok('…with "Create a project first" when he has none', /Create a project first/.test(sbi) && /capabilityId: 'new_project'/.test(sbi));
+  ok('…with "Create a project first" when he has none', /Create a Project First/.test(sbi) && /capabilityId: 'new_project'/.test(sbi));
   ok('picking a job starts the interview on it with its own defaults', /setPickedId\(p\.id\);\s*setAnswers\(defaultAnswers\(p\)\);/.test(sbi));
-  ok('a job with a running schedule says a replace is reviewed first', /you’ll review before anything replaces it/.test(sbi));
+  ok('a job with a running schedule says a replace is reviewed first', /You’ll review before anything replaces it/.test(sbi));
 }
 const disc = read('app/(tabs)/discover/schedule.tsx');
 ok('Discover still opens the builder with no projectId (the builder now asks)', /case 'interview':\s*router\.push\(\{ pathname: '\/schedule-builder' \}/.test(disc));

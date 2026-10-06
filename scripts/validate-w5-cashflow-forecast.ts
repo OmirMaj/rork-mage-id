@@ -299,7 +299,7 @@ console.log('\n  #110 a submitted CO never moves the balance');
     /\{badge\.label\}<\/Text>[\s\S]{0,300}\+\{formatCurrency\(item\.amount\)\}/.test(screen));
   check('...and list pending COs apart, saying their week is assumed',
     /\{\(selectedWeekData\.pendingCoItems \?\? \[\]\)\.length > 0 && \(/.test(screen) &&
-    /If approved \(not in the balance\)/.test(screen) && /assumes the client approves within 3 weeks/.test(screen));
+    /If Approved \(Not in the Balance\)/.test(screen) && /assumes the client approves within 3 weeks/.test(screen));
   check('Sources no longer counts approved COs',
     !/c\.status === 'approved'/.test(screen) && /return inv \+ exp;/.test(screen));
 }

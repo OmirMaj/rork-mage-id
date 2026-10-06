@@ -298,7 +298,7 @@ console.log('\n(f) source pins:');
 {
   const block = paySrc.slice(from, to + END.length);
   const hash = createHash('sha256').update(block).digest('hex');
-  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a, with copy lane 2's Title Case labels and dash rewrites)',
+  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a, with the copy lane 2 Title Case labels and dash rewrites)',
     hash === 'f8d760eaccee048374d5e18e58d35fad90e2f53327cc24c3f3409a76a869f0bd', hash);
 
   const lw = read('app/lien-waivers.tsx');

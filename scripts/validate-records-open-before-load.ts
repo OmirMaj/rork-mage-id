@@ -278,9 +278,9 @@ async function main() {
     // Integration round 3: the off-screen close label read "Sent — close" for
     // every outcome, including an email that never went out.
     ok('the off-screen close label says "Sent" only for a real send, and flags a failed save',
-      co.coSendFinishedLabel('sent', 'synced') === 'Sent — close' && co.coSendFinishedLabel('sent', 'queued') === 'Sent — close'
-        && co.coSendFinishedLabel('sent', 'failed') === 'Sent, not saved — close'
-        && (['failed', 'composer_opened'] as Outcome[]).every(e => writes.every(w => !/^Sent/.test(co.coSendFinishedLabel(e, w)) && /Not sent/.test(co.coSendFinishedLabel(e, w)))));
+      co.coSendFinishedLabel('sent', 'synced') === 'Close (Sent)' && co.coSendFinishedLabel('sent', 'queued') === 'Close (Sent)'
+        && co.coSendFinishedLabel('sent', 'failed') === 'Close (Sent, Not Saved)'
+        && (['failed', 'composer_opened'] as Outcome[]).every(e => writes.every(w => !/^Close \(Sent/.test(co.coSendFinishedLabel(e, w)) && /Not Sent/.test(co.coSendFinishedLabel(e, w)))));
     ok('no doubled full stop after a reason that ends in one', !/\.\./.test(co.coSendReport({ number: 7, email: 'composer_opened', emailError: 'Saved to your Drafts — it has not been sent yet.', status: 'draft', write: 'synced', recipient: '' }).message));
   }
   const send = callbackBody(coCode, 'handleConfirmSend');
@@ -320,7 +320,7 @@ async function main() {
   ok('handleSave and the Send & Save button refuse while a send is in flight', /const handleSave = useCallback\([^)]*\) => \{\s*if \(sendingRef\.current\) return;/.test(coCode)
     && /const handleSendPress = useCallback\(\(\) => \{\s*if \(sendingRef\.current\) return;/.test(coCode));
   ok('…and the controls are disabled and say "Sending…"', /label="Save to Project"[\s\S]{0,160}disabled=\{sendInFlight\}/.test(coCode)
-    && /label=\{sendInFlight \? 'Sending…' : 'Send & Save'\}[\s\S]{0,120}disabled=\{sendInFlight\}/.test(coCode)
+    && /label=\{sendInFlight \? 'Sending…' : 'Send and Save'\}[\s\S]{0,120}disabled=\{sendInFlight\}/.test(coCode)
     && /onPress=\{handleConfirmSend\} disabled=\{sendInFlight\}/.test(coCode));
   ok('the write outcome is awaited (with a timeout) before the report', /await Promise\.race<RecordWriteOutcome \| 'pending'>\(\[/.test(send) && /coSendReport\(\{/.test(send));
   ok('the old false claim is gone', !/Change order saved but email could not be sent/.test(COSRC));

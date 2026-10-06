@@ -215,10 +215,10 @@ ok('#30 the screen reads through loadLienWaiversChecked, never the []-on-error f
 ok('#30 a failed read falls back to the cached copy', /readLienWaiverCache\(projectId\)/.test(lw) && /setSeenAt\(cached\.savedAt\)/.test(lw));
 ok('#30 "No Waivers Yet" renders only when the read did NOT fail',
   /\{!loading && !loadError && waivers\.length === 0 && \(/.test(lw)
-  && (lw.match(/No waivers yet/g) ?? []).length === 1);
+  && (lw.match(/No Waivers Yet/g) ?? []).length === 1);
 ok('#30 the failed-read states say what the phone last saw / check your signal',
-  /Offline — showing what this phone last saw at \$\{seenAtLabel\(seenAt\)\}/.test(lw)
-  && /Couldn&apos;t load waivers — check your signal/.test(lw));
+  /Offline\. Showing what this phone last saw at \$\{seenAtLabel\(seenAt\)\}/.test(lw)
+  && /Couldn’t Load Waivers/.test(lw) && /Check your signal and retry/.test(lw));
 {
   const failCard = lw.slice(lw.indexOf('lien-waivers-load-failed'), lw.indexOf('{!loading && !loadError && waivers.length === 0'));
   ok('#30 the failed-read card offers Retry and no New button', /Retry/.test(failCard) && !/setAddModal/.test(failCard));

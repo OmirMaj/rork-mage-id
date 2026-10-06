@@ -202,7 +202,7 @@ console.log('\n#161 Documents: wiring and copy:');
     /router\.push\(\{ pathname: '\/project-files', params: \{ projectId \} \} as never\)/.test(src) && /onPress=\{\(\) => openProjectFiles\(p\.id\)\}/.test(src));
   ok("no filter chip says 'Signed'", !/label: 'Signed'/.test(src));
   ok('the empty state still tells an empty filter from an empty account',
-    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing Under This Filter'/.test(src));
+    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing under this filter'/.test(src));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-w5-desktop-web-screens: ${pass} passed, ${fail} failed\n`);
