@@ -508,29 +508,32 @@ expect('the backfill notice names the day', backfilledWeatherNotice('Mon, Sep 14
 expect('the backfill notice says what to do instead',
   backfilledWeatherNotice('Mon, Sep 14').toLowerCase().includes('type what you saw'), true);
 
-// The provenance chip. isManual was WRITE-ONLY before this — nothing read it —
-// so these are the only strings standing between a reader and three bare values.
+// The provenance line. A reading the app took names its source and the time
+// stored with it (lane DFRWEATHER, 2026-10-06: the report reads OpenWeather's
+// current conditions for a report dated today); typed weather says typed; a
+// value saved before the source was stored never claims one.
 expect('empty block says nothing',
-  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: false, location: 'Henderson, NV' }), '');
+  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: false }), '');
 expect('typed weather says typed',
-  weatherProvenanceLine({ isManual: true, reportIsToday: true, hasValue: true, location: 'Henderson, NV' }),
+  weatherProvenanceLine({ isManual: true, reportIsToday: true, hasValue: true }),
   'Typed by hand.');
-expect('a live read names the time and the place',
-  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: true, location: 'Henderson, NV', readAtLabel: '4:31 PM' }),
-  'Read live at 4:31 PM for Henderson, NV.');
-// project.location legitimately defaults to the literal "United States", and the
-// chip must print it rather than hide it — that string IS the second falseness.
-expect('the queried location is printed verbatim, warts and all',
-  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: true, location: 'United States', readAtLabel: '4:31 PM' })
-    .includes('United States'), true);
-expect('a restored reading does not invent a read time',
-  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: true, location: 'Henderson, NV' }),
-  'Read live and saved with this report.');
-// A record saved before this guard shipped can be a wrong-day reading. It gets
+expect('typed wins even with a source left on the object',
+  weatherProvenanceLine({ isManual: true, reportIsToday: true, hasValue: true, source: 'openweather', readAtLabel: '4:31 PM' }),
+  'Typed by hand.');
+expect('a reading names its source and the stored time',
+  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: true, source: 'openweather', readAtLabel: '4:31 PM' }),
+  'From OpenWeather at 4:31 PM.');
+expect('a value with no stored source does not invent one',
+  weatherProvenanceLine({ isManual: false, reportIsToday: true, hasValue: true }),
+  'Saved with this report. The source was not recorded.');
+// A record saved before the day guard shipped can be a wrong-day value. It gets
 // the caveat, not a confident claim.
-expect('a fetched reading on a past day is caveated, not asserted',
-  weatherProvenanceLine({ isManual: false, reportIsToday: false, hasValue: true, location: 'Henderson, NV' })
+expect('an unsourced value on a past day is caveated, not asserted',
+  weatherProvenanceLine({ isManual: false, reportIsToday: false, hasValue: true })
     .includes('cannot read a past day'), true);
+expect('a reading stored under a different day than it was read on says so',
+  weatherProvenanceLine({ isManual: false, reportIsToday: false, hasValue: true, source: 'openweather', readAtLabel: '4:31 PM', readOnReportDay: false })
+    .includes('read on a different day'), true);
 
 // ─────────────────────────────────────────────────────────────────────────
 // The wiring, pinned textually.
@@ -580,30 +583,38 @@ ok('the stored oshaRecordable is the computed verdict',
   dfrSrc.includes('oshaRecordable: recordability.recordable'),
   'the report is storing something other than the classifier output.');
 
-// The wrong-day weather guards (canReadLiveWeatherFor before the wttr.in read,
-// the in-flight re-check, the disabled Auto-fetch button) guarded a live read
-// that content rights retired on 2026-10-02. With no read there is no
-// wrong-day reading to guard; what stays is the clear of a reading an older
-// version saved into an unsaved draft, and it must never touch typed weather.
+// The wrong-day weather guards. Since lane DFRWEATHER (2026-10-06) the report
+// reads today's conditions again, from the app's licensed source, so the day
+// guards are load-bearing again: today only, re-checked after the answer, and a
+// reading belongs to the day it was read on. scripts/validate-dfr-weather.ts
+// runs the read itself and plants a mutation for each rule; these pin the join.
 const dfrNoComments = dfrSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
-ok('the daily report makes no network weather read, so no reading can land under the wrong day',
-  !dfrNoComments.includes('wttr.in') && !/\bfetchWeather\b/.test(dfrNoComments),
-  'a weather read is back in the daily report. Content rights retired it (no license, and it ' +
-  'sent the jobsite address); a live read also needs the report-date guard again.');
-ok('no button offers a weather fetch that does not exist',
-  !dfrNoComments.includes('dfr-weather-fetch') && !dfrNoComments.includes("'Auto-fetch'"),
-  'a dead control is a silent wrong answer waiting to be tapped.');
-ok('a backfilled, unsaved report clears only an app-read value, never typed weather',
-  /if \(reportIsToday \|\| existingReport\) return;\s*if \(weather\.isManual\) return;/.test(dfrNoComments),
-  "this morning's saved reading under last Monday's date is the wrong-day lie; wiping what " +
+ok('the daily report never reads weather from an unlicensed source or by itself',
+  !/wttr/i.test(dfrSrc) && !/\bfetch\(\s*[`'"]https?:/.test(dfrNoComments)
+    && (dfrNoComments.match(/readLiveWeatherForDailyReport\(/g) ?? []).length === 1
+    && !/getSimulatedForecast|getForecastWithFallback/.test(dfrNoComments),
+  'the only weather read allowed in the daily report is readLiveWeatherForDailyReport ' +
+  '(utils/weatherService.ts): OpenWeather current conditions, never simulated, never a forecast.');
+ok('the read is asked for the report\'s own calendar day and dropped if the report is re-dated in flight',
+  /const requestedDay = calendarDayOf\(reportDateRef\.current\);/.test(dfrNoComments)
+    && /if \(calendarDayOf\(reportDateRef\.current\) !== requestedDay\) return;/.test(dfrNoComments),
+  'an answer that lands on a report it was not asked for is the wrong-day lie.');
+ok('the unattended read and the Refresh control exist for today only',
+  /if \(!reportIsToday\) \{ autoWeatherDayRef\.current = null; return; \}/.test(dfrNoComments)
+    && /\{!isLocked && reportIsToday && \(!isSavedReport \|\|/.test(dfrNoComments)
+    && !dfrNoComments.includes('dfr-weather-fetch') && !dfrNoComments.includes("'Auto-fetch'"),
+  'a control that offers a read for a past day is a silent wrong answer waiting to be tapped.');
+ok('a re-dated, unsaved report clears only a misdated app reading, never typed weather or a saved record',
+  /if \(existingReport\) return;\s*if \(!appWeatherIsMisdated\(weather, calendarDayOf\(reportDate\), carryLabelDay\)\) return;\s*setWeather\(EMPTY_DFR_WEATHER\);/.test(dfrNoComments),
+  "this morning's reading under last Monday's date is the wrong-day lie; wiping what " +
   'the super typed, or a saved record, is a different one.');
 ok('the guard still compares calendar days, not instants',
   dfrSrc.includes('canReadLiveWeatherFor(calendarDayOf(reportDate)'),
   'reportDate is an instant. Comparing instants misclassifies an evening-filed report near ' +
   'midnight.');
 ok('the weather block shows its provenance',
-  dfrSrc.includes('weatherProvenanceLine({'),
-  'isManual is write-only without this — flipping the flag changes nothing anyone can see.');
+  dfrSrc.includes('weatherProvenanceKind({') && dfrSrc.includes('testID="dfr-weather-provenance">{weatherProvenance}</Text>'),
+  'the source and read time are write-only without this.');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

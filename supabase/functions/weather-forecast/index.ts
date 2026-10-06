@@ -14,6 +14,18 @@
 //   { cod: '200', list: [...], city: { name, timezone } }
 // trimmed to the fields utils/weatherService.condenseToDaily reads.
 //
+// DFRWEATHER (2026-10-06): the same request with `kind: 'current'` answers
+// OpenWeather's CURRENT conditions instead (/data/2.5/weather, same free plan,
+// same key), for the daily report's "conditions on site today":
+//   { cod: '200', kind: 'current', dt, name, main: { temp },
+//     weather: [{ main, description }], wind: { speed?, deg? } }
+// `wind.speed` and `wind.deg` are each present only when OpenWeather sent a
+// number: a missing wind is never answered as 0 (that would print "Calm",
+// an observation nobody made).
+// Same sign-in check, same per-user hourly ceiling, same 10-minute cache
+// (keyed apart from the forecast). No `kind`, or any other value, is the
+// forecast exactly as before.
+//
 // Auth: any signed-in user (requireTier over every tier; the gateway also
 // verifies the JWT — config.toml pins verify_jwt = true). Rate limit: a
 // per-user hourly ceiling on top of the client's own 10-minute cache per
@@ -24,6 +36,7 @@ import { requireTier, rateLimitCount } from '../_shared/auth.ts';
 
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') ?? '';
 const OPENWEATHER_ENDPOINT = 'https://api.openweathermap.org/data/2.5/forecast';
+const OPENWEATHER_CURRENT_ENDPOINT = 'https://api.openweathermap.org/data/2.5/weather';
 
 /** Three weather surfaces × a handful of project switches an hour, each
  *  already cached 10 minutes per location on the device. */
@@ -86,6 +99,20 @@ interface Upstream {
   city?: { name?: string; timezone?: number };
 }
 
+/** `kind: 'current'` asks for the conditions now; anything else is the forecast. */
+export function parseKind(body: unknown): 'current' | 'forecast' {
+  return body && typeof body === 'object' && (body as Record<string, unknown>).kind === 'current' ? 'current' : 'forecast';
+}
+
+interface UpstreamCurrent {
+  cod?: string | number;
+  dt?: number;
+  name?: string;
+  main?: { temp?: number };
+  weather?: Array<{ main?: string; description?: string }>;
+  wind?: { speed?: number; deg?: number };
+}
+
 const cache = new Map<string, { at: number; body: unknown }>();
 
 serve(async (req) => {
@@ -114,7 +141,8 @@ serve(async (req) => {
   if (hourly < 0) return json({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
   if (hourly - 1 >= HOURLY_LIMIT) return json({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour).`, code: 'hourly_limit' }, 429);
 
-  const key = cacheKey(query);
+  const kind = parseKind(body);
+  const key = `${kind}:${cacheKey(query)}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return json(hit.body);
 
@@ -123,6 +151,43 @@ serve(async (req) => {
   else {
     params.set('lat', String(query.latitude));
     params.set('lon', String(query.longitude));
+  }
+
+  if (kind === 'current') {
+    let now: UpstreamCurrent;
+    try {
+      const res = await fetch(`${OPENWEATHER_CURRENT_ENDPOINT}?${params.toString()}`, {
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+      now = await res.json() as UpstreamCurrent;
+      if (!res.ok || String(now.cod) !== '200' || typeof now.dt !== 'number' || typeof now.main?.temp !== 'number') {
+        // Never echo the upstream URL: it carries the key.
+        return json({ success: false, cod: String(now.cod ?? res.status), error: 'No current weather for that location.', code: 'no_current' }, 502);
+      }
+    } catch (err) {
+      console.error('[weather-forecast] upstream failed:', err instanceof Error ? err.name : 'error');
+      return json({ success: false, error: 'Weather service unreachable.', code: 'upstream_failed' }, 502);
+    }
+    const temp = now.main?.temp;
+    // Checked above; refuse rather than print a made-up number if it is not one.
+    if (typeof temp !== 'number' || !Number.isFinite(temp)) {
+      return json({ success: false, error: 'No current weather for that location.', code: 'no_current' }, 502);
+    }
+    const current = {
+      cod: '200',
+      kind: 'current',
+      dt: now.dt,
+      name: now.name ?? '',
+      main: { temp },
+      weather: (now.weather ?? []).slice(0, 1).map((w) => ({ main: w.main ?? '', description: w.description ?? '' })),
+      wind: {
+        ...(typeof now.wind?.speed === 'number' && Number.isFinite(now.wind.speed) ? { speed: now.wind.speed } : {}),
+        ...(typeof now.wind?.deg === 'number' ? { deg: now.wind.deg } : {}),
+      },
+    };
+    if (cache.size > 500) cache.clear();
+    cache.set(key, { at: Date.now(), body: current });
+    return json(current);
   }
 
   let data: Upstream;

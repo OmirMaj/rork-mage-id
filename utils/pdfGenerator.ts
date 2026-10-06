@@ -14,6 +14,21 @@ import { openPrintWindowOrThrow } from './platformFile';
 import { coApprovalLine } from './coApproval';
 import { homeownerSignatureMethodLabel } from './contractSignatureCore';
 import { roundHalfAwayFromZero } from './formatters';
+import { dfrWeatherSourceLine } from './weatherService';
+import { OPENWEATHER_CREDIT } from './contentCredits';
+import { calendarDayOf as dfrCalendarDayOf } from './calendarDate';
+
+/**
+ * The line under the weather figures of a printed daily report, for a reading
+ * the app took: where it came from and when ("From OpenWeather at 3:42 PM"),
+ * then OpenWeather's required credit. Empty for typed weather and for a record
+ * with no stored source, so those print exactly as before.
+ */
+export function dfrWeatherSourceHtml(dfr: Pick<DailyFieldReport, 'weather' | 'date'>): string {
+  const line = dfrWeatherSourceLine(dfr.weather, dfrCalendarDayOf(dfr.date));
+  if (!line) return '';
+  return `<p style="margin:-6px 0 14px;font-size:10px;color:${PDF_PALETTE.textMuted};">${escHtml(line)}. ${escHtml(OPENWEATHER_CREDIT)}.</p>`;
+}
 
 // Status labels printed on documents come from maps, never from the raw enum
 // (docs/VOICE.md: a humanized enum prints Title Case and whatever the row holds).
@@ -1309,7 +1324,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
     { label: 'Temperature', value: nr(dfr.weather?.temperature) },
     { label: 'Conditions', value: nr(dfr.weather?.conditions) },
     { label: 'Wind', value: nr(dfr.weather?.wind) },
-  ]);
+  ]) + dfrWeatherSourceHtml(dfr);
 
   const manpowerHtml = dfr.manpower.length > 0
     ? D.pdfSectionHeader('Manpower') + D.pdfTable(

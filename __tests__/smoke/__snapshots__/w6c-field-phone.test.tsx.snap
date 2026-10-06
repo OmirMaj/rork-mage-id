@@ -44,8 +44,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
-  "lines": 1154,
-  "sha256": "3608ea8228c6545cde5a770a90ee8dd1f5bbafeac50cbef7b640c5f969c2c8af",
+  "lines": 1159,
+  "sha256": "25e651199666c94fe2696e57c1f0f824af428847cc17929bf24848659324d5a1",
 }
 `;
 

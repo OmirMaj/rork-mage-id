@@ -32,6 +32,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { humanizeEnum } from '@/utils/statusLabels';
 import { daysUntilCalendarDay, dayOrInstantDate, daysPastDue } from '@/utils/calendarDate';
+import { isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8) — a bad row here
 // costs this screen, not the whole bundle.
@@ -54,6 +56,9 @@ interface InboxRow {
   overdue: boolean;
   href: string;
   hrefParams: Record<string, string>;
+  /** The row prints conditions the app read from OpenWeather (never typed
+   *  weather): OpenWeather's credit goes under the list while it is shown. */
+  openWeather?: boolean;
 }
 
 export default function ReportInboxScreen() {
@@ -105,6 +110,7 @@ export default function ReportInboxScreen() {
         overdue: false,
         href: '/daily-report',
         hrefParams: { projectId: dr.projectId, reportId: dr.id },
+        openWeather: Boolean(dr.weather?.conditions) && isOpenWeatherReading(dr.weather),
       });
     }
 
@@ -374,6 +380,7 @@ export default function ReportInboxScreen() {
           keyExtractor={item => item.key}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={<WeatherCredit days={filtered.some(r => r.openWeather) ? [{ source: 'live' }] : []} />}
         />
       )}
     </View>
