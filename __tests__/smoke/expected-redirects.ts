@@ -82,6 +82,15 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
     states: ['empty'],
   },
   {
+    from: '/scan-room',
+    to: '/',
+    why:
+      'Scan The Room is dark: constants/featureFlags.ts SCAN_ROOM_ENABLED is '
+      + 'false, so app/scan-room.tsx redirects to Home before it mounts '
+      + 'anything. Remove this entry in the change that flips the flag on.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/construction-news',
     to: '/discover',
     why:

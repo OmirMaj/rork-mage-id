@@ -1,0 +1,267 @@
+/**
+ * Smoke — Scan The Room (lane SCANROOM), the three screens mounted from the
+ * hand-built bathroom fixture (scripts/fixtures/scan-room/bathroom.json), with
+ * the real parser, geometry, quantities, edits and pricing. Only the contexts,
+ * the router, the cost book and the device storage are stood in for.
+ *
+ *   S1 The Floor Plan draws the room: the name, a tappable number on every
+ *      wall, "4 of 4" walls found, the floor area, and the sentence that a
+ *      phone scan can be off by an inch or more.
+ *   S2 Tapping a wall's number and typing a tape measurement recomputes the
+ *      floor area and says a number was typed by hand.
+ *   S3 The Quantities lists what the scan worked out.
+ *   S4 The Priced Estimate labels every line with where its price came from,
+ *      and Open In Estimate writes NOTHING until the confirm sheet's yes.
+ *   S5 With the flag off the route mounts nothing and the native module is
+ *      never looked up.
+ *   S6 A phone that cannot scan is told why, in its own sentence.
+ *
+ * The pure rules have their own direct tests with planted mutations in
+ * scripts/validate-scan-room.ts.
+ */
+
+import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { act, cleanupAsync, fireEvent, render } from '@testing-library/react-native';
+
+jest.mock('@/contexts/ThemeContext', () => {
+  const actual = jest.requireActual('@/constants/colors');
+  const colors = { ...actual.Theme.light, ...actual.deriveAccentPalette(actual.getCustomPrimary(), 'light') };
+  const value = { colors, resolved: 'light', pref: 'light', setPref: () => {} };
+  return { ThemeProvider: ({ children }: { children: React.ReactNode }) => children, useTheme: () => value };
+});
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => {
+  const R = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: () => {}, replace: () => {} }),
+    useLocalSearchParams: () => ({ projectId: 'proj-1' }),
+    Redirect: ({ href }: { href: string }) => R.createElement('Redirect', { href }),
+    Stack: { Screen: () => null },
+  };
+});
+
+const EST = {
+  id: 'est-1', globalMarkup: 20, baseTotal: 1000, markupTotal: 200, grandTotal: 1200, createdAt: '2026-09-01T00:00:00.000Z',
+  items: [{ materialId: 'm1', name: 'Demo', category: 'Demolition', unit: 'LS', quantity: 1, unitPrice: 1000, bulkPrice: 1000, markup: 20, usesBulk: false, lineTotal: 1200, supplier: '' }],
+};
+const mockUpdateProject = jest.fn();
+let mockProject: Record<string, unknown> | null = { id: 'proj-1', name: 'Maple St', linkedEstimate: EST, estimateVersions: [] };
+jest.mock('@/contexts/ProjectContext', () => ({
+  useProjects: () => ({ getProject: () => mockProject, updateProject: mockUpdateProject, settings: { location: '' } }),
+}));
+
+jest.mock('@/hooks/useScopeCostBook', () => {
+  const { buildCostDatabase } = jest.requireActual('@/utils/costDatabase');
+  const db = buildCostDatabase([], [], [], [], [{ id: 's1', trade: 'Tile', unit: 'SF', rate: 18.5 }]);
+  // One rate measured on six of his jobs; everything else has no price of his.
+  const entries = db.entries.map((e: Record<string, unknown>) => ({ ...e, provenance: 'earned', jobCount: 6, seededSampleCount: 0, earnedBasis: 'paid' }));
+  const book = { ...db, entries };
+  return { useScopeCostBook: () => book };
+});
+
+const mockSaveScan = jest.fn(async (_saved?: unknown, _raw?: unknown) => true);
+jest.mock('@/utils/roomScan/store', () => ({
+  loadSavedScans: async () => ({ version: 1, scans: [] }),
+  saveScan: (saved: unknown, raw: unknown) => mockSaveScan(saved, raw),
+  hashRawScan: async () => 'hash',
+  deleteScan: async () => true,
+}));
+
+let mockCaps: Record<string, unknown> | null = null;
+const mockGetCapabilities = jest.fn(() => mockCaps);
+jest.mock('@/utils/roomScan/native', () => ({
+  getCapabilities: () => mockGetCapabilities(),
+  startScan: jest.fn(),
+  isModuleLinked: () => mockCaps !== null,
+  roomScanErrorCode: () => null,
+}));
+
+let mockTier: 'free' | 'pro' = 'pro';
+jest.mock('@/contexts/SubscriptionContext', () => ({ useSubscription: () => ({ tier: mockTier }) }));
+jest.mock('@/components/Paywall', () => {
+  const R = jest.requireActual('react');
+  return { __esModule: true, default: (p: { feature: string; requiredTier: string }) => R.createElement('Paywall', { testID: 'paywall', feature: p.feature, requiredTier: p.requiredTier }) };
+});
+
+import { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';
+import { parseCapturedRoom } from '@/utils/roomScan/capturedRoomParser';
+import { buildRoomScan } from '@/utils/roomScan/geometryCore';
+import type { SavedScan } from '@/utils/roomScan/storeCore';
+
+const RAW = fs.readFileSync(path.resolve(__dirname, '../../scripts/fixtures/scan-room/bathroom.json'), 'utf8');
+function bathroom(): SavedScan {
+  const scan = buildRoomScan(parseCapturedRoom(RAW), {
+    id: 'scan-1', projectId: 'proj-1', name: 'Hall Bathroom', capturedAt: '2026-10-06T13:41:00.000Z', device: { model: 'iPhone16,1', os: '17.5' },
+  });
+  return { scan, pushed: {}, manualRates: {}, excluded: [], savedAt: '', pricedAt: null };
+}
+const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+const texts = (tree: ReturnType<typeof render>): string => JSON.stringify(tree.toJSON());
+
+beforeEach(() => {
+  mockPush.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); mockGetCapabilities.mockClear();
+  mockProject = { id: 'proj-1', name: 'Maple St', linkedEstimate: EST, estimateVersions: [] };
+  mockCaps = null;
+  mockTier = 'pro';
+});
+afterEach(async () => { await cleanupAsync(); });
+
+describe('Scan The Room — the three screens from the bathroom fixture', () => {
+  it('S1 The Floor Plan draws the room and says what a scan is', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    await settle();
+    expect(tree.getByTestId('scan-plan')).toBeTruthy();
+    expect(tree.getByTestId('scan-name').props.defaultValue).toBe('Hall Bathroom');
+    for (const n of [1, 2, 3, 4]) expect(tree.getByTestId(`scan-dim-wall-${n}`)).toBeTruthy();
+    const out = texts(tree);
+    expect((out.match(/5 ft 1 in/g) ?? []).length).toBe(2);
+    expect((out.match(/8 ft 2 in/g) ?? []).length).toBe(2);
+    expect(tree.getByTestId('scan-walls-found').props.children).toBe('4 of 4');
+    expect(tree.getByTestId('scan-floor-area').props.children).toBe('41.5 sq ft');
+    expect(tree.getByText('A phone scan can be off by an inch or more. Check one wall with a tape. Tap any number to fix it.')).toBeTruthy();
+    expect(tree.getByText('4 of 4 walls found.')).toBeTruthy();
+    expect(mockSaveScan).not.toHaveBeenCalled();
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+  });
+
+  it('S2 a typed tape measurement recomputes and is marked typed by hand', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    await settle();
+    const short = [1, 2, 3, 4].map((n) => tree.getByTestId(`scan-dim-wall-${n}`)).find((el) => /5 ft 1 in/.test(JSON.stringify(el.props.accessibilityLabel)));
+    expect(short).toBeTruthy();
+    fireEvent.press(short!);
+    await settle();
+    fireEvent.changeText(tree.getByTestId('scan-edit-input'), 'about five feet');
+    fireEvent.press(tree.getByTestId('scan-edit-save'));
+    await settle();
+    expect(tree.getByText('That does not read as a length. Type feet and inches, like 8 ft 2 in.')).toBeTruthy();
+    fireEvent.changeText(tree.getByTestId('scan-edit-input'), '5 2');
+    fireEvent.press(tree.getByTestId('scan-edit-save'));
+    await settle();
+    // 62 in by 98 in is 42.2 sq ft.
+    expect(tree.getByTestId('scan-floor-area').props.children).toBe('42.2 sq ft');
+    expect(tree.getByText('1 number was typed by hand.')).toBeTruthy();
+    expect(tree.getByText('Typed by hand')).toBeTruthy();
+    expect(tree.getByText('Moved to keep the outline closed')).toBeTruthy();
+    expect((texts(tree).match(/5 ft 2 in/g) ?? []).length).toBe(2);
+    expect(mockSaveScan).not.toHaveBeenCalled();
+    // Save is a tap, and only then is the phone written.
+    fireEvent.press(tree.getByTestId('scan-save'));
+    await settle();
+    expect(mockSaveScan).toHaveBeenCalledTimes(1);
+    const saved = mockSaveScan.mock.calls[0][0] as SavedScan;
+    expect(saved.scan.edits).toHaveLength(1);
+    expect(saved.scan.edits[0].by).toBe('typed');
+  });
+
+  it('S3 The Quantities lists what the scan worked out', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-see-quantities'));
+    await settle();
+    expect(tree.getByTestId('scan-quantities')).toBeTruthy();
+    const row = (id: string) => JSON.stringify(tree.getByTestId(`scan-q-${id}`).props.children);
+    expect(row('floor')).toContain('41.5');
+    expect(row('wall')).toContain('189.3');
+    expect(row('wall')).toContain('212.0 sq ft less 22.7 sq ft of doors, windows and openings');
+    expect(row('ceiling')).toContain('41.5');
+    expect(row('baseboard')).toContain('24.0');
+    expect(row('crown')).toContain('26.5');
+    expect(row('doors')).toContain('2 ft 6 in by 6 ft 8 in');
+    expect(row('windows')).toContain('2 ft 0 in by 3 ft 0 in');
+    expect(row('fixtures')).toContain('Toilet, Sink, Tub');
+    expect(tree.queryByTestId('scan-price-blocked')).toBeNull();
+  });
+
+  it('S4 every line says where its price came from, and nothing is written before the yes', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-see-quantities'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-price-it'));
+    await settle();
+    expect(tree.getByTestId('scan-draft')).toBeTruthy();
+    const source = (key: string) => JSON.stringify(tree.getByTestId(`scan-source-${key}`).props.children);
+    expect(source('floor_tile')).toContain('Your Price, 6 Past Jobs');
+    expect(source('toilet')).toContain('No Past Jobs Yet, Catalog Price');
+    expect(source('baseboard')).toContain('No Price Yet');
+    // 46 sq ft at $18.50, a prehung door, a toilet and a vanity sink from the catalog.
+    expect(tree.getByTestId('scan-draft-total').props.children).toBe('$2,080.37');
+    expect(tree.getByText('1 of 4 lines use your own prices')).toBeTruthy();
+
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    expect(tree.getByTestId('scan-confirm-sheet')).toBeTruthy();
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+    fireEvent.press(tree.getByTestId('scan-confirm-no'));
+    await settle();
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+    expect(mockSaveScan).not.toHaveBeenCalled();
+
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-confirm-yes'));
+    await settle();
+    expect(mockUpdateProject).toHaveBeenCalledTimes(1);
+    const [id, patch] = mockUpdateProject.mock.calls[0] as [string, { linkedEstimate: { items: { name: string; priceSource?: string }[] }; estimateVersions: unknown[] }];
+    expect(id).toBe('proj-1');
+    expect(patch.linkedEstimate.items).toHaveLength(5);
+    expect(patch.estimateVersions).toHaveLength(1);
+    expect(patch.linkedEstimate.items.find((i) => /Floor Tile, Hall Bathroom/.test(i.name))?.priceSource).toBe('learned');
+    expect(patch.linkedEstimate.items.find((i) => /Set Toilet/.test(i.name))?.priceSource).toBeUndefined();
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/project-detail', params: { id: 'proj-1', tile: 'linkedEstimate' } });
+  });
+
+  it('S4b a job with no estimate is blocked, and the button says why', async () => {
+    mockProject = { id: 'proj-1', name: 'Maple St', estimateVersions: [] };
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-see-quantities'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-price-it'));
+    await settle();
+    expect(tree.getByText('This project has no estimate yet. Start one in Estimate, then price this scan.')).toBeTruthy();
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    expect(tree.queryByTestId('scan-confirm-yes')).toBeNull();
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('Scan The Room — dark, and honest about a phone that cannot scan', () => {
+  it('S5 with the flag off the route mounts nothing and never looks the module up', async () => {
+    const Route = require('@/app/scan-room').default as React.ComponentType;
+    const tree = render(<Route />);
+    await settle();
+    expect(JSON.stringify(tree.toJSON())).toContain('"href":"/(tabs)/(home)"');
+    expect(tree.queryByTestId('scan-room-flow')).toBeNull();
+    expect(mockGetCapabilities).not.toHaveBeenCalled();
+  });
+
+  it('S6 each reason has its own sentence', async () => {
+    const cases: [Record<string, unknown> | null, string, string | null][] = [
+      [null, 'This version of the app does not include room scanning. It comes with a newer version from the App Store.', null],
+      [{ linked: true, supported: false, reason: 'noLidar', multiRoom: false, osVersion: '17.5', deviceModel: 'iPhone15,4' }, 'This iPhone has no LiDAR sensor. Room scanning needs an iPhone Pro, 12 Pro or newer.', null],
+      [{ linked: true, supported: false, reason: 'osTooOld', multiRoom: false, osVersion: '15.8', deviceModel: 'iPhone13,3' }, 'Room scanning needs iOS 16 or later. Update this iPhone to use it.', null],
+      [{ linked: true, supported: true, reason: 'cameraDenied', multiRoom: true, osVersion: '17.5', deviceModel: 'iPhone16,1' }, 'Camera access is off for MAGE ID, so a scan cannot start. Turn it on in Settings, under MAGE ID, Camera.', 'scan-open-settings'],
+      [{ linked: true, supported: true, reason: 'cameraUndetermined', multiRoom: true, osVersion: '17.5', deviceModel: 'iPhone16,1' }, 'Room scanning uses the camera and the depth sensor to measure the room. The scan keeps the shape and sizes of the room. No video is saved.', 'scan-allow-camera'],
+    ];
+    for (const [caps, sentence, button] of cases) {
+      mockCaps = caps;
+      const tree = render(<RoomScanFlow projectId="proj-1" />);
+      await settle();
+      expect(tree.getByText(sentence)).toBeTruthy();
+      expect(tree.queryByTestId('scan-start-button')).toBeNull();
+      if (button) expect(tree.getByTestId(button)).toBeTruthy();
+      await cleanupAsync();
+    }
+    mockCaps = { linked: true, supported: true, reason: 'ok', multiRoom: true, osVersion: '17.5', deviceModel: 'iPhone16,1' };
+    const tree = render(<RoomScanFlow projectId="proj-1" />);
+    await settle();
+    expect(tree.getByTestId('scan-start-button')).toBeTruthy();
+    expect(tree.getByText('Before You Scan')).toBeTruthy();
+  });
+});
