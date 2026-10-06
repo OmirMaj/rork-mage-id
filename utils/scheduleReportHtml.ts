@@ -133,7 +133,7 @@ function kpisHtml(model: ScheduleReportModel): string {
   }
   const spiCls = k.spi < 0.95 ? 'r' : 'g';
   const sv = k.svDays;
-  const svTxt = sv != null ? `SV ${sv > 0 ? '+' : ''}${sv}d` : 'On plan';
+  const svTxt = sv != null ? `SV ${sv > 0 ? '+' : ''}${sv}d` : 'On Plan';
   cards.push(`<div class="c ${spiCls}"><div class="n">${k.spi.toFixed(2)}</div><div class="l">SPI</div><div class="dd ${spiCls}">${esc(svTxt)}</div></div>`);
   cards.push(`<div class="c"><div class="n">${k.criticalCount}</div><div class="l">Critical tasks</div><div class="dd">On the driving chain</div></div>`);
   const mtfCls = k.minTotalFloat <= 0 ? 'r' : '';
@@ -158,7 +158,7 @@ function colsBandHtml(model: ScheduleReportModel, opts: ReportOptions): string {
   }
   if (has(opts, 'risks')) {
     const labelByKind: Record<ScheduleReportModel['risks'][number]['kind'], string> = {
-      overdue: 'Overdue', zero_float: '0 float', low_float: 'Low float', unstaffed: 'Unstaffed', behind: 'Behind', inspection: 'Inspection',
+      overdue: 'Overdue', zero_float: '0 Float', low_float: 'Low Float', unstaffed: 'Unstaffed', behind: 'Behind', inspection: 'Inspection',
     };
     const items = model.risks.map((r) => {
       const tagCls = r.severity === 'hi' ? 'hi' : r.severity === 'md' ? 'md' : 'lo';
@@ -181,7 +181,7 @@ function colsBandHtml(model: ScheduleReportModel, opts: ReportOptions): string {
   if (has(opts, 'milestones')) {
     const rows = model.milestones.map((m) => {
       const dtCls = m.onTime ? 'vg' : 'vb';
-      const vTxt = m.varianceDays == null ? 'On time' : m.varianceDays <= 0 ? 'On time' : `+${m.varianceDays}d`;
+      const vTxt = m.varianceDays == null ? 'On Time' : m.varianceDays <= 0 ? 'On Time' : `+${m.varianceDays}d`;
       return `<div class="r"><span>◆ ${esc(m.title)}</span><span class="dt ${dtCls}">${esc(m.dateIso)} · ${esc(vTxt)}</span></div>`;
     }).join('');
     col3parts.push(`<div class="sh">Upcoming milestones</div><div class="cp">${rows}</div>`);

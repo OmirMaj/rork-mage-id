@@ -559,10 +559,10 @@ export function milestoneDueText(m: Pick<PaymentMilestone, 'trigger' | 'triggerD
  * banner and never rewrites it silently.
  */
 export const LEGACY_SEED_SCHEDULE: readonly { label: string; trigger: PaymentMilestone['trigger']; percent: number }[] = [
-  { label: 'Deposit (Signing)', trigger: 'on_signing', percent: 25 },
-  { label: 'Rough-In / Framing Complete', trigger: 'on_milestone', percent: 25 },
-  { label: 'Finishes Complete', trigger: 'on_milestone', percent: 25 },
-  { label: 'Substantial Completion', trigger: 'on_final', percent: 25 },
+  { label: 'Deposit (signing)', trigger: 'on_signing', percent: 25 },
+  { label: 'Rough-in / framing complete', trigger: 'on_milestone', percent: 25 },
+  { label: 'Finishes complete', trigger: 'on_milestone', percent: 25 },
+  { label: 'Substantial completion', trigger: 'on_final', percent: 25 },
 ];
 
 export function isLegacySeedSchedule(schedule: readonly Pick<PaymentMilestone, 'label' | 'trigger' | 'percent'>[] | null | undefined): boolean {

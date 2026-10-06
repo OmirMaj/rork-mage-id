@@ -236,9 +236,9 @@ export function computeMarginRisk({
 
 export function riskBandLabel(band: RiskBand): string {
   switch (band) {
-    case 'low': return 'Low risk';
-    case 'moderate': return 'Moderate risk';
-    case 'elevated': return 'Elevated risk';
-    case 'high': return 'High risk';
+    case 'low': return 'Low Risk';
+    case 'moderate': return 'Moderate Risk';
+    case 'elevated': return 'Elevated Risk';
+    case 'high': return 'High Risk';
   }
 }

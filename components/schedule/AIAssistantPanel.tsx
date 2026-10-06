@@ -726,7 +726,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   {paceInfo.tradeCount > 0 ? (
                     <View style={styles.pacedChip}>
                       <Text style={styles.pacedChipText}>
-                        Paced from Your History · {paceInfo.tradeCount} trade{paceInfo.tradeCount === 1 ? '' : 's'}
+                        Paced from your history · {paceInfo.tradeCount} trade{paceInfo.tradeCount === 1 ? '' : 's'}
                       </Text>
                     </View>
                   ) : (

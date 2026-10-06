@@ -516,7 +516,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       {ppc.committed > 0 && (ppc.completed > 0 || wwp.some(e => e.outcome)) ? (
         <View style={[styles.ppcInline, { borderColor: bandColor(ppcBand(ppc.ppc), t) }]}>
           <Text style={[styles.ppcInlineNum, { color: bandColor(ppcBand(ppc.ppc), t) }]}>{Math.round(ppc.ppc * 100)}%</Text>
-          <Text style={styles.ppcInlineLabel}>PPC This Week · {ppc.completed}/{ppc.committed} commitments kept</Text>
+          <Text style={styles.ppcInlineLabel}>PPC this week · {ppc.completed}/{ppc.committed} commitments kept</Text>
         </View>
       ) : null}
 

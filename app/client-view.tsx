@@ -1322,7 +1322,7 @@ export default function ClientViewScreen() {
                   <Text style={[styles.decisionFlag, { color: tone }]}>
                     {d.urgency === 'overdue'
                       ? `${d.daysOverdue ?? 0}d late`
-                      : d.urgency === 'due_soon' ? 'Due soon' : 'Open'}
+                      : d.urgency === 'due_soon' ? 'Due Soon' : 'Open'}
                   </Text>
                 </View>
               );
@@ -1886,7 +1886,7 @@ export default function ClientViewScreen() {
                       </View>
                       <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                         <Text style={[styles.listStatusText, { color: statusColor }]}>
-                          {item.status === 'closed' ? 'Closed' : item.status === 'in_progress' ? 'In progress' : 'Open'}
+                          {item.status === 'closed' ? 'Closed' : item.status === 'in_progress' ? 'In Progress' : 'Open'}
                         </Text>
                       </View>
                     </View>
@@ -2076,13 +2076,13 @@ export default function ClientViewScreen() {
                       <Text style={styles.modalSummaryLabel}>Change Order #{approvalCO.number}</Text>
                       <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
                       <View style={styles.modalSummaryRow}>
-                        <Text style={styles.modalSummaryKey}>Change amount</Text>
+                        <Text style={styles.modalSummaryKey}>Change Amount</Text>
                         <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
                           {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
                         </Text>
                       </View>
                       <View style={styles.modalSummaryRow}>
-                        <Text style={styles.modalSummaryKey}>New contract total</Text>
+                        <Text style={styles.modalSummaryKey}>New Contract Total</Text>
                         <Text style={styles.modalSummaryVal}>{formatMoney(approvalCO.newContractTotal)}</Text>
                       </View>
                       {!!approvalCO.reason && (
@@ -2127,7 +2127,7 @@ export default function ClientViewScreen() {
                     disabled={submittingApproval}
                   >
                     <ThumbsDown size={15} color="#FFF" strokeWidth={1.75} />
-                    <Text style={styles.modalSubmitText}>Reject change order</Text>
+                    <Text style={styles.modalSubmitText}>Reject Change Order</Text>
                   </TouchableOpacity>
                 </View>
               </>

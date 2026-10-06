@@ -105,7 +105,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
         >
           <Activity size={12} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.chipText} numberOfLines={1}>
-            Sub Updates · {todayUpdates.length} today{blockerCount > 0 ? ` · ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}
+            Sub updates · {todayUpdates.length} today{blockerCount > 0 ? ` · ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}
           </Text>
         </TouchableOpacity>
       ) : (

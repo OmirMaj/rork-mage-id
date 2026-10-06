@@ -567,7 +567,7 @@ export function MobileGantt({
         {/* LEFT — frozen WBS column */}
         <View style={{ width: LEFT_W }}>
           <View style={{ height: HEADER_H, justifyContent: 'flex-end', paddingBottom: 6, paddingLeft: 12 }}>
-            <Text style={styles.leftHdr}>Work packages</Text>
+            <Text style={styles.leftHdr}>Work Packages</Text>
           </View>
           {/* Rows above the window. `lrow` is a fixed height with border-box
               borders, so N * ROW_H is exactly the space they occupied. */}

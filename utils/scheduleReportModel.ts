@@ -250,7 +250,7 @@ export function assembleScheduleReport(input: {
       .filter((t) => { const w = windowOf(t); return w.es <= hi && w.ef >= lo; })
       .slice(0, 6)
       .map((t) => { const w = windowOf(t); return { title: t.title || 'Untitled', crew: t.crew || (t.assignedSubName ?? ''), startIso: isoShort(startDateIso, w.es), finishIso: isoShort(startDateIso, w.ef), isMilestone: !!t.isMilestone }; });
-    return { weekLabel: w === 0 ? 'This week' : w === 1 ? 'Next week' : '+2 weeks', items };
+    return { weekLabel: w === 0 ? 'This Week' : w === 1 ? 'Next Week' : '+2 weeks', items };
   });
 
   const milestones = tasks

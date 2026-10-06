@@ -137,7 +137,7 @@ export function askStepCopy(
     return {
       title: gap?.title ?? 'This prints on the homeowner’s copy',
       reason: gap?.reason ?? '',
-      primaryLabel: isLast ? 'Save and send' : 'Next',
+      primaryLabel: isLast ? 'Save and Send' : 'Next',
       footnote: IDENTITY_FOOTNOTE,
       stepLabel,
     };
@@ -146,7 +146,7 @@ export function askStepCopy(
     return {
       title: ASK_TERMS_TITLE,
       reason: purpose === 'contract' && noun === 'proposal' ? CONTRACT_PROPOSAL_TERMS_REASON : TERMS_REASON[purpose],
-      primaryLabel: purpose === 'edit' ? 'Save' : 'Use on every job',
+      primaryLabel: purpose === 'edit' ? 'Save' : 'Use on Every Job',
       secondaryLabel,
       footnote: purpose === 'edit' ? '' : secondaryLabel ? `${TERMS_FOOTNOTE} ${THIS_JOB_FOOTNOTE[noun]}` : TERMS_FOOTNOTE,
       stepLabel,

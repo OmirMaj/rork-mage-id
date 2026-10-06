@@ -158,7 +158,7 @@ function WeatherReschedulePromptImpl({
             activeOpacity={0.85}
           >
             <RefreshCw size={12} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.bannerPrimaryText}>Push all</Text>
+            <Text style={styles.bannerPrimaryText}>Push All</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>

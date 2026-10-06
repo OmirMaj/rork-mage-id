@@ -250,8 +250,8 @@ export function countBookRows(
 
 // ── Screen copy ──────────────────────────────────────────────────────────────
 
-export const LABEL_NOT_FROM_BOOK = 'Not from your book';
-export const LABEL_NEEDS_PRICE = 'Needs price';
+export const LABEL_NOT_FROM_BOOK = 'Not from Your Book';
+export const LABEL_NEEDS_PRICE = 'Needs Price';
 export const LABEL_YOUR_HISTORY = 'Your history';
 export const NO_BOOK_MATCH_NOTE = 'No rates in your book matched these exclusions, so the amounts are not from your book.';
 

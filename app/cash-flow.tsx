@@ -800,7 +800,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             ? 'This project’s invoice income, charted against your company-wide bank balance and recurring expenses. Balance and expenses are shared across all projects, not just this one.'
             : 'A 12-week chart of expected draws and bills across your projects, built from your invoices, scheduled draws and payroll.'}
           explainer={{
-            term: 'Cash-flow forecast',
+            term: 'Cash-Flow Forecast',
             definition: 'A cash-flow forecast projects when money will arrive (draws from clients, deposits, paid invoices) and when it will leave (sub payments, payroll, materials). The gap between income and outflow each week tells you whether you can cover this Friday\'s payroll or need to chase a draw.',
             whenToUse: [
               'Before agreeing to a payment schedule with a new client',
@@ -1289,7 +1289,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.addItemText}>Add expense</Text>
+                <Text style={styles.addItemText}>Add Expense</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1368,7 +1368,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </Text>
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={[styles.addItemText, { color: themeColors.success }]}>Add expected payment</Text>
+                <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
               </TouchableOpacity>
             </View>
           )}

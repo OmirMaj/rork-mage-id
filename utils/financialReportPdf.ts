@@ -40,7 +40,7 @@ function costBasisNote(rows: { costAtCompletion?: WipEstimatedCost; costToDate?:
 
 function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const meta = [
-    { label: 'Report Type', value: 'Work in progress (WIP)' },
+    { label: 'Report Type', value: 'Work in Progress (WIP)' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     { label: 'Projects',    value: String(report.rows.length) },
   ];
@@ -149,9 +149,9 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       { header: 'Contract',          align: 'right', width: '6%' },
       { header: 'Approved COs',      align: 'right', width: '6%' },
       { header: 'Revised',           align: 'right', width: '6%' },
-      { header: 'Cost to date',      align: 'right', width: '6%' },
-      { header: 'Est. final cost',   align: 'right', width: '6%' },
-      { header: 'Cost to complete',  align: 'right', width: '6%' },
+      { header: 'Cost to Date',      align: 'right', width: '6%' },
+      { header: 'Est. Final Cost',   align: 'right', width: '6%' },
+      { header: 'Cost to Complete',  align: 'right', width: '6%' },
       { header: '% complete',        align: 'right', width: '5%' },
       { header: 'Earned rev.',       align: 'right', width: '7%' },
       { header: 'Billed',            align: 'right', width: '7%' },
@@ -244,7 +244,7 @@ function buildProfitHtml(
   noCostBasisRevenue = 0,
 ): string {
   const meta = [
-    { label: 'Report Type', value: 'Profit and margin' },
+    { label: 'Report Type', value: 'Profit and Margin' },
     { label: 'Generated',   value: fmtDate(new Date().toISOString()) },
     { label: 'Projects',    value: String(rows.length) },
   ];
@@ -427,9 +427,9 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
           { header: 'Invoice', width: '17%' },
           { header: 'Issued',         align: 'right', width: '11%' },
           { header: 'Due',            align: 'right', width: '11%' },
-          { header: 'Total due',      align: 'right', width: '13%' },
+          { header: 'Total Due',      align: 'right', width: '13%' },
           { header: 'Paid',           align: 'right', width: '12%' },
-          { header: 'Retainage held', align: 'right', width: '12%' },
+          { header: 'Retainage Held', align: 'right', width: '12%' },
           { header: 'Outstanding',    align: 'right', width: '13%' },
           { header: 'Bucket',         align: 'right', width: '11%' },
         ],
@@ -503,7 +503,7 @@ export async function shareProfitReport(
   await shareHtml(
     buildProfitHtml(rows, totalRevenue, totalProfit, weightedMargin, branding,
       noCostBasisCount, noCostBasisRevenue),
-    'Profit report',
+    'Profit Report',
   );
 }
 

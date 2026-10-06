@@ -740,7 +740,7 @@ function dayCount(n: number): string {
 
 /** A task's display name, with the wizard's fallback for unnamed rows. */
 export function taskName(t: TemplateTask | undefined): string {
-  return t?.name.trim() || 'Untitled task';
+  return t?.name.trim() || 'Untitled Task';
 }
 
 /**
@@ -750,7 +750,7 @@ export function taskName(t: TemplateTask | undefined): string {
  */
 export function lagStepperLabel(days: number): string {
   const n = clampLag(days);
-  if (n === 0) return 'No wait';
+  if (n === 0) return 'No Wait';
   return n > 0 ? `Wait ${dayCount(n)}` : `Start ${dayCount(n)} early`;
 }
 

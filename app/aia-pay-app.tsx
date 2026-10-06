@@ -1758,7 +1758,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Pay Apps' }} />
         <ToolProjectPicker
-          toolName="Pay apps"
+          toolName="Pay Apps"
           message="An AIA-style G702 / G703 certifies one billing period against one project's schedule of values."
           projects={projects}
           onPick={pickProject}
@@ -1892,7 +1892,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       isCellEditable={(l, k) => (k === 'percent'
         ? l.scheduledValue > 0
         : k === 'itemNo' || k === 'description' || k === 'scheduled' ? sovEditing : true)}
-      footerLabel="Grand total"
+      footerLabel="Grand Total"
       footerTotals={{
         scheduled: g703Foot.scheduled,
         fromPrevious: g703Foot.fromPrevious,
@@ -1943,7 +1943,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           title="Bill for This Period"
           subtitle="Turn your % complete into a draft AIA-style pay application. Fills in the contract sum, retainage and schedule of values."
           explainer={{
-            term: 'AIA-style pay app',
+            term: 'AIA-Style Pay App',
             definition: 'A pay app (pay application) bills for the work completed in one period. This one follows the layout of the G702 and G703 forms published by the American Institute of Architects (AIA): the G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up. MAGE ID builds a draft in that style. It is not the official AIA document, and some lenders and architects require their own or the official forms.',
             whenToUse: [
               'Your client or their lender asks for G702/G703-style billing',
@@ -2514,7 +2514,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           {app.notarize && (
             <>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>State Of</Text>
+                <Text style={styles.formLabel}>State of</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.notaryState ?? ''}
@@ -2526,7 +2526,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 />
               </View>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>County Of</Text>
+                <Text style={styles.formLabel}>County of</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.notaryCounty ?? ''}
@@ -2900,7 +2900,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   >
                     <PackageCheck size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.sovInstalledText}>
-                      Installed This Period: Move {formatMoney(line.materialsPresentlyStored, 2)} from
+                      Installed this period: move {formatMoney(line.materialsPresentlyStored, 2)} from
                       stored into this period
                     </Text>
                   </TouchableOpacity>

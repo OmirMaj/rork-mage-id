@@ -53,7 +53,7 @@ const RISK_LABEL: Record<KnownRisk, string> = {
 // it gets a neutral, explicitly-empty treatment so it can never be mistaken
 // for a measured result. Same principle as AIBidScorecard's "Not enough
 // decided bids to estimate odds".
-const NO_FORECAST_LABEL = 'No forecast';
+const NO_FORECAST_LABEL = 'No Forecast';
 const EMPTY = '—';
 
 export default function PaymentPredictionsScreen() {
@@ -189,9 +189,9 @@ function PaymentPredictionsScreenInner() {
             MAGE Brain analyzes due dates, client payment history, project status, and retention holds to forecast real inflows — so you know which invoices need a call today vs. which are safe to let ride.
           </Text>
           <View style={styles.featureRow}>
-            <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-invoice pay date</Text></View>
-            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warningLabel} strokeWidth={1.75} /><Text style={styles.featureText}>Risk scoring</Text></View>
-            <View style={styles.featureChip}><Phone size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Action suggestions</Text></View>
+            <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-Invoice Pay Date</Text></View>
+            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warningLabel} strokeWidth={1.75} /><Text style={styles.featureText}>Risk Scoring</Text></View>
+            <View style={styles.featureChip}><Phone size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Action Suggestions</Text></View>
           </View>
           <TouchableOpacity
             style={[styles.runBtn, unpaidCount === 0 && { opacity: 0.5 }]}

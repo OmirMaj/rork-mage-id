@@ -91,7 +91,7 @@ import { useTutorialSandboxId } from '@/utils/tutorial/store';
 // by TaskDetailSheet's jump-to-plan action. Renaming the key would be a
 // behaviour change dressed up as a copy fix.
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
-const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living plan'], ['progress', 'Progress'], ['team', 'Team']];
+const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Plan'], ['progress', 'Progress'], ['team', 'Team']];
 
 // ---------------------------------------------------------------------------
 // The phone's schedule audit entry.
@@ -127,8 +127,8 @@ const FIELD_SCHEDULE_HINT = 'Field access: progress, status, notes and actual st
 /** How the row-conflict notice names a field-owned key. */
 const ROW_FIELD_KEY_LABEL: Record<string, string> = {
   progress: 'progress', status: 'status', notes: 'notes', title: 'name', crew: 'crew',
-  actualStartDate: 'Actual Start', actualStartDay: 'Actual Start',
-  actualEndDate: 'Actual Finish', actualEndDay: 'Actual Finish',
+  actualStartDate: 'actual start', actualStartDay: 'actual start',
+  actualEndDate: 'actual finish', actualEndDay: 'actual finish',
 };
 /** Task fields TaskDetailSheet keeps as local drafts from the moment it opens
  *  (its % slider, title, crew and notes inputs) — a peer change to one of these
@@ -1176,7 +1176,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       `${moved} task${moved === 1 ? '' : 's'} re-dated so the work that is left starts today. Finished work kept its actual dates, and nothing moved earlier.`,
       [
         { text: 'Undo', style: 'cancel', onPress: () => saveTasks(before, { reason: 'Undid "Bring the plan up to date"' }) },
-        { text: 'Keep it' },
+        { text: 'Keep It' },
       ],
     );
   }, [catchUp, tasks, saveTasks, wholePlanWriteBlocked]);
@@ -1566,7 +1566,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
               message="Say the scope out loud. MAGE asks a few questions, then builds the schedule, or you can add work packages by hand."
               actionLabel="Build by Voice"
               onAction={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)}
-              secondaryLabel="Add manually"
+              secondaryLabel="Add Manually"
               onSecondaryAction={() => setShowAdd(true)}
             />
           ) : (
@@ -1905,7 +1905,7 @@ function FinishDateSheet({
         <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
           <View style={[styles.finishHero, { backgroundColor: colors[verdictToneTokens(verdict.tone).soft] }]}>
             <Text style={[styles.finishDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
-              {finishDateLabel === '—' ? 'No finish date' : finishDateLabel}
+              {finishDateLabel === '—' ? 'No Finish Date' : finishDateLabel}
             </Text>
             <Text style={styles.finishVerdict}>{verdict.headline}</Text>
             {!!verdict.detail && <Text style={styles.finishDetail}>{verdict.detail}</Text>}

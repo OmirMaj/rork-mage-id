@@ -2802,7 +2802,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         <Stack.Screen options={{ headerShown: false }} />
         {logHost ? null : <ToolHeader eyebrow="Change Orders · MAGE ID" title="Change Orders" />}
         <ToolProjectPicker
-          toolName="Change orders"
+          toolName="Change Orders"
           message="A change order adjusts an existing contract amount, so it is written against one project."
           projects={projects}
           onPick={setPickedProjectId}
@@ -2945,9 +2945,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     updateChangeOrder(existingCO.id, { status: next, ...freeze });
                   } : undefined}
                   advanceLabel={
-                    existingCO.status === 'draft' ? 'Mark submitted'
-                    : existingCO.status === 'submitted' ? 'Move to review'
-                    : existingCO.status === 'under_review' || existingCO.status === 'revised' ? 'Mark approved'
+                    existingCO.status === 'draft' ? 'Mark Submitted'
+                    : existingCO.status === 'submitted' ? 'Move to Review'
+                    : existingCO.status === 'under_review' || existingCO.status === 'revised' ? 'Mark Approved'
                     : undefined
                   }
                 />
@@ -3255,7 +3255,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {declineLine && (
                   <View style={styles.declineBox} testID="co-decline-line">
                     <Text style={styles.declineTitle}>
-                      Declined By {declineLine.who}{declineLine.when ? ` on ${formatCalendarDay(calendarDayOf(declineLine.when) ?? declineLine.when)}` : ''}
+                      Declined by {declineLine.who}{declineLine.when ? ` on ${formatCalendarDay(calendarDayOf(declineLine.when) ?? declineLine.when)}` : ''}
                     </Text>
                     <Text style={styles.lockedSub}>
                       {declineLine.reason ? `Their reason: ${declineLine.reason}` : 'No reason given.'}
@@ -3392,7 +3392,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   rowKey={(i) => i.id}
                   columns={coGridColumns}
                   readOnly={isLocked}
-                  footerLabel="Lines subtotal (before tax)"
+                  footerLabel="Lines Subtotal (Before Tax)"
                   footerTotals={{ total: coGridFooter(lineItems) }}
                   rowWarning={(i) => (!i.name.trim()
                     ? 'Name this line. It prints on the change order.'
@@ -3406,7 +3406,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   onAddRow={handleGridAddLine}
                   onDeleteRow={handleRemoveItem}
                   onPasteRows={handleGridPaste}
-                  addLabel="Add line"
+                  addLabel="Add Line"
                   renderCard={() => null}
                 />
                 <Text style={styles.helperText}>CSI division, line notes and margin are in Cards.</Text>

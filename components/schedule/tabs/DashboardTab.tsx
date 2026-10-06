@@ -108,7 +108,7 @@ export function DashboardTab({ hasBudget }: {
           label="Health Score"
           value={String(healthScore)}
           valueColor={healthColor}
-          delta={cpm.slipDaysVsBaseline == null ? 'No baseline' : cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
+          delta={cpm.slipDaysVsBaseline == null ? 'No Baseline' : cpm.slipDaysVsBaseline === 0 ? 'On Baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
           phone={isPhone}
         />
         <StatCard
@@ -119,7 +119,7 @@ export function DashboardTab({ hasBudget }: {
         />
         <StatCard
           label="Budget"
-          value="Not linked"
+          value="Not Linked"
           delta="Link an estimate to track cost"
           phone={isPhone}
         />
@@ -195,7 +195,7 @@ export function DashboardTab({ hasBudget }: {
               <Text style={styles.cpName} numberOfLines={1}>{t.title}</Text>
               <Text style={styles.cpTrade}>{tradeLabel(tradeKeyForTask(t)).toUpperCase()}</Text>
             </View>
-            <Text style={styles.cpFloat}>No float</Text>
+            <Text style={styles.cpFloat}>No Float</Text>
             <Text style={styles.cpDue}>{t.deadline ? formatCalendarDay(t.deadline, { month: 'short', day: 'numeric' }) : '—'}</Text>
           </View>
         ))}

@@ -49,7 +49,7 @@ import {
 
 export const START_DAY_BASIS_TITLE = 'These start days can be read two ways';
 export const START_DAY_BASIS_ACCEPT = 'Re-anchor';
-export const START_DAY_BASIS_DECLINE = 'Keep as-is';
+export const START_DAY_BASIS_DECLINE = 'Keep As-Is';
 
 /** `Fri Apr 3` for a day index, or `day 45` when the schedule has no anchor. */
 function dayLabel(projectStartDate: Date | null, day: number): string {

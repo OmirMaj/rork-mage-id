@@ -179,8 +179,8 @@ type LiveCopy = ScheduleCopy & { activeBaselineId?: string | null };
 /** How the refused-edit notice names a field-owned task key. */
 const FIELD_KEY_LABEL: Record<string, string> = {
   progress: 'progress', status: 'status', notes: 'notes',
-  actualStartDate: 'Actual Start', actualStartDay: 'Actual Start',
-  actualEndDate: 'Actual Finish', actualEndDay: 'Actual Finish',
+  actualStartDate: 'actual start', actualStartDay: 'actual start',
+  actualEndDate: 'actual finish', actualEndDay: 'actual finish',
 };
 
 // The width gate (GRID_BREAKPOINT, 900) lives in utils/scheduleProLayout and

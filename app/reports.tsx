@@ -643,7 +643,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
             <View style={styles.tableCellEnd}>
               {wipFoot.overbilled > 0 ? <Text style={styles.tableFootText}>{`Over ${formatMoney(wipFoot.overbilled)}`}</Text> : null}
               {wipFoot.unbilled > 0 ? <Text style={styles.tableFootText}>{`Under ${formatMoney(wipFoot.unbilled)}`}</Text> : null}
-              {wipFoot.overbilled > 0 || wipFoot.unbilled > 0 ? null : <Text style={[styles.tableFootText, { color: themeColors.textMuted }]}>On earned value</Text>}
+              {wipFoot.overbilled > 0 || wipFoot.unbilled > 0 ? null : <Text style={[styles.tableFootText, { color: themeColors.textMuted }]}>On Earned Value</Text>}
             </View>
           ),
           retainage: formatMoney(wipFoot.retainageHeld),
@@ -683,11 +683,11 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
                 completion, so a reader could see the ratio and neither of the
                 two numbers it came from, and `unbilled` — the figure a lender
                 reads first — reached the CSV and never this grid. */}
-            <KV k="Cost to date"    v={r.costToDate == null ? '—' : formatMoney(r.costToDate)} />
-            <KV k="Est. final cost" v={formatMoney(r.estimatedFinalCost)} />
-            <KV k="Cost to complete" v={wipRowCostToComplete(r) == null ? '—' : formatMoney(wipRowCostToComplete(r) as number)} />
+            <KV k="Cost to Date"    v={r.costToDate == null ? '—' : formatMoney(r.costToDate)} />
+            <KV k="Est. Final Cost" v={formatMoney(r.estimatedFinalCost)} />
+            <KV k="Cost to Complete" v={wipRowCostToComplete(r) == null ? '—' : formatMoney(wipRowCostToComplete(r) as number)} />
             <KV k="% Complete"      v={`${r.percentComplete.toFixed(0)}%`} />
-            <KV k="Earned revenue"  v={formatMoney(wipRowEarned(r))} />
+            <KV k="Earned Revenue"  v={formatMoney(wipRowEarned(r))} />
             <KV k="Billed"          v={formatMoney(r.billedToDate)} />
             <KV k="Paid"            v={formatMoney(r.paidToDate)} />
             {/* One signed line rather than two, so a job that is exactly on
@@ -700,7 +700,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
                 muted={wipRowOverbilled(r) === 0 && r.unbilled === 0} />
             <KV k="Retainage"       v={formatMoney(r.retainageHeld)} muted={r.retainageHeld === 0} />
             {wipReportRowHasCostBasis(r) ? (
-              <KV k="Projected profit"
+              <KV k="Projected Profit"
                   v={formatMoney(r.projectedProfit)}
                   tone={r.projectedProfit >= 0 ? 'good' : 'bad'}
                   bold />
@@ -1018,11 +1018,11 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
             <View style={styles.kvGrid}>
               <KV k="Issued"       v={new Date(r.issueDate).toLocaleDateString()} />
               <KV k="Due"          v={new Date(r.dueDate).toLocaleDateString()} />
-              <KV k="Total due"    v={formatMoney(r.totalDue)} />
+              <KV k="Total Due"    v={formatMoney(r.totalDue)} />
               <KV k="Paid"         v={formatMoney(r.amountPaid)} />
               {/* Total − Paid − Retainage held = Outstanding: the row foots, the
                   way the CSV and the PDF foot. */}
-              <KV k="Retainage held" v={formatMoney(r.retainageHeld)} muted={r.retainageHeld <= 0.5} />
+              <KV k="Retainage Held" v={formatMoney(r.retainageHeld)} muted={r.retainageHeld <= 0.5} />
               <KV k="Outstanding"  v={formatMoney(r.outstanding)} bold
                   tone={outstandingLate ? 'bad' : undefined} muted={isRetainageOnly} />
             </View>

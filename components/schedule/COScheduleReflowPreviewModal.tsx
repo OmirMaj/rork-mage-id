@@ -136,11 +136,11 @@ export function COScheduleReflowPreviewModal(props: {
   const dayWord = `${plan.impactDays} day${plan.impactDays === 1 ? '' : 's'}`;
   // The primary button never over-promises: it names exactly what will happen.
   const confirmLabel = intent === 'place'
-    ? (isReady ? `Apply ${dayWord}` : 'Pick a task first')
+    ? (isReady ? `Apply ${dayWord}` : 'Pick a Task First')
     : isReady
       ? `Approve and Move ${dayWord}`
       : plan.status === 'no_anchor'
-        ? 'Approve without moving dates'
+        ? 'Approve Without Moving Dates'
         : `Approve CO #${changeOrder.number}`;
   // In `place` mode there is no money decision left to make, so a confirm that
   // cannot move anything would be a button that does nothing.

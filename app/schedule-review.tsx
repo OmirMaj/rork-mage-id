@@ -505,7 +505,7 @@ export default function ScheduleReviewScreen() {
         {(paceProvenance.tradeCount > 0 || preApplied.size > 0) ? (
           <View style={styles.pacedChip}>
             <Text style={styles.pacedChipText}>
-              Paced from Your History · {paceProvenance.tradeCount} trade{paceProvenance.tradeCount === 1 ? '' : 's'}
+              Paced from your history · {paceProvenance.tradeCount} trade{paceProvenance.tradeCount === 1 ? '' : 's'}
               {preApplied.size > 0 ? ` · ${preApplied.size} set from your pace` : ''}
             </Text>
           </View>

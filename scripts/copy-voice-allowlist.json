@@ -949,6 +949,114 @@
       "rule": "R15",
       "match": "Cost-to-date you entered, synced across your devices",
       "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "app/schedule-review.tsx",
+      "rule": "R15",
+      "match": "Paced from your history ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/AIAssistantPanel.tsx",
+      "rule": "R15",
+      "match": "Paced from your history ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/last-planner.tsx",
+      "rule": "R15",
+      "match": "PPC this week ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/PaceChip.tsx",
+      "rule": "R15",
+      "match": "Set from your",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/SubUpdatesPanel.tsx",
+      "rule": "R15",
+      "match": "Sub updates ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "Installed this period: move",
+      "reason": "a button sentence that carries an amount (\"Installed this period: move $1,200 from stored into this period\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/shared-schedule.tsx",
+      "rule": "R15",
+      "match": "No Tasks Assigned to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/change-order.tsx",
+      "rule": "R15",
+      "match": "Declined by",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "State of",
+      "reason": "the notary block of the pay app, as the form prints it (\"State of ____\"): the words before a value, not restyled"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "County of",
+      "reason": "the notary block of the pay app, as the form prints it (\"County of ____\"): the words before a value, not restyled"
+    },
+    {
+      "file": "app/schedule-pro.tsx",
+      "rule": "R15",
+      "match": "actual start",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "app/schedule-pro.tsx",
+      "rule": "R15",
+      "match": "actual finish",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "components/schedule/mobile/MobileScheduleScreen.tsx",
+      "rule": "R15",
+      "match": "actual start",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "components/schedule/mobile/MobileScheduleScreen.tsx",
+      "rule": "R15",
+      "match": "actual finish",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Deposit (signing)",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Rough-in / framing complete",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Finishes complete",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Substantial completion",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
     }
   ]
 }

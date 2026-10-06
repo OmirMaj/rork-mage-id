@@ -97,11 +97,11 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       <View style={styles.benefitsRow}>
         <View style={styles.benefitChip}>
           <CalendarDays size={11} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.benefitText}>Realistic durations</Text>
+          <Text style={styles.benefitText}>Realistic Durations</Text>
         </View>
         <View style={styles.benefitChip}>
           <Link2 size={11} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.benefitText}>Linked to estimate items</Text>
+          <Text style={styles.benefitText}>Linked to Estimate Items</Text>
         </View>
       </View>
 

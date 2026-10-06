@@ -1847,7 +1847,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       borderColor: themeColors.success, backgroundColor: themeColors.success + '14',
                     }]}
                   >
-                    <Text style={[styles.previewLabel, { color: themeColors.successLabel }]} numberOfLines={1}>+ {a.title || 'New task'}</Text>
+                    <Text style={[styles.previewLabel, { color: themeColors.successLabel }]} numberOfLines={1}>+ {a.title || 'New Task'}</Text>
                   </View>
                 );
               })}

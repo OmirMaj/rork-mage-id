@@ -180,7 +180,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     <Bar style={barStyle}>
       <View style={styles.statusInline}>
         {portalState?.viewedAt ? <Eye size={14} color={colors.textMuted} strokeWidth={1.75} /> : null}
-        <Text style={styles.statusInlineText}>{portalState?.viewedAt ? 'Client viewed this' : 'Shared with client'}</Text>
+        <Text style={styles.statusInlineText}>{portalState?.viewedAt ? 'Client Viewed This' : 'Shared with Client'}</Text>
       </View>
       <TouchableOpacity style={styles.secondary} onPress={doRecall} disabled={busy}>
         <RotateCcw size={14} color={colors.textMuted} strokeWidth={1.75} />

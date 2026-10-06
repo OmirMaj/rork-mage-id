@@ -1283,7 +1283,7 @@ function WipReportScreenInner() {
       <FeatureExplainerSheet
         visible={explainerOpen}
         onClose={() => setExplainerOpen(false)}
-        term="WIP schedule (work in progress)"
+        term="WIP Schedule (Work in Progress)"
         definition={
           'A WIP schedule compares what you have earned on each project against what you have billed for it. '
           + 'Earned revenue is the contract times percent complete, and percent complete is cost-to-date '

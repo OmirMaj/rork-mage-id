@@ -305,7 +305,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
             <Pressable onPress={submit} style={[styles.submitBtn, frame.footerButton]} testID="add-task-submit">
-              <Text style={styles.submitText}>Create task</Text>
+              <Text style={styles.submitText}>Create Task</Text>
             </Pressable>
           </View>
 

@@ -1883,7 +1883,7 @@ export function payAppReviewNotice(state: {
     return {
       title: 'Certified Record',
       body: 'These are the figures on the pay app that went out. They can’t be changed. Bill the next period instead.',
-      editLabel: 'Edit draft',
+      editLabel: 'Edit Draft',
     };
   }
   if (state.portalStatus === 'sent') {
@@ -1892,7 +1892,7 @@ export function payAppReviewNotice(state: {
       title: 'Sent to the Client',
       body: `Your client has had this certificate${when ? ` since ${when}` : ''}, and the portal shows the copy that was sent. `
         + 'Editing changes your record only. The client keeps seeing the sent version until you send it again.',
-      editLabel: 'Edit and re-send',
+      editLabel: 'Edit and Re-Send',
     };
   }
   const when = day(state.savedAt);

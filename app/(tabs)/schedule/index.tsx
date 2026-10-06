@@ -2612,7 +2612,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   // date this row could print is not the task's date — it says
                   // the working-day number instead, which IS stored data.
                   const startLabel = isUndated
-                    ? (hasStartDay ? `Day ${startDayNum}` : 'Not set')
+                    ? (hasStartDay ? `Day ${startDayNum}` : 'Not Set')
                     : startDate
                       ? startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                       : 'Not set';
@@ -3013,7 +3013,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={exitSavedPlanView} accessibilityRole="button" accessibilityLabel="Show Live Plan" hitSlop={8} testID="scenario-banner-exit">
-        <Text style={styles.scenarioBannerExit}>Show live plan</Text>
+        <Text style={styles.scenarioBannerExit}>Show Live Plan</Text>
       </TouchableOpacity>
     </View>
   ) : null;

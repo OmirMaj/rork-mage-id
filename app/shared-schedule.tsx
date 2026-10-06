@@ -314,7 +314,7 @@ export default function SharedScheduleScreen() {
         subTasks.length === 0 ? (
           <View style={[styles.body, styles.centered]}>
             <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.title}>No Tasks Assigned To {subName}</Text>
+            <Text style={styles.title}>No Tasks Assigned to {subName}</Text>
             <Text style={styles.body}>
               The schedule was shared with you but no tasks are tagged for {subName}. Ask {payload.gc?.name || 'your contractor'} if you think this is wrong.
             </Text>

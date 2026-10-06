@@ -452,7 +452,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
           subtitle="Compares the work you've earned against what you've spent and scheduled, so overruns show up early, not at closeout."
           style={styles.featureHeader}
           explainer={{
-            term: 'Earned value (EVM)',
+            term: 'Earned Value (EVM)',
             definition: 'EVM compares three numbers: what you planned to spend, what you actually spent, and the dollar value of the work you\'ve completed. CPI (cost) and SPI (schedule) boil that down to a single ratio: 1.0 means on track, below 1.0 means over budget or behind schedule.',
             whenToUse: [
               'Weekly, to catch a cost overrun while you can still fix it',

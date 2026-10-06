@@ -462,7 +462,7 @@ function ComparePicker(props: {
           onPress={() => setComparePickerSlot('a')}
         >
           <Text style={styles.compareSlotLabel}>A</Text>
-          <Text style={styles.compareSlotValue} numberOfLines={1}>{aLabel ?? 'Pick a baseline'}</Text>
+          <Text style={styles.compareSlotValue} numberOfLines={1}>{aLabel ?? 'Pick a Baseline'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.compareSlot, comparePickerSlot === 'b' && styles.compareSlotActive]}

@@ -698,7 +698,7 @@ export default function ScheduleWizardScreen() {
           templates={SCHEDULE_TEMPLATES}
           onPickTemplate={handlePickTemplate}
           documentMode={documentMode}
-          documentTitle={project ? `${project.name} schedule` : 'New schedule'}
+          documentTitle={project ? `${project.name} schedule` : 'New Schedule'}
           startDate={startDate}
           onEditProject={() => goToStep(0)}
           onBrowseTemplates={() => setTemplateSheetOpen(true)}
@@ -1388,7 +1388,7 @@ function TasksStep(props: {
               accessibilityLabel="Change the project or start date for this schedule"
               testID="wizard-doc-settings"
             >
-              <Text style={styles.docMetaLink}>Change project or date</Text>
+              <Text style={styles.docMetaLink}>Change Project or Date</Text>
             </TouchableOpacity>
             {savedAt != null ? (
               <>
@@ -1410,7 +1410,7 @@ function TasksStep(props: {
                 accessibilityLabel="Discard the restored draft and start a fresh schedule"
                 testID="wizard-discard-draft"
               >
-                <Text style={styles.docMetaLink}>Start fresh</Text>
+                <Text style={styles.docMetaLink}>Start Fresh</Text>
               </TouchableOpacity>
             </View>
           ) : null}

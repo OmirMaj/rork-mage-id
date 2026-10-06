@@ -149,12 +149,12 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                   </Text>
                   <Text style={styles.indexHint}>
                     {snapshot.spi >= 1
-                      ? 'Ahead of plan'
+                      ? 'Ahead of Plan'
                       : snapshot.spi >= 0.95
-                        ? 'On pace'
+                        ? 'On Pace'
                         : snapshot.spi >= 0.85
-                          ? 'Slightly behind'
-                          : 'Significantly behind'}
+                          ? 'Slightly Behind'
+                          : 'Significantly Behind'}
                   </Text>
                 </View>
               </View>
@@ -170,7 +170,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                       CPI {snapshot.cpi.toFixed(2)}
                     </Text>
                     <Text style={styles.indexHint}>
-                      {snapshot.cpi >= 1 ? 'Under budget' : snapshot.cpi >= 0.95 ? 'On budget' : 'Over budget'}
+                      {snapshot.cpi >= 1 ? 'Under Budget' : snapshot.cpi >= 0.95 ? 'On Budget' : 'Over Budget'}
                     </Text>
                   </View>
                 </View>
@@ -178,7 +178,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             </View>
 
             {/* Per-task list, biggest budget first */}
-            <Text style={styles.listHead}>Cost per task</Text>
+            <Text style={styles.listHead}>Cost per Task</Text>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {tasks
                 .map(task => ({ task, load: snapshot.perTask.get(task.id) }))

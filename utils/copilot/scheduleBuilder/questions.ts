@@ -50,12 +50,12 @@ export const QUESTIONS: QuestionSpec[] = [
   {
     field: 'startDate', eyebrow: 'THE START', question: 'When do you break ground?',
     subtext: 'Everything is dated forward from here, and it sets your weather window.',
-    kind: 'date', skipLabel: 'Use next Monday',
+    kind: 'date', skipLabel: 'Use Next Monday',
   },
   {
     field: 'deadline', eyebrow: 'THE DEADLINE', question: 'Any hard deadline?',
     subtext: 'A contract or must-finish date. I’ll flag anything that puts you behind it.',
-    kind: 'date', skipLabel: 'No fixed deadline',
+    kind: 'date', skipLabel: 'No Fixed Deadline',
     // Skip when we can derive the deadline from the wizard’s timelineWeeks capture.
     // Subtext surfaces the why: "From your estimate: ~N weeks"
     skipIf: (p) => {
@@ -67,19 +67,19 @@ export const QUESTIONS: QuestionSpec[] = [
   {
     field: 'sizeSqft', eyebrow: 'THE SIZE', question: 'Roughly how big is the work?',
     subtext: 'Square footage scales the durations.',
-    kind: 'number', placeholder: '350', skipLabel: 'Let MAGE estimate it',
+    kind: 'number', placeholder: '350', skipLabel: 'Let MAGE Estimate It',
     skipIf: (p) => !!p?.squareFootage && p.squareFootage > 0,
   },
   {
     field: 'occupancy', eyebrow: 'THE SITE', question: 'Occupied or vacant?',
     subtext: 'Occupied means phasing, off-hours, and slower progress. It reshapes the sequence.',
-    kind: 'choice', skipLabel: 'Assume vacant',
+    kind: 'choice', skipLabel: 'Assume Vacant',
     choices: [{ label: 'Vacant', value: 'vacant', recommended: true }, { label: 'Occupied', value: 'occupied' }],
   },
   {
     field: 'crewSize', eyebrow: 'THE CREW', question: 'How many can you run at once?',
     subtext: 'Crew size sets what can happen in parallel and how fast each task goes.',
-    kind: 'number', placeholder: '4', skipLabel: 'Assume a small crew',
+    kind: 'number', placeholder: '4', skipLabel: 'Assume a Small Crew',
   },
   {
     field: 'workDaysPerWeek', eyebrow: 'THE CALENDAR', question: 'How many days a week?',
@@ -90,23 +90,23 @@ export const QUESTIONS: QuestionSpec[] = [
   {
     field: 'longLead', eyebrow: 'PROCUREMENT', question: 'Any long-lead items?',
     subtext: 'Cabinets, windows, steel, HVAC equipment. I’ll add procurement milestones so install isn’t left waiting.',
-    kind: 'text', placeholder: 'Custom cabinets (6 wk), windows', skipLabel: 'Nothing unusual',
+    kind: 'text', placeholder: 'Custom cabinets (6 wk), windows', skipLabel: 'Nothing Unusual',
   },
   {
     field: 'weather', eyebrow: 'THE WEATHER', question: 'Much weather-exposed work?',
     subtext: 'Excavation, foundations, roofing, exterior. I’ll buffer those for the season you’re in.',
-    kind: 'choice', skipLabel: 'Handle it automatically',
+    kind: 'choice', skipLabel: 'Handle It Automatically',
     choices: [{ label: 'Yes, Buffer It', value: 'handle', recommended: true }, { label: 'Mostly Interior', value: 'interior' }],
   },
   {
     field: 'knownRisks', eyebrow: 'THE RISKS', question: 'Anything that could bite you?',
     subtext: 'Scope still changing, slow owner decisions, a sub who’s stretched. I’ll target the contingency at it.',
-    kind: 'text', placeholder: 'Finishes not selected yet; slow approvals', skipLabel: 'Nothing flagged',
+    kind: 'text', placeholder: 'Finishes not selected yet; slow approvals', skipLabel: 'Nothing Flagged',
   },
   {
     field: 'buffer', eyebrow: 'THE BUFFER', question: 'Run it tight, or leave some cushion?',
     subtext: '70% of jobs run long. A little buffer on the critical path is realism, not padding.',
-    kind: 'choice', skipLabel: 'Standard cushion',
+    kind: 'choice', skipLabel: 'Standard Cushion',
     choices: [{ label: 'Tight', value: 'tight' }, { label: 'Standard', value: 'standard', recommended: true }, { label: 'Padded', value: 'padded' }],
   },
 ];

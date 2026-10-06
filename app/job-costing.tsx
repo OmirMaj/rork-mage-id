@@ -762,7 +762,7 @@ function JobCostingInner() {
         defaultSort={{ key: 'variance', dir: 'desc' }}
         emptyState={<Text style={styles.emptyText}>No phases yet. Add a commitment or estimate items.</Text>}
         footerTotals={{
-          phase: 'Project total',
+          phase: 'Project Total',
           budget: formatMoney(phaseFooter.budget),
           committed: formatMoney(phaseFooter.committed),
           actual: formatMoney(phaseFooter.actual),
@@ -996,7 +996,7 @@ function phaseStatusColors(line: JobCostLine, themeColors: ThemeColors): { fill:
   const label = line.status === 'over' ? 'Over'
     : line.status === 'warning' ? 'Watch'
     : line.status === 'unbudgeted' ? 'Unbudgeted'
-    : 'On track';
+    : 'On Track';
   return { fill, ink, mark, label };
 }
 
