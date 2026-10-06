@@ -1374,8 +1374,11 @@ export default function ProjectDetailScreen() {
         : project;
       await generateAndSharePDF(projectForPdf, branding, 'share');
       // Your First Job: this share leaves nothing saved on the project, so it
-      // leaves a local mark (never for a sample job).
-      void markEstimateSent(project.name);
+      // leaves a local mark. markEstimateSent writes it only for a job he
+      // owns that is not a sample: a job shared with him is the GC's work.
+      // (The share sheet does not say whether he sent or closed it, so a
+      // closed sheet still counts here.)
+      void markEstimateSent(project);
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
       showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));

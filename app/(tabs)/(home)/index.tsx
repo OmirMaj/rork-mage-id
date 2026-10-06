@@ -565,12 +565,20 @@ export default function HomeScreen() {
   // UX wave, Lane D (D1): `then=estimate|schedule` rides along from the +
   // menu's "+ New job" row, so the new job goes straight into its wizard.
   useEffect(() => {
-    if (openCreate && !openCreateConsumed.current) {
+    // Once the param has been cleared the guard is re-armed: Home stays
+    // mounted, so without this the SECOND /?openCreate=1 of a session (the +
+    // menu again, or any other door) found the guard still set and did nothing.
+    if (!openCreate) { openCreateConsumed.current = false; return; }
+    if (!openCreateConsumed.current) {
       openCreateConsumed.current = true;
       startCreate(readNewJobThen(thenParam));
       router.setParams({ openCreate: undefined, then: undefined });
     }
   }, [openCreate, thenParam, router, startCreate]);
+  // "Your First Job" sits on Home itself, so its "Create The Project First"
+  // button opens the create sheet directly: no /?openCreate=1 round trip
+  // through the router, nothing stacked on Home, and it works on every tap.
+  const startCreateFromFirstJob = useCallback(() => startCreate(null), [startCreate]);
 
   const filteredProjects = useMemo(
     () => statusBuckets[statusFilter],
@@ -1122,6 +1130,7 @@ export default function HomeScreen() {
       // Invoices on a demo project are the seed's (#155).
       invoiceCount={realInvoiceCount}
       triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
+      onStartCreate={startCreateFromFirstJob}
     />
   );
 

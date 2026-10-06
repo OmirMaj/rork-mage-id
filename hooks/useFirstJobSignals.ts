@@ -100,15 +100,20 @@ export function useFirstJobSignals(a: {
     queryKey: ['firstJobSentContracts', userId],
     enabled: contractsEnabled,
     staleTime: SENT_RECHECK_MS,
-    queryFn: fetchSentContractProjectIds,
+    queryFn: () => fetchSentContractProjectIds(userId as string),
   });
   // Asked again when Home comes back into view (he may have just sent one),
-  // but not more than once a minute.
+  // but not more than once a minute, counted from the last ANSWER of either
+  // kind: with the network down there is no success to count from, and every
+  // return to Home would otherwise ask again with its retries. A read already
+  // on its way is left alone, never cancelled and restarted.
   const refetchContracts = contractsQ.refetch;
-  const contractsAt = contractsQ.dataUpdatedAt;
+  const contractsAt = Math.max(contractsQ.dataUpdatedAt || 0, contractsQ.errorUpdatedAt || 0);
+  const contractsFetching = contractsQ.isFetching;
   useFocusEffect(useCallback(() => {
-    if (contractsEnabled && Date.now() - (contractsAt || 0) > SENT_RECHECK_MS) void refetchContracts();
-  }, [contractsEnabled, contractsAt, refetchContracts]));
+    if (!contractsEnabled || contractsFetching) return;
+    if (Date.now() - contractsAt > SENT_RECHECK_MS) void refetchContracts({ cancelRefetch: false });
+  }, [contractsEnabled, contractsFetching, contractsAt, refetchContracts]));
   const sentContractCount = useMemo(
     () => (contractsQ.data ?? []).filter((id) => realIds.has(id)).length,
     [contractsQ.data, realIds],

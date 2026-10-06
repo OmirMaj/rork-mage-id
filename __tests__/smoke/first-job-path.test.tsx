@@ -12,7 +12,8 @@
  *   S3 a tap never marks a step done; coming back with the work done does
  *      (the line says what is next, the event says in or out of order);
  *   S4 Skip, Hide (one small row that reopens) and Remove (for good);
- *   S5 the finish state shows once, then the card is gone;
+ *   S5 the finish state shows once, then the card is gone, and a card that
+ *      can never show again reads nothing;
  *   S6 a property owner sees nothing, an invited field seat and a switched-off
  *      flag get the old card, an established account never sees it.
  *
@@ -68,21 +69,29 @@ jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' 
 let mockTier: 'free' | 'pro' = 'pro';
 jest.mock('@/contexts/SubscriptionContext', () => ({ useSubscription: () => ({ tier: mockTier }) }));
 let mockSeeds: unknown[] = [];
-jest.mock('@/hooks/useCostSeeds', () => ({ useCostSeeds: () => ({ seeds: mockSeeds, isLoading: false }) }));
-let mockContracts: { data: string[] | undefined; isError: boolean; isFetching: boolean } = { data: [], isError: false, isFetching: false };
+const mockSeedsRead = jest.fn();
+jest.mock('@/hooks/useCostSeeds', () => ({ useCostSeeds: () => { mockSeedsRead(); return { seeds: mockSeeds, isLoading: false }; } }));
+let mockContracts: {
+  data: string[] | undefined; isError: boolean; isFetching: boolean; dataUpdatedAt?: number; errorUpdatedAt?: number;
+} = { data: [], isError: false, isFetching: false };
 const mockUseQuery = jest.fn();
+const mockRefetch = jest.fn(async (_o?: unknown) => {});
 jest.mock('@tanstack/react-query', () => ({
-  useQuery: (o: { enabled: boolean }) => { mockUseQuery(o.enabled); return { ...mockContracts, dataUpdatedAt: 0, refetch: async () => {} }; },
+  useQuery: (o: { enabled: boolean }) => {
+    mockUseQuery(o.enabled);
+    return { dataUpdatedAt: 0, errorUpdatedAt: 0, ...mockContracts, refetch: (a?: unknown) => mockRefetch(a) };
+  },
 }));
 jest.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,
   supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }) } },
 }));
 const mockStore = new Map<string, string>();
+const mockStorageRead = jest.fn();
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
-    getItem: async (k: string) => mockStore.get(k) ?? null,
+    getItem: async (k: string) => { mockStorageRead(k); return mockStore.get(k) ?? null; },
     setItem: async (k: string, v: string) => { mockStore.set(k, v); },
     removeItem: async (k: string) => { mockStore.delete(k); },
   },
@@ -95,7 +104,8 @@ jest.mock('@/utils/analytics', () => {
   const actual = jest.requireActual('@/utils/analytics');
   return { ...actual, track: (...a: unknown[]) => mockTrack(...a) };
 });
-jest.mock('@/utils/aiRateLimiter', () => ({ getFreeTrialsRemaining: async () => 2 }));
+const mockTrialsRead = jest.fn();
+jest.mock('@/utils/aiRateLimiter', () => ({ getFreeTrialsRemaining: async () => { mockTrialsRead(); return 2; } }));
 let mockFlag = true;
 jest.mock('@/constants/featureFlags', () => {
   const actual = jest.requireActual('@/constants/featureFlags');
@@ -110,8 +120,7 @@ jest.mock('expo-haptics', () => ({
 }));
 
 /* eslint-disable import/first */
-import { FirstJobPath } from '@/components/FirstJobPath';
-import type { OnboardingChecklistProps } from '@/components/OnboardingChecklist';
+import { FirstJobPath, type FirstJobPathProps } from '@/components/FirstJobPath';
 import { resetBudget } from '@/components/motion/kit';
 import { firstJobSentKey, firstJobStateKey, serializeStored, EMPTY_STORED, type FirstJobStored } from '@/utils/firstJobPath';
 import { markEstimateSent } from '@/utils/firstJobStore';
@@ -120,14 +129,14 @@ import { markEstimateSent } from '@/utils/firstJobStore';
 const advance = (ms: number) => { for (let left = ms; left > 0; left -= 16) act(() => { jest.advanceTimersByTime(Math.min(16, left)); }); };
 const flush = async () => { await act(async () => { for (let k = 0; k < 12; k++) await Promise.resolve(); }); };
 
-const BASE: OnboardingChecklistProps = {
+const BASE: FirstJobPathProps = {
   companyInfoDone: false, projectCount: 0, estimateCount: 0, stripeConnected: false, invoiceCount: 0, triedWowFeature: false,
 };
 const REAL_JOB: MockProject = { id: 'p1', name: 'Kitchen', ownerUserId: 'u1', updatedAt: '2026-10-01T00:00:00Z', estimate: null };
 const save = (s: Partial<FirstJobStored>) => mockStore.set(firstJobStateKey('u1'), serializeStored({ ...EMPTY_STORED, ...s }));
 const saved = (): FirstJobStored => JSON.parse(mockStore.get(firstJobStateKey('u1')) ?? 'null');
 
-async function mount(p: Partial<OnboardingChecklistProps> = {}) {
+async function mount(p: Partial<FirstJobPathProps> = {}) {
   const r = render(<FirstJobPath {...BASE} {...p} />);
   await flush();
   advance(400);
@@ -135,12 +144,22 @@ async function mount(p: Partial<OnboardingChecklistProps> = {}) {
 }
 /** The card is memoised on its props; a changed prop makes it read the stood-in contexts again. */
 let bump = false;
-async function again(r: ReturnType<typeof render>, p: Partial<OnboardingChecklistProps> = {}) {
+async function again(r: ReturnType<typeof render>, p: Partial<FirstJobPathProps> = {}) {
   bump = !bump;
   r.rerender(<FirstJobPath {...BASE} {...p} stripeCheckFailed={bump} />);
   await flush();
   advance(400);
 }
+/** Home going out of view, or coming back into it. */
+async function focusHome(focused: boolean) {
+  mockFocused = focused;
+  act(() => { mockFocusListeners.forEach((l) => l()); });
+  await flush();
+  advance(50);
+}
+/** Every read the card can make, counted: prices, the AI count, device storage, the proposal read and its re-ask. */
+const readsMade = () => mockSeedsRead.mock.calls.length + mockTrialsRead.mock.calls.length
+  + mockStorageRead.mock.calls.length + mockUseQuery.mock.calls.length + mockRefetch.mock.calls.length;
 const eventsNamed = (name: string) => mockTrack.mock.calls.filter((c) => c[0] === name).map((c) => c[1]);
 
 beforeEach(() => {
@@ -156,6 +175,10 @@ beforeEach(() => {
   mockTrack.mockClear();
   mockStartTutorial.mockClear();
   mockUseQuery.mockClear();
+  mockRefetch.mockClear();
+  mockSeedsRead.mockClear();
+  mockTrialsRead.mockClear();
+  mockStorageRead.mockClear();
   mockCtx = {
     projects: [], userRole: 'contractor', settings: { branding: { companyName: '' } }, dailyReports: [],
     projectsLoaded: true, settingsLoaded: true, invoicesLoaded: true, dailyReportsLoaded: true,
@@ -316,13 +339,60 @@ describe('S3 done only from real data', () => {
     const r = await mount({ projectCount: 1, estimateCount: 1 });
     expect(r.getByTestId('first-job-node-send-todo')).toBeTruthy();
     // A share on a sample job writes nothing.
-    await act(async () => { await markEstimateSent("Sample — Sarah's Place"); });
+    await act(async () => { await markEstimateSent({ name: "Sample — Sarah's Place", ownerUserId: 'u1' }); });
     expect(mockStore.has(firstJobSentKey('u1'))).toBe(false);
     // A real share does, and Home sees it.
-    await act(async () => { await markEstimateSent('Kitchen'); });
+    await act(async () => { await markEstimateSent({ name: 'Kitchen', ownerUserId: 'u1' }); });
     await again(r, { projectCount: 1, estimateCount: 1 });
     expect(mockStore.has(firstJobSentKey('u1'))).toBe(true);
     expect(r.getByTestId('first-job-node-send-done')).toBeTruthy();
+  });
+
+  it('sharing an estimate from a job another contractor shared with him does not tick Send', async () => {
+    save({ answer: 'unsure' });
+    const theirs: MockProject = { id: 'g1', name: 'Their Job', ownerUserId: 'someone-else', myRole: 'editor', estimate: { materials: [1] } };
+    mockCtx = { ...mockCtx, projects: [{ ...REAL_JOB, estimate: { materials: [1] } }, theirs] };
+    const r = await mount({ projectCount: 1, estimateCount: 1 });
+    await act(async () => { await markEstimateSent(theirs); });
+    await again(r, { projectCount: 1, estimateCount: 1 });
+    expect(mockStore.has(firstJobSentKey('u1'))).toBe(false);
+    expect(r.getByTestId('first-job-node-send-todo')).toBeTruthy();
+    // The estimate he built on this phone, with no project attached, is his own.
+    await act(async () => { await markEstimateSent(null); });
+    await again(r, { projectCount: 1, estimateCount: 1 });
+    expect(r.getByTestId('first-job-node-send-done')).toBeTruthy();
+  });
+
+  it('"Create The Project First" opens Home\'s own sheet, on every tap, and pushes nothing', async () => {
+    save({ answer: 'schedule' });
+    const onStartCreate = jest.fn();
+    const r = await mount({ onStartCreate });
+    fireEvent.press(r.getByTestId('first-job-step-schedule-go'));
+    fireEvent.press(r.getByTestId('first-job-step-schedule-go'));
+    expect(onStartCreate).toHaveBeenCalledTimes(2);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(r.getByTestId('first-job-node-schedule-todo')).toBeTruthy();
+  });
+
+  it('a failed proposal read is not asked again on every return to Home', async () => {
+    save({ answer: 'unsure' });
+    mockCtx = { ...mockCtx, projects: [REAL_JOB] };
+    // Failed a moment ago: coming back to Home leaves it alone.
+    mockContracts = { data: undefined, isError: true, isFetching: false, errorUpdatedAt: Date.now() };
+    const r = await mount({ projectCount: 1 });
+    await focusHome(false);
+    await focusHome(true);
+    expect(mockRefetch).not.toHaveBeenCalled();
+    // One on its way is never restarted.
+    mockContracts = { data: undefined, isError: false, isFetching: true };
+    await again(r, { projectCount: 1 });
+    await focusHome(false);
+    await focusHome(true);
+    expect(mockRefetch).not.toHaveBeenCalled();
+    // Failed more than a minute ago: asked once more, without cancelling anything.
+    mockContracts = { data: undefined, isError: true, isFetching: false, errorUpdatedAt: Date.now() - 61_000 };
+    await again(r, { projectCount: 1 });
+    expect(mockRefetch).toHaveBeenCalledWith({ cancelRefetch: false });
   });
 
   it('a proposal read that failed says "Checking", not done and not undone', async () => {
@@ -435,6 +505,57 @@ describe('S5 the finish state', () => {
     const next = await mount({ projectCount: 1, estimateCount: 1, invoiceCount: 1 });
     expect(next.toJSON()).toBeNull();
     expect(eventsNamed('first_job_finished')).toHaveLength(1);
+  });
+
+  it('the finish card is gone for good once Home goes out of view', async () => {
+    save({ answer: 'unsure' });
+    allDone();
+    const r = await mount({ projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(r.getByTestId('first-job-finish')).toBeTruthy();
+    await focusHome(false);
+    expect(r.toJSON()).toBeNull();
+    await focusHome(true);
+    expect(r.toJSON()).toBeNull();
+    expect(eventsNamed('first_job_finished')).toHaveLength(1);
+    // And from then on it reads nothing, however often Home comes back.
+    const before = readsMade();
+    await focusHome(false);
+    await focusHome(true);
+    await again(r, { projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(readsMade()).toBe(before);
+  });
+
+  it('a card finished on an earlier visit mounts no query and reads nothing but its own saved state', async () => {
+    save({ answer: 'unsure', finishShown: true });
+    allDone();
+    const r = await mount({ projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(r.toJSON()).toBeNull();
+    expect(mockUseQuery).not.toHaveBeenCalled();
+    expect(mockSeedsRead).not.toHaveBeenCalled();
+    expect(mockTrialsRead).not.toHaveBeenCalled();
+    expect(mockStorageRead.mock.calls.map((c) => c[0])).toEqual([firstJobStateKey('u1')]);
+    await focusHome(false);
+    await focusHome(true);
+    await again(r, { projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(mockUseQuery).not.toHaveBeenCalled();
+    expect(mockStorageRead).toHaveBeenCalledTimes(1);
+    // Even if a step is later undone, a finished card does not come back.
+    mockCtx = { ...mockCtx, dailyReports: [] };
+    await again(r, { projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(r.toJSON()).toBeNull();
+  });
+
+  it('an established account is looked at once, then nothing more is read for it', async () => {
+    allDone();
+    mockTier = 'free';
+    const r = await mount({ projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(r.toJSON()).toBeNull();
+    const before = readsMade();
+    await focusHome(false);
+    await focusHome(true);
+    await again(r, { projectCount: 1, estimateCount: 1, invoiceCount: 1 });
+    expect(readsMade()).toBe(before);
+    expect(mockUseQuery.mock.calls.every((c) => c[0] === false)).toBe(true);
   });
 
   it('done or skipped is enough to finish', async () => {

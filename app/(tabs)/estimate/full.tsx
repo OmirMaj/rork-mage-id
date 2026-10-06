@@ -1350,8 +1350,13 @@ export default function EstimateScreen() {
       const pdfMissing = !pdfUri || (result.attachmentsDropped ?? 0) > 0;
 
       if (result.success) {
-        // Your First Job: an emailed estimate leaves nothing saved, so it leaves a local mark.
-        void markEstimateSent();
+        // Your First Job: an emailed estimate leaves nothing saved, so it leaves
+        // a local mark. Opened from a job, the mark is for THAT job, and
+        // markEstimateSent writes it only if he owns it and it is not a
+        // sample; with no job chosen it is the estimate he built here (null).
+        // A chosen job that is no longer in his list counts for nothing.
+        const sharedFrom = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) : null;
+        if (sharedFrom !== undefined) void markEstimateSent(sharedFrom);
         track(AnalyticsEvents.ESTIMATE_SHARED, {
           method: 'email',
           source: 'estimate_full',
@@ -1436,7 +1441,7 @@ export default function EstimateScreen() {
       console.error('[Estimate] PDF share error:', e);
       showAlert("Couldn't create the PDF", pdfFailureMessage(e, "The PDF couldn't be created. Try again."));
     }
-  }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, bulkSavingsForPdf]);
+  }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, bulkSavingsForPdf, selectedProjectId, projects]);
 
   const handleShareEmail = useCallback(() => {
     // SELL BASIS ONLY (#55). This draft is addressed to the homeowner, and it

@@ -32,6 +32,7 @@ import type { TutorialDefs, TutorialId, TutorialPersona, TutorialProgress } from
 import { TUTORIAL_DEFS } from '@/utils/tutorial/defs';
 import { tutorialsForUser } from '@/utils/tutorial/offers';
 import { missingTierFor } from '@/utils/tutorial/entryPoints';
+import { countsTowardFreeCap } from '@/utils/projectCap';
 
 // ── Steps, stages, answers ──────────────────────────────────────────────────
 
@@ -182,6 +183,29 @@ export function doneCount(signals: FirstJobSignals): number {
   let n = 0;
   for (const id of USUAL_ORDER) if (signals[id] === true) n += 1;
   return n;
+}
+
+// ── Whose share counts ──────────────────────────────────────────────────────
+
+/** The two fields of a project that say whose it is and whether it is a sample. */
+export interface FirstJobSharedProject { name: string; ownerUserId?: string }
+
+/**
+ * Does a share that just succeeded count as "Send It To Your Client" for
+ * `userId`? Only for his own work: a project he owns that is not a sample
+ * (utils/projectCap.countsTowardFreeCap, the same test every other step's
+ * count uses), or `null`, which means the estimate he built on this phone
+ * with no project attached. An estimate shared from a job another contractor
+ * invited him to is that contractor's work and ticks nothing. Nobody signed
+ * in: nothing.
+ */
+export function estimateSentCounts(
+  project: FirstJobSharedProject | null,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  if (project === null) return true;
+  return countsTowardFreeCap(project, userId);
 }
 
 // ── What the card remembers ─────────────────────────────────────────────────
@@ -372,6 +396,18 @@ export function buildView(stored: FirstJobStored, signals: FirstJobSignals, opts
   });
 
   return { kind: 'path', steps, openId, nextId, done, total, filled, stages };
+}
+
+/**
+ * The card can never be shown again on this visit of the app: the finish state
+ * has been seen, the account is established, or the path was finished while
+ * hidden. The mounted card stops ALL of its work on this (no price read, no
+ * storage read, no proposal read). "loading" is not on the list (the answer is
+ * still coming) and neither is "removed" (the card never mounts for it).
+ */
+export function viewRetiresCard(view: FirstJobView): boolean {
+  return view.kind === 'none'
+    && (view.reason === 'finished' || view.reason === 'established' || view.reason === 'hidden-complete');
 }
 
 /**

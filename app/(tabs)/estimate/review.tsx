@@ -312,8 +312,10 @@ export default function EstimateReviewScreen() {
       source: 'estimate_review',
       grand_total: clientView?.projectTotal ?? 0,
     });
-    // Your First Job: a copied proposal link leaves nothing saved, so it leaves a local mark.
-    void markEstimateSent();
+    // Your First Job: a copied proposal link leaves nothing saved, so it leaves
+    // a local mark. This screen prices the estimate he built on this phone;
+    // it has no project attached (null).
+    void markEstimateSent(null);
     return { url, copied };
   }, [clientView, settings]);
 

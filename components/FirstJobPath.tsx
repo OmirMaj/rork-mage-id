@@ -52,6 +52,7 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 import {
   USUAL_ORDER, STEP_META, answerQuestion, audienceFor, buildView, freshlyDone, hidePath, isOutOfOrder,
   markFinishShown, orderFor, removePath, showMeFor, showPath, skipStep, stepCost, stepTarget, unskipStep,
+  viewRetiresCard,
   type FirstJobAnswer, type FirstJobCost, type FirstJobFinishStage, type FirstJobPlan, type FirstJobStepId,
   type FirstJobStored, type FirstJobTarget,
 } from '@/utils/firstJobPath';
@@ -103,14 +104,20 @@ interface CardProps {
   estimateCount: number;
   invoiceCount: number;
   realProjectCount: number;
+  /** Home's own "new project" sheet. Without it the button falls back to the route. */
+  onStartCreate?: () => void;
 }
 
 type Commit = (change: (s: FirstJobStored) => FirstJobStored) => void;
 
 /**
- * Reads what the card remembers, then mounts the path. A card he removed
- * mounts nothing at all: no data is read for it and nothing is asked of the
- * network.
+ * Reads what the card remembers, then mounts the path. A card that can never
+ * show again mounts NOTHING: no data is read for it and nothing is asked of
+ * the network, however often Home comes back into view. That is a card he
+ * removed, a card whose finish state has been seen (read from storage, or
+ * seen and left during this visit), and an account the body found to be
+ * established (`retired`, kept for as long as Home stays mounted; the next
+ * launch looks once and retires again).
  */
 function FirstJobPathCard(props: CardProps) {
   const { user } = useAuth();
@@ -119,15 +126,20 @@ function FirstJobPathCard(props: CardProps) {
   // ── What the card remembers (per user, on this device) ──
   const [stored, setStored] = useState<FirstJobStored | null>(null);
   const storedRef = useRef<FirstJobStored | null>(null);
+  const [retired, setRetired] = useState(false);
+  const retire = useCallback(() => setRetired(true), []);
   useEffect(() => {
     let cancelled = false;
     storedRef.current = null;
     setStored(null);
+    setRetired(false);
     if (!userId) return;
     void loadFirstJobState(userId).then((s) => {
       if (cancelled) return;
       storedRef.current = s;
       setStored(s);
+      // The finish state was seen on an earlier visit: gone for good.
+      if (s.finishShown) setRetired(true);
     });
     return () => { cancelled = true; };
   }, [userId]);
@@ -141,14 +153,18 @@ function FirstJobPathCard(props: CardProps) {
     void saveFirstJobState(userId, next);
   }, [userId]);
 
-  if (!stored || stored.removed) return null;
-  return <FirstJobPathBody {...props} stored={stored} storedRef={storedRef} commit={commit} />;
+  if (!stored || stored.removed || retired) return null;
+  return <FirstJobPathBody {...props} stored={stored} storedRef={storedRef} commit={commit} onRetire={retire} />;
 }
 
-function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, stored, storedRef, commit }: CardProps & {
+function FirstJobPathBody({
+  estimateCount, invoiceCount, realProjectCount, onStartCreate, stored, storedRef, commit, onRetire,
+}: CardProps & {
   stored: FirstJobStored;
   storedRef: React.MutableRefObject<FirstJobStored | null>;
   commit: Commit;
+  /** The card can never show again: the parent unmounts this body and all its reads stop. */
+  onRetire: () => void;
 }) {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
@@ -182,7 +198,6 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
 
   const [selected, setSelected] = useState<FirstJobStepId | null>(null);
   const [finishLive, setFinishLive] = useState(false);
-  const [finishClosed, setFinishClosed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [quiet, setQuiet] = useState<Quiet>(null);
 
@@ -190,6 +205,11 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     () => buildView(stored, signals, { selected, finishLive }),
     [stored, signals, selected, finishLive],
   );
+
+  // An established account, or a path finished while hidden: nothing will
+  // ever be drawn, so stop reading for it.
+  const retires = viewRetiresCard(view);
+  useEffect(() => { if (retires) onRetire(); }, [retires, onRetire]);
 
   // ── Seen on focus: a step ticks when Home is on screen and sees it done for
   // the first time. Steps already done when the card first read them never
@@ -231,10 +251,15 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     }
   }, [signals, stored, storedRef]));
   const tickBeats = beatSchedule(ticks.keys.length, reduce);
+  // A tick plays once. When Home goes out of view the played ticks are
+  // dropped, and Hide drops them too, so a row drawn again later (the card
+  // reopened) is drawn already ticked and does not replay the check.
+  const clearTicks = useCallback(() => setTicks((t) => (t.keys.length === 0 ? t : { keys: [], gen: t.gen })), []);
+  useFocusEffect(useCallback(() => clearTicks, [clearTicks]));
 
   // ── The card arrives once, quietly ──
   const enter = useState(() => new Animated.Value(0))[0];
-  const shown = view.kind !== 'none' && !(view.kind === 'finish' && finishClosed);
+  const shown = view.kind !== 'none';
   useEffect(() => {
     if (!shown) return;
     if (reduce) { enter.setValue(1); return; }
@@ -255,7 +280,9 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     track(AnalyticsEvents.FIRST_JOB_STEP_OPENED, { step: openId, position: openPosition, by: selected === openId ? 'tap' : 'auto' });
   }, [openId, openPosition, selected]);
 
-  // ── Finish: shown once. It stays up for this visit, then it is gone. ──
+  // ── Finish: shown once. It stays up while he is looking at Home; the
+  // moment Home goes out of view (or he closes it) the card is retired, and
+  // finishShown in storage keeps it retired on every later visit. ──
   const finishDone = view.kind === 'finish' ? view.done : 0;
   const finishSkipped = view.kind === 'finish' ? view.skipped : 0;
   const atFinish = view.kind === 'finish';
@@ -265,6 +292,10 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     commit(markFinishShown);
     track(AnalyticsEvents.FIRST_JOB_FINISHED, { done_count: finishDone, skipped_count: finishSkipped });
   }, [atFinish, finishLive, commit, finishDone, finishSkipped]);
+  useFocusEffect(useCallback(() => {
+    if (!finishLive) return;
+    return () => onRetire();
+  }, [finishLive, onRetire]));
 
   // ── Show Me First ──
   const openShowMe = useMemo(() => (openId ? showMeFor(openId, {
@@ -319,9 +350,10 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     tap();
     layoutNext();
     setMenuOpen(false);
+    clearTicks();
     commit(hidePath);
     track(AnalyticsEvents.FIRST_JOB_HIDDEN, { done_count: done });
-  }, [commit, tap]);
+  }, [commit, tap, clearTicks]);
 
   const onReopen = useCallback((done: number) => {
     tap();
@@ -342,6 +374,13 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
     tap();
     router.push(href);
   }, [router, tap]);
+  // The card is ON Home, so "Create The Project First" asks Home to open its
+  // own sheet. Pushing /?openCreate=1 from Home onto Home relied on a
+  // once-only guard there and could do nothing on the second tap.
+  const goTarget = useCallback((target: FirstJobTarget) => {
+    if (target.to === 'createProject' && onStartCreate) { tap(); onStartCreate(); return; }
+    go(hrefFor(target));
+  }, [go, onStartCreate, tap]);
 
   const onShowMe = useCallback(() => {
     if (openShowMe?.kind !== 'offer') return;
@@ -350,7 +389,6 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
   }, [openShowMe, tap]);
 
   if (view.kind === 'none') return null;
-  if (view.kind === 'finish' && finishClosed) return null;
 
   if (view.kind === 'hidden') {
     return <HiddenRow done={view.done} total={view.total} copy={copy} onOpen={() => onReopen(view.done)} />;
@@ -361,7 +399,7 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
   if (view.kind === 'finish') {
     return (
       <Animated.View style={[styles.card, rise]} testID="first-job-card">
-        <FinishView copy={copy} onStage={(s) => go(STAGE_HOME[s])} onClose={() => { tap(); layoutNext(); setFinishClosed(true); }} />
+        <FinishView copy={copy} onStage={(s) => go(STAGE_HOME[s])} onClose={() => { tap(); layoutNext(); onRetire(); }} />
       </Animated.View>
     );
   }
@@ -494,7 +532,7 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
               showMe={step.open && openShowMe ? openShowMe.kind : null}
               showStripe={step.open && step.id === 'invoice'}
               onToggle={() => onToggle(step.id)}
-              onPrimary={() => go(hrefFor(target))}
+              onPrimary={() => goTarget(target)}
               onSkip={() => onSkip(step.id, step.position)}
               onShowMe={onShowMe}
               onStripe={() => go('/payments-setup')}
@@ -511,7 +549,12 @@ function FirstJobPathBody({ estimateCount, invoiceCount, realProjectCount, store
  * card's props, so Home's edit is one swap, and it decides who sees what:
  * the path, the old card, or nothing.
  */
-function FirstJobPathImpl(props: OnboardingChecklistProps) {
+export interface FirstJobPathProps extends OnboardingChecklistProps {
+  /** Opens Home's own "new project" sheet (the card sits on Home). */
+  onStartCreate?: () => void;
+}
+
+function FirstJobPathImpl({ onStartCreate, ...props }: FirstJobPathProps) {
   const { projects, userRole } = useProjects();
   const { user } = useAuth();
   const fieldOnly = useMemo(() => isFieldOnlyUser(projects, user?.id ?? null), [projects, user?.id]);
@@ -523,6 +566,7 @@ function FirstJobPathImpl(props: OnboardingChecklistProps) {
       estimateCount={props.estimateCount}
       invoiceCount={props.invoiceCount}
       realProjectCount={props.projectCount}
+      onStartCreate={onStartCreate}
     />
   );
 }

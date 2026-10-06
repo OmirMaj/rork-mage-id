@@ -14,6 +14,10 @@
 //    - Hide collapses to the one row, Remove is for good, the finish state
 //      shows once, and an account that already did most of it never sees the
 //      card;
+//    - whose share counts as "sent": a job he owns that is not a sample, or the
+//      estimate built on this phone; never a job someone else shared with him;
+//    - which views retire the card for good (finished, established, finished
+//      while hidden), so the mounted card stops every read;
 //    - Stripe is not a step;
 //    - "Show Me First" exists only where a guided tutorial exists;
 //    - a paid step says its plan before the tap;
@@ -26,6 +30,13 @@
 //    icons only, the tier gate through hooks/useTierAccess, every analytics
 //    event fired with no personal data, Home mounts the new card with the old
 //    card's props, the old card is still reachable, the kill switch is on.
+//
+//    Also: the "sent" mark has one writer and it asks the ownership rule
+//    first; the callers of markEstimateSent are found by reading the tree and
+//    must be exactly the three shares, each naming what it shared; a retired
+//    card mounts no body; the finish card goes when Home goes out of view;
+//    the Create button opens Home's own sheet; the proposal read is throttled
+//    on the last answer of either kind and asks for his own rows.
 //
 // C. THE WORDS (the English shard and the Spanish catalog): labels with every
 //    word capitalised, sentences that end, no em dash, no "&", no "e.g.", no
@@ -42,7 +53,7 @@
 // Pure node:fs + pure modules; no react-native import (those crash bun).
 // fileURLToPath + join because the repo path contains a space.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as REAL from '../utils/firstJobPath';
@@ -70,6 +81,9 @@ const F = {
   copy: 'hooks/useFirstJobCopy.ts',
   signals: 'hooks/useFirstJobSignals.ts',
   home: 'app/(tabs)/(home)/index.tsx',
+  detail: 'app/project-detail.tsx',
+  estFull: 'app/(tabs)/estimate/full.tsx',
+  estReview: 'app/(tabs)/estimate/review.tsx',
   flags: 'constants/featureFlags.ts',
   analytics: 'utils/analytics.ts',
   old: 'components/OnboardingChecklist.tsx',
@@ -80,6 +94,25 @@ type Files = Record<FileKey, string>;
 
 const REAL_FILES = Object.fromEntries((Object.keys(F) as FileKey[]).map((k) => [k, read(F[k])])) as Files;
 const ES_REAL: Words = Object.fromEntries(Object.entries(ES_OFFICE_FIRST_JOB).map(([k, v]) => [k, (v as { s: Words[string] }).s]));
+
+/** Every app source file that CALLS markEstimateSent (found by reading the tree, not from a list). */
+function sentMarkCallers(): string[] {
+  const hits: string[] = [];
+  const walk = (rel: string) => {
+    for (const e of readdirSync(join(ROOT, rel), { withFileTypes: true })) {
+      const next = `${rel}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(next); continue; }
+      if (!/\.tsx?$/.test(e.name) || next === F.store) continue;
+      if (/\bmarkEstimateSent\(/.test(code(read(next)))) hits.push(next);
+    }
+  };
+  for (const top of ['app', 'components', 'hooks', 'utils', 'contexts', 'lib']) walk(top);
+  return hits.sort();
+}
+/** The argument text of every markEstimateSent(...) call in a source. */
+function sentMarkArgs(src: string): string[] {
+  return [...code(src).matchAll(/\bmarkEstimateSent\(([^)]*)\)/g)].map((m) => m[1].trim());
+}
 
 /** Source with comments removed, so a rule reads code and not the prose around it. */
 function code(src: string): string {
@@ -114,6 +147,34 @@ function ruleChecks(core: Core): Check[] {
   const out: Check[] = [];
   const ok = (rule: string, name: string, pass: boolean, detail = '') => out.push({ rule, name, pass, detail });
   const safe = <T,>(fn: () => T, fallback: T): T => { try { return fn(); } catch { return fallback; } };
+
+  // whose share counts (behaviour)
+  const mine = { name: 'Kitchen', ownerUserId: 'u1' };
+  ok('own-work', 'a share from a job he owns counts', core.estimateSentCounts(mine, 'u1') === true);
+  ok('own-work', 'a job made on this phone and not yet synced (no owner saved) is his', core.estimateSentCounts({ name: 'Kitchen' }, 'u1') === true);
+  ok('own-work', 'a share from a job another contractor shared with him does not count',
+    core.estimateSentCounts({ name: 'Their Job', ownerUserId: 'someone-else' }, 'u1') === false);
+  ok('own-work', 'a share from a sample job does not count, his own or not',
+    core.estimateSentCounts({ name: 'Sample — Sarah\'s Place', ownerUserId: 'u1' }, 'u1') === false
+    && core.estimateSentCounts({ name: 'Sample — Sarah\'s Place' }, 'u1') === false);
+  ok('own-work', 'the estimate built on this phone with no project counts', core.estimateSentCounts(null, 'u1') === true);
+  ok('own-work', 'nobody signed in: nothing counts',
+    core.estimateSentCounts(mine, null) === false && core.estimateSentCounts(null, undefined) === false && core.estimateSentCounts(null, '') === false);
+  // which views retire the card (behaviour)
+  const NONE = (reason: string) => ({ kind: 'none', reason }) as REAL.FirstJobView;
+  ok('retire', 'finished, established and finished-while-hidden retire the card',
+    ['finished', 'established', 'hidden-complete'].every((r) => core.viewRetiresCard(NONE(r)) === true));
+  ok('retire', 'a card that is still loading, or drawn, is not retired',
+    core.viewRetiresCard(NONE('loading')) === false
+    && core.viewRetiresCard({ kind: 'question', done: 0, total: 7 }) === false
+    && core.viewRetiresCard({ kind: 'hidden', done: 1, total: 7 }) === false
+    && core.viewRetiresCard({ kind: 'finish', done: 7, skipped: 0, total: 7 }) === false);
+  ok('retire', 'the views the rules really build retire as said',
+    core.viewRetiresCard(core.buildView(stored({ answer: 'unsure', finishShown: true }), sig(STEPS))) === true
+    && core.viewRetiresCard(core.buildView(stored(), sig(STEPS))) === true
+    && core.viewRetiresCard(core.buildView(stored({ answer: 'unsure', hidden: true }), sig(STEPS))) === true
+    && core.viewRetiresCard(core.buildView(stored({ answer: 'unsure' }), sig(STEPS))) === false
+    && core.viewRetiresCard(core.buildView(stored({ answer: 'unsure' }), sig(['company']))) === false);
 
   // ordering
   ok('order', 'the usual order is the seven steps of a real job', core.USUAL_ORDER.join() === STEPS.join());
@@ -393,19 +454,72 @@ function wiringChecks(files: Files): Check[] {
     && /signalsFromData\(\{/.test(signals));
   ok('data-only', 'sample jobs and shared jobs are left out (the same set the free-plan cap counts)',
     /projects\.filter\(\(p\) => countsTowardFreeCap\(p, userId\)\)/.test(signals));
-  ok('data-only', 'the "sent" mark is never written for a sample job',
-    /if \(projectName != null && isSampleProjectName\(projectName\)\) return;/.test(store));
+  // Whose share counts is a rule in the core (tested by behaviour in A); here:
+  // the one place that writes the mark asks that rule first, and every caller
+  // says what was shared.
+  const storeCode = code(store);
+  const markBody = storeCode.slice(storeCode.indexOf('export async function markEstimateSent('), storeCode.indexOf('export async function readEstimateSent('));
+  ok('own-work', 'the "sent" mark has one writer, and it asks estimateSentCounts before it writes',
+    (storeCode.match(/setItem\(firstJobSentKey\(/g) ?? []).length === 1
+    && /^export async function markEstimateSent\(project: FirstJobSharedProject \| null\)/.test(markBody)
+    && markBody.indexOf('if (!userId || !estimateSentCounts(project, userId)) return;') > 0
+    && markBody.indexOf('if (!userId || !estimateSentCounts(project, userId)) return;') < markBody.indexOf('setItem(firstJobSentKey('));
+  const callers = sentMarkCallers();
+  ok('own-work', 'the mark is written from exactly the three shares (a new caller must be added here with its ownership proof)',
+    callers.join() === [F.estFull, F.estReview, F.detail].sort().join(), callers.join());
+  const argsOf = { detail: sentMarkArgs(files.detail), estFull: sentMarkArgs(files.estFull), estReview: sentMarkArgs(files.estReview) };
+  ok('own-work', 'no share writes the mark without saying what was shared',
+    Object.values(argsOf).every((a) => a.length === 1 && a[0] !== ''), JSON.stringify(argsOf));
+  ok('own-work', 'the project page hands over the project it shared, so a job shared with him or a sample writes nothing',
+    argsOf.detail.join() === 'project');
+  ok('own-work', 'the emailed estimate hands over the job it was opened from; a job no longer in his list counts for nothing',
+    argsOf.estFull.join() === 'sharedFrom'
+    && /const sharedFrom = selectedProjectId \? projects\.find\(\(p\) => p\.id === selectedProjectId\) : null;\s*if \(sharedFrom !== undefined\) void markEstimateSent\(sharedFrom\);/.test(code(files.estFull)));
+  ok('own-work', 'the copied proposal link is the estimate built on this phone (no project), and the screen knows no project',
+    argsOf.estReview.join() === 'null' && !/useLocalSearchParams|selectedProjectId/.test(code(files.estReview)));
   ok('data-only', 'a failed proposal read throws (so it is "could not check", not "none")',
     /if \(error\) throw new Error\(error\.message\);/.test(store) && /contractsQ\.isError && !contractsQ\.isFetching \? 'failed'/.test(signals));
   ok('quiet', 'the proposal read waits until he is on the path, and is re-asked at most once a minute',
     /active: stored\.answer !== null,/.test(card)
     && /const contractsEnabled = a\.active && !!userId && projectsLoaded && real\.length > 0 && !sentElsewhere;/.test(signals)
-    && /if \(contractsEnabled && Date\.now\(\) - \(contractsAt \|\| 0\) > SENT_RECHECK_MS\) void refetchContracts\(\);/.test(signals));
+    && /const contractsAt = Math\.max\(contractsQ\.dataUpdatedAt \|\| 0, contractsQ\.errorUpdatedAt \|\| 0\);/.test(signals)
+    && /if \(Date\.now\(\) - contractsAt > SENT_RECHECK_MS\) void refetchContracts\(/.test(signals));
+  ok('quiet', 'a proposal read that failed is not asked again on every return to Home, and one on its way is never restarted',
+    /if \(!contractsEnabled \|\| contractsFetching\) return;/.test(signals)
+    && /void refetchContracts\(\{ cancelRefetch: false \}\);/.test(signals));
+  ok('quiet', 'the proposal read asks for his own rows by name, so other rows he can see cannot use up the limit',
+    /\.from\('project_contracts'\)\s*\.select\('project_id'\)\s*\.eq\('user_id', userId\)\s*\.in\('status', \['sent', 'signed'\]\)\s*\.limit\(200\)/.test(store)
+    && /queryFn: \(\) => fetchSentContractProjectIds\(userId as string\),/.test(signals));
   ok('data-only', 'practising a tutorial starts the tutorial and touches nothing else',
     /void startTutorial\(openShowMe\.tutorialId, \{ entry: 'checklist' \}\);/.test(card));
 
+  // Every hook that reads (prices, storage, the AI count, the proposal read)
+  // lives in the body or in the signals hook the body calls; the outer card
+  // holds none of them, so not mounting the body stops all of it.
+  const cardCode = code(card);
+  const outer = cardCode.slice(cardCode.indexOf('function FirstJobPathCard('), cardCode.indexOf('function FirstJobPathBody('));
   ok('remove', 'a removed card mounts nothing: no data is read and nothing is asked of the network',
-    /if \(!stored \|\| stored\.removed\) return null;\s*return <FirstJobPathBody /.test(card));
+    /if \(!stored \|\| stored\.removed \|\| retired\) return null;\s*return <FirstJobPathBody /.test(outer)
+    && !/useFirstJobSignals|useFocusEffect|useQuery|getFreeTrialsRemaining|useCostSeeds|useTierAccess/.test(outer));
+  ok('retire', 'a card that can never show again mounts nothing: finished on an earlier visit, established, or finished while hidden',
+    /if \(!stored \|\| stored\.removed \|\| retired\) return null;/.test(outer)
+    && /if \(s\.finishShown\) setRetired\(true\);/.test(outer)
+    && /const retires = viewRetiresCard\(view\);\s*useEffect\(\(\) => \{ if \(retires\) onRetire\(\); \}, \[retires, onRetire\]\);/.test(cardCode));
+  ok('retire', 'a different person signing in is looked at afresh',
+    /setStored\(null\);\s*setRetired\(false\);/.test(outer));
+  ok('finish', 'the finish state is retired when Home goes out of view, or when he closes it',
+    /useFocusEffect\(useCallback\(\(\) => \{\s*if \(!finishLive\) return;\s*return \(\) => onRetire\(\);\s*\}, \[finishLive, onRetire\]\)\);/.test(cardCode)
+    && /onClose=\{\(\) => \{ tap\(\); layoutNext\(\); onRetire\(\); \}\}/.test(cardCode));
+  ok('tick-once', 'played ticks are dropped when Home goes out of view and on Hide, so a reopened card does not replay them',
+    /useFocusEffect\(useCallback\(\(\) => clearTicks, \[clearTicks\]\)\);/.test(cardCode)
+    && /setMenuOpen\(false\);\s*clearTicks\(\);\s*commit\(hidePath\);/.test(cardCode));
+  ok('create', 'the card on Home opens Home\'s own create sheet; it does not push Home onto Home',
+    /if \(target\.to === 'createProject' && onStartCreate\) \{ tap\(\); onStartCreate\(\); return; \}/.test(cardCode)
+    && /onPrimary=\{\(\) => goTarget\(target\)\}/.test(cardCode)
+    && /const startCreateFromFirstJob = useCallback\(\(\) => startCreate\(null\), \[startCreate\]\);/.test(files.home)
+    && /onStartCreate=\{startCreateFromFirstJob\}/.test(files.home));
+  ok('create', 'Home\'s /?openCreate=1 guard is re-armed once the param is cleared, so the second one of a session still opens the sheet',
+    /if \(!openCreate\) \{ openCreateConsumed\.current = false; return; \}/.test(files.home));
 
   // storage
   ok('storage', 'the store builds its keys only from the two key functions',
@@ -623,7 +737,29 @@ const MUTATIONS: Mutation[] = [
   { name: 'the card writes the "sent" mark itself on a tap', rule: 'data-only', file: sub('card', "import { loadFirstJobState, saveFirstJobState } from '@/utils/firstJobStore';", "import { loadFirstJobState, saveFirstJobState, markEstimateSent } from '@/utils/firstJobStore';") },
   { name: 'the card overwrites a signal', rule: 'data-only', file: sub('card', '  const tickBeats =', '  signals.send = true;\n  const tickBeats =') },
   { name: 'sample jobs are counted', rule: 'data-only', file: sub('signals', 'projects.filter((p) => countsTowardFreeCap(p, userId))', 'projects.filter(() => true)') },
-  { name: 'the "sent" mark is written for a sample job', rule: 'data-only', file: sub('store', 'if (projectName != null && isSampleProjectName(projectName)) return;', '') },
+  // whose share counts
+  { name: 'a share from a job someone else owns counts', rule: 'own-work', core: withCore({ estimateSentCounts: (p, u) => !!u && (p === null || !p.name.startsWith('Sample — ')) }) },
+  { name: 'a share from a sample job counts', rule: 'own-work', core: withCore({ estimateSentCounts: (p, u) => !!u && (p === null || !p.ownerUserId || p.ownerUserId === u) }) },
+  { name: 'a share with nobody signed in counts', rule: 'own-work', core: (c) => ({ ...c, estimateSentCounts: (p, u) => c.estimateSentCounts(p, u ?? 'anyone') }) },
+  { name: 'the store writes the "sent" mark without asking whose work it was', rule: 'own-work', file: sub('store', 'if (!userId || !estimateSentCounts(project, userId)) return;', 'if (!userId) return;') },
+  { name: 'the project page shares with no project named', rule: 'own-work', file: sub('detail', 'void markEstimateSent(project);', 'void markEstimateSent(null);') },
+  { name: 'the emailed estimate forgets the job it was opened from', rule: 'own-work', file: sub('estFull', 'if (sharedFrom !== undefined) void markEstimateSent(sharedFrom);', 'void markEstimateSent(null);') },
+  { name: 'a share writes the mark with no argument', rule: 'own-work', file: sub('estReview', 'void markEstimateSent(null);', 'void markEstimateSent();') },
+  // retired / finish / create
+  { name: 'a finished card keeps its body (and every read) mounted', rule: 'retire', file: sub('card', 'if (!stored || stored.removed || retired) return null;', 'if (!stored || stored.removed) return null;') },
+  { name: 'a finish seen on an earlier visit is not retired on load', rule: 'retire', file: sub('card', '      if (s.finishShown) setRetired(true);\n', '') },
+  { name: 'an established account is never retired', rule: 'retire', core: withCore({ viewRetiresCard: () => false }) },
+  { name: 'a card that is only loading is retired', rule: 'retire', core: withCore({ viewRetiresCard: (v) => v.kind === 'none' }) },
+  { name: 'the next person on the phone inherits "retired"', rule: 'retire', file: sub('card', '    setRetired(false);\n', '') },
+  { name: 'the finish card stays up after Home goes out of view', rule: 'finish', file: sub('card', '    return () => onRetire();\n', '') },
+  { name: 'closing the finish card only hides it for this render', rule: 'finish', file: sub('card', 'onClose={() => { tap(); layoutNext(); onRetire(); }}', 'onClose={() => { tap(); layoutNext(); }}') },
+  { name: 'Hide keeps the played ticks', rule: 'tick-once', file: sub('card', '    clearTicks();\n    commit(hidePath);', '    commit(hidePath);') },
+  { name: 'the Create button pushes Home onto Home again', rule: 'create', file: sub('card', 'onPrimary={() => goTarget(target)}', 'onPrimary={() => go(hrefFor(target))}') },
+  { name: 'Home does not hand the card its create sheet', rule: 'create', file: sub('home', '      onStartCreate={startCreateFromFirstJob}\n', '') },
+  { name: 'the openCreate guard is never re-armed', rule: 'create', file: sub('home', 'if (!openCreate) { openCreateConsumed.current = false; return; }', 'if (!openCreate) return;') },
+  { name: 'the proposal read is throttled on the last success only', rule: 'quiet', file: sub('signals', 'Math.max(contractsQ.dataUpdatedAt || 0, contractsQ.errorUpdatedAt || 0)', 'contractsQ.dataUpdatedAt || 0') },
+  { name: 'a proposal read on its way is cancelled and restarted', rule: 'quiet', file: sub('signals', 'void refetchContracts({ cancelRefetch: false });', 'void refetchContracts();') },
+  { name: 'the proposal read is not limited to his own rows', rule: 'quiet', file: sub('store', "    .eq('user_id', userId)\n", '') },
   // unknown
   { name: 'a failed proposal read is shown as "not sent"', rule: 'unknown', core: (c) => ({ ...c, signalsFromData: (d) => { const s = c.signalsFromData(d); return { ...s, send: s.send ?? false }; } }) },
   { name: 'a failed proposal read is shown as sent', rule: 'unknown', core: (c) => ({ ...c, signalsFromData: (d) => { const s = c.signalsFromData(d); return { ...s, send: d.contractsRead === 'failed' ? true : s.send }; } }) },
@@ -640,7 +776,7 @@ const MUTATIONS: Mutation[] = [
   { name: 'a closed old card is forgotten', rule: 'hide', core: (c) => ({ ...c, parseStored: (raw) => c.parseStored(raw, false) }) },
   { name: 'saved junk is trusted', rule: 'hide', core: withCore({ parseStored: (raw) => { try { return { ...REAL.EMPTY_STORED, ...(JSON.parse(raw ?? '{}') as object) } as REAL.FirstJobStored; } catch { return REAL.EMPTY_STORED; } } }) },
   { name: 'Remove only hides', rule: 'remove', core: (c) => ({ ...c, buildView: (s, g, o = {}) => (s.removed ? c.buildView({ ...s, removed: false, hidden: true }, g, o) : c.buildView(s, g, o)) }) },
-  { name: 'a removed card still mounts and reads the account', rule: 'remove', file: sub('card', 'if (!stored || stored.removed) return null;', 'if (!stored) return null;') },
+  { name: 'a removed card still mounts and reads the account', rule: 'remove', file: sub('card', 'if (!stored || stored.removed || retired) return null;', 'if (!stored || retired) return null;') },
   { name: 'Remove is not saved', rule: 'remove', core: withCore({ removePath: (s) => ({ ...s, hidden: true }) }) },
   { name: 'reopening un-removes', rule: 'remove', core: withCore({ showPath: (s) => ({ ...s, hidden: false, removed: false }) }) },
   { name: 'the finish state comes back every visit', rule: 'finish', core: (c) => ({ ...c, buildView: (s, g, o = {}) => c.buildView({ ...s, finishShown: false }, g, o) }) },
