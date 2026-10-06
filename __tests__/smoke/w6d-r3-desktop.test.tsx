@@ -287,8 +287,8 @@ describe('lane R3 — the Deliveries register, desktop web 1512', () => {
       await desk(URL);
       await act(async () => { fireEvent.press(screen.getByTestId(`deliveries-register-table-row-${D_SOON}-check`)); });
       await pump(2);
-      await act(async () => { fireEvent.press(within(screen.getByTestId('deliveries-register-table-bulkbar')).getByText('Mark received')); });
-      expect(spy).toHaveBeenCalledWith('Mark received', 'Receive each load on its own — the damage question is asked for every delivery.');
+      await act(async () => { fireEvent.press(within(screen.getByTestId('deliveries-register-table-bulkbar')).getByText('Mark Received')); });
+      expect(spy).toHaveBeenCalledWith('Mark Received', 'Receive each load on its own. The damage question is asked for every delivery.');
       await act(async () => { fireEvent.press(screen.getByTestId(`receive-${D_LATE}`)); });
       await pump(2);
       expect(screen.getByTestId('receive-save')).toBeTruthy();

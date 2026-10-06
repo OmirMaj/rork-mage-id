@@ -44,18 +44,18 @@ export interface Osha300Row {
 
 export const OSHA_CLASS_LABEL: Record<OshaClassification, string> = {
   death: 'Death',
-  days_away: 'Days away from work',
-  restricted: 'Job transfer / restriction',
-  other: 'Other recordable case',
+  days_away: 'Days Away from Work',
+  restricted: 'Job Transfer / Restriction',
+  other: 'Other Recordable Case',
 };
 
 export const OSHA_ILLNESS_LABEL: Record<OshaIllnessType, string> = {
   injury: 'Injury',
-  skin: 'Skin disorder',
-  respiratory: 'Respiratory condition',
+  skin: 'Skin Disorder',
+  respiratory: 'Respiratory Condition',
   poisoning: 'Poisoning',
-  hearing: 'Hearing loss',
-  other_illness: 'All other illnesses',
+  hearing: 'Hearing Loss',
+  other_illness: 'All Other Illnesses',
 };
 
 /** OSHA most-serious-outcome rule (cols G–J): a case is classified by the single
@@ -366,7 +366,7 @@ export function prefillHoursFromTimeEntries(
   totalHours = Math.round(totalHours * 10) / 10;
   const sourceLabel = entryCount === 0
     ? `No MAGE time-tracking entries for ${year}${projectId ? ' on this project' : ''}. Enter hours worked from payroll.`
-    : `From MAGE time tracking — ${entryCount} entr${entryCount === 1 ? 'y' : 'ies'} over ${weekCount} week${weekCount === 1 ? '' : 's'}. `
+    : `From MAGE time tracking: ${entryCount} entr${entryCount === 1 ? 'y' : 'ies'} over ${weekCount} week${weekCount === 1 ? '' : 's'}. `
       + 'Crew clocked in through the app only: add office, salaried and off-app hours from payroll.';
   return { totalHours, averageEmployees, entryCount, weekCount, sourceLabel };
 }
@@ -413,7 +413,7 @@ export function csvCell(value: string): string {
 export function osha300ToCsv(rows: Osha300Row[], est: OshaEstablishment): string {
   const header = ['Case No.', 'Employee', 'Job Title', 'Date', 'Location', 'Description', 'Classification', 'Days Away', 'Days Restricted', 'Type'];
   const lines: string[] = [
-    'OSHA Form 300 — Log of Work-Related Injuries and Illnesses',
+    'OSHA Form 300: Log of Work-Related Injuries and Illnesses',
     `Establishment:,${csvCell(est.name)},Year:,${csvCell(est.year)}`,
     '',
     header.join(','),
@@ -431,7 +431,7 @@ export function osha300ToCsv(rows: Osha300Row[], est: OshaEstablishment): string
  *  the February sum is not a hand job in a spreadsheet. */
 export function osha300ATotalsCsvLines(t: Osha300ATotals): string[] {
   return [
-    'Totals (Form 300A columns G–M)',
+    'Totals (Form 300A columns G to M)',
     'Deaths (G),Days-away cases (H),Job transfer / restriction cases (I),Other recordable cases (J),Days away (K),Days of restriction / transfer (L)',
     [t.deaths, t.daysAwayCases, t.restrictedCases, t.otherCases, t.totalDaysAway, t.totalDaysRestricted].join(','),
     'Injuries (M1),Skin disorders (M2),Respiratory conditions (M3),Poisonings (M4),Hearing loss (M5),All other illnesses (M6)',
@@ -445,13 +445,13 @@ function buildOsha300APageHtml(t: Osha300ATotals, est: OshaEstablishment, sum: O
   const rates = osha300ARates(t, sum.hoursWorked);
   const fmt = (n: number | null) => (n == null ? '—' : n.toFixed(2));
   const title = sum.projectScoped
-    ? `Project rate summary — ${esc(est.year)} (not the establishment 300A)`
-    : `OSHA Form 300A — Summary of Work-Related Injuries and Illnesses — ${esc(est.year)}`;
+    ? `Project rate summary, ${esc(est.year)} (not the establishment 300A)`
+    : `OSHA Form 300A: Summary of Work-Related Injuries and Illnesses, ${esc(est.year)}`;
   return `
   <section class="page-300a">
     <h2>${title}</h2>
     <p class="note">Hours worked and average employees as confirmed in MAGE. ${esc(sum.hoursSource)}
-    Rates are cases × 200,000 ÷ hours worked. The 300A must be certified by a company executive and posted Feb 1 – Apr 30.</p>
+    Rates are cases × 200,000 ÷ hours worked. The 300A must be certified by a company executive and posted Feb 1 to Apr 30.</p>
     <table>
       <tbody>
         <tr><td>Deaths (G)</td><td class="num">${t.deaths}</td><td>Injuries (M1)</td><td class="num">${t.byType.injury}</td></tr>
@@ -493,7 +493,7 @@ export function buildOsha300Html(rows: Osha300Row[], est: OshaEstablishment, sum
   const capturedOn = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   return `<!doctype html>
 <html><head><meta charset="utf-8" />
-<title>OSHA 300 Log — ${esc(est.name)} — ${esc(est.year)}</title>
+<title>OSHA 300 Log · ${esc(est.name)} · ${esc(est.year)}</title>
 <style>
   @page { size: A4 landscape; margin: 16mm; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; margin: 0; font-size: 11px; }
@@ -533,7 +533,7 @@ export function buildOsha300Html(rows: Osha300Row[], est: OshaEstablishment, sum
     </tr></thead>
     <tbody>${body}</tbody>
     <tfoot><tr class="totals">
-      <td colspan="6">Totals — G ${totals.deaths} · H ${totals.daysAwayCases} · I ${totals.restrictedCases} · J ${totals.otherCases}</td>
+      <td colspan="6">Totals: G ${totals.deaths} · H ${totals.daysAwayCases} · I ${totals.restrictedCases} · J ${totals.otherCases}</td>
       <td>M1 ${totals.byType.injury} · M2 ${totals.byType.skin} · M3 ${totals.byType.respiratory} · M4 ${totals.byType.poisoning} · M5 ${totals.byType.hearing} · M6 ${totals.byType.other_illness}</td>
       <td class="num">${totals.totalDaysAway}</td>
       <td class="num">${totals.totalDaysRestricted}</td>
@@ -541,6 +541,6 @@ export function buildOsha300Html(rows: Osha300Row[], est: OshaEstablishment, sum
     </tr></tfoot>
   </table>
   ${summary ? buildOsha300APageHtml(totals, est, summary) : ''}
-  <footer>Generated by MAGE ID · OSHA 300 Log · ${esc(capturedOn)} — verify against your recordkeeping before posting.</footer>
+  <footer>Generated by MAGE ID · OSHA 300 Log · ${esc(capturedOn)}. Verify against your recordkeeping before posting.</footer>
 </body></html>`;
 }

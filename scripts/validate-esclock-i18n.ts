@@ -42,7 +42,7 @@ function ok(name: string, cond: boolean, why?: string) {
 // [export, args, the W2 English (MOMFIELD's templates, filled with the args)]
 type Row = [keyof typeof F, unknown[], string];
 const TIME_ROWS: Row[] = [
-  ['clockOutSheetTitle', [], 'Clock out'],
+  ['clockOutSheetTitle', [], 'Clock Out'],
   ['clockOutSummary', ['Jose', '8h 12m', '8.20'], 'Jose has been on the clock 8h 12m. This ends the shift and records 8.20 hours.'],
   ['clockOutSummaryAfterBreak', ['Jose', '8h 42m', '8h 12m', 30, '8.20'], 'Jose has been on the clock 8h 42m (8h 12m after a 30-min break). This ends the shift and records 8.20 hours.'],
   ['clockOutSlideLabel', [], 'Slide to clock out'],
@@ -137,8 +137,8 @@ export function checkBuilders(b: typeof B, p: typeof P): string[] {
   eq('allCrewChipLabel', [b.allCrewChipLabel(0, false), b.allCrewChipLabel(6, false), b.allCrewChipLabel(6, true)], ['Nobody left to clock in', 'All 6 on this project', 'Clear all 6']);
   eq('listNames', [b.listNames(['A']), b.listNames(['A', 'B']), b.listNames(['A', 'B', 'C'])], ['A', 'A and B', 'A, B and C']);
   const crew = [{ id: 'a', name: 'Ava' }, { id: 'b', name: 'Ben' }, { id: 'c', name: 'Cal' }];
-  eq('splitAlreadyOnClock one', b.splitAlreadyOnClock(crew, new Map([['b', {}]])).note, 'Ben is already on the clock, so they were left out — a second shift is paid twice.');
-  eq('splitAlreadyOnClock many', b.splitAlreadyOnClock(crew, new Map([['b', {}], ['c', {}]])).note, 'Ben and Cal are already on the clock, so they were left out — a second shift is paid twice.');
+  eq('splitAlreadyOnClock one', b.splitAlreadyOnClock(crew, new Map([['b', {}]])).note, 'Ben is already on the clock, so they were left out. A second shift is paid twice.');
+  eq('splitAlreadyOnClock many', b.splitAlreadyOnClock(crew, new Map([['b', {}], ['c', {}]])).note, 'Ben and Cal are already on the clock, so they were left out. A second shift is paid twice.');
   const flag = (status: 'expired', type: string) => ({ certId: type, type, status, expiresDate: '2026-09-12', label: type });
   eq('batchLapsedText one', b.batchLapsedText(crew, { a: [flag('expired', 'SST')] } as never)?.message,
     '1 crew member you picked has a lapsed card.\n\nAva: SST (expired Sep 12)\n\nClock them in anyway, or leave them out?');
@@ -158,11 +158,11 @@ export function checkBuilders(b: typeof B, p: typeof P): string[] {
     'Ava: The out time can’t be later than now.');
   const period = { start: '2026-09-14', end: '2026-09-20' };
   eq('payrollBlockedReason empty', p.payrollBlockedReason({ rows: [], open: [] } as never, period), 'No finished shifts between 2026-09-14 and 2026-09-20. Pick another week or project.');
-  eq('payrollBlockedReason open', p.payrollBlockedReason({ rows: [], open: [entry({})] } as never, period), 'Nobody has finished a shift between 2026-09-14 and 2026-09-20 yet — 1 still on the clock. Clock them out first.');
-  eq('openShiftsNote', [p.openShiftsNote([entry({ workerName: 'Mike' })]), p.openShiftsNote([entry({ workerName: '' })])], ['1 crew still on the clock (Mike) — not included', '1 crew still on the clock — not included']);
+  eq('payrollBlockedReason open', p.payrollBlockedReason({ rows: [], open: [entry({})] } as never, period), 'Nobody has finished a shift between 2026-09-14 and 2026-09-20 yet. 1 still on the clock. Clock them out first.');
+  eq('openShiftsNote', [p.openShiftsNote([entry({ workerName: 'Mike' })]), p.openShiftsNote([entry({ workerName: '' })])], ['1 crew still on the clock (Mike), not included', '1 crew still on the clock, not included']);
   const inMs = Date.parse(entry({}).clockIn);
   eq('outTimeProblem en', [p.outTimeProblem(entry({}), NaN, NOW), p.outTimeProblem(entry({}), inMs, NOW), p.outTimeProblem(entry({}), NOW + 120_000, NOW), p.outTimeProblem(entry({}), inMs + 25 * 3_600_000, inMs + 30 * 3_600_000)],
-    ['Enter the time they left, e.g. 3:30 pm.', 'The out time has to be after the clock-in.', 'The out time can’t be later than now.', 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.']);
+    ['Enter the time they left, for example 3:30 pm.', 'The out time has to be after the clock-in.', 'The out time can’t be later than now.', 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.']);
 
   // Spanish: whole sentences, no English left, no numeric date.
   const es: [string, string | null | undefined][] = [

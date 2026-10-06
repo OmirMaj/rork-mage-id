@@ -206,7 +206,7 @@ console.log('\n2b. Review round 1 — background re-mints the server refuses, an
   const inv = read('app/invoice.tsx');
   const release = inv.slice(inv.indexOf('const handleReleaseRetention = useCallback'), inv.indexOf('// Use the effective status so an unpaid-but-past-due'));
   ok('the retention-release re-mint reads its result and shows the refusal instead of only logging it',
-    /mintPayLinkFor\(existingInvoice, newBalance\)\.then\(\(minted\) => \{[\s\S]*?payLinkRemintRefusalNotice\(minted\.error, 'retention_release'\)[\s\S]*?showAlert\('Pay link not replaced yet', notice\)/.test(release));
+    /mintPayLinkFor\(existingInvoice, newBalance\)\.then\(\(minted\) => \{[\s\S]*?payLinkRemintRefusalNotice\(minted\.error, 'retention_release'\)[\s\S]*?showAlert\('Pay Link Not Replaced Yet', notice\)/.test(release));
 
   const screen = read('app/aia-pay-app.tsx');
   const remint = screen.slice(screen.indexOf('const remintCertifiedPayLink = useCallback'), screen.indexOf('const handleSaveCertification'));
@@ -392,7 +392,7 @@ console.log('\n3. MONEY-PAYLINK-AMOUNT-TRUST — never mint above the server bal
     /if \(isPayLinkBalanceCode\(res\.code\)\) \{[\s\S]{0,200}reason: 'failed',[\s\S]{0,80}error: res\.code,[\s\S]{0,40}message:/.test(mint));
   const stops = [...invoice.matchAll(/\} else if \(isPayLinkBalanceCode\(minted\.error\)\) \{([\s\S]{0,900}?)\} else \{/g)].map(x => x[1]);
   ok('…and BOTH send paths stop (no email) with the reason on a balance refusal',
-    stops.length === 2 && stops.every(b => /showAlert\('Invoice not sent'/.test(b) && /\breturn;/.test(b)), stops.length);
+    stops.length === 2 && stops.every(b => /showAlert\('Invoice Not Sent'/.test(b) && /\breturn;/.test(b)), stops.length);
   const aiaScreen = read('app/aia-pay-app.tsx');
   ok('aia-pay-app.tsx handles the balance refusal on its mint (own copy, not "Stripe didn\'t reach us")',
     /else if \(isPayLinkBalanceCode\(res\.code\)\)/.test(aiaScreen) && /balanceRefusal && due > 0/.test(aiaScreen));

@@ -143,7 +143,7 @@ function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClo
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID={`field-ticket-gate-${gate}`}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={projectName} />
+      <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M Ticket · MAGE ID')} title={projectName} />
       <View style={{ padding: 24, gap: 14, alignItems: 'center' }}>
         {gate === 'loading' ? <ActivityIndicator color={tc.accent} /> : null}
         <Text style={styles.ticketMeta}>
@@ -154,7 +154,7 @@ function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClo
               : t('field.ticket.youDontHaveAccess', "You don't have access to this project's T&M tickets. Ask the project owner to invite you.")}
         </Text>
         {gate === 'error' ? (
-          <Button label={t('field.ticket.tryAgain', 'Try again')} variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
+          <Button label={t('field.ticket.tryAgain', 'Try Again')} variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
         ) : null}
       </View>
     </View>
@@ -178,11 +178,11 @@ const REASON_CHIPS = [
 /** A reason chip's label in the app's language (the value above is what is saved). */
 function reasonChipLabel(r: typeof REASON_CHIPS[number]): string {
   switch (r) {
-    case 'Owner / rep directive': return t('field.ticket.reason.directive', 'Owner / rep directive');
-    case 'Unforeseen condition': return t('field.ticket.reason.unforeseen', 'Unforeseen condition');
-    case 'Design change': return t('field.ticket.reason.designChange', 'Design change');
-    case 'Damage by others': return t('field.ticket.reason.damageByOthers', 'Damage by others');
-    case 'Emergency / safety': return t('field.ticket.reason.emergency', 'Emergency / safety');
+    case 'Owner / rep directive': return t('field.ticket.reason.directive', 'Owner or Rep Directive');
+    case 'Unforeseen condition': return t('field.ticket.reason.unforeseen', 'Unforeseen Condition');
+    case 'Design change': return t('field.ticket.reason.designChange', 'Design Change');
+    case 'Damage by others': return t('field.ticket.reason.damageByOthers', 'Damage by Others');
+    case 'Emergency / safety': return t('field.ticket.reason.emergency', 'Emergency or Safety');
   }
 }
 
@@ -212,7 +212,7 @@ const ROLE_KEYS: FieldTicketAuthorizerRole[] = ['owner_rep', 'client', 'architec
 /** The signer's role chip, in the app's language (read at call time, never at import). */
 function roleChipLabel(key: FieldTicketAuthorizerRole): string {
   switch (key) {
-    case 'owner_rep': return t('field.ticket.role.ownerRep', "Owner's rep");
+    case 'owner_rep': return t('field.ticket.role.ownerRep', "Owner's Rep");
     case 'client': return t('field.ticket.role.client', 'Client');
     case 'architect': return t('field.ticket.role.architect', 'Architect');
     // i18n-keep-english: acronym (construction manager), the same in Spanish
@@ -230,7 +230,7 @@ function roleChips(): { key: FieldTicketAuthorizerRole; label: string }[] {
 function statusLabel(status: FieldTicketStatus): string {
   switch (status) {
     case 'draft': return t('field.ticket.status.draft', 'Unsigned');
-    case 'signed': return t('field.ticket.status.signed', 'Signed, not billed');
+    case 'signed': return t('field.ticket.status.signed', 'Signed, Not Billed');
     case 'converted': return t('field.ticket.status.converted', 'Billed');
     case 'void': return t('field.ticket.status.void', 'Void');
   }
@@ -442,7 +442,7 @@ export default function FieldTicketScreen() {
 
   const handleAddPhoto = useCallback(async (fromCamera: boolean) => {
     if (photos.length >= 8) {
-      showAlert(t('field.ticket.limitReached', 'Limit reached'), t('field.ticket.upTo8Photos', 'Up to 8 photos per ticket.'));
+      showAlert(t('field.ticket.limitReached', 'Limit Reached'), t('field.ticket.upTo8Photos', 'Up to 8 photos per ticket.'));
       return;
     }
     try {
@@ -450,7 +450,7 @@ export default function FieldTicketScreen() {
       if (fromCamera && Platform.OS !== 'web') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert(t('field.ticket.cameraAccessNeeded', 'Camera access needed'), t('field.ticket.allowCameraAccessTo', 'Allow camera access to photograph the extra work.'));
+          showAlert(t('field.ticket.cameraAccessNeeded', 'Camera Access Needed'), t('field.ticket.allowCameraAccessTo', 'Allow camera access to photograph the extra work.'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -730,7 +730,7 @@ export default function FieldTicketScreen() {
     if (!activeProjectId) return;
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert(t('field.ticket.cantSave', "Can't save"), writeBlock);
+      showAlert(t('field.ticket.cantSave', "Can't Save"), writeBlock);
       return;
     }
     const now = new Date().toISOString();
@@ -754,8 +754,8 @@ export default function FieldTicketScreen() {
     tutorialSignal('ticket.saved', { projectId: activeProjectId, ticketId: ticket.id, number: ticket.number, signed: false, offline: isOfflineNow() });
     if (ticketTutorialRef.current.runOnThis) setOpenTicketId(ticket.id);
     showAlert(
-      t('field.ticket.savedUnsigned', 'Saved unsigned'),
-      t('field.ticket.thisTicketIsA', 'This ticket is a note, not evidence. Get the signature before the crew leaves — an unsigned ticket cannot become a change order.'),
+      t('field.ticket.savedUnsigned', 'Saved Unsigned'),
+      t('field.ticket.thisTicketIsA', 'This ticket is a note, not evidence. Get the signature before the crew leaves. An unsigned ticket cannot become a change order.'),
     );
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
       reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer, writeBlock, t]);
@@ -766,12 +766,12 @@ export default function FieldTicketScreen() {
     // Never call addChangeOrder / ticketConversionPatch for a non-owner: the
     // server refuses the CO and the ticket would read "billed" forever.
     if (convertBlockReason) {
-      showAlert(t('field.ticket.cantBillThisHere', "Can't bill this here"), convertBlockReason);
+      showAlert(t('field.ticket.cantBillThisHere', "Can't Bill This Here"), convertBlockReason);
       return;
     }
     const gate = checkFieldTicketConversion(ticket, changeOrders);
     if (!gate.canConvert) {
-      showAlert(t('field.ticket.cantBillThisYet', "Can't bill this yet"), gate.reason ?? t('field.ticket.thisTicketCannotBe', 'This ticket cannot be converted.'));
+      showAlert(t('field.ticket.cantBillThisYet', "Can't Bill This Yet"), gate.reason ?? t('field.ticket.thisTicketCannotBe', 'This ticket cannot be converted.'));
       return;
     }
     // A half-priced ticket still converts — but the rows with no rate produce
@@ -780,7 +780,7 @@ export default function FieldTicketScreen() {
     // warning is the whole point of the gate returning one: say it before he
     // taps Create, while pricing the ticket is still an option.
     showAlert(
-      t('field.ticket.createChangeOrder', 'Create change order'),
+      t('field.ticket.createChangeOrder', 'Create Change Order'),
       [
         t('field.ticket.convert.body', '{ticketLabel} becomes a draft change order for {amount}. You still review and send it.', { ticketLabel: fieldTicketLabel(ticket.number), amount: money(computeFieldTicketTotals(ticket).billableTotal) }),
         gate.warning,
@@ -794,7 +794,7 @@ export default function FieldTicketScreen() {
             // dialog while a sync landed the CO from another device.
             const recheck = checkFieldTicketConversion(ticket, changeOrders);
             if (!recheck.canConvert) {
-              showAlert(t('field.ticket.cantBillThisYet', "Can't bill this yet"), recheck.reason ?? '');
+              showAlert(t('field.ticket.cantBillThisYet', "Can't Bill This Yet"), recheck.reason ?? '');
               return;
             }
             const now = new Date().toISOString();
@@ -850,7 +850,7 @@ export default function FieldTicketScreen() {
   ) => {
     // The button is hidden for these roles; this holds the line if the sheet
     // was already open when the role resolved.
-    if (pricingBlockReason) { showAlert(t('field.ticket.notSaved', 'Not saved'), pricingBlockReason); return; }
+    if (pricingBlockReason) { showAlert(t('field.ticket.notSaved', 'Not Saved'), pricingBlockReason); return; }
     const changes = fieldTicketPriceChanges(ticket, next);
     if (changes.length === 0) { setPricingOpen(false); return; }
     const now = new Date().toISOString();
@@ -876,7 +876,7 @@ export default function FieldTicketScreen() {
       // The data layer refused — something other than a rate moved. Say what
       // the rule is rather than leaving a silently-unsaved sheet behind.
       showAlert(
-        t('field.ticket.notSaved', 'Not saved'),
+        t('field.ticket.notSaved', 'Not Saved'),
         t('field.ticket.onlyTheRatesCan', 'Only the rates can change after a signature. The hours, quantities and descriptions are what the signer put their name on.'),
       );
       return;
@@ -896,7 +896,7 @@ export default function FieldTicketScreen() {
       });
     } catch (err) {
       console.warn('[FieldTicket] pdf error:', err);
-      showAlert(t('field.ticket.couldntBuildThePdf', 'Couldn’t build the PDF'), pdfFailureMessage(err, t('field.ticket.pdfTryAgain', 'Try again in a moment.')));
+      showAlert(t('field.ticket.couldntBuildThePdf', 'Couldn’t Build the PDF'), pdfFailureMessage(err, t('field.ticket.pdfTryAgain', 'Try again in a moment.')));
     } finally {
       setBusy(false);
     }
@@ -904,7 +904,7 @@ export default function FieldTicketScreen() {
 
   const handleVoid = useCallback((ticket: FieldTicket) => {
     if (writeBlock) {
-      showAlert(t('field.ticket.cantVoid', "Can't void"), writeBlock);
+      showAlert(t('field.ticket.cantVoid', "Can't Void"), writeBlock);
       return;
     }
     showAlert(
@@ -930,9 +930,9 @@ export default function FieldTicketScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={t('field.ticket.tMTicket', 'T&M ticket')} />
+        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M Ticket · MAGE ID')} title={t('field.ticket.tMTicket', 'T&M Ticket')} />
         <ToolProjectPicker
-          toolName={t('field.ticket.picker.toolName', 'T&M tickets')}
+          toolName={t('field.ticket.picker.toolName', 'T&M Tickets')}
           message={t('field.ticket.picker.message', 'Capture extra work and get it signed on site, before anyone forgets it happened.')}
           projects={projects}
           onPick={setPickedProjectId}
@@ -1004,15 +1004,15 @@ export default function FieldTicketScreen() {
               <Lock size={14} color={tc.accent} strokeWidth={2} />
               <Text style={styles.sealBannerText}>
                 {openTicket.authorization?.name
-                  ? sentenceParts(t('field.ticket.detail.sealedBanner', "Sealed. This is the record {name} put their name on — the hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.", { name: '{name}' }), { name: openTicket.authorization.name })
-                  : t('field.ticket.detail.sealedBannerNoName', "Sealed. This is the record the signer put their name on — the hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.")}
+                  ? sentenceParts(t('field.ticket.detail.sealedBanner', "Sealed. This is the record {name} put their name on. The hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.", { name: '{name}' }), { name: openTicket.authorization.name })
+                  : t('field.ticket.detail.sealedBannerNoName', "Sealed. This is the record the signer put their name on. The hours, quantities and descriptions can't be edited. Rates are the office's to attach, and every one is logged.")}
               </Text>
             </View>
           )}
 
           {moneyBlinded ? (
             <View style={styles.amountCard} testID="ticket-amount-blinded">
-              <Text style={styles.amountLabel}>{t('field.ticket.signedQuantities', 'Signed quantities')}</Text>
+              <Text style={styles.amountLabel}>{t('field.ticket.signedQuantities', 'Signed Quantities')}</Text>
               <Text style={styles.amountValue}>{t('field.ticket.laborHr', '{laborHours} labor hr', { laborHours: totals.laborHours })}</Text>
               <Text style={styles.amountSub}>
                 {tn('field.ticket.materialLinesEquipHr', openTicket.materials.length, { one: '{count} material line · {equipmentHours} equip hr', other: '{count} material lines · {equipmentHours} equip hr' }, { equipmentHours: totals.equipmentHours })}
@@ -1021,7 +1021,7 @@ export default function FieldTicketScreen() {
             </View>
           ) : (
           <View style={styles.amountCard}>
-            <Text style={styles.amountLabel}>{t('field.ticket.ticketTotal', 'Ticket total')}</Text>
+            <Text style={styles.amountLabel}>{t('field.ticket.ticketTotal', 'Ticket Total')}</Text>
             <Text style={styles.amountValue}>{money(totals.billableTotal)}</Text>
             <Text style={styles.amountSub}>
               {totals.markupAmount > 0
@@ -1040,15 +1040,15 @@ export default function FieldTicketScreen() {
             )}
             {!!pricedAt && (
               <Text style={styles.amountSub}>
-                {t('field.ticket.detail.ratesApplied', 'Rates applied in the office {date} — the signature covers the hours and quantities.', { date: ticketDate(pricedAt) })}
+                {t('field.ticket.detail.ratesApplied', 'Rates applied in the office {date}. The signature covers the hours and quantities.', { date: ticketDate(pricedAt) })}
               </Text>
             )}
           </View>
           )}
 
-          <ReadBlock label={t('field.ticket.workPerformed', 'Work performed')} value={openTicket.workDescription} />
-          <ReadBlock label={t('field.ticket.whyItsExtra', "Why it's extra")} value={openTicket.reasonExtra} />
-          <ReadBlock label={t('field.ticket.dateOfWork', 'Date of work')} value={ticketDate(openTicket.date)} />
+          <ReadBlock label={t('field.ticket.workPerformed', 'Work Performed')} value={openTicket.workDescription} />
+          <ReadBlock label={t('field.ticket.whyItsExtra', "Why It's Extra")} value={openTicket.reasonExtra} />
+          <ReadBlock label={t('field.ticket.dateOfWork', 'Date of Work')} value={ticketDate(openTicket.date)} />
 
           {openTicket.labor.length > 0 && (
             <View style={styles.readCard}>
@@ -1117,7 +1117,7 @@ export default function FieldTicketScreen() {
 
           {/* The signature — the whole point of the record. */}
           <View style={[styles.readCard, authorized ? styles.sigCardOk : styles.sigCardBad]}>
-            <Text style={styles.readLabel}>{t('field.ticket.authorizedOnSite', 'Authorized on site')}</Text>
+            <Text style={styles.readLabel}>{t('field.ticket.authorizedOnSite', 'Authorized on Site')}</Text>
             {openTicket.authorization ? (
               <>
                 <Text style={styles.sigName}>{openTicket.authorization.name}</Text>
@@ -1136,7 +1136,7 @@ export default function FieldTicketScreen() {
               </>
             ) : (
               <Text style={styles.sigBadText}>
-                {t('field.ticket.unsignedThisIsA', "Unsigned. This is a note, not evidence — it can't be billed.")}
+                {t('field.ticket.unsignedThisIsA', "Unsigned. This is a note, not evidence. It can't be billed.")}
               </Text>
             )}
           </View>
@@ -1147,7 +1147,7 @@ export default function FieldTicketScreen() {
               record, which is the exact failure this feature exists to fix. */}
           {openTicket.status === 'draft' && (
             <Button
-              label={t('field.ticket.getSignatureNow', 'Get signature now')}
+              label={t('field.ticket.getSignatureNow', 'Get Signature Now')}
               onPress={() => { setSignTargetId(openTicket.id); setSignOpen(true); }}
               disabled={!!writeBlock}
               fullWidth
@@ -1180,7 +1180,7 @@ export default function FieldTicketScreen() {
                 become a change order. */}
             {canPrice && (
               <Button
-                label={totals.unpricedRowCount > 0 ? t('field.ticket.priceThisTicket', 'Price this ticket') : t('field.ticket.adjustRates', 'Adjust rates')}
+                label={totals.unpricedRowCount > 0 ? t('field.ticket.priceThisTicket', 'Price This Ticket') : t('field.ticket.adjustRates', 'Adjust Rates')}
                 onPress={() => setPricingOpen(true)}
                 variant={totals.unpricedRowCount > 0 ? 'primary' : 'secondary'}
                 fullWidth
@@ -1210,14 +1210,14 @@ export default function FieldTicketScreen() {
             {!!(openTicket.convertedChangeOrderId || gate.existingChangeOrderId) && totals.unpricedRowCount > 0 && (
               <Text style={styles.gateReason}>
                 {billedCO
-                  ? t('field.ticket.ratesAreLockedNow', 'Rates are locked now that CO #{number} exists — changing them here would leave the change order saying something different. Revise the change order instead.', { number: billedCO.number })
-                  : t('field.ticket.thisTicketWasAlready', 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project — revise or re-raise that change order rather than re-pricing the signed ticket.')}
+                  ? t('field.ticket.ratesAreLockedNow', 'Rates are locked now that CO #{number} exists. Changing them here would leave the change order saying something different. Revise the change order instead.', { number: billedCO.number })
+                  : t('field.ticket.thisTicketWasAlready', 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project. Revise or re-raise that change order rather than re-pricing the signed ticket.')}
               </Text>
             )}
             {!billedCO && openTicket.status !== 'void' && (() => {
               const convertBtn = (
                 <Button
-                  label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? t('field.ticket.yourGcBillsThis', 'Your GC bills this ticket') : convertBlockReason ? t('field.ticket.cantBillYet', "Can't bill yet") : gate.canConvert ? t('field.ticket.billItAsA', 'Bill it as a change order') : t('field.ticket.cantBillYet', "Can't bill yet")}
+                  label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? t('field.ticket.yourGcBillsThis', 'Your GC Bills This Ticket') : convertBlockReason ? t('field.ticket.cantBillYet', "Can't Bill Yet") : gate.canConvert ? t('field.ticket.billItAsA', 'Bill It as a Change Order') : t('field.ticket.cantBillYet', "Can't Bill Yet")}
                   onPress={() => handleConvert(openTicket)}
                   disabled={!gate.canConvert || !!convertBlockReason}
                   fullWidth
@@ -1234,7 +1234,7 @@ export default function FieldTicketScreen() {
               <Text style={styles.gateReason}>{gate.reason}</Text>
             )}
             <Button
-              label={t('field.ticket.shareSignedPdf', 'Share signed PDF')}
+              label={t('field.ticket.shareSignedPdf', 'Share Signed PDF')}
               onPress={() => void handleShare(openTicket)}
               variant="secondary"
               fullWidth
@@ -1244,7 +1244,7 @@ export default function FieldTicketScreen() {
             />
             {openTicket.status !== 'void' && !billedCO && (
               <Button
-                label={t('field.ticket.voidTicket', 'Void ticket')}
+                label={t('field.ticket.voidTicket', 'Void Ticket')}
                 onPress={() => handleVoid(openTicket)}
                 variant="ghost"
                 fullWidth
@@ -1329,7 +1329,7 @@ export default function FieldTicketScreen() {
                   style={[styles.input, styles.inputTall]}
                   value={workDescription}
                   onChangeText={setWorkDescription}
-                  placeholder={t('field.ticket.eGBrokeOut', 'e.g. Broke out and hauled off an undocumented footing under the east slab')}
+                  placeholder={t('field.ticket.eGBrokeOut', 'Broke out and hauled off an undocumented footing under the east slab')}
                   placeholderTextColor={tc.textMuted}
                   multiline
                   testID="ticket-work"
@@ -1372,7 +1372,7 @@ export default function FieldTicketScreen() {
             })()}
 
             {/* 3. Date */}
-            <Text style={styles.fieldLabel}>{t('field.ticket.dateOfWork', 'Date of work')}</Text>
+            <Text style={styles.fieldLabel}>{t('field.ticket.dateOfWork', 'Date of Work')}</Text>
             <TextInput
               style={styles.input}
               value={workDate}
@@ -1508,7 +1508,7 @@ export default function FieldTicketScreen() {
                     style={[styles.input, styles.rowNameInput]}
                     value={row.description}
                     onChangeText={v => setEquipment(p => p.map((r, j) => j === i ? { ...r, description: v } : r))}
-                    placeholder={t('field.ticket.machineEGMini', 'Machine (e.g. mini excavator)')}
+                    placeholder={t('field.ticket.machineEGMini', 'Machine, such as a mini excavator')}
                     placeholderTextColor={tc.textMuted}
                     testID={`ticket-equipment-desc-${i}`}
                   />
@@ -1547,11 +1547,11 @@ export default function FieldTicketScreen() {
             <View style={styles.photoActions}>
               <TouchableOpacity style={styles.photoBtn} onPress={() => void handleAddPhoto(true)} testID="ticket-camera">
                 <Camera size={18} color={tc.accent} strokeWidth={1.75} />
-                <Text style={styles.photoBtnText}>{t('field.ticket.takePhoto', 'Take photo')}</Text>
+                <Text style={styles.photoBtnText}>{t('field.ticket.takePhoto', 'Take Photo')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.photoBtn} onPress={() => void handleAddPhoto(false)} testID="ticket-library">
                 <ImagePlus size={18} color={tc.accent} strokeWidth={1.75} />
-                <Text style={styles.photoBtnText}>{t('field.ticket.fromLibrary', 'From library')}</Text>
+                <Text style={styles.photoBtnText}>{t('field.ticket.fromLibrary', 'From Library')}</Text>
               </TouchableOpacity>
             </View>
             {photos.length > 0 && (
@@ -1575,7 +1575,7 @@ export default function FieldTicketScreen() {
             {(() => {
               const priceBlock = (
                 <>
-                  <Text style={styles.fieldLabel}>{t('field.ticket.overheadProfit', 'Overhead & profit')}</Text>
+                  <Text style={styles.fieldLabel}>{t('field.ticket.overheadProfit', 'Overhead and Profit')}</Text>
                   <View style={styles.markupRow}>
                     <TextInput
                       style={[styles.input, styles.markupInput]}
@@ -1609,7 +1609,7 @@ export default function FieldTicketScreen() {
                 {writeBlock
                   ? writeBlock
                   : readiness.ready
-                    ? t('field.ticket.readyForSignature', 'Ready for signature')
+                    ? t('field.ticket.readyForSignature', 'Ready for Signature')
                     : t('field.ticket.stillNeed', 'Still need: {item}', { item: readiness.missing[0] })}
               </Text>
             </View>
@@ -1636,7 +1636,7 @@ export default function FieldTicketScreen() {
               >
                 <FileSignature size={16} color={readiness.ready ? '#FFF' : tc.textMuted} strokeWidth={2} />
                 <Text style={[styles.signBtnText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>
-                  {t('field.ticket.getSignature', 'Get signature')}
+                  {t('field.ticket.getSignature', 'Get Signature')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1675,15 +1675,15 @@ export default function FieldTicketScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {runOnThis ? (
         <TutorialTarget id="ticket.back">
-          <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
+          <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M Ticket · MAGE ID')} title={project.name} />
         </TutorialTarget>
       ) : (
-        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M ticket · MAGE ID')} title={project.name} />
+        <ToolHeader eyebrow={t('field.ticket.eyebrow', 'T&M Ticket · MAGE ID')} title={project.name} />
       )}
       <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>
-            <Text style={styles.unbilledLabel}>{t('field.ticket.signedNotYetBilled', 'Signed, not yet billed')}</Text>
+            <Text style={styles.unbilledLabel}>{t('field.ticket.signedNotYetBilled', 'Signed, Not Billed Yet')}</Text>
             {!moneyBlinded && <Text style={styles.unbilledValue}>{money(unbilledTotal)}</Text>}
             {moneyBlinded && moneyHiddenReason ? (
               <Text style={styles.unbilledSub} testID="ticket-money-hidden-reason">{moneyHiddenReason}</Text>
@@ -1703,9 +1703,9 @@ export default function FieldTicketScreen() {
         {tickets.length === 0 ? (
           <EmptyState
             icon={<FileSignature size={36} color={tc.accent} strokeWidth={1.6} />}
-            title={t('field.ticket.noTMTickets', 'No T&M tickets yet')}
+            title={t('field.ticket.noTMTickets', 'No T&M Tickets Yet')}
             message={writeBlock ?? t('field.ticket.empty.message', "Extra work you never got signed for is the money you lose at closeout. Write the ticket while the work is still visible and get the owner's rep to sign it on the spot.")}
-            actionLabel={writeBlock ? undefined : t('field.ticket.newTMTicket', 'New T&M ticket')}
+            actionLabel={writeBlock ? undefined : t('field.ticket.newTMTicket', 'New T&M Ticket')}
             onAction={writeBlock ? undefined : () => setView('compose')}
           />
         ) : (
@@ -1756,7 +1756,7 @@ export default function FieldTicketScreen() {
           {/* LS-5: a viewer seat cannot file — the control says why. */}
           {writeBlock ? <Text style={styles.ticketMeta} testID="ticket-viewer-block">{writeBlock}</Text> : null}
           <Button
-            label={t('field.ticket.newTMTicket', 'New T&M ticket')}
+            label={t('field.ticket.newTMTicket', 'New T&M Ticket')}
             onPress={() => setView('compose')}
             disabled={!!writeBlock}
             fullWidth
@@ -1944,11 +1944,11 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
     <Modal visible={visible} animationType={fPrice.animationType} transparent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, fPrice.overlay]}>
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 10 }, fPrice.card]}>
-          <Text style={styles.modalTitle}>{t('field.ticket.priceThisTicket', 'Price this ticket')}</Text>
+          <Text style={styles.modalTitle}>{t('field.ticket.priceThisTicket', 'Price This Ticket')}</Text>
           <Text style={styles.modalAttest}>
             {ticket.authorization?.name
-              ? t('field.ticket.pricing.attest', "{name} signed for the hours and quantities below. They stay exactly as signed — only the rates can change here, and each one is written into the ticket's history with your name and today's date.", { name: ticket.authorization.name })
-              : t('field.ticket.pricing.attestNoName', "The signer signed for the hours and quantities below. They stay exactly as signed — only the rates can change here, and each one is written into the ticket's history with your name and today's date.")}
+              ? t('field.ticket.pricing.attest', "{name} signed for the hours and quantities below. They stay exactly as signed. Only the rates can change here, and each one is written into the ticket's history with your name and today's date.", { name: ticket.authorization.name })
+              : t('field.ticket.pricing.attestNoName', "The signer signed for the hours and quantities below. They stay exactly as signed. Only the rates can change here, and each one is written into the ticket's history with your name and today's date.")}
           </Text>
           {/* What the numbers below turn into. The suggestion chips offer the
               GC's LOADED COST from Time Tracking, so the ticket's own markup is
@@ -1959,7 +1959,7 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
           <Text style={preview.markupPercent > 0 ? styles.modalAttest : styles.priceWarn}>
             {preview.markupPercent > 0
               ? t('field.ticket.thisTicketAddsO', 'This ticket adds {markupPercent}% O&P on top of the rates you enter.', { markupPercent: preview.markupPercent })
-              : t('field.ticket.thisTicketCarriesNo', 'This ticket carries no O&P markup — whatever you enter here is exactly what the client is billed.')}
+              : t('field.ticket.thisTicketCarriesNo', 'This ticket carries no O&P markup. Whatever you enter here is exactly what the client is billed.')}
           </Text>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
@@ -2155,7 +2155,7 @@ export function SignatureModal({ visible, amount, summary, ticketLabel, workDate
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.modalTitle}>{t('field.ticket.signForTheWork', 'Sign for the work')}</Text>
+            <Text style={styles.modalTitle}>{t('field.ticket.signForTheWork', 'Sign for the Work')}</Text>
             <Text style={styles.modalAttest}>{signingCopy.ticketAttestation()}</Text>
           </ScrollView>
 

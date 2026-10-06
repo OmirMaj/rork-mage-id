@@ -4,8 +4,8 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 
 ## Where things stand
 
-- **Converted: 40 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run: the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces).
-- **Still to convert: 823 files with 9,198 strings the guard would fail today.** Counts by rule: label not in Title Case 6,195, dash used as punctuation 2,370, "&" 353, "e.g." or "i.e." 170, arrows 110.
+- **Converted: 143 files**, listed in `scripts/copy-style-converted.json`. Lane 3 (field and safety, 103 files) is done; see its section below. Before it, the app shell and first run: the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces).
+- **Still to convert: 720 files with 7,575 strings the guard would fail today** (counted 2026-10-05 after lane 3, before lane 1 landed). Counts by rule: label not in Title Case 5,070, dash used as punctuation 1,951, "&" 327, "e.g." or "i.e." 132, arrows 95. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
 - The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
 
 ## How to run a lane
@@ -34,10 +34,10 @@ File lists do not overlap. A file went to the first group whose words match its 
 |---|---|---|---|
 | 1. Estimate, bids and contract | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
 | 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 195 | 2,164 |
-| 3. Field and safety | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 103 | 1,621 |
+| 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
 | 4. Office, AI and portal | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 178 | 1,678 |
 | 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,886 |
-| **Total** | | **823** | **9,198** |
+| **Total still to convert** | Lanes 1, 2, 4 and 5 as listed, less two strings lane 3 changed in lane 2 and lane 5 files. | **720** | **7,575** |
 
 ### Lane 1. Estimate, bids and contract (144 files, 1,849 strings)
 
@@ -392,115 +392,27 @@ Strings the guard would fail, per file, largest first.
    1  utils/weatherProvenance.ts
 ```
 
-### Lane 3. Field and safety (103 files, 1,621 strings)
+### Lane 3. Field and safety (done, 2026-10-05)
 
-Strings the guard would fail, per file, largest first.
+Converted: all 103 files are on `scripts/copy-style-converted.json`. About 1,660 source lines changed, 942 English catalog entries regenerated, 926 Spanish entries re-read and re-stamped (67 of them re-worded).
 
-```
- 214  app/daily-report.tsx
- 132  app/punch-list.tsx
- 128  app/invoice.tsx
-  88  app/time-tracking.tsx
-  57  app/crew.tsx
-  53  app/field-ticket.tsx
-  47  app/safety-incidents.tsx
-  39  app/scan.tsx
-  38  app/punch-walk.tsx
-  37  app/safety-certifications.tsx
-  35  constants/punchTemplates.ts
-  32  app/safety-hazards.tsx
-  32  app/safety-jha.tsx
-  29  utils/punchExportCore.ts
-  27  app/building-access.tsx
-  25  app/deliveries.tsx
-  25  app/photo-triage.tsx
-  25  app/safety-toolbox.tsx
-  20  app/ai-punch.tsx
-  18  app/material-receipt.tsx
-  18  app/punch-seal.tsx
-  18  app/safety-inspections.tsx
-  17  app/equipment-detail.tsx
-  16  utils/safety/osha.ts
-  15  components/VoiceCaptureModal.tsx
-  15  utils/scanRouting.ts
-  14  components/punch/PlanPinStep.tsx
-  14  utils/punchExportHtml.ts
-  14  utils/safety/oshaLog.ts
-  13  app/punch-pin.tsx
-  12  app/(tabs)/equipment/index.tsx
-  12  app/safety-forms.tsx
-  12  components/TakeoffFieldVerifyButton.tsx
-  11  app/safety-osha.tsx
-  11  app/tomorrow-lineup.tsx
-  11  app/worker-detail.tsx
-  11  components/VoiceCommandModal.tsx
-  11  components/logs/DailyReportLog.tsx
-  11  utils/fieldTicketCore.ts
-  11  utils/tomorrowLineup.ts
-  10  components/punch/PunchExportSheet.tsx
-  10  utils/copilot/hazard/hazardGaps.ts
-   9  app/photo-annotator.tsx
-   9  app/safety.tsx
-   9  app/shared-photos.tsx
-   8  app/claim-crew.tsx
-   8  components/AIEquipmentAdvice.tsx
-   8  components/AIInvoicePredictor.tsx
-   8  components/punch/PinQueueCard.tsx
-   8  components/registers/CrewRegister.tsx
-   8  components/registers/DeliveriesRegister.tsx
-   8  utils/tutorial/defs/dailyReportVoice.ts
-   7  utils/copilot/toolbox/toolboxGaps.ts
-   7  utils/tutorial/defs/invoiceToSelf.ts
-   7  utils/tutorial/defs/punchWalk.ts
-   6  utils/punchSealHtml.ts
-   5  components/QuickFieldUpdate.tsx
-   5  components/logs/InvoiceLog.tsx
-   5  utils/copilot/dailyReport/dfrGaps.ts
-   5  utils/copilot/jha/jhaGaps.ts
-   5  utils/registers/crewRows.ts
-   5  utils/timeClockPayroll.ts
-   5  utils/tutorial/defs/punchListClose.ts
-   4  components/PhotoCapture.tsx
-   4  components/VoiceRecorder.tsx
-   4  components/invoice/LienClockCard.tsx
-   4  components/punch/PunchEditPanes.tsx
-   4  utils/copilot/dailyReport/dfrCapability.ts
-   4  utils/copilot/toolbox/toolboxCapability.ts
-   4  utils/crewClockBatch.ts
-   4  utils/tutorial/defs/fieldTicketLog.ts
-   3  components/AIDFRFromPhotos.tsx
-   3  components/proposal/ValidUntilField.tsx
-   3  utils/copilot/safety/safetyCapability.ts
-   3  utils/copilot/safety/safetyGaps.ts
-   3  utils/lineupReminder.ts
-   3  utils/tutorial/defs/timeClockIn.ts
-   3  utils/voiceActionParser.ts
-   2  components/AIDailyReportGen.tsx
-   2  components/subInvoice/PayWhatsEarnedCard.tsx
-   2  utils/copilot/hazard/hazardCapability.ts
-   2  utils/copilot/jha/jhaCapability.ts
-   2  utils/copilot/punch/punchGaps.ts
-   2  utils/crewDispatch.ts
-   2  utils/dfrClockCrew.ts
-   2  utils/fieldMeasuredQuantity.ts
-   2  utils/logs/invoiceLogRows.ts
-   2  utils/safety/safetyRefresh.ts
-   1  components/InlineVoiceFill.tsx
-   1  components/VoiceBacklogSheet.tsx
-   1  components/punch/PunchPhotoViewer.tsx
-   1  utils/copilot/punch/punchCapability.ts
-   1  utils/copilot/toolbox/toolboxGrounding.ts
-   1  utils/crewPresence.ts
-   1  utils/fieldDayPackCore.ts
-   1  utils/invoiceSampleCore.ts
-   1  utils/pdfRenderClient.ts
-   1  utils/punchGcCore.ts
-   1  utils/punchPlanPin.ts
-   1  utils/registers/deliveryRows.ts
-   1  utils/remindInvoice.ts
-   1  utils/voiceCommandParser.ts
-   1  utils/voiceDFRParser.ts
-```
+What this lane left as typed, each with an allow-list entry and its reason in `scripts/copy-voice-allowlist.json`:
+
+- **Labels that are also keys.** `feature="Punch List & Closeout"` (three screens; the wall prints `FEATURE_TITLE`), the `case 'Doors & Hardware'` trade value in `app/punch-walk.tsx`, the five `NO_WORK_REASONS` `label` ids in `app/daily-report.tsx` (React key and testID; the chip prints `shown`), and `PUNCH_REJECT_DEFAULT_NOTE` ("Rejected — needs rework": the sub portal and a migration match it).
+- **The voice sheet title is a storage key.** `VoiceCaptureModal` hashes its `title`, case and all, into the offline dictation queue key (`voiceContextKey`). So "Dictate this invoice", "Dictate today's report", "Describe the punch item", "Capture a punch item", the default "Voice dictation" / "Voice fill" and the copilot `voiceTitle` lines stay in sentence case until those callers pass a stable `queueKey`. The trial lane's "Dictate This Project" on Home did change, so one waiting dictation there may not be offered back.
+- **"Photo code check"** in `app/punch-list.tsx`: one name pinned across eight files (two on the server) by `validate-code-look`. It converts with the lane that owns `CodeLookSheet`.
+- **AI prompt lines** in `utils/voiceActionParser.ts`, `utils/voiceCommandParser.ts`, `utils/voiceDFRParser.ts` and the copilot capability files: not UI, not changed.
+- **Keyboard legend** "← back" in `components/punch/PlanPinStep.tsx`, and the `&middot;` entity in the two punch PDFs.
+
+Three strings outside this lane's list changed because a validator holds them equal to a lane 3 string: the "Due on Receipt" label in `components/CashFlowSetup.tsx`, `PROJECT_FILES_NEEDS_APP` in `utils/projectDocuments.ts`, and the "Clock Out" sheet title in `utils/moments/sites/fieldCopy.ts`. Six `mustContain` pins in `utils/learn/quizBank.ts` were updated to the new casing (the questions and answers are unchanged).
+
+Things the next lanes will hit, found here:
+
+- **`--fix-labels` rewrites keys.** It capitalized the `NO_WORK_REASONS` ids. Before accepting its diff, look at every rewritten string that is not inside `t()`: an object `label` next to a `shown`, a `case '…'`, a `feature=` prop.
+- **"so" and "yet" are small words to `titleCase()`**, so it writes "OT so Far" and "Signed, Not yet Billed". Reword so the word is last ("Not Billed Yet") or leave the label.
+- **A comma in a CSV cell** quotes the cell. "Not synced, this device only" broke a column read; it is "Not synced (this device only)".
+- **Do not replace old strings across validators by script.** A pin often quotes a file from another lane that still has the old casing. Fix each red check by reading it.
+- **The `title` props of `VoiceCaptureModal`, `InlineVoiceFill` and `VoiceRecorder`** feed the queue key above: lanes 1, 4 and 5 each have some.
 
 ### Lane 4. Office, AI and portal (178 files, 1,678 strings)
 

@@ -206,11 +206,11 @@ function SafetyHazardsInner() {
 
   const handleSave = useCallback(() => {
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.hazard.viewOnly', 'View only'), blocked); return; }
+    if (blocked) { showAlert(t('safety.hazard.viewOnly', 'View Only'), blocked); return; }
     const desc = description.trim();
-    if (!desc) { showAlert(t('safety.hazard.missingDescription', 'Missing description'), t('safety.hazard.describeTheHazard', 'Describe the hazard.')); return; }
+    if (!desc) { showAlert(t('safety.hazard.missingDescription', 'Missing Description'), t('safety.hazard.describeTheHazard', 'Describe the hazard.')); return; }
     const dateProblem = safetyDateProblem(dueDate, t('safety.hazard.dateLabel', 'Due date'), { optional: true });
-    if (dateProblem) { showAlert(t('safety.hazard.checkTheDate', 'Check the date'), dateProblem); return; }
+    if (dateProblem) { showAlert(t('safety.hazard.checkTheDate', 'Check the Date'), dateProblem); return; }
     const now = new Date().toISOString();
     const score = computeRiskScore(severity, likelihood);
     // Stage only when the photo is actually going on this record — an
@@ -252,7 +252,7 @@ function SafetyHazardsInner() {
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       showAlert(
-        source === 'camera' ? t('safety.hazard.cameraAccessNeeded', 'Camera access needed') : t('safety.hazard.photoAccessNeeded', 'Photo access needed'),
+        source === 'camera' ? t('safety.hazard.cameraAccessNeeded', 'Camera Access Needed') : t('safety.hazard.photoAccessNeeded', 'Photo Access Needed'),
         source === 'camera'
           ? t('safety.hazard.grantCamera', 'Grant camera access in Settings to scan a site photo.')
           : t('safety.hazard.grantPhoto', 'Grant photo access in Settings to scan a site photo.'),
@@ -275,13 +275,13 @@ function SafetyHazardsInner() {
     const localUri = pickedUri?.trim();
     const url = photoUrl.trim();
     if (!localUri && !url) {
-      showAlert(t('safety.hazard.addAPhoto', 'Add a photo'), t('safety.hazard.takeOrPickA', 'Take or pick a jobsite photo, or paste a URL, to scan for hazards.'));
+      showAlert(t('safety.hazard.addAPhoto', 'Add a Photo'), t('safety.hazard.takeOrPickA', 'Take or pick a jobsite photo, or paste a URL, to scan for hazards.'));
       return;
     }
     // Hazard scan is a vision call — meter it under the shared 'photoAnalysis'
     // feature key so it draws from the same monthly ceiling as AI Punch /
     // Photo Triage rather than the generic text bucket.
-    if (scanBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), scanBlocked); return; }
+    if (scanBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business Feature'), scanBlocked); return; }
     const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.hazard.monthlyPhotoLimitReached', 'Monthly photo limit reached.')); return; }
     // App Store 5.1.2(i): nothing leaves for the AI provider until the person
@@ -323,7 +323,7 @@ function SafetyHazardsInner() {
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      setScanNote(t('safety.hazard.scanNetwork', 'Network issue — could not scan. Log hazards manually.'));
+      setScanNote(t('safety.hazard.scanNetwork', 'Network issue. Could not scan. Log hazards manually.'));
     } finally {
       setDetecting(false);
     }
@@ -384,8 +384,8 @@ function SafetyHazardsInner() {
 
   const handleDelete = useCallback((id: string) => {
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.hazard.cantDelete', "Can't delete"), blocked); return; }
-    showAlert(t('safety.hazard.deleteHazard', 'Delete hazard'), t('safety.hazard.deleteThisHazardFrom', 'Delete this hazard from the log?'), [
+    if (blocked) { showAlert(t('safety.hazard.cantDelete', "Can't Delete"), blocked); return; }
+    showAlert(t('safety.hazard.deleteHazard', 'Delete Hazard'), t('safety.hazard.deleteThisHazardFrom', 'Delete this hazard from the log?'), [
       { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
       { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteHazard(id) },
     ]);
@@ -402,10 +402,10 @@ function SafetyHazardsInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: t('safety.hazard.screenTitle', 'Hazard log') }} />
+        <Stack.Screen options={{ title: t('safety.hazard.screenTitle', 'Hazard Log') }} />
         <EmptyState
           icon={<TriangleAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title={t('safety.hazard.openAProjectFirst', 'Open a project first')}
+          title={t('safety.hazard.openAProjectFirst', 'Open a Project First')}
           message={t('safety.hazard.hazardsAreTiedTo', 'Hazards are tied to a project so each one carries its risk score, owner and corrective action. To log one:')}
           steps={[
             t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
@@ -414,7 +414,7 @@ function SafetyHazardsInner() {
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel={t('safety.hazard.pickAProject', 'Pick a project')}
+          actionLabel={t('safety.hazard.pickAProject', 'Pick a Project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -423,7 +423,7 @@ function SafetyHazardsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: t('safety.hazard.titleWithProject', 'Hazard log — {name}', { name: project.name }) }} />
+      <Stack.Screen options={{ title: t('safety.hazard.titleWithProject', 'Hazard Log · {name}', { name: project.name }) }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the hazards he filed
             (20260919130000), so the list says so instead of looking empty. */}
@@ -438,7 +438,7 @@ function SafetyHazardsInner() {
             <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.85} onPress={() => openEdit(item)}>
               <View style={styles.cardTop}>
                 {thumbFor(item.photoUrl) ? (
-                  <Image source={{ uri: thumbFor(item.photoUrl)! }} style={styles.cardThumb} accessibilityLabel={t('safety.hazard.hazardPhoto', 'Hazard photo')} />
+                  <Image source={{ uri: thumbFor(item.photoUrl)! }} style={styles.cardThumb} accessibilityLabel={t('safety.hazard.hazardPhoto', 'Hazard Photo')} />
                 ) : null}
                 <Text style={styles.cardTitle} numberOfLines={2}>{item.description}</Text>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel={t('common.action.delete', 'Delete')}>
@@ -470,9 +470,9 @@ function SafetyHazardsInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<TriangleAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={seat === 'crew' ? crewEmptyTitle('hazard') : t('safety.hazard.noHazardsLogged', 'No hazards logged')}
+              title={seat === 'crew' ? crewEmptyTitle('hazard') : t('safety.hazard.noHazardsLogged', 'No Hazards Logged')}
               message={t('safety.hazard.logJobsiteHazardsRanked', 'Log jobsite hazards ranked by risk (severity × likelihood). Scan a photo and MAGE suggests hazards for you to confirm.')}
-              actionLabel={t('safety.hazard.logHazard', 'Log hazard')}
+              actionLabel={t('safety.hazard.logHazard', 'Log Hazard')}
               onAction={() => { resetForm(); setShowForm(true); }}
             />
           </View>
@@ -485,12 +485,12 @@ function SafetyHazardsInner() {
           testID="add-hazard-voice"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.addItemBtnText}>{t('safety.hazard.flagOneByVoice', 'Flag one by voice')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.hazard.flagOneByVoice', 'Flag One by Voice')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-hazard">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>{t('safety.hazard.logHazard', 'Log hazard')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.hazard.logHazard', 'Log Hazard')}</Text>
         </TouchableOpacity>
 
         {/* AI photo scan — capture/library first (field), URL as secondary. */}
@@ -502,7 +502,7 @@ function SafetyHazardsInner() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.scanSourceBtn} onPress={() => handlePickPhoto('library')} disabled={detecting} activeOpacity={0.85} testID="scan-library">
               <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.scanSourceText}>{t('safety.hazard.photoLibrary', 'Photo library')}</Text>
+              <Text style={styles.scanSourceText}>{t('safety.hazard.photoLibrary', 'Photo Library')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -512,7 +512,7 @@ function SafetyHazardsInner() {
               <TouchableOpacity
                 style={styles.pickedThumbRemove}
                 onPress={() => setPickedUri(null)}
-                hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.hazard.removePhoto', 'Remove photo')}
+                hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.hazard.removePhoto', 'Remove Photo')}
               >
                 <X size={12} color="#FFF" strokeWidth={2} />
               </TouchableOpacity>
@@ -531,7 +531,7 @@ function SafetyHazardsInner() {
             ) : (
               <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
             )}
-            <Text style={styles.walkBtnText}>{detecting ? t('safety.hazard.scanning', 'Scanning…') : t('safety.hazard.scanPhotoForHazards', 'Scan photo for hazards')}</Text>
+            <Text style={styles.walkBtnText}>{detecting ? t('safety.hazard.scanning', 'Scanning…') : t('safety.hazard.scanPhotoForHazards', 'Scan Photo for Hazards')}</Text>
           </TouchableOpacity>
           {scanBlocked ? (
             <Text style={styles.aiBlockedText} testID="scan-hazards-blocked">{scanBlocked}</Text>
@@ -563,7 +563,7 @@ function SafetyHazardsInner() {
                 })}
               </View>
               <TouchableOpacity onPress={() => { setSuggestions([]); setScanNote(null); }} hitSlop={8}>
-                <Text style={styles.suggestionDismiss}>{t('safety.hazard.dismissSuggestions', 'Dismiss suggestions')}</Text>
+                <Text style={styles.suggestionDismiss}>{t('safety.hazard.dismissSuggestions', 'Dismiss Suggestions')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -592,7 +592,7 @@ function SafetyHazardsInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.back', 'Back')} style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingHazard ? t('safety.hazard.editHazard', 'Edit hazard') : t('safety.hazard.logHazard', 'Log hazard')}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingHazard ? t('safety.hazard.editHazard', 'Edit Hazard') : t('safety.hazard.logHazard', 'Log Hazard')}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -613,7 +613,7 @@ function SafetyHazardsInner() {
                   <View style={styles.aiSourceRow} testID="hazard-ai-source">
                     <MageAIMark size={13} color={themeColors.textSecondary} accentColor={themeColors.accent} />
                     <Text style={styles.aiSourceText}>
-                      {t('safety.hazard.suggestedByAiFrom', "Suggested by AI from this photo — description, severity and likelihood are the model's reading. Check them before logging.")}
+                      {t('safety.hazard.suggestedByAiFrom', "Suggested by AI from this photo. Description, severity and likelihood are the model's reading. Check them before logging.")}
                     </Text>
                   </View>
                 ) : null}
@@ -630,8 +630,8 @@ function SafetyHazardsInner() {
                     <Image source={{ uri: scanPreview }} style={styles.photoAttachThumb} />
                     <Text style={styles.photoAttachText}>
                       {attachPhoto
-                        ? (editingHazard ? t('safety.hazard.replaceThisHazardsPhoto', 'Replace this hazard’s photo with the scanned one') : t('safety.hazard.photoAttachedToThis', 'Photo attached to this hazard'))
-                        : (editingHazard ? t('safety.hazard.tapToReplaceThis', 'Tap to replace this hazard’s photo with the scanned one') : t('safety.hazard.tapToAttachThe', 'Tap to attach the scanned photo'))}
+                        ? (editingHazard ? t('safety.hazard.replaceThisHazardsPhoto', 'Replace this hazard’s photo with the scanned one') : t('safety.hazard.photoAttachedToThis', 'Photo Attached to This Hazard'))
+                        : (editingHazard ? t('safety.hazard.tapToReplaceThis', 'Tap to replace this hazard’s photo with the scanned one') : t('safety.hazard.tapToAttachThe', 'Tap to Attach the Scanned Photo'))}
                     </Text>
                     <View style={[styles.photoAttachBox, attachPhoto ? styles.photoAttachBoxOn : null]}>
                       {attachPhoto ? <Check size={13} color="#FFFFFF" strokeWidth={3} /> : null}
@@ -642,12 +642,12 @@ function SafetyHazardsInner() {
                     {thumbFor(editingHazard.photoUrl) ? (
                       <Image source={{ uri: thumbFor(editingHazard.photoUrl)! }} style={styles.photoAttachThumb} />
                     ) : null}
-                    <Text style={styles.photoAttachText}>{t('safety.hazard.photoOnFileKept', 'Photo on file — kept when you update.')}</Text>
+                    <Text style={styles.photoAttachText}>{t('safety.hazard.photoOnFileKept', 'Photo on file. It is kept when you update.')}</Text>
                   </View>
                 ) : null}
 
                 <Text style={styles.fieldLabel}>{t('safety.hazard.location', 'Location')}</Text>
-                <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t('safety.hazard.eG3rdFloor', 'e.g. 3rd floor east')} placeholderTextColor={themeColors.textMuted} />
+                <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t('safety.hazard.eG3rdFloor', '3rd floor east')} placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.fieldLabel}>{t('safety.hazard.severity', 'Severity')}</Text>
                 <View style={styles.segRow}>
@@ -677,22 +677,22 @@ function SafetyHazardsInner() {
 
                 <View style={[styles.riskPreview, { borderColor: bandColor(themeColors, previewBand) + '40' }]}>
                   <Text style={[styles.riskPreviewText, { color: bandColor(themeColors, previewBand) }]}>
-                    {t('safety.hazard.riskPreview', 'Risk {score} — {band}', { score: previewScore, band: bandLabel(previewBand) })}
+                    {t('safety.hazard.riskPreview', 'Risk {score} · {band}', { score: previewScore, band: bandLabel(previewBand) })}
                   </Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>{t('safety.hazard.assignedTo', 'Assigned to')}</Text>
+                    <Text style={styles.fieldLabel}>{t('safety.hazard.assignedTo', 'Assigned To')}</Text>
                     <TextInput style={styles.input} value={assignedTo} onChangeText={setAssignedTo} placeholder={t('safety.hazard.owner', 'Owner')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>{t('safety.hazard.dueDate', 'Due date')}</Text>
+                    <Text style={styles.fieldLabel}>{t('safety.hazard.dueDate', 'Due Date')}</Text>
                     <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder={t('safety.dateHint', 'YYYY-MM-DD')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>{t('safety.hazard.correctiveAction', 'Corrective action')}</Text>
+                <Text style={styles.fieldLabel}>{t('safety.hazard.correctiveAction', 'Corrective Action')}</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]}
                   value={correctiveAction}

@@ -233,7 +233,7 @@ describe('Crew register (real DOM, 1512)', () => {
     const { el } = await mount(crew({ updateCrewMember }));
     await click(byId(el, 'crew-register-table-row-m1-check')!);
     await click(byId(el, 'crew-register-table-row-m2-check')!);
-    await bulkButton(el, 'crew-register-table', 'Mark inactive');
+    await bulkButton(el, 'crew-register-table', 'Mark Inactive');
     await act(async () => { await Promise.resolve(); });
     expect(updateCrewMember.mock.calls.map((c) => c[0]).sort()).toEqual(['m1', 'm2']);
     expect(updateCrewMember.mock.calls.every((c) => c[1].status === 'inactive')).toBe(true);
@@ -242,7 +242,7 @@ describe('Crew register (real DOM, 1512)', () => {
   it('while the roster read is loading the empty table says Loading…, never "No crew yet"', async () => {
     const { el } = await mount(crew({ members: [], loading: true }));
     expect(el.textContent).toContain('Loading…');
-    expect(el.textContent).not.toMatch(/No crew yet/);
+    expect(el.textContent).not.toMatch(/No Crew Yet/);
   });
 
   it('Export CSV names the file crew-YYYY-MM-DD.csv (local day)', async () => {

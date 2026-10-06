@@ -273,7 +273,7 @@ console.log('\nsource assertions:');
   ok('estimator: an empty book says it has nothing measured rather than scoring anyway', /hasData \?/.test(full) && /No traced actuals yet/.test(full));
   const pred = src('components/AIInvoicePredictor.tsx');
   ok('invoice predictor: the chip is the same history object the prompt was built from', /paymentHistoryForInvoice\(invoice, allInvoices\)/.test(pred) && /totalInvoices: history\.paidInvoices/.test(pred) && (pred.match(/history\.summary/g) ?? []).length >= 2);
-  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No date returned/.test(pred));
+  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No Date Returned/.test(pred));
   const equip = src('components/AIEquipmentAdvice.tsx');
   ok('equipment advice: the chip cites the log rows and the rate it multiplied, and names the recall it cannot source', /utilization \{equipment\.utilizationLog\.length === 1 \? 'entry' : 'entries'\}/.test(equip) && /at your \$\{equipment\.dailyRate\.toLocaleString\(\)\}\/day rate/.test(equip) && /no equipment price feed/.test(equip));
   const ai = src('utils/aiService.ts');

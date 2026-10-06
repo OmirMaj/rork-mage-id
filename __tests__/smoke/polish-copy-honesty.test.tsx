@@ -189,8 +189,8 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
     expect(joined).not.toMatch(/certifications? (are |is )?current/i);
     expect(joined).not.toMatch(/\d+ certifications? (on file|expiring)/i);
     // The empty state is what speaks instead, and it still offers the action.
-    expect(text).toContain('No certifications yet');
-    expect(text).toContain('Add first certification');
+    expect(text).toContain('No Certifications Yet');
+    expect(text).toContain('Add First Certification');
   });
 
   // The branches a render can never reach, pinned on the pure function the
@@ -208,11 +208,11 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
 
     it('is green ONLY when every card has a date and none of them lapse', () => {
       expect(certRosterBanner(14, 0, 0)).toEqual({
-        text: '14 certifications on file — none expiring in the next 30 days',
+        text: '14 certifications on file, none expiring in the next 30 days',
         tone: 'clean',
       });
       expect(certRosterBanner(1, 0, 0)?.text).toBe(
-        '1 certification on file — none expiring in the next 30 days',
+        '1 certification on file, none expiring in the next 30 days',
       );
     });
 
@@ -223,12 +223,12 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
       // the zero-record guard exists to stop, one level down.
       const all = certRosterBanner(5, 0, 5);
       expect(all?.text).toBe(
-        '5 certifications on file, none with an expiry date — nothing here for us to watch.',
+        '5 certifications on file, none with an expiry date. Nothing here for us to watch.',
       );
       expect(all?.tone).toBe('attention');
       const some = certRosterBanner(5, 0, 2);
       expect(some?.text).toBe(
-        '5 certifications on file — none of the 3 with a date expire in the next 30 days. 2 have no expiry date.',
+        '5 certifications on file. None of the 3 with a date expire in the next 30 days. 2 have no expiry date.',
       );
       expect(some?.tone).toBe('attention');
       expect(certRosterBanner(5, 0, 1)?.text).toContain('1 has no expiry date');

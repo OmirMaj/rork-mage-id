@@ -345,17 +345,17 @@ eq('ref of a symbol-only id falls back', shortRefs([{ id: '---' }]).get('---'), 
 {
   const f = { status: 'open' as const, sub: 'Acme', priority: 'high' as const, locationKey: UNPLACED_LOCATION_GROUP, locationLabel: '' };
   eq('describeFilters, every part', describeFilters(f, 'punch'), 'Punch list · Open · Sub: Acme · High priority · Location: No location given');
-  eq('describeScope all + crew', describeScope(scopeIn(), 'all', true), 'All 22 items — 20 on the punch list, 2 on the crew list (internal)');
-  eq('describeScope crew off', describeScope(scopeIn(), 'all', false), 'All 20 punch list items — crew list left out');
+  eq('describeScope all + crew', describeScope(scopeIn(), 'all', true), 'All 22 items: 20 on the punch list, 2 on the crew list (internal)');
+  eq('describeScope crew off', describeScope(scopeIn(), 'all', false), 'All 20 punch list items, crew list left out');
   eq('describeScope filtered', describeScope(scopeIn({ filteredItems: [ITEMS[0], ITEMS[4]], filters: f }), 'filtered', true),
-    'Filtered: 2 of 22 items — Punch list · Open · Sub: Acme · High priority · Location: No location given');
-  eq('describeScope selected, one list', describeScope(scopeIn({ selectedIds: [ID.i04, ID.f1] }), 'selected', true), 'Selected: 2 of 22 items — Crew list (internal)');
+    'Filtered: 2 of 22 items (Punch list · Open · Sub: Acme · High priority · Location: No location given)');
+  eq('describeScope selected, one list', describeScope(scopeIn({ selectedIds: [ID.i04, ID.f1] }), 'selected', true), 'Selected: 2 of 22 items, Crew list (internal)');
   eq('describeScope selected, mixed', describeScope(scopeIn({ selectedIds: [ID.i01, ID.i04] }), 'selected', true), 'Selected: 2 of 22 items');
-  eq('describeScope crew-only project', describeScope(scopeIn({ allItems: [ITEMS[3], ITEMS[10]] }), 'all', true), 'All 2 items — crew list (internal)');
+  eq('describeScope crew-only project', describeScope(scopeIn({ allItems: [ITEMS[3], ITEMS[10]] }), 'all', true), 'All 2 items: crew list (internal)');
   eq('describeScope one list', describeScope(scopeIn({ allItems: ITEMS.slice(0, 3) }), 'all', true), 'All 3 items');
 
   const opts = scopeOptions(scopeIn({ filteredItems: [ITEMS[0]], selectedIds: [ID.i02, ID.i03] }), true);
-  eq('three scope options', opts.map(o => o.label), ['Everything', "What's on screen", 'Selected (2)']);
+  eq('three scope options', opts.map(o => o.label), ['Everything', "What's on Screen", 'Selected (2)']);
   eq('Everything detail', opts[0].detail, '22 items · every status · punch and crew lists');
   eq('Everything detail, crew off', scopeOptions(scopeIn(), false)[0].detail, '20 items · every status · punch list only');
   eq("What's on screen detail", opts[1].detail, '1 item · Punch list');
@@ -363,7 +363,7 @@ eq('ref of a symbol-only id falls back', shortRefs([{ id: '---' }]).get('---'), 
   eq('filtered hidden when nothing is filtered, selected hidden when none', scopeOptions(scopeIn({ selectedIds: ['deleted'] }), true).map(o => o.scope), ['all']);
   const emptyFilter = scopeOptions(scopeIn({ filteredItems: [] }), true).find(o => o.scope === 'filtered');
   eq('empty filter reason', emptyFilter?.disabledReason, 'Nothing matches the filters on screen. Choose Everything, or clear a filter.');
-  eq('empty project reason', exportDisabledReason({ projectItemCount: 0, scope: 'all', count: 0 }), 'Nothing to export yet — add a punch item first.');
+  eq('empty project reason', exportDisabledReason({ projectItemCount: 0, scope: 'all', count: 0 }), 'Nothing to export yet. Add a punch item first.');
   eq('no selection reason', exportDisabledReason({ projectItemCount: 3, scope: 'selected', count: 0 }), 'No items are selected. Choose Everything, or select items first.');
   eq('enabled when there is something', exportDisabledReason({ projectItemCount: 3, scope: 'all', count: 3 }), null);
 }
@@ -376,7 +376,7 @@ const M = model();
 const rowOf = (m: PunchExportModel, id: string) => m.rows.find(r => r.id === id);
 eq('sections: punch then crew', M.sections.map(s => [s.list, s.internal]), [['punch', false], ['crew', true]]);
 eq('effective groups (typed + sheet, natural order, unplaced last)', M.sections[0].groups.map(g => g.label),
-  [HOSTILE_LOC, 'A-101 · Level 1 — pinned, no room typed', 'Basement', 'Hall 2', 'Hall 10', 'Kitchen', 'No location given']);
+  [HOSTILE_LOC, 'A-101 · Level 1 · pinned, no room typed', 'Basement', 'Hall 2', 'Hall 10', 'Kitchen', 'No location given']);
 eq('group kinds', M.sections[0].groups.map(g => g.kind), ['typed', 'sheet', 'typed', 'typed', 'typed', 'typed', 'unplaced']);
 eq('sheet group holds the pinned and no-position unlocated items', M.sections[0].groups[1]?.rows.map(r => r.number), [6, 7]);
 eq('unplaced group: no pin, a missing sheet, an undated item', M.sections[0].groups[6]?.rows.map(r => r.number), [5, 8, 22]);
@@ -463,23 +463,23 @@ eq('ISO due date keeps its day', rowOf(M, ID.i02)?.dueDay, '2026-09-20');
   eq('estimate ios 63', nativePhotoEstimate({ photoCount: 63, target: 'ios' }), { included: 24, leftOut: 39, approxBytes: 62_400_000 });
   eq('estimate web', nativePhotoEstimate({ photoCount: 63, target: 'web' }), { included: 63, leftOut: 0, approxBytes: null });
   eq('notes: ios, under the cap, big', photoNotes({ target: 'ios', format: 'pdf', includePhotos: true, photoCount: 10 }),
-    ['Photos go in at full size on a phone — about 26 MB. Too big for most email; AirDrop, Messages or Mail Drop will take it.']);
-  eq('notes: ios, small', photoNotes({ target: 'ios', format: 'pdf', includePhotos: true, photoCount: 5 }), ['Photos go in at full size on a phone — about 13 MB.']);
+    ['Photos go in at full size on a phone, about 26 MB. Too big for most email; AirDrop, Messages or Mail Drop will take it.']);
+  eq('notes: ios, small', photoNotes({ target: 'ios', format: 'pdf', includePhotos: true, photoCount: 5 }), ['Photos go in at full size on a phone, about 13 MB.']);
   eq('notes: ios, over the cap', photoNotes({ target: 'ios', format: 'pdf', includePhotos: true, photoCount: 63 }), [
-    'A PDF made on a phone carries up to 24 photos, at full size — about 62 MB. Open items get them first; the other 39 print "Photo not included".',
-    'For all 63 photos in one small file, export from app.mageid.app on a computer — or export one room or one sub at a time.',
+    'A PDF made on a phone carries up to 24 photos at full size, about 62 MB. Open items get them first; the other 39 print "Photo not included".',
+    'For all 63 photos in one small file, export from app.mageid.app on a computer, or export one room or one sub at a time.',
   ]);
   eq('notes: web over 100', photoNotes({ target: 'web', format: 'pdf', includePhotos: true, photoCount: 105 }), [
     'Each photo goes in as a small copy, so the PDF stays small enough to email.',
-    'One PDF holds up to 100 photos — the first 100 (open items first) go in and the other 5 print "Photo not included". Export one room or one sub at a time to get every photo.',
+    'One PDF holds up to 100 photos. The first 100 (open items first) go in and the other 5 print "Photo not included". Export one room or one sub at a time to get every photo.',
   ]);
   eq('notes: csv', photoNotes({ target: 'ios', format: 'csv', includePhotos: true, photoCount: 5 }), []);
   eq('notes: photos off', photoNotes({ target: 'ios', format: 'pdf', includePhotos: false, photoCount: 5 }), ['The PDF lists every item in a compact table, without photos.']);
   eq('notes: no photos', photoNotes({ target: 'web', format: 'pdf', includePhotos: true, photoCount: 0 }), ['None of these items has a photo, so the PDF will be a compact table.']);
   eq('over-cap text per target', [overCapPhotoText('web'), overCapPhotoText('ios'), overCapPhotoText('android')], [
-    'Photo not included — one PDF holds up to 100 photos',
-    'Photo not included — a PDF made on a phone holds up to 24 photos',
-    'Photo not included — a PDF made on a phone holds up to 12 photos',
+    'Photo not included. One PDF holds up to 100 photos.',
+    'Photo not included. A PDF made on a phone holds up to 24 photos.',
+    'Photo not included. A PDF made on a phone holds up to 12 photos.',
   ]);
   eq('primary labels', [
     primaryLabel({ format: 'pdf', target: 'ios', blocked: false, approxBytes: 62_400_000 }),
@@ -487,7 +487,7 @@ eq('ISO due date keeps its day', rowOf(M, ID.i02)?.dueDay, '2026-09-20');
     primaryLabel({ format: 'csv', target: 'web', blocked: false, approxBytes: null }),
     primaryLabel({ format: 'csv', target: 'android', blocked: false, approxBytes: null }),
     primaryLabel({ format: 'pdf', target: 'web', blocked: true, approxBytes: null }),
-  ], ['Share PDF (about 62 MB)', 'Open PDF', 'Download spreadsheet', 'Share spreadsheet', 'Open PDF']);
+  ], ['Share PDF (about 62 MB)', 'Open PDF', 'Download Spreadsheet', 'Share Spreadsheet', 'Open PDF']);
   eq('webPrintWaitMs', [webPrintWaitMs(0), webPrintWaitMs(10), webPrintWaitMs(1000)], [15_000, 35_000, 90_000]);
   eq('parseExportPref', [parseExportPref('{"format":"csv","photos":false}'), parseExportPref('{"format":"x"}'), parseExportPref('nope')],
     [{ format: 'csv', photos: false }, { format: 'pdf', photos: true }, null]);
@@ -565,10 +565,10 @@ function parseCsv(text: string): string[][] {
     eq('closed with closedAt still counts', rowOf(M, ID.f2)?.daysOpen, 4);
   }
   eq('photoGpsText: coordinates + accuracy + street label', photoGpsText({ photoLatitude: 39.7392, photoLongitude: -104.9903, photoLocationAccuracyMeters: 8.4, photoLocationLabel: '120 Main St Denver CO' }),
-    '39.73920, -104.99030 (±8 m) — 120 Main St Denver CO');
+    '39.73920, -104.99030 (±8 m) · 120 Main St Denver CO');
   {
     const gm = model({ scopeInput: scopeIn({ allItems: [mk('ffff0002-0000-4000-8000-000000000002', { photoLatitude: 39.7392, photoLongitude: -104.9903, photoLocationLabel: '120 Main St' })], filteredItems: [] }) });
-    eq('CSV Photo GPS carries the coordinates, not just the street label', parseCsv(buildPunchExportCsv(gm).slice(1))[1]?.[col('Photo GPS')], '39.73920, -104.99030 — 120 Main St');
+    eq('CSV Photo GPS carries the coordinates, not just the street label', parseCsv(buildPunchExportCsv(gm).slice(1))[1]?.[col('Photo GPS')], '39.73920, -104.99030 · 120 Main St');
   }
   eq('photoGpsText: coordinates with no label', photoGpsText({ photoLatitude: 39.7392, photoLongitude: -104.9903 }), '39.73920, -104.99030');
   eq('photoGpsText: a label that is the coordinates is not repeated', photoGpsText({ photoLatitude: 39.7392, photoLongitude: -104.9903, photoLocationLabel: '39.7392, -104.9903' }), '39.73920, -104.99030');
@@ -708,17 +708,17 @@ const decode = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').r
   eq('an unknown colour falls back to red', /stroke="(#[0-9A-F]+)"/.exec(markupSvg([{ id: 'z', type: 'freehand', color: 'purple' as 'red', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }]))?.[1], '#E5484D');
 
   ok('card: number, ref and not pinned', html.includes('<span class="pe-num">#3</span><span class="pe-ref">ref c00000</span>') && html.includes('Plan: not pinned'));
-  ok('card: sheet-grouped item reads No location given · Plan: sheet — pin n', html.includes('<b>No location given</b> &middot; Plan: A-101 · Level 1 — pin 6'));
+  ok('card: sheet-grouped item reads No location given · Plan: sheet — pin n', html.includes('<b>No location given</b> &middot; Plan: A-101 · Level 1 · pin 6'));
   ok('card: pin position missing / deleted sheet', html.includes('A-101 · Level 1 (pin position missing)') && html.includes('pinned on a sheet that&#39;s no longer in this project'));
   eq('completion strip on every open card', count(html, '<span class="pe-box"></span>Done'), M.rows.filter(r => !r.closed).length);
   eq('CLOSED stamp on every closed card', count(html, '<span class="pe-stamp">CLOSED'), M.rows.filter(r => r.closed).length);
   ok('CLOSED stamp carries the day', html.includes('CLOSED SEP 6, 2026'));
   eq("'Internal' pill on each crew card", count(html, '>Internal</span>'), 2);
   ok('overdue flag', html.includes('Overdue 3 days'));
-  ok('INTERNAL stamp + footer line present with crew', html.includes(PUNCH_EXPORT_INTERNAL_STAMP) && html.includes('INTERNAL — includes crew list · Punch list'));
+  ok('INTERNAL stamp + footer line present with crew', html.includes(PUNCH_EXPORT_INTERNAL_STAMP) && html.includes('INTERNAL: includes crew list · Punch list'));
   ok('no sign-off with crew', !html.includes('Sign-off'));
   const clean = buildPunchExportHtml(model({ includeCrew: false }), assetsFor(M), { includePhotos: true, branding: BRANDING, target: 'web', allowedOrigins: ORIGINS });
-  ok('crew off: no INTERNAL marks, sign-off present', !clean.includes(PUNCH_EXPORT_INTERNAL_STAMP) && !clean.includes('INTERNAL — includes') && clean.includes('Sign-off') && clean.includes('Owner / owner&#39;s representative'));
+  ok('crew off: no INTERNAL marks, sign-off present', !clean.includes(PUNCH_EXPORT_INTERNAL_STAMP) && !clean.includes('INTERNAL: includes') && clean.includes('Sign-off') && clean.includes('Owner / owner&#39;s representative'));
   ok('sign-off makes no payment claim', !/retainage|payment/i.test(between(clean, 'Sign-off', 'Built with')));
 
   eq('a plan page per pinned sheet', count(html, '<section class="pe-plan'), 2);
@@ -741,7 +741,7 @@ const decode = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').r
   ok('Open by area table', html.includes('Ready for inspection'));
   ok('generated label and scope label present', html.includes(M.generatedAtLabel) && html.includes(M.scopeLabel));
   ok('xray sentinel and ids never printed', ![XRAY_TELL, SUBID, TASKID, 'punch-i01.jpg'].some(s => html.includes(s)));
-  ok('photo summary line', html.includes('Photos: 1 of 5 in this report — 3 not available (offline / not uploaded); 1 left out (size limit on a phone).'));
+  ok('photo summary line', html.includes('Photos: 1 of 5 in this report. 3 not available (offline / not uploaded); 1 left out (size limit on a phone).'));
   eq('photoSummaryLine empty when photos are off', photoSummaryLine(M, assetsFor(M), false), '');
   ok('web hint is screen-only', html.includes('class="screen-only pe-hint" id="pe-hint"'));
 }

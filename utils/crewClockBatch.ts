@@ -56,8 +56,8 @@ export interface ClockInButton { label: string; disabled: boolean; reason: strin
 
 /** The sheet's primary button. Never enabled without a job and a pick. */
 export function clockInButton(pickedCount: number, hasJob: boolean, lang: DisplayLang = 'en'): ClockInButton {
-  if (!hasJob) return { label: t('field.time.clockIn', 'Clock in', undefined, lang), disabled: true, reason: PICK_JOB_FIRST };
-  if (pickedCount <= 0) return { label: t('field.time.clockIn', 'Clock in', undefined, lang), disabled: true, reason: t('field.time.batch.tickWho', 'Tick who is on site', undefined, lang) };
+  if (!hasJob) return { label: t('field.time.clockIn', 'Clock In', undefined, lang), disabled: true, reason: PICK_JOB_FIRST };
+  if (pickedCount <= 0) return { label: t('field.time.clockIn', 'Clock In', undefined, lang), disabled: true, reason: t('field.time.batch.tickWho', 'Tick who is on site', undefined, lang) };
   return { label: t('field.time.batch.clockInN', 'Clock in {count}', { count: pickedCount }, lang), disabled: false, reason: null };
 }
 
@@ -84,8 +84,8 @@ export function splitAlreadyOnClock<M extends CrewPickMember>(
   for (const m of members) (onClock.has(m.id) ? alreadyOn : go).push(m);
   const note = alreadyOn.length === 0 ? null
     : tn('field.time.batch.alreadyOnNote', alreadyOn.length, {
-      one: '{names} is already on the clock, so they were left out — a second shift is paid twice.',
-      other: '{names} are already on the clock, so they were left out — a second shift is paid twice.',
+      one: '{names} is already on the clock, so they were left out. A second shift is paid twice.',
+      other: '{names} are already on the clock, so they were left out. A second shift is paid twice.',
     }, { names: listNames(alreadyOn.map(m => m.name), lang) }, lang);
   return { go, alreadyOn, note };
 }

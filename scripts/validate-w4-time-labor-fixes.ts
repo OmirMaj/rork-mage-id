@@ -89,7 +89,7 @@ console.log('\n#41 a missed clock-out feeds nobody\'s overtime:');
     monCrew !== null && monCrew.people === 1 && monCrew.totalHours === 0 && monCrew.overtimeHours === 0
       && monCrew.missedCount === 1 && monCrew.liveCount === 0, JSON.stringify(monCrew));
   ok('…and the source line says his clock-out is not entered and where to enter it',
-    monCrew !== null && /1 person, 0 h · 1 clock-out not entered — their hours are left out until entered on Time Tracking/.test(clockCrewSourceLine(monCrew, 0)));
+    monCrew !== null && /1 person, 0 h · 1 clock-out not entered, so their hours are left out until entered on Time Tracking/.test(clockCrewSourceLine(monCrew, 0)));
   const tt = src('app/time-tracking.tsx');
   ok('the OT tile\'s live split passes the shift-alert hours',
     /computeOvertime\(mergeTimeEntriesMirror\(entries, teamEntries\), overtimeRule, \{ liveNowMs: nowMs, missedAlertHours: shiftAlertHours \}\)/.test(tt));
@@ -103,7 +103,7 @@ console.log('\n#99 a worker on the clock is never offered twice:');
   ok('the open-shift map reads EVERY team row, not only owned ones', /for \(const e of teamEntries\)/.test(block) && !/ownedTeam/.test(block));
   ok('…and keeps the missed-clock-out exemption', /!isMissed\(e\)/.test(block));
   ok('availableRoster filters on it', /roster\.filter\(m => !openShiftByWorker\.has\(m\.id\)\)/.test(tt));
-  ok('blocked names are shown greyed with who has them', /'On the clock on \{project\} — logged by \{who\}'[\s\S]{0,240}'On the clock on \{project\} — you clocked them in'[\s\S]{0,240}'On the clock — logged by \{who\}'[\s\S]{0,240}'On the clock — you clocked them in'/.test(tt)
+  ok('blocked names are shown greyed with who has them', /'On the clock on \{project\}, logged by \{who\}'[\s\S]{0,240}'On the clock on \{project\}\. You clocked them in\.'[\s\S]{0,240}'On the clock, logged by \{who\}'[\s\S]{0,240}'On the clock. You clocked them in.'/.test(tt)
     && /testID=\{`clock-in-member-on-clock-\$\{member\.id\}`\}/.test(tt));
   ok('seat-job open shifts are listed read-only', /seatTeamOpen\.map\(e => \(\{[\s\S]{0,160}readOnly: true/.test(tt) && /readOnly=\{r\.readOnly\}/.test(tt)
     && /testID=\{`time-entry-readonly-\$\{entry\.id\}`\}/.test(tt));
@@ -237,7 +237,7 @@ console.log('\n#105 the screen can be refreshed, and clock-in checks again:');
     && /onPress=\{openClockInSheet\}/.test(tt));
   ok('the sheet says when it could not check', /testID="clock-in-pull-failed"/.test(tt) && /pullFailed/.test(hook));
   ok('clocking in a worker already on the clock is a confirm naming who has him',
-    /const already = openShiftByWorker\.get\(member\.id\);/.test(tt) && /'Already on the clock'/.test(tt) && /text: t\('field\.time\.clockInAgain', 'Clock in again'\), style: 'destructive', onPress: certCheck/.test(tt));
+    /const already = openShiftByWorker\.get\(member\.id\);/.test(tt) && /'Already on the Clock'/.test(tt) && /text: t\('field\.time\.clockInAgain', 'Clock In Again'\), style: 'destructive', onPress: certCheck/.test(tt));
 }
 
 console.log('\n#106 the sentences use the bare name:');

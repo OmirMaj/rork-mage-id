@@ -254,18 +254,18 @@ function ScanInner() {
   // ── Capture ──────────────────────────────────────────────────
   const addCapture = useCallback(async (source: 'camera' | 'library') => {
     if (captures.length >= MAX_CAPTURES) {
-      showAlert('Max captures', `Up to ${MAX_CAPTURES} images per scan.`);
+      showAlert('Max Captures', `Up to ${MAX_CAPTURES} images per scan.`);
       return;
     }
     try {
       let res: ImagePicker.ImagePickerResult;
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Grant camera access in Settings.'); return; }
         res = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo Access Needed', 'Grant photo access in Settings.'); return; }
         res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
       }
       if (res.canceled || !res.assets[0]?.base64) return;
@@ -288,7 +288,7 @@ function ScanInner() {
   const removeCapture = useCallback((idx: number) => {
     if (landedCount > 0) {
       showAlert(
-        'Pages already filed',
+        'Pages Already Filed',
         `${landedCount} page${landedCount === 1 ? ' of this scan is' : 's of this scan are'} already in ${project?.name ?? 'this project'}'s files. Finish filing the rest here, or tap Start over (the filed pages stay in Project Files).`,
       );
       return;
@@ -300,7 +300,7 @@ function ScanInner() {
   // ── Scan (edge fn) ───────────────────────────────────────────
   const runScan = useCallback(async () => {
     if (busy || captures.length === 0) return;
-    if (!effectiveProjectId) { showAlert('Pick a project', 'Choose which project this document belongs to.'); return; }
+    if (!effectiveProjectId) { showAlert('Pick a Project', 'Choose which project this document belongs to.'); return; }
     // #68 (carried for photo-ai): the server refuses over 6 MB for one image
     // or 8 MB for the scan. Say so BEFORE the call, with what to do about it,
     // instead of "Edge Function returned a non-2xx status code".
@@ -347,11 +347,11 @@ function ScanInner() {
         // A cap or a plan gate: "try again" would be a lie. Offer the plans.
         setError(msg);
         showAlert(
-          code === 'tier_required' ? 'Not on your plan' : 'Monthly scan limit reached',
+          code === 'tier_required' ? 'Not on Your Plan' : 'Monthly Scan Limit Reached',
           msg,
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
           ],
         );
       } else if (code === 'hourly_limit') {
@@ -507,8 +507,8 @@ function ScanInner() {
     // screen, create no record and log no scan, and say exactly what landed.
     if (done < total) {
       setError(done === 0
-        ? `Filing failed: ${firstError}. Nothing was saved — tap "Confirm & file" to retry.`
-        : `Filed ${done} of ${total} pages — tap Confirm & file to retry the rest. (${firstError})`);
+        ? `Filing failed: ${firstError}. Nothing was saved. Tap Confirm and File to retry.`
+        : `Filed ${done} of ${total} pages. Tap Confirm and File to retry the rest. (${firstError})`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSaving(false);
       return;
@@ -592,7 +592,7 @@ function ScanInner() {
     if (id === effectiveProjectId) return;
     if (landedCount > 0) {
       showAlert(
-        'Pages already filed',
+        'Pages Already Filed',
         `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this project'}'s files. Finish filing here, or tap Start over (the filed pages stay in Project Files).`,
       );
       return;
@@ -617,8 +617,8 @@ function ScanInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Scan anything · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Auto-file a document'}</Text>
+          <Text style={styles.headerEyebrow}>Scan Anything · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Auto-File a Document'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -636,7 +636,7 @@ function ScanInner() {
         {projects.length > 0 && captures.length === 0 && !result && !saved && (
           <View style={styles.intro}>
             <Text style={[styles.introText, isDesktop && desktopProse]}>
-              Photograph any document — a sub&apos;s invoice, a COI, a permit, a business
+              Photograph any document: a sub&apos;s invoice, a COI, a permit, a business
               card. MAGE reads it, tells you what it found, and files it to the right
               job. Nothing is filed without your OK.
             </Text>
@@ -669,7 +669,7 @@ function ScanInner() {
                     <Check size={13} color={Colors.textOnAccent} strokeWidth={2.25} />
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.thumbDel} onPress={() => removeCapture(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove capture">
+                  <TouchableOpacity style={styles.thumbDel} onPress={() => removeCapture(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove Capture">
                     <X size={13} color={Colors.textOnAccent} strokeWidth={2.25} />
                   </TouchableOpacity>
                 )}
@@ -686,9 +686,9 @@ function ScanInner() {
         {!result && !saved && projects.length === 0 && (
           <EmptyState
             icon={<ScanLine size={36} color={t.accent} strokeWidth={1.6} />}
-            title="No projects yet"
+            title="No Projects Yet"
             message="Scan anything reads a document and files it into a project: a bill as a cost entry, a COI on the sub, a permit on the Permits list. Create a project first so it has somewhere to land."
-            actionLabel="Create a project"
+            actionLabel="Create a Project"
             onAction={() => router.push({ pathname: '/' as never, params: { openCreate: '1' } as never })}
           />
         )}
@@ -697,11 +697,11 @@ function ScanInner() {
           <View style={[styles.captureRow, isDesktop && styles.captureRowDesktop]}>
             <TouchableOpacity style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]} onPress={() => addCapture('camera')} activeOpacity={0.85} testID="scan-camera">
               <Camera size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>{captures.length ? 'Add shot' : 'Capture'}</Text>
+              <Text style={styles.captureText}>{captures.length ? 'Add Shot' : 'Capture'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]} onPress={() => addCapture('library')} activeOpacity={0.85} testID="scan-library">
               <ImagePlus size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>From library</Text>
+              <Text style={styles.captureText}>From Library</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -710,7 +710,7 @@ function ScanInner() {
         {captures.length > 0 && !result && (
           <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta, busy && { opacity: 0.7 }]} onPress={runScan} disabled={busy} activeOpacity={0.85} testID="scan-run">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <MageAIMark size={16} color={Colors.textOnAccent} />}
-            <Text style={styles.aiBtnText}>{busy ? 'Reading the document…' : 'Scan & auto-file'}</Text>
+            <Text style={styles.aiBtnText}>{busy ? 'Reading the document…' : 'Scan and Auto-File'}</Text>
           </TouchableOpacity>
         )}
 
@@ -739,21 +739,21 @@ function ScanInner() {
             testID="scan-log-arrival"
           >
             <Check size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.secondaryBtnText}>Log this delivery as received</Text>
+            <Text style={styles.secondaryBtnText}>Log This Delivery as Received</Text>
           </TouchableOpacity>
         ) : null}
         {saved && (
           <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-another">
             <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.secondaryBtnText}>Scan another</Text>
+            <Text style={styles.secondaryBtnText}>Scan Another</Text>
           </TouchableOpacity>
         )}
         {/* #64 partial filing: the way out the refusals above name. The pages
             that landed stay in Project Files; nothing is re-uploaded. */}
         {!saved && landedCount > 0 && (
-          <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-start-over" accessibilityRole="button" accessibilityLabel="Start over — the filed pages stay in Project Files">
+          <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-start-over" accessibilityRole="button" accessibilityLabel="Start over. The filed pages stay in Project Files.">
             <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.secondaryBtnText}>Start over</Text>
+            <Text style={styles.secondaryBtnText}>Start Over</Text>
           </TouchableOpacity>
         )}
 
@@ -765,11 +765,11 @@ function ScanInner() {
             </View>
             <Text style={styles.redirectTitle}>This looks like an ID</Text>
             <Text style={styles.redirectBody}>
-              Use the crew ID scan — it asks the person's consent, verifies the ID, and never stores the number.
+              Use the crew ID scan. It asks the person's consent, verifies the ID, and never stores the number.
               Government IDs aren&apos;t filed here.
             </Text>
             <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta]} onPress={() => router.push('/crew')} activeOpacity={0.85} testID="scan-goto-crew">
-              <Text style={styles.aiBtnText}>Go to crew ID scan</Text>
+              <Text style={styles.aiBtnText}>Go to Crew ID Scan</Text>
               <ArrowRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -809,7 +809,7 @@ function ScanInner() {
                 contradict it. */}
             {destination.recordKind === 'sub_compliance' && ownerGate.state === 'open' && (
               <View style={styles.pickerWrap} testID="scan-coi-sub-picker">
-                <Text style={styles.pickerLabel}>Link to subcontractor (needed to file as compliance)</Text>
+                <Text style={styles.pickerLabel}>Link to Subcontractor (Needed to File as Compliance)</Text>
                 {coiSubs.subs.length > 0 ? (
                   <ChipRail contentContainerStyle={{ gap: 8 }}>
                     <TouchableOpacity onPress={() => setSubPick('')} style={[styles.chip, !effectiveSubId && styles.chipOn]}>
@@ -825,15 +825,15 @@ function ScanInner() {
                   </ChipRail>
                 ) : (
                   <View style={styles.helpRow}>
-                    <Text style={styles.helpText}>No subs yet — add one in Subs to file this as compliance. Until then it files as a plain document.</Text>
+                    <Text style={styles.helpText}>No subs yet. Add one in Subs to file this as compliance. Until then it files as a plain document.</Text>
                     <TouchableOpacity onPress={() => router.push('/(tabs)/subs' as never)} hitSlop={8} accessibilityRole="link" testID="scan-add-sub">
-                      <Text style={styles.helpLink}>Open subs</Text>
+                      <Text style={styles.helpLink}>Open Subs</Text>
                     </TouchableOpacity>
                   </View>
                 )}
                 {effectiveSubId && !expiryRead && (
                   <Text style={styles.helpText}>
-                    No expiry date read as YYYY-MM-DD — the COI files on the sub, but his insurance expiry won&apos;t update until you fix Expires Date below.
+                    No expiry date read as YYYY-MM-DD. The COI files on the sub, but their insurance expiry won&apos;t update until you fix Expires Date below.
                   </Text>
                 )}
               </View>
@@ -844,12 +844,12 @@ function ScanInner() {
                 against that PO' / 'books as direct cost' would be false. */}
             {destination.recordKind === 'cost' && ownerGate.state === 'open' && (
               <View style={styles.pickerWrap} testID="scan-commitment-picker">
-                <Text style={styles.pickerLabel}>Pays against</Text>
+                <Text style={styles.pickerLabel}>Pays Against</Text>
                 {linkable.length > 0 ? (
                   <>
                     <ChipRail contentContainerStyle={{ gap: 8 }}>
                       <TouchableOpacity onPress={() => setCommitmentPick('')} style={[styles.chip, !effectiveCommitmentId && styles.chipOn]}>
-                        <Text style={[styles.chipText, !effectiveCommitmentId && styles.chipTextOn]}>None — direct cost</Text>
+                        <Text style={[styles.chipText, !effectiveCommitmentId && styles.chipTextOn]}>None (Direct Cost)</Text>
                       </TouchableOpacity>
                       {linkable.map(c => (
                         <TouchableOpacity key={c.id} onPress={() => setCommitmentPick(c.id)} style={[styles.chip, effectiveCommitmentId === c.id && styles.chipOn]} testID={`scan-commitment-${c.id}`}>
@@ -882,7 +882,7 @@ function ScanInner() {
               <View style={{ marginTop: 6 }}>
                 <Text style={styles.sectionTitle}>Details</Text>
                 {effectiveRecordKind === 'file_only' && (
-                  <Text style={styles.helpText}>These are kept with the scan log only — no record is created from them.</Text>
+                  <Text style={styles.helpText}>These are kept with the scan log only. No record is created from them.</Text>
                 )}
                 {scalarKeys.map(key => (
                   <View key={key} style={styles.fieldBlock}>
@@ -897,14 +897,14 @@ function ScanInner() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.emptyFields}>No fields extracted — the document will be filed as-is.</Text>
+              <Text style={styles.emptyFields}>No fields extracted. The document will be filed as it is.</Text>
             )}
 
             {/* Line items, read-only — the receipt is only marked reviewed
                 because he saw them here (#63). */}
             {destination.recordKind === 'cost' && invoiceLines.length > 0 && (
               <View style={{ marginTop: 4 }} testID="scan-invoice-lines">
-                <Text style={styles.sectionTitle}>Line items ({invoiceLines.length})</Text>
+                <Text style={styles.sectionTitle}>Line Items ({invoiceLines.length})</Text>
                 {invoiceLines.map((l, i) => (
                   <View key={i} style={styles.lineRow}>
                     <Text style={styles.lineDesc} numberOfLines={2}>{l.description || 'Item'}{l.qty ? ` · ${l.qty}${l.unit ? ` ${l.unit}` : ''}` : ''}</Text>
@@ -924,7 +924,7 @@ function ScanInner() {
             >
               {saving ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />}
               <Text style={styles.saveBtnText}>
-                {saving ? 'Filing…' : 'Confirm & file'}
+                {saving ? 'Filing…' : 'Confirm and File'}
               </Text>
             </TouchableOpacity>
           </View>

@@ -16,7 +16,7 @@ assert(resolveDestination('invoice').recordKind === 'cost', 'invoice→cost');
 assert(resolveDestination('business_card').recordKind === 'contact', 'card→contact');
 assert(resolveDestination('insurance_coi').recordKind === 'sub_compliance', 'coi→sub');
 assert(resolveDestination('government_id').recordKind === 'file_only', 'gov id never extracts (file_only fallback)');
-assert(defaultTitleFor('invoice', { vendor: 'ABC Supply' }) === 'Invoice — ABC Supply', 'invoice title');
+assert(defaultTitleFor('invoice', { vendor: 'ABC Supply' }) === 'Invoice · ABC Supply', 'invoice title');
 // Wave 5 (#162): a scanned permit / warranty creates its record instead of
 // logging the fields to a list no screen reads.
 assert(resolveDestination('permit').recordKind === 'permit', 'permit→permit record');

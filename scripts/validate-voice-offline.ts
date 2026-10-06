@@ -580,7 +580,7 @@ ok("the next tap starts a new recording only once the old one is on disk",
 ok('the modal shows dictation this surface saved offline',
   /getContextDictation\(contextKey\)/.test(modalCode) && /pendingNoticeMessage\(/.test(modalCode));
 ok('…offers a manual retry rather than making the user wait for a timer',
-  /processAudioTranscribeQueue\(\)/.test(modalCode) && /Transcribe now/.test(modalCode));
+  /processAudioTranscribeQueue\(\)/.test(modalCode) && /Transcribe Now/.test(modalCode));
 ok('…and hands a finished transcript to the form, removing it in the same step',
   /await takeTranscript\(readyClip\.id\)/.test(modalCode) && /onTranscriptReady\(text\)/.test(modalCode));
 ok('every caller gets the offline path without being edited',

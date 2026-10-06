@@ -231,7 +231,7 @@ const region = (src: string, decl: string) => {
     console.log('  - desktop Send width pin: skipped (no Layout.button.fullWidthMax on this tree; the join adds both)');
   }
   ok('the sample label is "Send to me"; the real one is still "Send & Save"',
-    /label=\{sendInFlight \? 'Sending…' : SAMPLE_SEND_TO_ME_LABEL\}/.test(INV) && /label=\{sendInFlight \? 'Sending…' : 'Send & Save'\}/.test(INV)
+    /label=\{sendInFlight \? 'Sending…' : SAMPLE_SEND_TO_ME_LABEL\}/.test(INV) && /label=\{sendInFlight \? 'Sending…' : 'Send and Save'\}/.test(INV)
       && /\{isSampleJob \? \(\s*<Button\s+label=\{sendInFlight \? 'Sending…' : SAMPLE_SEND_TO_ME_LABEL\}/.test(INV));
   const sentinel = /\{invoiceModalUp\(\{([\s\S]*?)\}\) \? <TutorialTarget id="invoice\.modalUp" \/> : null\}/.exec(INV);
   const flags = sentinel?.[1] ?? '';
@@ -309,17 +309,17 @@ const region = (src: string, decl: string) => {
   ok('"Also post to client portal" is hidden on a sample', /\{!isSampleJob && \(\s*<TouchableOpacity\s+style=\{\[styles\.portalPostRow/.test(INV));
   ok('Send to Client (portal) is hidden on a sample', /\{existingInvoice && !isSampleJob && \(\s*<SendToClientButton/.test(INV));
   ok('Send reminder refuses a sample (and says why on screen)',
-    /if \(isSampleProject\(projectNameRef\.current\)\) \{\s*showAlert\('Sample job', SAMPLE_NOTHING_SENT\);/.test(region(INV, 'const handleSendReminder = useCallback('))
+    /if \(isSampleProject\(projectNameRef\.current\)\) \{\s*showAlert\('Sample Job', SAMPLE_NOTHING_SENT\);/.test(region(INV, 'const handleSendReminder = useCallback('))
       && /testID="reminder-sample-note"/.test(INV) && /sendingReminder \|\| isSampleJob\}/.test(INV));
   ok('Generate payment link refuses a sample (and says why on screen)',
-    /if \(isSampleProject\(project\)\) \{\s*showAlert\('Sample job', SAMPLE_NOTHING_SENT\);/.test(region(INV, 'const handleGeneratePayLink = useCallback(')) && /testID="pay-link-sample-note"/.test(INV));
+    /if \(isSampleProject\(project\)\) \{\s*showAlert\('Sample Job', SAMPLE_NOTHING_SENT\);/.test(region(INV, 'const handleGeneratePayLink = useCallback(')) && /testID="pay-link-sample-note"/.test(INV));
   const pdf = INV.slice(INV.indexOf('const handleSendPDF = useCallback('), INV.indexOf('const handleSendPDF = useCallback(') + 700);
   ok('the PDF email path is locked to him too, and opens on his address',
     /options\.method === 'email' && !sampleSendAllowed\(project, options\.recipient, userEmailRef\.current\)/.test(pdf)
       && /const pdfDefaultRecipient = samplePlan\.sample \? \(samplePlan\.to \?\? ''\) : clientPdfRecipient;/.test(INV));
 
   // ── the REAL path is untouched ──
-  ok('REAL: the Send & Save button is still the pinned one', /label=\{sendInFlight \? 'Sending…' : 'Send & Save'\}\s*onPress=\{handleSendPress\}\s*disabled=\{sendInFlight\}/.test(INV));
+  ok('REAL: the Send and Save button is still the pinned one', /label=\{sendInFlight \? 'Sending…' : 'Send and Save'\}\s*onPress=\{handleSendPress\}\s*disabled=\{sendInFlight\}/.test(INV));
   ok('REAL: the mint is still called for the balance and the recipient', run.includes('const minted = await mintPayLinkFor(workingInvoice, balanceDue, sendRecipientEmail.trim());'));
   ok('REAL: the portal post is still gated on the tick AND a live portal only', /if \(postToPortal && portalEnabled\)/.test(run));
   ok('REAL: the email goes to the typed recipient', /const result = await sendEmail\(\{\s*to: sendRecipientEmail\.trim\(\),/.test(run));

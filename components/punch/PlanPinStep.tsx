@@ -604,7 +604,7 @@ function PlanPinStepBody({
     <View style={styles.addButtons}>
       {!isWeb && (
         <Button
-          label={t('field.punchWalk.planPin.photographPlan', 'Photograph the plan')}
+          label={t('field.punchWalk.planPin.photographPlan', 'Photograph the Plan')}
           onPress={() => void runAdd('camera')}
           loading={busy === 'camera'}
           disabled={!!uploadBlockedReason || (busy !== null && busy !== 'camera')}
@@ -617,7 +617,7 @@ function PlanPinStepBody({
         <Text style={styles.panelNote}>{t('field.punchWalk.planPin.standOverTheSheet', 'Stand over the sheet with the phone flat, fill the frame, keep glare off it.')}</Text>
       )}
       <Button
-        label={isWeb ? t('field.punchWalk.planPin.choosePlanImage', 'Choose the plan image') : t('field.punchWalk.planPin.pickFromPhotos', 'Pick from photos')}
+        label={isWeb ? t('field.punchWalk.planPin.choosePlanImage', 'Choose the Plan Image') : t('field.punchWalk.planPin.pickFromPhotos', 'Pick from Photos')}
         variant={isWeb ? 'primary' : 'secondary'}
         onPress={() => void runAdd('library')}
         loading={busy === 'library'}
@@ -629,7 +629,7 @@ function PlanPinStepBody({
       {opts?.pdf && onImportPdf && (
         <>
           <Button
-            label={t('field.punchWalk.planPin.importAPdfPlan', 'Import a PDF plan set')}
+            label={t('field.punchWalk.planPin.importAPdfPlan', 'Import a PDF Plan Set')}
             variant="secondary"
             onPress={onImportPdf}
             disabled={!!uploadBlockedReason || !!importPdfBlockedReason || busy !== null}
@@ -656,7 +656,7 @@ function PlanPinStepBody({
     body = (
       <ScrollView style={styles.panelWrap} contentContainerStyle={styles.panel} testID="walk-pin-no-plan">
         <FileImage size={28} color={tc.textMuted} strokeWidth={1.75} />
-        <Text style={styles.panelTitle}>{t('field.punchWalk.planPin.noFloorPlanOn', 'No floor plan on this project yet')}</Text>
+        <Text style={styles.panelTitle}>{t('field.punchWalk.planPin.noFloorPlanOn', 'No Floor Plan on This Project Yet')}</Text>
         <Text style={styles.panelBody}>
           {t('field.punchWalk.planPin.addOneToPin', 'Add one to pin where each item is. A photo of the paper plan on the wall works. It saves to the project, so the office and your subs see the same pins.')}
         </Text>
@@ -676,7 +676,7 @@ function PlanPinStepBody({
         </Text>
         {otherPinnable > 0 && (
           <Text style={styles.panelBody} testID="walk-pin-other-sheets">
-            {tn('field.punchWalk.planPin.otherSheets', otherPinnable, { one: 'Another sheet has its image — tap it in the sheet list above to pin there.', other: '{count} other sheets have their image — tap one in the sheet list above to pin there.' })}
+            {tn('field.punchWalk.planPin.otherSheets', otherPinnable, { one: 'Another sheet has its image. Tap it in the sheet list above to pin there.', other: '{count} other sheets have their image. Tap one in the sheet list above to pin there.' })}
           </Text>
         )}
         {renderAddButtons({ pdf: true })}
@@ -722,7 +722,7 @@ function PlanPinStepBody({
               accessibilityHint={pin
                 ? t('field.punchWalk.planPin.pinPlacedUseTo', 'Pin placed. Use {nextLabel} to continue, or {skipHint}.', { nextLabel, skipHint })
                 : t('field.punchWalk.planPin.doubleTapToDrop', 'Double-tap to drop a pin in the middle of the plan, or {skipHint}.', { skipHint })}
-              accessibilityActions={[{ name: 'activate', label: t('field.punchWalk.planPin.dropPinMiddle', 'Drop pin in the middle of the plan') }]}
+              accessibilityActions={[{ name: 'activate', label: t('field.punchWalk.planPin.dropPinMiddle', 'Drop Pin in the Middle of the Plan') }]}
               onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'activate') handleAccessibilityPin(); }}
               onAccessibilityTap={handleAccessibilityPin}
               testID="walk-pin-canvas"
@@ -787,10 +787,10 @@ function PlanPinStepBody({
           <View style={styles.saveBanner} testID="walk-pin-device-only">
             <Text style={styles.saveBannerTitle}>{t('field.punchWalk.planPin.thisPlanIsOnly', 'This plan is only on this phone')}</Text>
             <Text style={styles.saveBannerBody}>
-              {t('field.punchWalk.planPin.theOfficeAndYour', 'The office and your subs see a blank sheet. Save it to the job, then pin — anything already on it stays.')}
+              {t('field.punchWalk.planPin.theOfficeAndYour', 'The office and your subs see a blank sheet. Save it to the project, then pin. Anything already on it stays.')}
             </Text>
             <Button
-              label={t('field.punchWalk.planPin.savePlanToThe', 'Save plan to the project')}
+              label={t('field.punchWalk.planPin.savePlanToThe', 'Save Plan to the Project')}
               onPress={() => void runSaveDeviceOnly()}
               loading={busy === 'save'}
               disabled={!!uploadBlockedReason || (busy !== null && busy !== 'save')}
@@ -816,14 +816,14 @@ function PlanPinStepBody({
         )}
         {mode === 'pin' && loadState === 'error' && (
           <View style={[styles.canvasOverlay, styles.canvasOverlaySolid]} testID="walk-pin-load-error">
-            <Text style={styles.panelTitle}>{t('field.punchWalk.planPin.planCantLoad', 'Plan can’t load')}</Text>
+            <Text style={styles.panelTitle}>{t('field.punchWalk.planPin.planCantLoad', 'Plan Can’t Load')}</Text>
             <Text style={styles.panelBody}>
               {Platform.OS === 'web'
                 ? t('field.punchWalk.planPin.noSignalOrThe', 'No signal, or the link to it expired. Skip the pin, or try again when you have signal.')
                 : t('field.punchWalk.planPin.noSignalOrThe2', 'No signal, or the link to it expired. With no signal a plan only opens if it has already loaded on this phone. Skip the pin, or try again when you have signal.')}
             </Text>
             <Button
-              label={t('field.punchWalk.planPin.tryAgain', 'Try again')}
+              label={t('field.punchWalk.planPin.tryAgain', 'Try Again')}
               variant="secondary"
               onPress={handleRetry}
               iconLeft={<RotateCcw size={15} color={tc.text} strokeWidth={2} />}
@@ -948,14 +948,14 @@ function PlanPinStepBody({
                   // forms wrapped to three lines in a 48pt button and the
                   // reason was clipped. The panel above carries the detail.
                   : mode === 'save'
-                    ? t('field.punchWalk.planPin.saveThePlanFirst', 'Save the plan first')
+                    ? t('field.punchWalk.planPin.saveThePlanFirst', 'Save the Plan First')
                     : mode === 'repick'
-                      ? t('field.punchWalk.planPin.addThePlanImage', 'Add the plan image first')
+                      ? t('field.punchWalk.planPin.addThePlanImage', 'Add the Plan Image First')
                       : loadState === 'error'
-                        ? t('field.punchWalk.planPin.planDidntLoad', 'Plan didn’t load')
+                        ? t('field.punchWalk.planPin.planDidntLoad', 'Plan Didn’t Load')
                         : loadState === 'loading'
                           ? t('field.punchWalk.planPin.loadingThePlan', 'Loading the plan…')
-                          : (isWeb ? t('field.punchWalk.planPin.clickThePlanWhere', 'Click the plan where this is') : t('field.punchWalk.planPin.tapThePlanWhere', 'Tap the plan where this is'))}
+                          : (isWeb ? t('field.punchWalk.planPin.clickThePlanWhere', 'Click the Plan Where This Is') : t('field.punchWalk.planPin.tapThePlanWhere', 'Tap the Plan Where This Is'))}
                 onPress={handleNext}
                 disabled={!pin || !canPin}
                 fullWidth

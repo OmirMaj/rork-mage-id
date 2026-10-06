@@ -564,17 +564,17 @@ function sentenceParts(template: string, values: Record<string, string | number>
 function carryButtonLabelL(dateValue: string | null | undefined, absolute: boolean, now: Date = new Date()): string {
   const day = calendarDayOf(dateValue);
   const until = day ? daysUntilCalendarDay(day, now) : null;
-  if (!day || until === null) return t('field.dfr.carry.fromLastReport', 'Copy from the last report');
+  if (!day || until === null) return t('field.dfr.carry.fromLastReport', 'Copy from the Last Report');
   if (absolute) {
     const abs = carrySourceDayAbsolute(dateValue);
-    return abs === CARRY_UNKNOWN_DAY ? t('field.dfr.carry.fromLastReport', 'Copy from the last report') : t('field.dfr.carry.fromDay', 'Copy from {day}', { day: abs });
+    return abs === CARRY_UNKNOWN_DAY ? t('field.dfr.carry.fromLastReport', 'Copy from the Last Report') : t('field.dfr.carry.fromDay', 'Copy from {day}', { day: abs });
   }
   const daysAgo = -until;
   if (daysAgo === 0) return t('field.dfr.carry.fromEarlierToday', 'Copy from earlier today');
   if (daysAgo === 1) return t('field.dfr.carry.fromYesterday', 'Copy from yesterday');
   if (daysAgo > 1 && daysAgo < 7) return tn('field.dfr.carry.fromDaysAgo', daysAgo, { one: 'Copy from {count} day ago', other: 'Copy from {count} days ago' });
   const abs = carrySourceDayAbsolute(dateValue, now);
-  return abs === CARRY_UNKNOWN_DAY ? t('field.dfr.carry.fromLastReport', 'Copy from the last report') : t('field.dfr.carry.fromDay', 'Copy from {day}', { day: abs });
+  return abs === CARRY_UNKNOWN_DAY ? t('field.dfr.carry.fromLastReport', 'Copy from the Last Report') : t('field.dfr.carry.fromDay', 'Copy from {day}', { day: abs });
 }
 
 /** The carry-forward toast, one sentence per case (W3). */
@@ -606,7 +606,7 @@ function sameDayBannerL(o: { count: number; sent: boolean; filer: { kind: string
   else if (k === 'person') parts.push(t('field.dfr.sameDay.filedByPerson', '{who} filed it.', { who: o.filer?.who ?? '' }));
   else if (k === 'unknown') parts.push(t('field.dfr.sameDay.filedByTeam', 'A team member filed it.'));
   parts.push(t('field.dfr.sameDay.lastSaved', 'It was last saved at {time}.', { time: o.time }));
-  parts.push(t('field.dfr.sameDay.severalFine', 'Several reports a day are fine — one per crew or shift.'));
+  parts.push(t('field.dfr.sameDay.severalFine', 'Several reports a day are fine: one per crew or shift.'));
   return parts.join(' ');
 }
 
@@ -636,9 +636,9 @@ function incidentSeverityL(sev: string | undefined, t: DfrT = coreT): string {
  *  utils/safety/osha.ts DFR_INCIDENT_TYPE_LABEL word for word. */
 function incidentTypeL(kind: IncidentType, t: DfrT = coreT): string {
   switch (kind) {
-    case 'injury': return t('field.dfr.incident.type.injury', 'Injury or illness');
-    case 'near_miss': return t('field.dfr.incident.type.nearMiss', 'Near miss');
-    case 'property': return t('field.dfr.incident.type.property', 'Property damage');
+    case 'injury': return t('field.dfr.incident.type.injury', 'Injury or Illness');
+    case 'near_miss': return t('field.dfr.incident.type.nearMiss', 'Near Miss');
+    case 'property': return t('field.dfr.incident.type.property', 'Property Damage');
     case 'environmental': return t('field.dfr.incident.type.environmental', 'Environmental');
     default: return DFR_INCIDENT_TYPE_LABEL[kind];
   }
@@ -649,8 +649,8 @@ function incidentTypeL(kind: IncidentType, t: DfrT = coreT): string {
 function treatmentL(tr: Treatment, t: DfrT = coreT): string {
   switch (tr) {
     case 'none': return t('field.dfr.incident.treatment.none', 'None');
-    case 'first_aid': return t('field.dfr.incident.treatment.firstAid', 'First aid only');
-    case 'medical_beyond_first_aid': return t('field.dfr.incident.treatment.medical', 'Medical beyond first aid');
+    case 'first_aid': return t('field.dfr.incident.treatment.firstAid', 'First Aid Only');
+    case 'medical_beyond_first_aid': return t('field.dfr.incident.treatment.medical', 'Medical Beyond First Aid');
     default: return DFR_TREATMENT_LABEL[tr];
   }
 }
@@ -734,7 +734,7 @@ export function dfrAiWeatherStr(parts: (string | null | undefined)[]): string {
 
 /** The divider the schedule generator writes under, so what came from the
  *  schedule is visibly separate from what he typed. */
-export const DFR_FROM_SCHEDULE_DIVIDER = '— From schedule —';
+export const DFR_FROM_SCHEDULE_DIVIDER = 'From schedule:';
 /**
  * #28: the schedule "generate report" button REPLACED work performed and
  * issues with '[Completed] …' lines — on a new, unsaved report, with no undo,
@@ -763,11 +763,11 @@ export function dfrAppendGenerated(typed: string, generated: string): string {
 export function dfrPublishControl(saved: boolean, local: boolean, t: DfrT = (_k, en) => en): {
   label: string; pill: boolean; pending: 'publish' | 'remove' | null;
 } {
-  if (saved && local) return { label: t('field.dfr.publish.published', 'Published — tap to take it down'), pill: true, pending: null };
-  if (!saved && local) return { label: t('field.dfr.publish.onSave', 'Publishes when you save'), pill: false, pending: 'publish' };
+  if (saved && local) return { label: t('field.dfr.publish.published', 'Published. Tap to take it down.'), pill: true, pending: null };
+  if (!saved && local) return { label: t('field.dfr.publish.onSave', 'Publishes When You Save'), pill: false, pending: 'publish' };
   // The homeowner still sees it until the save lands, so the pill stays.
-  if (saved && !local) return { label: t('field.dfr.publish.removedOnSave', 'Removed when you save'), pill: true, pending: 'remove' };
-  return { label: t('field.dfr.publish.toPortal', 'Publish to portal'), pill: false, pending: null };
+  if (saved && !local) return { label: t('field.dfr.publish.removedOnSave', 'Removed When You Save'), pill: true, pending: 'remove' };
+  return { label: t('field.dfr.publish.toPortal', 'Publish to Portal'), pill: false, pending: null };
 }
 
 /**
@@ -782,7 +782,7 @@ export function dfrIsProjectOwner(ownerUserId: string | null | undefined, userId
 
 /** #41 (founder decision pending — interim): only the project owner writes
  *  change orders. */
-export const DFR_GC_CREATES_COS = 'Your GC creates change orders \u2014 this goes to them as a field issue in this report.';
+export const DFR_GC_CREATES_COS = 'Your GC creates change orders. This goes to them as a field issue in this report.';
 export const DFR_OWNER_DECIDES_HOMEOWNER = 'The project owner decides what the client sees.';
 /**
  * #116 (founder decision pending — interim): only the owner or an editor may
@@ -868,7 +868,7 @@ export function dfrIncidentFileNote(isOwner: boolean, t: DfrT = (_k, en) => en):
 // >>> dfr-document-pure (pure; scripts/validate-dfr-document-wave3.ts evaluates this block — no imports in here)
 /** Why the project-files switch is off on web (#27). Kept word-for-word with
  *  utils/projectDocuments.PROJECT_FILES_NEEDS_APP; the validator pins both. */
-export const DFR_FILES_NEEDS_APP = 'Saving a PDF to project files needs the mobile app — use Print to keep a copy.';
+export const DFR_FILES_NEEDS_APP = 'Saving a PDF to project files needs the mobile app. Use Print to keep a copy.';
 
 /**
  * #27: the project-files copy needs PDF BYTES, and on web expo-print has none
@@ -894,8 +894,8 @@ export function dfrSendPlan(o: { email: string; saveToggle: boolean; os: string 
     return {
       wantsEmail, fileCopy,
       blocker: filesAvailable
-        ? { title: t('field.dfr.send.pickDestination', 'Pick a destination'), message: t('field.dfr.send.pickDestinationBody', 'Enter a recipient email, turn on "Save copy to project files", or both.') }
-        : { title: t('field.dfr.send.enterEmail', 'Enter an email'), message: t('field.dfr.send.enterEmailBody', 'Saving a PDF to project files needs the mobile app, so on the web a report goes out by email. Enter a recipient, or use Print to keep a copy.') },
+        ? { title: t('field.dfr.send.pickDestination', 'Pick a Destination'), message: t('field.dfr.send.pickDestinationBody', 'Enter a recipient email, turn on "Save copy to project files", or both.') }
+        : { title: t('field.dfr.send.enterEmail', 'Enter an Email'), message: t('field.dfr.send.enterEmailBody', 'Saving a PDF to project files needs the mobile app, so on the web a report goes out by email. Enter a recipient, or use Print to keep a copy.') },
     };
   }
   return { wantsEmail, fileCopy, blocker: null };
@@ -1039,11 +1039,11 @@ export function dfrCaseNotYoursReason(o: {
   // ONE sentence per author (docs/I18N.md §3.5): the possessive is an English
   // phrase from dfrFiledBy, so each case is its own key.
   const pos = o.authorPossessive;
-  if (pos === 'the project owner’s') return t('field.dfr.case.notYoursOwner', 'This case is in the project owner’s injury log — tell the GC. Treatment and days away changed here won’t reach it, so they are locked.');
-  if (pos === 'the report author’s') return t('field.dfr.case.notYoursAuthor', 'This case is in the report author’s injury log — tell the GC. Treatment and days away changed here won’t reach it, so they are locked.');
-  if (pos.endsWith('’s')) return t('field.dfr.case.notYoursPerson', 'This case is in {who}’s injury log — tell the GC. Treatment and days away changed here won’t reach it, so they are locked.', { who: pos.slice(0, -2) });
+  if (pos === 'the project owner’s') return t('field.dfr.case.notYoursOwner', 'This case is in the project owner’s injury log. Tell the GC. Treatment and days away changed here won’t reach it, so they are locked.');
+  if (pos === 'the report author’s') return t('field.dfr.case.notYoursAuthor', 'This case is in the report author’s injury log. Tell the GC. Treatment and days away changed here won’t reach it, so they are locked.');
+  if (pos.endsWith('’s')) return t('field.dfr.case.notYoursPerson', 'This case is in {who}’s injury log. Tell the GC. Treatment and days away changed here won’t reach it, so they are locked.', { who: pos.slice(0, -2) });
   // i18n-keep-english: unreachable fallback for an unforeseen English possessive; the three cases above are keyed
-  return `This case is in ${pos} injury log — tell the GC. Treatment and days away changed here won’t reach it, so they are locked.`;
+  return `This case is in ${pos} injury log. Tell the GC. Treatment and days away changed here won’t reach it, so they are locked.`;
 }
 
 /**
@@ -1188,7 +1188,7 @@ export default function DailyReportScreen() {
         {state === 'loading' ? (
           <>
             <Text style={styles.openGateText}>{t('field.dfr.loadingThisDailyReport', 'Loading this daily report…')}</Text>
-            <Button label={t('field.dfr.goBack', 'Go back')} variant="secondary" onPress={goBack} testID="dfr-open-loading-back" />
+            <Button label={t('field.dfr.goBack', 'Go Back')} variant="secondary" onPress={goBack} testID="dfr-open-loading-back" />
           </>
         ) : (
           <>
@@ -1199,8 +1199,8 @@ export default function DailyReportScreen() {
                 ? t('field.dfr.mageCouldntBeReached', "MAGE couldn't be reached, so the report may just not have synced yet. Nothing was opened in its place.")
                 : t('field.dfr.theLinkNamesA', "The link names a report that was deleted or hasn't synced here. Nothing was opened in its place, so nothing was overwritten.")}
             </Text>
-            <Button label={t('field.dfr.tryAgain', 'Try again')} variant="primary" onPress={retryRemoteReads} testID="dfr-open-retry" />
-            <Button label={t('field.dfr.goBack', 'Go back')} variant="secondary" onPress={goBack} testID="dfr-open-back" />
+            <Button label={t('field.dfr.tryAgain', 'Try Again')} variant="primary" onPress={retryRemoteReads} testID="dfr-open-retry" />
+            <Button label={t('field.dfr.goBack', 'Go Back')} variant="secondary" onPress={goBack} testID="dfr-open-back" />
           </>
         )}
       </View>
@@ -1396,7 +1396,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // Change-order handoff: a collaborator can't write a CO on the GC's job, so
     // the scope he tried to write arrives here as a field issue for the GC.
     const fi = typeof paramFieldIssue === 'string' ? paramFieldIssue.trim() : '';
-    return fi ? `For the GC \u2014 possible change order: ${fi}` : '';
+    return fi ? `For the GC, possible change order: ${fi}` : '';
   });
   // Homeowner-friendly summary — AI-generated from the technical fields,
   // GC reviews / edits, then publishes to the portal as the "Latest update".
@@ -1661,7 +1661,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       t('field.dfr.theOwnerDeletedThis', 'The owner deleted this case in Incidents. Filing it again puts it back on the safety record when you save this report.'),
       [
         { text: t('field.dfr.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('field.dfr.fileItAgain', 'File it again'), onPress: () => clearIncidentTombstone(dfrCaseId) },
+        { text: t('field.dfr.fileItAgain', 'File It Again'), onPress: () => clearIncidentTombstone(dfrCaseId) },
       ],
     );
   }, [clearIncidentTombstone, dfrCaseId, t]);
@@ -1712,7 +1712,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const days = incidentClassInput.daysRestricted ?? 0;
     if (days > 0) {
       showAlert(
-        t('field.dfr.restrictedDaysAreCounted', 'Restricted days are counted'),
+        t('field.dfr.restrictedDaysAreCounted', 'Restricted Days Are Counted'),
         tn('field.dfr.daysOfRestrictionAre', days, { one: '{count} day of restriction are entered, which makes this a restricted-work case. Clear the day count to untick it.', other: '{count} days of restriction are entered, which makes this a restricted-work case. Clear the day count to untick it.' }),
       );
       return;
@@ -2055,7 +2055,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         // What this phone knows, not a fact about the site: it holds its own
         // clock-ins and the crew's rows it has pulled, and a pull can be
         // minutes old (integration round 1).
-        line: t('field.dfr.crew.fromSchedulePlan', 'From the schedule plan: no clock-ins for this job and day have reached this phone. Counts came from today’s schedule and assume an 8-hour day — tap a row to correct it.'),
+        line: t('field.dfr.crew.fromSchedulePlan', 'From the schedule plan: no clock-ins for this job and day have reached this phone. Counts came from today’s schedule and assume an 8-hour day. Tap a row to correct it.'),
       };
     } else {
       seeded = [];
@@ -2086,7 +2086,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleSaveManpower = useCallback(() => {
     const trade = mpTrade.trim();
     if (!trade) {
-      showAlert(t('field.dfr.addATrade', 'Add a trade'), t('field.dfr.enterATradeName', 'Enter a trade name.'));
+      showAlert(t('field.dfr.addATrade', 'Add a Trade'), t('field.dfr.enterATradeName', 'Enter a trade name.'));
       return;
     }
     const fields = {
@@ -2241,7 +2241,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handlePickPhoto = useCallback(async () => {
     const remaining = MAX_DFR_PHOTOS - photos.length;
     if (remaining <= 0) {
-      showAlert(t('field.dfr.limitReached', 'Limit reached'), t('field.dfr.maximumPhotosPerReport', 'Maximum {MAX_DFR_PHOTOS} photos per report.', { MAX_DFR_PHOTOS }));
+      showAlert(t('field.dfr.limitReached', 'Limit Reached'), t('field.dfr.maximumPhotosPerReport', 'Maximum {MAX_DFR_PHOTOS} photos per report.', { MAX_DFR_PHOTOS }));
       return;
     }
     // One dialog, N photos. `allowsMultipleSelection: false` used to make a GC
@@ -2297,7 +2297,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleTakePhoto = useCallback(async () => {
     const remaining = MAX_DFR_PHOTOS - photos.length;
     if (remaining <= 0) {
-      showAlert(t('field.dfr.limitReached', 'Limit reached'), t('field.dfr.maximumPhotosPerReport', 'Maximum {MAX_DFR_PHOTOS} photos per report.', { MAX_DFR_PHOTOS }));
+      showAlert(t('field.dfr.limitReached', 'Limit Reached'), t('field.dfr.maximumPhotosPerReport', 'Maximum {MAX_DFR_PHOTOS} photos per report.', { MAX_DFR_PHOTOS }));
       return;
     }
     // Burst: the camera re-opens after every shot until the super backs out or
@@ -2350,7 +2350,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     if (!project) return;
     if (!workPerformed.trim() && !manpower.length && !issuesAndDelays.trim()) {
       showAlert(
-        t('field.dfr.notEnoughToSummarize', 'Not enough to summarize yet'),
+        t('field.dfr.notEnoughToSummarize', 'Not Enough to Summarize Yet'),
         t('field.dfr.addWorkPerformedCrew', 'Add work performed, crew or issues to draft the client update.'),
       );
       return;
@@ -2391,7 +2391,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     } catch (e) {
       console.warn('[DFR] client update generation failed', e);
       const off = aiConsentErrorText(e);
-      showAlert(off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotGenerate', 'Could not generate'), off ?? describeError(e, { action: 'draft the client update', keptLocally: true, title: t('field.dfr.error.clientUpdateTitle', "Couldn't write the client update") }).body);
+      showAlert(off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotGenerate', 'Could Not Generate'), off ?? describeError(e, { action: 'draft the client update', keptLocally: true, title: t('field.dfr.error.clientUpdateTitle', "Couldn't Write the Client Update") }).body);
     } finally {
       setHsGenerating(false);
     }
@@ -2409,11 +2409,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleLeakScan = useCallback(async () => {
     if (!project) return;
     if (!project.linkedEstimate?.items?.length) {
-      showAlert(t('field.dfr.noEstimateToCompare', 'No estimate to compare against'), t('field.dfr.theScanFlagsWork', 'The scan flags work outside your estimate scope. Link an estimate to this project first.'));
+      showAlert(t('field.dfr.noEstimateToCompare', 'No Estimate to Compare Against'), t('field.dfr.theScanFlagsWork', 'The scan flags work outside your estimate scope. Link an estimate to this project first.'));
       return;
     }
     if (!workPerformed.trim() && !issuesAndDelays.trim()) {
-      showAlert(t('field.dfr.nothingToScanYet', 'Nothing to scan yet'), t('field.dfr.fillInTheWork', "Fill in the work performed (or issues) first — that's the text the scan reads."));
+      showAlert(t('field.dfr.nothingToScanYet', 'Nothing to Scan Yet'), t('field.dfr.fillInTheWork', "Fill in the work performed (or issues) first. That's the text the scan reads."));
       return;
     }
     // Set scanning state synchronously before any await so a double-tap finds
@@ -2438,7 +2438,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         cacheHours: 720,
       });
       if (!res.success) {
-        showAlert(t('field.dfr.scanFailed', 'Scan failed'), res.error ?? t('field.dfr.tryAgainInA', 'Try again in a moment.'));
+        showAlert(t('field.dfr.scanFailed', 'Scan Failed'), res.error ?? t('field.dfr.tryAgainInA', 'Try again in a moment.'));
         return;
       }
       const items = coerceLeakResult(res.data);
@@ -2478,7 +2478,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;
     // Guarded here too, not just on the button (#41): only the owner writes COs.
-    if (!isProjectOwner) { showAlert(t('field.dfr.changeOrders', 'Change orders'), t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report.')); return; }
+    if (!isProjectOwner) { showAlert(t('field.dfr.changeOrders', 'Change Orders'), t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders. This goes to them as a field issue in this report.')); return; }
 
     // #76: the description the CLIENT reads is a neutral scope sentence; each
     // flagged item is its own line tagged with where its price came from
@@ -2503,7 +2503,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         tn('field.dfr.flaggedItemsHaveNo', prefill.unpricedCount, { one: '{count} flagged item have no learned price', other: '{count} flagged items have no learned price' }),
         t('field.dfr.eachOneIsA', 'Each one is a $0 line marked "needs price" in the change order. It can’t go to your client until you price it. The priced lines are AI estimates you confirm before sending.'),
         [
-          { text: t('field.dfr.reviewAnyway', 'Review anyway'), onPress: doNavigate },
+          { text: t('field.dfr.reviewAnyway', 'Review Anyway'), onPress: doNavigate },
           { text: t('field.dfr.cancel', 'Cancel'), style: 'cancel' },
         ],
       );
@@ -2592,10 +2592,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const day = carrySourceDayAbsolute(rec.reportDate);
     const n = rec.taskIds.length;
     // One sentence per task count (never a translated "that task" spliced in).
-    if (n === 0) return t('field.dfr.delay.alreadyAppliedFromSame', 'Already applied to the schedule from {day} — applying it again would move the same tasks a second time.', { day });
+    if (n === 0) return t('field.dfr.delay.alreadyAppliedFromSame', 'Already applied to the schedule from {day}. Applying it again would move the same tasks a second time.', { day });
     return tn('field.dfr.delay.alreadyAppliedFrom', n, {
-      one: 'Already applied to the schedule from {day} — applying it again would move that task a second time.',
-      other: 'Already applied to the schedule from {day} — applying it again would move those {count} tasks a second time.',
+      one: 'Already applied to the schedule from {day}. Applying it again would move that task a second time.',
+      other: 'Already applied to the schedule from {day}. Applying it again would move those {count} tasks a second time.',
     }, { day });
   }, [appliedForScannedText, stableReportId, t, tn]);
 
@@ -2610,7 +2610,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handleDelayScan = useCallback(async () => {
     if (!project?.schedule || scheduleTasks.length === 0) return;
     if (!issuesAndDelays.trim()) {
-      showAlert(t('field.dfr.nothingToScanYet', 'Nothing to scan yet'), t('field.dfr.noteTheDelayUnder', "Note the delay under Issues and delays first — that's the text the scan reads."));
+      showAlert(t('field.dfr.nothingToScanYet', 'Nothing to Scan Yet'), t('field.dfr.noteTheDelayUnder', "Note the delay under Issues and Delays first. That's the text the scan reads."));
       return;
     }
     // Re-entry guard + busy state BEFORE the first await: checkAILimit is a
@@ -2634,7 +2634,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       if (!res.success) {
         // Keep the previous rows AND the applied indication intact — a failed
         // re-scan must not present an un-applied state for an applied ripple.
-        showAlert(t('field.dfr.scanFailed', 'Scan failed'), res.error ?? t('field.dfr.tryAgainInA', 'Try again in a moment.'));
+        showAlert(t('field.dfr.scanFailed', 'Scan Failed'), res.error ?? t('field.dfr.tryAgainInA', 'Try again in a moment.'));
         return;
       }
       const scannedHash = hashDelayText(issuesAndDelays);
@@ -2678,7 +2678,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const path = scheduleWritePathForRole(project?.myRole);
     if (path === 'row') return null;
     return path === 'field_rpc'
-      ? t('field.dfr.delay.fieldCantRipple', 'Field access can’t move schedule dates. The delay stays on this report — ask the project owner or an editor to apply the ripple.')
+      ? t('field.dfr.delay.fieldCantRipple', 'Field access can’t move schedule dates. The delay stays on this report. Ask the project owner or an editor to apply the ripple.')
       : t('field.dfr.delay.viewerCantRipple', 'View-only access can’t move schedule dates. Ask the project owner to apply the ripple.');
   }, [project?.myRole, t]);
 
@@ -2696,7 +2696,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // Same gate as the preview button: never report a ripple the database
     // will refuse for this role.
     if (delayRippleBlockedReason) {
-      showAlert(t('field.dfr.scheduleNotChanged', 'Schedule not changed'), delayRippleBlockedReason);
+      showAlert(t('field.dfr.scheduleNotChanged', 'Schedule Not Changed'), delayRippleBlockedReason);
       setDelayPreviewOps(null);
       return;
     }
@@ -2963,7 +2963,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // mid-screen) these fields are no longer its content — saving them would
     // write a blank or foreign day over it, or file a duplicate.
     if (reportId && !existingReport) {
-      showAlert(t('field.dfr.notSaved', 'Not saved'), t('field.dfr.thisReportIsntLoaded', "This report isn't loaded on this device any more, so saving now could overwrite it with an empty form. Go back and open it again."));
+      showAlert(t('field.dfr.notSaved', 'Not Saved'), t('field.dfr.thisReportIsntLoaded', "This report isn't loaded on this device any more, so saving now could overwrite it with an empty form. Go back and open it again."));
       return;
     }
     // A submitted report is locked. Saving it as a draft would put this form
@@ -2972,7 +2972,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // silent pre-send write is exempt: a re-send flips it back to 'sent' once
     // delivery succeeds — see sentFlip below.)
     if (status === 'draft' && !silent && savedRecord?.status === 'sent') {
-      showAlert(t('field.dfr.alreadySubmitted', 'Already submitted'), t('field.dfr.thisReportWasSubmitted', 'This report was submitted, so it is locked. Nothing was changed.'));
+      showAlert(t('field.dfr.alreadySubmitted', 'Already Submitted'), t('field.dfr.thisReportWasSubmitted', 'This report was submitted, so it is locked. Nothing was changed.'));
       return;
     }
 
@@ -3210,7 +3210,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         });
       }
     }
-    if (!silent && liveHoursWarning) showAlert(t('field.dfr.savedWithHoursSo', 'Saved with hours so far'), liveHoursWarning);
+    if (!silent && liveHoursWarning) showAlert(t('field.dfr.savedWithHoursSo', 'Saved with Hours Until Now'), liveHoursWarning);
     // The record is on disk, so the unsaved-work draft has nothing left to
     // protect. Cleared here rather than left to the debounced effect below,
     // whose timer is cancelled by the navigation on the next line.
@@ -3251,7 +3251,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       // Reached from the sidebar or a deep link with no project picked. Saying
       // so beats a button that looks live and does nothing — the register
       // itself refuses the same way ("A delay event has to belong to a job").
-      showAlert(t('field.dfr.pickAProjectFirst', 'Pick a project first'), t('field.dfr.aDelayEventHas', 'A delay event has to belong to a job — choose one at the top of this report.'));
+      showAlert(t('field.dfr.pickAProjectFirst', 'Pick a Project First'), t('field.dfr.aDelayEventHas', 'A delay event has to belong to a project. Choose one at the top of this report.'));
       return;
     }
     // `silent` writes the record without a toast or a nav — the screen stays
@@ -3308,13 +3308,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         n > 0 ? `${n} task${n === 1 ? '' : 's'}` : null,
       ].filter(Boolean).join(', ');
       return parts
-        ? `Log as a delay event — ${parts}, already applied to the schedule`
-        : 'Log as a delay event — already applied to the schedule';
+        ? `Log as a delay event: ${parts}, already applied to the schedule`
+        : 'Log as a delay event: already applied to the schedule';
     }
     if (confirmableRows.length > 0) {
       const d = confirmableRows.reduce((max, r) => Math.max(max, r.deltaDays), 0);
       const n = confirmableRows.length;
-      return `Log as a delay event — ${d} day${d === 1 ? '' : 's'}, ${n} task${n === 1 ? '' : 's'}`;
+      return `Log as a delay event: ${d} day${d === 1 ? '' : 's'}, ${n} task${n === 1 ? '' : 's'}`;
     }
     return t('field.dfr.delay.eventLabel', 'Log this as a delay event');
   }, [appliedForLiveText, confirmableRows, displayLang, t]);
@@ -3369,12 +3369,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // chip reads. `text` is what the saved report says, in the language the
   // report is written in (W3: one whole sentence per reason).
   const NO_WORK_REASONS: { label: string; shown: string; text: string }[] = [
-    { label: 'Weather', shown: t('field.dfr.noWork.weather', 'Weather'), text: t('field.dfr.noWork.weatherText', 'No work on site — weather.') },
-    { label: 'No crew scheduled', shown: t('field.dfr.noWork.noCrew', 'No crew scheduled'), text: t('field.dfr.noWork.noCrewText', 'No work on site — no crew scheduled.') },
-    { label: 'Holiday / closure', shown: t('field.dfr.noWork.holiday', 'Holiday / closure'), text: t('field.dfr.noWork.holidayText', 'No work on site — holiday or site closure.') },
-    { label: 'Waiting on inspection', shown: t('field.dfr.noWork.inspection', 'Waiting on inspection'), text: t('field.dfr.noWork.inspectionText', 'No work on site — waiting on inspection.') },
-    { label: 'Waiting on materials', shown: t('field.dfr.noWork.materials', 'Waiting on materials'), text: t('field.dfr.noWork.materialsText', 'No work on site — waiting on materials.') },
-    { label: 'Waiting on an answer', shown: t('field.dfr.noWork.answer', 'Waiting on an answer'), text: t('field.dfr.noWork.answerText', 'No work on site — waiting on an answer from the design team.') },
+    { label: 'Weather', shown: t('field.dfr.noWork.weather', 'Weather'), text: t('field.dfr.noWork.weatherText', 'No work on site: weather.') },
+    { label: 'No crew scheduled', shown: t('field.dfr.noWork.noCrew', 'No Crew Scheduled'), text: t('field.dfr.noWork.noCrewText', 'No work on site: no crew scheduled.') },
+    { label: 'Holiday / closure', shown: t('field.dfr.noWork.holiday', 'Holiday or Closure'), text: t('field.dfr.noWork.holidayText', 'No work on site: holiday or site closure.') },
+    { label: 'Waiting on inspection', shown: t('field.dfr.noWork.inspection', 'Waiting on Inspection'), text: t('field.dfr.noWork.inspectionText', 'No work on site: waiting on inspection.') },
+    { label: 'Waiting on materials', shown: t('field.dfr.noWork.materials', 'Waiting on Materials'), text: t('field.dfr.noWork.materialsText', 'No work on site: waiting on materials.') },
+    { label: 'Waiting on an answer', shown: t('field.dfr.noWork.answer', 'Waiting on an Answer'), text: t('field.dfr.noWork.answerText', 'No work on site: waiting on an answer from the design team.') },
   ];
 
   const handleFileNoWorkDay = useCallback((text: string) => {
@@ -3436,9 +3436,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // Sending puts the hours in front of the owner as the day's record — ask
     // first while shifts it counted are still open.
     if (liveHoursWarning) {
-      showAlert(t('field.dfr.crewStillOnThe', 'Crew still on the clock'), liveHoursWarning, [
+      showAlert(t('field.dfr.crewStillOnThe', 'Crew Still on the Clock'), liveHoursWarning, [
         { text: t('field.dfr.wait', 'Wait'), style: 'cancel' },
-        { text: t('field.dfr.sendAnyway', 'Send anyway'), onPress: () => setShowSendRecipient(true) },
+        { text: t('field.dfr.sendAnyway', 'Send Anyway'), onPress: () => setShowSendRecipient(true) },
       ]);
       return;
     }
@@ -3461,7 +3461,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const handlePhotoTap = useCallback((photoId: string) => {
     const target = dfrPhotoMarkupTarget({ photoId, galleryIds: galleryPhotoIds, reportSent: reportIsSent }, t);
     if (target.action === 'blocked') {
-      showAlert(t('field.dfr.markUpThisPhoto', 'Mark up this photo'), target.reason);
+      showAlert(t('field.dfr.markUpThisPhoto', 'Mark Up This Photo'), target.reason);
       return;
     }
     const open = () => router.push({ pathname: '/photo-annotator', params: { photoId: target.photoId } });
@@ -3471,7 +3471,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     if (target.lockedNote) {
       showAlert(t('field.dfr.thisReportWasAlready', 'This report was already sent'), target.lockedNote, [
         { text: t('field.dfr.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('field.dfr.markUpAnyway', 'Mark up anyway'), onPress: open },
+        { text: t('field.dfr.markUpAnyway', 'Mark Up Anyway'), onPress: open },
       ]);
       return;
     }
@@ -3545,7 +3545,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       filedByName: filedBy.document ?? undefined,
     })).catch((e: unknown) => {
       console.warn('[DFR] print failed', e);
-      showAlert(t('field.dfr.printDidNotOpen', 'Print did not open'), describeError(e, { action: 'open the print view', title: t('field.dfr.error.printTitle', "Couldn't open the print view") }).body);
+      showAlert(t('field.dfr.printDidNotOpen', 'Print Did Not Open'), describeError(e, { action: 'open the print view', title: t('field.dfr.error.printTitle', "Couldn't Open the Print View") }).body);
     });
   }, [project, documentReport, brandingOrBlank, galleryPhotos, documentClassification, filedBy.document, t]);
 
@@ -3573,7 +3573,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         });
       } catch (e) {
         console.warn('[DFR] PDF failed', e);
-        showAlert(t('field.dfr.couldNotMakeThe', 'Could not make the PDF'), describeError(e, { action: 'make the PDF', title: t('field.dfr.error.pdfTitle', "Couldn't make the PDF") }).body);
+        showAlert(t('field.dfr.couldNotMakeThe', 'Could Not Make the PDF'), describeError(e, { action: 'make the PDF', title: t('field.dfr.error.pdfTitle', "Couldn't Make the PDF") }).body);
       } finally {
         setSharingPdf(false);
       }
@@ -3586,7 +3586,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // reaches here (a stale sheet, a pasted address). The project-files copy
     // with no email sends nothing, so it stays allowed.
     if (sendRecipientEmail.trim() && !sampleSendAllowed(project, sendRecipientEmail, user?.email)) {
-      showAlert(t('field.dfr.sampleJob', 'Sample job'), t('field.dfr.aSampleJobSends', 'A sample job sends only to you. Nothing was sent.'));
+      showAlert(t('field.dfr.sampleJob', 'Sample Job'), t('field.dfr.aSampleJobSends', 'A sample job sends only to you. Nothing was sent.'));
       return;
     }
     // Email is optional when the project-files copy is on — a GC who just
@@ -3626,7 +3626,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           projectId,
           reportId: stableReportId,
           html,
-          fileName: `Daily Report — ${dateLabel}.pdf`,
+          fileName: `Daily Report ${dateLabel}.pdf`,
         });
         fileSaved = true;
         filedLink = saved.linkUrl;
@@ -3687,17 +3687,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         // One whole sentence per case: with and without the filed PDF (W3).
         if (result.error === 'cancelled') {
           showAlert(
-            t('field.dfr.savedAsADraft', 'Saved as a draft'),
+            t('field.dfr.savedAsADraft', 'Saved as a Draft'),
             fileSaved
-              ? t('field.dfr.send.backedOutFiled', 'You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again. A PDF copy is in project files.')
-              : t('field.dfr.send.backedOut', 'You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again.'),
+              ? t('field.dfr.send.backedOutFiled', 'You backed out of the mail composer, so nothing was emailed. The report is saved on this project. Open it from Daily Reports to send it again. A PDF copy is in project files.')
+              : t('field.dfr.send.backedOut', 'You backed out of the mail composer, so nothing was emailed. The report is saved on this project. Open it from Daily Reports to send it again.'),
           );
           goBack();
           return;
         }
         console.warn('[DailyReport] Email send failed:', result.error);
         showAlert(
-          t('field.dfr.savedTheEmailDid', 'Saved — the email did not send'),
+          t('field.dfr.savedTheEmailDid', 'Saved, but the Email Did Not Send'),
           fileSaved
             ? t('field.dfr.send.emailFailedFiled', 'The report is saved on this project as a draft. The email failed: {error} A PDF copy is in project files.', { error: String(result.error) })
             : t('field.dfr.send.emailFailed', 'The report is saved on this project as a draft. The email failed: {error}', { error: String(result.error) }),
@@ -3717,7 +3717,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
     if (fileError) {
       showAlert(
-        t('field.dfr.projectFilesNotice', 'Project files notice'),
+        t('field.dfr.projectFilesNotice', 'Project Files Notice'),
         emailSent
           ? t('field.dfr.send.filesFailedEmailed', "Emailed, but the project-files copy didn't land: {error}", { error: fileError })
           : t('field.dfr.send.filesFailedDraft', "Saved as a draft, but the project-files copy didn't land: {error}", { error: fileError }),
@@ -3818,11 +3818,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // new-report draft (restorable next time he starts one) before going.
     showAlert(
       t('field.dfr.openTheOtherReport', 'Open the other report?'),
-      t('field.dfr.whatYouTypedHere', 'What you typed here is kept as a draft — start a new report on this job to pick it back up.'),
+      t('field.dfr.whatYouTypedHere', 'What you typed here is kept as a draft. Start a new report on this project to pick it back up.'),
       [
-        { text: t('field.dfr.keepEditing', 'Keep editing'), style: 'cancel' },
+        { text: t('field.dfr.keepEditing', 'Keep Editing'), style: 'cancel' },
         {
-          text: t('field.dfr.openIt', 'Open it'),
+          text: t('field.dfr.openIt', 'Open It'),
           onPress: () => {
             const draft: DfrDraft = { v: 1, savedAt: new Date().toISOString(), ...draftContent };
             void AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => {}).finally(go);
@@ -3839,7 +3839,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    *  stays allowed; putting one up is not. */
   const hsPublishBlockedReason: string | null = !publishAccess.allowed
     ? publishAccess.reason
-    : (hsStale && !hsPublished ? t('field.dfr.hs.writtenForOtherDay', 'Written for a different day — re-generate or edit it first.') : null);
+    : (hsStale && !hsPublished ? t('field.dfr.hs.writtenForOtherDay', 'Written for a different day. Re-generate or edit it first.') : null);
   /** A field/viewer seat may draft a summary for the GC, but not touch one the
    *  owner already put in front of the homeowner (the server keeps it too). */
   const hsTextLockedReason: string | null = !publishAccess.allowed && hsPublishedSaved
@@ -3872,7 +3872,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     if (hsPublished !== publish) setHsPublished(publish);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     nailIt(publish
-      ? t('field.dfr.clientUpdateSavedThe', 'Client update saved — the portal shows it once the report has synced')
+      ? t('field.dfr.clientUpdateSavedThe', 'Client update saved. The portal shows it once the report has synced.')
       : hsPublishedSaved ? t('field.dfr.clientUpdateTakenDown', 'Client update taken down') : t('field.dfr.clientUpdateSaved', 'Client update saved'));
     after?.();
   }, [existingReport, publishAccess.allowed, homeownerSummary, hsPublished, hsGeneratedAt, hsPublishedSaved, updateDailyReport, t]);
@@ -3937,11 +3937,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           return;
         }
         showAlert(
-          t('field.dfr.unsavedReportFound', 'Unsaved report found'),
+          t('field.dfr.unsavedReportFound', 'Unsaved Report Found'),
           dfrDraftFoundBody(draft.savedAt, new Date()),
           [
             {
-              text: t('field.dfr.startFresh', 'Start fresh'),
+              text: t('field.dfr.startFresh', 'Start Fresh'),
               style: 'destructive',
               onPress: () => { void AsyncStorage.removeItem(draftKey).catch(() => {}); },
             },
@@ -3991,9 +3991,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         t('field.dfr.leaveWithoutSavingThe', 'Leave without saving the client update?'),
         t('field.dfr.yourChangesToThe', 'Your changes to the client update aren’t saved. The submitted report itself is unchanged.'),
         [
-          { text: t('field.dfr.keepEditing', 'Keep editing'), style: 'cancel' },
+          { text: t('field.dfr.keepEditing', 'Keep Editing'), style: 'cancel' },
           { text: t('field.dfr.discard', 'Discard'), style: 'destructive', onPress: goBack },
-          { text: t('field.dfr.saveUpdate', 'Save update'), onPress: () => handleSaveHomeownerUpdate(goBack) },
+          { text: t('field.dfr.saveUpdate', 'Save Update'), onPress: () => handleSaveHomeownerUpdate(goBack) },
         ],
       );
       return;
@@ -4005,7 +4005,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       t('field.dfr.leaveWithoutSaving', 'Leave without saving?'),
       t('field.dfr.thisReportIsntOn', "This report isn't on the project yet. Save it as a draft and you can finish it from Daily Reports whenever you're back at a desk."),
       [
-        { text: t('field.dfr.keepEditing', 'Keep editing'), style: 'cancel' },
+        { text: t('field.dfr.keepEditing', 'Keep Editing'), style: 'cancel' },
         {
           text: t('field.dfr.discard', 'Discard'),
           style: 'destructive',
@@ -4015,7 +4015,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           },
         },
         {
-          text: t('field.dfr.saveDraft', 'Save draft'),
+          text: t('field.dfr.saveDraft', 'Save Draft'),
           onPress: () => {
             void AsyncStorage.removeItem(draftKey).catch(() => {});
             handleSave('draft');
@@ -4036,16 +4036,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const fDelay = useSheetFrame('dialog', { visible: delayTaskPickerIdx !== null, animationType: 'fade' });
   // Cmd/Ctrl+S and Cmd/Ctrl+Enter save a DRAFT — never Submit, which sends.
   usePrimaryAction(() => handleSave('draft'), {
-    label: t('field.dfr.saveDraft', 'Save draft'),
+    label: t('field.dfr.saveDraft', 'Save Draft'),
     disabled: existingReport?.status === 'sent',
-    reason: t('field.dfr.hotkey.submittedReadOnly', 'This report was submitted — it is read-only.'),
+    reason: t('field.dfr.hotkey.submittedReadOnly', 'This report was submitted. It is read-only.'),
     enabled: !!project,
   });
 
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: t('field.dfr.dailyReport', 'Daily report') }} />
+        <Stack.Screen options={{ title: t('field.dfr.dailyReport', 'Daily Report') }} />
         <ToolProjectPicker
           toolName={t('field.dfr.picker.toolName', 'Daily Reports')}
           message={t('field.dfr.picker.message', 'Daily reports log weather, crew and progress on one project.')}
@@ -4109,7 +4109,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             onPress={handleBack}
             style={styles.topBarBack}
             accessibilityRole="button"
-            accessibilityLabel={isDirty ? t('field.dfr.backThisReportHas', 'Back — this report has unsaved changes') : t('field.dfr.back', 'Back')}
+            accessibilityLabel={isDirty ? t('field.dfr.backThisReportHas', 'Back. This report has unsaved changes.') : t('field.dfr.back', 'Back')}
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
             testID="dfr-back"
           >
@@ -4121,9 +4121,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             activeOpacity={0.7}
             disabled={isLocked}
             accessibilityRole="button"
-            accessibilityLabel={t('field.dfr.changeReportDate', 'Change report date')}
+            accessibilityLabel={t('field.dfr.changeReportDate', 'Change Report Date')}
           >
-            <Text style={styles.topBarTitle}>{t('field.dfr.dailyReport', 'Daily report')}</Text>
+            <Text style={styles.topBarTitle}>{t('field.dfr.dailyReport', 'Daily Report')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.topBarDate}>
                 {formatDateOptsL(dayOrInstantDate(reportDate), { weekday: 'long', month: 'long', day: 'numeric' }, lang)}
@@ -4135,7 +4135,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.topBarActions}>
               <TutorialTarget id="dfr.saveDraft">
               <Button
-                label={t('field.dfr.saveDraft', 'Save draft')}
+                label={t('field.dfr.saveDraft', 'Save Draft')}
                 onPress={() => handleSave('draft')}
                 variant="secondary"
                 size="sm"
@@ -4193,7 +4193,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.fillDoor} testID="dfr-fill-door">
               <View style={styles.fillDoorHead}>
                 <MageAIMark size={14} color={themeColors.accent} />
-                <Text style={styles.fillDoorTitle}>{t('field.dfr.fillItForMe', 'Fill it for me')}</Text>
+                <Text style={styles.fillDoorTitle}>{t('field.dfr.fillItForMe', 'Fill It for Me')}</Text>
               </View>
               <TutorialTarget id="dfr.voice">
               <VoiceRecorder
@@ -4210,7 +4210,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     console.log('[DFR] Voice parse error:', err);
                     const off = aiConsentErrorText(err);
                     showAlert(
-                      off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotUnderstandThe', 'Could not understand the recording'),
+                      off ? AI_CONSENT_OFF_TITLE : t('field.dfr.couldNotUnderstandThe', 'Could Not Understand the Recording'),
                       off ?? t('field.dfr.theTranscriptionServiceMay', 'The transcription service may be slow or down. Try recording again, or fill in the report by hand.'),
                     );
                   } finally {
@@ -4220,13 +4220,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 isLoading={voiceLoading}
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
-                label={t('field.dfr.dictateTheDay', 'Dictate the day')}
+                label={t('field.dfr.dictateTheDay', 'Dictate the Day')}
                 bare
                 title={t('field.dfr.dictateTodaysReport', "Dictate today's report")}
                 contextLine={project?.name ? t('field.dfr.voice.forProject', 'for {name}', { name: project.name }) : undefined}
                 suggestions={[
                   t('field.dfr.voice.example1', 'Crew arrived at 7:30, framed the back wall, finished around 4 PM'),
-                  t('field.dfr.voice.example2', "Joe's Plumbing on site for rough-in — three guys, three hours"),
+                  t('field.dfr.voice.example2', "Joe's Plumbing on site for rough-in, three guys, three hours"),
                   t('field.dfr.voice.example3', 'Concrete pour delayed thirty minutes due to rain'),
                   t('field.dfr.voice.example4', 'Inspector signed off on electrical rough-in this morning'),
                   t('field.dfr.voice.example5', 'Delivered ten sheets of drywall and two doors'),
@@ -4237,13 +4237,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 // field automatically; this is just to prevent skipped
                 // sections in long dictations.
                 topicChecklist={[
-                  { label: t('field.dfr.topic.weather', 'Weather on site'), hint: t('field.dfr.topic.weatherHint', 'temp, conditions, wind — e.g. "55 and clear, light wind"') },
-                  { label: t('field.dfr.topic.crew', 'Crew on site'), hint: t('field.dfr.topic.crewHint', 'who showed up, how many, what trade — e.g. "4 framers from Smith Construction"') },
-                  { label: t('field.dfr.topic.work', 'Work performed today'), hint: t('field.dfr.topic.workHint', 'concrete tasks completed — be specific') },
-                  { label: t('field.dfr.topic.materials', 'Materials delivered'), hint: t('field.dfr.topic.materialsHint', 'what arrived, from whom — e.g. "20 sheets of drywall from ABC Supply"') },
-                  { label: t('field.dfr.topic.issues', 'Issues, delays, or RFIs'), hint: t('field.dfr.topic.issuesHint', 'anything blocking work or needing attention') },
-                  { label: t('field.dfr.topic.safety', 'Safety incidents'), hint: t('field.dfr.topic.safetyHint', 'only if any — say "no incidents" if clean day') },
-                  { label: t('field.dfr.topic.tomorrow', "Tomorrow's plan"), hint: t('field.dfr.topic.tomorrowHint', 'what crews and tasks are scheduled (optional)') },
+                  { label: t('field.dfr.topic.weather', 'Weather on Site'), hint: t('field.dfr.topic.weatherHint', 'Temp, conditions, wind. For example: "55 and clear, light wind"') },
+                  { label: t('field.dfr.topic.crew', 'Crew on Site'), hint: t('field.dfr.topic.crewHint', 'Who showed up, how many, what trade. For example: "4 framers from Smith Construction"') },
+                  { label: t('field.dfr.topic.work', 'Work Performed Today'), hint: t('field.dfr.topic.workHint', 'Concrete tasks completed. Be specific.') },
+                  { label: t('field.dfr.topic.materials', 'Materials Delivered'), hint: t('field.dfr.topic.materialsHint', 'What arrived, from whom. For example: "20 sheets of drywall from ABC Supply"') },
+                  { label: t('field.dfr.topic.issues', 'Issues, Delays, or RFIs'), hint: t('field.dfr.topic.issuesHint', 'Anything blocking work or needing attention') },
+                  { label: t('field.dfr.topic.safety', 'Safety Incidents'), hint: t('field.dfr.topic.safetyHint', 'Only if any. Say "no incidents" if it was a clean day.') },
+                  { label: t('field.dfr.topic.tomorrow', "Tomorrow's Plan"), hint: t('field.dfr.topic.tomorrowHint', 'What crews and tasks are scheduled (optional)') },
                 ]}
               />
               {/* The tutorial's sample note — only while its step is live on the
@@ -4354,13 +4354,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={voiceStyles.previewCard}>
               <View style={voiceStyles.previewHead}>
                 <MageAIMark size={14} color={themeColors.accent} />
-                <Text style={voiceStyles.previewTitle}>{t('field.dfr.heresWhatIHeard', "Here's what I heard")}</Text>
+                <Text style={voiceStyles.previewTitle}>{t('field.dfr.heresWhatIHeard', "Here's What I Heard")}</Text>
                 <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.dfr.close', 'Close')}>
                   <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={voiceStyles.previewHelper}>
-                {t('field.dfr.reviewEachRowBelow', "Review each row below — tap any field in the form to edit. Anything you had already typed wasn't overwritten.")}
+                {t('field.dfr.reviewEachRowBelow', "Review each row below. Tap any field in the form to edit. Anything you had already typed wasn't overwritten.")}
               </Text>
               <View style={voiceStyles.previewList}>
                 {voiceParsed.weather && (
@@ -4370,7 +4370,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <VoiceRow label={t('field.dfr.crew', 'Crew')} value={voiceParsed.crewSummary} />
                 )}
                 {voiceParsed.workPerformed && (
-                  <VoiceRow label={t('field.dfr.workPerformed', 'Work performed')} value={voiceParsed.workPerformed.length > 90 ? voiceParsed.workPerformed.slice(0, 90) + '…' : voiceParsed.workPerformed} />
+                  <VoiceRow label={t('field.dfr.workPerformed', 'Work Performed')} value={voiceParsed.workPerformed.length > 90 ? voiceParsed.workPerformed.slice(0, 90) + '…' : voiceParsed.workPerformed} />
                 )}
                 {voiceParsed.materialsDelivered && voiceParsed.materialsDelivered.length > 0 && (
                   <VoiceRow label={t('field.dfr.materials', 'Materials')} value={voiceParsed.materialsDelivered.join(', ')} />
@@ -4389,7 +4389,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               onPress={() => setShowVoiceBanner(false)}
               activeOpacity={0.7}
             >
-              <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info }}>{t('field.dfr.nothingNewPickedUp', 'Nothing new picked up — the fields you already had stay as-is.')}</Text>
+              <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info }}>{t('field.dfr.nothingNewPickedUp', 'Nothing new picked up. The fields you already had stay as they are.')}</Text>
               <X size={14} color={themeColors.info} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
@@ -4412,7 +4412,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 {sameDayReports[0].status === 'sent' ? 'submitted' : 'draft'}
                 {sameDayFiledBy ? `, ${sameDayFiledBy}` : ''}, last saved{' '}
                 {dayOrInstantDate(sameDayReports[0].updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}).
-                {' '}Several reports a day are fine — one per crew or shift.
+                {' '}Several reports a day are fine: one per crew or shift.
               </Text>
               )}
               <TouchableOpacity
@@ -4420,13 +4420,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 accessibilityRole="button"
                 testID="dfr-same-day-open"
               >
-                <Text style={styles.sameDayLink}>{t('field.dfr.openIt', 'Open it')}</Text>
+                <Text style={styles.sameDayLink}>{t('field.dfr.openIt', 'Open It')}</Text>
               </TouchableOpacity>
             </View>
           )}
 
           <View style={styles.heroCard}>
-            <Text style={styles.heroLabel}>{t('field.dfr.dailyReport', 'Daily report')}</Text>
+            <Text style={styles.heroLabel}>{t('field.dfr.dailyReport', 'Daily Report')}</Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             <Text style={styles.heroDate}>{reportDateStr}</Text>
             {filedBy.hero && (
@@ -4499,7 +4499,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {carryFormFromId && (
               <View style={styles.carriedBadge}>
                 <CheckCircle2 size={12} color={themeColors.accent} strokeWidth={2.4} />
-                <Text style={styles.carriedBadgeText}>{t('field.dfr.carriedForward', 'Carried forward')}</Text>
+                <Text style={styles.carriedBadgeText}>{t('field.dfr.carriedForward', 'Carried Forward')}</Text>
               </View>
             )}
           </View>
@@ -4510,7 +4510,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               progress. */}
           {showNoWorkShortcut && (
             <View style={styles.noWorkCard} testID="no-work-day-card">
-              <Text style={styles.noWorkTitle}>{t('field.dfr.nothingHappenedOnSite', 'Nothing happened on site today')}</Text>
+              <Text style={styles.noWorkTitle}>{t('field.dfr.nothingHappenedOnSite', 'Nothing Happened on Site Today')}</Text>
               <Text style={styles.noWorkBody}>
                 {t('field.dfr.fileItAnywayA', 'File it anyway. A day logged as no work keeps the record unbroken. Pick a reason and this is saved with no crew and no photos.')}
               </Text>
@@ -4595,14 +4595,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <BarChart3 size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.workProgress', 'Work progress')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.workProgress', 'Work Progress')}</Text>
               <Text style={styles.sectionTotal}>{workProgress.length > 0 ? tn('field.dfr.tasks', workProgress.length, { one: '{count} task', other: '{count} tasks' }) : t('field.dfr.whatWasCompletedToday', 'What was completed today?')}</Text>
               {!isLocked && (project.schedule?.tasks?.length ?? 0) > 0 && (
                 <TouchableOpacity
                   style={styles.addSmallBtn}
                   onPress={() => setShowTaskPicker(true)}
                   activeOpacity={0.7}
-                  testID="add-work-progress-btn" accessibilityRole="button" accessibilityLabel={t('field.dfr.addWork', 'Add work')}>
+                  testID="add-work-progress-btn" accessibilityRole="button" accessibilityLabel={t('field.dfr.addWork', 'Add Work')}>
                   <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
@@ -4610,11 +4610,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
             {(project.schedule?.tasks?.length ?? 0) === 0 ? (
               <Text style={styles.emptyText}>
-                {t('field.dfr.buildAProjectSchedule', 'Build a project schedule first — Work progress chips pull from your task list.')}
+                {t('field.dfr.buildAProjectSchedule', 'Build a project schedule first. Work Progress chips pull from your task list.')}
               </Text>
             ) : workProgress.length === 0 ? (
               <Text style={styles.emptyText}>
-                {t('field.dfr.noTasksLoggedYet', 'No tasks logged yet — tap + to mark which schedule tasks made progress today.')}
+                {t('field.dfr.noTasksLoggedYet', 'No tasks logged yet. Tap + to mark which schedule tasks made progress today.')}
               </Text>
             ) : (
               <View style={styles.progressChipGrid}>
@@ -4675,7 +4675,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             )}
 
             {manpower.length === 0 && (
-              <Text style={styles.emptyText}>{t('field.dfr.noManpowerEntriesYet', 'No manpower entries yet — tap + to add a crew.')}</Text>
+              <Text style={styles.emptyText}>{t('field.dfr.noManpowerEntriesYet', 'No manpower entries yet. Tap + to add a crew.')}</Text>
             )}
             {/* Say where an untouched roster came from — the time clock (what
                 was witnessed) or the schedule plan (crewSize is what was
@@ -4685,7 +4685,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 number, because then it is his count. */}
             {manpowerIsUntouchedSeed && !isLocked && (
               <Text style={styles.mpSeedNote} testID="dfr-crew-source">
-                {crewSource?.line ?? t('field.dfr.countsCameFromTodays', 'Counts came from today’s schedule and assume an 8-hour day — tap a row to correct it.')}
+                {crewSource?.line ?? t('field.dfr.countsCameFromTodays', 'Counts came from today’s schedule and assume an 8-hour day. Tap a row to correct it.')}
               </Text>
             )}
             {liveHoursWarning && !isLocked && (
@@ -4697,11 +4697,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 <TouchableOpacity
                   onPress={addMissingClockRows}
                   accessibilityRole="button"
-                  accessibilityLabel={t('field.dfr.addTheClockedCrew', 'Add the clocked crew to this roster')}
+                  accessibilityLabel={t('field.dfr.addTheClockedCrew', 'Add the Clocked Crew to This Roster')}
                   hitSlop={8}
                   testID="dfr-clock-gap-add"
                 >
-                  <Text style={styles.mpClockGapAdd}>{t('field.dfr.addThem', 'Add them')}</Text>
+                  <Text style={styles.mpClockGapAdd}>{t('field.dfr.addThem', 'Add Them')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -4740,7 +4740,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       testID={`mp-minus-${entry.id}`}
                       accessibilityRole="button"
                       accessibilityLabel={entry.headcount <= 1 ? t('field.dfr.remove2', 'Remove {trade}', { trade: entry.trade }) : t('field.dfr.oneFewer', 'One fewer {trade}', { trade: entry.trade })}
-                      accessibilityHint={entry.headcount <= 1 ? t('field.dfr.belowOneWorkerIs', 'Below one worker is no crew — this asks to remove the row') : undefined}
+                      accessibilityHint={entry.headcount <= 1 ? t('field.dfr.belowOneWorkerIs', 'Below one worker is no crew. This asks to remove the row.') : undefined}
                     >
                       <Minus size={14} color={themeColors.text} strokeWidth={2} />
                     </TouchableOpacity>
@@ -4769,7 +4769,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <HardHat size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.workPerformed', 'Work performed')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.workPerformed', 'Work Performed')}</Text>
             </View>
             {!isLocked ? (
               <TutorialTarget id="dfr.workPerformed">
@@ -4802,12 +4802,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 {Platform.OS !== 'web' && (
                   <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
                     <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.photoBtnText}>{t('field.dfr.takePhoto', 'Take photo')}</Text>
+                    <Text style={styles.photoBtnText}>{t('field.dfr.takePhoto', 'Take Photo')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
                   <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.photoBtnText}>{t('field.dfr.fromLibrary', 'From library')}</Text>
+                  <Text style={styles.photoBtnText}>{t('field.dfr.fromLibrary', 'From Library')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -4843,7 +4843,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       onPress={() => handlePhotoTap(photo.id)}
                       activeOpacity={0.8}
                       accessibilityRole="button"
-                      accessibilityLabel={markedUpPhotoIds.has(photo.id) ? t('field.dfr.editMarkupOnThis', 'Edit markup on this photo') : t('field.dfr.markUpThisPhoto', 'Mark up this photo')}
+                      accessibilityLabel={markedUpPhotoIds.has(photo.id) ? t('field.dfr.editMarkupOnThis', 'Edit Markup on This Photo') : t('field.dfr.markUpThisPhoto', 'Mark Up This Photo')}
                       testID={`dfr-photo-markup-${photo.id}`}
                     >
                       <Image
@@ -4879,7 +4879,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Package size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.materialsDelivered', 'Materials delivered')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.materialsDelivered', 'Materials Delivered')}</Text>
             </View>
             {!isLocked && (
               <View style={styles.addMaterialRow}>
@@ -4914,7 +4914,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {!isLocked && materialsDelivered.length > 0 && materialsSeedRef.current != null
               && JSON.stringify(materialsDelivered) === materialsSeedRef.current && (
               <Text style={styles.mpSeedNote} testID="dfr-materials-source">
-                {t('field.dfr.fromReceiptsOnThe', 'From receipts on the Deliveries screen for this day — who signed and any damage noted at the tailgate.')}
+                {t('field.dfr.fromReceiptsOnThe', 'From receipts on the Deliveries screen for this day: who signed and any damage noted at the tailgate.')}
               </Text>
             )}
             {materialsDelivered.map((mat, idx) => (
@@ -4933,7 +4933,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.issuesAndDelays', 'Issues and delays')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.issuesAndDelays', 'Issues and Delays')}</Text>
             </View>
             {!isLocked ? (
               <TextInput
@@ -4977,7 +4977,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <ScanSearch size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.profitLeak', 'Profit leak')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.profitLeak', 'Profit Leak')}</Text>
               {leakScan && !leakIsStale && (
                 <View style={[leakStyles.badge, leakScan.items.length > 0 ? leakStyles.badgeFlags : leakStyles.badgeClean]}>
                   <Text style={[leakStyles.badgeText, leakScan.items.length > 0 ? leakStyles.badgeTextFlags : leakStyles.badgeTextClean]}>
@@ -4987,7 +4987,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               )}
             </View>
             <Text style={leakStyles.helperText}>
-              {t('field.dfr.scansTodaysNotesAgainst', "Scans today's notes against the estimate scope and prior change orders. Flags work you haven't billed — priced from your own cost history.")}
+              {t('field.dfr.scansTodaysNotesAgainst', "Scans today's notes against the estimate scope and prior change orders. Flags work you haven't billed, priced from your own cost history.")}
             </Text>
 
             {/* The only persistent door to /profit-leak-history in the product.
@@ -5004,7 +5004,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               accessibilityRole="link"
               accessibilityLabel={t('field.dfr.seeEveryPastLeak', 'See every past leak flag and whether it became a change order')}
             >
-              <Text style={leakStyles.historyLinkText}>{t('field.dfr.pastFlagsWhatBecame', 'Past flags — what became a change order')}</Text>
+              <Text style={leakStyles.historyLinkText}>{t('field.dfr.pastFlagsWhatBecame', 'Past Flags: What Became a Change Order')}</Text>
               <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
 
@@ -5014,7 +5014,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               disabled={leakScanning}
               testID="leak-scan"
               accessibilityRole="button"
-              accessibilityLabel={leakScan ? (leakIsStale ? t('field.dfr.notesChangedReScan', 'Notes changed — re-scan for unbilled work') : t('field.dfr.reScanForUnbilled', 'Re-scan for unbilled work')) : t('field.dfr.scanForUnbilledWork', 'Scan for unbilled work')}
+              accessibilityLabel={leakScan ? (leakIsStale ? t('field.dfr.notesChangedReScan', 'Notes Changed: Re-Scan for Unbilled Work') : t('field.dfr.reScanForUnbilled', 'Re-Scan for Unbilled Work')) : t('field.dfr.scanForUnbilledWork', 'Scan for Unbilled Work')}
               accessibilityState={{ disabled: leakScanning, busy: leakScanning }}
             >
               {leakScanning ? (
@@ -5026,7 +5026,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 <>
                   <MageAIMark size={14} color={themeColors.accent} />
                   <Text style={leakStyles.scanBtnText}>
-                    {leakScan ? (leakIsStale ? t('field.dfr.notesChangedReScan2', 'Notes changed — re-scan') : t('field.dfr.reScanForUnbilled', 'Re-scan for unbilled work')) : t('field.dfr.scanForUnbilledWork', 'Scan for unbilled work')}
+                    {leakScan ? (leakIsStale ? t('field.dfr.notesChangedReScan2', 'Notes Changed: Re-Scan') : t('field.dfr.reScanForUnbilled', 'Re-Scan for Unbilled Work')) : t('field.dfr.scanForUnbilledWork', 'Scan for Unbilled Work')}
                   </Text>
                 </>
               )}
@@ -5052,7 +5052,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               accessibilityLabel={t('field.dfr.writeATAnd', 'Write a T and M field ticket and get it signed on site')}
             >
               <FileSignature size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={leakStyles.scanBtnText}>{t('field.dfr.writeATM', 'Write a T&M ticket — get it signed on site')}</Text>
+              <Text style={leakStyles.scanBtnText}>{t('field.dfr.writeATM', 'Write a T&M Ticket and Get It Signed on Site')}</Text>
             </TouchableOpacity>
 
             {leakScan && leakScan.items.length === 0 && (
@@ -5065,7 +5065,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {leakScan && leakScan.items.length > 0 && (
               <View style={leakStyles.resultBlock}>
                 {leakIsStale && (
-                  <Text style={leakStyles.staleHint}>{t('field.dfr.notesChangedSinceThis', 'Notes changed since this scan — re-scan for fresh results.')}</Text>
+                  <Text style={leakStyles.staleHint}>{t('field.dfr.notesChangedSinceThis', 'Notes changed since this scan. Re-scan for fresh results.')}</Text>
                 )}
                 {leakScan.items.map((item, i) => (
                   <View key={i} style={[leakStyles.itemRow, leakIsStale && leakStyles.itemRowStale]}>
@@ -5087,7 +5087,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               ? (item.rateProvenance === 'seeded'
                                 ? t('field.dfr.leak.priceSeeded', '~{amount} from the rate you set', { amount: `$${item.estimatedPrice.toLocaleString('en-US')}` })
                                 : t('field.dfr.leak.priceHistory', '~{amount} from your cost history', { amount: `$${item.estimatedPrice.toLocaleString('en-US')}` }))
-                              : t('field.dfr.leak.noPriceHistory', 'No price history — price it yourself'),
+                              : t('field.dfr.leak.noPriceHistory', 'No price history. Price it yourself.'),
                             confidence: displayLang === 'en' ? item.confidence : leakConfidenceL(item.confidence),
                           },
                         )}
@@ -5102,7 +5102,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     this report, which goes to the GC as a field issue. */}
                 {!isProjectOwner && (
                   <Text style={leakStyles.draftCoBlockedNote} testID="leak-draft-co-blocked">
-                    {t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report.')}
+                    {t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders. This goes to them as a field issue in this report.')}
                   </Text>
                 )}
                 <TouchableOpacity
@@ -5112,17 +5112,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   testID="leak-draft-co"
                   accessibilityRole="button"
                   accessibilityLabel={(() => {
-                    if (!isProjectOwner) return t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report.');
-                    if (leakIsStale) return t('field.dfr.reScanFirstNotes', 'Re-scan first — notes changed');
+                    if (!isProjectOwner) return t('field.dfr.leak.gcCreatesCos', 'Your GC creates change orders. This goes to them as a field issue in this report.');
+                    if (leakIsStale) return t('field.dfr.reScanFirstNotes', 'Re-Scan First: Notes Changed');
                     const total = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
                     return total > 0 ? t('field.dfr.leak.draftCoApprox', 'Draft change order for approximately {amount}', { amount: `$${total.toLocaleString('en-US')}` }) : t('field.dfr.leak.draftCo', 'Draft change order');
                   })()}
                   accessibilityState={{ disabled: leakIsStale || !isProjectOwner }}
                 >
                   <Text style={[leakStyles.draftCoBtnText, leakIsStale && leakStyles.draftCoBtnTextDisabled]}>
-                    {leakIsStale ? t('field.dfr.reScanFirstNotes', 'Re-scan first — notes changed') : (() => {
+                    {leakIsStale ? t('field.dfr.reScanFirstNotes', 'Re-Scan First: Notes Changed') : (() => {
                       const total = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
-                      return total > 0 ? t('field.dfr.leak.draftCoShort', 'Draft change order · ~{amount}', { amount: `$${total.toLocaleString('en-US')}` }) : t('field.dfr.leak.draftCo', 'Draft change order');
+                      return total > 0 ? t('field.dfr.leak.draftCoShort', 'Draft Change Order · About {amount}', { amount: `$${total.toLocaleString('en-US')}` }) : t('field.dfr.leak.draftCo', 'Draft change order');
                     })()}
                   </Text>
                 </TouchableOpacity>
@@ -5136,7 +5136,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <CalendarClock size={18} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.sectionTitle}>{t('field.dfr.scheduleImpact', 'Schedule impact')}</Text>
+                <Text style={styles.sectionTitle}>{t('field.dfr.scheduleImpact', 'Schedule Impact')}</Text>
                 {showAppliedPill && (
                   <View style={dcStyles.appliedPill}>
                     <Text style={dcStyles.appliedPillText}>{t('field.dfr.applied', 'Applied')}</Text>
@@ -5144,7 +5144,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 )}
               </View>
               <Text style={dcStyles.helperText}>
-                {t('field.dfr.readsTheDelaysAbove', 'Reads the delays above, maps them to schedule tasks, and shows the downstream ripple — what slides, what turns critical, how the finish moves. Nothing changes until you apply it.')}
+                {t('field.dfr.readsTheDelaysAbove', 'Reads the delays above, maps them to schedule tasks, and shows the downstream ripple: what slides, what turns critical, how the finish moves. Nothing changes until you apply it.')}
               </Text>
 
               <TouchableOpacity
@@ -5153,7 +5153,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 disabled={delayScanning}
                 testID="delay-scan"
                 accessibilityRole="button"
-                accessibilityLabel={delayRows ? t('field.dfr.reCheckScheduleImpact', 'Re-check schedule impact') : t('field.dfr.checkScheduleImpact', 'Check schedule impact')}
+                accessibilityLabel={delayRows ? t('field.dfr.reCheckScheduleImpact', 'Re-Check Schedule Impact') : t('field.dfr.checkScheduleImpact', 'Check Schedule Impact')}
                 accessibilityState={{ disabled: delayScanning, busy: delayScanning }}
               >
                 {delayScanning ? (
@@ -5164,7 +5164,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 ) : (
                   <>
                     <MageAIMark size={14} color={themeColors.accent} />
-                    <Text style={dcStyles.aiBtnText}>{delayRows ? t('field.dfr.reCheckScheduleImpact', 'Re-check schedule impact') : t('field.dfr.checkScheduleImpact', 'Check schedule impact')}</Text>
+                    <Text style={dcStyles.aiBtnText}>{delayRows ? t('field.dfr.reCheckScheduleImpact', 'Re-Check Schedule Impact') : t('field.dfr.checkScheduleImpact', 'Check Schedule Impact')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -5191,7 +5191,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                             hitSlop={8}
                             testID={`delay-dismiss-${i}`}
                             accessibilityRole="button"
-                            accessibilityLabel={t('field.dfr.dismissThisDelay', 'Dismiss this delay')}
+                            accessibilityLabel={t('field.dfr.dismissThisDelay', 'Dismiss This Delay')}
                             accessibilityState={{ disabled: delayAlreadyApplied }}
                           >
                             <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -5210,7 +5210,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           >
                             <Link2 size={14} color={rowTask ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
                             <Text style={[dcStyles.taskPickText, !rowTask && { color: themeColors.textMuted }]} numberOfLines={1}>
-                              {rowTask ? rowTask.title : t('field.dfr.pickTheDelayedTask', 'Pick the delayed task')}
+                              {rowTask ? rowTask.title : t('field.dfr.pickTheDelayedTask', 'Pick the Delayed Task')}
                             </Text>
                             <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                           </TouchableOpacity>
@@ -5219,7 +5219,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               style={dcStyles.stepBtn}
                               onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.max(1, r.deltaDays - 1) } : r))}
                               disabled={delayAlreadyApplied}
-                              accessibilityRole="button" accessibilityLabel={t('field.dfr.oneDayLess', 'One day less')}
+                              accessibilityRole="button" accessibilityLabel={t('field.dfr.oneDayLess', 'One Day Less')}
                               accessibilityState={{ disabled: delayAlreadyApplied }}
                             >
                               <Minus size={14} color={themeColors.text} strokeWidth={2} />
@@ -5229,7 +5229,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               style={dcStyles.stepBtn}
                               onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.min(MAX_DELTA_DAYS, r.deltaDays + 1) } : r))}
                               disabled={delayAlreadyApplied}
-                              accessibilityRole="button" accessibilityLabel={t('field.dfr.oneDayMore', 'One day more')}
+                              accessibilityRole="button" accessibilityLabel={t('field.dfr.oneDayMore', 'One Day More')}
                               accessibilityState={{ disabled: delayAlreadyApplied }}
                             >
                               <Plus size={14} color={themeColors.text} strokeWidth={2} />
@@ -5252,7 +5252,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         activeOpacity={0.7}
                         testID="delay-rearm"
                         accessibilityRole="button"
-                        accessibilityLabel={t('field.dfr.reArmToApply', 'Re-arm to apply this delay again')}
+                        accessibilityLabel={t('field.dfr.reArmToApply', 'Re-Arm to Apply This Delay Again')}
                       >
                         <Text style={dcStyles.reArmBtnText}>{t('field.dfr.reArm', 'Re-arm')}</Text>
                       </TouchableOpacity>
@@ -5260,7 +5260,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   ) : (
                     <>
                       {delayRowsStale && (
-                        <Text style={dcStyles.staleNoticeText}>{t('field.dfr.reportTextChangedRe', 'Report text changed — re-check schedule impact.')}</Text>
+                        <Text style={dcStyles.staleNoticeText}>{t('field.dfr.reportTextChangedRe', 'Report text changed. Re-check schedule impact.')}</Text>
                       )}
                       {delayRippleBlockedReason && (
                         <Text style={dcStyles.staleNoticeText} testID="delay-ripple-blocked">{delayRippleBlockedReason}</Text>
@@ -5272,14 +5272,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         activeOpacity={0.85}
                         testID="delay-preview"
                         accessibilityRole="button"
-                        accessibilityLabel={t('field.dfr.previewTheRipple', 'Preview the ripple')}
+                        accessibilityLabel={t('field.dfr.previewTheRipple', 'Preview the Ripple')}
                         accessibilityState={{ disabled: confirmableRows.length === 0 || delayRowsStale || !!delayRippleBlockedReason }}
                       >
                         <Text style={dcStyles.previewBtnText}>
                           {delayRippleBlockedReason
-                            ? t('field.dfr.rippleNeedsEditorAccess', 'Ripple needs editor access')
+                            ? t('field.dfr.rippleNeedsEditorAccess', 'Ripple Needs Editor Access')
                             : delayRowsStale
-                            ? t('field.dfr.reCheckScheduleImpact2', 'Re-check schedule impact first')
+                            ? t('field.dfr.reCheckScheduleImpact2', 'Re-Check Schedule Impact First')
                             : confirmableRows.length === 0
                               ? t('field.dfr.pickATaskTo', 'Pick a task to preview the ripple')
                               : tn('field.dfr.previewTheRippleDelays', confirmableRows.length, { one: 'Preview the ripple ({count} delay)', other: 'Preview the ripple ({count} delays)' })}
@@ -5311,7 +5311,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <HomeIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.clientUpdate', 'Client update')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.clientUpdate', 'Client Update')}</Text>
               {/* #22: the pill says what the portal HOLDS (the saved flag), not
                   what the local toggle hopes. */}
               {hsControl.pill && (
@@ -5321,7 +5321,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               )}
             </View>
             <Text style={hsStyles.helperText}>
-              {t('field.dfr.aShortJargonFree', "A short, jargon-free summary of today for the client's portal. AI writes a draft from your notes above — review, edit, then publish.")}
+              {t('field.dfr.aShortJargonFree', "A short, jargon-free summary of today for the client's portal. AI writes a draft from your notes above. Review, edit, then publish.")}
             </Text>
 
             {hsEditable && hsTextLockedReason && (
@@ -5343,7 +5343,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 ) : (
                   <>
                     <MageAIMark size={14} color={themeColors.accent} />
-                    <Text style={hsStyles.aiBtnText}>{homeownerSummary ? t('field.dfr.reGenerateFromNotes', 'Re-generate from notes') : t('field.dfr.generateFromTodaysNotes', "Generate from today's notes")}</Text>
+                    <Text style={hsStyles.aiBtnText}>{homeownerSummary ? t('field.dfr.reGenerateFromNotes', 'Re-Generate from Notes') : t('field.dfr.generateFromTodaysNotes', "Generate from Today's Notes")}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -5359,7 +5359,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   setHsWrittenForDay(v.trim() ? reportCalendarDay : null);
                   if (hsPublished) setHsPublished(false);  // edit invalidates the published copy
                 }}
-                placeholder={t('field.dfr.aiDraftWillAppear', 'AI draft will appear here. Or write your own — "Hi Sarah, big day on site today…"')}
+                placeholder={t('field.dfr.aiDraftWillAppear', 'AI draft will appear here. Or write your own: "Hi Sarah, big day on site today…"')}
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
@@ -5371,7 +5371,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
             {hsHighlights.length > 0 && (
               <View style={hsStyles.highlightsBlock}>
-                <Text style={hsStyles.highlightsLabel}>{t('field.dfr.suggestedBulletPoints', 'Suggested bullet points')}</Text>
+                <Text style={hsStyles.highlightsLabel}>{t('field.dfr.suggestedBulletPoints', 'Suggested Bullet Points')}</Text>
                 {hsHighlights.map((h, i) => (
                   <View key={i} style={hsStyles.highlightRow}>
                     <View style={hsStyles.highlightDot} />
@@ -5440,7 +5440,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {hsEditableWhenLocked && hsUpdateDirty && (
               <View style={{ alignSelf: 'flex-start', marginTop: 10 }}>
                 <Button
-                  label={hsPublishedSaved && !hsPublished ? t('field.dfr.saveTakeItDown', 'Save — take it down') : t('field.dfr.saveUpdate', 'Save update')}
+                  label={hsPublishedSaved && !hsPublished ? t('field.dfr.saveTakeItDown', 'Save and Take It Down') : t('field.dfr.saveUpdate', 'Save Update')}
                   onPress={() => handleSaveHomeownerUpdate()}
                   size="sm"
                   testID="hs-save-update"
@@ -5457,7 +5457,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <HardHat size={18} color={themeColors.danger} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>{t('field.dfr.safetyAndIncidents', 'Safety and incidents')}</Text>
+              <Text style={styles.sectionTitle}>{t('field.dfr.safetyAndIncidents', 'Safety and Incidents')}</Text>
             </View>
             {!isLocked ? (
               <>
@@ -5468,7 +5468,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 >
                   <View style={[styles.incidentToggleDot, incident.hasIncident && styles.incidentToggleDotActive]} />
                   <Text style={[styles.incidentToggleText, incident.hasIncident && { color: themeColors.danger }]}>
-                    {incident.hasIncident ? t('field.dfr.incidentOccurredToday', 'Incident occurred today') : t('field.dfr.noIncidentsToday', 'No incidents today')}
+                    {incident.hasIncident ? t('field.dfr.incidentOccurredToday', 'Incident Occurred Today') : t('field.dfr.noIncidentsToday', 'No Incidents Today')}
                   </Text>
                 </TouchableOpacity>
 
@@ -5479,7 +5479,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     of quietly dropping it. */}
                 {!incident.hasIncident && linkedIncident && (
                   <Text style={styles.incidentRegisterNote} testID="dfr-incident-orphan-note">
-                    {t('field.dfr.anIncidentFromThis', 'An incident from this report is already on the safety record. Unticking here does not remove it — delete it in the Incidents log if it was filed in error.')}
+                    {t('field.dfr.anIncidentFromThis', 'An incident from this report is already on the safety record. Unticking here does not remove it. Delete it in the Incidents log if it was filed in error.')}
                   </Text>
                 )}
 
@@ -5573,7 +5573,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       textAlignVertical="top"
                     />
 
-                    <Text style={styles.incidentLabel}>{t('field.dfr.peopleInvolved', 'People involved')}</Text>
+                    <Text style={styles.incidentLabel}>{t('field.dfr.peopleInvolved', 'People Involved')}</Text>
                     <TextInput
                       style={[styles.textInput, isDesktop && styles.inputMdDesktop]}
                       value={incident.peopleInvolved ?? ''}
@@ -5595,7 +5595,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         accessibilityState={{ disabled: !classificationKnown }}
                         testID="dfr-incident-classification"
                       >
-                        <Text style={styles.incidentLabel}>{t('field.dfr.treatmentGiven', 'Treatment given')}</Text>
+                        <Text style={styles.incidentLabel}>{t('field.dfr.treatmentGiven', 'Treatment Given')}</Text>
                         <View style={styles.severityRow}>
                           {(['none', 'first_aid', 'medical_beyond_first_aid'] as Treatment[]).map(tr => {
                             const active = incidentClass.treatment === tr;
@@ -5618,7 +5618,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
                         <View style={styles.oshaDaysRow}>
                           <View style={styles.oshaDaysItem}>
-                            <Text style={styles.incidentLabel}>{t('field.dfr.daysAwayFromWork', 'Days away from work')}</Text>
+                            <Text style={styles.incidentLabel}>{t('field.dfr.daysAwayFromWork', 'Days Away from Work')}</Text>
                             <TextInput
                               style={[styles.textInput, isDesktop && styles.inputXsDesktop]}
                               value={incidentClass.daysAway}
@@ -5631,7 +5631,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                             />
                           </View>
                           <View style={styles.oshaDaysItem}>
-                            <Text style={styles.incidentLabel}>{t('field.dfr.daysOnRestrictedDuty', 'Days on restricted duty')}</Text>
+                            <Text style={styles.incidentLabel}>{t('field.dfr.daysOnRestrictedDuty', 'Days on Restricted Duty')}</Text>
                             <TextInput
                               style={[styles.textInput, isDesktop && styles.inputXsDesktop]}
                               value={incidentClass.daysRestricted}
@@ -5658,9 +5658,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               {displayLang !== 'en'
                                 ? (incidentClassInput.daysRestricted
                                   ? tn('field.dfr.incident.restrictedWithDays', incidentClassInput.daysRestricted, { one: 'Restricted work / transfer ({count} day entered)', other: 'Restricted work / transfer ({count} days entered)' })
-                                  : t('field.dfr.incident.restrictedWork', 'Restricted work / transfer'))
+                                  : t('field.dfr.incident.restrictedWork', 'Restricted Work / Transfer'))
                                 // i18n-keep-english: the English children stay byte-identical; other languages take the whole sentences above
-                                : <>{'Restricted work / transfer'}{incidentClassInput.daysRestricted ? ` (${incidentClassInput.daysRestricted} day${incidentClassInput.daysRestricted === 1 ? '' : 's'} entered)` : ''}</>}
+                                : <>{'Restricted Work / Transfer'}{incidentClassInput.daysRestricted ? ` (${incidentClassInput.daysRestricted} day${incidentClassInput.daysRestricted === 1 ? '' : 's'} entered)` : ''}</>}
                             </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -5671,7 +5671,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                             accessibilityState={{ checked: incidentClass.lostConsciousness }}
                           >
                             <View style={[styles.checkbox, incidentClass.lostConsciousness && styles.checkboxActive]} />
-                            <Text style={styles.checkboxLabel}>{t('field.dfr.lostConsciousness', 'Lost consciousness')}</Text>
+                            <Text style={styles.checkboxLabel}>{t('field.dfr.lostConsciousness', 'Lost Consciousness')}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.checkboxItem}
@@ -5704,13 +5704,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           {recordability.reason}
                         </Text>
                         <Text style={styles.oshaVerdictSub}>
-                          {t('field.dfr.workedOutFromOsha', 'Worked out from OSHA 1904 recording criteria and what you answered above — verify against your recordkeeping before posting the 300.')}
+                          {t('field.dfr.workedOutFromOsha', 'Worked out from OSHA 1904 recording criteria and what you answered above. Verify against your recordkeeping before posting the 300.')}
                         </Text>
                       </View>
                     </View>
                     )}
 
-                    <Text style={styles.incidentLabel}>{t('field.dfr.correctiveAction', 'Corrective action')}</Text>
+                    <Text style={styles.incidentLabel}>{t('field.dfr.correctiveAction', 'Corrective Action')}</Text>
                     <TextInput
                       style={styles.textArea}
                       value={incident.correctiveAction ?? ''}
@@ -5721,7 +5721,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       textAlignVertical="top"
                     />
 
-                    <Text style={styles.incidentLabel}>{t('field.dfr.reportedBy', 'Reported by')}</Text>
+                    <Text style={styles.incidentLabel}>{t('field.dfr.reportedBy', 'Reported By')}</Text>
                     <TextInput
                       style={[styles.textInput, isDesktop && styles.inputMdDesktop]}
                       value={incident.reportedBy ?? ''}
@@ -5736,7 +5736,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         synced storage path, never a phone-only file. */}
                     {photos.length > 0 && classificationKnown && (
                       <>
-                        <Text style={styles.incidentLabel}>{t('field.dfr.incidentPhotos', 'Incident photos')}</Text>
+                        <Text style={styles.incidentLabel}>{t('field.dfr.incidentPhotos', 'Incident Photos')}</Text>
                         <View style={styles.incidentPhotoRow}>
                           {photos.map((photo, i) => {
                             const on = !!(photo as DfrPhotoWithFlag).incidentPhoto;
@@ -5763,7 +5763,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           })}
                         </View>
                         <Text style={styles.incidentRegisterNote}>
-                          {sentenceParts(t('field.dfr.tapThePhotosThat', "Tap the photos that show the incident — only those go on the case (up to {MAX_INCIDENT_PHOTOS}). Unmarking one here doesn't take it off a case already filed; remove it in Incidents.", { MAX_INCIDENT_PHOTOS: '{MAX_INCIDENT_PHOTOS}' }), { MAX_INCIDENT_PHOTOS })}
+                          {sentenceParts(t('field.dfr.tapThePhotosThat', "Tap the photos that show the incident. Only those go on the case (up to {MAX_INCIDENT_PHOTOS}). Unmarking one here doesn't take it off a case already filed; remove it in Incidents.", { MAX_INCIDENT_PHOTOS: '{MAX_INCIDENT_PHOTOS}' }), { MAX_INCIDENT_PHOTOS })}
                         </Text>
                       </>
                     )}
@@ -5775,7 +5775,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           {t('field.dfr.theCaseFromThis', 'The case from this report was deleted in Incidents, so saving will not file it again.')}
                         </Text>
                         <TouchableOpacity onPress={refileDeletedCase} accessibilityRole="button" testID="dfr-incident-refile">
-                          <Text style={styles.incidentRefileText}>{t('field.dfr.fileItAgain', 'File it again')}</Text>
+                          <Text style={styles.incidentRefileText}>{t('field.dfr.fileItAgain', 'File It Again')}</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -5790,7 +5790,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         onPress={() => router.push({ pathname: '/safety-incidents', params: { projectId } })}
                         testID="dfr-incident-open-case"
                         accessibilityRole="link"
-                        accessibilityLabel={t('field.dfr.openThisIncidentOn', 'Open this incident on the safety record')}
+                        accessibilityLabel={t('field.dfr.openThisIncidentOn', 'Open This Incident on the Safety Record')}
                       >
                         <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.incidentRegisterChipText}>
@@ -5798,10 +5798,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               adds to it on re-save. */}
                           {((counted: boolean) => (displayLang !== 'en'
                             ? (counted
-                              ? t('field.dfr.incident.caseFiledCounted', 'Case filed — edit people, actions and photos in Incidents · counted on the OSHA 300')
-                              : t('field.dfr.incident.caseFiled', 'Case filed — edit people, actions and photos in Incidents'))
+                              ? t('field.dfr.incident.caseFiledCounted', 'Case filed. Edit people, actions and photos in Incidents · counted on the OSHA 300')
+                              : t('field.dfr.incident.caseFiled', 'Case filed. Edit people, actions and photos in Incidents'))
                             // i18n-keep-english: the English children stay byte-identical; other languages take the whole sentences above
-                            : <>{'Case filed — edit people, actions and photos in Incidents'}{counted ? ' · counted on the OSHA 300' : ''}</>))(isRecordableCase(linkedIncident))}
+                            : <>{'Case filed. Edit people, actions and photos in Incidents'}{counted ? ' · counted on the OSHA 300' : ''}</>))(isRecordableCase(linkedIncident))}
                         </Text>
                         <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                       </TouchableOpacity>
@@ -5821,12 +5821,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           const recordable = isRecordableCase(linkedIncident);
                           if (displayLang !== 'en') {
                             return recordable
-                              ? t('field.dfr.incident.filedRecordable', 'Filed on your safety record as an OSHA-recordable case. The Incidents log and the OSHA 300 export open on Business — the record is kept either way.')
-                              : t('field.dfr.incident.filedNotRecordable', 'Filed on your safety record. The Incidents log and the OSHA 300 export open on Business — the record is kept either way.');
+                              ? t('field.dfr.incident.filedRecordable', 'Filed on your safety record as an OSHA-recordable case. The Incidents log and the OSHA 300 export open on Business. The record is kept either way.')
+                              : t('field.dfr.incident.filedNotRecordable', 'Filed on your safety record. The Incidents log and the OSHA 300 export open on Business. The record is kept either way.');
                           }
                           // i18n-keep-english: the English children stay byte-identical; other languages take the whole sentences above
                           return (<>Filed on your safety record{recordable ? ' as an OSHA-recordable case' : ''}.
-                            The Incidents log and the OSHA 300 export open on Business — the record is kept either way.</>);
+                            The Incidents log and the OSHA 300 export open on Business. The record is kept either way.</>);
                         })()}
                       </Text>
                     ) : (
@@ -5841,7 +5841,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <>
                 <Text style={styles.readOnlyText}>
                   {incident.hasIncident
-                    ? t('field.dfr.incident.summary', '{sev} — {desc}', {
+                    ? t('field.dfr.incident.summary', '{sev}: {desc}', {
                       sev: displayLang === 'en' ? String(incident.severity?.replace('_', ' ').toUpperCase()) : incidentSeverityL(incident.severity, t).toUpperCase(),
                       desc: incident.description || t('field.dfr.incident.noDescription', 'No description.'),
                     })
@@ -5894,7 +5894,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={[styles.modalOverlay, fSend.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{t('field.dfr.sendReportTo', 'Send report to')}</Text>
+                <Text style={styles.modalTitle}>{t('field.dfr.sendReportTo', 'Send Report To')}</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel={t('field.dfr.close', 'Close')}>
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -5921,7 +5921,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 </View>
               ) : (
                 <>
-                  <Text style={styles.modalFieldLabel}>{t('field.dfr.recipientName', 'Recipient name')}</Text>
+                  <Text style={styles.modalFieldLabel}>{t('field.dfr.recipientName', 'Recipient Name')}</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={sendRecipientName}
@@ -5943,7 +5943,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   />
                   {sendIsSample && (
                     <Text style={styles.modalFieldLabel} testID="dfr-sample-send-note">
-                      {t('field.dfr.sampleJobThisGoes', 'Sample job — this goes to you, not a client.')}
+                      {t('field.dfr.sampleJobThisGoes', 'Sample job. This goes to you, not a client.')}
                     </Text>
                   )}
                   {contacts.length > 0 && !sendIsSample && (
@@ -5953,7 +5953,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       activeOpacity={0.7}
                     >
                       <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.pickContactText}>{t('field.dfr.pickFromContacts', 'Pick from contacts')}</Text>
+                      <Text style={styles.pickContactText}>{t('field.dfr.pickFromContacts', 'Pick from Contacts')}</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -5978,7 +5978,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleTitle}>{t('field.dfr.saveCopyToProject', 'Save copy to project files')}</Text>
+                    <Text style={styles.toggleTitle}>{t('field.dfr.saveCopyToProject', 'Save Copy to Project Files')}</Text>
                     <Text style={styles.toggleSub}>
                       {project?.name
                         ? sentenceParts(t('field.dfr.send.dropsPdfInto', "Drops a PDF into {name}'s shared drive at", { name: '{name}' }), { name: project.name })
@@ -6006,10 +6006,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     <FolderOpen size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.toggleTitle, { color: themeColors.textMuted }]}>{t('field.dfr.saveCopyToProject', 'Save copy to project files')}</Text>
-                    <Text style={styles.toggleSub}>{t('field.dfr.send.filesNeedApp', 'Saving a PDF to project files needs the mobile app — use Print to keep a copy.')}</Text>
+                    <Text style={[styles.toggleTitle, { color: themeColors.textMuted }]}>{t('field.dfr.saveCopyToProject', 'Save Copy to Project Files')}</Text>
+                    <Text style={styles.toggleSub}>{t('field.dfr.send.filesNeedApp', 'Saving a PDF to project files needs the mobile app. Use Print to keep a copy.')}</Text>
                     <View style={{ alignSelf: 'flex-start', marginTop: 8 }}>
-                      <Button label={t('field.dfr.printACopy', 'Print a copy')} variant="secondary" size="sm" onPress={handlePrintCopy} testID="dfr-print-copy" />
+                      <Button label={t('field.dfr.printACopy', 'Print a Copy')} variant="secondary" size="sm" onPress={handlePrintCopy} testID="dfr-print-copy" />
                     </View>
                   </View>
                   <View style={styles.toggleSwitch}>
@@ -6042,14 +6042,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         value={reportDate}
         onClose={() => setShowDatePicker(false)}
         onChange={setReportDate}
-        title={t('field.dfr.reportDate', 'Report date')}
+        title={t('field.dfr.reportDate', 'Report Date')}
       />
 
       <ContactPickerModal
         visible={showContactPicker}
         onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
         contacts={contacts}
-        title={t('field.dfr.selectRecipient', 'Select recipient')}
+        title={t('field.dfr.selectRecipient', 'Select Recipient')}
         onSelect={(contact) => {
           const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
           setSendRecipientName(name);
@@ -6068,7 +6068,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         <View style={[styles.modalOverlay, fTask.overlay]}>
           <Animated.View style={[styles.modalCard, fTask.card, fTask.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('field.dfr.addWorkProgress', 'Add work progress')}</Text>
+              <Text style={styles.modalTitle}>{t('field.dfr.addWorkProgress', 'Add Work Progress')}</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel={t('field.dfr.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -6147,7 +6147,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           <View style={[styles.modalOverlay, fCrew.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fCrew.card, fCrew.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{mpEditingId ? t('field.dfr.editCrew', 'Edit crew') : t('field.dfr.addCrew', 'Add crew')}</Text>
+                <Text style={styles.modalTitle}>{mpEditingId ? t('field.dfr.editCrew', 'Edit Crew') : t('field.dfr.addCrew', 'Add Crew')}</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel={t('field.dfr.close', 'Close')}>
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -6157,7 +6157,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 style={styles.modalInput}
                 value={mpTrade}
                 onChangeText={setMpTrade}
-                placeholder={t('field.dfr.eGElectricianPlumber', 'e.g. Electrician, plumber')}
+                placeholder={t('field.dfr.eGElectricianPlumber', 'Electrician, plumber')}
                 placeholderTextColor={themeColors.textMuted}
               />
               {/* Free text still wins — these are the spellings this job has
@@ -6182,7 +6182,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   ))}
                 </View>
               )}
-              <Text style={styles.modalFieldLabel}>{t('field.dfr.companySub', 'Company / sub')}</Text>
+              <Text style={styles.modalFieldLabel}>{t('field.dfr.companySub', 'Company / Sub')}</Text>
               <TextInput
                 style={styles.modalInput}
                 value={mpCompany}
@@ -6221,7 +6221,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalFieldLabel}>{t('field.dfr.hoursWorked', 'Hours worked')}</Text>
+                  <Text style={styles.modalFieldLabel}>{t('field.dfr.hoursWorked', 'Hours Worked')}</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={mpHours}
@@ -6238,9 +6238,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 activeOpacity={0.85}
                 testID="mp-save-btn"
                 accessibilityRole="button"
-                accessibilityLabel={mpEditingId ? t('field.dfr.saveChanges', 'Save changes') : t('field.dfr.addEntry', 'Add entry')}
+                accessibilityLabel={mpEditingId ? t('field.dfr.saveChanges', 'Save Changes') : t('field.dfr.addEntry', 'Add Entry')}
               >
-                <Text style={styles.modalAddBtnText}>{mpEditingId ? t('field.dfr.saveChanges', 'Save changes') : t('field.dfr.addEntry2', 'Add entry')}</Text>
+                <Text style={styles.modalAddBtnText}>{mpEditingId ? t('field.dfr.saveChanges', 'Save Changes') : t('field.dfr.addEntry2', 'Add Entry')}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -6286,7 +6286,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
-        featureLabel={t('field.dfr.voiceCaptureFeature', 'Voice capture')}
+        featureLabel={t('field.dfr.voiceCaptureFeature', 'Voice Capture')}
         onClose={() => setUpgradeLimit(null)}
       />
       {/* Tutorial blocker: these modals have no tutorial layer and draw ABOVE

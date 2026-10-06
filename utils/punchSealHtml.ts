@@ -17,13 +17,13 @@ import { PDF_PALETTE, escHtml, pdfSectionHeader, pdfShell } from '@/utils/pdfDes
 import { calendarDayOf, formatCalendarDay } from '@/utils/calendarDate';
 
 export const PUNCH_SEAL_HTML_COPY = {
-  eyebrow: 'Sealed record',
-  title: 'Final punch accepted',
+  eyebrow: 'Sealed Record',
+  title: 'Final Punch Accepted',
   statement: (day: string) =>
     `This record certifies that the punch items below were closed, each with an after photo, as of ${day}. It is not a warranty, not a lien release, and it does not release retainage or any payment.`,
-  acceptanceHeading: 'Client acceptance',
+  acceptanceHeading: 'Client Acceptance',
   itemsHeading: 'Punch items',
-  verifyHeading: 'How to check this record',
+  verifyHeading: 'How to Check This Record',
   verifyBody:
     'The record hash is the SHA-256 of the stored record in canonical JSON. Each after photo was copied into write-once storage when the record was sealed, and its SHA-256 is listed beside it.',
   beforeNotOnFile: 'Before photo not on file',
@@ -89,8 +89,8 @@ export function buildPunchSealHtml(seal: PunchSeal, opts: PunchSealHtmlOptions):
     ['Sealed', `${escHtml(sealedDay)} &middot; ${mono(seal.sealedAt)}`],
     ['Accepted by', `${escHtml(seal.signerName)}${seal.signerRole ? ` (${escHtml(seal.signerRole)})` : ''}, in person`],
     ['Items', escHtml(String(seal.itemCount))],
-    ['Record id', mono(seal.id)],
-    ['Record hash (SHA-256)', mono(seal.manifestHash)],
+    ['Record ID', mono(seal.id)],
+    ['Record Hash (SHA-256)', mono(seal.manifestHash)],
   ];
   const meta = `<table style="margin-bottom:8px">${metaRows.map(([k, v]) => `<tr><td style="width:150px;padding:4px 0;color:${PDF_PALETTE.textMuted};font-size:11px">${escHtml(k)}</td><td style="padding:4px 0;font-size:11.5px">${v}</td></tr>`).join('')}</table>`;
 

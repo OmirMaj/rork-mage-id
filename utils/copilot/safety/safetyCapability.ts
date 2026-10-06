@@ -23,16 +23,16 @@ const isType = (v: unknown): v is SafetyIncidentType => typeof v === 'string' &&
 
 export const safetyCapability: CopilotCapability<SafetyDraft, SafetyApplied> = {
   id: 'safety_incident',
-  label: 'Report a safety incident',
+  label: 'Report a Safety Incident',
   aiFeature: 'voiceCapture',
   maxQuestions: 1,
   askThreshold: 0.4,
   suggestions: [
     'Worker cut his hand on rebar tying steel on level 2',
-    'Near miss — a pallet slipped off the forklift by the loading dock',
+    'Near miss, a pallet slipped off the forklift by the loading dock',
   ],
   topicChecklist: [
-    { label: 'What happened', hint: 'the incident' },
+    { label: 'What Happened', hint: 'the incident' },
     { label: 'Treatment', hint: 'first aid vs a doctor' },
     { label: 'Where', hint: 'location on site' },
   ],

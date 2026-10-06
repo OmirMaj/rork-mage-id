@@ -227,7 +227,7 @@ console.log('\ne) the plans skip what they must and name it:');
       { number: 5, reason: MARK_SENT_SKIP.sample }, { number: 6, reason: MARK_SENT_SKIP.sent },
     ]), JSON.stringify(plan.skipped));
   ok('…the reasons read as the founder default spells them',
-    MARK_SENT_SKIP.sent === 'already sent' && MARK_SENT_SKIP.paid === 'paid' && MARK_SENT_SKIP.sample === 'sample job — sends only reach you');
+    MARK_SENT_SKIP.sent === 'already sent' && MARK_SENT_SKIP.paid === 'paid' && MARK_SENT_SKIP.sample === 'sample job, sends only reach you');
   ok('a sent invoice paid in full reads "paid", not "already sent"',
     invoiceBulkMarkSentPlan([mk('h', 8, 'sent', { amountPaid: 84_000 })], nowIso, () => false).skipped[0]?.reason === MARK_SENT_SKIP.paid);
 
@@ -246,7 +246,7 @@ console.log('\ne) the plans skip what they must and name it:');
   ok('an answered RFI the regression rule refuses is skipped with that rule\'s words, not written', blocked.close.length === 0
     && same(blocked.skipped, [{ number: 5, reason: 'no' }]), JSON.stringify(blocked));
   ok('the skipped line groups by reason, in order',
-    logBulkSkippedLine(plan.skipped) === 'Skipped 5: #2, #4, #6 — already sent; #3 — paid; #5 — sample job — sends only reach you.',
+    logBulkSkippedLine(plan.skipped) === 'Skipped 5: #2, #4, #6 — already sent; #3 — paid; #5 — sample job, sends only reach you.',
     logBulkSkippedLine(plan.skipped));
   ok('…and is empty when nothing was skipped', logBulkSkippedLine([]) === '');
 }
@@ -269,7 +269,7 @@ console.log('\nf) the bulk handlers write through the context (the offline queue
   ok('neither log touches supabase (no supabase.from, no import of lib/supabase)',
     !/supabase/.test(rfiLog) && !/supabase/.test(invLog));
   ok('both bulk buttons are ENABLED and wired (founder default 3)',
-    /\{ key: 'close', label: 'Close', run: closeSelected \}/.test(rfiLog) && /\{ key: 'sent', label: 'Mark sent', run: markSentSelected \}/.test(invLog)
+    /\{ key: 'close', label: 'Close', run: closeSelected \}/.test(rfiLog) && /\{ key: 'sent', label: 'Mark Sent', run: markSentSelected \}/.test(invLog)
     && !/disabledReason/.test(rfiLog) && !/disabledReason/.test(invLog));
   // The host screen refetches on open/foreground; RfiLog must not add a second
   // invalidate (react-query's cancelRefetch would cancel the host's request).

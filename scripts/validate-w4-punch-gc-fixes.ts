@@ -159,7 +159,7 @@ console.log('\n#51/#54 opening the item from a notification');
     /setActiveList\(step\.list\);[\s\S]{0,200}setFilterStatus\(step\.status\);[\s\S]{0,80}setFilterSub\(''\);/.test(list));
   ok('the old one-shot snapshot focus is gone', !/punchFocusFor\(item\)/.test(list) && !/setFilterStatus\(plan\.status\)/.test(list));
   ok('the banner has a real Refresh / Try again control (pull-to-refresh does nothing on web)',
-    /<Button\s+label=\{refreshState === 'offline' \? t\('field\.punch\.tryAgain', 'Try again'\) : t\('field\.punch\.refresh', 'Refresh'\)\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
+    /<Button\s+label=\{refreshState === 'offline' \? t\('field\.punch\.tryAgain', 'Try Again'\) : t\('field\.punch\.refresh', 'Refresh'\)\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
     && /const retryFocus = useCallback\(\(\) => setFocusNonce\(n => n \+ 1\), \[\]\);/.test(list)
     && /\}, \[focusItemId, queryClient, projectId, focusNonce, punchKey\]\);/.test(list));
   ok('no copy tells him to "pull down"', !/[Pp]ull down/.test(list));

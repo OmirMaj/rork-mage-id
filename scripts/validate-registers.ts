@@ -216,7 +216,7 @@ for (const s of SCREENS) {
 {
   const crewReg = stripComments(read('components/registers/CrewRegister.tsx'));
   check('crew register: bulk Delete is disabled with its reason',
-    crewReg.includes("'Delete crew one at a time — it offers Mark inactive first and purges a kept ID photo.'")
+    crewReg.includes("'Delete crew one at a time. It offers Mark Inactive first and purges a kept ID photo.'")
     && /disabledReason: CREW_BULK_DELETE_REASON/.test(crewReg));
   check('crew register: bulk status writes run one per render', /useOneAtATime\(/.test(crewReg) && !/\.forEach\([^)]*updateCrewMember/.test(crewReg));
   check('crew register: the empty table says Loading… until the read lands', /loading \? \(\s*<EmptyState[\s\S]{0,120}title="Loading…"/.test(crewReg));

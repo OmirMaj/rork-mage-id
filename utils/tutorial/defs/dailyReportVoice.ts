@@ -11,7 +11,7 @@ const HUB = { pathname: '/project-detail', projectParam: 'id' } as const;
 export const dailyReportVoice: TutorialDef = {
   id: 'daily-report-voice',
   version: 1,
-  title: "File today's daily report by talking",
+  title: "File Today's Daily Report by Talking",
   seconds: 35,
   endsWith: "Today's report filed on the sample job",
   group: 'site',
@@ -31,14 +31,14 @@ export const dailyReportVoice: TutorialDef = {
       kind: 'do',
       route: DFR,
       target: 'dfr.voice',
-      text: '{Tap} the sample note — or the mic and say your day',
+      text: '{Tap} the sample note, or the mic and say your day',
       // The web VoiceRecorder is disabled (components/VoiceRecorder.tsx), so
       // the sample chip is the only path there.
       textWeb: '{Tap} the sample voice note',
       detail: ctx =>
         ctx.freeTier && !ctx.web
-          ? 'Sample — no AI credits used. The mic uses 1 of your 3 free voice fills.'
-          : 'Sample — no AI credits used.',
+          ? 'Sample. No AI credits used. The mic uses 1 of your 3 free voice fills.'
+          : 'Sample. No AI credits used.',
       gesture: 'tap',
       until: { signal: 'dfr.voice.applied' },
       assist: 'dfr.useSampleNote',
@@ -50,7 +50,7 @@ export const dailyReportVoice: TutorialDef = {
       route: DFR,
       target: ['dfr.voicePreview', 'dfr.workPerformed'],
       text: 'One note filled crew, work done and the delay.',
-      detail: 'Check it — {tap} any field to fix it.',
+      detail: 'Check it. {Tap} any field to fix it.',
       gesture: 'none',
     },
     {
@@ -58,11 +58,11 @@ export const dailyReportVoice: TutorialDef = {
       kind: 'do',
       route: DFR,
       target: 'dfr.saveDraft',
-      text: '{Tap} Save draft',
+      text: '{Tap} Save Draft',
       gesture: 'tap',
       until: { signal: 'dfr.saved' },
       success: {
-        title: 'Daily report saved',
+        title: 'Daily Report Saved',
         sub: ctx => {
           const saved = ctx.payloads['dfr.saved'];
           const voice = ctx.payloads['dfr.voice.applied'];
@@ -96,8 +96,8 @@ export const dailyReportVoice: TutorialDef = {
   handoff: {
     pathname: '/daily-report',
     projectParam: 'projectId',
-    realJobLabel: name => `File today's report on ${name} →`,
+    realJobLabel: name => `File Today's Report on ${name}`,
     roles: ['owner', 'editor', 'field'],
   },
-  chainNext: { tutorialId: 'punch-walk', label: 'Next: walk the job — log a punch item · 45 s' },
+  chainNext: { tutorialId: 'punch-walk', label: 'Next: walk the job and log a punch item · 45 s' },
 };

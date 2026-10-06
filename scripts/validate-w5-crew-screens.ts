@@ -59,7 +59,7 @@ ok('Edit details saves name / trades / phone / email through updateCrewMember',
   /const changes: Partial<CrewMember> = \{ fullName: name \};/.test(crew)
   && /changes\.trades = editTrades\.split\(','\)/.test(crew) && /changes\.email = mail \|\| undefined;/.test(crew)
   && /updateCrewMember\(member\.id, changes\);/.test(crew));
-ok('name required like handleAdd', /if \(!name\) \{ showAlert\(t\('field\.crew\.nameRequired', 'Name required'\)\); return; \}/.test(crew));
+ok('name required like handleAdd', /if \(!name\) \{ showAlert\(t\('field\.crew\.nameRequired', 'Name Required'\)\); return; \}/.test(crew));
 ok('a claimed worker\'s contact fields are locked with the reason',
   /const contactLocked = !!member\?\.claimedByUserId && member\.claimedByUserId !== auth\.user\?\.id;/.test(crew)
   && /They claimed their profile, so they manage their phone, email and trades\./.test(crew) && /editable=\{!contactLocked\}/.test(crew));
@@ -68,9 +68,9 @@ ok('Active/Inactive switch writes status', /updateCrewMember\(member\.id, \{ sta
 ok('the read-only status pill is gone', !/styles\.statusPill/.test(crew));
 ok('inactive workers sorted last', /sortedMembers\.map\(m =>/.test(crew) && /a\.status === 'inactive' \? 1 : 0\) - \(b\.status === 'inactive' \? 1 : 0\)/.test(crew));
 ok('"Add an email" offers Add email → the editor, email focused',
-  /showAlert\(t\('field\.crew\.addAnEmail', 'Add an email'\)[\s\S]{0,400}\{ text: t\('field\.crew\.addEmail', 'Add email'\), onPress: \(\) => openEditor\(true\) \}/.test(crew)
+  /showAlert\(t\('field\.crew\.addAnEmail', 'Add an Email'\)[\s\S]{0,400}\{ text: t\('field\.crew\.addEmail', 'Add Email'\), onPress: \(\) => openEditor\(true\) \}/.test(crew)
   && /autoFocus=\{focusEmail && !contactLocked\}/.test(crew));
-ok('Delete suggests Mark inactive first', /text: t\('field\.crew\.markInactive', 'Mark inactive'\), onPress: \(\) => handleSetActive\(false\)/.test(crew)
+ok('Delete suggests Mark Inactive first', /text: t\('field\.crew\.markInactive', 'Mark Inactive'\), onPress: \(\) => handleSetActive\(false\)/.test(crew)
   && /mark them inactive instead/.test(crew));
 
 console.log('\n#72 the invite');
@@ -94,12 +94,12 @@ ok('Go to app in every state but an in-flight redeem', /\{state !== 'redeeming' 
 ok('done renders his profile inline', /import \{ ClaimedWorkerSelfView \} from '\.\/crew';/.test(claim)
   && /<ClaimedWorkerSelfView\s+members=\{myRows\}\s+embedded/.test(claim)
   && /crewMembers\.filter\(m => m\.claimedByUserId === user\.id\)/.test(claim));
-ok('"Go to app" on done is the secondary "Set up your own MAGE account"', /Set up your own MAGE account/.test(claim));
+ok('"Go to App" on done is the secondary "Set Up Your Own MAGE Account"', /Set Up Your Own MAGE Account/.test(claim));
 ok('the /sub-profile "every contractor" link is gone (#74, #113 carry)', !/sub-profile/.test(claim) && !/every contractor/.test(claim));
-ok('ClaimedWorkerSelfView is exported', /export function ClaimedWorkerSelfView\(/.test(crew) && /\{!embedded && <Stack\.Screen options=\{\{ title: t\('field\.crew\.myProfile', 'My profile'\) \}\} \/>\}/.test(crew));
+ok('ClaimedWorkerSelfView is exported', /export function ClaimedWorkerSelfView\(/.test(crew) && /\{!embedded && <Stack\.Screen options=\{\{ title: t\('field\.crew\.myProfile', 'My Profile'\) \}\} \/>\}/.test(crew));
 
 console.log('\n#165/#166/#167 ID scan and certs');
-ok('Re-scan ID is always rendered', /\{member\.idScannedAt \|\| member\.idMaskedLast4 \? t\('field\.crew\.reScanId', 'Re-scan ID'\) : t\('field\.crew\.scanId', 'Scan ID'\)\}/.test(crew)
+ok('Re-Scan ID is always rendered', /\{member\.idScannedAt \|\| member\.idMaskedLast4 \? t\('field\.crew\.reScanId', 'Re-Scan ID'\) : t\('field\.crew\.scanId', 'Scan ID'\)\}/.test(crew)
   && !/verifiedBadge\(member\) === 'id_verified' \? \(/.test(crew));
 ok('expired IDs show "ID expired <date>" at the card, header chip and detail row',
   (crew.match(/<IdBadgeChip member=/g) ?? []).length === 2 && /badge === 'id_expired'/.test(crew) && (crew.match(/idExpiredText\(member\.idExpiry\)/g) ?? []).length === 2
@@ -110,12 +110,12 @@ ok('Remove ID writes a fresh stamp and deletes the kept photo',
 ok('a re-scan deletes the previously kept photo', /if \(previousImage && previousImage !== idImagePath\) void deleteStorageFile\('worker-ids', previousImage\);/.test(crew));
 ok('the corrected name is written back', /const fullName = scanFields\.fullName\.trim\(\) \|\| target\?\.fullName;/.test(crew) && /\.\.\.\(fullName \? \{ fullName \} : \{\}\),/.test(crew));
 ok('never verified without a number', /computeIdVerified\(\{ scanCompleted: true, userConfirmed: true \}\) && !!maskedLast4/.test(crew) && /if \(!maskedLast4\) return;/.test(crew));
-ok('Save disabled with the reason', /disabled=\{!canSave\}/.test(crew) && /We couldn’t read an ID number — retake the photo or type the number\./.test(crew));
+ok('Save disabled with the reason', /disabled=\{!canSave\}/.test(crew) && /We couldn’t read an ID number\. Retake the photo or type the number\./.test(crew));
 ok('retain switch hidden on web', /Platform\.OS === 'web' \? \(\s*<Text style=\{styles\.retainHelp\} testID="scan-retain-web-note">\s*\{t\('field\.crew\.keepingThePhotoIs', 'Keeping the photo is iPhone-only/.test(crew));
 ok('upload failed → alert + warning haptic, not success',
   /if \(imageNotKept\) \{[\s\S]{0,700}NotificationFeedbackType\.Warning\);\s*return;\s*\}/.test(crew));
 ok('today is the local calendar day at render', /const today = todayCalendarDay\(\);/.test(crew) && !/toISOString\(\)\.slice\(0, 10\)/.test(crew));
-ok('unreadable cert expiry → Check date (danger)', /case 'check_date': return t\('field\.crew\.cert\.checkDate', 'Check date'\);/.test(crew) && /check_date: \{ color: t\.danger \}/.test(crew)
+ok('unreadable cert expiry → Check date (danger)', /case 'check_date': return t\('field\.crew\.cert\.checkDate', 'Check Date'\);/.test(crew) && /check_date: \{ color: t\.danger \}/.test(crew)
   && /crewCertRowStatus\(cert\.expiresDate, certExpiryStatus\(cert\.expiresDate, today\)\)/.test(crew));
 
 console.log('\n#170 / #124');

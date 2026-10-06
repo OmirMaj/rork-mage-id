@@ -143,7 +143,7 @@ ok('handleConfirmSend: the portal post uses the latest-callback ref, after the e
 ok('handleConfirmSend: the post is gated on the tick AND a live portal', /if \(postToPortal && portalEnabled\)/.test(confirm));
 ok('the Send sheet offers "Also post to client portal", ticked by default',
   /useState\(true\)/.test(SCREEN.slice(SCREEN.indexOf('const [postToPortal'), SCREEN.indexOf('const [postToPortal') + 60))
-  && /Also post to client portal/.test(SCREEN));
+  && /Also Post to Client Portal/.test(SCREEN));
 ok('the send stores the recipient for reminders (new and existing branches)',
   /billToEmail: sendRecipientEmail\.trim\(\)/.test(confirm) && /updateInvoice\(workingInvoice\.id, \{ status: 'sent', dueDate, \.\.\.billTo \}\)/.test(confirm) && /updateInvoice\(existingInvoice\.id, \{\s*\.\.\.billTo,/.test(confirm));
 ok('the PDF send stores its recipient too', /billToEmail: sentTo/.test(pdf));

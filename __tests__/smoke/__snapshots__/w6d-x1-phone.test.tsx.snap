@@ -132,7 +132,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportShe
 {
   "lines": 84,
   "modalCount": 1,
-  "sha256": "871800a937a3526eb31145d76220b4af2ce6b30385db009b74c542439e7445ad",
+  "sha256": "7f6260392165ec3a95260d09ac3d38939b04a2d26049da86e5649c2602434316",
 }
 `;
 
@@ -140,7 +140,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportShe
 {
   "lines": 84,
   "modalCount": 1,
-  "sha256": "08cee5ed9f1784d7e7ff55ee502c5a9a8e9c48595be9e3bbb5f5b0487c6cc1d5",
+  "sha256": "a16b29a6a314417304872e5ff44b79b8f316e3dce50bba3a7f0985f000d5c77a",
 }
 `;
 
@@ -148,7 +148,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpda
 {
   "lines": 181,
   "modalCount": 2,
-  "sha256": "60610961f2453f79345a71d31521ef6ad6a2adaae10812a4e6a43380bb6c8a94",
+  "sha256": "2717acd56fba6c19f9340202dde0fe1ba9767cc59f579d0e5c7a5121ec687aaf",
 }
 `;
 
@@ -156,7 +156,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpda
 {
   "lines": 181,
   "modalCount": 2,
-  "sha256": "7ca96c45cb5af8914b93cc0429885c5c1bc3b63fc0175fee1a7c069f8a161a97",
+  "sha256": "c968a3cdc47dd29b115dbec83aae9b2541af90ee8528d7f5a42888bc04a090a4",
 }
 `;
 
@@ -212,7 +212,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 47,
   "modalCount": 1,
-  "sha256": "3562a6ee729854f758c71e0b1f03f30fa4d7082e7beb915a615fc0eb54a45d13",
+  "sha256": "c676ae6711e23be0eb0f0a67e314e2edaf09ce30afd732ff020ec7f8a0eb1ed2",
 }
 `;
 
@@ -220,7 +220,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 47,
   "modalCount": 1,
-  "sha256": "25ecd76ca7bc6a08583f75221129fbdf385ca3645684af94137b2f6653cf8164",
+  "sha256": "ff503482567269044d1a5697c50936eda2370e948dc511a5b7ebc2c1aa45738c",
 }
 `;
 
@@ -228,7 +228,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 35,
   "modalCount": 1,
-  "sha256": "409e3c520fcc20f25af3d097b5adb2789175cd4377c6f3e8fb402f82786d43fc",
+  "sha256": "f9e04323dfe72015410f7e6824c11e54cba5adfda35f28a56bff03da348804a6",
 }
 `;
 
@@ -236,7 +236,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 35,
   "modalCount": 1,
-  "sha256": "2dc7b5c6609c3a82fbba121d498695591a4330b1860c9c14879e97dd03170f15",
+  "sha256": "c8ab9b936e18b9d37946bd58bca499b9ad86bfe862673d6b3c5b04727ff36ea3",
 }
 `;
 
@@ -244,7 +244,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicBu
 {
   "lines": 87,
   "modalCount": 2,
-  "sha256": "01f037a0df848165a91552253346f18b4deb1d9c9b34f3548a3be4142f29660f",
+  "sha256": "9d346b7016ab32ac5c5f8076e57dc65cc12530669e2cb969c041107ec732e060",
 }
 `;
 
@@ -252,7 +252,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicBu
 {
   "lines": 87,
   "modalCount": 2,
-  "sha256": "d8cdde1495dfbcd502423eb418ec941aaecc060dbc3aaf3986666d90e0e57a74",
+  "sha256": "1d18ce2386d2130a17ab6c7e12a3067221853bf023ff6784f6523063638213c3",
 }
 `;
 
@@ -276,7 +276,7 @@ exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /
 {
   "lines": 2194,
   "modalCount": 19,
-  "sha256": "1234cfd285eeccff11b13e83389cd36e049ca0f51ecc687cfad8129734b92fea",
+  "sha256": "34756852cf9785c4fee4822030deba8e46f10a3ada2f2600dd6d3fed0a4b30b4",
 }
 `;
 
@@ -284,7 +284,7 @@ exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) dark — th
 {
   "lines": 11,
   "modalCount": 0,
-  "sha256": "901cbfbb12dae00e8848962dcc37c28d50b92f7a1694c7fed24997964ac59527",
+  "sha256": "88ff5fef7ea44af42d4381b852c317927a9ba02816207d52bb6b827c962b1605",
 }
 `;
 
@@ -292,6 +292,6 @@ exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) light — t
 {
   "lines": 11,
   "modalCount": 0,
-  "sha256": "2fb6277c455cc9716305579c2cd44194ac87b6949da18e056791bb894bd20543",
+  "sha256": "b0fc30a0fb3422a468493c2294cbabae1036fbcbfd4cbcd1a2cf7f4257dc4511",
 }
 `;

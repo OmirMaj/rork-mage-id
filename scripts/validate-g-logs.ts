@@ -358,7 +358,7 @@ ok('Cmd+S / Cmd+Enter: usePrimaryAction on all four editors, desktop only',
   /usePrimaryAction\(existingRFI \? handleSaveInPlace : handleSave, \{\s*label: 'Save RFI',\s*enabled: isDesktop/.test(rfiSrc)
   && /usePrimaryAction\(existingSubmittal \? handleSaveInPlace : handleSave, \{ label: 'Save submittal', enabled: isDesktop \}\)/.test(subSrc)
   && /usePrimaryAction\(\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\), \{\s*label: 'Save change order',\s*enabled: isDesktop,\s*disabled: isLocked,/.test(coSrc)
-  && /usePrimaryAction\(\(\) => handleSave\('draft'\), \{\s*label: 'Save invoice',\s*enabled: isDesktop,/.test(invSrc));
+  && /usePrimaryAction\(\(\) => handleSave\('draft'\), \{\s*label: 'Save Invoice',\s*enabled: isDesktop,/.test(invSrc));
 ok('a sheet that sends or records money never binds Cmd+S (saveKey: false)',
   /useSheetPrimaryHotkey\(showSendModal,[^\n]*\{ saveKey: false \}\)/.test(rfiSrc)
   && /useSheetPrimaryHotkey\(showEmailSend,[^\n]*\{ saveKey: false \}\)/.test(subSrc)
@@ -432,7 +432,7 @@ console.log('\nhonest loading (wave 6d, lane V3 — runtime fix C6): no "No … 
     ok(`${file}: reads its settle signal (${signal}) and derives \`loading\` from it`, reads.test(src) && src.includes(loadingLine));
     ok(`${file}: the emptyState branches on \`loading\` FIRST ("Loading …"), before any "No … on this project yet"`,
       /^emptyState=\{loading \? \(\s*<EmptyState[\s\S]{0,160}title="Loading [A-Za-z ]+…"/.test(empty)
-      && empty.indexOf('title="Loading') < empty.indexOf('on this project yet'));
+      && empty.indexOf('title="Loading') < empty.search(/on this project yet/i));
     ok(`${file}: the chip counts are hidden while loading (never a 0 it has not earned)`, /count: loading \? undefined : counts\[f\.key\]/.test(src));
   }
   for (const [file, key, noun] of [['components/logs/RfiLog.tsx', 'rfis', 'RFIs'], ['components/logs/SubmittalLog.tsx', 'submittals', 'submittals']] as const) {

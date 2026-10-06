@@ -267,7 +267,7 @@ console.log('\n(e) invoice lines:');
   const table = inv.slice(inv.indexOf('<DataTable<InvoiceLineItem>'), inv.indexOf('renderCard=', inv.indexOf('<DataTable<InvoiceLineItem>')));
   ok('…READ-ONLY: the table has no editable cell and its hotkeys are off (it shares a page with InvoiceLog)',
     !!table && /hotkeys=\{false\}/.test(table) && !/TextInput|onChangeText/.test(table));
-  ok('…bulk Remove says why when the invoice is locked', /disabledReason: isLocked \? 'Sent invoices are locked — void and reissue to change lines\.' : null/.test(inv));
+  ok('…bulk Remove says why when the invoice is locked', /disabledReason: isLocked \? 'Sent invoices are locked\. Void and reissue to change lines\.' : null/.test(inv));
   ok('…the invoice.totals TutorialTarget still directly follows the Line Items section',
     /<\/View>\s*\{\/\* The wrapper carries the card's outer margins[\s\S]{0,200}\*\/\}\s*<TutorialTarget id="invoice\.totals" style=\{styles\.totalsTarget\}>/.test(read('app/invoice.tsx')));
 

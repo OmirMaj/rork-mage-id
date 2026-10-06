@@ -41,7 +41,7 @@ export const DFR_FILED_PDF_LINK_DAYS = 30;
 /** Why the project-files copy is native-only — the same words the screen shows
  *  on the disabled switch (#27). */
 export const PROJECT_FILES_NEEDS_APP =
-  'Saving a PDF to project files needs the mobile app — use Print to keep a copy.';
+  'Saving a PDF to project files needs the mobile app. Use Print to keep a copy.';
 
 export interface SaveDailyReportPdfArgs {
   projectId: string;

@@ -45,7 +45,7 @@ import { conflictsForDelivery, type AccessConflict } from '@/utils/buildingAcces
 import { DELIVERY_CSV_COLUMNS, deliveryRegisterRow, type DeliveryRegisterRow } from '@/utils/registers/deliveryRows';
 
 /** Bulk "Mark received" stays off: receiving asks about damage per load. */
-export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own — the damage question is asked for every delivery.';
+export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own. The damage question is asked for every delivery.';
 
 export interface DeliveriesRegisterProps {
   projectId: string;
@@ -185,7 +185,7 @@ export function DeliveriesRegister({
           if (d) onHorizon(d);
         }}
         style={styles.horizon}
-        accessibilityLabel="Look-ahead window"
+        accessibilityLabel="Look-Ahead Window"
         testID="deliveries-register-horizon"
       />
     </>
@@ -194,9 +194,9 @@ export function DeliveriesRegister({
   const emptyState = look.upcoming.length === 0 && look.late.length === 0 ? (
     <EmptyState
       icon={truck}
-      title="Nothing scheduled yet"
+      title="Nothing Scheduled Yet"
       message="Add what you're expecting and the date it was promised. Anything that slips past its date shows up here and in Waiting On, so a late load gets chased before the crew is stood down."
-      actionLabel="Add delivery"
+      actionLabel="Add Delivery"
       onAction={onAdd}
     />
   ) : (
@@ -215,9 +215,9 @@ export function DeliveriesRegister({
       csv={csv}
       onNew={onAdd}
       actions={[
-        { key: 'add', label: 'Add delivery', primary: true, icon: Plus, onPress: onAdd, testID: 'deliveries-register-add' },
+        { key: 'add', label: 'Add Delivery', primary: true, icon: Plus, onPress: onAdd, testID: 'deliveries-register-add' },
         {
-          key: 'access', label: hasAccessRules ? 'Building access & bookings' : 'Set up building access',
+          key: 'access', label: hasAccessRules ? 'Building Access and Bookings' : 'Set Up Building Access',
           icon: Building2, onPress: onOpenBuildingAccess, testID: 'deliveries-register-access',
         },
       ]}
@@ -238,7 +238,7 @@ export function DeliveriesRegister({
             selectable
             bulkActions={[
               { key: 'confirm', label: 'Confirm', run: confirmSelected },
-              { key: 'receive', label: 'Mark received', run: () => {}, disabledReason: DELIVERY_BULK_RECEIVE_REASON },
+              { key: 'receive', label: 'Mark Received', run: () => {}, disabledReason: DELIVERY_BULK_RECEIVE_REASON },
               { key: 'csv', label: 'Export CSV', run: exportSelected },
             ]}
             emptyState={emptyState}

@@ -182,12 +182,12 @@ console.log('completion, skip-ahead, NEXT, celebrate');
   const photoStep = defs['punch-walk']!.steps.find(x => x.id === 'punch-photo')!;
   eq('punch: with no sample plan the camera step says the pin is skipped',
     stepCopy(photoStep, { pointerFine: false, web: false, freeTier: true, payloads: {}, samplePlan: false }).detail,
-    "The sample plan didn't load — we'll skip the pin.");
+    "The sample plan didn't load, so we'll skip the pin.");
   eq('…and the normal detail when the plan loaded', stepCopy(photoStep, { pointerFine: false, web: false, freeTier: true, payloads: {}, samplePlan: true }).detail,
     'The sample photo skips the camera prompt.');
   eq('invoice: a later amount refreshes the totals look copy (not the first digit)',
     [totalsStep.id, stepCopy(totalsStep, { pointerFine: false, web: false, freeTier: true, payloads: R(inv).payloads }).text],
-    ['invoice-totals', '$63,360 due — tax and terms come from the job.']);
+    ['invoice-totals', '$63,360 due. Tax and terms come from the project.']);
   s = reduceTutorial(s, { type: 'NEXT', now: T0 + 3000 }, defs);
   eq('NEXT on the look step advances', stepId(s), 'dfr-save');
   s = reduceTutorial(s, sig('dfr.saved', { reportId: 'r1', status: 'draft', crew: 3 }, T0 + 9000), defs);
@@ -521,7 +521,7 @@ console.log('copy tokens');
 eq('{Tap} on touch', fillCopy('{Tap} Save Draft — then {tap} Next', false), 'Tap Save Draft — then tap Next');
 eq('{Tap} with a fine pointer', fillCopy('{Tap} Save Draft — then {tap} Next', true), 'Click Save Draft — then click Next');
 eq('web copy variant is used on web', stepCopy(defs['daily-report-voice']!.steps[0], { pointerFine: true, web: true, freeTier: true, payloads: {} }).text, 'Click the sample voice note');
-eq('the Free meter line is real copy on iPhone', stepCopy(defs['daily-report-voice']!.steps[0], { pointerFine: false, web: false, freeTier: true, payloads: {} }).detail, 'Sample — no AI credits used. The mic uses 1 of your 3 free voice fills.');
+eq('the Free meter line is real copy on iPhone', stepCopy(defs['daily-report-voice']!.steps[0], { pointerFine: false, web: false, freeTier: true, payloads: {} }).detail, 'Sample. No AI credits used. The mic uses 1 of your 3 free voice fills.');
 
 // ── practice pass ───────────────────────────────────────────────────────────
 console.log('practice pass');
@@ -578,7 +578,7 @@ console.log('handoff');
   const none1 = handoffFor(defs['daily-report-voice']!, { projects: [projects[0]], userId: 'u', canAccess: all, stripeConnected: true, fieldOnly: false }, defs);
   eq('no real job → Start your first job (/?openCreate=1)', [none1.primary?.destination, none1.primary?.route?.pathname, none1.primary?.route?.params.openCreate], ['create_job', '/', '1']);
   const punchFree = handoffFor(defs['punch-walk']!, { projects, userId: 'u', canAccess: none, stripeConnected: false, fieldOnly: false }, defs);
-  eq('practised a feature he lacks → paywall, source tutorial_handoff', [punchFree.primary?.destination, punchFree.primary?.feature, punchFree.primary?.paywallSource, punchFree.primary?.label], ['paywall', 'punch_list_closeout', 'tutorial_handoff', 'Punch walk comes with Business — see plans']);
+  eq('practised a feature he lacks → paywall, source tutorial_handoff', [punchFree.primary?.destination, punchFree.primary?.feature, punchFree.primary?.paywallSource, punchFree.primary?.label], ['paywall', 'punch_list_closeout', 'tutorial_handoff', 'Punch Walk Comes with Business: See Plans']);
   const inv = handoffFor(defs['invoice-to-self']!, { projects, userId: 'u', canAccess: all, stripeConnected: false, fieldOnly: false }, defs);
   eq('invoicing owner without Stripe → Connect Stripe secondary', [inv.primary?.destination, inv.secondary?.destination, inv.secondary?.route?.pathname], ['real_job', 'stripe', '/payments-setup']);
   const invFree = handoffFor(defs['invoice-to-self']!, { projects, userId: 'u', canAccess: none, stripeConnected: false, fieldOnly: false }, defs);

@@ -50,9 +50,9 @@ console.log('\napp/punch-walk.tsx:');
     && /const sub = walkProposedSub\(subChoice, draft\.trade, subs, projectId\);/.test(walk));
   check("no match saves '' — never the trade word", /assignedSub: sub\?\.companyName \?\? '',/.test(walk) && !/\?\? draft\.trade/.test(walk));
   // W3 ESTICKET: one key per sentence; the trade enters as its label in the app's language.
-  check('the card shows the proposed sub, or says there is none', /t\('field\.punchWalk\.onThisProject', '→ \{companyName\} \(on this project\)', \{ companyName: proposedSub\.companyName \}\)/.test(walk)
+  check('the card shows the proposed sub, or says there is none', /t\('field\.punchWalk\.onThisProject', 'Goes to \{companyName\} \(on this project\)', \{ companyName: proposedSub\.companyName \}\)/.test(walk)
     && /draft\.trade === 'General'\s*\? t\('field\.punchWalk\.sub\.noneOnProject', 'No sub on this project'\)\s*: t\('field\.punchWalk\.sub\.noTradeOnProject', 'No \{trade\} sub on this project', \{ trade: subTradeLabel\(draft\.trade\) \}\)/.test(walk)
-    && /t\('field\.punchWalk\.tradeGcToAssign', 'Trade: \{trade\} — GC to assign', \{ trade: subTradeLabel\(draft\.trade\) \}\)/.test(walk));
+    && /t\('field\.punchWalk\.tradeGcToAssign', 'Trade: \{trade\}\. Your GC assigns it\.', \{ trade: subTradeLabel\(draft\.trade\) \}\)/.test(walk));
   check('tap to change or clear: a picker of on-job subs plus "No sub"',
     /setSubChoice\(\{ mode: 'none' \}\)/.test(walk) && /setSubChoice\(\{ mode: 'picked', sub: s \}\)/.test(walk)
     && /subs\.filter\(s => \(s\.assignedProjects \?\? \[\]\)\.includes\(projectId\)\)/.test(walk));

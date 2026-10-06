@@ -561,5 +561,5 @@ export function shouldOpenCameraAfterPin(args: { pinFirst: boolean; draftHasPhot
 export function pdfImportBlockedReason(hasPlansFeature: boolean): string | null {
   return hasPlansFeature
     ? null
-    : 'Importing a PDF plan set is part of Plans & Drawings, which your plan does not include. Photograph or choose the plan image instead.';
+    : 'Importing a PDF plan set is part of Plans and Drawings, which your plan does not include. Photograph or choose the plan image instead.';
 }

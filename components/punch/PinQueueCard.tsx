@@ -61,13 +61,13 @@ export function PinQueueCard(p: PinQueueCardProps) {
   const locationText = typed || UNPLACED_LOCATION_LABEL;
   const gps = (p.item.photoLocationLabel ?? '').trim();
   const seedNote = p.sheetMissing
-    ? t('field.punchWalk.queue.seed.sheetDeleted', 'Its plan sheet was deleted — pin it again.')
+    ? t('field.punchWalk.queue.seed.sheetDeleted', 'Its plan sheet was deleted. Pin it again.')
     : p.seedSource === 'drawing-pin'
-      ? t('field.punchWalk.queue.seed.drawingPin', 'Placed where its plan-viewer pin is — Save to keep it.')
+      ? t('field.punchWalk.queue.seed.drawingPin', 'Placed where its plan-viewer pin is. Save to keep it.')
       : p.seedSource === 'sheet-only'
         ? (p.seedSheetLabel
-          ? t('field.punchWalk.queue.seed.sheetOnly', 'Filed to {sheet} without a spot — tap where it is.', { sheet: p.seedSheetLabel })
-          : t('field.punchWalk.queue.seed.sheetOnlyNoLabel', 'Filed to a sheet without a spot — tap where it is.'))
+          ? t('field.punchWalk.queue.seed.sheetOnly', 'Filed to {sheet} without a spot. Tap where it is.', { sheet: p.seedSheetLabel })
+          : t('field.punchWalk.queue.seed.sheetOnlyNoLabel', 'Filed to a sheet without a spot. Tap where it is.'))
         : null;
   // The screen reader's one line for the card: each variant is ONE sentence.
   // One-letter placeholders: n number, i position, o total, d description, l location, g photo GPS.
@@ -114,7 +114,7 @@ export function PinQueueCard(p: PinQueueCardProps) {
     <View style={{ flex: 1, minWidth: 0 }} accessible accessibilityLabel={groupLabel}>
       <View style={styles.topRow}>
         <Text style={styles.number}>#{p.number}</Text>
-        <Badge tone={list === 'punch' ? 'danger' : 'neutral'}>{list === 'punch' ? t('field.punchWalk.queue.badgePunch', 'Punch') : t('field.punchWalk.queue.badgeCrew', 'Crew list')}</Badge>
+        <Badge tone={list === 'punch' ? 'danger' : 'neutral'}>{list === 'punch' ? t('field.punchWalk.queue.badgePunch', 'Punch') : t('field.punchWalk.queue.badgeCrew', 'Crew List')}</Badge>
         {p.item.status === 'closed' && <StatusPill label={t('field.punchWalk.queue.closed', 'Closed')} tone="neutral" size="compact" />}
       </View>
       <Text style={styles.desc} numberOfLines={isPane ? undefined : p.collapsed ? 1 : 2}>
@@ -150,7 +150,7 @@ export function PinQueueCard(p: PinQueueCardProps) {
           onPress={p.onToggleCollapsed}
           style={styles.iconBtn}
           accessibilityRole="button"
-          accessibilityLabel={p.collapsed ? t('field.punchWalk.queue.biggerPhoto', 'Bigger photo') : t('field.punchWalk.queue.smallerPhoto', 'Smaller photo')}
+          accessibilityLabel={p.collapsed ? t('field.punchWalk.queue.biggerPhoto', 'Bigger Photo') : t('field.punchWalk.queue.smallerPhoto', 'Smaller Photo')}
           testID="pin-queue-photo-toggle"
         >
           {p.collapsed
@@ -181,7 +181,7 @@ export function PinQueueNav({ backNumber, undoNumber, onBack, onUndo }: {
         disabled={backOff}
         style={[styles.navBtn, backOff && styles.navBtnOff]}
         accessibilityRole="button"
-        accessibilityLabel={backOff ? t('field.punchWalk.queue.firstItem', 'First item') : t('field.punchWalk.queue.backTo', 'Back to #{backNumber}', { backNumber })}
+        accessibilityLabel={backOff ? t('field.punchWalk.queue.firstItem', 'First Item') : t('field.punchWalk.queue.backTo', 'Back to #{backNumber}', { backNumber })}
         accessibilityState={{ disabled: backOff }}
         testID="pin-queue-back"
       >
@@ -192,7 +192,7 @@ export function PinQueueNav({ backNumber, undoNumber, onBack, onUndo }: {
         disabled={undoOff}
         style={[styles.navBtn, undoOff && styles.navBtnOff]}
         accessibilityRole="button"
-        accessibilityLabel={undoOff ? t('field.punchWalk.queue.nothingToUndoYet', 'Nothing to undo yet') : t('field.punchWalk.queue.undoThePinOn', 'Undo the pin on #{undoNumber}', { undoNumber })}
+        accessibilityLabel={undoOff ? t('field.punchWalk.queue.nothingToUndoYet', 'Nothing to Undo Yet') : t('field.punchWalk.queue.undoThePinOn', 'Undo the pin on #{undoNumber}', { undoNumber })}
         accessibilityState={{ disabled: undoOff }}
         testID="pin-queue-undo"
       >

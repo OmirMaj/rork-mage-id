@@ -36,12 +36,12 @@ export function dfrGaps(draft: DFRDraft, grounding: Grounding): Gap[] {
       { label: `Still ${t.progress}%`, value: t.progress },
       { label: `${bump}%`, value: bump, recommended: true, basis: 'nudged forward a bit' },
       { label: `${push}%`, value: push },
-      { label: 'Done — 100%', value: 100 },
+      { label: 'Done (100%)', value: 100 },
     ].filter((c, i, a) => a.findIndex((x) => x.value === c.value) === i);
     gaps.push({
       field: 'criticalTaskPct', impact: 0.6, kind: 'choice',
-      question: `${t.title} is on today's critical path — where'd it land?`,
-      groundedDefault: { value: bump, basis: `was ${t.progress}% — saving this moves the schedule` },
+      question: `${t.title} is on today's critical path. Where'd it land?`,
+      groundedDefault: { value: bump, basis: `was ${t.progress}%, and saving this moves the schedule` },
       choices,
     });
   }
@@ -53,8 +53,8 @@ export function dfrGaps(draft: DFRDraft, grounding: Grounding): Gap[] {
       question: 'Any issues or delays to note, or a clean day?',
       groundedDefault: { value: true, basis: 'nothing flagged in your update' },
       choices: [
-        { label: 'Clean day', value: true, recommended: true },
-        { label: 'Had an issue', value: false },
+        { label: 'Clean Day', value: true, recommended: true },
+        { label: 'Had an Issue', value: false },
       ],
     });
   }

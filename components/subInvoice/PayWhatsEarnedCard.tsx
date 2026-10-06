@@ -93,12 +93,12 @@ export function PayWhatsEarnedCard({ invoice, siblings, commitment, project, sub
   const copyLabel =
     copyState === 'copied' ? 'Copied' :
     copyState === 'shared' ? 'Shared' :
-    'Copy note to sub';
+    'Copy Note to Sub';
 
   return (
     <View testID={`payearned-${invoice.id}`} style={styles.wrap}>
       <Card pad={Tokens.spacing.md} radius="md">
-        <EyebrowLabel tone="neutral" showDot={false}>Pay what’s earned</EyebrowLabel>
+        <EyebrowLabel tone="neutral" showDot={false}>Pay What’s Earned</EyebrowLabel>
         <View style={styles.headRow}>
           <AlertTriangle size={16} color={t.warningLabel} strokeWidth={1.75} style={styles.headIcon} />
           <Text style={styles.headline}>{check.headline}</Text>
@@ -126,7 +126,7 @@ export function PayWhatsEarnedCard({ invoice, siblings, commitment, project, sub
             accessibilityState={{ expanded: showEvidence }}
             testID={`payearned-evidence-${invoice.id}`}
           >
-            <Text style={styles.evidenceToggleText}>{showEvidence ? 'Hide the evidence' : 'Show the evidence'}</Text>
+            <Text style={styles.evidenceToggleText}>{showEvidence ? 'Hide the Evidence' : 'Show the Evidence'}</Text>
             {showEvidence
               ? <ChevronUp size={14} color={t.textMuted} strokeWidth={1.75} />
               : <ChevronDown size={14} color={t.textMuted} strokeWidth={1.75} />}

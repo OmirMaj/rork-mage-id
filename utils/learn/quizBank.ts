@@ -80,7 +80,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'To the client on file'], ['b', 'Only to you, not a client'], ['c', 'Nowhere until you connect email']],
       correctId: 'b',
       why: "A sample job's report is locked to your own address, so nothing reaches a client.",
-      source: { file: DFR, mustContain: 'this goes to you, not a client.' },
+      source: { file: DFR, mustContain: 'This goes to you, not a client.' },
     },
     {
       id: 'q2',
@@ -104,7 +104,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'You type it, or say it in your voice note'], ['b', 'It is copied from the last report'], ['c', 'The app looks it up from a weather service']],
       correctId: 'a',
       why: 'You type what you saw, or say it in your voice note and it fills in. Copy from does not carry old weather forward.',
-      source: { file: DFR, mustContain: "t('field.dfr.topic.weather', 'Weather on site')" },
+      source: { file: DFR, mustContain: "t('field.dfr.topic.weather', 'Weather on Site')" },
     },
     {
       id: 'q5',
@@ -190,7 +190,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Make a new pay link'], ['b', 'Record payment with the amount'], ['c', 'Send a reminder']],
       correctId: 'b',
       why: 'Record payment logs the money received against the invoice.',
-      source: { file: INVOICE, mustContain: '>Record payment</Text>' },
+      source: { file: INVOICE, mustContain: '>Record Payment</Text>' },
     },
     {
       id: 'q5',
@@ -467,7 +467,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Yes, any time'], ['b', 'No, it needs a signature first'], ['c', 'Only if it has photos']],
       correctId: 'b',
       why: 'An unsigned ticket is a note. Get it signed before the crew leaves.',
-      source: { file: TICKET, mustContain: 'an unsigned ticket cannot become a change order' },
+      source: { file: TICKET, mustContain: 'An unsigned ticket cannot become a change order' },
     },
     {
       id: 'q2',
@@ -483,7 +483,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Get signature'], ['b', 'Void ticket'], ['c', 'Price this ticket']],
       correctId: 'c',
       why: 'Price this ticket adds the rates, so the ticket can be billed.',
-      source: { file: TICKET, mustContain: "'Price this ticket'" },
+      source: { file: TICKET, mustContain: "'Price This Ticket'" },
     },
     {
       id: 'q4',
@@ -534,7 +534,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Print the daily report'], ['b', 'Export payroll CSV for a pay period'], ['c', 'Share the project link']],
       correctId: 'b',
       why: 'The payroll export gives you the shifts for a pay period as a CSV file.',
-      source: { file: CLOCK, mustContain: 'Export payroll CSV for a pay period' },
+      source: { file: CLOCK, mustContain: 'Export Payroll CSV for a Pay Period' },
     },
     {
       id: 'q5',
@@ -577,7 +577,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Shooting now and describing later'], ['b', 'Sending photos to the client'], ['c', 'Closing items with a photo']],
       correctId: 'a',
       why: 'Photo walk keeps the camera open. Pin the items afterward with Pin items.',
-      source: { file: PUNCH, mustContain: 'Photo walk: shoot now, describe later' },
+      source: { file: PUNCH, mustContain: 'Photo Walk: Shoot Now, Describe Later' },
     },
     {
       id: 'q5',

@@ -279,7 +279,7 @@ console.log('\n#157 voice fill:');
     const voiceFillLines = new Function(js)() as (r: unknown) => { filled: string | null; note: string | null };
     const legacy = voiceFillLines(undefined);
     ok('an undefined return keeps today\'s line exactly',
-      legacy.filled === 'Filled from your voice — review and edit before saving.' && legacy.note === null, JSON.stringify(legacy));
+      legacy.filled === 'Filled from your voice. Review and edit before saving.' && legacy.note === null, JSON.stringify(legacy));
     ok('a void-ish non-object return is treated as undefined', voiceFillLines(null).filled !== null && voiceFillLines(null).note === null);
     const noted = voiceFillLines({ note: 'Heard budget $1' });
     ok('{ note } keeps the success line and adds the note', noted.filled !== null && noted.note === 'Heard budget $1');

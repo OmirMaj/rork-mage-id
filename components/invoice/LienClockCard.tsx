@@ -23,7 +23,7 @@ import { Card, EyebrowLabel } from '@/components/ui';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { UNVERIFIED_SENTENCE, lienClockFor } from '@/utils/lienRightsClock';
 
-export const LIEN_ATTORNEY_LINE = 'This is a date reminder, not legal advice — confirm with your attorney.';
+export const LIEN_ATTORNEY_LINE = 'This is a date reminder, not legal advice. Confirm with your attorney.';
 export const LIEN_PUBLIC_JOB_LINE =
   'These are the dates for a private project. A public project (city, state, school, authority) has a much shorter deadline, so ask your attorney today.';
 
@@ -54,14 +54,14 @@ export function LienClockCard({ projectId }: { projectId: string }) {
     const sfPassed = clock.daysLeftSingleFamily < 0;
     const bothPassed = clock.daysLeft < 0;
     const status = bothPassed
-      ? 'Both dates have passed — talk to your attorney now.'
+      ? 'Both dates have passed. Talk to your attorney now.'
       : sfPassed
         ? `The 4-month date has passed. ${clock.daysLeft} day${clock.daysLeft === 1 ? '' : 's'} left to the 8-month date.`
         : `${clock.daysLeft} day${clock.daysLeft === 1 ? '' : 's'} left.`;
     body = (
       <>
         <Text style={styles.headline}>
-          {`Lien deadline: last work on site ${day(clock.lastWorkDay)} (from your daily log). New York: file by ${day(clock.deadline)} — or by ${day(clock.deadlineSingleFamily)} if this is a single-family dwelling.`}
+          {`Lien deadline: last work on site ${day(clock.lastWorkDay)} (from your daily log). New York: file by ${day(clock.deadline)}, or by ${day(clock.deadlineSingleFamily)} if this is a single-family dwelling.`}
         </Text>
         <Text style={[styles.status, (sfPassed || bothPassed) && { color: t.dangerLabel }]} testID="lienclock-status">{status}</Text>
         <Text style={styles.body}>{LIEN_PUBLIC_JOB_LINE}</Text>
@@ -85,7 +85,7 @@ export function LienClockCard({ projectId }: { projectId: string }) {
       <Card pad={Tokens.spacing.md} radius="md">
         <View style={styles.headRow}>
           <Scale size={14} color={t.textMuted} strokeWidth={1.75} />
-          <EyebrowLabel tone="neutral" showDot={false}>Lien deadline</EyebrowLabel>
+          <EyebrowLabel tone="neutral" showDot={false}>Lien Deadline</EyebrowLabel>
         </View>
         {body}
         <Text style={styles.muted}>{LIEN_ATTORNEY_LINE}</Text>

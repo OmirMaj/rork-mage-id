@@ -110,12 +110,12 @@ export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
       style={styles.headerBtn}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel={t('field.punchWalk.export.exportThePunchList', 'Export the punch list')}
+      accessibilityLabel={t('field.punchWalk.export.exportThePunchList', 'Export the Punch List')}
       accessibilityHint={isDesktopWeb ? t('field.punchWalk.export.printSaveAsPdf', 'Print, save as PDF, or download a spreadsheet') : t('field.punchWalk.export.pdfReportOrSpreadsheet', 'PDF report or spreadsheet')}
       testID="punch-export-open"
     >
       <FileDown size={18} color={tc.accent} strokeWidth={1.75} />
-      <Text style={styles.headerBtnText}>{isDesktopWeb ? t('field.punchWalk.export.printExport', 'Print / export') : t('field.punchWalk.export.export', 'Export')}</Text>
+      <Text style={styles.headerBtnText}>{isDesktopWeb ? t('field.punchWalk.export.printExport', 'Print / Export') : t('field.punchWalk.export.export', 'Export')}</Text>
     </TouchableOpacity>
   );
 }
@@ -555,7 +555,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <View style={styles.headerText}>
-                <Text style={styles.title}>{t('field.punchWalk.export.exportPunchList', 'Export punch list')}</Text>
+                <Text style={styles.title}>{t('field.punchWalk.export.exportPunchList', 'Export Punch List')}</Text>
                 <Text style={styles.subtitle} numberOfLines={1}>{projectName}</Text>
               </View>
               <TouchableOpacity
@@ -570,7 +570,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionLabel}>{t('field.punchWalk.export.whatToExport', 'What to export')}</Text>
+            <Text style={styles.sectionLabel}>{t('field.punchWalk.export.whatToExport', 'What to Export')}</Text>
             <View accessibilityRole="radiogroup">
               {options.map(o => {
                 const checked = o.scope === effScope;
@@ -606,14 +606,14 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                 style={styles.checkRow}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: includeCrew, disabled: running }}
-                accessibilityLabel={t('field.punchWalk.export.includeTheCrewList', 'Include the crew list (internal)')}
+                accessibilityLabel={t('field.punchWalk.export.includeTheCrewList', 'Include the Crew List (Internal)')}
                 testID="punch-export-crew"
               >
                 <View style={[styles.checkbox, includeCrew && styles.checkboxOn]}>
                   {includeCrew ? <Check size={14} color={tc.accentLabel} strokeWidth={2.5} /> : null}
                 </View>
                 <View style={styles.optionText}>
-                  <Text style={styles.optionLabel}>{t('field.punchWalk.export.includeTheCrewList', 'Include the crew list (internal)')}</Text>
+                  <Text style={styles.optionLabel}>{t('field.punchWalk.export.includeTheCrewList', 'Include the Crew List (Internal)')}</Text>
                   <Text style={styles.optionDetail}>
                     {t('field.punchWalk.export.markedInternalInThe', 'Marked INTERNAL in the PDF and the file name. Turn it off for a copy you send to the client.')}
                   </Text>
@@ -624,7 +624,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
             <Text style={styles.sectionLabel}>{t('field.punchWalk.export.format', 'Format')}</Text>
             <View style={styles.chipRow}>
               {([
-                { f: 'pdf' as const, label: t('field.punchWalk.export.formatPdf', 'PDF report'), Icon: FileText },
+                { f: 'pdf' as const, label: t('field.punchWalk.export.formatPdf', 'PDF Report'), Icon: FileText },
                 { f: 'csv' as const, label: t('field.punchWalk.export.formatCsv', 'Spreadsheet (CSV)'), Icon: FileSpreadsheet },
               ]).map(({ f, label, Icon }) => {
                 const on = format === f;
@@ -666,7 +666,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                   <View style={[styles.checkbox, photos && styles.checkboxOn]}>
                     {photos ? <Check size={14} color={tc.accentLabel} strokeWidth={2.5} /> : null}
                   </View>
-                  <Text style={[styles.optionLabel, styles.flex1]}>{t('field.punchWalk.export.includePhotos', 'Include photos')}</Text>
+                  <Text style={[styles.optionLabel, styles.flex1]}>{t('field.punchWalk.export.includePhotos', 'Include Photos')}</Text>
                   <Text style={styles.optionDetail}>{tn('field.punchWalk.export.photos2', photoCount, { one: '{count} photo', other: '{count} photos' })}</Text>
                 </TouchableOpacity>
                 {notes.map(n => <Text key={n} style={styles.note}>{n}</Text>)}
@@ -695,8 +695,8 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
               {phase.kind === 'blocked' ? (
                 <Text style={styles.statusText}>
                   {phase.reason === 'blocked'
-                    ? t('field.punchWalk.export.yourBrowserBlockedThe', 'Your browser blocked the new tab — tap Open PDF to show it.')
-                    : t('field.punchWalk.export.thePrintTabWas', 'The print tab was closed before the PDF was ready — tap Open PDF.')}
+                    ? t('field.punchWalk.export.yourBrowserBlockedThe', 'Your browser blocked the new tab. Tap Open PDF to show it.')
+                    : t('field.punchWalk.export.thePrintTabWas', 'The print tab was closed before the PDF was ready. Tap Open PDF.')}
                 </Text>
               ) : null}
               {phase.kind === 'error' ? (

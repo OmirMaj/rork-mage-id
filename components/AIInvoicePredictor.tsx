@@ -152,7 +152,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
           <MageAIMark size={12} color={themeColors.accentLabel} />
-          <Text style={styles.headerTitle}>Payment prediction</Text>
+          <Text style={styles.headerTitle}>Payment Prediction</Text>
         </View>
         <Animated.View style={[styles.skeleton, { opacity }]} />
         <Animated.View style={[styles.skeleton, styles.skeletonShort, { opacity }]} />
@@ -173,11 +173,11 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
           disabled={isLoading}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Predict when this invoice will be paid"
+          accessibilityLabel="Predict When This Invoice Will Be Paid"
         >
           <MageAIMark size={14} color={themeColors.accentLabel} />
           <Text style={styles.triggerText}>
-            {error ? 'Try payment prediction again' : 'Predict when this gets paid'}
+            {error ? 'Try Payment Prediction Again' : 'Predict When This Gets Paid'}
           </Text>
         </TouchableOpacity>
         <Text style={styles.groundingChip}>{history.summary}</Text>
@@ -202,19 +202,19 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <MageAIMark size={12} color={themeColors.accentLabel} />
-        <Text style={styles.headerTitle}>Payment prediction</Text>
-        <Text style={styles.aiTag}>AI draft</Text>
+        <Text style={styles.headerTitle}>Payment Prediction</Text>
+        <Text style={styles.aiTag}>AI Draft</Text>
       </View>
 
       <View style={styles.predRow}>
         <View style={styles.predItem}>
-          <Text style={styles.predLabel}>Due date</Text>
+          <Text style={styles.predLabel}>Due Date</Text>
           <Text style={styles.predValue}>{dueDate}</Text>
         </View>
         <View style={styles.predItem}>
-          <Text style={styles.predLabel}>Predicted payment</Text>
+          <Text style={styles.predLabel}>Predicted Payment</Text>
           <Text style={[styles.predValue, predictedDate ? { color: themeColors.accentLabel } : { color: themeColors.textMuted }]}>
-            {predictedDate || 'No date returned'}
+            {predictedDate || 'No Date Returned'}
           </Text>
         </View>
         <View style={[styles.confBadge, { backgroundColor: conf.bg }]}>

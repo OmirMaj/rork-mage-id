@@ -4,7 +4,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 309,
   "modals": 4,
-  "sha256": "cc896486990883f1a589e6e4c3e637a9b12c7f5c29a187654e16cd19784a1f9d",
+  "sha256": "ef79c5a6de6d2bf75a569ee7cfccf54283213a52c3c293ba7cd3989b8484782a",
 }
 `;
 
@@ -12,7 +12,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 533,
   "modals": 7,
-  "sha256": "80a4427dd9cd6e30f82ff60c0041aa8de52f9f87f2c6adc00375114d966b0efd",
+  "sha256": "8af132d8205aef506893025e901a8e99e7b48917d1655f624777d2fe584e3919",
 }
 `;
 
@@ -20,7 +20,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 332,
   "modals": 4,
-  "sha256": "48adfb608b672ff75bab16a0468faf32d211a368058194064cec1aaf9e3b67f6",
+  "sha256": "c84d16ca17c0edf4a121a66e403b860eb81e201935b28df0e71f0b94e98976ee",
 }
 `;
 
@@ -28,7 +28,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 395,
   "modals": 5,
-  "sha256": "15b93a940c2eee03e065757a8aa4db46b39cde0a8dc3f23265f2a11972af1697",
+  "sha256": "6c3ab245528ce517c0ea13931f95785d80c36f75b1b9950308fec95eddfd40d8",
 }
 `;
 
@@ -36,7 +36,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 311,
   "modals": 4,
-  "sha256": "5480aa53a8e54796850e15900175c17529302fa271c6a946090b2dedb27d2b9d",
+  "sha256": "a724b30741fcf076c237b84f5e5f91f0fee90cf88300c73ce9df713bf39c3edd",
 }
 `;
 
@@ -44,7 +44,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 332,
   "modals": 4,
-  "sha256": "88f358a0ed1792b1e8c82a06df1cc1b1c4b9d6bcccc89d8b690f9f33ef430fa5",
+  "sha256": "1c2bd79a7f7888f1c13dbd9fd729229de62777e3d3767d7cdc8de283f89989f6",
 }
 `;
 

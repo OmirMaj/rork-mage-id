@@ -341,7 +341,7 @@ const html = read('marketing/portal/index.html');
   // Contract D8: the early-access cards on the invoice and prequal-manager.
   const FOOTER = 'Not available yet. Tap to be told when it is.';
   const D8: [string, string, string, string, string][] = [
-    ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on unpaid invoices',
+    ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on Unpaid Invoices',
       'We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show.'],
     ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal quotes for expiring sub insurance',
       "We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."],

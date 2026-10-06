@@ -259,7 +259,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     eq('Share reads payLinkMatchesBalance',
       /const handleSharePayLink[\s\S]{0,160}\|\| !payLinkMatchesBalance\b/.test(code), true);
     eq('the card explains a stale link instead of offering it',
-      /regenerate for the current balance of/.test(code), true);
+      /Regenerate it for the current balance of/.test(code), true);
     eq('Copy / Share buttons render only behind payLinkMatchesBalance',
       /\{payLinkMatchesBalance && \(\s*<>\s*<TouchableOpacity[\s\S]{0,400}testID="copy-pay-link-btn"/.test(code), true);
     // wave 4 #80: the payment re-mint charges the SERVER's balance, read back
@@ -474,12 +474,12 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       && /const taxAmount = roundCents\(subtotal \* \(taxRate \/ 100\)\);/.test(code)
       && /const totalDue = roundCents\(subtotal \+ taxAmount\);/.test(code), true);
     eq('the totals card discloses the retainage basis',
-      /Retainage held \(\{retentionPctValue\}% of work completed\)/.test(code)
+      /Retainage Held \(\{retentionPctValue\}% of work completed\)/.test(code)
       && /testID="retention-basis-note"/.test(code), true);
     // The row under that note must show the amount WITHHELD, or the note stops
     // being true the moment any retention is released.
     eq('…and the row it labels renders retentionAmount, not retentionPending',
-      /Retainage held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
+      /Retainage Held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
     eq('a row stored on the old tax-inclusive basis is called out from STORED columns only',
       /testID="retention-basis-legacy"/.test(code)
       && /taxBasisRetentionOverhold\(existingInvoice\)/.test(code), true);
@@ -511,7 +511,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // The "Correct it" button no longer changes any money — every surface
     // already agrees — so its copy must not promise that it does.
     eq('the repair affordance is described as a bookkeeping fix, not a money change',
-      /Update the saved figure to \{formatCurrency\(legacyTaxBasisRetention\.corrected\)\}/.test(code)
+      /Update the Saved Figure to \{formatCurrency\(legacyTaxBasisRetention\.corrected\)\}/.test(code)
       && /nothing you or\s*\n?\s*your client is charged changes/.test(code), true);
   }
 }

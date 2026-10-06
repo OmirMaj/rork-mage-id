@@ -19,10 +19,10 @@ export interface SuggestedTopic { label: string; value: string; basis: string; s
 /** Always-available topics when the job has no recent incidents/hazards to
  *  learn from — ordered by how universal the exposure is. */
 const EVERGREEN: SuggestedTopic[] = [
-  { label: 'Fall protection', value: 'Fall protection', basis: 'the #1 OSHA citation, every year', source: 'manual' },
-  { label: 'Ladders & scaffolds', value: 'Ladder and scaffold safety', basis: 'daily exposure on most sites', source: 'manual' },
-  { label: 'Housekeeping & trip hazards', value: 'Housekeeping and trip hazards', basis: 'keeps the deck clear', source: 'manual' },
-  { label: 'PPE — right gear for today', value: 'PPE — the right gear for today', basis: 'a quick daily reset', source: 'manual' },
+  { label: 'Fall Protection', value: 'Fall protection', basis: 'the #1 OSHA citation, every year', source: 'manual' },
+  { label: 'Ladders and Scaffolds', value: 'Ladder and scaffold safety', basis: 'daily exposure on most sites', source: 'manual' },
+  { label: 'Housekeeping and Trip Hazards', value: 'Housekeeping and trip hazards', basis: 'keeps the deck clear', source: 'manual' },
+  { label: 'PPE: Right Gear for Today', value: 'PPE: the right gear for today', basis: 'a quick daily reset', source: 'manual' },
 ];
 
 const MAX_CHOICES = 5;

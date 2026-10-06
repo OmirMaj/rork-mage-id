@@ -109,7 +109,7 @@ ok('Business web blurb names no Pro feature', !/RFI|submittal|plan viewer|(?<![Y
   // B2 (wave-next W3): the feature is "Daily report(s)" (glossary), never
   // "Daily Field Report(s)" — the negative pin above stays; these name it.
   ok('B2: the paywall row names the feature "daily reports"', /\{ label: 'Manual Daily Reports', free: true,/.test(screen) && !/Daily Field Reports?/.test(screen));
-  ok('B2: the daily report screen calls itself "Daily report"', /t\('field\.dfr\.dailyReport', 'Daily report'\)/.test(read('app/daily-report.tsx')) && !/daily field reports?|\bDFRs\b/i.test(read('app/daily-report.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')));
+  ok('B2: the daily report screen calls itself "Daily Report"', /t\('field\.dfr\.dailyReport', 'Daily Report'\)/.test(read('app/daily-report.tsx')) && !/daily field reports?|\bDFRs\b/i.test(read('app/daily-report.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')));
   ok("web plan tiles' blurbs come from planFeatureBlurb", /planFeatureBlurb\('pro'\)/.test(screen) && /planFeatureBlurb\('business'\)/.test(screen));
   ok('the old Business blurb is gone', !/subs, RFIs, submittals, punch \+ closeout, plans/.test(screen));
   // carries: #41 split row, #39 label, #175 freeNote

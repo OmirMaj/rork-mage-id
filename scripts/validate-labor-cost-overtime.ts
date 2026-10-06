@@ -282,7 +282,7 @@ console.log('\n#65 / #153 Time Tracking reads the allocation and sets the multip
   const tt = src('app/time-tracking.tsx');
   ok('OT badge and today tile read overtimeFor, never entry.overtimeHours', /overtimeFor\(overtime, entry\.id\)/.test(tt) && /overtimeFor\(overtime, e\.id\)/.test(tt) && !/entry\.overtimeHours|e\.overtimeHours/.test(tt));
   ok('"Overtime pays ×" saves with the rates and echoes the clamp',
-    /Overtime pays ×/.test(tt) && /onBlur=\{echoClampedMultiplier\}/.test(tt) && /setOvertimeSettings\(\{/.test(tt) && /normalizeOvertimeMultiplier\(n\)/.test(tt));
+    /Overtime Pays ×/.test(tt) && /onBlur=\{echoClampedMultiplier\}/.test(tt) && /setOvertimeSettings\(\{/.test(tt) && /normalizeOvertimeMultiplier\(n\)/.test(tt));
   ok('the default is shown as the default', /time-and-a-half, the default/.test(tt));
   ok('the bare-wage hint no longer folds OT into the rate', !/comp, taxes, OT, and small tools/.test(tt));
   // W1 UXDOORS: the overtime hint ended on a sentence with no figure in it

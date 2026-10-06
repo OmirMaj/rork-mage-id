@@ -212,9 +212,9 @@ describe('Deliveries register (real DOM, 1512)', () => {
     const onReceive = jest.fn();
     const { el } = await mount(deliveries({ onReceive }));
     await click(byId(el, 'deliveries-register-table-row-d-soon-check')!);
-    await bulkButton(el, 'deliveries-register-table', 'Mark received');
+    await bulkButton(el, 'deliveries-register-table', 'Mark Received');
     const [title, message] = lastAlert();
-    expect(title).toBe('Mark received');
+    expect(title).toBe('Mark Received');
     expect(message).toBe(DELIVERY_BULK_RECEIVE_REASON);
     expect(onReceive).not.toHaveBeenCalled();
   });
@@ -225,7 +225,7 @@ describe('Deliveries register (real DOM, 1512)', () => {
     const call = (deliverTextFile as jest.Mock).mock.calls[0];
     expect(call[0]).toBe(`deliveries-henderson-remodel-${localDay(new Date())}.csv`);
     const lines = String(call[1]).split('\r\n');
-    expect(lines[0]).toBe('Flag,What,Promised,Supplier,Window,PO,Confirmed,Building access');
+    expect(lines[0]).toBe('Flag,What,Promised,Supplier,Window,PO,Confirmed,Building Access');
     expect(lines).toHaveLength(1 + 4);
   });
 
@@ -238,7 +238,7 @@ describe('Deliveries register (real DOM, 1512)', () => {
 
   it('with nothing scheduled the table shows the phone\'s empty copy', async () => {
     const { el } = await mount(deliveries({ look: buildLookahead([], 7, NOW), conflicts: [], projectConflicts: [] }));
-    expect(el.textContent).toContain('Nothing scheduled yet');
+    expect(el.textContent).toContain('Nothing Scheduled Yet');
     expect(byId(el, 'deliveries-register-late')).toBeNull();
   });
 });

@@ -18,10 +18,10 @@ export interface HazardDraft {
 }
 
 const SEVERITY_CHOICES = [
-  { label: 'Minor — first-aid at worst', value: 2 },
-  { label: 'Moderate — could injure', value: 3, recommended: true },
-  { label: 'Serious — could hospitalize', value: 4 },
-  { label: 'Severe — could kill', value: 5 },
+  { label: 'Minor: First Aid at Worst', value: 2 },
+  { label: 'Moderate: Could Injure', value: 3, recommended: true },
+  { label: 'Serious: Could Hospitalize', value: 4 },
+  { label: 'Severe: Could Kill', value: 5 },
 ];
 
 export function hazardGaps(draft: HazardDraft, _grounding: Grounding): Gap[] {
@@ -31,7 +31,7 @@ export function hazardGaps(draft: HazardDraft, _grounding: Grounding): Gap[] {
     gaps.push({
       field: 'severity', impact: 0.5, kind: 'choice',
       question: 'How bad is it if someone’s exposed?',
-      groundedDefault: { value: 3, basis: 'moderate — could injure' },
+      groundedDefault: { value: 3, basis: 'moderate, could injure' },
       choices: SEVERITY_CHOICES,
     });
   }
@@ -41,7 +41,7 @@ export function hazardGaps(draft: HazardDraft, _grounding: Grounding): Gap[] {
       field: 'location', impact: 0.45, kind: 'text',
       question: 'Where on site is it?',
       groundedDefault: { value: '', basis: 'so the crew can find it' },
-      placeholder: 'e.g. east stairwell, level 2',
+      placeholder: 'East stairwell, level 2',
     });
   }
 

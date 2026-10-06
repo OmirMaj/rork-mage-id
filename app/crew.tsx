@@ -128,7 +128,7 @@ export function ClaimedWorkerSelfView({
           this route in app/_layout.tsx) already prints the screen name, so an
           in-page copy of it rendered the same word twice, stacked. The title
           belongs to the header; the body starts with content. */}
-      {!embedded && <Stack.Screen options={{ title: t('field.crew.myProfile', 'My profile') }} />}
+      {!embedded && <Stack.Screen options={{ title: t('field.crew.myProfile', 'My Profile') }} />}
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {header}
         {members.map(m => (
@@ -183,13 +183,13 @@ function SelfEditCard({
         <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
         <Text style={styles.fieldLabel}>{t('field.crew.email', 'Email')}</Text>
         <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
-        <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
-        <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
+        <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (Comma-Separated)')}</Text>
+        <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
       </View>
 
       <View style={styles.retainRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.retainLabel}>{t('field.crew.showMeForHire', 'Show me for hire')}</Text>
+          <Text style={styles.retainLabel}>{t('field.crew.showMeForHire', 'Show Me for Hire')}</Text>
           {/* #170: HIRE_ENABLED is off, so no contractor can find anyone yet.
               The switch stays — is_public is exactly what surfacing reads the
               day the flag flips — but it must not read as live. */}
@@ -337,10 +337,10 @@ function CrewScreenInner() {
   const handleSaveDetails = useCallback(() => {
     if (!member) return;
     const name = editName.trim();
-    if (!name) { showAlert(t('field.crew.nameRequired', 'Name required')); return; }
+    if (!name) { showAlert(t('field.crew.nameRequired', 'Name Required')); return; }
     const mail = editEmail.trim();
     if (!contactLocked && mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) {
-      showAlert(t('field.crew.checkTheEmail', 'Check the email'), t('field.crew.isntACompleteEmail', '"{mail}" isn\'t a complete email address.', { mail }));
+      showAlert(t('field.crew.checkTheEmail', 'Check the Email'), t('field.crew.isntACompleteEmail', '"{mail}" isn\'t a complete email address.', { mail }));
       return;
     }
     const changes: Partial<CrewMember> = { fullName: name };
@@ -392,7 +392,7 @@ function CrewScreenInner() {
     // catch below surfaces — do NOT branch on a daily counter to "fix" this.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
     if (!limit.allowed) {
-      showAlert(t('field.crew.scanLimitReached', 'Scan limit reached'), limit.message ?? t('field.crew.scanLimitReachedSee', 'Scan limit reached. See plans for more ID scans.'));
+      showAlert(t('field.crew.scanLimitReached', 'Scan Limit Reached'), limit.message ?? t('field.crew.scanLimitReachedSee', 'Scan limit reached. See plans for more ID scans.'));
       return;
     }
     setScanStage('scanning');
@@ -410,13 +410,13 @@ function CrewScreenInner() {
       const message = e instanceof Error && e.message ? e.message : t('field.crew.scan.tryClearerPhoto', 'Try a clearer, well-lit photo.');
       if (code === 'monthly_cap_reached' || code === 'tier_required') {
         closeScan();
-        showAlert(code === 'tier_required' ? t('field.crew.notOnYourPlan', 'Not on your plan') : t('field.crew.scanLimitReached', 'Scan limit reached'), message, [
-          { text: t('field.crew.notNow', 'Not now'), style: 'cancel' },
-          { text: t('field.crew.seePlans', 'See plans'), onPress: () => router.push('/paywall') },
+        showAlert(code === 'tier_required' ? t('field.crew.notOnYourPlan', 'Not on Your Plan') : t('field.crew.scanLimitReached', 'Scan Limit Reached'), message, [
+          { text: t('field.crew.notNow', 'Not Now'), style: 'cancel' },
+          { text: t('field.crew.seePlans', 'See Plans'), onPress: () => router.push('/paywall') },
         ]);
         return;
       }
-      showAlert(t('field.crew.scanFailed', 'Scan failed'), message);
+      showAlert(t('field.crew.scanFailed', 'Scan Failed'), message);
       setScanStage('capture');
     }
   }, [subscription, closeScan, router, t]);
@@ -424,7 +424,7 @@ function CrewScreenInner() {
   const handleTakeIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      showAlert(t('field.crew.cameraAccessNeeded', 'Camera access needed'), t('field.crew.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
+      showAlert(t('field.crew.cameraAccessNeeded', 'Camera Access Needed'), t('field.crew.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
@@ -437,7 +437,7 @@ function CrewScreenInner() {
   const handleChooseIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert(t('field.crew.photoAccessNeeded', 'Photo access needed'), t('field.crew.grantPhotoAccessIn', 'Grant photo access in Settings to pick a photo.'));
+      showAlert(t('field.crew.photoAccessNeeded', 'Photo Access Needed'), t('field.crew.grantPhotoAccessIn', 'Grant photo access in Settings to pick a photo.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -495,7 +495,7 @@ function CrewScreenInner() {
       // He chose to keep the photo and it didn't upload. Say so, and no
       // success haptic for a save that didn't do what he asked.
       showAlert(
-        t('field.crew.idPhotoNotKept', 'ID photo not kept'),
+        t('field.crew.idPhotoNotKept', 'ID Photo Not Kept'),
         t('field.crew.couldntUploadYouMay', 'Couldn’t upload. You may be offline. Only the masked number and expiry were saved. Scan again with signal to keep the photo.'),
       );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -534,7 +534,7 @@ function CrewScreenInner() {
   }, [member, updateCrewMember, t]);
 
   const handleAdd = useCallback(() => {
-    if (!fullName.trim()) { showAlert(t('field.crew.nameRequired', 'Name required')); return; }
+    if (!fullName.trim()) { showAlert(t('field.crew.nameRequired', 'Name Required')); return; }
     const now = new Date().toISOString();
     addCrewMember({
       id: generateUUID(),
@@ -569,9 +569,9 @@ function CrewScreenInner() {
     if (!member.email) {
       // #71: the alert used to send him nowhere. 'Add email' opens the
       // editor with the email field focused.
-      showAlert(t('field.crew.addAnEmail', 'Add an email'), t('field.crew.addSEmailFirst', 'Add {fullName}’s email first. The claim link is sent there.', { fullName: member.fullName }), [
+      showAlert(t('field.crew.addAnEmail', 'Add an Email'), t('field.crew.addSEmailFirst', 'Add {fullName}’s email first. The claim link is sent there.', { fullName: member.fullName }), [
         { text: t('field.crew.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('field.crew.addEmail', 'Add email'), onPress: () => openEditor(true) },
+        { text: t('field.crew.addEmail', 'Add Email'), onPress: () => openEditor(true) },
       ]);
       return;
     }
@@ -579,12 +579,12 @@ function CrewScreenInner() {
       // Async: the token is read back from the server's row, so the link
       // carries the token the server actually stored (CrewContext).
       const token = await startClaimInvite(member.id);
-      if (!token) { showAlert(t('field.crew.couldntStartTheInvite', 'Couldn’t start the invite'), t('field.crew.thisCrewMemberIsnt', 'This crew member isn’t on your crew list any more.')); return; }
+      if (!token) { showAlert(t('field.crew.couldntStartTheInvite', 'Couldn’t Start the Invite'), t('field.crew.thisCrewMemberIsnt', 'This crew member isn’t on your crew list any more.')); return; }
       const { companyName } = await sendClaimInvite(member.email, token, member.id);
       // #72: the invite now goes out in his company's name (read by the
       // server from his own profile) — say which name the worker will see.
       showAlert(
-        t('field.crew.inviteSent', 'Invite sent'),
+        t('field.crew.inviteSent', 'Invite Sent'),
         companyName
           ? t('field.crew.getsAnEmailFrom', '{fullName} gets an email from {companyName} to claim the profile.', { fullName: member.fullName, companyName })
           : t('field.crew.getsAnEmailFrom2', '{fullName} gets an email from MAGE ID to claim the profile. Your profile has no company name yet, so it says “Your contractor” added them.', { fullName: member.fullName }),
@@ -596,7 +596,7 @@ function CrewScreenInner() {
       // profile.") is the reason; retrying won't change it.
       const own = ownSentence(e);
       const copy = describeError(e, { action: 'send the invite' });
-      showAlert(own ? t('field.crew.couldntSendTheInvite', 'Couldn’t send the invite') : copy.title, own ?? copy.body);
+      showAlert(own ? t('field.crew.couldntSendTheInvite', 'Couldn’t Send the Invite') : copy.title, own ?? copy.body);
     }
   }, [member, startClaimInvite, openEditor, t]);
 
@@ -609,7 +609,7 @@ function CrewScreenInner() {
       { text: t('field.crew.cancel', 'Cancel'), style: 'cancel' },
     ];
     if (member.status !== 'inactive') {
-      buttons.push({ text: t('field.crew.markInactive', 'Mark inactive'), onPress: () => handleSetActive(false) });
+      buttons.push({ text: t('field.crew.markInactive', 'Mark Inactive'), onPress: () => handleSetActive(false) });
     }
     buttons.push({
       text: t('field.crew.delete', 'Delete'),
@@ -617,7 +617,7 @@ function CrewScreenInner() {
       onPress: () => { deleteCrewMember(member.id); setDetailId(null); if (isDesktopWeb) split.close(); },
     });
     showAlert(
-      t('field.crew.deleteCrewMember', 'Delete crew member'),
+      t('field.crew.deleteCrewMember', 'Delete Crew Member'),
       member.claimedByUserId
         ? t('field.crew.deleteBodyClaimed', 'Remove {fullName} from your roster? Their ID and certificate links and claimed profile are deleted too. To keep their history, mark them inactive instead.', { fullName: member.fullName })
         : t('field.crew.deleteBody', 'Remove {fullName} from your roster? Their ID and certificate links are deleted too. To keep their history, mark them inactive instead.', { fullName: member.fullName }),
@@ -673,15 +673,15 @@ function CrewScreenInner() {
           <Text style={styles.sectionLabel}>{t('field.crew.details', 'Details')}</Text>
           {editOpen ? (
             <>
-              <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full name *')}</Text>
-              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder={t('field.crew.eGMariaGonzalez', 'e.g. Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
+              <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full Name *')}</Text>
+              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder={t('field.crew.eGMariaGonzalez', 'Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
               {contactLocked ? (
                 <Text style={styles.lockedNote} testID="crew-contact-locked">
                   {t('field.crew.theyClaimedTheirProfile', 'They claimed their profile, so they manage their phone, email and trades.')}
                 </Text>
               ) : null}
-              <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
-              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
+              <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (Comma-Separated)')}</Text>
+              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder={t('field.crew.eGElectricalFraming', 'Electrical, Framing')} placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
               <Text style={styles.fieldLabel}>{t('field.crew.phone', 'Phone')}</Text>
               <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editPhone} onChangeText={setEditPhone} editable={!contactLocked} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="crew-edit-phone" />
               <Text style={styles.fieldLabel}>{t('field.crew.email', 'Email')}</Text>
@@ -692,7 +692,7 @@ function CrewScreenInner() {
                   <Text style={styles.cancelBtnText}>{t('field.crew.cancel', 'Cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} activeOpacity={0.85} accessibilityRole="button" testID="crew-edit-save">
-                  <Text style={styles.saveBtnText}>{t('field.crew.saveDetails', 'Save details')}</Text>
+                  <Text style={styles.saveBtnText}>{t('field.crew.saveDetails', 'Save Details')}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -702,7 +702,7 @@ function CrewScreenInner() {
               <Text style={styles.detailLine}>{member.email || t('field.crew.noEmail', 'No email')}</Text>
               <TouchableOpacity style={styles.scanBtn} onPress={() => openEditor(false)} activeOpacity={0.85} accessibilityRole="button" testID="edit-crew-details">
                 <Pencil size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.scanBtnText}>{t('field.crew.editDetails', 'Edit details')}</Text>
+                <Text style={styles.scanBtnText}>{t('field.crew.editDetails', 'Edit Details')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -720,8 +720,8 @@ function CrewScreenInner() {
                   <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
                     {member.idExpiry
-                      ? sentenceParts(t('field.crew.identity.verifiedExp', 'ID Verified — {issuer} ····{last4}, exp {expiry}', { issuer: '{issuer}', last4: '{last4}', expiry: '{expiry}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '', expiry: member.idExpiry }, ['expiry'])
-                      : [...sentenceParts(t('field.crew.identity.verified', 'ID Verified — {issuer} ····{last4}', { issuer: '{issuer}', last4: '{last4}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' }), '']}
+                      ? sentenceParts(t('field.crew.identity.verifiedExp', 'ID Verified: {issuer} ····{last4}, exp {expiry}', { issuer: '{issuer}', last4: '{last4}', expiry: '{expiry}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '', expiry: member.idExpiry }, ['expiry'])
+                      : [...sentenceParts(t('field.crew.identity.verified', 'ID Verified: {issuer} ····{last4}', { issuer: '{issuer}', last4: '{last4}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' }), '']}
                   </Text>
                 </View>
               );
@@ -731,12 +731,12 @@ function CrewScreenInner() {
                 <View style={styles.identityExpiredRow} testID="crew-id-expired">
                   <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
-                    {sentenceParts(t('field.crew.identity.expiredRescan', '{expired} — {issuer} ····{last4}. Re-scan their current ID.', { expired: '{expired}', issuer: '{issuer}', last4: '{last4}' }), { expired: idExpiredText(member.idExpiry), issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' })}
+                    {sentenceParts(t('field.crew.identity.expiredRescan', '{expired}: {issuer} ····{last4}. Re-scan their current ID.', { expired: '{expired}', issuer: '{issuer}', last4: '{last4}' }), { expired: idExpiredText(member.idExpiry), issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' })}
                   </Text>
                 </View>
               );
             }
-            return <Text style={styles.identityMutedText}>{t('field.crew.idNotVerified', 'ID not verified')}</Text>;
+            return <Text style={styles.identityMutedText}>{t('field.crew.idNotVerified', 'ID Not Verified')}</Text>;
           })()}
           <TouchableOpacity
             style={styles.scanBtn}
@@ -745,7 +745,7 @@ function CrewScreenInner() {
             testID="scan-id"
           >
             <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? t('field.crew.reScanId', 'Re-scan ID') : t('field.crew.scanId', 'Scan ID')}</Text>
+            <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? t('field.crew.reScanId', 'Re-Scan ID') : t('field.crew.scanId', 'Scan ID')}</Text>
           </TouchableOpacity>
           {member.idVerified || member.idMaskedLast4 || member.idExpiry || member.idImagePath ? (
             <Text style={styles.clearIdLink} onPress={handleClearId} accessibilityRole="button" testID="clear-id">
@@ -779,7 +779,7 @@ function CrewScreenInner() {
 
         {/* Assigned projects */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('field.crew.assignedProjects', 'Assigned projects')}</Text>
+          <Text style={styles.sectionLabel}>{t('field.crew.assignedProjects', 'Assigned Projects')}</Text>
           {member.projectIds.length > 0 ? (
             <View style={styles.chipWrap}>
               {projects.filter(p => member.projectIds.includes(p.id)).map(p => (
@@ -793,7 +793,7 @@ function CrewScreenInner() {
           )}
           {projects.length > 0 ? (
             <>
-              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>{t('field.crew.assignToProject', 'Assign to project')}</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>{t('field.crew.assignToProject', 'Assign to Project')}</Text>
               <View style={styles.chipWrap}>
                 {projects.map(p => {
                   const on = member.projectIds.includes(p.id);
@@ -824,7 +824,7 @@ function CrewScreenInner() {
           ) : (
             <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite} activeOpacity={0.85} testID="invite-claim">
               <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
-              <Text style={styles.inviteBtnText}>{t('field.crew.inviteToClaim', 'Invite to claim')}</Text>
+              <Text style={styles.inviteBtnText}>{t('field.crew.inviteToClaim', 'Invite to Claim')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -832,7 +832,7 @@ function CrewScreenInner() {
         {/* Delete */}
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.85} testID="delete-crew-member">
           <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
-          <Text style={styles.deleteBtnText}>{t('field.crew.deleteCrewMember', 'Delete crew member')}</Text>
+          <Text style={styles.deleteBtnText}>{t('field.crew.deleteCrewMember', 'Delete Crew Member')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </>
@@ -883,7 +883,7 @@ function CrewScreenInner() {
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
-              accessibilityLabel={t('field.crew.addCrewMember', 'Add crew member')}
+              accessibilityLabel={t('field.crew.addCrewMember', 'Add Crew Member')}
               testID="add-crew-member"
             >
               <Plus size={22} color={themeColors.accentLabel} strokeWidth={2.25} />
@@ -903,15 +903,15 @@ function CrewScreenInner() {
                 live, and offer the door. */}
             <EmptyState
               icon={<IdCard size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={t('field.crew.noCrewYet', 'No crew yet')}
+              title={t('field.crew.noCrewYet', 'No Crew Yet')}
               message={
                 certifications.length > 0
-                  ? tn('field.crew.empty.messageCerts', certifications.length, { one: 'Add your first crew member to build a verified roster. Looking for a certification? {count} is on file under Safety — certifications are tracked separately from the roster.', other: 'Add your first crew member to build a verified roster. Looking for a certification? {count} are on file under Safety — certifications are tracked separately from the roster.' })
+                  ? tn('field.crew.empty.messageCerts', certifications.length, { one: 'Add your first crew member to build a verified roster. Looking for a certification? {count} is on file under Safety. Certifications are tracked separately from the roster.', other: 'Add your first crew member to build a verified roster. Looking for a certification? {count} are on file under Safety. Certifications are tracked separately from the roster.' })
                   : t('field.crew.empty.message', 'Add your first crew member to build a verified roster.')
               }
-              actionLabel={t('field.crew.addCrewMember', 'Add crew member')}
+              actionLabel={t('field.crew.addCrewMember', 'Add Crew Member')}
               onAction={() => setAddOpen(true)}
-              secondaryLabel={certifications.length > 0 ? t('field.crew.empty.openCertifications', 'Open certifications') : undefined}
+              secondaryLabel={certifications.length > 0 ? t('field.crew.empty.openCertifications', 'Open Certifications') : undefined}
               onSecondaryAction={
                 certifications.length > 0
                   ? () => router.push('/safety-certifications')
@@ -968,17 +968,17 @@ function CrewScreenInner() {
                   <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.back', 'Back')}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={styles.formTitle}>{t('field.crew.addCrewMember', 'Add crew member')}</Text>
+                  <Text style={styles.formTitle}>{t('field.crew.addCrewMember', 'Add Crew Member')}</Text>
                   <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full name *')}</Text>
-                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder={t('field.crew.eGMariaGonzalez', 'e.g. Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-name-input" />
+                <Text style={styles.fieldLabel}>{t('field.crew.fullName', 'Full Name *')}</Text>
+                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder={t('field.crew.eGMariaGonzalez', 'Maria Gonzalez')} placeholderTextColor={themeColors.textMuted} testID="crew-name-input" />
 
-                <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (comma-separated)')}</Text>
-                <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'e.g. Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
+                <Text style={styles.fieldLabel}>{t('field.crew.tradesCommaSeparated', 'Trades (Comma-Separated)')}</Text>
+                <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder={t('field.crew.eGElectricalFraming', 'Electrical, Framing')} placeholderTextColor={themeColors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -997,7 +997,7 @@ function CrewScreenInner() {
                     <Text style={styles.cancelBtnText}>{t('field.crew.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} activeOpacity={0.85} testID="save-crew-member">
-                    <Text style={styles.saveBtnText}>{t('field.crew.addMember', 'Add member')}</Text>
+                    <Text style={styles.saveBtnText}>{t('field.crew.addMember', 'Add Member')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1028,11 +1028,11 @@ function CrewScreenInner() {
           <View style={[styles.modalOverlay, fScan.overlay]}>
             <View style={[styles.scanCard, { paddingBottom: insets.bottom + 20 }, fScan.card]}>
               <View style={styles.formHeader}>
-                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.closeScan', 'Close scan')}>
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.closeScan', 'Close Scan')}>
                   <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <Text style={styles.formTitle}>{t('field.crew.scanId', 'Scan ID')}</Text>
-                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.cancelScan', 'Cancel scan')}>
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.crew.cancelScan', 'Cancel Scan')}>
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -1076,11 +1076,11 @@ function CrewScreenInner() {
                   <Text style={styles.captureHint}>{t('field.crew.useAClearWell', 'Use a clear, well-lit photo of the government ID.')}</Text>
                   <TouchableOpacity style={styles.captureBtn} onPress={handleTakeIdPhoto} activeOpacity={0.85} testID="scan-take-photo">
                     <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.captureBtnText}>{t('field.crew.takePhoto', 'Take photo')}</Text>
+                    <Text style={styles.captureBtnText}>{t('field.crew.takePhoto', 'Take Photo')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.captureBtn} onPress={handleChooseIdPhoto} activeOpacity={0.85} testID="scan-choose-photo">
                     <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.captureBtnText}>{t('field.crew.choosePhoto', 'Choose photo')}</Text>
+                    <Text style={styles.captureBtnText}>{t('field.crew.choosePhoto', 'Choose Photo')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1096,16 +1096,16 @@ function CrewScreenInner() {
               {/* Stage: review */}
               {scanStage === 'review' && scanFields ? (
                 <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.fieldLabel}>{t('field.crew.fullName2', 'Full name')}</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.fullName2', 'Full Name')}</Text>
                   <TextInput
                     style={styles.input}
                     value={scanFields.fullName}
                     onChangeText={t => setScanFields(f => (f ? { ...f, fullName: t } : f))}
-                    placeholder={t('field.crew.fullName2', 'Full name')}
+                    placeholder={t('field.crew.fullName2', 'Full Name')}
                     placeholderTextColor={themeColors.textMuted}
                   />
 
-                  <Text style={styles.fieldLabel}>{t('field.crew.idType', 'ID type')}</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.idType', 'ID Type')}</Text>
                   <View style={styles.chipWrap}>
                     {(ID_TYPE_OPTIONS).map(opt => {
                       const on = scanFields.idType === opt.value;
@@ -1122,12 +1122,12 @@ function CrewScreenInner() {
                     })}
                   </View>
 
-                  <Text style={styles.fieldLabel}>{t('field.crew.idNumber', 'ID number')}</Text>
+                  <Text style={styles.fieldLabel}>{t('field.crew.idNumber', 'ID Number')}</Text>
                   <TextInput
                     style={styles.input}
                     value={scanFields.idNumberFull}
                     onChangeText={t => setScanFields(f => (f ? { ...f, idNumberFull: t } : f))}
-                    placeholder={t('field.crew.idNumber', 'ID number')}
+                    placeholder={t('field.crew.idNumber', 'ID Number')}
                     placeholderTextColor={themeColors.textMuted}
                     autoCapitalize="characters"
                   />
@@ -1149,7 +1149,7 @@ function CrewScreenInner() {
                         style={styles.input}
                         value={scanFields.issuer}
                         onChangeText={t => setScanFields(f => (f ? { ...f, issuer: t } : f))}
-                        placeholder={t('field.crew.eGCaDmv', 'e.g. CA DMV')}
+                        placeholder={t('field.crew.eGCaDmv', 'CA DMV')}
                         placeholderTextColor={themeColors.textMuted}
                       />
                     </View>
@@ -1164,7 +1164,7 @@ function CrewScreenInner() {
                   ) : (
                     <View style={styles.retainRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.retainLabel}>{t('field.crew.retainOriginalImage', 'Retain original image')}</Text>
+                        <Text style={styles.retainLabel}>{t('field.crew.retainOriginalImage', 'Retain Original Image')}</Text>
                         <Text style={styles.retainHelp}>
                           {t('field.crew.offWeKeepOnly', 'Off = we keep only the masked last 4 and expiry; the photo is discarded.')}
                         </Text>
@@ -1185,7 +1185,7 @@ function CrewScreenInner() {
                       <>
                         {!canSave ? (
                           <Text style={styles.scanBlockedText} testID="scan-save-blocked">
-                            {t('field.crew.weCouldntReadAn', 'We couldn’t read an ID number — retake the photo or type the number.')}
+                            {t('field.crew.weCouldntReadAn', 'We couldn’t read an ID number. Retake the photo or type the number.')}
                           </Text>
                         ) : null}
                         <TouchableOpacity
@@ -1231,7 +1231,7 @@ export function CrewLanguageRow({ value, onChange, testID }: {
   const styles = useThemedStyles(makeStyles);
   if (!LANGUAGE_PICKER_ENABLED) return null;
   const options: { value: CrewLanguage; label: string; id: string }[] = [
-    { value: null, label: t('field.crew.language.notSet', 'Not set'), id: 'none' },
+    { value: null, label: t('field.crew.language.notSet', 'Not Set'), id: 'none' },
     // i18n-keep-english: an endonym, shown in its own language whatever the app's language
     { value: 'en', label: 'English', id: 'en' },
     // i18n-keep-english: an endonym, shown in its own language whatever the app's language
@@ -1281,7 +1281,7 @@ const ID_TYPE_OPTIONS: { value: IdDocumentType }[] = [
 /** An ID type chip's label, in the app's language (read at call time, never at import). */
 function idTypeLabel(value: IdDocumentType): string {
   switch (value) {
-    case 'drivers_license': return t('field.crew.idType.driversLicense', "Driver's license");
+    case 'drivers_license': return t('field.crew.idType.driversLicense', "Driver's License");
     case 'state_id': return t('field.crew.idType.stateId', 'State ID');
     case 'passport': return t('field.crew.idType.passport', 'Passport');
     case 'other': return t('field.crew.idType.other', 'Other');
@@ -1329,11 +1329,11 @@ function sentenceParts(template: string, values: Record<string, string | number>
 // "No expiry" a missing date gets.
 function certStatusLabel(status: CrewCertRowStatus): string {
   switch (status) {
-    case 'none': return t('field.crew.cert.none', 'No expiry');
+    case 'none': return t('field.crew.cert.none', 'No Expiry');
     case 'valid': return t('field.crew.cert.valid', 'Valid');
-    case 'expiring': return t('field.crew.cert.expiring', 'Expiring soon');
+    case 'expiring': return t('field.crew.cert.expiring', 'Expiring Soon');
     case 'expired': return t('field.crew.cert.expired', 'Expired');
-    case 'check_date': return t('field.crew.cert.checkDate', 'Check date');
+    case 'check_date': return t('field.crew.cert.checkDate', 'Check Date');
   }
   return status;
 }

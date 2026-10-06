@@ -16,7 +16,7 @@ const TRADE_CHOICES = [
   { label: 'Plumber', value: 'Plumber' },
   { label: 'Painter', value: 'Painter' },
   { label: 'Drywall', value: 'Drywall' },
-  { label: 'GC crew', value: 'GC crew', recommended: true },
+  { label: 'GC Crew', value: 'GC crew', recommended: true },
 ];
 
 export function punchGaps(draft: PunchDraft, _grounding: Grounding): Gap[] {
@@ -25,7 +25,7 @@ export function punchGaps(draft: PunchDraft, _grounding: Grounding): Gap[] {
   if (draft.assignedSub == null) {
     gaps.push({
       field: 'assignedSub', impact: 0.55, kind: 'choice',
-      question: 'Who should fix it — which trade?',
+      question: 'Who should fix it? Which trade?',
       groundedDefault: { value: 'GC crew', basis: 'default to your own crew' },
       choices: TRADE_CHOICES,
     });

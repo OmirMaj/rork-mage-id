@@ -3,27 +3,27 @@
 exports[`PORTALFIX golden — the phone (390 x 844 iOS) (a) /client-portal-setup, the fixture job (portal on, key present, no passcode) 1`] = `
 {
   "lines": 844,
-  "sha256": "0d5f35a7ce2543c8675ca7232ccf8a4026e25e31b072b66fdbf9740627396ae5",
+  "sha256": "afba6f05c77632de01280ace45a739480c7c4d55607ab7d21d19bf72de3ca43b",
 }
 `;
 
 exports[`PORTALFIX golden — the phone (390 x 844 iOS) (b) /client-portal-setup, passcode on with one invitee 1`] = `
 {
   "lines": 885,
-  "sha256": "d55ae86956b5988e50b35269bb68122d46fd4b8af5a1f1f6493094369ed7e63e",
+  "sha256": "7d0cbfc25516545dac0a8dc63a04233516e1b7f22efa281e14b242da9081d1ba",
 }
 `;
 
 exports[`PORTALFIX golden — the phone (390 x 844 iOS) (c) /client-portal-setup, a Sample project with a portal on 1`] = `
 {
   "lines": 833,
-  "sha256": "48ecee6a39b5c3a3045f784b985bef06cc1440bed663ab40a4e25d0f1c0c1b8e",
+  "sha256": "26e516ca86906736bc05b63b733c549424889ffcb18a95653310acdaa73bdbc4",
 }
 `;
 
 exports[`PORTALFIX golden — the phone (390 x 844 iOS) (d) /client-portal-setup, a job whose portal was never saved 1`] = `
 {
   "lines": 827,
-  "sha256": "fdd20666aac35647ca151d98493c9b073f96b74a772e8221d3935607407cd76a",
+  "sha256": "dfb6dabc01141b1770bd5eeb4e8d14e779c5457255f8fa625b729651caa43202",
 }
 `;

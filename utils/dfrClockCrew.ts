@@ -199,7 +199,7 @@ export function clockCrewSourceLine(crew: ClockCrew, subRowsFromSchedule: number
   if (crew.overtimeHours > 0) line += ` (${fmt(crew.overtimeHours)} h overtime)`;
   if (crew.liveCount > 0) line += ` · ${crew.liveCount} still on the clock, hours so far`;
   const missed = crew.missedCount ?? 0;
-  if (missed > 0) line += ` · ${missed} ${missed === 1 ? 'clock-out' : 'clock-outs'} not entered — their hours are left out until entered on Time Tracking`;
+  if (missed > 0) line += ` · ${missed} ${missed === 1 ? 'clock-out' : 'clock-outs'} not entered, so their hours are left out until entered on Time Tracking`;
   if (subRowsFromSchedule > 0) line += ` · sub crews from today's schedule plan`;
   return `${line}. Tap a row to correct it.`;
 }
@@ -223,7 +223,7 @@ export function liveClockHoursWarning(
     && normalizeTradeKey(m.trade) === normalizeTradeKey(r.trade)));
   if (!onReport) return null;
   const n = crew.liveCount;
-  return `${n} ${n === 1 ? 'person is' : 'people are'} still on the clock — the crew hours on this report are hours so far, not the full shift. Correct the rows after they clock out, or they save as the day's hours.`;
+  return `${n} ${n === 1 ? 'person is' : 'people are'} still on the clock. The crew hours on this report are hours so far, not the full shift. Correct the rows after they clock out, or they save as the day's hours.`;
 }
 
 /**

@@ -119,7 +119,7 @@ console.log('\n#32 the deposit holds no retainage; invoice #2 does not inherit i
   ok('invoice.tsx: a deposit is a NEW milestone invoice with the flag', /const isDepositInvoice = !invoiceId && !!milestoneId && depositParam === '1';/.test(INVOICE));
   ok('...seeds 0%', /useState<string>\(isDepositInvoice \? '0' : String\(retainageSeed\.percent\)\)/.test(INVOICE));
   ok('...never opens the ask', /retainageSeed\.needsAsk && !isLocked && !retainageAsked && !isDepositInvoice\)/.test(INVOICE));
-  ok('...and labels the 0 as the contract\'s rule', /if \(isDepositInvoice\) return \{ label: 'Deposit — no retainage held \(per contract\)', warn: false \};/.test(INVOICE));
+  ok('...and labels the 0 as the contract\'s rule', /if \(isDepositInvoice\) return \{ label: 'Deposit: No Retainage Held \(Per Contract\)', warn: false \};/.test(INVOICE));
 }
 
 // ── #119: a sent contract re-reads ─────────────────────────────────────────

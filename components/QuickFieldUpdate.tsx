@@ -273,7 +273,7 @@ export default function QuickFieldUpdate() {
 
       const writePath = scheduleWritePathForRole(project.myRole);
       if (writePath === 'none') {
-        return { ok: false, message: t('field.home.qfu.viewOnly', 'Not saved — you have view-only access to {project}. Ask the project owner for field or editor access.', { project: project.name }) };
+        return { ok: false, message: t('field.home.qfu.viewOnly', 'Not saved. You have view-only access to {project}. Ask the project owner for field or editor access.', { project: project.name }) };
       }
       // Field: a cleared actual (reopening a finished task) goes out as null —
       // the RPC's "remove this key"; JSON would silently drop an undefined.
@@ -283,7 +283,7 @@ export default function QuickFieldUpdate() {
         const sent = await sendFieldTaskPatches(supabase, project.id, [fieldPatch]);
         if (!sent.ok) return { ok: false, message: sent.message };
         if (sent.missing.includes(task.id)) {
-          return { ok: false, message: t('field.home.qfu.taskGone', 'Not saved — {task} is no longer on this schedule. Pull to refresh and try again.', { task: task.title }) };
+          return { ok: false, message: t('field.home.qfu.taskGone', 'Not saved. {task} is no longer on this schedule. Pull to refresh and try again.', { task: task.title }) };
         }
         // Local copy = what the server now holds. This also enqueues the usual
         // row PATCH, which projects_update refuses for field (0 rows, nothing
@@ -305,7 +305,7 @@ export default function QuickFieldUpdate() {
         case 'mark_complete':
           return { ok: true, message: t('field.home.qfu.markedComplete', '{task} marked complete', { task: task.title }) };
         case 'start_task':
-          return { ok: true, message: t('field.home.qfu.inProgress', '{task} → in progress', { task: task.title }) };
+          return { ok: true, message: t('field.home.qfu.inProgress', '{task} is now in progress', { task: task.title }) };
         case 'add_note':
           return { ok: true, message: t('field.home.qfu.noteAdded', 'Note added to {task}', { task: task.title }) };
         case 'log_issue':
@@ -541,7 +541,7 @@ export default function QuickFieldUpdate() {
         <View style={styles.titleIconWrap}>
           <MageAIMark size={14} color={themeColors.accent} />
         </View>
-        <Text style={styles.title}>{t('field.home.qfu.title', 'Quick field update')}</Text>
+        <Text style={styles.title}>{t('field.home.qfu.title', 'Quick Field Update')}</Text>
       </View>
 
       <TouchableOpacity
@@ -569,7 +569,7 @@ export default function QuickFieldUpdate() {
             setText(v);
             if (feedback) setFeedback(null);
           }}
-          placeholder={t('field.home.qfu.placeholder', 'e.g. "drywall done floor 3" or "framing 80%"')}
+          placeholder={t('field.home.qfu.placeholder', '"drywall done floor 3" or "framing 80%"')}
           placeholderTextColor={themeColors.textMuted}
           editable={!parsing}
           returnKeyType="send"

@@ -73,7 +73,7 @@ expect('fatality on environmental → recordable', isOshaRecordable(base({ type:
 const repro1 = base({ treatment: 'first_aid', daysRestricted: 5, restrictedDuty: false });
 expect('5 days restricted, toggle off → recordable', isOshaRecordable(repro1), true);
 expect('5 days restricted names restriction, not "no restriction"',
-  describeRecordability(repro1).reason, 'Recordable — restricted work or job transfer.');
+  describeRecordability(repro1).reason, 'Recordable: restricted work or job transfer.');
 expect('0 days restricted, toggle off → still first-aid only', isOshaRecordable(base({ daysRestricted: 0 })), false);
 // Repro 2: a respiratory illness logged as an 'environmental' event. The type
 // gate rejected every non-'injury' type before the illness column was read.
@@ -183,7 +183,7 @@ console.log('\nOSHA 300A summary:');
   expect('G+H+I+J = total', t.deaths + t.daysAwayCases + t.restrictedCases + t.otherCases, t.totalCases);
   // The CSV carries the totals so February is not a spreadsheet job.
   const csvA = osha300ToCsv(rowsA, { name: 'Acme', year: '2026' });
-  expect('csv carries the 300A totals block', csvA.includes('Totals (Form 300A columns G–M)'), true);
+  expect('csv carries the 300A totals block', csvA.includes('Totals (Form 300A columns G to M)'), true);
   expect('csv totals row G..L', csvA.includes('\n1,1,1,0,3,5\n'), true);
   // The PDF prints totals always, and the 300A page only with confirmed numbers.
   const htmlNoSummary = buildOsha300Html(rowsA, { name: 'Acme', year: '2026' });
@@ -288,7 +288,7 @@ console.log('\nOSHA 300A summary:');
   ok('incident type is labelled Injury or illness',
     // wave-next W2 (Spanish): the label is the catalog key with the same English.
     incSrc.includes("{ value: 'injury', label: 'Injury or illness' }")
-      || incSrc.includes("{ value: 'injury', label: t('safety.incident.typeInjury', 'Injury or illness') }"),
+      || incSrc.includes("{ value: 'injury', label: t('safety.incident.typeInjury', 'Injury or Illness') }"),
     'a bare "Injury" label sends illnesses to Environ.');
 }
 
@@ -357,15 +357,15 @@ expect('verdict matches isOshaRecordable across all 1728 inputs', matrixMismatch
 expect('every input gets a reason', emptyReason, 0);
 
 // The reason names the criterion that actually fired, in 1904 order.
-expect('fatality reason',   describeRecordability(base({ fatality: true })).reason, 'Recordable — fatality.');
-expect('days-away reason',  describeRecordability(base({ daysAway: 2 })).reason, 'Recordable — days away from work.');
+expect('fatality reason',   describeRecordability(base({ fatality: true })).reason, 'Recordable: fatality.');
+expect('days-away reason',  describeRecordability(base({ daysAway: 2 })).reason, 'Recordable: days away from work.');
 expect('restriction reason', describeRecordability(base({ restrictedDuty: true })).reason,
-  'Recordable — restricted work or job transfer.');
+  'Recordable: restricted work or job transfer.');
 expect('medical reason',    describeRecordability(base({ treatment: 'medical_beyond_first_aid' })).reason,
-  'Recordable — medical treatment beyond first aid.');
+  'Recordable: medical treatment beyond first aid.');
 expect('near-miss reason names the type, not the severity',
   describeRecordability(base({ type: 'near_miss', treatment: 'none' })).reason,
-  'Not recordable — near miss, no injury.');
+  'Not recordable: near miss, no injury.');
 
 // The derived case id. It has to be STABLE (re-saving a report updates its case
 // instead of filing a duplicate every tap), DISTINCT from the report id (they

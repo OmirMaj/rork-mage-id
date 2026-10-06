@@ -159,7 +159,7 @@ console.log('\n#49 the send awaits its own INSERT before minting');
     // Wave 4 #39 (invoice-send): a refused insert no longer emails a
     // Pay-button-less invoice — it stops before the mint and the email and
     // says to Retry it from the sync badge.
-    && /if \(insertState === 'failed'\) \{\s*showAlert\('Invoice not sent', invoiceInsertRefusedMessage\(workingInvoice\.number\)\);\s*return;/.test(inv));
+    && /if \(insertState === 'failed'\) \{\s*showAlert\('Invoice Not Sent', invoiceInsertRefusedMessage\(workingInvoice\.number\)\);\s*return;/.test(inv));
 }
 
 // ── #131 in-app CO record carries the frozen tax ────────────────────────────

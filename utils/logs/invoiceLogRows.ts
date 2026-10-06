@@ -101,7 +101,7 @@ export function invoiceLogTotals(rows: readonly Invoice[]): { total: number; pai
 const STATUS_LABEL: Readonly<Record<InvoiceStatus, string>> = {
   draft: 'Draft',
   sent: 'Sent',
-  partially_paid: 'Partly paid',
+  partially_paid: 'Partly Paid',
   paid: 'Paid',
   overdue: 'Overdue',
 };
@@ -136,7 +136,7 @@ export function markSentPatch(
 export const MARK_SENT_SKIP = {
   sent: 'already sent',
   paid: 'paid',
-  sample: 'sample job — sends only reach you',
+  sample: 'sample job, sends only reach you',
 } as const;
 
 export interface InvoiceBulkMarkSentPlan {

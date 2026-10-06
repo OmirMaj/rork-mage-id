@@ -39,13 +39,13 @@ export const LINEUP_REMINDER_WEEKDAYS = [2, 3, 4, 5, 6] as const;
 // OS schedule when he turns the reminder on, so they are in the language he
 // had then; turning it off and on again re-arms it in the current one.
 export const lineupReminderCopy = {
-  get title(): string { return t('field.lineup.reminder.title', 'Tomorrow’s lineup'); },
-  get body(): string { return t('field.lineup.reminder.body', 'It’s 3 pm — check tomorrow’s lineup and send each sub their message.'); },
-  get toggle(): string { return t('field.lineup.reminder.toggle', 'Remind me at 3 pm on weekdays'); },
-  get help(): string { return t('field.lineup.reminder.help', 'A reminder on this phone at 3:00 pm, Monday to Friday. It can’t see your schedule, so it rings even when tomorrow is empty. Nothing is sent to your subs — you still tap Send for each one.'); },
+  get title(): string { return t('field.lineup.reminder.title', 'Tomorrow’s Lineup'); },
+  get body(): string { return t('field.lineup.reminder.body', 'It’s 3 pm. Check tomorrow’s lineup and send each sub their message.'); },
+  get toggle(): string { return t('field.lineup.reminder.toggle', 'Remind Me at 3 pm on Weekdays'); },
+  get help(): string { return t('field.lineup.reminder.help', 'A reminder on this phone at 3:00 pm, Monday to Friday. It can’t see your schedule, so it rings even when tomorrow is empty. Nothing is sent to your subs. You still tap Send for each one.'); },
   get web(): string { return t('field.lineup.reminder.web', 'Reminders work in the iPhone app.'); },
   get noPermission(): string { return t('field.lineup.reminder.noPermission', 'Notifications are off for MAGE ID. Turn them on in Settings to get this reminder.'); },
-  get failed(): string { return t('field.lineup.reminder.failed', 'Couldn’t set the reminder on this phone — try again.'); },
+  get failed(): string { return t('field.lineup.reminder.failed', 'Couldn’t set the reminder on this phone. Try again.'); },
   get readFailed(): string { return t('field.lineup.reminder.readFailed', 'Couldn’t check whether the reminder is on.'); },
 };
 

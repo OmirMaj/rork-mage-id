@@ -691,7 +691,7 @@ ok('the run is blocked, not floored, when the log cannot answer',
 ok('the job tile prints "Not logged" rather than the model\'s lower bound',
   /usage\.jobsNamed \? usage\.projects : 'Not logged'/.test(equipReal));
 ok('the money tile is labelled by ownership — an owner is never told they paid rent',
-  /equipment\.type === 'rented' \? 'Rent paid' : 'At your day rate'/.test(equipReal));
+  /equipment\.type === 'rented' \? 'Rent Paid' : 'At Your Day Rate'/.test(equipReal));
 
 // ─── 7b) measuredUsage, RUN ─────────────────────────────────────────────────
 // Regexes police the SPELLING of a floor; the defect is its SHAPE. Verified by

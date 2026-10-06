@@ -50,11 +50,11 @@ export function SafetyAccessBlocked({ roleState, onClose }: { roleState: Project
   if (roleState.isError) {
     return (
       <View style={[styles.gateWrap, { backgroundColor: tc.bg }]} testID="safety-gate-error">
-        <Text style={styles.gateTitle}>{t('safety.hub.couldntCheckYourAccess', "Couldn't check your access to this project")}</Text>
+        <Text style={styles.gateTitle}>{t('safety.hub.couldntCheckYourAccess', "Couldn't Check Your Access to This Project")}</Text>
         <Text style={styles.gateText}>
           {t('safety.hub.mageCouldntLoadWho', "MAGE couldn't load who is on this project, so it can't tell whether your GC invited you to its safety records. Check your connection and try again.")}
         </Text>
-        <Button label={t('safety.hub.tryAgain', 'Try again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
+        <Button label={t('safety.hub.tryAgain', 'Try Again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
     );
   }
@@ -68,9 +68,9 @@ export function SafetyAccessBlocked({ roleState, onClose }: { roleState: Project
   if (roleState.isPaused && roleState.role === null && roleState.reason) {
     return (
       <View style={[styles.gateWrap, { backgroundColor: tc.bg }]} testID="safety-gate-offline">
-        <Text style={styles.gateTitle}>{t('safety.hub.waitingForSignal', 'Waiting for signal')}</Text>
+        <Text style={styles.gateTitle}>{t('safety.hub.waitingForSignal', 'Waiting for Signal')}</Text>
         <Text style={styles.gateText}>{roleState.reason}</Text>
-        <Button label={t('safety.hub.tryAgain', 'Try again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
+        <Button label={t('safety.hub.tryAgain', 'Try Again')} onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
     );
   }
@@ -174,11 +174,11 @@ function SafetyHubInner() {
     return [
       { key: 'jha', label: t('safety.hub.tileJhas', 'JHAs'), icon: HardHat, count: getJhasForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-jha', params: { projectId: pid } }) },
-      { key: 'toolbox', label: t('safety.hub.tileToolbox', 'Toolbox talks'), icon: Megaphone, count: getToolboxTalksForProject(pid).length,
+      { key: 'toolbox', label: t('safety.hub.tileToolbox', 'Toolbox Talks'), icon: Megaphone, count: getToolboxTalksForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-toolbox', params: { projectId: pid } }) },
       { key: 'incidents', label: t('safety.hub.tileIncidents', 'Incidents'), icon: ShieldAlert, count: getIncidentsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-incidents', params: { projectId: pid } }) },
-      { key: 'hazards', label: t('safety.hub.tileHazards', 'Hazard log'), icon: TriangleAlert, count: getHazardsForProject(pid).length,
+      { key: 'hazards', label: t('safety.hub.tileHazards', 'Hazard Log'), icon: TriangleAlert, count: getHazardsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-hazards', params: { projectId: pid } }) },
       { key: 'inspections', label: t('safety.hub.tileInspections', 'Inspections'), icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-inspections' as never, params: { projectId: pid } as never }) },
@@ -206,7 +206,7 @@ function SafetyHubInner() {
     return [
       { key: 'certifications', label: t('safety.hub.tileCertifications', 'Certifications'), icon: BadgeCheck, count: expiringCertifications(now).length,
         onPress: () => router.push('/safety-certifications' as never) },
-      { key: 'forms', label: t('safety.hub.tileForms', 'Forms library'), icon: FileText, count: templates.length,
+      { key: 'forms', label: t('safety.hub.tileForms', 'Forms Library'), icon: FileText, count: templates.length,
         onPress: () => router.push('/safety-forms' as never) },
       { key: 'osha', label: t('safety.hub.tileOsha', 'OSHA 300 Log · {year}', { year: oshaYear }), icon: ShieldAlert, count: oshaCount,
         onPress: () => router.push(
@@ -230,7 +230,7 @@ function SafetyHubInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: tc.bg }]}>
-      <Stack.Screen options={{ title: project ? t('safety.hub.titleWithProject', 'Safety — {name}', { name: project.name }) : t('safety.title', 'Safety') }} />
+      <Stack.Screen options={{ title: project ? t('safety.hub.titleWithProject', 'Safety · {name}', { name: project.name }) : t('safety.title', 'Safety') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 12 }, isDesktop && styles.contentDesktop]}>
         {project ? (
           <>
@@ -241,11 +241,11 @@ function SafetyHubInner() {
                   style={styles.switchBtn}
                   onPress={() => router.setParams({ projectId: '' })}
                   accessibilityRole="button"
-                  accessibilityLabel={t('safety.hub.switchProject', 'Switch project')}
+                  accessibilityLabel={t('safety.hub.switchProject', 'Switch Project')}
                   testID="safety-switch-project"
                 >
                   <ArrowLeftRight size={14} color={tc.accent} strokeWidth={1.75} />
-                  <Text style={styles.switchBtnText}>{t('safety.hub.switchProject', 'Switch project')}</Text>
+                  <Text style={styles.switchBtnText}>{t('safety.hub.switchProject', 'Switch Project')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>

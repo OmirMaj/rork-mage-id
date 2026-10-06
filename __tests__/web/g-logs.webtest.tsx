@@ -313,7 +313,7 @@ describe('bulk Mark sent (invoices)', () => {
   it('the confirm names the skips; nothing is written until he confirms; then one updateInvoice per draft with markSentPatch', async () => {
     mockCtx = ctx({ invoices });
     const { el } = await mountLog(<InvoiceLog projectId={P} />);
-    await bulk(el, 'invoice-log-table', 'Mark sent');
+    await bulk(el, 'invoice-log-table', 'Mark Sent');
     const [title, message, buttons] = lastAlert();
     expect(title).toBe('Mark 2 invoices sent?');
     expect(message).toContain('This does not email anything.');
@@ -334,10 +334,10 @@ describe('bulk Mark sent (invoices)', () => {
   it('on the sample job every draft is skipped: only the skipped line, with an OK', async () => {
     mockCtx = ctx({ invoices, projectName: `${SAMPLE_PROJECT_PREFIX}Kitchen remodel` });
     const { el } = await mountLog(<InvoiceLog projectId={P} />);
-    await bulk(el, 'invoice-log-table', 'Mark sent');
+    await bulk(el, 'invoice-log-table', 'Mark Sent');
     const [title, message, buttons] = lastAlert();
-    expect(title).toBe('Nothing to mark sent');
-    expect(message).toBe('Skipped 4: #1, #4 — sample job — sends only reach you; #2 — already sent; #3 — paid.');
+    expect(title).toBe('Nothing to Mark Sent');
+    expect(message).toBe('Skipped 4: #1, #4 — sample job, sends only reach you; #2 — already sent; #3 — paid.');
     expect(buttons.map((b) => b.text)).toEqual(['OK']);
     expect(mockCtx.updateInvoice as jest.Mock).not.toHaveBeenCalled();
   });

@@ -35,14 +35,14 @@ export function ValidUntilField({ value, onChange, today }: ValidUntilFieldProps
   return (
     <View testID="validuntil-field">
       <View style={styles.row}>
-        <Text style={styles.label}>Prices valid until</Text>
+        <Text style={styles.label}>Prices Valid Until</Text>
         <View style={styles.right}>
           <Text style={styles.value}>{day ? formatCalendarDay(day) : ''}</Text>
           <TouchableOpacity
             onPress={() => setPicking(true)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Change the date prices are valid until"
+            accessibilityLabel="Change the Date Prices Are Valid Until"
             testID="validuntil-change"
           >
             <Text style={styles.change}>Change</Text>
@@ -54,7 +54,7 @@ export function ValidUntilField({ value, onChange, today }: ValidUntilFieldProps
         visible={picking}
         value={day ?? ''}
         allowFuture
-        title="Prices valid until"
+        title="Prices Valid Until"
         onClose={() => setPicking(false)}
         onChange={(iso) => {
           const picked = iso.slice(0, 10);

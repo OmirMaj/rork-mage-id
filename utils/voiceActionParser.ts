@@ -252,7 +252,7 @@ ${transcript}`,
   if (!aiResult.success) {
     return voiceActionSchema.parse({
       kind: 'unsure',
-      reasoning: aiConsentReason(aiResult) ?? 'AI is unavailable right now — try again in a moment.',
+      reasoning: aiConsentReason(aiResult) ?? 'AI is unavailable right now. Try again in a moment.',
     });
   }
   return resolveMicScheduleUpdates(
@@ -420,7 +420,7 @@ export function resolveMicScheduleUpdates(
   for (const a of m.ambiguous) notes.push(`"${a.spoken}" fits ${a.candidates.join(' and ')}`);
   if (m.unmatched.length) notes.push(`${m.unmatched.map((u) => `"${u}"`).join(', ')} ${m.unmatched.length === 1 ? 'is' : 'are'} not on the schedule`);
   if (notes.length === 0) return { ...r, fieldScheduleUpdates: kept };
-  const said = `Progress not applied: ${notes.join('; ')} — say the exact task name.`;
+  const said = `Progress not applied: ${notes.join('; ')}. Say the exact task name.`;
   return { ...r, fieldScheduleUpdates: kept, reasoning: r.reasoning ? `${r.reasoning} ${said}` : said };
 }
 

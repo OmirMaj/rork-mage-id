@@ -306,8 +306,8 @@ function phoneArm(src: string, opener: RegExp): string {
 
   const dReg = stripComments(read('components/registers/DeliveriesRegister.tsx'));
   check("deliveries register: bulk Mark received is off, with its reason",
-    /export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own — the damage question is asked for every delivery\.';/.test(dReg)
-    && /label: 'Mark received', run: \(\) => \{\}, disabledReason: DELIVERY_BULK_RECEIVE_REASON/.test(dReg));
+    /export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own\. The damage question is asked for every delivery\.';/.test(dReg)
+    && /label: 'Mark Received', run: \(\) => \{\}, disabledReason: DELIVERY_BULK_RECEIVE_REASON/.test(dReg));
   check('deliveries register: bulk Confirm runs one delivery per render', /useOneAtATime\(/.test(dReg) && /run: confirmSelected/.test(dReg));
   check('deliveries register: Late sits above the horizon (above: late table, then the control)', dReg.indexOf("tableId=\"reg-deliveries-late\"") > 0
     && dReg.indexOf("tableId=\"reg-deliveries-late\"") < dReg.indexOf('<SegmentedControl') && /hotkeys=\{false\}/.test(dReg));

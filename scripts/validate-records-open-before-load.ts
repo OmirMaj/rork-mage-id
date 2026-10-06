@@ -183,7 +183,7 @@ async function main() {
   const guardAt = save.indexOf('if (reportId && !existingReport) {');
   const firstWrite = Math.min(...['updateDailyReport(', 'addDailyReport(', 'addIncident(', 'updateIncident('].map(w => { const i = save.indexOf(w); return i < 0 ? Infinity : i; }));
   ok('handleSave refuses a named report it does not hold — before any write', guardAt > 0 && guardAt < firstWrite, `guard ${guardAt}, first write ${firstWrite}`);
-  ok('…and says why', /showAlert\(t\('field\.dfr\.notSaved', 'Not saved'\),/.test(save.slice(guardAt, guardAt + 400)));
+  ok('…and says why', /showAlert\(t\('field\.dfr\.notSaved', 'Not Saved'\),/.test(save.slice(guardAt, guardAt + 400)));
   const sentAt = save.indexOf("if (status === 'draft' && !silent && savedRecord?.status === 'sent') {");
   ok('handleSave refuses a draft save over a submitted report, before any write', sentAt > 0 && sentAt < firstWrite);
   const back = callbackBody(dfrCode, 'handleBack');

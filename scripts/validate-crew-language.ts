@@ -123,7 +123,7 @@ console.log('\nC. the crew form');
 const rowFn = crew.slice(crew.indexOf('export function CrewLanguageRow('), crew.indexOf('/** Tells a desktop register'));
 ok('CrewLanguageRow renders nothing while the flag is off (its first statement after the hook)',
   /const \{ t \} = useT\(\);\s*const styles = useThemedStyles\(makeStyles\);\s*if \(!LANGUAGE_PICKER_ENABLED\) return null;/.test(rowFn));
-ok('it offers Not set (null), English and Español', /\{ value: null, label: t\('field\.crew\.language\.notSet', 'Not set'\)/.test(rowFn)
+ok('it offers Not Set (null), English and Español', /\{ value: null, label: t\('field\.crew\.language\.notSet', 'Not Set'\)/.test(rowFn)
   && /\{ value: 'en', label: 'English'/.test(rowFn) && /\{ value: 'es', label: 'Español'/.test(rowFn));
 ok('the endonyms are kept as themselves (i18n-keep-english), never translated',
   (rowFn.match(/\/\/ i18n-keep-english: an endonym/g) ?? []).length === 2);

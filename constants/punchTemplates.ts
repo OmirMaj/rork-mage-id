@@ -42,8 +42,8 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'electrical-rough',
     trade: 'Electrical',
-    label: 'Electrical rough-in walk',
-    context: 'Before drywall — verify boxes, runs, panel layout',
+    label: 'Electrical Rough-In Walk',
+    context: 'Before drywall: verify boxes, runs, panel layout',
     items: [
       { description: 'All boxes set plumb and at consistent height (typically 16" AFF)', priority: 'medium', notes: 'A misaligned box shows through trim later' },
       { description: 'GFCI / AFCI locations match plan and code (kitchen, baths, garage, exterior)', priority: 'high' },
@@ -61,12 +61,12 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'electrical-trim',
     trade: 'Electrical',
-    label: 'Electrical trim walk',
-    context: 'After paint — fixtures, devices, cover plates',
+    label: 'Electrical Trim Walk',
+    context: 'After paint: fixtures, devices, cover plates',
     items: [
       { description: 'All devices (switches, outlets) flush, level, screwed tight', priority: 'medium' },
       { description: 'Cover plates installed, no gaps to drywall, no painters\' tape residue', priority: 'low' },
-      { description: 'Every switch tested — controls expected fixture / fan', priority: 'high' },
+      { description: 'Every switch tested and controls the expected fixture or fan', priority: 'high' },
       { description: 'Dimmers compatible with installed bulbs (no flicker, no buzz at 30%)', priority: 'medium' },
       { description: 'Recessed cans level, trims seated, bulbs at consistent color temp', priority: 'medium' },
       { description: 'GFCIs trip and reset; test buttons confirmed', priority: 'high' },
@@ -79,15 +79,15 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'plumbing-rough',
     trade: 'Plumbing',
-    label: 'Plumbing rough-in walk',
-    context: 'Before drywall — supply, drain, vent, pressure test',
+    label: 'Plumbing Rough-In Walk',
+    context: 'Before drywall: supply, drain, vent, pressure test',
     items: [
       { description: 'Pressure test holding (hydro at 50 psi for 15 min minimum, no drop)', priority: 'high' },
       { description: 'Drain slope is min 1/4" per foot to nearest vent / stack', priority: 'high' },
       { description: 'Supply lines secured every 6\' (vertical) / 4\' (horizontal); no bouncing pipe', priority: 'medium' },
       { description: 'Tubs / showers set, leveled, blocking present for grab bars', priority: 'medium' },
       { description: 'Water hammer arrestors at washer + dishwasher hookups', priority: 'low', notes: 'Easier to add now than after drywall' },
-      { description: 'Cleanouts accessible — not buried behind trim or finished walls', priority: 'medium' },
+      { description: 'Cleanouts accessible, not buried behind trim or finished walls', priority: 'medium' },
       { description: 'Pex / copper / PVC compatible fittings confirmed; no mixed-metal joints without dielectric', priority: 'medium' },
       { description: 'Vents extend 6" above roof, properly flashed', priority: 'medium' },
       { description: 'Hose bibs frost-proof (in cold-climate jobs); shutoffs accessible', priority: 'medium' },
@@ -97,14 +97,14 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'plumbing-trim',
     trade: 'Plumbing',
-    label: 'Plumbing trim walk',
-    context: 'After tile / counters — fixtures, supply caps, leaks',
+    label: 'Plumbing Trim Walk',
+    context: 'After tile and counters: fixtures, supply caps, leaks',
     items: [
       { description: 'Faucets installed plumb, no rocking, escutcheons sealed to wall', priority: 'medium' },
       { description: 'P-traps installed under every sink, no leaks under load', priority: 'high' },
       { description: 'Toilets bolted, sealed at base (caulked perimeter except 1" at back), no rock', priority: 'medium' },
       { description: 'Tub / shower drain: no slow drain, no gurgle, stopper works', priority: 'medium' },
-      { description: 'Hot/cold reversed nowhere — verify at each fixture', priority: 'high' },
+      { description: 'Hot/cold reversed nowhere. Verify at each fixture', priority: 'high' },
       { description: 'Angle stops accessible behind every fixture, working', priority: 'medium' },
       { description: 'Caulking at all wet joints continuous, no gaps', priority: 'medium' },
       { description: 'Water heater plumbed correctly: T&P, expansion tank if required, drain pan', priority: 'high' },
@@ -114,17 +114,17 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'drywall',
     trade: 'Drywall',
-    label: 'Drywall finish walk',
-    context: 'Final coat, before paint — flatness, corners, trims',
+    label: 'Drywall Finish Walk',
+    context: 'Final coat, before paint: flatness, corners, trims',
     items: [
-      { description: 'Walls flat under raking light — no waves, no telegraph from screws', priority: 'medium', notes: 'Sidelight from windows shows defects best' },
+      { description: 'Walls flat under raking light: no waves, no telegraph from screws', priority: 'medium', notes: 'Sidelight from windows shows defects best' },
       { description: 'Inside corners straight and sharp; no daylight, no bulging', priority: 'medium' },
       { description: 'Outside corner bead seated, no visible metal, no gaps', priority: 'medium' },
       { description: 'Screw / nail dimples filled flush; no exposed fasteners', priority: 'low' },
       { description: 'Joint compound sanded smooth; no swirl marks, no orange-peel from over-sand', priority: 'low' },
       { description: 'No tape lines visible at butt joints', priority: 'medium' },
       { description: 'Ceiling-to-wall transition straight, even shadow line', priority: 'low' },
-      { description: 'Cutouts for outlets/switches sized correctly — no oversized holes showing through plate', priority: 'medium' },
+      { description: 'Cutouts for outlets/switches sized correctly, no oversized holes showing through plate', priority: 'medium' },
       { description: 'Texture matches scope (level 5 / orange peel / knockdown) consistently across rooms', priority: 'medium' },
     ],
   },
@@ -132,7 +132,7 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'painting',
     trade: 'Painting',
-    label: 'Paint final walk',
+    label: 'Paint Final Walk',
     context: 'Touch-up walk before substantial completion',
     items: [
       { description: 'No roller marks visible under raking light', priority: 'medium' },
@@ -142,17 +142,17 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
       { description: 'Caulking on trim joints continuous before paint; no shrinkage cracks', priority: 'low' },
       { description: 'Color/sheen matches scope per room (matte / eggshell / satin / semigloss)', priority: 'medium' },
       { description: 'No paint on hinges, light fixtures, outlets, switches', priority: 'medium' },
-      { description: 'Closets painted to scope (some scopes skip closet ceilings — verify against contract)', priority: 'low' },
+      { description: 'Closets painted to scope (some scopes skip closet ceilings, verify against contract)', priority: 'low' },
     ],
   },
 
   {
     id: 'flooring',
     trade: 'Flooring',
-    label: 'Flooring finish walk',
+    label: 'Flooring Finish Walk',
     context: 'After install, before furniture moves in',
     items: [
-      { description: 'Field flat under straightedge — no high spots, no humps at seams', priority: 'medium' },
+      { description: 'Field flat under straightedge: no high spots, no humps at seams', priority: 'medium' },
       { description: 'Transitions / thresholds installed, level, sealed', priority: 'medium' },
       { description: 'Reveals / expansion gaps at walls covered by base or shoe', priority: 'low' },
       { description: 'Tile grout joint width consistent; no haze on face', priority: 'medium' },
@@ -166,8 +166,8 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'tile',
     trade: 'Other',
-    label: 'Tile work walk',
-    context: 'Tub surrounds, kitchen back, floors — final QA',
+    label: 'Tile Work Walk',
+    context: 'Tub surrounds, kitchen back, floors: final QA',
     items: [
       { description: 'Grout color consistent across the field; no shading', priority: 'medium' },
       { description: 'Grout joints clean, no haze, no holidays in lines', priority: 'medium' },
@@ -183,10 +183,10 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'cabinets',
     trade: 'Other',
-    label: 'Cabinet & countertop walk',
+    label: 'Cabinet and Countertop Walk',
     context: 'After install, hardware on, counters set',
     items: [
-      { description: 'Cabinet boxes plumb and level — no rocking, no gaps to wall', priority: 'medium' },
+      { description: 'Cabinet boxes plumb and level: no rocking, no gaps to wall', priority: 'medium' },
       { description: 'Doors aligned: even reveals top/bottom and door-to-door', priority: 'medium' },
       { description: 'Drawers operate smoothly, soft-close engages, no rubbing', priority: 'medium' },
       { description: 'Hardware (knobs / pulls) installed straight, consistent across runs', priority: 'low' },
@@ -201,8 +201,8 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'hvac',
     trade: 'HVAC',
-    label: 'HVAC trim walk',
-    context: 'After fixture install — vents, returns, t-stat, balance',
+    label: 'HVAC Trim Walk',
+    context: 'After fixture install: vents, returns, t-stat, balance',
     items: [
       { description: 'Supply / return registers level and matching trim grilles', priority: 'low' },
       { description: 'Air balance: each room measured CFM matches design (within 10%)', priority: 'medium', notes: 'Get balance report' },
@@ -218,8 +218,8 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'doors-hardware',
     trade: 'Other',
-    label: 'Doors & hardware walk',
-    context: 'Final — every door operates correctly',
+    label: 'Doors and Hardware Walk',
+    context: 'Final: every door operates correctly',
     items: [
       { description: 'Every door swings smoothly, latches without lift', priority: 'medium' },
       { description: 'Even reveal around all 4 sides of each door', priority: 'medium' },
@@ -235,8 +235,8 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'roofing',
     trade: 'Roofing',
-    label: 'Roofing final walk',
-    context: 'Asphalt or metal — flashing, edges, penetrations',
+    label: 'Roofing Final Walk',
+    context: 'Asphalt or metal: flashing, edges, penetrations',
     items: [
       { description: 'Flashing at every penetration (vent, chimney, skylight) lapped correctly', priority: 'high' },
       { description: 'Drip edge installed under underlayment at eaves, over at rakes', priority: 'medium' },
@@ -252,14 +252,14 @@ export const PUNCH_TEMPLATES: PunchTemplate[] = [
   {
     id: 'final-substantial-completion',
     trade: 'General',
-    label: 'Final substantial-completion walk',
-    context: 'GC walk before homeowner walk — catch everything else',
+    label: 'Final Substantial-Completion Walk',
+    context: 'GC walk before the client walk: catch everything else',
     items: [
-      { description: 'All MEP systems running (HVAC heat & cool, all faucets, all switches)', priority: 'high' },
+      { description: 'All MEP systems running (HVAC heat and cool, all faucets, all switches)', priority: 'high' },
       { description: 'Appliances installed, leveled, run a cycle (DW, washer, range)', priority: 'high' },
       { description: 'Cleaners completed: floors, glass, fixtures, behind toilets, tops of cabinets', priority: 'medium' },
       { description: 'All filters fresh (HVAC, range hood, fridge water if any)', priority: 'low' },
-      { description: 'Permits closed at city — final inspection certs in hand', priority: 'high' },
+      { description: 'Permits closed at city, final inspection certs in hand', priority: 'high' },
       { description: 'All warranties + appliance manuals + paint codes assembled in closeout binder', priority: 'medium' },
       { description: 'Site cleanup: dumpster gone, no construction debris in yard or garage', priority: 'medium' },
       { description: 'Landscaping/exterior: no damage from staging; sod / mulch restored', priority: 'medium' },

@@ -91,7 +91,7 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
 
   const columns: DataTableColumn<Row>[] = useMemo(() => [
     { key: 'date', label: 'Date', width: 120, sortValue: (r) => r.day ?? r.report.date, value: (r) => shortDay(r.day) },
-    { key: 'filedBy', label: 'Filed by', flex: 1, hideBelow: 520, sortValue: (r) => r.filedBy, value: (r) => r.filedBy },
+    { key: 'filedBy', label: 'Filed By', flex: 1, hideBelow: 520, sortValue: (r) => r.filedBy, value: (r) => r.filedBy },
     // No crew recorded is unknown, not zero: DataTable shows '—' for null.
     { key: 'crew', label: 'Crew', numeric: true, width: 72, sortValue: (r) => r.row.crew, value: (r) => (r.row.crewRecorded ? r.row.crew : null) },
     { key: 'hours', label: 'Hours', numeric: true, width: 80, sortValue: (r) => r.row.hours, value: (r) => (r.row.crewRecorded ? fmtHours(r.row.hours) : null) },
@@ -125,7 +125,7 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
       ) : (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No daily reports on this project yet.</Text>
-          <Button label="New report" onPress={newReport} size="sm" testID="dfr-log-empty-new" />
+          <Button label="New Report" onPress={newReport} size="sm" testID="dfr-log-empty-new" />
         </View>
       )}
     />
@@ -140,12 +140,12 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
       <View style={styles.inner}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.title} accessibilityRole="header">Daily reports</Text>
+            <Text style={styles.title} accessibilityRole="header">Daily Reports</Text>
             <Text style={styles.subtitle} numberOfLines={1}>{project?.name ?? NOT_RECORDED}</Text>
           </View>
           <ToolbarActions
             testID="dfr-log-actions"
-            actions={[{ key: 'new', label: 'New report', icon: FilePlus2, primary: true, onPress: newReport, testID: 'dfr-log-new' }]}
+            actions={[{ key: 'new', label: 'New Report', icon: FilePlus2, primary: true, onPress: newReport, testID: 'dfr-log-new' }]}
           />
         </View>
         <SplitView
@@ -189,7 +189,7 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
     },
     {
       key: 'co',
-      label: 'Create change order from issues',
+      label: 'Create Change Order from Issues',
       icon: ClipboardList,
       disabled: !issues,
       disabledReason: issues ? null : 'No issues or delays on this report',
@@ -198,7 +198,7 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
     },
     {
       key: 'tm',
-      label: 'Write T&M ticket',
+      label: 'Write T&M Ticket',
       icon: FileSignature,
       onPress: () => router.push({
         pathname: '/field-ticket',
@@ -248,13 +248,13 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
         <Text style={styles.muted}>{sum.crew} on site · {fmtHours(sum.hours)} man-hours</Text>
       ) : null}
 
-      <Text style={styles.section}>Work performed</Text>
+      <Text style={styles.section}>Work Performed</Text>
       <Text style={work ? styles.body : styles.muted}>{work || 'Not recorded'}</Text>
 
-      <Text style={styles.section}>Materials delivered</Text>
+      <Text style={styles.section}>Materials Delivered</Text>
       <Text style={materials.length ? styles.body : styles.muted}>{materials.length ? materials.join('\n') : 'None recorded'}</Text>
 
-      <Text style={styles.section}>Issues &amp; delays</Text>
+      <Text style={styles.section}>Issues and Delays</Text>
       <Text style={issues ? styles.body : styles.muted}>{issues || 'None recorded'}</Text>
 
       {r.incident?.hasIncident ? (
@@ -273,7 +273,7 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
       ) : (
         <View style={styles.photos}>
           {photos.map((p) => (
-            <Image key={p.id} source={{ uri: p.uri }} style={styles.photo} accessibilityLabel="Report photo" />
+            <Image key={p.id} source={{ uri: p.uri }} style={styles.photo} accessibilityLabel="Report Photo" />
           ))}
         </View>
       )}

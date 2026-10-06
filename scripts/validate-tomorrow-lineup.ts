@@ -114,7 +114,7 @@ console.log('\ntasks on the day (utils/scheduleOps):');
 console.log('\ngaps:');
 {
   const L = buildLineup(input());
-  ok('unassigned tasks → a gap naming them', L.gaps.some(g => g.startsWith("1 task tomorrow has no sub assigned — it's not in any message: Clean-up")), JSON.stringify(L.gaps));
+  ok('unassigned tasks → a gap naming them', L.gaps.some(g => g.startsWith("1 task tomorrow has no sub assigned, so it's not in any message: Clean-up")), JSON.stringify(L.gaps));
   ok('…and they are in no message', !L.perSub.some(s => s.message.includes('Clean-up')));
   const withGhost = buildLineup(input({ schedule: { ...SCHED, tasks: [...TASKS, T('ghost', 21, 1, { title: 'Ghost work', assignedSubId: 'GONE' })] } }));
   ok('a task assigned to a deleted sub → a gap, no message', withGhost.gaps.some(g => g.includes('Ghost work')) && !withGhost.perSub.some(s => s.sub.id === 'GONE'));
@@ -152,9 +152,9 @@ console.log('\ninspections:');
     ])],
   }));
   eq('every scheduled inspection on the day reads "time not set"', L.siteWide.inspections.map(i => i.text),
-    ['Plumbing rough inspection — time not set', 'Final inspection — time not set']);
+    ['Plumbing rough inspection, time not set', 'Final inspection, time not set']);
   ok('a passed or other-day inspection is left out', !L.siteWide.inspections.some(i => /Footing|Framing/.test(i.text)));
-  ok('every message carries them', L.perSub.every(s => s.message.includes('Plumbing rough inspection — time not set')));
+  ok('every message carries them', L.perSub.every(s => s.message.includes('Plumbing rough inspection, time not set')));
 }
 
 // ── 5. Deliveries tie through records only ─────────────────────────────────
@@ -226,8 +226,8 @@ console.log('\nthe day and the headline:');
   eq('Friday → Saturday on a 6-day week', nextWorkingDay(new Date(2026, 8, 25, 10), { workingDaysPerWeek: 6 }), '2026-09-26');
   eq('a site closure is skipped', nextWorkingDay(new Date(2026, 8, 25, 10), { workingDaysPerWeek: 5, nonWorkingDates: ['2026-09-28'] }), '2026-09-29');
   eq('no schedule → simply tomorrow', nextWorkingDay(new Date(2026, 8, 25, 10), null), '2026-09-26');
-  eq('after 3 pm: ready to send', lineupHeadline(new Date(2026, 8, 28, 15, 0)), "Tomorrow's lineup — ready to send");
-  eq('before 3 pm: a preview', lineupHeadline(new Date(2026, 8, 28, 14, 59)), "Tomorrow's lineup (preview — schedules can still change today)");
+  eq('after 3 pm: ready to send', lineupHeadline(new Date(2026, 8, 28, 15, 0)), "Tomorrow's lineup is ready to send");
+  eq('before 3 pm: a preview', lineupHeadline(new Date(2026, 8, 28, 14, 59)), "Tomorrow's lineup (preview, schedules can still change today)");
   eq('"tomorrow" only when it is', [dayPhraseFor('2026-09-29', NOW), dayPhraseFor('2026-09-30', NOW)], ['tomorrow (Tue, Sep 29)', 'on Wed, Sep 30']);
   ok('parseCalendarDay round-trip sanity', toCalendarDayString(parseCalendarDay('2026-09-29')!) === '2026-09-29');
   const long = buildLineup(input({ schedule: { ...SCHED, tasks: Array.from({ length: 40 }, (_, i) => T(`t${i}`, 21, 1, { title: `A fairly long task name number ${i}`, phase: 'Level 2 east wing', assignedSubId: 'A' })) } }));
@@ -437,7 +437,7 @@ console.log('\nper-sub language (Spanish Phase 1b):');
   ok('app es: the summary is Spanish with a worded date', (esApp.summary ?? '').startsWith('Mañana (mar 29 sept) en 123 Main St: ') && !/\d{1,2}\/\d{1,2}/.test(esApp.summary ?? ''), esApp.summary ?? '');
   ok('app es: the unassigned-task gap is one Spanish sentence', esApp.gaps.some(g => g.startsWith('1 tarea para mañana no tiene subcontratista asignado; no va en ningún mensaje: Clean-up.')), JSON.stringify(esApp.gaps));
   ok('app es: the SUB still gets English when the app is Spanish (recipient, not sender)', byId(esApp, 'B').message === byId(english, 'B').message);
-  eq('app es: headline', lineupHeadline(new Date(2026, 8, 28, 15, 0), 'es'), 'Plan de mañana: listo para enviar');
+  eq('app es: headline', lineupHeadline(new Date(2026, 8, 28, 15, 0), 'es'), 'El plan de mañana está listo para enviar');
   eq('app es: the no-schedule sentence', buildLineup({ ...input({ schedule: null }), lang: 'es' }).emptyNote, 'Este proyecto no tiene cronograma. El plan toma las tareas del cronograma.');
 
   // Honesty in both languages.
@@ -492,7 +492,7 @@ console.log('\nreminder copy (device language):');
   const R = await import('../utils/lineupReminder');
   const core = await import('../i18n/core');
   eq('English reminder copy is byte-identical', [R.lineupReminderCopy.title, R.lineupReminderCopy.toggle, R.lineupReminderCopy.web],
-    ['Tomorrow’s lineup', 'Remind me at 3 pm on weekdays', 'Reminders work in the iPhone app.']);
+    ['Tomorrow’s Lineup', 'Remind Me at 3 pm on Weekdays', 'Reminders work in the iPhone app.']);
   core.setLang('es');
   try {
     eq('es: the toggle reads in Spanish at read time (a getter, not a frozen constant)', R.lineupReminderCopy.toggle, 'Recuérdame a las 3 p.m. entre semana');
@@ -500,7 +500,7 @@ console.log('\nreminder copy (device language):');
   } finally {
     core.setLang('en');
   }
-  eq('back in English', R.lineupReminderCopy.toggle, 'Remind me at 3 pm on weekdays');
+  eq('back in English', R.lineupReminderCopy.toggle, 'Remind Me at 3 pm on Weekdays');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

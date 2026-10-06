@@ -90,7 +90,7 @@ function TakeoffFieldVerifyButtonImpl({
   const open = useCallback(async () => {
     if (Platform.OS === 'web') {
       showAlert(
-        'Mobile-only feature',
+        'Mobile-Only Feature',
         'Field verification needs the device camera and GPS. Use the iOS or Android app on site.',
       );
       return;
@@ -99,7 +99,7 @@ function TakeoffFieldVerifyButtonImpl({
     try {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
-        showAlert('Camera access needed', 'Open Settings → MAGE ID → Camera to enable.');
+        showAlert('Camera Access Needed', 'Open Settings > MAGE ID > Camera to enable.');
         setBusy(false);
         return;
       }
@@ -199,7 +199,7 @@ function TakeoffFieldVerifyButtonImpl({
           <View style={[styles.modalBackdrop, fView.overlay]}>
             <View style={[styles.modalCard, fView.card]}>
               <View style={styles.modalHead}>
-                <Text style={styles.modalTitle}>Field verification</Text>
+                <Text style={styles.modalTitle}>Field Verification</Text>
                 <TouchableOpacity onPress={() => setViewing(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={18} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -244,7 +244,7 @@ function TakeoffFieldVerifyButtonImpl({
                 )}
                 {verdict.kind === 'agrees' && (
                   <Text style={styles.adoptNote}>
-                    Matches the takeoff quantity — nothing to change.
+                    Matches the takeoff quantity. Nothing to change.
                   </Text>
                 )}
                 {existing.note && <Text style={styles.modalNote}>{existing.note}</Text>}
@@ -268,7 +268,7 @@ function TakeoffFieldVerifyButtonImpl({
                     setViewing(false);
                   }}
                 >
-                  <Text style={styles.deleteBtnText}>Delete verification</Text>
+                  <Text style={styles.deleteBtnText}>Delete Verification</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -287,7 +287,7 @@ function TakeoffFieldVerifyButtonImpl({
         activeOpacity={0.7}
       >
         <Camera size={11} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.btnText}>Verify on site</Text>
+        <Text style={styles.btnText}>Verify on Site</Text>
       </TouchableOpacity>
 
       {/* Confirm modal — user types the value they measured + an optional note. */}
@@ -295,7 +295,7 @@ function TakeoffFieldVerifyButtonImpl({
         <View style={[styles.modalBackdrop, fVerify.overlay]}>
           <View style={[styles.modalCard, fVerify.card]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Verify quantity</Text>
+              <Text style={styles.modalTitle}>Verify Quantity</Text>
               <TouchableOpacity onPress={() => setDraft(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -304,7 +304,7 @@ function TakeoffFieldVerifyButtonImpl({
               <Image source={{ uri: draft.photoUri }} style={styles.modalImage} contentFit="contain" />
             )}
             <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>What you measured ({unit})</Text>
+              <Text style={styles.modalLabel}>What You Measured ({unit})</Text>
               <TextInput
                 value={draft?.measured ?? ''}
                 onChangeText={t => setDraft(d => d ? { ...d, measured: t } : d)}
@@ -313,11 +313,11 @@ function TakeoffFieldVerifyButtonImpl({
                 placeholderTextColor={themeColors.textMuted}
                 style={styles.modalInput}
               />
-              <Text style={styles.modalLabel}>Note (optional)</Text>
+              <Text style={styles.modalLabel}>Note (Optional)</Text>
               <TextInput
                 value={draft?.note ?? ''}
                 onChangeText={t => setDraft(d => d ? { ...d, note: t } : d)}
-                placeholder="e.g. Bowed wall, used 25 ft tape"
+                placeholder="Bowed wall, used 25 ft tape"
                 placeholderTextColor={themeColors.textMuted}
                 style={[styles.modalInput, { minHeight: 60 }]}
                 multiline
@@ -331,7 +331,7 @@ function TakeoffFieldVerifyButtonImpl({
             </View>
             <TouchableOpacity style={styles.commitBtn} onPress={commit}>
               <Check size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.commitBtnText}>Save verification</Text>
+              <Text style={styles.commitBtnText}>Save Verification</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -125,7 +125,7 @@ console.log('\n#63 a scanned sub bill pays down the subcontract:');
   ok('scan.tsx passes the chosen/auto commitment into the receipt',
     /commitmentId: effectiveCommitmentId/.test(SCAN) && /autoLinkCommitment\(str\(editedFields\.vendor\), linkable, subcontractors\)/.test(SCAN));
   ok('…labels the auto pick as a guess, with a None — direct cost chip',
-    /matched by vendor name/.test(SCAN) && /None — direct cost/.test(SCAN));
+    /matched by vendor name/.test(SCAN) && /None \(Direct Cost\)/.test(SCAN));
   ok('scan.tsx no longer stamps reviewed by hand', !/receipt\.status = 'reviewed'/.test(SCAN));
 }
 
@@ -150,7 +150,7 @@ console.log('\n#33 a scanned COI reaches the sub:');
   ok('scan.tsx no longer filters subs by assignedProjects.includes alone',
     !/subcontractors\.filter\(s => s\.assignedProjects\?\.includes\(projectId\)\)/.test(SCAN));
   ok('an empty sub list still shows the block, says why, and links to Subs',
-    /No subs yet — add one in Subs to file this as compliance/.test(SCAN) && /\/\(tabs\)\/subs/.test(SCAN));
+    /No subs yet. Add one in Subs to file this as compliance/.test(SCAN) && /\/\(tabs\)\/subs/.test(SCAN));
 }
 
 // ── #162 permit / warranty ──────────────────────────────────────────────────
@@ -164,7 +164,7 @@ console.log('\n#162 a scanned permit / warranty becomes a record:');
   eq('an issued permit is approved on its issue day; the application date stays blank', [issued.status, issued.approvedDate, issued.appliedDate], ['approved', '2026-04-02', '']);
   eq('type / number / jurisdiction / expiry carried', [issued.type, issued.permitNumber, issued.jurisdiction, issued.expiresDate], ['electrical', 'B-1', 'Denver', '2027-04-02']);
   ok('the file is referenced in notes, not attachmentUri (a project-photos path field)',
-    /Permits › Permit_B-1-1-p1\.jpg/.test(issued.notes ?? '') && !('attachmentUri' in issued));
+    /Permits > Permit_B-1-1-p1\.jpg/.test(issued.notes ?? '') && !('attachmentUri' in issued));
   const unread = buildScanPermit({ permitNumber: 'B-2', issuedDate: 'April 2', expiresDate: 'n/a' }, ctx);
   eq('no readable issue date → applied, no dates invented', [unread.status, unread.appliedDate, unread.approvedDate ?? null, unread.expiresDate ?? null], ['applied', '', null, null]);
   eq('term parsing', [warrantyMonthsFromTerm('10 years'), warrantyMonthsFromTerm('18 months'), warrantyMonthsFromTerm('lifetime')], [120, 18, null]);
@@ -181,9 +181,9 @@ console.log('\n#162 a scanned permit / warranty becomes a record:');
   eq('routing', [resolveDestination('permit').recordKind, resolveDestination('warranty').recordKind], ['permit', 'warranty']);
   eq('the destination line says what it creates', [recordKindPhrase('permit'), recordKindPhrase('file_only')], ['adds a permit to the Permits list', 'saves the image only']);
   eq('file_only says the fields are not kept', scanFiledMessage('file_only', 'photos', 1),
-    'Saved the image to Project Files › Photos. The fields it read are not saved as a record.');
+    'Saved the image to Project Files > Photos. The fields it read are not saved as a record.');
   eq('the banner names what was created — and what the scan did not read', scanFiledMessage('permit', 'permits', 2),
-    "Saved all 2 pages to Project Files › Permits and added the permit to the Permits list. The scan doesn't read the fee or the application date — add them there.");
+    "Saved all 2 pages to Project Files > Permits and added the permit to the Permits list. The scan doesn't read the fee or the application date. Add them there.");
   ok('the old "record is logged" and "permit onto the project" promises are gone',
     !/the record is logged/.test(SCAN) && !/the permit onto the project/.test(SCAN));
 }
@@ -198,7 +198,7 @@ console.log('\n#53 interim — a scan on a job he does not own never creates a p
     eq(`an invited ${role} is blocked for a permit`, scanOwnerOnlyGate('permit', r(role)).state, 'blocked');
   }
   const w = scanOwnerOnlyGate('warranty', r('editor'));
-  ok('the warranty refusal says where it belongs', w.state === 'blocked' && /Warranties are kept on the project owner's account — ask them to log it/.test(w.reason));
+  ok('the warranty refusal says where it belongs', w.state === 'blocked' && /Warranties are kept on the project owner's account\. Ask them to log it/.test(w.reason));
   eq('a role still loading decides nothing', scanOwnerOnlyGate('warranty', r(null, true)).state, 'checking');
   eq('a failed / unknown role is not ownership', [scanOwnerOnlyGate('permit', r(null, false, true)).state, scanOwnerOnlyGate('permit', r(null)).state], ['blocked', 'blocked']);
   // Integration round 1: material_receipts and cois are owner-only by RLS —
@@ -243,7 +243,7 @@ console.log('\nMaterial Receipt — a receipt on a job he does not own is not sa
   eq('a role still loading waits', materialReceiptOwnerGate('p1', r(null, true)).state, 'checking');
   eq('a failed / unknown role is not ownership', [materialReceiptOwnerGate('p1', r(null, false, true)).state, materialReceiptOwnerGate('p1', r(null)).state], ['blocked', 'blocked']);
   const b = materialReceiptOwnerGate('p1', r('editor'));
-  ok('the refusal names where bills are booked', b.state === 'blocked' && /project owner's account — job costing only counts theirs/.test(b.reason));
+  ok('the refusal names where bills are booked', b.state === 'blocked' && /project owner's account, and job costing only counts theirs/.test(b.reason));
   const MR = strip(readFileSync('app/material-receipt.tsx', 'utf8'));
   ok('material-receipt reads the role for the picked project and gates on it',
     /const roleState = useProjectRoleState\(projectId \|\| undefined\);/.test(MR)
@@ -274,7 +274,7 @@ ok('effectiveProjectId falls back to the route and the only job',
 ok('the picker shows whenever nothing is selected',
   /const showProjectPicker = projects\.length > 1 \|\| \(!effectiveProjectId && projects\.length > 0\);/.test(SCAN));
 ok('runScan / onSave read effectiveProjectId, not the seeded state',
-  /if \(!effectiveProjectId\) \{ showAlert\('Pick a project'/.test(SCAN)
+  /if \(!effectiveProjectId\) \{ showAlert\('Pick a Project'/.test(SCAN)
   && /!effectiveProjectId \|\| saving\) return;/.test(SCAN)
   && !/projectId: projectId\b/.test(SCAN));
 

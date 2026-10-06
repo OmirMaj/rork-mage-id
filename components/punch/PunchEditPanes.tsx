@@ -111,13 +111,13 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
             disabled={!!p.addBlocked}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={t('field.punchWalk.edit.addPhoto', 'Add photo')}
+            accessibilityLabel={t('field.punchWalk.edit.addPhoto', 'Add Photo')}
             accessibilityState={{ disabled: !!p.addBlocked }}
             testID="punch-edit-photo-add"
             style={[styles.photo, styles.drop, side > 0 && { width: side, height: side }]}
           >
             <ImagePlus size={26} color={p.addBlocked ? tc.textMuted : tc.accentLabel} strokeWidth={1.75} />
-            <Text style={[styles.dropTitle, p.addBlocked && { color: tc.textMuted }]}>{t('field.punchWalk.edit.addPhoto', 'Add photo')}</Text>
+            <Text style={[styles.dropTitle, p.addBlocked && { color: tc.textMuted }]}>{t('field.punchWalk.edit.addPhoto', 'Add Photo')}</Text>
             <Text style={styles.dropHint}>{t('field.punchWalk.edit.chooseAPictureOf', 'Choose a picture of the defect from this computer.')}</Text>
           </TouchableOpacity>
         )}
@@ -136,7 +136,7 @@ export function PunchEditPhotoPane(p: PunchEditPhotoPaneProps) {
       {p.pendingNote ? <Text style={styles.pending} testID="punch-edit-photo-pending">{p.pendingNote}</Text> : null}
 
       <View style={styles.planBlock}>
-        <EyebrowLabel>On the plan</EyebrowLabel>
+        <EyebrowLabel>On the Plan</EyebrowLabel>
         {p.pin && side > 0 ? (
           // Keyed by the sheet image: a pin moved to another sheet (or a sheet
           // that becomes loadable) starts over — not stuck on "didn't load" or
@@ -186,7 +186,7 @@ function PinCloseUp({ pin, side, onPress, blocked }: {
   ) : !w && shapeUnknown ? (
     <View style={styles.pinRow} testID="punch-edit-pin-no-closeup">
       <MapPin size={14} color={tc.textMuted} strokeWidth={2} />
-      <Text style={styles.pinText}>{t('field.punchWalk.edit.closeUpNotAvailable', '{label} — close-up not available', { label: pin.label })}</Text>
+      <Text style={styles.pinText}>{t('field.punchWalk.edit.closeUpNotAvailable', '{label}: close-up not available', { label: pin.label })}</Text>
     </View>
   ) : (
     <View style={[styles.closeUp, { width: side, height: side }]}>

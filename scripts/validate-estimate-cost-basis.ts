@@ -1048,7 +1048,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   // stated, so it is pinned verbatim; a rewording is a deliberate edit here.
   expect('…and the sentence under it names the cost-book consequence, which is the invisible half',
     copy.consequence,
-    'Prices this scope off what you measured \u2014 and when the job closes, your cost book '
+    'Prices this scope off what you measured, and when the project closes, your cost book '
     + 'divides the sub\u2019s price by the measured quantity instead of the plan\u2019s.');
 
   // ── 6l. A PAYMENT WITH NO CONTRACT SUM IS REFUSED — AND NOW SAID OUT LOUD ──

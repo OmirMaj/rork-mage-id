@@ -167,7 +167,7 @@ export async function uploadAndRenderPdf({
   // user_id), so this is not a new restriction: it is the same rule, stated in
   // a message the user can act on, before a multi-MB upload instead of after.
   if (!isProjectScopedPlanSheetPath(projectId)) {
-    throw new Error('Pick a project before uploading plans — drawings are stored per project.');
+    throw new Error('Pick a project before uploading plans. Plans are stored per project.');
   }
 
   // 1. Read the PDF bytes from the local URI.

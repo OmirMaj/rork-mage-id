@@ -230,10 +230,10 @@ async function checkReadServer() {
     /params: \{ projectId, invoiceId: inv\.id, termsOrigin: termsDefault\.origin \}/.test(src));
 }
 
-// The terms pickers speak one sentence-case name (docs/VOICE.md, wave W1 B7):
-// the invoice editor and cash-flow setup both offer "Due on receipt", never
-// the old Title-Case "Due on Receipt", so the GC sees the same words where he
-// sets his terms and where he bills on them.
+// The terms pickers speak one name (docs/VOICE.md section 3: Title Case on a
+// label, 2026-10-05): the invoice editor and cash-flow setup both offer
+// "Due on Receipt", never one of them the sentence-case "Due on receipt", so
+// the GC sees the same words where he sets his terms and where he bills on them.
 {
   const lists: Array<[string, string, string]> = [
     ['app/invoice.tsx', 'const PAYMENT_TERMS_OPTIONS', '];'],
@@ -243,10 +243,10 @@ async function checkReadServer() {
     const src = read(file);
     const at = src.indexOf(open);
     const block = at < 0 ? '' : src.slice(at, src.indexOf(close, at) + close.length);
-    ok(`${file}: the terms picker offers "Due on receipt" in sentence case`,
-      block.includes("{ value: 'due_on_receipt', label: 'Due on receipt' }"), block || `${open} not found`);
-    ok(`${file}: every terms label is sentence case (no Title-Case "Due on Receipt")`,
-      block.length > 0 && !/Due on Receipt/.test(block) && [...block.matchAll(/label: '([^']+)'/g)].length === 4,
+    ok(`${file}: the terms picker offers "Due on Receipt" in Title Case`,
+      block.includes("{ value: 'due_on_receipt', label: 'Due on Receipt' }"), block || `${open} not found`);
+    ok(`${file}: every terms label is Title Case (no sentence-case "Due on receipt")`,
+      block.length > 0 && !/Due on receipt/.test(block) && [...block.matchAll(/label: '([^']+)'/g)].length === 4,
       block || `${open} not found`);
   }
 }

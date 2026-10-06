@@ -161,7 +161,7 @@ ok('...field sends through the RPC and returns the failure instead of confirming
 ok('...the local copy is only updated after the server said yes',
   QFU.indexOf('await sendFieldTaskPatches(') < QFU.indexOf('applyFieldTaskPatches(tasks, [fieldPatch])'));
 ok('...a refused update is shown as an error, not "success"', /outcome\.kind === 'refused'\) \{\s*\/\/[^\n]*\n\s*setFeedback\(\{ kind: 'error'/.test(QFU));
-ok('...viewer is refused up front with the reason', /if \(writePath === 'none'\) \{\s*return \{ ok: false, message: t\('field\.home\.qfu\.viewOnly', 'Not saved — you have view-only access to \{project\}\. Ask the project owner for field or editor access\.', \{ project: project\.name \}\) \};/.test(QFU));
+ok('...viewer is refused up front with the reason', /if \(writePath === 'none'\) \{\s*return \{ ok: false, message: t\('field\.home\.qfu\.viewOnly', 'Not saved\. You have view-only access to \{project\}\. Ask the project owner for field or editor access\.', \{ project: project\.name \}\) \};/.test(QFU));
 ok('Schedule Pro no longer gates on `role !== \'viewer\'` alone', !/const canEdit = role !== 'viewer';/.test(SP));
 // While useProjectRole is still null (loading, or its read failed) a KNOWN
 // field user must not fall back to the row PATCH that silently drops his edit:
@@ -180,7 +180,7 @@ ok('...and says what was not saved, putting the working copy back',
 ok('Daily report ripple is blocked for field/viewer with the reason',
   /const path = scheduleWritePathForRole\(project\?\.myRole\);/.test(DFR)
   && /disabled=\{confirmableRows\.length === 0 \|\| delayRowsStale \|\| !!delayRippleBlockedReason\}/.test(DFR)
-  && /if \(delayRippleBlockedReason\) \{\s*showAlert\(t\('field\.dfr\.scheduleNotChanged', 'Schedule not changed'\), delayRippleBlockedReason\);/.test(DFR));
+  && /if \(delayRippleBlockedReason\) \{\s*showAlert\(t\('field\.dfr\.scheduleNotChanged', 'Schedule Not Changed'\), delayRippleBlockedReason\);/.test(DFR));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The phone schedule — MobileScheduleScreen. THE primary platform's editor, and

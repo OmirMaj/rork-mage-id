@@ -502,10 +502,10 @@ export function fieldTicketPricingBlockReason(role: ProjectRole, roleError = fal
  */
 export function fieldTicketMoneyHiddenReason(role: ProjectRole, roleError = false): string | null {
   if (role === 'owner' || role === 'editor' || role === 'viewer') return null;
-  if (role === 'field') return 'Rates and totals are the office’s — field access shows hours and quantities.';
+  if (role === 'field') return 'Rates and totals are the office’s. Field access shows hours and quantities.';
   return roleError
     ? 'Couldn’t confirm your access on this project, so amounts are hidden. Reopen the ticket with a signal to see them.'
-    : 'Checking your access on this project — amounts show once it is confirmed.';
+    : 'Checking your access on this project. Amounts show once it is confirmed.';
 }
 
 // ─── Where the office's rates come from ──────────────────────────────────────
@@ -542,7 +542,7 @@ export function suggestLaborRate(
   const label = (trade ?? '').trim() || 'general';
   return {
     rate: round2(rate),
-    source: `Your loaded ${label} cost from Time Tracking — add O&P`,
+    source: `Your loaded ${label} cost from Time Tracking. Add O&P.`,
   };
 }
 
@@ -591,7 +591,7 @@ export function suggestEquipmentRate(
   if (!match || !match.dailyRate) return undefined;
   return {
     rate: round2(match.dailyRate / EQUIPMENT_HOURS_PER_DAY),
-    source: `${match.name} — $${match.dailyRate}/day ÷ ${EQUIPMENT_HOURS_PER_DAY} hr`,
+    source: `${match.name}: $${match.dailyRate}/day ÷ ${EQUIPMENT_HOURS_PER_DAY} hr`,
   };
 }
 
@@ -727,7 +727,7 @@ export function checkFieldTicketConversion(
   if (totals.billableTotal <= 0) {
     return {
       canConvert: false,
-      reason: 'Add rates or unit costs — a change order needs a dollar amount.',
+      reason: 'Add rates or unit costs. A change order needs a dollar amount.',
       unpricedRowCount: totals.unpricedRowCount,
     };
   }
@@ -825,8 +825,8 @@ function buildTicketLineItems(ticket: FieldTicket): ChangeOrderLineItem[] {
   if (t.markupAmount > 0) {
     items.push({
       id: generateUUID(),
-      name: `Overhead & profit (${t.markupPercent}%)`,
-      description: 'Contract markup on time & materials',
+      name: `Overhead and profit (${t.markupPercent}%)`,
+      description: 'Contract markup on time and materials',
       quantity: 1,
       unit: 'ls',
       unitPrice: t.markupAmount,
@@ -840,11 +840,11 @@ function buildTicketLineItems(ticket: FieldTicket): ChangeOrderLineItem[] {
 
 /** Wording used on the CO description + the PDF. */
 const AUTHORIZER_LABEL: Record<string, string> = {
-  owner_rep: "owner's representative",
+  owner_rep: "Owner's Representative",
   client: 'client',
   architect: 'architect',
-  cm: 'construction manager',
-  other: 'authorized representative',
+  cm: 'Construction Manager',
+  other: 'Authorized Representative',
 };
 
 export function authorizerRoleLabel(role: string | undefined): string {
@@ -905,7 +905,7 @@ export function buildChangeOrderFromTicket(input: BuildCOFromTicketInput): Chang
   const pricedNote = pricingProvenanceNote(ticket);
 
   const description = [
-    `${fieldTicketLabel(ticket.number)} — extra work performed ${formatTicketDate(ticket.date)}: ${ticket.workDescription.trim()}`,
+    `${fieldTicketLabel(ticket.number)}, extra work performed ${formatTicketDate(ticket.date)}: ${ticket.workDescription.trim()}`,
     signedBy,
     pricedNote,
   ].filter(Boolean).join(' ');

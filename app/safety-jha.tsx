@@ -199,8 +199,8 @@ function SafetyJhaInner() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!taskDescription.trim()) { showAlert(t('safety.jha.addATask', 'Add a task'), t('safety.jha.describeTheTaskFirst', 'Describe the task first so MAGE can list its hazards.')); return; }
-    if (generateBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), generateBlocked); return; }
+    if (!taskDescription.trim()) { showAlert(t('safety.jha.addATask', 'Add a Task'), t('safety.jha.describeTheTaskFirst', 'Describe the task first so MAGE can list its hazards.')); return; }
+    if (generateBlocked) { showAlert(t('safety.ai.businessFeatureTitle', 'Business Feature'), generateBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? t('safety.jha.dailyAiLimitReached', 'Daily AI limit reached.')); return; }
     // App Store 5.1.2(i): nothing leaves for the AI provider until the person
@@ -220,9 +220,9 @@ function SafetyJhaInner() {
         body: JSON.stringify({ trade, taskDescription, projectContext: project?.name ?? '', ...(getLang() === 'es' ? { locale: 'es' } : {}) }),
       });
       const refusal = safetyAiServerRefusal('jha_generate', res.status);
-      if (refusal) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), refusal); return; }
+      if (refusal) { showAlert(t('safety.ai.businessFeatureTitle', 'Business Feature'), refusal); return; }
       const json = await res.json();
-      if (!res.ok || !json.success) { console.warn('[safety-jha] draft failed', json.error); showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't draft the JHA"), t('safety.jha.fillItInBy', 'Fill it in by hand, or try again in a moment.')); return; }
+      if (!res.ok || !json.success) { console.warn('[safety-jha] draft failed', json.error); showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't Draft the JHA"), t('safety.jha.fillItInBy', 'Fill it in by hand, or try again in a moment.')); return; }
       const aiSteps: JHAStep[] = (json.data.steps ?? []).map((s: { step: string; hazards: string[]; controls: string[] }) => ({
         id: generateUUID(), step: s.step, hazards: s.hazards ?? [], controls: s.controls ?? [],
       }));
@@ -234,7 +234,7 @@ function SafetyJhaInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't draft the JHA"), t('safety.jha.youMayBeOffline', "You may be offline. Fill it in by hand, or try again when you're back online."));
+      showAlert(t('safety.jha.couldntDraftTheJha', "Couldn't Draft the JHA"), t('safety.jha.youMayBeOffline', "You may be offline. Fill it in by hand, or try again when you're back online."));
     } finally {
       setGenerating(false);
     }
@@ -243,15 +243,15 @@ function SafetyJhaInner() {
   const handleSave = useCallback(() => {
     // Immutable once signed — a signed JHA can only be archived, never edited.
     if (editingJha && editingJha.signOffs.length > 0) {
-      showAlert(t('safety.jha.signedAndLocked', 'Signed and locked'), t('safety.jha.thisJhaHasSign', 'This JHA has sign-offs and can no longer be edited. Archive it instead.'));
+      showAlert(t('safety.jha.signedAndLocked', 'Signed and Locked'), t('safety.jha.thisJhaHasSign', 'This JHA has sign-offs and can no longer be edited. Archive it instead.'));
       return;
     }
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.jha.viewOnly', 'View only'), blocked); return; }
+    if (blocked) { showAlert(t('safety.jha.viewOnly', 'View Only'), blocked); return; }
     const ttl = title.trim();
-    if (!ttl) { showAlert(t('safety.jha.missingTitle', 'Missing title'), t('safety.jha.giveThisJhaA', 'Give this JHA a title.')); return; }
+    if (!ttl) { showAlert(t('safety.jha.missingTitle', 'Missing Title'), t('safety.jha.giveThisJhaA', 'Give this JHA a title.')); return; }
     const dateProblem = safetyDateProblem(date, t('safety.jha.dateLabel', 'JHA date'));
-    if (dateProblem) { showAlert(t('safety.jha.checkTheDate', 'Check the date'), dateProblem); return; }
+    if (dateProblem) { showAlert(t('safety.jha.checkTheDate', 'Check the Date'), dateProblem); return; }
     const now = new Date().toISOString();
     const ppe = requiredPPE.map(p => p.trim()).filter(Boolean);
     if (editingJha) {
@@ -284,10 +284,10 @@ function SafetyJhaInner() {
 
   const handleDelete = useCallback((id: string) => {
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.jha.cantDelete', "Can't delete"), blocked); return; }
+    if (blocked) { showAlert(t('safety.jha.cantDelete', "Can't Delete"), blocked); return; }
     const jha = items.find(x => x.id === id);
     if (jha && jha.signOffs.length > 0) {
-      showAlert(t('safety.jha.signedAndLocked', 'Signed and locked'), t('safety.jha.aJhaWithRecorded', "A JHA with recorded sign-offs is part of the safety record and can't be deleted. Archive it instead."));
+      showAlert(t('safety.jha.signedAndLocked', 'Signed and Locked'), t('safety.jha.aJhaWithRecorded', "A JHA with recorded sign-offs is part of the safety record and can't be deleted. Archive it instead."));
       return;
     }
     showAlert(t('safety.jha.deleteJha', 'Delete JHA'), t('safety.jha.deleteThisJobHazard', 'Delete this job hazard analysis?'), [
@@ -308,15 +308,15 @@ function SafetyJhaInner() {
 
   const handleAddSignOff = useCallback(() => {
     const name = sigName.trim();
-    if (!name) { showAlert(t('safety.jha.missingName', 'Missing name'), t('safety.jha.enterWhoIsSigning', 'Enter who is signing off.')); return; }
+    if (!name) { showAlert(t('safety.jha.missingName', 'Missing Name'), t('safety.jha.enterWhoIsSigning', 'Enter who is signing off.')); return; }
     // A lapsed card asks first and names the card + date. Not a block.
     // 'Sign them off': the JHA's verb, matching the button below. The default
     // ('Sign them in') belongs to the toolbox sign-in sheet.
     const warn = lapsedCertConfirmText(name, sigFlags, 'Sign them off');
     if (warn) {
-      showAlert(t('safety.jha.certificationLapsed', 'Certification lapsed'), warn, [
+      showAlert(t('safety.jha.certificationLapsed', 'Certification Lapsed'), warn, [
         { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('safety.jha.signOffAnyway', 'Sign off anyway'), style: 'destructive', onPress: commitSignOff },
+        { text: t('safety.jha.signOffAnyway', 'Sign Off Anyway'), style: 'destructive', onPress: commitSignOff },
       ]);
       return;
     }
@@ -337,7 +337,7 @@ function SafetyJhaInner() {
         <Stack.Screen options={{ title: t('safety.jha.screenTitle', 'JHAs') }} />
         <EmptyState
           icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title={t('safety.jha.openAProjectFirst', 'Open a project first')}
+          title={t('safety.jha.openAProjectFirst', 'Open a Project First')}
           message={t('safety.jha.jhasAreTiedTo', 'JHAs are tied to a project so each one carries its trade, steps and sign-offs. To start one:')}
           steps={[
             t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
@@ -346,7 +346,7 @@ function SafetyJhaInner() {
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel={t('safety.jha.pickAProject', 'Pick a project')}
+          actionLabel={t('safety.jha.pickAProject', 'Pick a Project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -355,7 +355,7 @@ function SafetyJhaInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: t('safety.jha.titleWithProject', 'JHAs — {name}', { name: project.name }) }} />
+      <Stack.Screen options={{ title: t('safety.jha.titleWithProject', 'JHAs · {name}', { name: project.name }) }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the JHAs he filed
             (20260919130000); the GC's are not shown to him. */}
@@ -408,7 +408,7 @@ function SafetyJhaInner() {
                 )}
                 <TouchableOpacity style={styles.cardActionBtn} onPress={() => { setSignOffFor(item.id); setSigName(''); setSigRole(''); setSigWorkerId(null); }}>
                   <PenLine size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.cardActionText, { color: themeColors.accent }]}>{t('safety.jha.addSignOff', 'Add sign-off')}</Text>
+                  <Text style={[styles.cardActionText, { color: themeColors.accent }]}>{t('safety.jha.addSignOff', 'Add Sign-Off')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel={t('common.action.delete', 'Delete')}>
                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
@@ -422,9 +422,9 @@ function SafetyJhaInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={isCrewSeat ? crewEmptyTitle('jha') : t('safety.jha.noJhasYet', 'No JHAs yet')}
+              title={isCrewSeat ? crewEmptyTitle('jha') : t('safety.jha.noJhasYet', 'No JHAs Yet')}
               message={t('safety.jha.breakATaskInto', 'Break a task into steps, name the hazards and set the controls before crews start. Draft it from a task description, then edit it and get sign-offs.')}
-              actionLabel={t('safety.jha.addFirstJha', 'Add first JHA')}
+              actionLabel={t('safety.jha.addFirstJha', 'Add First JHA')}
               onAction={() => { resetForm(); setShowForm(true); }}
             />
           </View>
@@ -437,7 +437,7 @@ function SafetyJhaInner() {
           testID="add-jha-voice"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.addItemBtnText}>{t('safety.jha.writeOneByVoice', 'Write one by voice')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.jha.writeOneByVoice', 'Write One by Voice')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-jha">
@@ -466,18 +466,18 @@ function SafetyJhaInner() {
                   <View style={styles.lockedBanner}>
                     <Lock size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.lockedBannerText}>
-                      {t('safety.jha.signedLockedSignOffs', 'Signed — locked. Sign-offs are append-only; the analysis can’t be edited. You can archive it or add more sign-offs.')}
+                      {t('safety.jha.signedLockedSignOffs', 'Signed and locked. Sign-offs are append-only; the analysis can’t be edited. You can archive it or add more sign-offs.')}
                     </Text>
                   </View>
                 ) : null}
 
                 <Text style={styles.fieldLabel}>{t('safety.jha.titleLabel', 'Title *')}</Text>
-                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={title} onChangeText={setTitle} editable={!isLocked} placeholder={t('safety.jha.eGRoofTie', 'e.g. Roof tie-off — south slope')} placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
+                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={title} onChangeText={setTitle} editable={!isLocked} placeholder={t('safety.jha.eGRoofTie', 'Roof tie-off, south slope')} placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>{t('safety.jha.trade', 'Trade')}</Text>
-                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={trade} onChangeText={setTrade} editable={!isLocked} placeholder={t('safety.jha.eGRoofing', 'e.g. Roofing')} placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={trade} onChangeText={setTrade} editable={!isLocked} placeholder={t('safety.jha.eGRoofing', 'Roofing')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>{t('safety.jha.date', 'Date')}</Text>
@@ -485,7 +485,7 @@ function SafetyJhaInner() {
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>{t('safety.jha.taskDescription', 'Task description')}</Text>
+                <Text style={styles.fieldLabel}>{t('safety.jha.taskDescription', 'Task Description')}</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }, isLocked ? styles.inputLocked : null]}
                   value={taskDescription}
@@ -511,9 +511,9 @@ function SafetyJhaInner() {
                 <View style={styles.stepsHeader}>
                   <Text style={styles.fieldLabel}>{t('safety.jha.steps', 'Steps')}</Text>
                   {!isLocked ? (
-                    <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel={t('safety.jha.addStep', 'Add step')}>
+                    <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel={t('safety.jha.addStep', 'Add Step')}>
                       <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.addStepText}>{t('safety.jha.addStep', 'Add step')}</Text>
+                      <Text style={styles.addStepText}>{t('safety.jha.addStep', 'Add Step')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -523,7 +523,7 @@ function SafetyJhaInner() {
                     <View style={styles.stepRowHeader}>
                       <Text style={styles.stepNum}>{t('safety.jha.stepNumber', 'Step {n}', { n: idx + 1 })}</Text>
                       {!isLocked ? (
-                        <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.jha.removeStep', 'Remove step')}>
+                        <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.jha.removeStep', 'Remove Step')}>
                           <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                         </TouchableOpacity>
                       ) : null}
@@ -593,14 +593,14 @@ function SafetyJhaInner() {
         <View style={[styles.signOverlay, fSign.overlay]}>
           <View style={[styles.signCard, fSign.card]}>
             <View style={styles.formHeader}>
-              <Text style={styles.signTitle}>{t('safety.jha.addSignOff', 'Add sign-off')}</Text>
+              <Text style={styles.signTitle}>{t('safety.jha.addSignOff', 'Add Sign-Off')}</Text>
               <TouchableOpacity onPress={() => setSignOffFor(null)} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {assignedCrew.length > 0 ? (
               <>
-                <Text style={styles.fieldLabel}>{t('safety.jha.crewOnThisProject', 'Crew on this project')}</Text>
+                <Text style={styles.fieldLabel}>{t('safety.jha.crewOnThisProject', 'Crew on This Project')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                   {assignedCrew.map(m => {
                     const active = sigWorkerId === m.id;
@@ -640,13 +640,13 @@ function SafetyJhaInner() {
               </View>
             ))}
             <Text style={styles.fieldLabel}>{t('safety.jha.role', 'Role')}</Text>
-            <TextInput style={styles.input} value={sigRole} onChangeText={setSigRole} placeholder={t('safety.jha.eGForeman', 'e.g. Foreman')} placeholderTextColor={themeColors.textMuted} />
+            <TextInput style={styles.input} value={sigRole} onChangeText={setSigRole} placeholder={t('safety.jha.eGForeman', 'Foreman')} placeholderTextColor={themeColors.textMuted} />
             <View style={styles.formActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setSignOffFor(null)}>
                 <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddSignOff} activeOpacity={0.85}>
-                <Text style={styles.saveBtnText}>{t('safety.jha.signOff', 'Sign off')}</Text>
+                <Text style={styles.saveBtnText}>{t('safety.jha.signOff', 'Sign Off')}</Text>
               </TouchableOpacity>
             </View>
           </View>

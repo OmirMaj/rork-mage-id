@@ -54,7 +54,7 @@ export async function buildToolboxGrounding(c: CopilotContext): Promise<Groundin
 /** "Grounded on: 2 recent incidents, 1 open hazard on this job." */
 export function toolboxGroundedOnLine(incidentsRead: number, openHazards: number): string {
   if (incidentsRead <= 0 && openHazards <= 0) {
-    return 'Grounded on: nothing logged on this job yet — no incidents or open hazards to learn from.';
+    return 'Grounded on: nothing logged on this project yet, so no incidents or open hazards to learn from.';
   }
   const parts: string[] = [];
   if (incidentsRead > 0) parts.push(`${incidentsRead} recent incident${incidentsRead === 1 ? '' : 's'}`);

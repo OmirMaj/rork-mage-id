@@ -409,7 +409,7 @@ console.log('\nPlanPinStep (source)');
   // The loaded image's shape is the truth (stored dimensions can be swapped or
   // stale); the stored size only sizes the box before onLoad.
   ok('ratio from the loaded image first, stored sheet size before it loads', /loadedRatio\s*\?\?\s*sheetAspectRatio\(sheet\)/.test(step));
-  ok('a disabled Next says what it is waiting for (loading / load error)', /loadState === 'error'[\s\S]{0,120}Plan didn’t load/.test(step) && /loadState === 'loading'[\s\S]{0,90}Loading the plan/.test(step));
+  ok('a disabled Next says what it is waiting for (loading / load error)', /loadState === 'error'[\s\S]{0,120}Plan Didn’t Load/.test(step) && /loadState === 'loading'[\s\S]{0,90}Loading the plan/.test(step));
   ok('children of the touch box do not take the touch (pointerEvents="none")', (step.match(/pointerEvents="none"/g) ?? []).length >= 3);
   ok('iOS pinch zoom through the ScrollView, starting fitted', /maximumZoomScale=\{Platform\.OS === 'ios'/.test(step) && /minimumZoomScale=\{1\}/.test(step));
   ok('a new plan goes through addFloorPlan (upload first)', /addFloorPlan\(/.test(step));
@@ -417,8 +417,8 @@ console.log('\nPlanPinStep (source)');
   ok('no direct storage upload or addPlanSheet call from the step', !/supabase\.|\.upload\(|actionsRef\.current\.addPlanSheet\(/.test(step));
   ok('Skip is always rendered', /testID="walk-pin-skip"/.test(step));
   ok('Next is disabled until a pin is placed and says why', /disabled=\{!pin/.test(step) && /Tap the plan where this is/.test(step));
-  ok('a plan that cannot load says so', /Plan can.{0,12}t load/.test(step));
-  ok('the no-plan screen says so plainly', /No floor plan on this project yet/.test(step));
+  ok('a plan that cannot load says so', /Plan Can.{0,12}t Load/.test(step));
+  ok('the no-plan screen says so plainly', /No Floor Plan on This Project Yet/.test(step));
   ok('the image source comes from pinStepImageSource (path-keyed cache, valid url)', /pinStepImageSource\(sheet/.test(step) && !/cacheKey:/.test(step));
   ok('Try again re-signs from the storage path (an expired link never recovers otherwise)',
     /onPress=\{handleRetry\}/.test(step) && /resolvePlanSheetUrl\(target\.storagePath\)/.test(step)
@@ -552,7 +552,7 @@ console.log('\na device-only plan is saved before it takes a pin (critic 2026-09
   ok('"Try again" / load-error overlay is only for a durable sheet', /mode === 'pin' && loadState === 'error' &&/.test(step));
   ok('a re-picked image attaches to the SAME sheet when it is not durable',
     /sheet && imageState !== 'durable'\s*\?\s*await attachFloorPlanImage\(sheet/.test(between(step, 'const runAdd = useCallback', '}, [')));
-  ok('the disabled Next says why on a device-only sheet', /'Save the plan first'/.test(step) && /'Add the plan image first'/.test(step));
+  ok('the disabled Next says why on a device-only sheet', /'Save the Plan First'/.test(step) && /'Add the Plan Image First'/.test(step));
 }
 
 console.log('');

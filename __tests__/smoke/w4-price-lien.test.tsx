@@ -117,14 +117,14 @@ describe('Lien clock card', () => {
     if (LIEN_RULES.NY.verified) {
       const eight = formatCalendarDay(addCalendarMonths(last, 8));
       const four = formatCalendarDay(addCalendarMonths(last, 4));
-      expect(screen.getByText(new RegExp(`New York: file by ${eight} — or by ${four} if this is a single-family dwelling`))).toBeTruthy();
+      expect(screen.getByText(new RegExp(`New York: file by ${eight}, or by ${four} if this is a single-family dwelling`))).toBeTruthy();
       expect(screen.getByText(/A public project \(city, state, school, authority\) has a much shorter deadline/)).toBeTruthy();
       expect(screen.getByText(/N\.Y\. Lien Law § 10/)).toBeTruthy();
     } else {
       expect(screen.getByText(/We couldn't verify New York's lien deadline today/)).toBeTruthy();
       expect(screen.queryByText(/Lien Law/)).toBeNull();
     }
-    expect(screen.getByText(/confirm with your attorney/)).toBeTruthy();
+    expect(screen.getByText(/Confirm with your attorney/)).toBeTruthy();
   });
 
   it('says there is no daily report once the log is read', () => {

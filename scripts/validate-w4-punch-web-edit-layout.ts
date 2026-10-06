@@ -259,7 +259,7 @@ console.log('\nD. the screen and the pane');
   const pane = stripTsComments(read('components/punch/PunchEditPanes.tsx'));
   ok('the pane draws the photo in a square cover frame with the markup overlay', /aspectRatio:\s*1/.test(pane) && /resizeMode="cover"/.test(pane) && pane.includes('<PhotoMarkupOverlay markup={p.markup} />'));
   ok('the photo taps through to the full-size viewer', /onPress=\{p\.onOpenPhoto\}/.test(pane));
-  ok('no photo → an Add photo drop zone', pane.includes('testID="punch-edit-photo-add"') && pane.includes('Add photo'));
+  ok('no photo → an Add Photo drop zone', pane.includes('testID="punch-edit-photo-add"') && pane.includes('Add Photo'));
   ok('a blocked button is drawn disabled with its reason under it', /disabled=\{!!p\.replaceBlocked\}/.test(pane) && /disabled=\{!!p\.removeBlocked\}/.test(pane) && pane.includes('testID="punch-edit-photo-blocked"'));
   ok('the close-up uses pinCropWindow and waits for a real aspect', /pinCropWindow\(pin\.x,\s*pin\.y,\s*aspect\)/.test(pane) && /aspect \? pinCropWindow/.test(pane));
   ok('PunchPhotoViewer is mounted inside the form Modal for the pane', /<PunchPhotoViewer[\s\S]*visible=\{paneViewerOpen && editLayout === 'split'\}/.test(src));

@@ -168,7 +168,7 @@ console.log('\n#123 safety AI is gated on his own Business tier');
   }
   ok('a server 403 reads the same as the button', safetyAiServerRefusal('hazard_scan', 403) === safetyAiBlockedReason('hazard_scan', false) && safetyAiServerRefusal('hazard_scan', 500) === null);
   ok('"AI limit reached" only for a real cap', aiLimitAlertTitle('daily_cap') === 'AI limit reached' && aiLimitAlertTitle('smart_cap') === 'AI limit reached' && aiLimitAlertTitle('lifetime_cap') === 'AI limit reached');
-  ok('a tier block is a "Business feature"', aiLimitAlertTitle('pro_only') === 'Business feature' && aiLimitAlertTitle(undefined) === 'Business feature');
+  ok('a tier block is a "Business Feature"', aiLimitAlertTitle('pro_only') === 'Business Feature' && aiLimitAlertTitle(undefined) === 'Business Feature');
   const wired: [string, string, string, string][] = [
     ['hazard scan', HAZ, 'scanBlocked', "safetyAiBlockedReason('hazard_scan', isBusinessOrAbove)"],
     ['incident draft', INC, 'draftBlocked', "safetyAiBlockedReason('incident_draft', isBusinessOrAbove)"],
@@ -180,7 +180,7 @@ console.log('\n#123 safety AI is gated on his own Business tier');
     ok(`${name}: refused before checkAILimit, alert title follows the reason`,
       // wave-next W2 (Spanish): the title is the catalog key with the same English.
       (src.indexOf(`if (${v}) { showAlert('Business feature', ${v}); return; }`) > -1
-        || src.indexOf(`if (${v}) { showAlert(t('safety.ai.businessFeatureTitle', 'Business feature'), ${v}); return; }`) > -1)
+        || src.indexOf(`if (${v}) { showAlert(t('safety.ai.businessFeatureTitle', 'Business Feature'), ${v}); return; }`) > -1)
       && src.indexOf(`if (${v}) {`) < src.indexOf('await checkAILimit(')
       && /showAlert\(aiLimitAlertTitle\(check\.reason\)/.test(src));
     ok(`${name}: no hard-coded "AI limit reached" left`, !/showAlert\('AI limit reached'/.test(src));
@@ -224,7 +224,7 @@ console.log('\n#125 offline with no cached role says so');
     gate.indexOf('roleState.isError') < pausedAt && pausedAt < gate.indexOf('<Paywall'));
   const branch = pausedAt > -1 ? gate.slice(pausedAt, gate.indexOf('<Paywall')) : '';
   ok('…titled "Waiting for signal", shows the reason, Try again refetches, testID safety-gate-offline',
-    /testID="safety-gate-offline"/.test(branch) && /Waiting for signal/.test(branch) && /\{roleState\.reason\}/.test(branch) && /roleState\.refetch\(\)/.test(branch));
+    /testID="safety-gate-offline"/.test(branch) && /Waiting for Signal/.test(branch) && /\{roleState\.reason\}/.test(branch) && /roleState\.refetch\(\)/.test(branch));
 }
 
 // ── #119 review round 1 ─────────────────────────────────────────────────

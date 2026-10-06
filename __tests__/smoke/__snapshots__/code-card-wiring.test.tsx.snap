@@ -3,21 +3,21 @@
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (a) Code Check result sheet, two citations, no linked job 1`] = `
 {
   "lines": 1064,
-  "sha256": "3371c7ab9ad7aeb37f82f8f825dffabd90e85166e270805914b7ce847be8b85a",
+  "sha256": "55efda1be903bea3ad2b78f181d0e038d2e5fc1a4817dfadecaaab8ea1a3a84f",
 }
 `;
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (b) Ask, prose answer, no requirements (the fallback) 1`] = `
 {
   "lines": 851,
-  "sha256": "c1066ba9bdd57036731765b919e9b01ebdee506e2553e32eac0701d662437385",
+  "sha256": "a5d3aa40e092c101b1c49e0059afbc59d27f6bbba77550abedbdec4b5bacfe71",
 }
 `;
 
 exports[`CCWIRE golden — recorded on the untouched files (390 × 844 iOS) (c) Plan Review, three saved findings on one sheet 1`] = `
 {
   "lines": 724,
-  "sha256": "9113452200b83cf18baf61c3031f6e492ce5b959963490af5b5c972d800ead72",
+  "sha256": "ef93c0a7915c31be1fe9445f7da22e10b80493a73d0c9f419e5432648e8c3352",
 }
 `;
 

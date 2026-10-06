@@ -255,9 +255,9 @@ ok('the Pay-link card (Copy / Share / Regenerate / Generate) is replaced while p
 ok('every mint on the screen refuses while pending (Send, PDF send, re-mints go through mintPayLinkFor)',
   /if \(pendingBankMintBlock && invoice\.id === existingInvoice\?\.id\) \{\s*return \{ ok: false, reason: 'failed', error: 'payment_pending', message: pendingBankMintBlock \};/.test(INVOICE));
 ok('Regenerate (its own createPaymentLink call) refuses with the reason',
-  /\/\/ #83: Regenerate is a mint too\.\s*if \(pendingBankPayment\) \{\s*showAlert\('Bank payment processing'/.test(INVOICE));
+  /\/\/ #83: Regenerate is a mint too\.\s*if \(pendingBankPayment\) \{\s*showAlert\('Bank Payment Processing'/.test(INVOICE));
 ok('Record Payment asks first instead of silently double-counting',
-  /if \(pendingBankPayment && !confirmedDespitePending\.current\) \{\s*showAlert\(\s*'A bank payment is processing'/.test(INVOICE));
+  /if \(pendingBankPayment && !confirmedDespitePending\.current\) \{\s*showAlert\(\s*'A Bank Payment Is Processing'/.test(INVOICE));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

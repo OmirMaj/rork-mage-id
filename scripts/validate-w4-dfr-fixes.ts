@@ -147,7 +147,7 @@ console.log('\n#122 someone else\'s case is never blind-written:');
 {
   const r = P.dfrCaseNotYoursReason;
   const base = { caseVisible: false, caseDeleted: false, isOwner: false, savedHadIncident: true, filedByUserId: 'gc', viewerId: 'fm', authorPossessive: 'the project owner’s' };
-  ok('foreman on the GC\'s report, case not visible → locked with the reason', /^This case is in the project owner.s injury log — tell the GC\./.test(r(base) ?? ''), r(base));
+  ok('foreman on the GC\'s report, case not visible → locked with the reason', /^This case is in the project owner.s injury log\. Tell the GC\./.test(r(base) ?? ''), r(base));
   ok('case visible → null', r({ ...base, caseVisible: true }) === null);
   ok('his own report → null (his insert is his case)', r({ ...base, filedByUserId: 'fm' }) === null);
   ok('the owner → null (he sees every case on his job)', r({ ...base, isOwner: true }) === null);
@@ -266,7 +266,7 @@ console.log('\n#58 the homeowner update on a submitted report:');
   ok('the button renders only while the update differs from what is saved', /\{hsEditableWhenLocked && hsUpdateDirty && \(/.test(code) && /testID="hs-save-update"/.test(code));
   const back = code.slice(code.indexOf('const handleBack = useCallback('), code.indexOf('if (!project) {'));
   ok('the back guard asks about an unsaved update BEFORE the sent-report early exit', back.indexOf('if (hsUpdateDirty) {') > -1 && back.indexOf('if (hsUpdateDirty) {') < back.indexOf("if (!isDirty || existingReport?.status === 'sent') { goBack(); return; }"));
-  ok('…and offers "Save update", never "Save draft", on a sent report', /text: t\('field\.dfr\.saveUpdate', 'Save update'\), onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
+  ok('…and offers "Save update", never "Save draft", on a sent report', /text: t\('field\.dfr\.saveUpdate', 'Save Update'\), onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
   ok('a field/viewer seat on a sent report is told the owner decides', /testID="hs-locked-owner-decides"/.test(code));
 }
 
@@ -277,7 +277,7 @@ console.log('\n#62 a submitted report can be printed / shared again:');
   ok('web prints (the synchronous tab), the phone shares generateDFRPDF with the send path\'s inputs', /if \(Platform\.OS === 'web'\) \{ handlePrintCopy\(\); return; \}/.test(fn)
     && /generateDFRPDF\(doc, project, brandingOrBlank\(\), \{\s*photos: await resolveDfrPhotosForDocument\(doc\.photos, galleryPhotos\),\s*incidentClassification: documentClassification,/.test(fn));
   ok('…and saves nothing, stamps nothing', !/updateDailyReport|handleSave|addDailyReport/.test(fn));
-  ok('…a failure says so', /showAlert\(t\('field\.dfr\.couldNotMakeThe', 'Could not make the PDF'\)/.test(fn));
+  ok('…a failure says so', /showAlert\(t\('field\.dfr\.couldNotMakeThe', 'Could Not Make the PDF'\)/.test(fn));
   ok('the document record of a sent report is "sent"', /status: existingReport\?\.status === 'sent' \? 'sent' : 'draft',/.test(code));
 }
 
@@ -296,7 +296,7 @@ console.log('\n#76 Draft CO: client-facing description, one line per item:');
   const leak = code.slice(code.indexOf('const handleDraftLeakCO = useCallback('), code.indexOf('const scheduleTasks = useMemo'));
   ok('the Draft-CO handler sends prefillLines + the neutral description, not the old string', /prefillDescription: prefill\.prefillDescription,\s*prefillLines: prefill\.prefillLines,/.test(leak)
     && !/NEEDS PRICE: \$\{/.test(leak) && !/~\$\$\{/.test(leak) && !/reportQuote/.test(leak) && !/prefillAmount/.test(leak));
-  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report\.'\)\); return; \}/.test(leak));
+  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change Orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders\. This goes to them as a field issue in this report\.'\)\); return; \}/.test(leak));
 }
 
 console.log('\n#41 (time-labor handoff) the roster reads the GC\'s shift-alert hours:');

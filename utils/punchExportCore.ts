@@ -136,15 +136,15 @@ export const PUNCH_EXPORT_CSV_COLUMNS = [
 
 export const PUNCH_EXPORT_PHOTO_TEXT = {
   unreachable: 'Photo not available (offline / not uploaded)',
-  over_size: 'Photo not included — this PDF reached its size limit on a phone',
-  over_offline_budget: 'Photo not added — no signal. Export again with signal to include it.',
+  over_size: 'Photo not included. This PDF reached its size limit on a phone.',
+  over_offline_budget: 'Photo not added: no signal. Export again with signal to include it.',
   no_photo: 'No photo',
 } as const;
 
 export const PUNCH_EXPORT_NOT_PINNED = 'not pinned';
 export const PUNCH_EXPORT_CREW_INTERNAL =
-  'Crew list — internal working list. These items are not on the formal punch list and are never shown in the client portal.';
-export const PUNCH_EXPORT_INTERNAL_STAMP = 'INTERNAL — includes the crew list. Not for the owner or client.';
+  'Crew list: internal working list. These items are not on the formal punch list and are never shown in the client portal.';
+export const PUNCH_EXPORT_INTERNAL_STAMP = 'INTERNAL: includes the crew list. Not for the owner or client.';
 export const PUNCH_EXPORT_DISCLAIMER =
   'Item numbers count every item on this project, on both lists, in the order it was logged, so a copy for one room or one sub uses the same numbers as the full list. Deleting an item renumbers the items logged after it; the 6-character ref beside each number never changes, so use it to match copies made on different days. Statuses are as recorded in MAGE ID when this report was generated.';
 
@@ -446,7 +446,7 @@ export function photoGpsText(item: Pick<PunchItem, 'photoLatitude' | 'photoLongi
   if (!label) return coords;
   // A label that is itself the coordinates adds nothing.
   if (/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(label)) return coords;
-  return `${coords} — ${label}`;
+  return `${coords} · ${label}`;
 }
 
 function emptyByStatus(): Record<PunchItemStatus, number> {
@@ -592,26 +592,26 @@ export function describeScope(input: PunchExportScopeInput, scope: PunchExportSc
   const choice = listChoice(all);
   if (scope === 'filtered') {
     const k = itemsInScope(input, 'filtered', includeCrew).length;
-    return `Filtered: ${k} of ${plural(n, 'item')} — ${describeFilters(input.filters, input.activeList)}`;
+    return `Filtered: ${k} of ${plural(n, 'item')} (${describeFilters(input.filters, input.activeList)})`;
   }
   if (scope === 'selected') {
     const sel = itemsInScope(input, 'selected', includeCrew);
     const lists = new Set(sel.map(i => punchListTypeOf(i)));
-    const tail = sel.length > 0 && lists.size === 1 ? ` — ${listLabel([...lists][0])}` : '';
+    const tail = sel.length > 0 && lists.size === 1 ? `, ${listLabel([...lists][0])}` : '';
     return `Selected: ${sel.length} of ${plural(n, 'item')}${tail}`;
   }
   if (choice.available) {
     if (includeCrew) {
-      return `All ${plural(n, 'item')} — ${choice.punchCount} on the punch list, ${choice.crewCount} on the crew list (internal)`;
+      return `All ${plural(n, 'item')}: ${choice.punchCount} on the punch list, ${choice.crewCount} on the crew list (internal)`;
     }
-    return `All ${plural(choice.punchCount, 'punch list item')} — crew list left out`;
+    return `All ${plural(choice.punchCount, 'punch list item')}, crew list left out`;
   }
-  if (choice.crewCount > 0 && choice.punchCount === 0) return `All ${plural(n, 'item')} — crew list (internal)`;
+  if (choice.crewCount > 0 && choice.punchCount === 0) return `All ${plural(n, 'item')}: crew list (internal)`;
   return `All ${plural(n, 'item')}`;
 }
 
 export function exportDisabledReason(args: { projectItemCount: number; scope: PunchExportScope; count: number }): string | null {
-  if (args.projectItemCount === 0) return 'Nothing to export yet — add a punch item first.';
+  if (args.projectItemCount === 0) return 'Nothing to export yet. Add a punch item first.';
   if (args.count === 0) {
     if (args.scope === 'filtered') return 'Nothing matches the filters on screen. Choose Everything, or clear a filter.';
     if (args.scope === 'selected') return 'No items are selected. Choose Everything, or select items first.';
@@ -641,7 +641,7 @@ export function scopeOptions(input: PunchExportScopeInput, includeCrew: boolean)
     const k = itemsInScope(input, 'filtered', includeCrew).length;
     out.push({
       scope: 'filtered',
-      label: "What's on screen",
+      label: "What's on Screen",
       detail: `${plural(k, 'item')} · ${describeFilters(input.filters, input.activeList)}`,
       count: k,
       disabledReason: exportDisabledReason({ projectItemCount, scope: 'filtered', count: k }),
@@ -696,8 +696,8 @@ export function photoCapFor(target: PunchExportTarget): number {
 export function overCapPhotoText(target: PunchExportTarget): string {
   const cap = photoCapFor(target);
   return target === 'web'
-    ? `Photo not included — one PDF holds up to ${cap} photos`
-    : `Photo not included — a PDF made on a phone holds up to ${cap} photos`;
+    ? `Photo not included. One PDF holds up to ${cap} photos.`
+    : `Photo not included. A PDF made on a phone holds up to ${cap} photos.`;
 }
 
 export function nativePhotoEstimate(args: { photoCount: number; target: PunchExportTarget }): PunchExportPhotoEstimate {
@@ -726,20 +726,20 @@ export function photoNotes(args: {
   if (args.target === 'web') {
     const out = ['Each photo goes in as a small copy, so the PDF stays small enough to email.'];
     if (n > cap) {
-      out.push(`One PDF holds up to ${cap} photos — the first ${cap} (open items first) go in and the other ${n - cap} print "Photo not included". Export one room or one sub at a time to get every photo.`);
+      out.push(`One PDF holds up to ${cap} photos. The first ${cap} (open items first) go in and the other ${n - cap} print "Photo not included". Export one room or one sub at a time to get every photo.`);
     }
     return out;
   }
   const est = nativePhotoEstimate({ photoCount: n, target: args.target });
   const bytes = est.approxBytes ?? 0;
   if (n <= cap) {
-    let line = `Photos go in at full size on a phone — about ${mb(bytes)} MB.`;
+    let line = `Photos go in at full size on a phone, about ${mb(bytes)} MB.`;
     if (bytes > PUNCH_EXPORT_EMAIL_FRIENDLY_BYTES) line += ' Too big for most email; AirDrop, Messages or Mail Drop will take it.';
     return [line];
   }
   return [
-    `A PDF made on a phone carries up to ${cap} photos, at full size — about ${mb(bytes)} MB. Open items get them first; the other ${est.leftOut} print "Photo not included".`,
-    `For all ${n} photos in one small file, export from app.mageid.app on a computer — or export one room or one sub at a time.`,
+    `A PDF made on a phone carries up to ${cap} photos at full size, about ${mb(bytes)} MB. Open items get them first; the other ${est.leftOut} print "Photo not included".`,
+    `For all ${n} photos in one small file, export from app.mageid.app on a computer, or export one room or one sub at a time.`,
   ];
 }
 
@@ -1001,7 +1001,7 @@ export function buildPunchExportModel(input: BuildPunchExportModelInput): PunchE
           let g = sheetGroups.get(plan.sheetId);
           if (!g) {
             const sheet = sheetsById.get(plan.sheetId);
-            const label = `${plan.sheetLabel}${sheet?.superseded ? ' (older revision)' : ''} — pinned, no room typed`;
+            const label = `${plan.sheetLabel}${sheet?.superseded ? ' (older revision)' : ''} · pinned, no room typed`;
             g = newGroup(`sheet:${plan.sheetId}`, label, 'sheet');
             sheetGroups.set(plan.sheetId, g);
             ordered.push(g);
@@ -1340,7 +1340,7 @@ export function photoSummaryLine(model: PunchExportModel, assets: PunchExportAss
     .filter(r => counts[r] > 0)
     .map(r => `${counts[r]} ${phrase[r]}`);
   const n = model.photoItemIds.length;
-  return `Photos: ${k} of ${n} in this report${reasons.length ? ` — ${reasons.join('; ')}` : ''}.`;
+  return `Photos: ${k} of ${n} in this report${reasons.length ? `. ${reasons.join('; ')}` : ''}.`;
 }
 
 export function exportProgressCopy(p: PunchExportProgress, target: PunchExportTarget): string {
@@ -1349,16 +1349,16 @@ export function exportProgressCopy(p: PunchExportProgress, target: PunchExportTa
       return 'Getting photo links…';
     case 'photos':
       return target === 'web'
-        ? `Preparing photos — ${p.done} of ${p.total}`
-        : `Checking photos — ${p.done} of ${p.total}`;
+        ? `Preparing photos: ${p.done} of ${p.total}`
+        : `Checking photos: ${p.done} of ${p.total}`;
     case 'plans':
-      return `Preparing plan sheets — ${p.done} of ${p.total}`;
+      return `Preparing plan sheets: ${p.done} of ${p.total}`;
     case 'building': {
       const n = p.photoCount ?? 0;
       if (target !== 'web' && n > 0) {
         const m = typeof p.approxBytes === 'number' ? mb(p.approxBytes) : 0;
         const size = m >= 1 ? ` (about ${m} MB)` : '';
-        return `Building the PDF with ${plural(n, 'full-size photo')}${size} — the screen may pause for a few seconds.`;
+        return `Building the PDF with ${plural(n, 'full-size photo')}${size}. The screen may pause for a few seconds.`;
       }
       return 'Building the PDF…';
     }
@@ -1381,23 +1381,23 @@ export function exportFailureCopy(stage: PunchExportStage, err?: unknown): { tit
   switch (stage) {
     case 'timeout':
       return {
-        title: 'The PDF took too long',
-        body: 'Building the PDF ran past 4 minutes — usually a slow connection while it downloads full-size photos. The phone may need a few more minutes to let go of that attempt before another PDF can start; meanwhile the spreadsheet (CSV) works, or try the PDF with photos off or one room at a time. Your punch list is unchanged.',
+        title: 'The PDF Took Too Long',
+        body: 'Building the PDF ran past 4 minutes. That is usually a slow connection while it downloads full-size photos. The phone may need a few more minutes to let go of that attempt before another PDF can start; meanwhile the spreadsheet (CSV) works, or try the PDF with photos off or one room at a time. Your punch list is unchanged.',
       };
     case 'busy':
       return {
-        title: 'Still finishing the last PDF',
-        body: 'This phone is still building the previous PDF (it can take a few minutes after a slow attempt). The spreadsheet (CSV) works meanwhile — your punch list is unchanged.',
+        title: 'Still Finishing the Last PDF',
+        body: 'This phone is still building the previous PDF (it can take a few minutes after a slow attempt). The spreadsheet (CSV) works meanwhile. Your punch list is unchanged.',
       };
     case 'share-unavailable':
       return {
-        title: 'Nothing to share with',
+        title: 'Nothing to Share With',
         body: 'The file was made, but this device has no share sheet to hand it to another app. Try again, or export from app.mageid.app on a computer.',
       };
     case 'popup-blocked-twice':
       return {
-        title: 'Pop-ups are blocked',
-        body: 'Your browser blocked the print tab, so the report downloaded as an HTML file instead. Open it and use Print → Save as PDF, or allow pop-ups for this site and try again.',
+        title: 'Pop-Ups Are Blocked',
+        body: 'Your browser blocked the print tab, so the report downloaded as an HTML file instead. Open it and use Print > Save as PDF, or allow pop-ups for this site and try again.',
       };
     case 'photos': {
       const c = describeError(err, { action: 'prepare the photos for this PDF', keptLocally: true });
@@ -1419,14 +1419,14 @@ export function primaryLabel(args: {
   format: PunchExportFormat; target: PunchExportTarget; blocked: boolean; approxBytes: number | null;
 }): string {
   if (args.blocked) return 'Open PDF';
-  if (args.format === 'csv') return args.target === 'web' ? 'Download spreadsheet' : 'Share spreadsheet';
+  if (args.format === 'csv') return args.target === 'web' ? 'Download Spreadsheet' : 'Share Spreadsheet';
   if (args.target === 'web') return 'Open PDF';
   if (typeof args.approxBytes === 'number' && args.approxBytes >= 1e6) return `Share PDF (about ${mb(args.approxBytes)} MB)`;
   return 'Share PDF';
 }
 
 export function internalNote(hasCrew: boolean): string | null {
-  return hasCrew ? 'Includes the internal crew list — the PDF and its file name are marked INTERNAL.' : null;
+  return hasCrew ? 'Includes the internal crew list. The PDF and its file name are marked INTERNAL.' : null;
 }
 
 export function webPrintWaitMs(remoteCount: number): number {

@@ -115,7 +115,7 @@ export default function VoiceRecorder({
         <View style={[styles.micBtn, styles.micBtnDisabled]}>
           <MicOff size={20} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
-        <Text style={styles.webLabel}>{t('field.chrome.voiceWebUnavailable', 'Voice input not available on web')}</Text>
+        <Text style={styles.webLabel}>{t('field.chrome.voiceWebUnavailable', 'Voice Input Not Available on Web')}</Text>
       </View>
     );
   }
@@ -126,7 +126,7 @@ export default function VoiceRecorder({
         <View style={[styles.micBtn, styles.micBtnLocked]}>
           <Lock size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
-        <Text style={styles.lockedLabel}>{t('field.chrome.voiceProLocked', 'Pro feature — tap to upgrade')}</Text>
+        <Text style={styles.lockedLabel}>{t('field.chrome.voiceProLocked', 'Pro Feature. Tap to upgrade.')}</Text>
       </TouchableOpacity>
     );
   }
@@ -143,7 +143,7 @@ export default function VoiceRecorder({
           <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <Text style={styles.label}>
-          {isLoading ? t('field.chrome.processing', 'Processing…') : (label ?? t('field.chrome.tapToDictate', 'Tap to dictate'))}
+          {isLoading ? t('field.chrome.processing', 'Processing…') : (label ?? t('field.chrome.tapToDictate', 'Tap to Dictate'))}
         </Text>
       </TouchableOpacity>
       {/* Tutorial blocker sentinel: the capture sheet is an RN Modal that draws

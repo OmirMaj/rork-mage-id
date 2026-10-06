@@ -115,7 +115,7 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
     { key: 'total', label: 'Total', csvValue: (inv: Invoice) => inv.totalDue },
     { key: 'paid', label: 'Paid', csvValue: (inv: Invoice) => inv.amountPaid },
     { key: 'balance', label: 'Balance', csvValue: invoiceBalance },
-    { key: 'aging', label: 'Days past due', csvValue: invoiceAgingDays },
+    { key: 'aging', label: 'Days Past Due', csvValue: invoiceAgingDays },
     { key: 'status', label: 'Status', csvValue: (inv: Invoice) => invoiceStatusLabel(invoiceLogStatus(inv)) },
     { key: 'qbo', label: 'QuickBooks', csvValue: invoiceQboLabel },
   ], []);
@@ -136,7 +136,7 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
     const skippedLine = logBulkSkippedLine(plan.skipped);
     const n = plan.mark.length;
     if (n === 0) {
-      showAlert('Nothing to mark sent', skippedLine || 'Pick draft invoices to mark them sent.', [{ text: 'OK' }]);
+      showAlert('Nothing to Mark Sent', skippedLine || 'Pick draft invoices to mark them sent.', [{ text: 'OK' }]);
       return;
     }
     showAlert(
@@ -198,7 +198,7 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
           )}
           bulkActions={[
             { key: 'csv', label: 'Export CSV', run: exportSelected },
-            { key: 'sent', label: 'Mark sent', run: markSentSelected },
+            { key: 'sent', label: 'Mark Sent', run: markSentSelected },
           ]}
           footerTotals={rows.length > 0 ? {
             total: logMoney(totals.total),
@@ -214,9 +214,9 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
           ) : (
             <EmptyState
               icon={<Receipt size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No invoices on this project yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No Invoices on This Project Yet' : 'Nothing Under This Filter'}
               message={all.length === 0 ? 'Bill a progress draw or the full amount.' : 'Pick another chip, or All.'}
-              actionLabel="New invoice"
+              actionLabel="New Invoice"
               onAction={newInvoice}
             />
           )}

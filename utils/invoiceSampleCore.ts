@@ -25,7 +25,7 @@ export const SAMPLE_EMAIL_BANNER_WORD = 'SAMPLE';
  */
 export function sampleInvoiceBannerHtml(): string {
   return '<div style="margin:0 0 16px;padding:10px 14px;border:1px dashed #9AA3AD;border-radius:8px;background:#F4F5F2;color:#2B3036;font-size:13px;line-height:1.45;">'
-    + `<strong style="letter-spacing:0.08em;">${SAMPLE_EMAIL_BANNER_WORD}</strong> — a practice invoice from a sample job in MAGE ID. `
+    + `<strong style="letter-spacing:0.08em;">${SAMPLE_EMAIL_BANNER_WORD}</strong>: a practice invoice from a sample job in MAGE ID. `
     + 'It was sent to you only; nothing here is owed and no client received it.'
     + '</div>';
 }

@@ -133,9 +133,9 @@ export function safetyAiBlockedReason(kind: SafetyAiKind, ownTierIsBusinessOrAbo
   if (ownTierIsBusinessOrAbove) return null;
   switch (kind) {
     case 'hazard_scan':
-      return t('safety.ai.blockedHazardScan', "AI hazard scan needs your own Business plan; your GC's plan doesn't cover it. Log the hazard by hand below — it still goes to the job's owner.");
+      return t('safety.ai.blockedHazardScan', "AI hazard scan needs your own Business plan; your GC's plan doesn't cover it. Log the hazard by hand below. It still goes to the project's owner.");
     case 'incident_draft':
-      return t('safety.ai.blockedIncidentDraft', "Drafting with AI needs your own Business plan; your GC's plan doesn't cover it. Fill in the report below — it still goes to the job's owner.");
+      return t('safety.ai.blockedIncidentDraft', "Drafting with AI needs your own Business plan; your GC's plan doesn't cover it. Fill in the report below. It still goes to the project's owner.");
     case 'jha_generate':
       return t('safety.ai.blockedJhaGenerate', "Generating a JHA with AI needs your own Business plan; your GC's plan doesn't cover it. Add the steps by hand below.");
   }
@@ -151,5 +151,5 @@ export function safetyAiServerRefusal(kind: SafetyAiKind, status: number): strin
 export function aiLimitAlertTitle(reason: string | undefined): string {
   return reason === 'daily_cap' || reason === 'smart_cap' || reason === 'lifetime_cap'
     ? t('safety.ai.limitReachedTitle', 'AI limit reached')
-    : t('safety.ai.businessFeatureTitle', 'Business feature');
+    : t('safety.ai.businessFeatureTitle', 'Business Feature');
 }

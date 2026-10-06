@@ -410,7 +410,7 @@ describe('lane X1 — PunchExportHeaderButton alone (golden, iOS 390)', () => {
     const text = JSON.stringify(json);
     expect(text).toContain('"Export"');
     expect(text).toContain('PDF report or spreadsheet');
-    expect(text).not.toContain('Print / export');
+    expect(text).not.toContain('Print / Export');
     expect(fp).toMatchSnapshot();
   });
 });
@@ -474,8 +474,8 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     ['AssemblyEditorModal', CASES.find(([n]) => n === 'AssemblyEditorModal')![2], 'Create assembly', 720],
     ['RateOverrideModal', CASES.find(([n]) => n === 'RateOverrideModal')![2], 'Done', 560],
     ['SubDailyUpdateModal', CASES.find(([n]) => n === 'SubDailyUpdateModal')![2], 'Save and email', 560],
-    ['TakeoffFieldVerifyButton (new)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (new)')![2], 'Save verification', 440],
-    ['TakeoffFieldVerifyButton (existing)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (existing)')![2], 'Delete verification', 440],
+    ['TakeoffFieldVerifyButton (new)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (new)')![2], 'Save Verification', 440],
+    ['TakeoffFieldVerifyButton (existing)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (existing)')![2], 'Delete Verification', 440],
   ];
   it.each(DESK)('%s — a capped card with a fade, no drag handle', async (_n, make, text, width) => {
     mockForceDesktopWeb = true;
@@ -497,7 +497,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     ['PropertyManagerHome (Add a property)', CASES.find(([n]) => n === 'PropertyManagerHome')![2], 'Add a property', 560],
     ['UniversalMicButton', CASES.find(([n]) => n === 'UniversalMicButton')![2], 'Voice action', 560],
     ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant bid', 720],
-    ['PunchExportSheet', CASES.find(([n]) => n === 'PunchExportSheet')![2], 'Export punch list', 720],
+    ['PunchExportSheet', CASES.find(([n]) => n === 'PunchExportSheet')![2], 'Export Punch List', 720],
   ] as Array<[string, () => React.ReactElement, string, number]>)('%s — in the app, a capped card with a fade', async (_n, make, text, width) => {
     const json = await mountInAppDesktop(make());
     expect(cardAround(json, text)?.maxWidth).toBe(width);
@@ -512,7 +512,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     const { PunchExportHeaderButton } = req('@/components/punch/PunchExportSheet');
     const json = await mountAlone(<PunchExportHeaderButton onPress={noop} />, 'light', 1512, 945);
     const text = JSON.stringify(json);
-    expect(text).toContain('Print / export');
+    expect(text).toContain('Print / Export');
     expect(text).toContain('Print, save as PDF, or download a spreadsheet');
     expect(text).toContain('"testID":"punch-export-open"');
   });
@@ -522,7 +522,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     const json = await mountAlone(<PunchExportHeaderButton onPress={noop} />, 'light', 1100, 800);
     const text = JSON.stringify(json);
     expect(text).toContain('"Export"');
-    expect(text).not.toContain('Print / export');
+    expect(text).not.toContain('Print / Export');
   });
 
   it('the classic tab: ripple and start date are 440 dialogs, predecessors and templates 560 forms', async () => {

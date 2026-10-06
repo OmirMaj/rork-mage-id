@@ -66,7 +66,7 @@ console.log('\n#28 schedule generator appends, weather unknown stays unknown:');
   const typed = 'Framed the east wall.\nSet 4 headers.';
   const out = P.dfrAppendGenerated(typed, '[Completed] Framing');
   ok('typed text survives, character for character', out.startsWith(typed));
-  ok('generated lines land under the "From schedule" divider', out === `${typed}\n\n— From schedule —\n[Completed] Framing`, out);
+  ok('generated lines land under the "From schedule" divider', out === `${typed}\n\nFrom schedule:\n[Completed] Framing`, out);
   ok('an empty field takes the generated lines as-is', P.dfrAppendGenerated('   ', 'x') === 'x');
   ok('nothing generated → the field is untouched', P.dfrAppendGenerated(typed, '  ') === typed);
   ok('no weather recorded → "Not recorded", never "Clear"', P.dfrAiWeatherStr(['', undefined]) === 'Not recorded' && P.DFR_WEATHER_NOT_RECORDED === 'Not recorded');
@@ -86,8 +86,8 @@ console.log('\n#28 schedule generator appends, weather unknown stays unknown:');
 console.log('\n#22 publish toggle is unsaved work and says what is saved:');
 {
   const c = P.dfrPublishControl;
-  ok('unsaved publish reads "Publishes when you save", no pill', c(false, true).label === 'Publishes when you save' && !c(false, true).pill && c(false, true).pending === 'publish');
-  ok('unsaved unpublish reads "Removed when you save", pill stays (homeowner still sees it)', c(true, false).label === 'Removed when you save' && c(true, false).pill && c(true, false).pending === 'remove');
+  ok('unsaved publish reads "Publishes When You Save", no pill', c(false, true).label === 'Publishes When You Save' && !c(false, true).pill && c(false, true).pending === 'publish');
+  ok('unsaved unpublish reads "Removed When You Save", pill stays (homeowner still sees it)', c(true, false).label === 'Removed When You Save' && c(true, false).pill && c(true, false).pending === 'remove');
   ok('saved + published is the only "published" state', c(true, true).pill && c(true, true).pending === null && !/when you save/.test(c(true, true).label));
   ok('never "Showing in portal" off the local toggle', !/'Showing in portal'/.test(code));
   // dfrDraftSignature — lifted and run.
@@ -231,16 +231,16 @@ console.log('\n#87 #83 #89 #82 incident from the report:');
   ok('#89: the report says so and offers "File it again"', /The case from this report was deleted in Incidents, so saving will not file it again\./.test(code) && /clearIncidentTombstone\(dfrCaseId\)/.test(code));
   ok('#82: a collaborator is not promised "your" record or the OSHA 300', P.dfrIncidentFileNote(false) === 'Filed with this report. Only you and the job\u2019s owner can see it; the owner keeps the OSHA 300.' && !/your/i.test(P.dfrIncidentFileNote(false)));
   ok('#82: the will-file note reads the owner rule', /\{dfrIncidentFileNote\(isProjectOwner, t\)\}/.test(code));
-  ok('#83: a filed case points to Incidents for people/actions/photos', /Case filed — edit people, actions and photos in Incidents/.test(code));
+  ok('#83: a filed case points to Incidents for people/actions/photos', /Case filed. Edit people, actions and photos in Incidents/.test(code));
 }
 
 // ── #41 — only the owner drafts a change order; fieldIssue lands here ────────
 console.log('\n#41 Draft-CO owner gate and the fieldIssue handoff:');
 {
   ok('owner by stamp, else by role', P.dfrIsProjectOwner('u1', 'u1', null) && P.dfrIsProjectOwner('x', 'u1', 'owner') && !P.dfrIsProjectOwner('x', 'u1', 'editor') && !P.dfrIsProjectOwner(undefined, 'u1', null));
-  ok('the reason is the handoff copy', P.DFR_GC_CREATES_COS === 'Your GC creates change orders — this goes to them as a field issue in this report.');
+  ok('the reason is the handoff copy', P.DFR_GC_CREATES_COS === 'Your GC creates change orders. This goes to them as a field issue in this report.');
   ok('the Draft-CO button is disabled for non-owners', /disabled=\{leakIsStale \|\| !isProjectOwner\}/.test(code) && /testID="leak-draft-co-blocked"/.test(code));
-  ok('the handler refuses too', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report\.'\)\); return; \}/.test(code));
+  ok('the handler refuses too', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change Orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders. This goes to them as a field issue in this report\.'\)\); return; \}/.test(code));
   ok('fieldIssue prefills a NEW report\'s issues', /const fi = typeof paramFieldIssue === 'string' \? paramFieldIssue\.trim\(\) : '';/.test(code) && /if \(existingReport\) return existingReport\.issuesAndDelays \?\? '';/.test(code));
 }
 

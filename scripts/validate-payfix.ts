@@ -360,7 +360,7 @@ console.log('\n2. Labels never imply an official AIA document');
 
   // Every file this lane swept is clean, and says the hedged words.
   const SWEPT: [string, RegExp, string][] = [
-    ['app/invoice.tsx', /Generate AIA-style G702\/G703/, 'the invoice CTA'],
+    ['app/invoice.tsx', /Generate AIA-Style G702\/G703/, 'the invoice CTA'],
     ['app/documents.tsx', /AIA-style G702 · App #\$\{a\.applicationNumber\}/, 'the documents feed title'],
     ['components/CreateMenu.tsx', /subtitle: 'Bill the next draw — AIA-style G702\/G703'/, 'the create-menu subtitle'],
     ['components/registers/DocumentsRegister.tsx', /submittals and AIA-style pay apps across your projects/, 'the desktop documents register meta'],

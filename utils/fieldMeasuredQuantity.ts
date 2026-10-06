@@ -201,7 +201,7 @@ export function adoptMeasurementCopy(measured: number, unit: string): {
   return {
     label: `Use ${formatMeasured(measured, unit)} as the quantity`,
     consequence:
-      'Prices this scope off what you measured — and when the job closes, your '
+      'Prices this scope off what you measured, and when the project closes, your '
       + 'cost book divides the sub’s price by the measured quantity instead of the plan’s.',
   };
 }
@@ -252,6 +252,6 @@ export function pendingMeasuredNotice(count: number): string {
   const rows = count === 1 ? '1 row' : `${count} rows`;
   const verb = count === 1 ? 'was' : 'were';
   return `${rows} ${verb} measured on site and ${count === 1 ? 'disagrees' : 'disagree'} with the plan. `
-    + 'Until you apply the measurement, the estimate — and the rate this job teaches your cost book — '
+    + 'Until you apply the measurement, the estimate, and the rate this project teaches your cost book, '
     + 'use the plan quantity.';
 }

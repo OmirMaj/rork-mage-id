@@ -3,76 +3,76 @@
 exports[`lane B1 — components (golden, 390 phone) EntityActionSheet on iOS renders nothing (the native sheet owns the UI) 1`] = `
 {
   "lines": 312,
-  "sha256": "7e1e2e8675817c30ce361b04dea3cf742b0dda60211b64544d1c31d571d27413",
+  "sha256": "8a9613e4a8fba580938973ed9f6f1dc963ad51f42c5385010514b029b1e0e337",
 }
 `;
 
 exports[`lane B1 — components (golden, 390 phone) EntityActionSheet project ref, android 390 1`] = `
 {
   "lines": 352,
-  "sha256": "f0666183f544b8b6378fc9f0cfb06ae6ba7f62d1794f4bda2a9926a0b55744d6",
+  "sha256": "9b6352449934cdcd7242edc0d3b66ae93e8213a58039884e8bbf2e8e64fad268",
 }
 `;
 
 exports[`lane B1 — components (golden, 390 phone) EntityActionSheet project ref, web 390 1`] = `
 {
   "lines": 352,
-  "sha256": "755fe3310646dec6ffcec94a8c5df23035cb86d47a1661fde1866479253cab90",
+  "sha256": "2aa45e457df30ba5dc5210e4c33ab7c67358e24bda39afc2132e651805f9afa3",
 }
 `;
 
 exports[`lane B1 — components (golden, 390 phone) EntityActionSheet rfi ref, android 390 1`] = `
 {
   "lines": 360,
-  "sha256": "f88dd3429d0b90eeeff3833dcb85de5defc974f7ba8440962cfce767b89f8186",
+  "sha256": "4478a283f123978e8a979a11aa9bf64d0f9d752f70ce4eb03145aff74855ce69",
 }
 `;
 
 exports[`lane B1 — components (golden, 390 phone) EntityActionSheet rfi ref, web 390 1`] = `
 {
   "lines": 360,
-  "sha256": "9b060e6cc74a4bd84808d7c7e53bf657ffafd7a4cfe8d5e18cb983263cca964e",
+  "sha256": "46132dbea369c1f403261449b686d76b50925a96ea06e322264d9a4f91b5c8d6",
 }
 `;
 
 exports[`lane B1 — components (golden, 390 phone) RecordPaymentModal, open (iOS) 1`] = `
 {
   "lines": 377,
-  "sha256": "d6c2c26edd546f8128e3c9578efeb23b2cbffb0725b7ba461ebab3ce5c65f958",
+  "sha256": "81eb04e44877ace44144ff325adc924185c356bafab4cbb8af1d147652847493",
 }
 `;
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) budget-dashboard 1`] = `
 {
   "lines": 466,
-  "sha256": "ebd910d71f49a32c0bafb8a24f21747660bdba34116efc696ac062b39c448c99",
+  "sha256": "71ed37f46c3e9246d4181fe091e6a7f596efcda8751b5b942c1d95c0e1f2b721",
 }
 `;
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) cash-flow (no project) 1`] = `
 {
   "lines": 732,
-  "sha256": "d9f5a7478c8e41494149a477f5bae78715c11416e34be51bd4de155150badd9a",
+  "sha256": "9bf41ae2355385a9186986bce0512203c7f4c63cd463b8fc4cafe8f28024ced5",
 }
 `;
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) cash-flow with a project (balance, expense, payment sheets) 1`] = `
 {
   "lines": 736,
-  "sha256": "50048d5785dda704012b3d3d948dafe25e1f85580d2656d60e6368a4e898a60a",
+  "sha256": "0d9a635525d2ebadd65056b11ccf9f6b9975ba134623c0927ccd0c3efe5dccb2",
 }
 `;
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing (commitment editor + phase sheet mounted) 1`] = `
 {
   "lines": 775,
-  "sha256": "50b2c960a4b86677e1406007e65fb8773dd83ecdbb9c9c4b6e2fc202e6266922",
+  "sha256": "ac8be0841da961ca063f7585484f276f40de8eedd03fc3c1b5356e126a7ee584",
 }
 `;
 
 exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing: the first phase pressed (PhaseDetailModal open) 1`] = `
 {
   "lines": 827,
-  "sha256": "04b657e5934cbdf5c459565b6bb0496c3e1b55ce3aa1fa4c95cdcc552abe58ed",
+  "sha256": "766baa676467410ce28218c1e5454392431cfa25ba9057a6e69b405ace1d7043",
 }
 `;

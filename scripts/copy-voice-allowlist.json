@@ -175,6 +175,144 @@
       "rule": "R15",
       "match": "Primary navigation",
       "reason": "matched by code: SIDEBAR_DOM_SELECTOR in components/ui/desktop.ts and the print stylesheet select nav[aria-label='Primary navigation']"
+    },
+    {
+      "file": "app/punch-list.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-pin.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R21",
+      "match": "Doors & Hardware",
+      "reason": "a `case` label matched against the SubTrade value saved on subs; the chip prints the t() value beside it, which says \"and\""
+    },
+    {
+      "file": "app/invoice.tsx",
+      "rule": "R15",
+      "match": "Update the Saved Figure to",
+      "reason": "the button label continues with the amount (\"Update the Saved Figure to $1,200\"), so \"to\" is a middle word"
+    },
+    {
+      "file": "components/AIEquipmentAdvice.tsx",
+      "rule": "R15",
+      "match": "Measured from",
+      "reason": "the opening words of a sentence that continues through JSX expressions (\"Measured from 4 utilization entries over 12 days, at your $350/day rate.\")"
+    },
+    {
+      "file": "components/punch/PlanPinStep.tsx",
+      "rule": "R23",
+      "match": "← back",
+      "reason": "a keyboard legend: the Left Arrow key itself (VOICE 4, keyboard legends stay)"
+    },
+    {
+      "file": "utils/punchGcCore.ts",
+      "rule": "R20",
+      "match": "Rejected — needs rework",
+      "reason": "a stored value code matches: the sub portal's GENERIC_REJECT_RE and the punch_sub_portal_v2 migration read this exact note as \"no reason given\""
+    },
+    {
+      "file": "utils/voiceActionParser.ts",
+      "rule": "R20",
+      "match": "No project context — pick the most likely action kind",
+      "reason": "a line of the AI prompt, never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/voiceCommandParser.ts",
+      "rule": "R20",
+      "match": "% complete, status:",
+      "reason": "a line of the AI prompt (the task list given to the model), never shown to a person"
+    },
+    {
+      "file": "utils/punchSealHtml.ts",
+      "rule": "R21",
+      "match": "&middot;",
+      "reason": "the HTML entity for the middle dot in the sealed-record PDF, not an ampersand a person reads"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "No crew scheduled",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Holiday / closure",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on inspection",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on materials",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on an answer",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "utils/voiceDFRParser.ts",
+      "rule": "R20",
+      "match": "SITE PHOTOS TAKEN TODAY",
+      "reason": "a block of the AI prompt, never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/punchExportHtml.ts",
+      "rule": "R21",
+      "match": "&middot;",
+      "reason": "the HTML entity for the middle dot in the punch list PDF, not an ampersand a person reads"
+    },
+    {
+      "file": "app/invoice.tsx",
+      "rule": "R15",
+      "match": "Dictate this invoice",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/punch-list.tsx",
+      "rule": "R15",
+      "match": "Describe the punch item",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R15",
+      "match": "Capture a punch item",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Dictate today's report",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/punch-list.tsx",
+      "rule": "R15",
+      "match": "Photo code check",
+      "reason": "the feature's one name, pinned in eight files (two of them the server's) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the lane that converts CodeLookSheet and the analyze-photos function"
     }
   ]
 }

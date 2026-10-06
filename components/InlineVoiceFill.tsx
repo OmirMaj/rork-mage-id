@@ -73,7 +73,7 @@ export function voiceFillLines(result: void | VoiceFillOutcome | undefined): { f
   };
 }
 
-export const FILLED_LINE = 'Filled from your voice — review and edit before saving.';
+export const FILLED_LINE = 'Filled from your voice. Review and edit before saving.';
 
 interface Props {
   /** Modal title (e.g. "Dictate this RFI"). */
@@ -104,7 +104,7 @@ export default function InlineVoiceFill({
   title = 'Voice fill',
   contextLine,
   suggestions,
-  buttonLabel = 'Dictate fields',
+  buttonLabel = 'Dictate Fields',
   onTranscript,
   onFilled,
 }: Props) {

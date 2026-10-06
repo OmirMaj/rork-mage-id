@@ -198,14 +198,14 @@ ok('the web fallback does not use window.open (popup-blocked after the await)',
 ok('handleSendPDF still asks generateInvoicePDFUri for a URI',
   screenSrc.includes('const pdfUri = await generateInvoicePDFUri('));
 ok('a null pdfUri is confirmed with the user before sending',
-  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached/.test(screenSrc),
+  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF Could Not Be Attached/.test(screenSrc),
   'the send must stop and ask, not quietly drop the document');
 ok('the confirmation resolves on dismiss (or the await never settles)',
   /if \(!pdfUri\) \{[\s\S]{0,1600}?onDismiss: \(\) => resolve\(false\)/.test(screenSrc));
 ok('a dropped attachment changes the success copy',
   /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(screenSrc));
 ok('the flat "Email Sent" toast is now conditional on the PDF being attached',
-  /pdfMissing \? '[^']*without the PDF' : 'Email Sent'/.test(screenSrc));
+  /pdfMissing \? '[^']*Without the PDF' : 'Email Sent'/.test(screenSrc));
 ok('composer_opened is not reported as a send',
   /result\.outcome === 'composer_opened'/.test(screenSrc));
 ok('sendViaResend counts attachments it could not encode',

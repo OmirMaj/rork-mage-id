@@ -392,7 +392,7 @@ console.log('\n  5. the setup screen counts what the reconciler works down');
       check('the invoice screen shows the flag by Send reminder and confirms a manual reminder on a flagged invoice',
         /const qboClosedFlag = qboClosedFlagOf\(existingInvoice\?\.qboError\);/.test(inv)
         && /testID="reminder-qbo-closed-flag"/.test(inv)
-        && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,700}'Send anyway'/.test(inv)
+        && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,700}'Send Anyway'/.test(inv)
         && /\$\{qboClosedFlagAlertReason\(qboClosedFlag\)\} Send a reminder to the client anyway\?/.test(inv));
     }
     check('the cursor is labelled as what it is, not "Last reconcile"',

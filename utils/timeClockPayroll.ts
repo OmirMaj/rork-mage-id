@@ -123,7 +123,7 @@ export function defaultMissedOutMs(entry: TimeEntry, alertHours: number, nowMs: 
 /** Why an entered out time can't be saved, or null when it can. */
 export function outTimeProblem(entry: Pick<TimeEntry, 'clockIn'>, outMs: number, nowMs: number, lang: DisplayLang = 'en'): string | null {
   const inMs = Date.parse(entry.clockIn);
-  if (!Number.isFinite(outMs)) return t('field.time.out.enterTime', 'Enter the time they left, e.g. 3:30 pm.', undefined, lang);
+  if (!Number.isFinite(outMs)) return t('field.time.out.enterTime', 'Enter the time they left, for example 3:30 pm.', undefined, lang);
   if (Number.isFinite(inMs) && outMs <= inMs) return t('field.time.out.afterClockIn', 'The out time has to be after the clock-in.', undefined, lang);
   if (outMs > nowMs + 60_000) return t('field.time.out.notLater', 'The out time can’t be later than now.', undefined, lang);
   if (Number.isFinite(inMs) && outMs - inMs > 24 * 3_600_000) return t('field.time.out.max24h', 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.', undefined, lang);
@@ -265,7 +265,7 @@ export function payrollBlockedReason(sel: PayrollSelection, period: PayPeriod, l
   if (sel.rows.length > 0) return null;
   const vars = { start: periodDay(period.start, lang), end: periodDay(period.end, lang) };
   if (sel.open.length > 0) {
-    return t('field.time.export.onlyOpen', 'Nobody has finished a shift between {start} and {end} yet — {count} still on the clock. Clock them out first.', { ...vars, count: sel.open.length }, lang);
+    return t('field.time.export.onlyOpen', 'Nobody has finished a shift between {start} and {end} yet. {count} still on the clock. Clock them out first.', { ...vars, count: sel.open.length }, lang);
   }
   return t('field.time.export.empty', 'No finished shifts between {start} and {end}. Pick another week or project.', vars, lang);
 }
@@ -275,8 +275,8 @@ export function openShiftsNote(open: readonly TimeEntry[], lang: DisplayLang = '
   if (open.length === 0) return null;
   const names = [...new Set(open.map(e => e.workerName).filter(Boolean))];
   return names.length
-    ? t('field.time.export.openNamed', '{count} crew still on the clock ({names}) — not included', { count: open.length, names: names.join(', ') }, lang)
-    : t('field.time.export.open', '{count} crew still on the clock — not included', { count: open.length }, lang);
+    ? t('field.time.export.openNamed', '{count} crew still on the clock ({names}), not included', { count: open.length, names: names.join(', ') }, lang)
+    : t('field.time.export.open', '{count} crew still on the clock, not included', { count: open.length }, lang);
 }
 
 // ── The CSV ──────────────────────────────────────────────────────────────
@@ -360,7 +360,7 @@ export function buildTimeEntriesCSV(
 /** The Logged by cell: who clocked it (#63), plus the not-synced marker for a
  *  legacy row the server never accepted (#155). */
 export function payrollLoggedByCell(e: PayrollRow): string {
-  const parts = [e.loggedByLabel?.trim(), isUuid(e.projectId) ? '' : 'Not synced \u2014 this device only']
+  const parts = [e.loggedByLabel?.trim(), isUuid(e.projectId) ? '' : 'Not synced (this device only)']
     .filter((p): p is string => !!p);
   return parts.join('; ');
 }

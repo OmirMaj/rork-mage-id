@@ -92,7 +92,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
       // report blank, with no way to tell signal loss from a broken feature
       // (audit 2026-09-07, ai-features). Same shape as AIQuickEstimate.
       console.error('[AI DFR] Generation failed:', err);
-      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft the daily report', title: t('field.dfr.aiGen.errorTitle', "Couldn't draft the report") }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft the daily report', title: t('field.dfr.aiGen.errorTitle', "Couldn't Draft the Report") }).body);
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +114,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
           <MageAIMark size={16} color={"#FFFFFF"} />
         )}
         <Text style={styles.btnText}>
-          {isLoading ? t('field.dfr.aiGen.drafting', 'Drafting…') : t('field.dfr.aiGen.draftFromSchedule', 'Draft from schedule')}
+          {isLoading ? t('field.dfr.aiGen.drafting', 'Drafting…') : t('field.dfr.aiGen.draftFromSchedule', 'Draft from Schedule')}
         </Text>
       </TouchableOpacity>
       {pastDayReason ? (

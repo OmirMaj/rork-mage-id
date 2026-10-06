@@ -183,14 +183,14 @@ console.log('\n#25 email summary: crew, materials, incident, a link — no photo
       { trade: 'Electrical', company: 'Volt & Co', headcount: 1, hoursWorked: 8 },
     ],
     materialsDelivered: ['20 sheets drywall — ABC Supply'],
-    incident: { severity: 'minor', description: 'Cut hand on flashing', classification: 'Not recordable — first aid only, no days away, no restriction.', injuriesReported: true, correctiveAction: 'Gloves required' },
+    incident: { severity: 'minor', description: 'Cut hand on flashing', classification: 'Not recordable: first aid only, no days away, no restriction.', injuriesReported: true, correctiveAction: 'Gloves required' },
     photoCount: 3,
     filedPdfUrl: 'https://x.supabase.co/storage/v1/object/sign/project-documents/p/daily-reports/r.pdf?token=abc',
     filedPdfLinkDays: 30,
   });
   ok('the crew is broken out per trade and company', html.includes('Framing — Ortiz Builders') && html.includes('3 × 8 h = 24 h') && html.includes('Electrical — Volt &amp; Co'));
   ok('materials delivered are listed', html.includes('20 sheets drywall — ABC Supply'));
-  ok('the incident is inline with its classification', html.includes('Cut hand on flashing') && html.includes('Not recordable — first aid only'));
+  ok('the incident is inline with its classification', html.includes('Cut hand on flashing') && html.includes('Not recordable: first aid only'));
   ok('the filed PDF is the button', /href="https:\/\/x\.supabase\.co\/storage\/v1\/object\/sign\/project-documents[^"]*"[^>]*>Open the full report \(PDF\)/.test(html));
   ok('…and the email says how long the link works', html.includes('the link works for 30 days'));
   ok('no photo is embedded in the email', !/<img[^>]+(data:image|photo)/i.test(html.replace(/<img[^>]*logo[^>]*>/gi, '')));
@@ -310,13 +310,13 @@ console.log('\n#27 web: no project-files copy, Print instead, never "sent" on no
   ok('the switch starts off on web, on on the phone', P.dfrProjectFilesAvailable('web') === false && P.dfrProjectFilesAvailable('ios') === true
     && /useState\(\(\) => dfrProjectFilesAvailable\(Platform\.OS\)\)/.test(DFR_CODE));
   const webBlank = P.dfrSendPlan({ email: '  ', saveToggle: true, os: 'web' });
-  ok('web + blank email → asks for an email even with a stale toggle', webBlank.blocker?.title === 'Enter an email' && webBlank.fileCopy === false, webBlank);
+  ok('web + blank email → asks for an email even with a stale toggle', webBlank.blocker?.title === 'Enter an Email' && webBlank.fileCopy === false, webBlank);
   ok('…and says why', /needs the mobile app/.test(webBlank.blocker?.message ?? ''));
   const webEmail = P.dfrSendPlan({ email: 'a@b.co', saveToggle: true, os: 'web' });
   ok('web + email → the email only: no project-files attempt, so no print tab and no failure alert', webEmail.blocker === null && webEmail.fileCopy === false);
   const nativeBlank = P.dfrSendPlan({ email: '', saveToggle: true, os: 'ios' });
   ok('phone + blank email + switch on → files the PDF', nativeBlank.blocker === null && nativeBlank.fileCopy === true);
-  ok('phone + nothing chosen → "Pick a destination"', P.dfrSendPlan({ email: '', saveToggle: false, os: 'ios' }).blocker?.title === 'Pick a destination');
+  ok('phone + nothing chosen → "Pick a Destination"', P.dfrSendPlan({ email: '', saveToggle: false, os: 'ios' }).blocker?.title === 'Pick a Destination');
   ok('sent only when the asked-for delivery happened',
     P.dfrDelivered({ wantsEmail: true, emailSent: true, fileSaved: false }) === true
       && P.dfrDelivered({ wantsEmail: true, emailSent: false, fileSaved: true }) === false
@@ -327,7 +327,7 @@ console.log('\n#27 web: no project-files copy, Print instead, never "sent" on no
       && /if \(!dfrDelivered\(\{ wantsEmail, emailSent, fileSaved \}\)\)/.test(DFR_CODE)
       && !/let delivered = wantsEmail;/.test(DFR_CODE));
   ok('the web row is disabled with the reason and a Print button',
-    /testID="dfr-project-files-web-disabled"/.test(DFR_CODE) && /\{t\('field\.dfr\.send\.filesNeedApp', 'Saving a PDF to project files needs the mobile app — use Print to keep a copy\.'\)\}/.test(DFR_CODE) && /onPress=\{handlePrintCopy\}/.test(DFR_CODE));
+    /testID="dfr-project-files-web-disabled"/.test(DFR_CODE) && /\{t\('field\.dfr\.send\.filesNeedApp', 'Saving a PDF to project files needs the mobile app\. Use Print to keep a copy\.'\)\}/.test(DFR_CODE) && /onPress=\{handlePrintCopy\}/.test(DFR_CODE));
   ok('the screen and projectDocuments give the same reason', P.DFR_FILES_NEEDS_APP === docs.PROJECT_FILES_NEEDS_APP);
   ok('projectDocuments no longer opens a print tab before throwing on web',
     !/printHtmlDocument/.test(DOCS_CODE) && /if \(Platform\.OS === 'web'\) \{\s*throw new Error\(PROJECT_FILES_NEEDS_APP\);/.test(DOCS_CODE));

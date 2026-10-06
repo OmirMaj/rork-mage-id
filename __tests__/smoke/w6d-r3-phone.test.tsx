@@ -271,7 +271,7 @@ describe('lane R3 — the phone is unchanged (golden)', () => {
 
   it('deliveries add sheet (header Add), iOS 390', async () => {
     const tree = await mountAt('ios', 390, 844, DELIVERIES_URL);
-    await act(async () => { fireEvent.press(screen.getByLabelText('Add delivery')); });
+    await act(async () => { fireEvent.press(screen.getByLabelText('Add Delivery')); });
     await pump(3);
     expect(screen.getByTestId('delivery-save')).toBeTruthy();
     expect(fingerprint('deliveries add open', tree.toJSON())).toMatchSnapshot();

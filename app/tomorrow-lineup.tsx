@@ -130,12 +130,12 @@ function TomorrowLineupInner() {
 
   const shareFallback = useCallback(async (s: LineupSub, message: string, key: string) => {
     try {
-      const outcome = await shareText({ message, title: t('field.lineup.shareTitle', 'Lineup — {name}', { name: s.sub.name }) });
-      if (outcome === 'copied') showAlert(t('field.lineup.copiedTitle', 'Copied'), t('field.lineup.copiedBody', 'Sharing is not available here, so the message is on your clipboard — paste it into a text or email.'));
-      else if (outcome === 'failed') showAlert(t('field.lineup.sendManually', 'Send manually'), message);
+      const outcome = await shareText({ message, title: t('field.lineup.shareTitle', 'Lineup for {name}', { name: s.sub.name }) });
+      if (outcome === 'copied') showAlert(t('field.lineup.copiedTitle', 'Copied'), t('field.lineup.copiedBody', 'Sharing is not available here, so the message is on your clipboard. Paste it into a text or email.'));
+      else if (outcome === 'failed') showAlert(t('field.lineup.sendManually', 'Send Manually'), message);
       else markRow(key, 'shared');
     } catch {
-      showAlert(t('field.lineup.sendManually', 'Send manually'), message);
+      showAlert(t('field.lineup.sendManually', 'Send Manually'), message);
     }
   }, [markRow, t]);
 
@@ -151,7 +151,7 @@ function TomorrowLineupInner() {
           t('field.lineup.didYouSend', 'Did you send it?'),
           t('field.lineup.didYouSendBody', "MAGE can't see your messages. Mark it only once the text has actually gone to {name}.", { name: s.sub.name }),
           [
-            { text: t('field.lineup.notSentButton', 'Not sent'), style: 'cancel', onPress: () => markRow(key, 'not_sent') },
+            { text: t('field.lineup.notSentButton', 'Not Sent'), style: 'cancel', onPress: () => markRow(key, 'not_sent') },
             { text: t('field.lineup.sentButton', 'Sent'), onPress: () => markRow(key, 'marked_sent') },
           ],
         );
@@ -211,7 +211,7 @@ function TomorrowLineupInner() {
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         <Text style={styles.sectionLabel}>{t('field.lineup.jobLabel', 'Job')}</Text>
         {projects.length === 0 ? (
-          <Text style={styles.muted}>{t('field.lineup.noProjects', 'No projects yet — create a project and build its schedule first.')}</Text>
+          <Text style={styles.muted}>{t('field.lineup.noProjects', 'No projects yet. Create a project and build its schedule first.')}</Text>
         ) : (
           <View style={styles.chipRow}>
             {projects.map(p => {
@@ -227,7 +227,7 @@ function TomorrowLineupInner() {
 
         {project && lineup ? (
           <>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking(true)} testID="lineup-date" accessibilityRole="button" accessibilityLabel={t('field.lineup.changeDay', 'Change the day')}>
+            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking(true)} testID="lineup-date" accessibilityRole="button" accessibilityLabel={t('field.lineup.changeDay', 'Change the Day')}>
               <CalendarDays size={14} color={tc.textSecondary} strokeWidth={1.75} />
               <Text style={styles.dateBtnText}>{sentenceParts(t('field.lineup.forDay', 'For {day} · change', { day: '{day}' }), { day: formatCalendarDay(date, { weekday: 'long', month: 'short', day: 'numeric' }) })}</Text>
             </TouchableOpacity>
@@ -254,7 +254,7 @@ function TomorrowLineupInner() {
               <Card style={styles.card} testID="lineup-queue">
                 <Text style={styles.subName}>{banner}</Text>
                 <View style={styles.row}>
-                  <Button label={t('field.lineup.textNext', 'Text next')} onPress={() => sendQueued(queue[0])} testID="lineup-queue-next" containerStyle={styles.flexBtn} />
+                  <Button label={t('field.lineup.textNext', 'Text Next')} onPress={() => sendQueued(queue[0])} testID="lineup-queue-next" containerStyle={styles.flexBtn} />
                   <Button label={t('field.lineup.stop', 'Stop')} variant="secondary" onPress={() => setQueue([])} testID="lineup-queue-stop" containerStyle={styles.flexBtn} />
                 </View>
               </Card>
@@ -271,7 +271,7 @@ function TomorrowLineupInner() {
                 <Card key={s.sub.id} style={styles.card} testID={`lineup-sub-${s.sub.id}`}>
                   <Text style={styles.subName}>{s.sub.name}</Text>
                   <Text style={styles.muted}>
-                    {s.noContact ? t('field.lineup.noContact', 'No phone or email on file — Send opens the share sheet so you can pick how.') : [s.sub.phone, s.sub.email].filter(Boolean).join(' · ')}
+                    {s.noContact ? t('field.lineup.noContact', 'No phone or email on file. Send opens the share sheet so you can pick how.') : [s.sub.phone, s.sub.email].filter(Boolean).join(' · ')}
                   </Text>
                   {!s.noContact && route.kind === 'share' ? (
                     <Text style={styles.muted} testID={`lineup-no-phone-${s.sub.id}`}>{noPhoneNote(displayLang)}</Text>
@@ -297,7 +297,7 @@ function TomorrowLineupInner() {
                       })}
                       {record && langOverride[s.sub.id] && langOverride[s.sub.id] !== recordLang ? (
                         <Button
-                          label={t('field.lineup.saveForSub', 'Save for this sub')}
+                          label={t('field.lineup.saveForSub', 'Save for This Sub')}
                           variant="secondary"
                           size="sm"
                           onPress={() => updateSubcontractor(s.sub.id, { preferredLanguage: langOverride[s.sub.id] })}
@@ -339,7 +339,7 @@ function TomorrowLineupInner() {
               <Card style={styles.card} testID="lineup-gaps">
                 <View style={styles.row}>
                   <AlertTriangle size={14} color={tc.warningLabel} strokeWidth={1.75} />
-                  <Text style={styles.subName}>{t('field.lineup.notInAnyMessage', 'Not in any message')}</Text>
+                  <Text style={styles.subName}>{t('field.lineup.notInAnyMessage', 'Not in Any Message')}</Text>
                 </View>
                 {lineup.gaps.map((g, i) => <Text key={i} style={styles.body}>{g}</Text>)}
               </Card>
@@ -354,7 +354,7 @@ function TomorrowLineupInner() {
         visible={picking}
         value={date}
         allowFuture
-        title={t('field.lineup.lineupFor', 'Lineup for')}
+        title={t('field.lineup.lineupFor', 'Lineup For')}
         onClose={() => setPicking(false)}
         onChange={(iso) => { setPickedDate(iso.slice(0, 10)); setPicking(false); }}
       />

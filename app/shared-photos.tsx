@@ -116,7 +116,7 @@ export default function SharedPhotosScreen() {
   if (!t) {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-no-token">
-        <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Photo Timeline', headerShown: false }} />
         <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>This link is incomplete</Text>
         <Text style={styles.errorBody}>This link is missing the data it needs. Ask your contractor for a fresh share link.</Text>
@@ -127,9 +127,9 @@ export default function SharedPhotosScreen() {
   if (!payload) {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-bad-token">
-        <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Photo Timeline', headerShown: false }} />
         <AlertCircle size={28} color={themeColors.danger} strokeWidth={1.75} />
-        <Text style={styles.errorTitle}>Couldn&apos;t open this link</Text>
+        <Text style={styles.errorTitle}>Couldn&apos;t Open This Link</Text>
         <Text style={styles.errorBody}>This link can&apos;t be read. It may be from an older version of MAGE ID, so ask your contractor for a fresh link.</Text>
       </View>
     );
@@ -158,7 +158,7 @@ export default function SharedPhotosScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Photo Timeline', headerShown: false }} />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -197,14 +197,14 @@ export default function SharedPhotosScreen() {
         {signState === 'denied' && (
           <View style={styles.emptyCard} testID="shared-photos-denied">
             <ImageIcon size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>These photos aren&apos;t shared anymore</Text>
+            <Text style={styles.emptyTitle}>These photos aren&apos;t shared anymore.</Text>
             <Text style={styles.emptyBody}>The contractor may have withdrawn or deleted them, or they haven&apos;t finished uploading. Ask the contractor for a fresh link.</Text>
           </View>
         )}
         {signState === 'error' && (
           <View style={styles.emptyCard} testID="shared-photos-error">
             <AlertCircle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Couldn&apos;t load the photos</Text>
+            <Text style={styles.emptyTitle}>Couldn&apos;t Load the Photos</Text>
             <Text style={styles.emptyBody}>No connection, or the server didn&apos;t answer.</Text>
             <TouchableOpacity onPress={() => void loadSigned()} accessibilityRole="button">
               <Text style={styles.footerLink}>Try again</Text>
@@ -215,7 +215,7 @@ export default function SharedPhotosScreen() {
           <View style={styles.banner} testID="shared-photos-unavailable">
             <AlertCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.bannerText}>
-              {unavailable} photo{unavailable === 1 ? '' : 's'} in this link can&apos;t be shown — not uploaded yet, withdrawn by the contractor, or the link has expired.
+              {unavailable} photo{unavailable === 1 ? '' : 's'} in this link can&apos;t be shown: not uploaded yet, withdrawn by the contractor, or the link has expired.
             </Text>
           </View>
         )}
@@ -224,7 +224,7 @@ export default function SharedPhotosScreen() {
         {photoCount === 0 && (
           <View style={styles.emptyCard}>
             <ImageIcon size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No photos in this share</Text>
+            <Text style={styles.emptyTitle}>No Photos in This Share</Text>
             <Text style={styles.emptyBody}>The contractor hasn&apos;t added any photos yet, or this share was built before any photos were taken.</Text>
           </View>
         )}
@@ -260,7 +260,7 @@ export default function SharedPhotosScreen() {
                         source={{ uri: p.u }}
                         style={styles.tileImage}
                         resizeMode="cover"
-                        accessibilityLabel={caption || 'Jobsite photo'}
+                        accessibilityLabel={caption || 'Jobsite Photo'}
                         onError={() => markBroken(p.id)}
                       />
                       {p.t ? (
