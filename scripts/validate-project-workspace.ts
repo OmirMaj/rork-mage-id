@@ -133,7 +133,7 @@ console.log('\n1. The KPI strip: eight cells, honest about what it does not know
     cells.slice(0, 6).every(c => c.financial === true) && cells.slice(6).every(c => !c.financial));
   eq('Contract = the signed contract + approved COs', [cell(cells, 'contract')?.value, cell(cells, 'contract')?.sub], ['$210,000', 'Signed contract']);
   eq('Margin reads the pulse to 1 decimal, toned by health', [cell(cells, 'margin')?.value, cell(cells, 'margin')?.tone], ['18.3%', 'good']);
-  eq('Risk band + score', [cell(cells, 'risk')?.value, cell(cells, 'risk')?.sub, cell(cells, 'risk')?.tone], ['Low risk', '22/100', 'good']);
+  eq('Risk band + score', [cell(cells, 'risk')?.value, cell(cells, 'risk')?.sub, cell(cells, 'risk')?.tone], ['Low Risk', '22/100', 'good']);
   eq('Billed % of the contract', cell(cells, 'billed')?.value, '40%');
   eq('Owed is money owed, toned warn', [cell(cells, 'owed')?.value, cell(cells, 'owed')?.tone], ['$12,000', 'warn']);
   eq('Overdue A/R sums every past-due bucket; bad when 31+ days', [cell(cells, 'overdue')?.value, cell(cells, 'overdue')?.tone, cell(cells, 'overdue')?.sub], ['$12,000', 'bad', '60+ $3,000']);

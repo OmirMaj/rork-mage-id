@@ -9,7 +9,7 @@
 //      public MAGE ID link. No other control on the page reads the address to
 //      hand it on, and a print (the browser prints the address in its footer)
 //      takes the key out of the address bar for its length.
-//   2. RESET LINK. The GC can cut off a leaked link: "Reset link" calls the live
+//   2. RESET LINK. The GC can cut off a leaked link: "Reset Link" calls the live
 //      owner-only RPC portal_rotate_access_token, confirms first, refuses
 //      offline (never queued — it changes who can open the portal), adopts the
 //      fresh key and offers to send the new link. It NEVER GUESSES: when the
@@ -201,8 +201,8 @@ const perform = liftCallback(SETUP, 'performLinkReset');
 const askReset = liftCallback(SETUP, 'handleResetLink');
 ok('2b. the call lives in performLinkReset', perform.includes("'portal_rotate_access_token'"));
 const performRefs = [...SETUP.matchAll(/performLinkReset\b/g)].length;
-ok('2c. performLinkReset runs only from the confirm\'s "Reset link" button', performRefs === 3
-  && /\{\s*text:\s*'Reset link',\s*style:\s*'destructive',\s*onPress:\s*\(\)\s*=>\s*\{\s*void performLinkReset\(\);\s*\}\s*\}/.test(askReset),
+ok('2c. performLinkReset runs only from the confirm\'s "Reset Link" button', performRefs === 3
+  && /\{\s*text:\s*'Reset Link',\s*style:\s*'destructive',\s*onPress:\s*\(\)\s*=>\s*\{\s*void performLinkReset\(\);\s*\}\s*\}/.test(askReset),
   `${performRefs} references (declaration, deps-free call in the confirm, and the confirm's dependency list expected)`);
 ok('2c. the confirm says what happens, in the spec\'s words',
   /showAlert\(\s*'Reset the link\?',\s*'Your client’s old link stops working\. Send them the new one\.'/.test(askReset));
@@ -286,7 +286,7 @@ ok('2e. the fresh key is adopted on screen AND on the saved portal (the RPC\'s c
   /setPortal\(p => \(\{ \.\.\.p, accessToken: serverToken \}\)\)/.test(adopt)
   && /updateProject\(id, \{ clientPortal: \{ \.\.\.saved, accessToken: serverToken \} \}\)/.test(adopt));
 ok('2f. then it offers to send the new link through the existing send flow',
-  /text:\s*'Send new link'/.test(announce) && /handleShareRef\.current\(\)/.test(announce) && /handleShareRef\.current = handleShare;/.test(SETUP));
+  /text:\s*'Send New Link'/.test(announce) && /handleShareRef\.current\(\)/.test(announce) && /handleShareRef\.current = handleShare;/.test(SETUP));
 ok('2f. no second reset on top of an unconfirmed one: with no key on the device, Reset stops at the same "link pending" guard as Copy / Share',
   askReset.search(/if \(warnIfLinkPending\(\)\) return;/) >= 0 && askReset.search(/if \(warnIfLinkPending\(\)\) return;/) < confirmAt);
 ok('2g. owner only, saved portal only, never on a sample',
@@ -528,7 +528,7 @@ ok('5f. one plain reason for every door: the setup screen\'s note carries both s
 {
   const at = DETAIL.indexOf('testID="portal-enable-btn"');
   const press = at < 0 ? '' : DETAIL.slice(at, DETAIL.indexOf('activeOpacity', at));
-  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_PORTAL_REASON\); return; \}/);
+  const guardAt = press.search(/if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_PORTAL_REASON\); return; \}/);
   const writeAt = press.search(/updateProject\(/);
   ok('5g. the project page\'s Enable Client Portal button refuses a sample before any write, and says why',
     guardAt >= 0 && writeAt > guardAt && /enabled: true/.test(press)

@@ -1,6 +1,6 @@
 // validate-w5-lien-prequal-screens.ts — wave 5, lane lien-prequal, client half.
 //
-//   #30  a failed waiver read is never "No waivers yet"; the last good list is
+//   #30  a failed waiver read is never "No Waivers Yet"; the last good list is
 //        cached per project; failed void / received / delete say so
 //   #31  paper record is conditional on the ROW being unsigned; status changes
 //        write status only; Void sits behind a destructive confirm; the screen
@@ -213,7 +213,7 @@ ok('#29 the gate view offers no write control',
 ok('#30 the screen reads through loadLienWaiversChecked, never the []-on-error fetch',
   /await loadLienWaiversChecked\(projectId\)/.test(lw) && !/fetchLienWaiversForProject/.test(lw));
 ok('#30 a failed read falls back to the cached copy', /readLienWaiverCache\(projectId\)/.test(lw) && /setSeenAt\(cached\.savedAt\)/.test(lw));
-ok('#30 "No waivers yet" renders only when the read did NOT fail',
+ok('#30 "No Waivers Yet" renders only when the read did NOT fail',
   /\{!loading && !loadError && waivers\.length === 0 && \(/.test(lw)
   && (lw.match(/No waivers yet/g) ?? []).length === 1);
 ok('#30 the failed-read states say what the phone last saw / check your signal',
@@ -226,7 +226,7 @@ ok('#30 the failed-read states say what the phone last saw / check your signal',
 ok('#30 handleStatusChange reports failure and has an in-flight guard',
   /if \(writeInFlight\.current\) return;/.test(lw)
   && /Couldn’t \$\{verb\}/.test(lw) && /Not saved\. Check your signal and try again\./.test(lw));
-ok('#30 handleDelete reports a delete that did not happen', /showAlert\('Couldn’t delete'/.test(lw));
+ok('#30 handleDelete reports a delete that did not happen', /showAlert\('Couldn’t Delete'/.test(lw));
 ok('#30 handleCreate says when the phone is offline', /createLienWaiverChecked\(/.test(lw) && /isOfflineError\(res\.error\)[\s\S]{0,200}offline/.test(lw));
 ok('#31 status changes never upsert the stale card',
   /await updateLienWaiverStatus\(w\.id, status\)/.test(lw) && !/saveLienWaiver\(\{ \.\.\.w, id: w\.id, status \}\)/.test(lw));

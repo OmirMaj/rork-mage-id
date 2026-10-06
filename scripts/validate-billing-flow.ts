@@ -469,7 +469,7 @@ console.log('\nsurfaces:');
 // A new contract's schedule is the GC's own deposit / progress / final split
 // (utils/paymentTerms.contractScheduleFromSplit), not the 25/25/25/25 seed.
 // Three things must hold or the schedule he signs cannot be billed as printed:
-//   · the progress row ("Billed as work is completed") is NEVER a lump invoice
+//   · the progress row ("Billed as Work Is Completed") is NEVER a lump invoice
 //     — composing it would bill the homeowner 65% the day after signing;
 //   · the deposit and the final bill EXACTLY the cents the contract printed;
 //   · after the deposit and every cent of progress, the final is still under
@@ -613,7 +613,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
   // EXECUTED, on the row a 25 / 65 / 10 split actually seeds: which states
   // open the action and which close it.
   {
-    const row: MilestoneLike = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' };
+    const row: MilestoneLike = { id: 'p', label: 'Progress Payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' };
     const at = (billedToDate: number, patch: Partial<MilestoneLike> = {}) => milestoneBillability({
       milestone: { ...row, ...patch }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: billedToDate,
     });
@@ -693,7 +693,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
   // EXECUTED: the state the pill used to lie about — $57,500 of the contract
   // drawn, the row's own status untouched by any of it.
   {
-    const row = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' } as const;
+    const row = { id: 'p', label: 'Progress Payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' } as const;
     const half = milestoneBillability({
       milestone: { ...row }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: 57_500,
     });

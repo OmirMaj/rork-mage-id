@@ -154,12 +154,12 @@ console.log('\n#101 the screen refuses to export a portal-less total:');
     && /disabled=\{generating \|\| !!exportBlockedReason\}/.test(code)
     && /testID="tax-1099-export-blocked"/.test(code));
   ok('…the handler refuses too (belt to the disabled state)',
-    /if \(exportBlockedReason\) \{ showAlert\('Export not ready', exportBlockedReason\); return; \}/.test(code));
+    /if \(exportBlockedReason\) \{ showAlert\('Export Not Ready', exportBlockedReason\); return; \}/.test(code));
   ok('a warning card with Retry replaces the summary tiles',
     /loadError \? \(\s*<View style=\{styles\.errorCard\} testID="tax-1099-load-error">/.test(code)
     && /onPress=\{\(\) => \{ void loadSubInvoices\(\); \}\}/.test(code));
-  ok('rows say "Sub-portal payments not loaded" instead of "No sub-portal payments this year"',
-    /loadError \? 'Sub-portal payments not loaded' : 'No sub-portal payments this year'/.test(code));
+  ok('rows say "Sub-Portal Payments Not Loaded" instead of "No sub-portal payments this year"',
+    /loadError \? 'Sub-Portal Payments Not Loaded' : 'No Sub-Portal Payments This Year'/.test(code));
   ok("…and the engine's 'nothing this year' note is dropped from the row while unloaded",
     /notesForScreen\(r\.notes, !loadError\)/.test(code));
   ok('card money is shown on the row', /testID=\{`card-paid-\$\{r\.subcontractorId\}`\}/.test(code));

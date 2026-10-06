@@ -491,9 +491,9 @@ console.log('\n2. Labels never imply an official AIA document');
   // What the three lines say now: what the thing is.
   const reportsSrc = read('app/reports.tsx');
   ok('the reports screen is titled "Reports for your bank", in its header and in its phone hero',
-    count(reportsSrc, /<Text style=\{styles\.title\}>Reports for your bank<\/Text>/g) === 1
-    && count(reportsSrc, /<Text style=\{styles\.reportsHeroTitle\}>Reports for your bank<\/Text>/g) === 1
-    && count(userFacing(reportsSrc).join('\n'), /Reports for your bank/g) === 2);
+    count(reportsSrc, /<Text style=\{styles\.title\}>Reports for Your Bank<\/Text>/g) === 1
+    && count(reportsSrc, /<Text style=\{styles\.reportsHeroTitle\}>Reports for Your Bank<\/Text>/g) === 1
+    && count(userFacing(reportsSrc).join('\n'), /Reports for Your Bank/g) === 2);
   ok('the WIP PDF’s subtitle says what it is: "WIP across active projects."',
     /\n      subtitle: 'WIP across active projects\.',\n/.test(read('utils/financialReportPdf.ts')));
   ok('…the two that promise nothing are exactly these lines',
@@ -1226,8 +1226,8 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   const totals = src.co.slice(src.co.indexOf('<View style={styles.totalsCard}>'));
   const totalsCode = codeOf(totals);
   ok('…the totals card prints ONE first row: the stamp under the PDF’s label on a base-only record, the original contract sum otherwise',
-    /\{coRecordBaseOnly \? \(\n\s+<View style=\{styles\.totalRow\}>\n\s+<Text style=\{styles\.totalLabel\}>Contract sum prior to this CO<\/Text>\n\s+<Text style=\{styles\.totalValue\}>\{formatCurrency\(originalContractValue\)\}<\/Text>\n\s+<\/View>\n\s+\) : \(\n\s+<View style=\{styles\.totalRow\}>\n\s+<Text style=\{styles\.totalLabel\}>Original contract sum<\/Text>\n\s+<Text style=\{styles\.totalValue\}>\{formatCurrency\(originalContractSum\)\}<\/Text>\n\s+<\/View>\n\s+\)\}/.test(totalsCode)
-    && count(totalsCode, /formatCurrency\(originalContractSum\)/g) === 1 && count(totalsCode, />Original contract sum</g) === 1
+    /\{coRecordBaseOnly \? \(\n\s+<View style=\{styles\.totalRow\}>\n\s+<Text style=\{styles\.totalLabel\}>Contract Sum Prior to This CO<\/Text>\n\s+<Text style=\{styles\.totalValue\}>\{formatCurrency\(originalContractValue\)\}<\/Text>\n\s+<\/View>\n\s+\) : \(\n\s+<View style=\{styles\.totalRow\}>\n\s+<Text style=\{styles\.totalLabel\}>Original Contract Sum<\/Text>\n\s+<Text style=\{styles\.totalValue\}>\{formatCurrency\(originalContractSum\)\}<\/Text>\n\s+<\/View>\n\s+\)\}/.test(totalsCode)
+    && count(totalsCode, /formatCurrency\(originalContractSum\)/g) === 1 && count(totalsCode, />Original Contract Sum</g) === 1
     && count(coCode, /\bcoRecordBaseOnly\b/g) === 2);
   ok('…then the caption, then the prior-changes rows only when the shown figure is not zero (never on a base-only record)',
     /\)\}\n\s+\{contractSumCaption \? \(\n\s+<Text style=\{styles\.coMarginNote\} testID="co-contract-sum-source">\{contractSumCaption\}<\/Text>\n\s+\) : null\}\n\s+\{shownPriorApprovedChanges !== 0 && \(/.test(totalsCode)
@@ -1256,7 +1256,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   const pdfAt = src.co.indexOf('const handleSharePdf = useCallback(async () => {');
   const pdfFn = src.co.slice(pdfAt, src.co.indexOf('}, [coForPdf, project, settings, numberHold]);', pdfAt));
   ok('…and the handler refuses before it builds anything',
-    pdfAt > 0 && /const hold = numberHold\('pdf'\);\n\s+if \(hold\) \{ showAlert\('Not yet', hold\); return; \}/.test(pdfFn)
+    pdfAt > 0 && /const hold = numberHold\('pdf'\);\n\s+if \(hold\) \{ showAlert\('Not Yet', hold\); return; \}/.test(pdfFn)
     && pdfFn.indexOf("const hold = numberHold('pdf');") < pdfFn.indexOf('generateChangeOrderPDF(')
     && count(coCode, /generateChangeOrderPDF\(/g) === 1 && count(coCode, /generateChangeOrderPDFUri\(/g) === 0);
   // The proof packet.
@@ -1281,7 +1281,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
     && src.co.indexOf('const saved = persistCO(\n        status,') < src.co.indexOf('await shareSavedCOToPortal(saved.id,'));
   // The email.
   ok('the email: both entry points ask the same hold first',
-    count(coCode, /const hold = numberHold\('email'\);\n\s+if \(hold\) \{ showAlert\('Not yet', hold\); return; \}/g) === 2);
+    count(coCode, /const hold = numberHold\('email'\);\n\s+if \(hold\) \{ showAlert\('Not Yet', hold\); return; \}/g) === 2);
   const pressAt = src.co.indexOf('const handleSendPress = useCallback(() => {');
   const press = src.co.slice(pressAt, src.co.indexOf('}, [withConfirmedImpactDays, withConfirmedPrices, numberHold, contractSumHold]);', pressAt));
   ok('…Send & Save refuses before the send sheet opens',
@@ -1333,7 +1333,7 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
     // The screen never approves by a direct write: every approve is a sheet's slide.
     && count(coCode, /\bapproveChangeOrder\b/g) === 0 && !/status: 'approved'/.test(coCode));
   ok('an approve ALREADY OPEN when the hold appears is closed, with the reason (the contract read answered after he opened it)',
-    /\n  const approveOpen = approveSheetCO !== null \|\| reflowPreviewCO !== null;\n  useEffect\(\(\) => \{\n    if \(!savedBaseHold \|\| !approveOpen\) return;\n    setApproveUnsigned\(null\);\n    setApproveSheetCO\(null\);\n    setReflowPreviewCO\(null\);\n    showAlert\('Not yet', savedBaseHold\);\n  \}, \[savedBaseHold, approveOpen\]\);\n/.test(src.co));
+    /\n  const approveOpen = approveSheetCO !== null \|\| reflowPreviewCO !== null;\n  useEffect\(\(\) => \{\n    if \(!savedBaseHold \|\| !approveOpen\) return;\n    setApproveUnsigned\(null\);\n    setApproveSheetCO\(null\);\n    setReflowPreviewCO\(null\);\n    showAlert\('Not Yet', savedBaseHold\);\n  \}, \[savedBaseHold, approveOpen\]\);\n/.test(src.co));
   ok('…`savedBaseHold` is used exactly there: its declaration, numberHold (2), the two refusals (2 each), one dependency list, and the effect (3)',
     count(coCode, /\bsavedBaseHold\b/g) === 11);
 

@@ -170,7 +170,7 @@ if (B) {
 console.log('\n#74 the CO PDF can be shared from the screen');
 if (B) {
   ok('unsaved → disabled, "Save the change order first"', !B.coPdfAction({ saved: false, dirty: false, numberHold: null }).enabled && /Save the change order first/.test(B.coPdfAction({ saved: false, dirty: false, numberHold: null }).reason ?? ''));
-  ok('dirty → "PDF of last saved version"', B.coPdfAction({ saved: true, dirty: true, numberHold: null }).label === 'PDF of last saved version');
+  ok('dirty → "PDF of Last Saved Version"', B.coPdfAction({ saved: true, dirty: true, numberHold: null }).label === 'PDF of Last Saved Version');
   ok('provisional number → disabled with the reason', !B.coPdfAction({ saved: true, dirty: false, numberHold: 'still reaching MAGE' }).enabled);
   ok('saved + confirmed → Share PDF', B.coPdfAction({ saved: true, dirty: false, numberHold: null }).enabled);
   const L = [{ id: 'a', name: 'A', quantity: 1, unitPrice: 10, total: 10 }];
@@ -240,7 +240,7 @@ if (B && A) {
     // W2 integration: it also clears the "approved without signing" mark (a pipeline approve is not that action).
     /const confirmApprove = useCallback\(\(co: ChangeOrder\) => \{\s*setApproveUnsigned\(null\);\s*setApproveSheetCO\(co\);\s*\}, \[\]\);/.test(CODE)
       && /<COApproveSheet\b[\s\S]{0,400}moneyLine=\{copy\.message\}/.test(CODE));
-  ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark approved'/.test(CODE));
+  ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark Approved'/.test(CODE));
 }
 
 // ── #77/#141 the screen never prints a guessed number ──────────────────────

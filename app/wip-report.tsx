@@ -771,7 +771,7 @@ function WipReportScreenInner() {
     return `Profit fade is measured against your ${comparisonPeriod.periodEndDate} period`
       + (comparisonPeriod.lockedAt
         ? `, locked ${comparisonPeriod.lockedAt.slice(0, 10)}.`
-        : ', which is saved but not locked, so it can still be edited underneath this comparison.');
+        : ', which is SAVED but not locked, so it can still be edited underneath this comparison.');
   }, [comparisonPeriod, periods.length]);
 
   const [explainerOpen, setExplainerOpen] = useState(false);

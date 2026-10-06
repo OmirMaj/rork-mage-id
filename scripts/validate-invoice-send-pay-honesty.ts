@@ -66,13 +66,13 @@ ok('the edge function\'s min error names $0.50', /\$0\.50/.test(payLinkFailureRe
 ok('any other Stripe error is quoted, never swallowed', payLinkFailureReason('card_declined') === 'Stripe said: card_declined');
 ok('no error text still gives a reason', payLinkFailureReason(undefined).length > 10);
 ok('the replacement toast says "without a Pay button" and how to add one',
-  /^Sent — without a Pay button: .+\. Open Invoice #7 and tap Generate Payment Link/.test(sentWithoutPayButtonMessage(7, 'x')));
+  /^Sent without a Pay button: .+\. Open Invoice #7 and tap Generate Payment Link/.test(sentWithoutPayButtonMessage(7, 'x')));
 // A limit never passes on retry, so its toast must not send him to the button.
 for (const [label, amt] of [['over $999,999.99', 1_200_000], ['under $0.50', 0.49]] as const) {
   const reason = payLinkAmountBlock(amt) ?? '';
   const msg = sentWithoutPayButtonMessage(7, reason);
   ok(`${label}: the toast names the limit and does NOT say "tap Generate Payment Link"`,
-    msg.startsWith('Sent — without a Pay button: ') && msg.includes(reason) && !/Generate Payment Link/.test(msg), msg);
+    msg.startsWith('Sent without a Pay button: ') && msg.includes(reason) && !/Generate Payment Link/.test(msg), msg);
   ok(`${label}: the edge function's own limit error reads the same (not retryable)`,
     !/Generate Payment Link/.test(sentWithoutPayButtonMessage(7, payLinkFailureReason(amt > 1 ? 'Amount exceeds Stripe maximum' : 'Minimum charge amount is $0.50'))));
 }

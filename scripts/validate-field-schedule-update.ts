@@ -142,7 +142,7 @@ console.log('\nsending:');
     ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved. Your access/],
     ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved. Progress updates on field access are not switched on/],
     ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved. That change isn't a progress update/],
-    ['offline', { throws: true }, /^Not saved — no connection/],
+    ['offline', { throws: true }, /^Not saved: no connection/],
   ] as const) {
     const r = await sendFieldTaskPatches(client(res), 'p1', patches);
     ok(`${label} → not ok, and the message says not saved`, !r.ok && re.test(r.message), JSON.stringify(r));
@@ -321,9 +321,9 @@ console.log('\nthe AI draft review screen:');
     const body = slice(REVIEW, 'const accept = useCallback(', 'const regenerate');
     ok('accept is refused before anything is written or recorded',
       body.length > 0
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') >= 0
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') < body.indexOf('recordPrediction(')
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') < body.indexOf('updateProject('));
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') >= 0
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') < body.indexOf('recordPrediction(')
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') < body.indexOf('updateProject('));
     ok('...and the refusal is in its dependency list, so a role that resolves late is honoured',
       /\}, \[project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds, scheduleWriteBlockedReason\]\);/.test(REVIEW));
   }

@@ -284,7 +284,7 @@ const html = read('marketing/portal/index.html');
     && !/Wisetack/i.test(ps) && !/funded/.test(ps) && !/estimates & invoices/.test(ps) && !/paid in full upfront/.test(ps));
   ok('…the referral line comes from financingReferralSummary', /\{financingReferralSummary\(referralStats\)\}/.test(ps));
   ok('…and switching financing on without a lender name says why instead of saving a dead offer',
-    /if \(enabled && !finPartner\.trim\(\)\) \{\s*showAlert\('Lender name needed'/.test(ps));
+    /if \(enabled && !finPartner\.trim\(\)\) \{\s*showAlert\('Lender Name Needed'/.test(ps));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -324,7 +324,7 @@ const html = read('marketing/portal/index.html');
     on === 'Financing is on: invoice emails you send and your client portal offer "Check financing options" from Acme Home Loans. '
       + 'MAGE ID is not a lender and is not paid for referrals.', on);
   ok('INVOICE_FINANCING_SETUP_LINE is bring-your-own-lender, pointing at Payments',
-    core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →');
+    core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender. Set it up in Payments');
   ok('…neither names a partner, a rate or a date',
     !/Wisetack|%|Q3|20\d\d/i.test(on + core.INVOICE_FINANCING_SETUP_LINE));
 

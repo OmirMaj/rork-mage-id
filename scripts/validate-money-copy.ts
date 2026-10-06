@@ -154,8 +154,8 @@ const GONE: [string, RegExp, string][] = [
   ['app/buyout-package.tsx', /tell him to phone|what he is pricing|to his record|AI PICK/, 'no gendered sub, no hard-coded caps badge'],
   ['app/wip-report.tsx', /AS THEY STAND TODAY|will not invent|LOSS JOB/, 'the save alert reads VOICE #18, the loss tag is words'],
   ['components/PDFPreSendSheet.tsx', /Generate & Share|Send via Email|FILE NAME|INCLUDE IN PDF/, 'buttons name the action; labels uppercase by style'],
-  ['app/payment-predictions.tsx', /err\?\.message|On Track|At Risk'/, 'no raw error text; sentence-case risk labels'],
-  ['app/reports.tsx', />no cost basis</, 'VOICE #17: "No cost basis"'],
+  ['app/payment-predictions.tsx', /err\?\.message|On track|At risk'/, 'no raw error text; Title Case risk labels (a converted file, VOICE 3)'],
+  ['app/reports.tsx', />no cost basis</, 'VOICE #17: "No Cost Basis"'],
   ['utils/pdfGenerator.ts', /Please find attached|Please review the|⚠/, 'no "Please", no emoji on documents'],
 ];
 for (const [rel, re, why] of GONE) {

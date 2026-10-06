@@ -125,7 +125,7 @@ console.log('\nthe client:');
   const src = read('utils/buildingRecordClient.ts');
   ok("invokes the LITERAL functions.invoke('building-record'", /functions\.invoke\(\s*'building-record'/.test(src));
   ok('never reads .message (no raw error text returned)', !/\.message\b/.test(src));
-  ok('every failure is the fixed network sentence', /code: 'network'/.test(src) && /nothing was checked/.test(src));
+  ok('every failure is the fixed network sentence', /code: 'network'/.test(src) && /Nothing was checked/.test(src));
   ok('parses through parseBuildingRecordResponse', /parseBuildingRecordResponse\(data\)/.test(src));
 }
 

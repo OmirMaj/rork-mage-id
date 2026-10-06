@@ -1174,7 +1174,7 @@ console.log('\n14. sentences');
   }
 
   // The picker's stepper caption — the only place the user meets the control.
-  ok('stepper says "No wait" at zero', lagStepperLabel(0) === 'No Wait');
+  ok('stepper says "No Wait" at zero', lagStepperLabel(0) === 'No Wait');
   ok('stepper counts a wait in plain English', lagStepperLabel(2) === 'Wait 2 days');
   ok('stepper is singular at one day', lagStepperLabel(1) === 'Wait 1 day');
   ok('stepper names the lead direction without jargon', lagStepperLabel(-3) === 'Start 3 days early');

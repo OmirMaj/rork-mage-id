@@ -485,8 +485,8 @@ function moneyCalls(span: string): string[] {
   ok(`the G702 KPI strip is in cents: all ${kpiMoney.length} formatMoney calls pass 2 decimals`,
     kpiMoney.length === 9 && kpiMoney.every((c) => /, 2\)$/.test(c)), kpiMoney.filter((c) => !/, 2\)$/.test(c)).join(' | '));
   ok('…it is desktop-only: {isDesktop ? (<KpiStrip … ) : null}', /\{isDesktop \? \(\s*<KpiStrip/.test(aia));
-  const coverAt = aia.indexOf('Summary (G702 cover)');
-  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to finish"', coverAt));
+  const coverAt = aia.indexOf('Summary (G702 Cover)');
+  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to Finish"', coverAt));
   const cover = coverAt < 0 || coverEnd < 0 ? '' : aia.slice(coverAt, coverEnd);
   const coverMoney = moneyCalls(cover);
   ok(`the G702 summary card prints cents on every platform (founder default 2): ${coverMoney.length} formatMoney calls, all with 2`,
@@ -506,7 +506,7 @@ function moneyCalls(span: string): string[] {
 {
   const D8: Record<string, { headline: string; body: string }> = {
     'aia-factoring-cta': {
-      headline: 'Advances on certified pay apps',
+      headline: 'Advances on Certified Pay Apps',
       body: 'Pay-app money waits with the owner until they certify and release it. We are looking at a factoring partner that could advance part of a certified amount. No partner is signed yet, so there are no rates or timelines to show.',
     },
     'aia-lienwaiver-cta': {

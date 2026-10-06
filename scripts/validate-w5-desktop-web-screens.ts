@@ -44,9 +44,9 @@ console.log('\n#149 /client-messages always has a way out:');
   ok('it takes a safe back', /import \{ useSafeBack \} from '@\/hooks\/useSafeBack';/.test(src) && /const goBack = useSafeBack\(\);/.test(src));
   ok('no bare router.back() is left on the screen', !/router\.back\(\)/.test(src),
     'router.back() with nothing to pop does nothing — the email-link dead end');
-  ok("'Go back' uses the safe back", /onPress=\{goBack\}>\s*<Text style=\{styles\.backBtnTxt\}>Go back<\/Text>/.test(src));
-  ok("'Back to portal setup' goes to portal setup for THIS project",
-    /router\.replace\(\{ pathname: '\/client-portal-setup', params: \{ id: project\.id \} \}\)[\s\S]{0,40}>\s*<Text style=\{styles\.backBtnTxt\}>Back to portal setup<\/Text>/.test(src));
+  ok("'Go Back' uses the safe back", /onPress=\{goBack\}>\s*<Text style=\{styles\.backBtnTxt\}>Go Back<\/Text>/.test(src));
+  ok("'Back to Portal Setup' goes to portal setup for THIS project",
+    /router\.replace\(\{ pathname: '\/client-portal-setup', params: \{ id: project\.id \} \}\)[\s\S]{0,40}>\s*<Text style=\{styles\.backBtnTxt\}>Back to Portal Setup<\/Text>/.test(src));
   const screens = src.match(/<Stack\.Screen options=\{\{[^}]*\}\} \/>/g) ?? [];
   ok(`every one of its Stack.Screen states carries the header back (${screens.length} found)`,
     screens.length === 3 && screens.every(s => /\.\.\.headerBack/.test(s)), screens.join('\n   '));
@@ -202,7 +202,7 @@ console.log('\n#161 Documents: wiring and copy:');
     /router\.push\(\{ pathname: '\/project-files', params: \{ projectId \} \} as never\)/.test(src) && /onPress=\{\(\) => openProjectFiles\(p\.id\)\}/.test(src));
   ok("no filter chip says 'Signed'", !/label: 'Signed'/.test(src));
   ok('the empty state still tells an empty filter from an empty account',
-    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing under this filter'/.test(src));
+    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing Under This Filter'/.test(src));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-w5-desktop-web-screens: ${pass} passed, ${fail} failed\n`);

@@ -541,10 +541,10 @@ console.log('\n  6. the label says what the number is');
 
   const screen = read('app/cash-flow.tsx');
   check('the summary tile is labelled Net cash change',
-    screen.includes('>Net cash change<'),
+    screen.includes('>Net Cash Change<'),
     'the tile that shows totalIncome − totalExpenses must name the number');
   check('...and says in one line what it does not include',
-    /Not profit\s*—\s*excludes unbilled work/.test(screen));
+    /Not profit:\s*it excludes unbilled work/.test(screen));
 
   // The stripper itself has to work, or check 6 is decorative.
   check('the comment stripper removes comments and keeps strings',

@@ -839,7 +839,7 @@ export function milestoneBillEffect(
   if (milestone.trigger === 'on_invoice') {
     return {
       kind: 'progress',
-      title: 'Billed as Work Is Completed',
+      title: 'Billed as work is completed',
       message: 'Progress payments are billed from Bill from estimate as the work gets done, so this row never becomes one lump invoice.',
     };
   }

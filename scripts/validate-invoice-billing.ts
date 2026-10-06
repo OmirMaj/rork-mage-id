@@ -2016,7 +2016,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     /testID="aia-refresh-contract"/.test(aiaScreen), true);
   // ── ONE CHANGE-ORDER TABLE, AND THE GUARD WATCHES THAT ONE ────────────────
   //
-  // "Print as saved" means SAVED: the four-row table was the last thing on the
+  // "Print as Saved" means SAVED: the four-row table was the last thing on the
   // printed form still being derived live at print time. Three handoffs reach
   // buildAIAPayAppHtml — the reprint, the generate, and the record
   // buildSavedRecord freezes — and each used to resolve

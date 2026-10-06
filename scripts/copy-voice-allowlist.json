@@ -1057,6 +1057,30 @@
       "rule": "R15",
       "match": "Substantial completion",
       "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/billingFlowCore.ts",
+      "rule": "R15",
+      "match": "Billed as work is completed",
+      "reason": "the contract wording for a progress row: validate-billing-flow holds it equal to milestoneDueText (PAYMENT_STAGE_COPY detail), which prints on the contract"
+    },
+    {
+      "file": "utils/projectWorkspaceLayout.ts",
+      "rule": "R15",
+      "match": "Subs & pay",
+      "reason": "held equal to the project page tile label in app/project-detail.tsx by validate-ux-doors: it changes with lane 5, in both files together"
+    },
+    {
+      "file": "utils/projectWorkspaceLayout.ts",
+      "rule": "R21",
+      "match": "Subs & pay",
+      "reason": "held equal to the project page tile label in app/project-detail.tsx by validate-ux-doors: it changes with lane 5, in both files together"
+    },
+    {
+      "file": "app/client-portal-setup.tsx",
+      "rule": "R20",
+      "match": "a client portal never goes out from a sample",
+      "reason": "carries both sentences of SAMPLE_PORTAL_REASON word for word (validate-portalfix 5f): it changes with the lane that owns that constant"
     }
   ]
 }

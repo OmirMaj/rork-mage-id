@@ -135,7 +135,7 @@ console.log('\n#52 — replacing a running schedule:');
   const accept = slice(REVIEW, 'const accept = useCallback(', 'const regenerate');
   const confirmAt = accept.indexOf('const loss = scheduleReplacementLoss(project.schedule);');
   ok('schedule-review: Accept counts the loss after the access refusal and BEFORE anything is recorded or written',
-    confirmAt > accept.indexOf("showAlert('Schedule not saved', scheduleWriteBlockedReason)")
+    confirmAt > accept.indexOf("showAlert('Schedule Not Saved', scheduleWriteBlockedReason)")
       && confirmAt < accept.indexOf('recordPrediction(') && confirmAt < accept.indexOf('updateProject('));
   ok('...asks with the count, Replace destructive, Keep as the cancel',
     /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, project\.name\), \[\s*\{ text: 'Keep Current Schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: \(\) => commitAccept\(\) \},/.test(accept));
@@ -195,8 +195,8 @@ console.log('\n#53 — Saved plans are sold as what they do:');
   ok('creating one saves it WITHOUT switching the screen to it',
     /onScheduleChange\(\{\s*scenarios: \[\.\.\.scenarios, scenario\],\s*\}\);/.test(slice(SCEN, 'const handleCreate', 'const handleSwitch')));
   ok('the tab button and every heading say Saved plans',
-    /<Text style=\{styles\.saveBaselineBtnText\}>Saved plans<\/Text>/.test(TAB)
-      && (SCEN.match(/<Text style=\{styles\.title\}>Saved plans<\/Text>/g) ?? []).length === 2
+    /<Text style=\{styles\.saveBaselineBtnText\}>Saved Plans<\/Text>/.test(TAB)
+      && (SCEN.match(/<Text style=\{styles\.title\}>Saved Plans<\/Text>/g) ?? []).length === 2
       && !/What-If/.test(code(SCEN)));
   ok('the modal gate is project-scoped (own tier OR the grant)', /useProjectAccess\(schedule\.projectId \?\? undefined\)/.test(SCEN));
 }

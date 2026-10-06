@@ -302,7 +302,7 @@ export function receiptMaterialLine(r: DeliveryReceipt, delivery: Delivery | und
   const po = (r.poNumber ?? '').trim();
   // A receipt with no delivery (material nobody scheduled) names the supplier
   // as the load — the receipt still witnesses that it arrived.
-  let line = what ? `${what} — ${supplier || 'supplier not recorded'}` : (supplier || 'Delivery (supplier not recorded)');
+  let line = what ? `${what}, ${supplier || 'supplier not recorded'}` : (supplier || 'Delivery (supplier not recorded)');
   if (po) line += ` (PO ${po})`;
   const by = (r.receivedBy ?? '').trim();
   if (by) line += `, received by ${by}`;

@@ -420,7 +420,7 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
  *  viewer seats with 200 and zero rows: the plan looked saved on his phone and
  *  the next reload put the old one back. One wording for both screens, so the
  *  two refusals cannot drift. `null` = this role may write it. */
-export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule not saved';
+export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule Not Saved';
 export const SCHEDULE_WRITE_FIELD_REASON =
   'Field access saves task progress, status, notes and actual start/finish, from Quick Field Update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
 export const SCHEDULE_WRITE_VIEWER_REASON =

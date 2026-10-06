@@ -809,7 +809,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     && parcelHitFrom({ error: { code: 400 } }, 'baltimore_city', pt('city', 0)).kind === 'unread');
   const allTimedOut = mdResolveOutcome([{ probe: P('city'), hits: [{ side: 'baltimore_city', hit: 'timeout' }] }, { probe: P('county'), hits: [{ side: 'baltimore_county', hit: 'failed' }] }], { county: 'Anne Arundel County' });
   ok('34. a resolve where every probe timed out or failed returns the MD_ERRORS text, never md_outside',
-    allTimedOut.status === 'error' && allTimedOut.error === MD_ERRORS.upstream && MD_ERRORS.upstream === "Couldn't finish the Baltimore lookup. Nothing was checked.");
+    allTimedOut.status === 'error' && allTimedOut.error === MD_ERRORS.upstream && MD_ERRORS.upstream === "Couldn't finish the Baltimore lookup — nothing was checked.");
   const none = { kind: 'none' as const };
   const outside = mdResolveOutcome([{ probe: P('city'), hits: [{ side: 'baltimore_city', hit: none }, { side: 'baltimore_county', hit: none }] }], { county: 'Anne Arundel County' });
   ok('34. both layers read, neither contains the point → md_outside with the Census county', outside.status === 'md_outside' && outside.county === 'Anne Arundel County');

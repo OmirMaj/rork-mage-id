@@ -285,9 +285,9 @@ ok('a failure shows pdfFailureMessage under the money.coProof copy', /showAlert\
 ok('no second reason line (the row\'s pdfReason explains both buttons)', !/<Text\b/.test(BTN));
 {
   const COPY: [string, string][] = [
-    ['money.coProof.button', 'Proof packet'],
+    ['money.coProof.button', 'Proof Packet'],
     ['money.coProof.busy', 'Building the packet…'],
-    ['money.coProof.failTitle', 'Could not make the packet'],
+    ['money.coProof.failTitle', 'Could Not Make the Packet'],
     ['money.coProof.failBody', "Couldn't build the proof packet. Try again."],
   ];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -364,7 +364,7 @@ for (const [d, p, f] of refuseCases) {
 }
 {
   const v = validatePaymentSplit({ deposit: '25', progress: '55', final: '10' });
-  check('sum refusal names the total', !v.ok && v.reason === 'Adds up to 90% — deposit, progress and final need to total 100%.', j(v));
+  check('sum refusal names the total', !v.ok && v.reason === 'Adds up to 90%. Deposit, progress and final need to total 100%.', j(v));
 }
 if (splitCheck) {
   let bad = '';
@@ -702,7 +702,7 @@ check('identity only when the bid gate blocks', j(missingQuestions({ identity: t
   check('one question per step: distinct titles, step labels 1..3 of 3',
     new Set(titles.map((t) => t.title)).size === 3 && j(titles.map((t) => t.stepLabel)) === j(['1 of 3', '2 of 3', '3 of 3']));
   check('identity button reads Next until the last step', titles[0].primaryLabel === 'Next'
-    && askStepCopy('identity', 'proposal_pdf', { stepIndex: 0, stepCount: 1 }).primaryLabel === 'Save and send');
+    && askStepCopy('identity', 'proposal_pdf', { stepIndex: 0, stepCount: 1 }).primaryLabel === 'Save and Send');
   check("contract offers 'Just this contract' / 'Just this proposal'", titles[1].secondaryLabel === 'Just this contract'
     && askStepCopy('terms', 'contract', { stepIndex: 0, stepCount: 1, justThisJob: true, documentNoun: 'proposal' }).secondaryLabel === 'Just this proposal');
   // A proposal-kind contract row must not explain itself as a construction
@@ -794,7 +794,7 @@ check(`terms title is exactly '${ASK_TERMS_TITLE}'`, ASK_TERMS_TITLE === 'What d
   check('one answered question reads exactly as confirmationFor (founder copy on a first answer)',
     single === confirmationFor({ question: 'terms', scope: 'profile', firstTime: true, split: S(25, 65, 10), unconfirmedPortalCount: 0, documentNoun: 'contract' })
     && /now all say 25 \/ 65 \/ 10/.test(single)
-    && confirmationForSheet({ warranty: { scope: 'profile', firstTime: true, months: 24 } }, 'contract') === 'Saved — new contracts warrant your work for 2 years'
+    && confirmationForSheet({ warranty: { scope: 'profile', firstTime: true, months: 24 } }, 'contract') === 'Saved. New contracts warrant your work for 2 years'
     && confirmationForSheet({ identity: true }, 'proposal') === 'Saved to your company profile', single);
   check("the founder's 'now all say' toast only when no portal is left without terms", founderWrong === '', founderWrong);
 }

@@ -548,8 +548,8 @@ console.log('\nboth screens actually render it, and neither prints a bare margin
   // every guard green. Pin the expression that fills the cell as well as the
   // heading above it.
   const rowCell: [string, RegExp][] = [
-    ['Cost to date', /r\.costToDate == null \? '—' : `<span class="num">\$\{fmtMoney\(r\.costToDate\)\}/],
-    ['Cost to complete', /const ctc = wipRowCostToComplete\(r\);/],
+    ['Cost to Date', /r\.costToDate == null \? '—' : `<span class="num">\$\{fmtMoney\(r\.costToDate\)\}/],
+    ['Cost to Complete', /const ctc = wipRowCostToComplete\(r\);/],
     ['Earned rev.', /const earned = wipRowEarned\(r\);/],
     ['Over/(Under)', /const overUnder = wipRowOverbilled\(r\) - r\.unbilled;/],
   ];
@@ -599,7 +599,7 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
   // seven zeros above two Export buttons.
   ok('the zeros themselves are replaced by an explanation, not printed above the buttons',
     /\{displayRows\.length === 0 \? \(/.test(WIP_SCREEN)
-    && /'No active projects'\}<\/Text>/.test(WIP_SCREEN));
+    && /'No Active Projects'\}<\/Text>/.test(WIP_SCREEN));
   ok('…and the blocked buttons say why, visibly',
     /testID="wip-export-blocked"/.test(WIP_SCREEN));
   ok('…and read as unavailable', /actionBtnBlocked/.test(WIP_SCREEN));
@@ -622,7 +622,7 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
     !/Every invoice is fully paid\. Nice work\./.test(withoutComments(REPORTS)),
     'a collected-in-full verdict is back on the zero-invoice path');
   ok('…it distinguishes "collected" from "never issued"',
-    /const collected = anyIssued;/.test(REPORTS) && /No invoices yet/.test(REPORTS));
+    /const collected = anyIssued;/.test(REPORTS) && /No Invoices Yet/.test(REPORTS));
   ok('…on the export note too, from the same population',
     /issuedInvoices === 0/.test(REPORTS) && /invoices\.filter\(isWipBilling\)/.test(REPORTS));
   ok('…and a draft is not counted as a billing here either',
@@ -1139,7 +1139,7 @@ console.log('\nthe WIP screen renders the period it would export:');
   ok('a loss job is flagged on the project list',
     /const flagged = r\.output\.anticipatedLoss/.test(WIP_SCREEN));
   ok('…and labelled in words, not by a bare red triangle',
-    /testID="wip-loss-tag"/.test(WIP_SCREEN) && /Projected loss<\/Text>/.test(WIP_SCREEN));
+    /testID="wip-loss-tag"/.test(WIP_SCREEN) && /Projected Loss<\/Text>/.test(WIP_SCREEN));
   ok('…and the portfolio headline discloses the provision it nets away',
     /testID="wip-loss-provision"/.test(WIP_SCREEN)
     && /Provision to book now/.test(WIP_SCREEN));

@@ -182,8 +182,8 @@ console.log('\n#11 receipts into the daily report:');
   const damaged = receipt({ id: 'r1', hasDamage: true, damageNotes: '2 trusses cracked at top chord' });
   const lines = receiptLinesForDay([damaged], deliveries, P, '2026-09-17');
   ok('REPRO: the damaged truss load is in Materials delivered, with PO, signer and damage',
-    lines.materials[0] === 'roof trusses — ABC Lumber (PO PO-7), received by Mike — DAMAGED: 2 trusses cracked at top chord', lines.materials[0]);
-  ok('REPRO: ...and in Issues & Delays', lines.damage.length === 1 && /Damaged delivery: roof trusses from ABC Lumber — 2 trusses cracked at top chord \(received by Mike\)/.test(lines.damage[0]), lines.damage[0]);
+    lines.materials[0] === 'roof trusses, ABC Lumber (PO PO-7), received by Mike. DAMAGED: 2 trusses cracked at top chord', lines.materials[0]);
+  ok('REPRO: ...and in Issues & Delays', lines.damage.length === 1 && /Damaged delivery: roof trusses from ABC Lumber: 2 trusses cracked at top chord \(received by Mike\)/.test(lines.damage[0]), lines.damage[0]);
   ok('an undamaged load is not an issue', receiptLinesForDay([receipt({ id: 'r2' })], deliveries, P, '2026-09-17').damage.length === 0);
   ok('a receipt with no scheduled delivery names the supplier', receiptMaterialLine(receipt({ deliveryId: undefined, poNumber: undefined }), undefined) === 'ABC Lumber, received by Mike');
   ok('damage with no notes still says damage was noted', /DAMAGED: damage noted at receiving/.test(receiptMaterialLine(receipt({ hasDamage: true }), deliveries[0])));

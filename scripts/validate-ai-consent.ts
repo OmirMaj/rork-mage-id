@@ -22,7 +22,7 @@
 //      the yes-without-a-host path exists only for a headless run, behind a
 //      named switch that no app file sets and no runtime implies (pinned in C2).
 //   A2. THE THREE ANSWERS, pressed for real on a fake alert (askAiConsentOnce):
-//      only "Allow AI features" is a yes; "Not now" and a dismissed alert are
+//      only "Allow AI features" is a yes; "Not Now" and a dismissed alert are
 //      no; "Privacy policy" opens the policy and asks again; the first answer
 //      wins. A button rewired to a silent grant turns this red.
 //   B. THE QUESTION: names every provider the edge functions actually call
@@ -149,8 +149,8 @@ async function partA() {
     const { call, sent } = makeAiCall(gate);
     let threw = false;
     try { await call('x'); } catch { threw = true; }
-    ok('unknown + "Not now": asked once, nothing sent, refused', asked === 1 && sent.length === 0 && threw);
-    ok('unknown + "Not now": declined is stored under the key', s.map.get(AI_CONSENT_STORAGE_KEY) === 'declined');
+    ok('unknown + "Not Now": asked once, nothing sent, refused', asked === 1 && sent.length === 0 && threw);
+    ok('unknown + "Not Now": declined is stored under the key', s.map.get(AI_CONSENT_STORAGE_KEY) === 'declined');
     ok('…and the next call is refused without asking', (await gate.ensure()) === false && asked === 1);
   }
   // unknown → "Allow": stored, sent
@@ -344,7 +344,7 @@ async function partA() {
 // ── A2. The three answers, pressed ────────────────────────────────────────
 //
 // Round-3 review: the validator only checked that the copy constants appear
-// in the host file. With "Not now" (or a dismissed alert) rewired to a yes,
+// in the host file. With "Not Now" (or a dismissed alert) rewired to a yes,
 // everything stayed green — a silent grant, the exact thing 5.1.2(i) forbids.
 // The answers are now pure logic (utils/aiConsentCore askAiConsentOnce) and
 // each one is pressed here on a fake alert.
@@ -368,7 +368,7 @@ async function peek(p: Promise<boolean>): Promise<boolean | 'pending'> {
 
 async function partA2() {
   console.log('\n── A2. the three answers, pressed on a fake alert ──');
-  const ALLOW = 'Allow AI features', NOT_NOW = 'Not now', POLICY = 'Privacy policy';
+  const ALLOW = 'Allow AI features', NOT_NOW = 'Not Now', POLICY = 'Privacy policy';
   {
     const a = fakeAlert();
     const p = askAiConsentOnce(a.show, () => {});
@@ -376,7 +376,7 @@ async function partA2() {
     ok('the alert shows the question: its title, the full message, and exactly three answers',
       a.shown.length === 1 && first.title === AI_CONSENT_COPY.title && first.message === aiConsentAlertMessage()
       && first.buttons.map((b) => b.text).join('|') === [POLICY, NOT_NOW, ALLOW].join('|'));
-    ok('"Not now" is the cancel answer; no tap-outside dismissal', first.buttons[1].style === 'cancel' && first.options.cancelable === false);
+    ok('"Not Now" is the cancel answer; no tap-outside dismissal', first.buttons[1].style === 'cancel' && first.options.cancelable === false);
     ok('nothing is answered until a button is pressed', (await peek(p)) === 'pending');
     a.press(0, ALLOW);
     ok('"Allow AI features" → yes', (await peek(p)) === true);
@@ -385,7 +385,7 @@ async function partA2() {
     const a = fakeAlert();
     const p = askAiConsentOnce(a.show, () => {});
     a.press(0, NOT_NOW);
-    ok('"Not now" → no (never a silent grant)', (await peek(p)) === false);
+    ok('"Not Now" → no (never a silent grant)', (await peek(p)) === false);
     a.press(0, ALLOW);
     ok('the first answer wins: a later press changes nothing', (await p) === false);
   }
@@ -406,7 +406,7 @@ async function partA2() {
     a.shown[0].options.onDismiss();
     ok('the spent first alert can no longer answer', (await peek(p)) === 'pending');
     a.press(1, NOT_NOW);
-    ok('…and the second alert’s "Not now" → no', (await peek(p)) === false);
+    ok('…and the second alert’s "Not Now" → no', (await peek(p)) === false);
   }
   {
     const a = fakeAlert();
@@ -417,7 +417,7 @@ async function partA2() {
   }
   // Through the real gate: what each answer STORES.
   for (const [label, act, want] of [
-    ['"Not now"', (a: ReturnType<typeof fakeAlert>) => a.press(0, NOT_NOW), 'declined'],
+    ['"Not Now"', (a: ReturnType<typeof fakeAlert>) => a.press(0, NOT_NOW), 'declined'],
     ['a dismissed alert', (a: ReturnType<typeof fakeAlert>) => a.shown[0].options.onDismiss(), 'declined'],
     ['"Allow AI features"', (a: ReturnType<typeof fakeAlert>) => a.press(0, ALLOW), 'granted'],
   ] as const) {
@@ -470,7 +470,7 @@ function partB() {
     /What you type or say/.test(msg) && /project details/.test(msg) && /Photos, plan pages and documents/.test(msg) && /Voice recordings/.test(msg));
   ok('says what it is used for and that it is revocable', /used only to answer that request/.test(msg) && /Settings > AI features/.test(msg));
   ok('title and buttons are the spec\u2019s words',
-    AI_CONSENT_COPY.title === 'Use AI features?' && AI_CONSENT_COPY.allow === 'Allow AI features' && AI_CONSENT_COPY.notNow === 'Not now');
+    AI_CONSENT_COPY.title === 'Use AI features?' && AI_CONSENT_COPY.allow === 'Allow AI features' && AI_CONSENT_COPY.notNow === 'Not Now');
   ok('the privacy link is https://mageid.app/privacy', AI_CONSENT_PRIVACY_URL === 'https://mageid.app/privacy' && AI_CONSENT_COPY.privacyLink === 'Privacy policy');
   ok('American spelling in the question (analyze, not analyse)', !/analys(e|ing)|authoris|organis|colour|licence\b|favour/i.test(msg + AI_CONSENT_OFF_MESSAGE));
   ok('never "unlimited"', !/unlimited/i.test(msg));
@@ -912,8 +912,8 @@ function partC() {
     !AI.has('portal-ask-home')
     || (readsAccountAnswer('portal-ask-home') && /Ask Your Home/.test(AI_CONSENT_OFF_ROW) && /follow the answer saved on your account/.test(AI_CONSENT_OFF_ROW)));
   ok('the Off row no longer says the server "still uses AI" (the server now obeys the account)', !/still uses AI on our server/.test(AI_CONSENT_OFF_ROW));
-  ok('…and that switch exists where the row says: "Send weekly recap" on the Client portal screen',
-    /title: 'Client portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send weekly recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
+  ok('…and that switch exists where the row says: "Send Weekly Recap" on the Client portal screen',
+    /title: 'Client Portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send Weekly Recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
   const blanket = files.filter((f) => !f.startsWith('utils/aiConsent') && /Nothing is sent to an AI provider|Nothing is sent until you allow/.test(stripComments(read(f))));
   ok('no screen says a blanket "Nothing is sent to an AI provider" / "Nothing is sent until you allow"',
     blanket.length === 0 && !/Nothing is sent to an AI provider/.test(AI_CONSENT_OFF_ROW), blanket.join(', '));

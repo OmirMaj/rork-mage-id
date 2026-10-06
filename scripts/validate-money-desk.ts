@@ -240,7 +240,7 @@ console.log('\n(b) paymentsFooter and the cells:');
   ok('…the KPI Received / Pending / fees are stats.received / stats.pending / stats.totalFees',
     /key: 'received', label: 'Received', value: formatMoney\(stats\.received, 2\)/.test(ps)
     && /key: 'pending',\s*label: 'Pending',\s*value: formatMoney\(stats\.pending, 2\)/.test(ps)
-    && /key: 'fees', label: 'Est\. fees', value: formatMoney\(stats\.totalFees, 2\)/.test(ps));
+    && /key: 'fees', label: 'Est\. Fees', value: formatMoney\(stats\.totalFees, 2\)/.test(ps));
   ok('…the Pending cell says so when the buckets do not reconcile',
     /!ar\.reconciles\s*\?\s*'A\/R buckets differ from Pending. See Reports'/.test(ps));
   ok('…the footer is paymentsFooter(selectedTab, filtered, stats)', /paymentsFooter\(selectedTab, filtered, stats\)/.test(ps));
@@ -298,13 +298,13 @@ console.log('\n(f) source pins:');
 {
   const block = paySrc.slice(from, to + END.length);
   const hash = createHash('sha256').update(block).digest('hex');
-  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a)',
-    hash === 'aa16270ed02531b47afdf2d914da58ff44646bb7b385a584f8edc47c596e4f9d', hash);
+  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a, with copy lane 2's Title Case labels and dash rewrites)',
+    hash === 'f8d760eaccee048374d5e18e58d35fad90e2f53327cc24c3f3409a76a869f0bd', hash);
 
   const lw = read('app/lien-waivers.tsx');
   const lwc = code(lw);
-  ok('lien: "No waivers yet" still renders only when the read did not fail, once',
-    lwc.includes('{!loading && !loadError && waivers.length === 0 && (') && (lwc.match(/No waivers yet/g) ?? []).length === 1);
+  ok('lien: "No Waivers Yet" still renders only when the read did not fail, once',
+    lwc.includes('{!loading && !loadError && waivers.length === 0 && (') && (lwc.match(/No Waivers Yet/g) ?? []).length === 1);
   ok('lien: pull-to-refresh and the access gate view are kept',
     lw.includes('refreshControl={<RefreshControl') && /function LienWaiverGateView\(/.test(lw));
   ok('lien: the phone list keeps onMarkVoid={() => { void handleVoid(w); }}', lw.includes('onMarkVoid={() => { void handleVoid(w); }}'));

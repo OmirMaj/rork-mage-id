@@ -102,7 +102,7 @@ const LEGACY_NO_EXPIRY_PREF = 'none';
  * but the user. So Save, Copy, Share, invites, a new link and a reset all stop
  * here with this reason, and the screen says it at the top.
  */
-const SAMPLE_PORTAL_NOTE = 'Sample job. A client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
+const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
 
 /**
  * Who this account is to the project, for the purpose of the share link.

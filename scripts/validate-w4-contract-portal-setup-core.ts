@@ -254,12 +254,12 @@ async function main() {
     /updateProject\(id, \{ clientPortal: \{ \.\.\.base, linkDurationDays: durationChoice, linkExpiresAt: nextExpiry \?\? undefined, linkGeneratedAt: next\.linkGeneratedAt \} \}\)/.test(setup));
   ok('leaving with unsaved switches asks first', /'Discard portal changes\?'/.test(setup));
   ok('#19: the owner-only reason, in the link controls\' words', /'Only the project owner can change what the client sees on the portal\.'/.test(setup));
-  ok('#19: Save refuses for a non-owner instead of "Saved"', /if \(ownerOnlyReason\) \{ showAlert\('Not saved', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleSave')));
+  ok('#19: Save refuses for a non-owner instead of "Saved"', /if \(ownerOnlyReason\) \{ showAlert\('Not Saved', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleSave')));
   ok('#19: the header Save is disabled for a non-owner', /disabled=\{isSaving \|\| !!ownerOnlyReason\}/.test(setup));
   const switches = (setup.match(/<Switch\b/g) ?? []).length;
   const gated = (setup.match(/<Switch\s+disabled=\{!!ownerOnlyReason\}/g) ?? []).length;
   ok('#19: every settings switch but the proposal one (gated in its handler) is disabled for a non-owner', gated === switches - 1, `${gated}/${switches}`);
-  ok('#19: the proposal switch handler refuses a non-owner', /if \(ownerOnlyReason\) \{ showAlert\('Not changed', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleProposalSwitch')));
+  ok('#19: the proposal switch handler refuses a non-owner', /if \(ownerOnlyReason\) \{ showAlert\('Not Changed', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleProposalSwitch')));
   ok('#19: "unknown" ownership falls back to the lite writer\'s rule (never a Save that never unlocks)',
     /\|\| \(ownership === 'unknown' && !!project && isPortalOwner\(project, userId\)\)/.test(setup));
 

@@ -239,7 +239,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
     const order = [
       "' · entered by you, synced'", "' · entered here, not synced yet'",
       "' · every cost recorded on this project", "' · subs paid + material receipts only",
-      '— nothing paid out yet, though', "' — nothing recorded yet.",
+      ': nothing paid out yet, though', "': nothing recorded yet.",
     ].map(at);
     ok('the phone row still prints the six-branch cost sentence the tag abbreviates, in the same order',
       order.every(i => i >= 0) && order.every((i, n) => n === 0 || i > order[n - 1]), JSON.stringify(order));

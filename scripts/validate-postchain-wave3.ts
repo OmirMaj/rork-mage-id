@@ -226,7 +226,7 @@ console.log('\n#133 the day he says the money arrived');
 // ── #50 scale honesty ───────────────────────────────────────────────────────
 console.log('\n#50 actuals are calendar indices everywhere they are written or shown');
 {
-  const find = (ts: ScheduleTask[]) => ts.find(t => t.title.startsWith('Clear & grub'));
+  const find = (ts: ScheduleTask[]) => ts.find(t => t.title.startsWith('Clear and Grub'));
   const undated = find(seedDemoSchedule());
   const dated = find(seedDemoSchedule({ scheduleStartDate: '2026-09-07', workingDaysPerWeek: 5 }));
   ok('undated demo: calendar = working, nothing moves', undated?.actualEndDay === 6, String(undated?.actualEndDay));

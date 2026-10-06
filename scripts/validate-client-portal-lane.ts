@@ -426,7 +426,7 @@ async function main() {
     /sections\.photos = \(sorted\.slice\(0, maxPhotos\)\.map\(p => renderSerialized\('photo', p, \(photo\) => \(\{\s*id: p\.id,/.test(snapSrc));
   const btn = read('components/SendToClientButton.tsx');
   check('an editor\'s send says it waits for the GC\'s app; a recall says it is immediate',
-    /if \(!isOwner\) showAlert\('Sent to the client portal', EDITOR_SEND_NOTE\);/.test(btn) && /A recall takes effect right away/.test(btn)
+    /if \(!isOwner\) showAlert\('Sent to the Client Portal', EDITOR_SEND_NOTE\);/.test(btn) && /A recall takes effect right away/.test(btn)
     && /comes off the client\\u2019s portal right away/.test(btn));
   const ctx = read('contexts/ProjectContext.tsx');
   check('no comment claims the owner\'s republish carries an editor\'s send', !/the owner's\s*(?:\/\/\s*)?republish carries it/.test(ctx));
