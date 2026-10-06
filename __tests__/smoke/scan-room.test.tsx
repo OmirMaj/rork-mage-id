@@ -86,10 +86,17 @@ jest.mock('@/components/Paywall', () => {
   return { __esModule: true, default: (p: { feature: string; requiredTier: string }) => R.createElement('Paywall', { testID: 'paywall', feature: p.feature, requiredTier: p.requiredTier }) };
 });
 
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';
 import { parseCapturedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import type { SavedScan } from '@/utils/roomScan/storeCore';
+
+// The flow reads the safe area for its header and its bottom padding.
+const METRICS = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
+const Wrap = ({ children }: { children: React.ReactNode }) => (
+  <SafeAreaProvider initialMetrics={METRICS}>{children}</SafeAreaProvider>
+);
 
 const RAW = fs.readFileSync(path.resolve(__dirname, '../../scripts/fixtures/scan-room/bathroom.json'), 'utf8');
 function bathroom(): SavedScan {
@@ -99,7 +106,12 @@ function bathroom(): SavedScan {
   return { scan, pushed: {}, manualRates: {}, excluded: [], savedAt: '', pricedAt: null };
 }
 const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
-const texts = (tree: ReturnType<typeof render>): string => JSON.stringify(tree.toJSON());
+type Node = { children: (Node | string)[] };
+/** The words a person reads inside one element. (Its props.children are React elements, which do not go through JSON.) */
+const textOf = (n: Node): string => n.children.map((c) => (typeof c === 'string' ? c : textOf(c))).join('');
+/** How many of the four tappable wall numbers read this length. */
+const wallsReading = (tree: ReturnType<typeof render>, length: string): number =>
+  [1, 2, 3, 4].filter((n) => String(tree.getByTestId(`scan-dim-wall-${n}`).props.accessibilityLabel).includes(length)).length;
 
 beforeEach(() => {
   mockPush.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); mockGetCapabilities.mockClear();
@@ -111,14 +123,13 @@ afterEach(async () => { await cleanupAsync(); });
 
 describe('Scan The Room — the three screens from the bathroom fixture', () => {
   it('S1 The Floor Plan draws the room and says what a scan is', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     expect(tree.getByTestId('scan-plan')).toBeTruthy();
     expect(tree.getByTestId('scan-name').props.defaultValue).toBe('Hall Bathroom');
     for (const n of [1, 2, 3, 4]) expect(tree.getByTestId(`scan-dim-wall-${n}`)).toBeTruthy();
-    const out = texts(tree);
-    expect((out.match(/5 ft 1 in/g) ?? []).length).toBe(2);
-    expect((out.match(/8 ft 2 in/g) ?? []).length).toBe(2);
+    expect(wallsReading(tree, '5 ft 1 in')).toBe(2);
+    expect(wallsReading(tree, '8 ft 2 in')).toBe(2);
     expect(tree.getByTestId('scan-walls-found').props.children).toBe('4 of 4');
     expect(tree.getByTestId('scan-floor-area').props.children).toBe('41.5 sq ft');
     expect(tree.getByText('A phone scan can be off by an inch or more. Check one wall with a tape. Tap any number to fix it.')).toBeTruthy();
@@ -128,7 +139,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S2 a typed tape measurement recomputes and is marked typed by hand', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     const short = [1, 2, 3, 4].map((n) => tree.getByTestId(`scan-dim-wall-${n}`)).find((el) => /5 ft 1 in/.test(JSON.stringify(el.props.accessibilityLabel)));
     expect(short).toBeTruthy();
@@ -146,7 +157,8 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
     expect(tree.getByText('1 number was typed by hand.')).toBeTruthy();
     expect(tree.getByText('Typed by hand')).toBeTruthy();
     expect(tree.getByText('Moved to keep the outline closed')).toBeTruthy();
-    expect((texts(tree).match(/5 ft 2 in/g) ?? []).length).toBe(2);
+    expect(wallsReading(tree, '5 ft 2 in')).toBe(2);
+    expect(wallsReading(tree, '5 ft 1 in')).toBe(0);
     expect(mockSaveScan).not.toHaveBeenCalled();
     // Save is a tap, and only then is the phone written.
     fireEvent.press(tree.getByTestId('scan-save'));
@@ -158,12 +170,12 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S3 The Quantities lists what the scan worked out', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
     expect(tree.getByTestId('scan-quantities')).toBeTruthy();
-    const row = (id: string) => JSON.stringify(tree.getByTestId(`scan-q-${id}`).props.children);
+    const row = (id: string) => textOf(tree.getByTestId(`scan-q-${id}`));
     expect(row('floor')).toContain('41.5');
     expect(row('wall')).toContain('189.3');
     expect(row('wall')).toContain('212.0 sq ft less 22.7 sq ft of doors, windows and openings');
@@ -177,14 +189,14 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S4 every line says where its price came from, and nothing is written before the yes', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
     fireEvent.press(tree.getByTestId('scan-price-it'));
     await settle();
     expect(tree.getByTestId('scan-draft')).toBeTruthy();
-    const source = (key: string) => JSON.stringify(tree.getByTestId(`scan-source-${key}`).props.children);
+    const source = (key: string) => textOf(tree.getByTestId(`scan-source-${key}`));
     expect(source('floor_tile')).toContain('Your Price, 6 Past Jobs');
     expect(source('toilet')).toContain('No Past Jobs Yet, Catalog Price');
     expect(source('baseboard')).toContain('No Price Yet');
@@ -217,7 +229,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
 
   it('S4b a job with no estimate is blocked, and the button says why', async () => {
     mockProject = { id: 'proj-1', name: 'Maple St', estimateVersions: [] };
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />);
+    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
@@ -251,7 +263,7 @@ describe('Scan The Room — dark, and honest about a phone that cannot scan', ()
     ];
     for (const [caps, sentence, button] of cases) {
       mockCaps = caps;
-      const tree = render(<RoomScanFlow projectId="proj-1" />);
+      const tree = render(<RoomScanFlow projectId="proj-1" />, { wrapper: Wrap });
       await settle();
       expect(tree.getByText(sentence)).toBeTruthy();
       expect(tree.queryByTestId('scan-start-button')).toBeNull();
@@ -259,7 +271,7 @@ describe('Scan The Room — dark, and honest about a phone that cannot scan', ()
       await cleanupAsync();
     }
     mockCaps = { linked: true, supported: true, reason: 'ok', multiRoom: true, osVersion: '17.5', deviceModel: 'iPhone16,1' };
-    const tree = render(<RoomScanFlow projectId="proj-1" />);
+    const tree = render(<RoomScanFlow projectId="proj-1" />, { wrapper: Wrap });
     await settle();
     expect(tree.getByTestId('scan-start-button')).toBeTruthy();
     expect(tree.getByText('Before You Scan')).toBeTruthy();
