@@ -8,9 +8,26 @@ can be fixed over the air.
 
 **Status: written and typechecked against Apple's iOS SDK (iPhoneOS 27.0 at
 the 15.1 floor, and the simulator SDK) with only ExpoModulesCore stubbed. Never
-linked into an app, never run on a phone, not in any release.** The feature is
-dark behind `SCAN_ROOM_ENABLED = false` (`constants/featureFlags.ts`). Read
-`docs/scan-the-room-native-checklist.md` before the first build.
+compiled against the real ExpoModulesCore, never linked into an app, never run
+on a phone, not in any release.** The feature is dark behind
+`SCAN_ROOM_ENABLED = false` (`constants/featureFlags.ts`).
+
+## Why it sits in native-staging/ and not in modules/
+
+Expo autolinking compiles every folder under `<appRoot>/modules` into the next
+iOS build by itself. This Swift has not earned that yet, so it waits here, in
+`native-staging/`, a folder autolinking does not look at. A build made today
+has no scanner in it, and the JavaScript says so ("This version of the app does
+not include room scanning").
+
+Before a build that carries it, in this order
+(`docs/scan-the-room-native-checklist.md`, section 0):
+
+1. `git mv native-staging/mage-room-scan modules/mage-room-scan`.
+2. Compile it once against the real ExpoModulesCore, in a local or preview build.
+3. Run `otool -L` on the built app and require RoomPlan to be a WEAK link.
+4. Launch that build once on a physical iOS 15 phone. Not a simulator: the
+   simulator compiles RoomPlan out, so it proves nothing about the link.
 
 ## Why there is no JavaScript in here
 
@@ -30,10 +47,10 @@ returns `null` there; `requireNativeModule` would throw. So: no `main`, no
 `index.ts`, one nullable lookup that is not at module scope and is refused
 while the flag is off. `scripts/validate-scan-room.ts` pins all of it.
 
-## How it reaches the Podfile
+## How it reaches the Podfile (once it is moved back under modules/)
 
 Autolinking. `expo-modules-autolinking` scans `<appRoot>/modules` and the
-generated Podfile calls `use_expo_modules!`, so this directory is linked with
+generated Podfile calls `use_expo_modules!`, so a directory there is linked with
 no entry in the root `package.json`, no Podfile edit and no config plugin.
 `"platforms": ["apple"]` keeps Android untouched. Locally, run
 `npx expo prebuild -p ios` before `expo run:ios`.

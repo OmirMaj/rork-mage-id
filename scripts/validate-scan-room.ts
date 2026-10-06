@@ -70,13 +70,15 @@ import * as PRICING from '../utils/roomScan/pricingCore';
 import * as STORE from '../utils/roomScan/storeCore';
 import { roomScanAvailability } from '../utils/roomScan/availability';
 import { makeCatalogRater } from '../utils/roomScan/catalogRate';
-import { ROOM_RECIPES, RECIPE_NAMES_EN } from '../utils/roomScan/recipesCore';
+import { ROOM_RECIPES, RECIPE_NAMES_EN, type RecipeKey, type RecipeLine } from '../utils/roomScan/recipesCore';
 import { RoomScanParseError, type RoomScan, type ScanQuantities } from '../utils/roomScan/types';
-import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER } from '../utils/roomScan/gate';
+import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER, scanSeat } from '../utils/roomScan/gate';
 import { SCAN_ROOM_ENABLED } from '../constants/featureFlags';
 import { isAppStorageKey } from '../utils/localCacheKeys';
-import { buildCostDatabase, type CostBookEntry, type CostDatabase } from '../utils/costDatabase';
-import { priceCondition } from '../utils/takeoff/conditions';
+import { buildCostDatabase, lookupRate, type CostBookEntry, type CostDatabase } from '../utils/costDatabase';
+import { KIND_UNIT, priceCondition } from '../utils/takeoff/conditions';
+import { matchOwnRate } from '../utils/takeoffPricing';
+import { buildNewEstimate } from '../utils/estimateLanding';
 import { applyTakeoffPush, pushLinesFrom } from '../utils/takeoff/conditionPush';
 import { commitEstimatePatch } from '../utils/estimateCommit';
 import { sourceHash } from '../i18n/hash';
@@ -108,7 +110,7 @@ const FEATURE_FILES = [
 ] as const;
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [
-  'constants/featureFlags.ts', 'app.json', 'docs/scan-the-room-native-checklist.md',
+  'constants/featureFlags.ts', 'app.json', 'package.json', 'docs/scan-the-room-native-checklist.md',
   'native-staging/mage-room-scan/package.json', 'native-staging/mage-room-scan/expo-module.config.json',
   'native-staging/mage-room-scan/ios/MageRoomScan.podspec', 'native-staging/mage-room-scan/README.md',
   'scripts/fixtures/scan-room/builder.ts',
@@ -149,9 +151,19 @@ interface Mods {
   parseTape: typeof UNITS.parseTapeMeasure;
   draft: typeof PRICING.buildScanDraft;
   patch: typeof PRICING.buildEstimatePatch;
+  tradeFor: typeof PRICING.resolveTrade;
+  draftBlock: typeof PRICING.draftBlock;
+  holds: typeof PRICING.estimateHoldsPush;
+  scanBlock: typeof QTY.scanPricingBlock;
+  rename: typeof EDITS.renameScan;
+  far: typeof UNITS.tapeFarFromScan;
+  upsert: typeof STORE.upsertSavedScan;
+  seat: typeof scanSeat;
   flag: boolean;
 }
 interface World {
+  /** The folders under modules/, the one place Expo autolinking looks (package.json sets no other). */
+  modulesDirs: string[];
   M: Mods;
   F: Record<string, string>;
   outside: Record<string, string>;
@@ -164,10 +176,12 @@ const REAL_MODS: Mods = {
   wall: EDITS.correctWallLength, ceiling: EDITS.correctCeilingHeight, opening: EDITS.correctOpening, tape: EDITS.addTapeCheck,
   feetInches: UNITS.formatFeetInches, nominal: UNITS.nominalDoorWidthIn, parseTape: UNITS.parseTapeMeasure,
   draft: PRICING.buildScanDraft, patch: PRICING.buildEstimatePatch, flag: SCAN_ROOM_ENABLED,
+  tradeFor: PRICING.resolveTrade, draftBlock: PRICING.draftBlock, holds: PRICING.estimateHoldsPush,
+  scanBlock: QTY.scanPricingBlock, rename: EDITS.renameScan, far: UNITS.tapeFarFromScan, upsert: STORE.upsertSavedScan, seat: scanSeat,
 };
 const F_REAL: Record<string, string> = {};
 for (const f of [...FEATURE_FILES, ...OTHER_FILES]) F_REAL[f] = existsSync(join(ROOT, f)) ? read(f) : '';
-const REAL: World = { M: REAL_MODS, F: F_REAL, outside: OUTSIDE, EN: EN_REAL as Record<string, unknown>, ES: ES_REAL as World['ES'] };
+const REAL: World = { modulesDirs: existsSync(join(ROOT, 'modules')) ? readdirSync(join(ROOT, 'modules')) : [], M: REAL_MODS, F: F_REAL, outside: OUTSIDE, EN: EN_REAL as Record<string, unknown>, ES: ES_REAL as World['ES'] };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const META = { id: 'scan-1', projectId: 'proj-1', name: 'Hall Bathroom', capturedAt: '2026-10-06T13:41:00.000Z', device: { model: 'iPhone16,1', os: '17.5' } };
@@ -209,6 +223,9 @@ const EST: LinkedEstimate = {
 };
 let idSeq = 0;
 const newId = () => `new-${++idSeq}`;
+/** What a push needs beyond the draft: an owner or editor seat, his stated markup, the clock. */
+const PUSH = { mayEdit: true, markupPct: 20 as number | null, now: AT };
+const OK_CTX = { mayEdit: true, markupPct: 20 as number | null };
 
 // ── rules ───────────────────────────────────────────────────────────────────
 type Rule = (w: World) => string[];
@@ -625,7 +642,7 @@ rule('R2 the draft is the existing takeoff path, to the cent', (w) => {
   const viaHouse = applyTakeoffPush(EST, lines, {}, newId);
   const housePatch = commitEstimatePatch(projectWith(EST), viaHouse.next, { reason: 'pre_overwrite' });
   idSeq = 0;
-  const mine = w.M.patch({ confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId });
+  const mine = w.M.patch({ ...PUSH, confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId });
   check(o, !!mine && JSON.stringify(mine.next) === JSON.stringify(viaHouse.next), 'the estimate is not what applyTakeoffPush gives');
   check(o, !!mine && JSON.stringify(mine.patch.linkedEstimate) === JSON.stringify(housePatch.linkedEstimate) && (mine.patch.estimateVersions ?? []).length === 1, 'the patch is not commitEstimatePatch, or the old estimate was not kept in its history');
   if (mine) {
@@ -636,7 +653,7 @@ rule('R2 the draft is the existing takeoff path, to the cent', (w) => {
     check(o, !!cat && cat.priceSource === undefined, 'a catalog-priced line was stamped as learned on the estimate');
   }
   const src = stripComments(w.F['utils/roomScan/pricingCore.ts']);
-  for (const fn of ['priceCondition', 'pushLinesFrom', 'applyTakeoffPush', 'commitEstimatePatch', 'provenanceClaimModel', 'matchOwnRate']) {
+  for (const fn of ['priceCondition', 'pushLinesFrom', 'applyTakeoffPush', 'commitEstimatePatch', 'provenanceClaimModel', 'matchOwnRate', 'buildNewEstimate']) {
     check(o, new RegExp(`\\b${fn}\\(`).test(src), `pricingCore no longer calls ${fn}`);
   }
   check(o, !/roundCents|lineTotal\s*[:=]|markup\s*\/\s*100|\.items\.push/.test(src), 'pricingCore does estimate arithmetic of its own');
@@ -647,11 +664,12 @@ rule('R3 nothing is built or saved without the person confirming', (w) => {
   const o: string[] = [];
   const { scan, q } = room(w, 'bathroom.json');
   const d = w.M.draft(scan, q, OWN_BOOK(), CATALOG);
-  const args = { project: projectWith(EST), draft: d, pushed: {}, newId };
+  const args = { ...PUSH, project: projectWith(EST), draft: d, pushed: {}, newId };
   check(o, w.M.patch({ ...args, confirmed: false }) === null, 'a patch was built with confirmed false');
   check(o, w.M.patch({ ...args, confirmed: 'yes' as unknown as boolean }) === null && w.M.patch({ ...args, confirmed: 1 as unknown as boolean }) === null, 'a patch was built with something other than true');
   check(o, w.M.patch({ ...args, confirmed: true }) !== null, 'a confirmed draft built nothing');
-  check(o, w.M.patch({ ...args, confirmed: true, project: projectWith(null) }) === null && PRICING.draftBlock(projectWith(null), d) === 'no_estimate', 'a project with no estimate was given one with no markup');
+  check(o, w.M.patch({ ...args, confirmed: true, markupPct: null, project: projectWith(null) }) === null && w.M.draftBlock(projectWith(null), d, { mayEdit: true, markupPct: null }) === 'no_markup', 'a project with no estimate was given one at a markup he never chose');
+  check(o, w.M.patch({ ...args, confirmed: false, project: projectWith(null) }) === null, 'an estimate was started without the yes');
   check(o, w.M.patch({ ...args, confirmed: true, project: null }) === null, 'a patch was built with no project');
 
   const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
@@ -664,7 +682,7 @@ rule('R3 nothing is built or saved without the person confirming', (w) => {
   const confirm = body('confirmDraft');
   const save = body('save');
   const count = (re: RegExp, s: string) => (s.match(re) ?? []).length;
-  check(o, count(/buildEstimatePatch\(/g, flow) === 1 && /buildEstimatePatch\(\{\s*confirmed: true,/.test(confirm), 'buildEstimatePatch is not called exactly once, inside confirmDraft, with confirmed: true');
+  check(o, count(/buildEstimatePatch\(/g, flow) === 1 && /buildEstimatePatch\(\{\s*confirmed: true, mayEdit: mayEditEstimate,/.test(confirm), 'buildEstimatePatch is not called exactly once, inside confirmDraft, with confirmed: true and the seat it was handed');
   check(o, count(/updateProject\(/g, flow) === 1 && confirm.indexOf('updateProject(') > confirm.indexOf('buildEstimatePatch('), 'updateProject is not called exactly once, after the patch is built, inside confirmDraft');
   check(o, count(/\bsaveScan\(/g, flow) === 2 && /saveScan\(/.test(save) && /saveScan\(/.test(confirm), 'saveScan is called somewhere other than the Save tap and the confirmed draft');
   for (const m of flow.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n  \}, \[/g)) {
@@ -673,11 +691,11 @@ rule('R3 nothing is built or saved without the person confirming', (w) => {
   check(o, count(/confirmDraft\(\)/g, flow) === 1 && /onConfirm=\{\(\) => void confirmDraft\(\)\}/.test(flow), 'confirmDraft is reachable from somewhere other than the draft view\'s onConfirm');
   check(o, count(/void save\(\)/g, flow) === 1 && /onSave=\{\(\) => void save\(\)\}/.test(flow), 'save is reachable from somewhere other than the Save Scan button');
   const view = stripComments(w.F['components/roomScan/PricedDraftView.tsx']);
-  check(o, count(/p\.onConfirm\(\)/g, view) === 1 && /primaryAction=\{\{ label: copy\.confirmYesLabel, onPress: \(\) => \{ setConfirming\(false\); p\.onConfirm\(\); \}/.test(view), 'onConfirm is not called only by the confirm sheet\'s yes button');
-  check(o, /testID="scan-open-estimate"/.test(view) && /onPress=\{\(\) => setConfirming\(true\)\}[^>]*testID="scan-open-estimate"/.test(view), 'Open In Estimate does something other than open the confirm sheet');
+  check(o, count(/p\.onConfirm\(\)/g, view) === 1 && /primaryAction=\{\{ label: p\.starting \? copy\.startYesLabel : copy\.confirmYesLabel, onPress: \(\) => \{ setConfirming\(false\); p\.onConfirm\(\); \}/.test(view), 'onConfirm is not called only by the confirm sheet\'s yes button');
+  check(o, /testID="scan-open-estimate"/.test(view) && /onPress=\{\(\) => setConfirming\(true\)\} disabled=\{p\.block != null \|\| p\.busy\}[^>]*testID="scan-open-estimate"/.test(view), 'Open In Estimate does something other than open the confirm sheet');
   for (const f of FEATURE_FILES) {
     const s = stripComments(w.F[f]);
-    check(o, !/@\/lib\/supabase|supabase\.from\(|\.functions\.invoke\(|fetch\(|offlineQueue|sendEmail|Sharing\./.test(s), `${f} talks to a server or shares something`);
+    check(o, !/@\/lib\/supabase|supabase\.from\(|\.functions\.invoke\(|\bfetch\(|offlineQueue|sendEmail|Sharing\./.test(s), `${f} talks to a server or shares something`);
   }
   return o;
 });
@@ -695,10 +713,310 @@ rule('R4 the total is the included, priced lines; a second pricing updates in pl
   check(o, !PRICING.draftPushLines(less).some((l) => l.conditionId.endsWith(':floor_tile')), 'a line left out would still be pushed');
   check(o, PRICING.draftPushLines(d).length === d.pricedCount && d.unpricedCount === d.lines.length - d.pricedCount, 'a line with no price would be pushed');
   idSeq = 0;
-  const first = w.M.patch({ confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId });
+  const first = w.M.patch({ ...PUSH, confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId });
   if (!first) return [...o, 'no first patch'];
-  const second = w.M.patch({ confirmed: true, project: projectWith(first.next), draft: d, pushed: first.pushed, newId });
+  const second = w.M.patch({ ...PUSH, confirmed: true, project: projectWith(first.next), draft: d, pushed: first.pushed, newId });
   check(o, !!second && second.added === 0 && second.next.items.length === first.next.items.length && Math.abs(second.afterGrand - first.afterGrand) < 0.005, 'pricing the same scan twice added the lines twice');
+  return o;
+});
+
+// ── the review round: what an independent read of the lane found ─────────────
+const bodyOf = (src: string, name: string): string => {
+  const i = src.indexOf(`const ${name} = useCallback(`);
+  if (i < 0) return '';
+  const j = src.indexOf('\n  }, [', i);
+  return src.slice(i, j < 0 ? undefined : j);
+};
+const recipeOf = (rt: RoomScan['roomType'], key: RecipeKey): RecipeLine => ROOM_RECIPES[rt].find((r) => r.key === key) as RecipeLine;
+
+/** His trades that share ONE word with a scan line. Each was taken as "Your Price" before; none may be. */
+const WRONG_TRADES: [RoomScan['roomType'], RecipeKey, string, string, number][] = [
+  ['bathroom', 'door', 'Garage Door', 'EA', 2400],
+  ['bathroom', 'baseboard', 'Base Cabinets', 'LF', 310],
+  ['bathroom', 'wall_paint', 'Retaining Walls', 'SF', 55],
+  ['bathroom', 'door', 'Exterior Door', 'EA', 1350],
+  ['bathroom', 'floor_tile', 'Tile Roofing', 'SF', 14],
+  ['kitchen', 'sink', 'Kitchen Cabinets', 'EA', 900],
+  ['kitchen', 'floor', 'Floor Sanding', 'SF', 4],
+];
+
+rule('C1 a trade of his that only shares a word is never taken as his price', (w) => {
+  const o: string[] = [];
+  for (const [rt, key, trade, unit, rate] of WRONG_TRADES) {
+    const db = bookWith([{ trade, unit, rate, kind: 'earned', jobs: 3 }]);
+    const recipe = recipeOf(rt, key);
+    check(o, w.M.tradeFor(db, recipe) === recipe.defaultTrade, `"${RECIPE_NAMES_EN[key]}" took his "${trade}" trade`);
+    const { scan, q } = room(w, 'bathroom.json', { roomType: rt });
+    const line = w.M.draft(scan, q, db, NO_CATALOG).lines.find((l) => l.key === key);
+    check(o, !!line && line.source === null && line.rate === null && line.claim === null, `"${RECIPE_NAMES_EN[key]}" is priced at $${line?.rate} from "${trade}" and labelled ${line?.source}`);
+  }
+  // The takeoff's own default is untouched: its other callers still get the looser match.
+  const garage = bookWith([{ trade: 'Garage Door', unit: 'EA', rate: 2400, kind: 'earned', jobs: 3 }]);
+  check(o, matchOwnRate({ description: 'interior door doors', unit: 'EA' }, garage.entries)?.trade === 'Garage Door', 'the default score in utils/takeoffPricing was changed for every caller');
+  check(o, matchOwnRate({ description: 'interior door doors', unit: 'EA' }, garage.entries, PRICING.STRICT_TRADE_MATCH) === null, 'the strict score still takes "Garage Door" for an interior door');
+  // A trade whose EVERY word names the work is still his price, and the line says which trade it was.
+  const doors = bookWith([{ trade: 'Doors', unit: 'EA', rate: 380, kind: 'earned', jobs: 3 }]);
+  const { scan, q } = room(w, 'bathroom.json');
+  check(o, w.M.tradeFor(doors, recipeOf('bathroom', 'door')) === 'Doors', 'his "Doors" trade is not used for an interior door');
+  const viaDoors = w.M.draft(scan, q, doors, NO_CATALOG).lines.find((l) => l.key === 'door');
+  check(o, viaDoors?.source === 'yours' && viaDoors.rate === 380 && viaDoors.claim?.trade === 'Doors' && viaDoors.claim.exactTrade === false && viaDoors.claim.jobCount === 3, `the door line does not say it used his "Doors" price: ${JSON.stringify(viaDoors?.claim)}`);
+  const exact = w.M.draft(scan, q, OWN_BOOK(), NO_CATALOG).lines.find((l) => l.key === 'door');
+  check(o, exact?.claim?.exactTrade === true && exact.claim.trade === 'Interior Door', 'the line\'s own trade is not marked as exact');
+  check(o, PRICING.STRICT_TRADE_MATCH.minScore === 1, 'the strict score is not 1 (every word of his trade label)');
+  const src = stripComments(w.F['utils/roomScan/pricingCore.ts']);
+  check(o, /STRICT_TRADE_MATCH = \{ minScore: 1 \} as const/.test(src) && /matchOwnRate\(\{ description: line\.matchWords, unit \}, db\.entries, STRICT_TRADE_MATCH\)/.test(src), 'resolveTrade does not pass the strict score to matchOwnRate');
+  for (const lines of Object.values(ROOM_RECIPES)) for (const r of lines) {
+    check(o, !/\b(walls?|ceilings?|kitchen|vanity|bath|bathroom|room)\b/.test(r.matchWords), `${r.key}: "${r.matchWords}" has a word that names a place, not the work`);
+  }
+  const hook = w.F['hooks/useRoomScanCopy.ts'];
+  for (const k of ['yoursSet', 'yoursMixed', 'yoursSigned', 'yoursMeasured']) {
+    check(o, new RegExp(`claim\\.exactTrade\\s*\\? tn?\\('office\\.roomScan\\.source\\.${k}Label'[^\\n]*\\n\\s*: tn?\\('office\\.roomScan\\.source\\.${k}ForLabel'[^\\n]*\\{ trade \\}`).test(hook), `the copy hook does not name his trade on the ${k} label when it is not the line's own`);
+    check(o, forms(w.EN[`office.roomScan.source.${k}ForLabel`]).every((f) => /^Your (Set )?Price For \{trade\}, /.test(f)) && forms(w.EN[`office.roomScan.source.${k}ForLabel`]).length > 0, `office.roomScan.source.${k}ForLabel does not read "Your Price For {trade}, ..."`);
+  }
+  return o;
+});
+
+rule('D1 a scan is never named for him, and a room with no name is not priced', (w) => {
+  const o: string[] = [];
+  const { scan, q } = room(w, 'bathroom.json', { name: '' });
+  check(o, scan.name === '', 'a scan built with no name was given one');
+  check(o, w.M.scanBlock(scan, q) === 'no_name', 'a room with no name can go on to pricing');
+  const d = w.M.draft(scan, q, OWN_BOOK(), CATALOG);
+  check(o, d.roomName === '' && w.M.draftBlock(projectWith(EST), d, OK_CTX) === 'no_name', 'a draft with no room name is not blocked');
+  check(o, w.M.patch({ ...PUSH, confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId }) === null, 'estimate lines were written for a room with no name');
+  const named = w.M.rename(scan, '  Hall Bath  ');
+  check(o, named.name === 'Hall Bath' && w.M.scanBlock(named, q) === null, 'a typed name is not taken, or still blocks');
+  check(o, w.M.rename(named, '   ').name === '' && w.M.scanBlock(w.M.rename(named, '   '), q) === 'no_name', 'a name of only spaces counts as a name');
+  const dn = w.M.draft(named, q, OWN_BOOK(), CATALOG);
+  check(o, dn.roomName === 'Hall Bath' && w.M.draftBlock(projectWith(EST), dn, OK_CTX) === null, 'a named room is blocked');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, /name: '',/.test(bodyOf(flow, 'startScan')) && !/namePlaceholder/.test(flow), 'a new scan is given the placeholder as its name');
+  check(o, /if \(!saved\.scan\.name\.trim\(\)\) \{ setSaveState\('needsName'\); return; \}/.test(bodyOf(flow, 'save')), 'Save Scan does not ask for a name');
+  check(o, /block=\{scanPricingBlock\(scan, quantities\)\}/.test(flow), 'Price It is not blocked by the missing name');
+  const plan = stripComments(w.F['components/roomScan/FloorPlanView.tsx']);
+  check(o, /onChangeText=\{\(v\) => \{ setNameText\(v\); p\.onRename\(v\); \}\}/.test(plan) && !/onEndEditing|defaultValue=/.test(plan), 'the name is not taken on every keystroke (a tap on Save with the keyboard up would drop it)');
+  check(o, (plan.match(/copy\.namePlaceholder/g) ?? []).length === 1 && /placeholder=\{copy\.namePlaceholder\}/.test(plan), 'the example name is used as something other than the field\'s placeholder');
+  return o;
+});
+
+rule('A1 only a seat that may change the estimate can push, and "Added" waits for the write to be seen', (w) => {
+  const o: string[] = [];
+  const seat = (role: 'owner' | 'editor' | 'viewer' | 'field' | null, isLoading = false, isError = false) => w.M.seat({ role, isLoading, isError });
+  check(o, seat('owner') === 'open' && seat('editor') === 'open', 'the owner or an editor is refused');
+  check(o, seat('viewer') === 'refused' && seat('field') === 'refused', 'a viewer or a field seat can price into the estimate');
+  check(o, seat(null, true) === 'checking' && seat(null, false, true) === 'unknown' && seat(null) === 'refused', 'a seat that is not known yet is let in');
+  check(o, seat('viewer', true) === 'refused' && seat('field', false, true) === 'refused', 'a known viewer or field seat gets in while the read is busy');
+  const { scan, q } = room(w, 'bathroom.json');
+  const d = w.M.draft(scan, q, OWN_BOOK(), CATALOG);
+  const args = { ...PUSH, confirmed: true, project: projectWith(EST), draft: d, pushed: {}, newId };
+  check(o, w.M.patch({ ...args, mayEdit: false }) === null && w.M.patch({ ...args, mayEdit: 'yes' as unknown as boolean }) === null, 'a patch was built for a seat that may not change the estimate');
+  check(o, w.M.draftBlock(projectWith(EST), d, { mayEdit: false, markupPct: 20 }) === 'no_access', 'the push is not blocked for a seat that may not change the estimate');
+  check(o, w.M.patch(args) !== null, 'an owner or editor seat built nothing');
+  // "Added to the estimate." only once the project is seen to hold the lines.
+  idSeq = 0;
+  const res = w.M.patch(args);
+  if (!res) return [...o, 'no patch'];
+  const before = projectWith(EST);
+  const after = { ...before, ...res.patch } as Project;
+  check(o, w.M.holds(before, res) === false && w.M.holds(null, res) === false, 'a project that does not hold the lines is read as holding them');
+  check(o, w.M.holds(after, res) === true, 'a project that holds the lines is not recognised');
+  const short = { ...after, linkedEstimate: { ...res.next, items: res.next.items.slice(0, -1) } } as Project;
+  check(o, w.M.holds(short, res) === false, 'a project missing one of the lines is read as holding them');
+  const route = stripComments(w.F['app/scan-room.tsx']);
+  check(o, /const roleState = useProjectRoleState\(projectId\);/.test(route) && /const seat = scanSeat\(\{ role: roleState\.role, isLoading: roleState\.isLoading, isError: roleState\.isError \}\);/.test(route), 'the route does not read his seat on the project');
+  check(o, /if \(seat !== 'open'\) \{/.test(route) && route.indexOf("if (seat !== 'open') {") < route.indexOf('<RoomScanFlow') && route.indexOf("if (seat !== 'open') {") > 0, 'the flow mounts before the seat check');
+  check(o, (route.match(/<RoomScanFlow /g) ?? []).length === 1 && /<RoomScanFlow projectId=\{projectId\} mayEditEstimate \/>/.test(route), 'the flow is mounted somewhere other than after the seat check');
+  check(o, /copy\.seatBody\(seat\)/.test(route), 'a refused seat is not told why');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  const confirm = bodyOf(flow, 'confirmDraft');
+  check(o, /draftBlock\(project, draft, \{ mayEdit: mayEditEstimate, markupPct \}\)/.test(flow), 'the price screen does not block the push by seat');
+  const iKept = confirm.indexOf("if (!kept) { setResult('unconfirmed'); return; }");
+  check(o, /kept = estimateHoldsPush\(getProjectRef\.current\(project\.id\) \?\? null, res\);/.test(confirm) && iKept > confirm.indexOf('updateProject('), 'the flow does not read the project back after the write');
+  check(o, (flow.match(/setResult\('added'\)/g) ?? []).length === 1 && iKept > 0 && confirm.indexOf("setResult('added')") > iKept && confirm.indexOf('router.push(') > iKept && confirm.indexOf('saveScan(') > iKept,
+    '"Added to the estimate." is said, the scan is marked priced or the estimate is opened before the write is seen');
+  const view = stripComments(w.F['components/roomScan/PricedDraftView.tsx']);
+  check(o, /p\.result === 'added' && <Text[^>]*>\{copy\.addedBody\}/.test(view) && /p\.result === 'unconfirmed' && <Text[^>]*>\{copy\.unconfirmedBody\}/.test(view), 'the price screen does not tell "added" from "not seen yet"');
+  return o;
+});
+
+const withOpenings = (scan: RoomScan, list: Partial<RoomScan['openings'][number]>[]): RoomScan => ({
+  ...scan,
+  openings: list.map((x, i) => ({
+    id: `op-${i}`, kind: 'door', wallId: scan.walls[0].id, offsetM: 1, widthM: 0.9, heightM: 2, sillM: 0,
+    confidence: 'high', widthSource: 'scan', heightSource: 'scan', ...x,
+  })),
+});
+
+rule('F1 overlapping openings on one wall come off once; an opening with no wall is said', (w) => {
+  const o: string[] = [];
+  const base = room(w, RECT(3, 4)).scan; // 2.4 m ceiling
+  const SF = 10.7639;
+  const FT = 3.28084;
+  const q0 = w.M.quantities(base);
+  const one = w.M.quantities(withOpenings(base, [{}]));
+  const same = w.M.quantities(withOpenings(base, [{}, { kind: 'opening' }]));
+  check(o, near(one.openingSF, 1.8 * SF) && near(same.openingSF, 1.8 * SF), `a door and an opening at the same spot took ${same.openingSF} sq ft off the wall, not ${(1.8 * SF).toFixed(2)}`);
+  check(o, near(same.netWallSF, (q0.grossWallSF ?? 0) - 1.8 * SF), 'the wall area lost the same hole twice');
+  check(o, near(same.baseboardLF, q0.perimeterLF - 0.9 * FT), `the baseboard lost the same doorway twice: ${same.baseboardLF}`);
+  // A door 1.0 to 1.9 m, floor to 2.0 m, and a window 1.5 to 2.5 m, 1.0 to 2.2 m up: 1.8 + 1.2 less the 0.4 they share.
+  const part = w.M.quantities(withOpenings(base, [{}, { kind: 'window', offsetM: 1.5, widthM: 1, heightM: 1.2, sillM: 1 }]));
+  check(o, near(part.openingSF, 2.6 * SF), `a door and a window that partly overlap took ${part.openingSF} sq ft, not ${(2.6 * SF).toFixed(2)}`);
+  // The same two holes on DIFFERENT walls are two holes.
+  const apart = w.M.quantities(withOpenings(base, [{}, { kind: 'opening', wallId: base.walls[2].id }]));
+  check(o, near(apart.openingSF, 3.6 * SF), 'openings on two walls were merged into one');
+  // Two full-height openings that overlap lose the crown once.
+  const tall = w.M.quantities(withOpenings(base, [{ kind: 'opening', heightM: 2.4 }, { kind: 'opening', heightM: 2.4, offsetM: 1.4 }]));
+  check(o, near(tall.crownLF, q0.perimeterLF - 1.3 * FT) && near(tall.baseboardLF, q0.perimeterLF - 1.3 * FT), `overlapping full-height openings: crown ${tall.crownLF}, baseboard ${tall.baseboardLF}`);
+  check(o, near(QTY.unionLength([[0, 2], [1, 3], [5, 6]]), 4, 1e-9) && near(QTY.unionArea([{ x0: 0, x1: 2, y0: 0, y1: 2 }, { x0: 1, x1: 3, y0: 1, y1: 3 }]), 7, 1e-9), 'the union helpers are wrong');
+  // An opening that matched no wall: not subtracted, and SAID.
+  const lostScan = withOpenings(base, [{}, { kind: 'window', wallId: null }]);
+  const lost = w.M.quantities(lostScan);
+  check(o, near(lost.openingSF, 1.8 * SF) && lost.flags.includes('opening_without_wall'), 'an opening with no wall was subtracted, or not flagged');
+  const fact = w.M.facts(lostScan, lost).find((f) => f.kind === 'opening_no_wall');
+  check(o, !!fact && fact.tone === 'check' && fact.count === 1, 'an opening that matched no wall is dropped without a word');
+  check(o, !w.M.facts(withOpenings(base, [{}]), one).some((f) => f.kind === 'opening_no_wall'), 'the "matched no wall" fact shows when every opening has a wall');
+  const hook = w.F['hooks/useRoomScanCopy.ts'];
+  check(o, /case 'opening_no_wall': return tn\('office\.roomScan\.fact\.openingNoWallBody'/.test(hook) && /matched no wall/.test(forms(w.EN['office.roomScan.fact.openingNoWallBody']).join(' ')), 'there is no sentence for an opening that matched no wall');
+  check(o, /p\.facts\.map\(/.test(w.F['components/roomScan/FloorPlanView.tsx']) && /copy\.fact\(f\)/.test(w.F['components/roomScan/FloorPlanView.tsx']), 'the plan does not show the facts');
+  return o;
+});
+
+const PENT: { x: number; y: number }[] = [0, 1, 2, 3, 4].map((i) => ({ x: 20 + 0.6 * Math.cos((i * 2 * Math.PI) / 5), y: 20 + 0.6 * Math.sin((i * 2 * Math.PI) / 5) }));
+const BOW: RoomSpec = { walls: ring([{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 4 }, { x: 3, y: 4 }], 2.4) };
+
+rule('G10 the floor is the loop that covers the most ground, and a ring that crosses itself is open', (w) => {
+  const o: string[] = [];
+  // A 3 m by 4 m room (four walls) and a small five-sided closet off to one side (five walls).
+  for (const order of [0, 1]) {
+    const a = ring([{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 4 }, { x: 0, y: 4 }], 2.4);
+    const b = ring(PENT, 2.4);
+    const { scan, q } = room(w, { walls: order ? [...b, ...a] : [...a, ...b], rotateDeg: order ? 33 : 0 });
+    check(o, scan.closure.closed && near((q.floorAreaSF ?? 0) / 10.7639, 12, 1e-3), `order ${order}: the floor is ${((q.floorAreaSF ?? 0) / 10.7639).toFixed(3)} m2, not the 12.000 of the room (the loop with the most walls was taken)`);
+    check(o, scan.walls.filter((x) => x.onOutline).length === 4 && scan.walls.filter((x) => !x.onOutline).length === 5, `order ${order}: the outline is not the room's four walls`);
+  }
+  check(o, near(GEO.hullArea([{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }, { x: 0, y: 2 }, { x: 1, y: 1 }]), 4, 1e-9), 'hullArea is wrong');
+  check(o, GEO.ringCrossing([{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 4 }, { x: 0, y: 4 }]) === null && GEO.ringCrossing([{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 4 }, { x: 3, y: 4 }]) !== null, 'ringCrossing is wrong');
+  // Four walls that join end to end but cross in the middle (a bow tie).
+  for (const deg of [0, 61]) {
+    const { scan, q } = room(w, { ...BOW, rotateDeg: deg });
+    check(o, scan.closure.closed === false && scan.closure.crossing === true && scan.floor.length === 0, `turned ${deg}: a ring that crosses itself was closed`);
+    check(o, q.floorAreaSF === null && q.ceilingAreaSF === null, `turned ${deg}: a ring that crosses itself reported a floor area (${q.floorAreaSF})`);
+    check(o, w.M.pricingBlock(q) === 'not_closed', `turned ${deg}: a ring that crosses itself can be priced`);
+    const f = w.M.facts(scan, q).find((x) => x.kind === 'outline_crosses');
+    check(o, !!f && f.tone === 'check' && (f.wallLabels ?? []).length === 2, `turned ${deg}: the walls that cross are not named`);
+  }
+  check(o, /case 'outline_crosses': return t\('office\.roomScan\.fact\.crossesBody'/.test(w.F['hooks/useRoomScanCopy.ts']), 'there is no sentence for walls that cross');
+  // An ordinary L still closes (a concave room is not a crossing one).
+  check(o, room(w, 'l-shape.json').scan.closure.closed, 'the L-shaped room no longer closes');
+  return o;
+});
+
+rule('H1 a typed length far from the scan is shown back and asked about before it is used', (w) => {
+  const o: string[] = [];
+  const wall = 98 * IN;
+  const bare = w.M.parseTape('98');
+  check(o, bare != null && near(bare, 98 / 3.28084, 1e-6) && w.M.feetInches(bare as number) === '98 ft 0 in', 'a bare number no longer reads as feet (the sheet shows the reading, so the rule must match it)');
+  check(o, w.M.far(bare as number, wall) === true, '98 ft on a 98 in wall is taken without a question');
+  check(o, w.M.far(w.M.parseTape('98 in') as number, wall) === false && w.M.far(w.M.parseTape('8 1') as number, wall) === false, 'a reading close to the scan is questioned');
+  check(o, w.M.far(wall * 2.01, wall) === true && w.M.far(wall * 2, wall) === false, 'more than double is not questioned, or exactly double is');
+  check(o, w.M.far(wall * 0.49, wall) === true && w.M.far(wall * 0.5, wall) === false, 'less than half is not questioned, or exactly half is');
+  check(o, w.M.far(3, 0) === false, 'a wall the scan gave no length for cannot be typed');
+  const sheet = stripComments(w.F['components/roomScan/EditMeasureSheet.tsx']);
+  const iAsk = sheet.indexOf('if (far && asked !== text) { setAsked(text); return; }');
+  check(o, /const far = reading != null && tapeFarFromScan\(reading, target\.currentM\);/.test(sheet) && iAsk > 0 && iAsk < sheet.indexOf('onSave(reading);'), 'the sheet does not ask again before using a far reading');
+  check(o, /onChangeText=\{\(v\) => \{ setText\(v\); setBad\(false\); setAsked\(null\); \}\}/.test(sheet), 'changing the text does not ask again');
+  check(o, /\{reading != null && <Text[^>]*>\{copy\.editReadsAsSub\(formatFeetInches\(reading\)\)\}<\/Text>\}/.test(sheet), 'the sheet does not show the parsed value before Use This Number');
+  check(o, /copy\.editFarBody\(formatFeetInches\(reading\), formatFeetInches\(target\.currentM\)\)/.test(sheet), 'the question does not show both lengths');
+  check(o, /\{typed\}/.test(String(w.EN['office.roomScan.edit.farBody'])) && /\{scan\}/.test(String(w.EN['office.roomScan.edit.farBody'])), 'the question sentence lost a length');
+  return o;
+});
+
+const savedRow = (id: string): STORE.SavedScan => ({ scan: { ...room(REAL, RECT(3, 4)).scan, id }, pushed: {}, manualRates: {}, excluded: [], savedAt: AT, pricedAt: null });
+
+rule('S1 a saved scan can be deleted, and a scan the cap drops takes its raw file with it', (w) => {
+  const o: string[] = [];
+  let list: STORE.SavedScanList = { version: 1, scans: [] };
+  const droppedAll: string[] = [];
+  for (let i = 1; i <= STORE.MAX_SCANS_PER_PROJECT + 1; i++) {
+    const r = w.M.upsert(list, savedRow(`s${i}`));
+    list = r.list;
+    droppedAll.push(...r.dropped);
+  }
+  check(o, list.scans.length === STORE.MAX_SCANS_PER_PROJECT && list.scans[0].scan.id === `s${STORE.MAX_SCANS_PER_PROJECT + 1}` && !list.scans.some((x) => x.scan.id === 's1'), 'the list is not capped newest first');
+  check(o, droppedAll.join() === 's1', `the scan the cap dropped is not reported (its raw JSON would stay on the phone): "${droppedAll.join()}"`);
+  const again = w.M.upsert(list, savedRow('s5'));
+  check(o, again.dropped.length === 0 && again.list.scans.length === STORE.MAX_SCANS_PER_PROJECT && again.list.scans[0].scan.id === 's5', 'saving a scan already in the list dropped another');
+  check(o, STORE.removeSavedScan(list, 's7').scans.length === STORE.MAX_SCANS_PER_PROJECT - 1, 'a scan is not removed from the list');
+  const store = stripComments(w.F['utils/roomScan/store.ts']);
+  check(o, /const \{ list, dropped \} = upsertSavedScan\(before, saved\);/.test(store) && /for \(const id of dropped\) \{\s*try \{ await AsyncStorage\.removeItem\(roomScanRawKey\(id\)\); \}/.test(store), 'the store does not remove the raw key of a scan the cap dropped');
+  const del = store.slice(store.indexOf('export async function deleteScan'));
+  check(o, /removeSavedScan\(list, scanId\)/.test(del) && /AsyncStorage\.removeItem\(roomScanRawKey\(scanId\)\)/.test(del), 'deleteScan does not remove both the list row and the raw key');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, (flow.match(/\bdeleteScan\(/g) ?? []).length === 1 && /deleteScan\(projectId, target\.scan\.id\)/.test(bodyOf(flow, 'confirmDelete')), 'deleteScan is called somewhere other than confirmDelete');
+  check(o, (flow.match(/confirmDelete\(\)/g) ?? []).length === 1 && /destructiveAction=\{\{ label: copy\.deleteYesLabel, onPress: \(\) => void confirmDelete\(\)/.test(flow), 'a scan can be deleted without the yes on the delete sheet');
+  check(o, /onPress=\{\(\) => \{ setDeleteFailed\(false\); setDeleting\(s\); \}\}/.test(flow) && /copy\.deleteA11yLabel\(s\.scan\.name\)/.test(flow), 'a saved scan has no delete button');
+  check(o, /await refreshSavedList\(\);/.test(bodyOf(flow, 'confirmDelete')), 'the list is not read again after a delete');
+  return o;
+});
+
+rule('K1 a project with no estimate gets one started by the same yes, at his stated markup', (w) => {
+  const o: string[] = [];
+  const { scan, q } = room(w, 'bathroom.json');
+  const d = w.M.draft(scan, q, OWN_BOOK(), CATALOG);
+  const bare = projectWith(null);
+  check(o, PRICING.startsEstimate(bare) === true && PRICING.startsEstimate(projectWith(EST)) === false && PRICING.startsEstimate(null) === false, 'startsEstimate is wrong');
+  check(o, w.M.draftBlock(bare, d, OK_CTX) === null, 'a project with no estimate is still blocked when he has a markup');
+  check(o, w.M.draftBlock(bare, d, { mayEdit: true, markupPct: null }) === 'no_markup', 'a project with no estimate and no stated markup is not blocked');
+  const args = { ...PUSH, project: bare, draft: d, pushed: {}, newId };
+  check(o, w.M.patch({ ...args, confirmed: false }) === null && w.M.patch({ ...args, confirmed: true, mayEdit: false }) === null, 'an estimate was started without the yes, or for a seat that may not');
+  check(o, w.M.patch({ ...args, confirmed: true, markupPct: null }) === null, 'an estimate was started at a markup he never chose');
+  idSeq = 0;
+  const res = w.M.patch({ ...args, confirmed: true });
+  if (!res) return [...o, 'the confirm did not start the estimate'];
+  // The house path: the lines at cost through the takeoff push, then buildNewEstimate at his markup.
+  idSeq = 0;
+  const lines = PRICING.draftPushLines(d);
+  const atCost = applyTakeoffPush({ id: '', items: [], globalMarkup: 0, baseTotal: 0, markupTotal: 0, grandTotal: 0, createdAt: AT }, lines, {}, newId);
+  const house = { ...buildNewEstimate(atCost.next.items, 20, newId(), AT), globalMarkup: 20 };
+  check(o, JSON.stringify(res.next) === JSON.stringify(house), 'the new estimate is not what buildNewEstimate gives from the pushed cost lines');
+  check(o, res.started === true && res.next.globalMarkup === 20 && res.next.items.length === lines.length && res.added === lines.length, 'the new estimate does not carry his markup or the lines');
+  check(o, res.next.items.every((it) => it.markup === 20 && Math.abs(it.lineTotal - Math.round(it.quantity * it.unitPrice * 1.2 * 100) / 100) < 0.005), 'a line on the new estimate is not at cost plus his markup');
+  const base = res.next.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+  check(o, Math.abs(res.next.baseTotal - base) < 0.005 && Math.abs(res.next.grandTotal - res.next.items.reduce((s, it) => s + it.lineTotal, 0)) < 0.005 && res.next.grandTotal > res.next.baseTotal, 'the new estimate does not foot');
+  check(o, Math.abs(res.next.baseTotal - d.totalCents / 100) < 0.005, 'the new estimate\'s cost is not the draft total');
+  check(o, res.next.items.every((it) => !!it.sourceTakeoffConditionId && res.pushed[it.sourceTakeoffConditionId] === it.materialId), 'a line on the new estimate lost its scan line id');
+  check(o, res.next.items.filter((it) => it.priceSource === 'learned').length === 3 && res.next.items.some((it) => it.priceSource === 'seeded') && res.next.items.find((it) => /Toilet/.test(it.name))?.priceSource === undefined, 'lines on the new estimate lost where their price came from');
+  check(o, JSON.stringify(res.patch.linkedEstimate) === JSON.stringify(res.next) && (res.patch.estimateVersions ?? []).length === 0, 'the patch is not commitEstimatePatch of the new estimate');
+  check(o, w.M.holds({ ...bare, ...res.patch } as Project, res) === true && w.M.holds(bare, res) === false, 'the started estimate cannot be seen to be kept');
+  const second = w.M.patch({ ...PUSH, confirmed: true, project: { ...bare, ...res.patch } as Project, draft: d, pushed: res.pushed, newId });
+  check(o, !!second && second.started === false && second.added === 0 && second.next.items.length === res.next.items.length && Math.abs(second.afterGrand - res.next.grandTotal) < 0.005, 'pricing the scan again after starting the estimate added the lines twice');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, /const \{ globalMarkup: savedMarkup, markupDecided \} = useMaterialCart\(\);/.test(flow) && /const markupPct: MarkupPct = markupDecided === true \? savedMarkup : null;/.test(flow), 'the markup is not his stated one (an unanswered markup must stay null)');
+  check(o, /starting=\{startsEstimate\(project\)\}/.test(flow), 'the price screen is not told the confirm starts an estimate');
+  const view = stripComments(w.F['components/roomScan/PricedDraftView.tsx']);
+  check(o, /p\.starting && p\.markupPct != null \? copy\.startConfirmBody\(p\.pushCount, total, p\.markupPct\) : copy\.confirmBody\(p\.pushCount, total\)/.test(view) && /title=\{p\.starting \? copy\.startTitleLabel : copy\.confirmTitleLabel\}/.test(view), 'the confirm sheet does not say it starts the estimate');
+  const body = forms(w.EN['office.roomScan.confirm.startBody']).join(' ');
+  check(o, /no estimate yet/.test(body) && /\{markup\} percent/.test(body) && /Nothing is sent to your client/.test(body), 'the start sentence does not say what happens, at which markup, and that nothing is sent');
+  check(o, !('office.roomScan.block.noEstimateBody' in w.EN), 'the old "start one in Estimate" block is still in the copy');
+  return o;
+});
+
+rule('J1 small things: no $0.00 line, the start says where a price can come from, Back asks before it drops a scan', (w) => {
+  const o: string[] = [];
+  const { scan, q } = room(w, 'bathroom.json');
+  const sliver = { ...q, baseboardLF: 0.3 };
+  const d = w.M.draft(scan, sliver, OWN_BOOK(), CATALOG, { manualRates: { baseboard: 7.5 } });
+  check(o, !d.lines.some((l) => l.key === 'baseboard'), 'a quantity that rounds to zero is shown as a line');
+  check(o, d.lines.every((l) => l.quantity > 0 && l.amountCents !== 0), 'a line is priced at $0.00');
+  check(o, !!w.M.draft(scan, { ...q, baseboardLF: 0.6 }, OWN_BOOK(), CATALOG, { manualRates: { baseboard: 7.5 } }).lines.find((l) => l.key === 'baseboard' && l.quantity === 1), 'a quantity that rounds to one was dropped');
+  check(o, /a draft price, from your own past jobs where you have them\./.test(String(w.EN['office.roomScan.start.body'])), 'the start screen promises a price from past jobs he may not have');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  const back = bodyOf(flow, 'back');
+  check(o, /else if \(step === 'plan' && dirty\) setLeaving\(true\);/.test(back) && back.indexOf("step === 'plan' && dirty") < back.indexOf('leavePlan()'), 'Back leaves the plan without asking when the scan is not saved');
+  check(o, (flow.match(/leavePlan\b/g) ?? []).length >= 3 && /destructiveAction=\{\{ label: copy\.leaveYesLabel, onPress: leavePlan,/.test(flow), 'the leave sheet does not own the discard');
+  check(o, /setDirty\(true\);/.test(bodyOf(flow, 'change')) && /setDirty\(true\);/.test(bodyOf(flow, 'startScan')) && /if \(ok\) \{ setSaved\(next\); setDirty\(false\);/.test(bodyOf(flow, 'save')), 'the flow does not track what the phone does not hold');
+  const confirm = bodyOf(flow, 'confirmDraft');
+  check(o, confirm.indexOf('await refreshSavedList()') > confirm.indexOf('saveScan('), 'the saved list is not read again after a confirmed push');
   return o;
 });
 
@@ -757,6 +1075,16 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
     check(o, !/from ['"][^'"]*modules\//.test(s), `${f} imports from modules/`);
   }
   for (const [f, text] of Object.entries(w.outside)) check(o, !/MageRoomScan/.test(text), `${f} names the native module`);
+  // NOT AUTOLINKED. Expo autolinking builds every folder under modules/ into the
+  // next iOS binary by itself. This Swift has never been compiled against the
+  // real ExpoModulesCore, linked, or run, so it waits in native-staging/, which
+  // autolinking does not look at, until the checklist's build steps are done.
+  check(o, !w.modulesDirs.includes('mage-room-scan'), 'modules/mage-room-scan exists: Expo autolinking would compile the unproven Swift into the next iOS build');
+  check(o, !!w.F['native-staging/mage-room-scan/expo-module.config.json'] && !!w.F['native-staging/mage-room-scan/ios/MageRoomScan.podspec'], 'the module is not waiting in native-staging/mage-room-scan');
+  const rootPkg = JSON.parse(w.F['package.json'] || '{}') as { expo?: { autolinking?: Record<string, unknown> }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+  const linking = JSON.stringify(rootPkg.expo?.autolinking ?? {});
+  check(o, !/native-staging/.test(linking) && !/nativeModulesDir/.test(linking), `package.json points Expo autolinking somewhere new: ${linking}`);
+  check(o, !('mage-room-scan' in (rootPkg.dependencies ?? {})) && !('mage-room-scan' in (rootPkg.devDependencies ?? {})) && !/native-staging/.test(JSON.stringify(rootPkg.dependencies ?? {})), 'package.json depends on the staged module (a dependency is autolinked too)');
   const pkg = JSON.parse(w.F['native-staging/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
   check(o, pkg.private === true && !('main' in pkg) && !('module' in pkg) && !('exports' in pkg), 'the module package has a JS entry point');
   const cfg = JSON.parse(w.F['native-staging/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
@@ -787,7 +1115,27 @@ rule('N5 the Swift that touches RoomPlan is guarded for iOS 16', (w) => {
   check(o, /guard #available\(iOS 16\.0, \*\) else \{\s*promise\.reject\(Exceptions\.RoomScanOsTooOld\(\)\)/.test(mod), 'startScan does not refuse iOS 15 with a typed error');
   check(o, /Name\("MageRoomScan"\)/.test(mod) && /JSONEncoder\(\)\.encode\(processedResult\)/.test(sup), 'the module name or the untouched JSON hand-over changed');
   check(o, !/requestAccess\(for:/.test(sup + mod), 'the module raises the camera prompt itself');
-  for (const code of ['UNSUPPORTED_DEVICE', 'OS_TOO_OLD', 'SIMULATOR', 'CAMERA_DENIED', 'CAMERA_UNDETERMINED', 'ALREADY_RUNNING', 'SESSION_FAILED']) {
+  // ── the promise settles exactly once, on every path ──
+  const fn = (name: string): string => { const i = sup.indexOf(name); if (i < 0) return ''; const j = sup.indexOf('\n  }\n', i); return sup.slice(i, j < 0 ? undefined : j); };
+  const should = fn('func captureView(shouldPresent');
+  check(o, /if let error = error \{[\s\S]*onMain \{ self\.fail\(message\) \}\s*return false/.test(should), 'captureView(shouldPresent:error:) returns false on an error without failing the scan (the screen would wait for ever)');
+  const gone = fn('override func viewWillDisappear');
+  check(o, /let leaving = isBeingDismissed \|\| \(navigationController\?\.isBeingDismissed \?\? false\)/.test(gone) && /if leaving, let pending = take\(\) \{\s*cancelled = true\s*pending\(\.success\(payload\(status: "cancelled"/.test(gone), 'a scanner dismissed from outside does not settle as cancelled');
+  check(o, !/finish\(/.test(gone), 'viewWillDisappear starts a second dismissal');
+  const present = fn('static func present(');
+  check(o, /guard presenter\.presentedViewController == nil, presenter\.viewIfLoaded\?\.window != nil else \{\s*done\(\.failure\(Exceptions\.RoomScanNoPresenter\(\)\)\)\s*return/.test(present), 'present does not refuse a presenter that cannot present');
+  check(o, /if nav\.presentingViewController == nil \{\s*scanner\.abandon\(\)\?\(\.failure\(Exceptions\.RoomScanNoPresenter\(\)\)\)/.test(present), 'present does not reject when the presentation did not happen');
+  check(o, /var settled = false[\s\S]*if settled \{ return \}\s*settled = true\s*self\.scanning = false/.test(mod), 'the module does not clear its scanning guard exactly once when the scan settles');
+  check(o, (sup.match(/\bdone = nil\b/g) ?? []).length === 1 && /private func take\(\)[^{]*\{\s*let pending = done\s*done = nil\s*return pending/.test(sup), 'the completion is cleared somewhere other than take()');
+  check(o, !/\bdone\(/.test(sup.slice(sup.indexOf('internal final class RoomScanViewController'))) && !/\bdone\?\(/.test(sup), 'the controller calls its completion without taking it first');
+  const instr = fn('func captureSession(_ session: RoomCaptureSession, didProvide');
+  check(o, /onMain \{ if !self\.warnings\.contains\(name\) \{ self\.warnings\.append\(name\) \} \}/.test(instr), 'warnings are changed off the main queue');
+  const iMain = sup.indexOf('private func onMain(');
+  const appends = [...sup.matchAll(/warnings\.append\(/g)].map((m) => m.index ?? 0);
+  check(o, iMain > 0 && appends.length === 2 && appends.filter((i) => i > iMain).length === 1, 'warnings are appended somewhere that is not moved to the main queue');
+  check(o, /func captureView\(didPresent processedResult: CapturedRoom, error: Error\?\) \{\s*let message = error\?\.localizedDescription\s*onMain \{ self\.deliver\(processedResult, errorMessage: message\) \}/.test(sup), 'the finished room is handled off the main queue');
+  check(o, !/isIdleTimerDisabled = false/.test(sup) && /if priorIdleTimerDisabled == nil \{ priorIdleTimerDisabled = UIApplication\.shared\.isIdleTimerDisabled \}/.test(sup) && /UIApplication\.shared\.isIdleTimerDisabled = prior\b/.test(sup), 'the idle timer is not put back to what it was before the scan');
+  for (const code of ['UNSUPPORTED_DEVICE', 'OS_TOO_OLD', 'SIMULATOR', 'CAMERA_DENIED', 'CAMERA_UNDETERMINED', 'ALREADY_RUNNING', 'SESSION_FAILED', 'NO_PRESENTER']) {
     check(o, types.includes(`"E_ROOM_SCAN_${code}"`), `no typed error E_ROOM_SCAN_${code}`);
   }
   return o;
@@ -832,7 +1180,7 @@ rule('N7 house rules: no reanimated, Lucide icons, theme colours, owned storage 
   check(o, isAppStorageKey(STORE.roomScansKey('p1')) && isAppStorageKey(STORE.roomScanRawKey('s1')), 'a storage key is not under an app-owned prefix (it would survive a tenant switch)');
   check(o, (storeSrc.match(/AsyncStorage\.(setItem|removeItem)\(([^,)]+)/g) ?? []).every((c) => /roomScansKey\(|roomScanRawKey\(/.test(c)), 'the store writes a key it did not build from the two owned prefixes');
   const route = stripComments(w.F['app/scan-room.tsx']);
-  check(o, /const \{ canAccess \} = useTierAccess\(\);/.test(route) && /if \(!canAccess\(SCAN_ROOM_FEATURE\)\) \{\s*return <Paywall /.test(route), 'the route is not gated through hooks/useTierAccess');
+  check(o, /const \{ canAccess \} = useProjectAccess\(projectId\);/.test(route) && /if \(!canAccess\(SCAN_ROOM_FEATURE\)\) \{\s*return <Paywall /.test(route), 'the route is not gated through hooks/useProjectAccess (the project-scoped tier gate)');
   check(o, SCAN_ROOM_REQUIRED_TIER === 'pro' && SCAN_ROOM_FEATURE === 'job_costing', 'the gate is not Pro');
   check(o, route.indexOf('canAccess(SCAN_ROOM_FEATURE)') < route.indexOf('<RoomScanFlow'), 'the flow mounts before the tier check');
   return o;
@@ -852,7 +1200,15 @@ rule('N8 app.json is not changed by this lane, and the checklist carries what th
     ['the list of unsure Swift lines', /UNSURE/],
     ['the proposed table', /create table public\.room_scans/],
     ['the old-build check', /without the module/i],
+    ['where the module waits', /native-staging\/mage-room-scan/],
+    ['the move back into modules/', /git mv native-staging\/mage-room-scan modules\/mage-room-scan/],
+    ['one compile against the real ExpoModulesCore', /real ExpoModulesCore/],
+    ['the otool check', /otool -L/],
+    ['RoomPlan as a weak link', /weak/i],
+    ['a physical iOS 15 phone', /PHYSICAL iOS 15/],
   ] as [string, RegExp][]) check(o, re.test(doc), `the checklist is missing ${what}`);
+  check(o, !/phone or simulator|or (a |the )?simulator that|iOS 15 (phone or )?simulator/i.test(doc) && /simulator (compiles RoomPlan out|proves nothing)/i.test(doc), 'the checklist still lets a simulator stand in for the iOS 15 launch (the simulator slice compiles RoomPlan out, so it proves nothing)');
+  check(o, /native-staging/.test(w.F['native-staging/mage-room-scan/README.md']) && !/phone or simulator/i.test(w.F['native-staging/mage-room-scan/README.md']), 'the module README does not say where it waits, or still accepts a simulator');
   check(o, /requireOptionalNativeModule/.test(w.F['native-staging/mage-room-scan/README.md']), 'the module README does not explain the optional lookup');
   return o;
 });
@@ -922,7 +1278,7 @@ rule('W4 no promise of how right a number is, and the plain statement that a sca
   check(o, /Catalog Price/.test(String(w.EN['office.roomScan.source.catalogLabel'])) && !/Your/.test(String(w.EN['office.roomScan.source.catalogLabel'])), 'a catalog price is not labelled as one');
   check(o, !/Past Job/.test(String(w.EN['office.roomScan.source.manualLabel'])) && /No Past Jobs Yet/.test(String(w.EN['office.roomScan.source.yoursSetLabel'])), 'a typed or set price claims past jobs');
   const hook = w.F['hooks/useRoomScanCopy.ts'];
-  check(o, /if \(source === 'engine'\) return t\('office\.roomScan\.source\.catalogLabel'/.test(hook) && /if \(claim\.provenance === 'seeded' \|\| claim\.jobCount < 1\) return t\('office\.roomScan\.source\.yoursSetLabel'/.test(hook), 'the copy hook no longer maps a catalog price and a set price to their own labels');
+  check(o, /if \(source === 'engine'\) return t\('office\.roomScan\.source\.catalogLabel'/.test(hook) && /if \(claim\.provenance === 'seeded' \|\| claim\.jobCount < 1\) return claim\.exactTrade\s*\? t\('office\.roomScan\.source\.yoursSetLabel'/.test(hook), 'the copy hook no longer maps a catalog price and a set price to their own labels');
   check(o, hook.indexOf("claim.provenance === 'seeded'") < hook.indexOf('office.roomScan.source.yoursMeasuredLabel') && hook.indexOf("claim.tone === 'contracted'") < hook.indexOf('office.roomScan.source.yoursMeasuredLabel'), 'the measured label is reachable before the set, mixed and signed cases are ruled out');
   return o;
 });
@@ -1135,15 +1491,66 @@ const MUTATIONS: Mutation[] = [
   { rule: 'R1', what: 'a priced line has no source', plant: mods({ draft: (...a) => { const d = PRICING.buildScanDraft(...a); return { ...d, lines: d.lines.map((l, i) => (i === 0 ? { ...l, source: null } : l)) }; } }) },
   { rule: 'R1', what: 'a rate he only set is called measured', plant: mods({ draft: (...a) => { const d = PRICING.buildScanDraft(...a); return { ...d, lines: d.lines.map((l) => (l.claim ? { ...l, claim: { ...l.claim, tone: 'measured' as const, provenance: 'earned' as const, jobCount: Math.max(1, l.claim.jobCount) } } : l)) }; } }) },
   { rule: 'R2', what: 'the draft rounds its own quantity', plant: mods({ draft: (...a) => { const d = PRICING.buildScanDraft(...a); return { ...d, lines: d.lines.map((l) => (l.unit === 'SF' ? { ...l, quantity: l.quantity + 1 } : l)) }; } }) },
-  { rule: 'R2', what: 'pricingCore stops calling applyTakeoffPush', plant: text('utils/roomScan/pricingCore.ts', 'const res = applyTakeoffPush(', 'const res = myOwnPush(') },
+  { rule: 'R2', what: 'pricingCore stops calling applyTakeoffPush', plant: text('utils/roomScan/pricingCore.ts', /applyTakeoffPush\(/g, 'myOwnPush(') },
   { rule: 'R2', what: 'the patch skips the history snapshot', plant: mods({ patch: (a) => { const r = PRICING.buildEstimatePatch(a); return r ? { ...r, patch: { linkedEstimate: r.next, estimateVersions: [] } } : r; } }) },
+  { rule: 'R3', what: 'an unanswered markup is written as zero on a new estimate', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, markupPct: a.markupPct ?? 0 }) }) },
   { rule: 'R3', what: 'a patch is built without confirmation', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, confirmed: true }) }) },
   { rule: 'R3', what: 'the flow saves by itself in an effect', plant: text('components/roomScan/RoomScanFlow.tsx', "  const scan = saved?.scan ?? null;", "  useEffect(() => {\n    if (saved) void saveScan(saved, rawJson);\n  }, [saved, rawJson]);\n  const scan = saved?.scan ?? null;") },
-  { rule: 'R3', what: 'Open In Estimate writes the estimate directly', plant: text('components/roomScan/PricedDraftView.tsx', 'onPress={() => setConfirming(true)} disabled={p.block != null} testID="scan-open-estimate"', 'onPress={() => p.onConfirm()} disabled={p.block != null} testID="scan-open-estimate"') },
-  { rule: 'R3', what: 'the flow confirms without the literal true', plant: text('components/roomScan/RoomScanFlow.tsx', 'buildEstimatePatch({ confirmed: true,', 'buildEstimatePatch({ confirmed: !!draft,') },
+  { rule: 'R3', what: 'Open In Estimate writes the estimate directly', plant: text('components/roomScan/PricedDraftView.tsx', 'onPress={() => setConfirming(true)} disabled={p.block != null || p.busy}', 'onPress={() => p.onConfirm()} disabled={p.block != null || p.busy}') },
+  { rule: 'R3', what: 'the flow confirms without the literal true', plant: text('components/roomScan/RoomScanFlow.tsx', 'confirmed: true, mayEdit: mayEditEstimate,', 'confirmed: !!draft, mayEdit: mayEditEstimate,') },
   { rule: 'R3', what: 'the store writes a row to the server', plant: text('utils/roomScan/store.ts', "import * as Crypto from 'expo-crypto';", "import * as Crypto from 'expo-crypto';\nimport { supabase } from '@/lib/supabase';") },
   { rule: 'R4', what: 'a line left out stays in the total', plant: mods({ draft: (s, q, db, cat, ch) => { const d = PRICING.buildScanDraft(s, q, db, cat, ch); const all = PRICING.buildScanDraft(s, q, db, cat, { ...ch, excluded: [] }); return { ...d, totalCents: all.totalCents }; } }) },
   { rule: 'R4', what: 'a second pricing appends again', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, pushed: {}, draft: { ...a.draft, lines: a.draft.lines.map((l) => ({ ...l, row: { ...l.row, condition: { ...l.row.condition, id: `${l.row.condition.id}:${a.project?.linkedEstimate?.items.length ?? 0}` } } })) } }) }) },
+  { rule: 'C1', what: 'the trade match goes back to one shared word', plant: mods({ tradeFor: (db, line) => (lookupRate(db, line.defaultTrade, KIND_UNIT[line.kind]) ? line.defaultTrade : matchOwnRate({ description: line.matchWords, unit: KIND_UNIT[line.kind] }, db.entries)?.trade ?? line.defaultTrade) }) },
+  { rule: 'C1', what: 'the strict score is loosened to half the words', plant: text('utils/roomScan/pricingCore.ts', '{ minScore: 1 } as const', '{ minScore: 0.5 } as const') },
+  { rule: 'C1', what: 'resolveTrade stops passing the strict score', plant: text('utils/roomScan/pricingCore.ts', 'db.entries, STRICT_TRADE_MATCH)', 'db.entries)') },
+  { rule: 'C1', what: 'the label stops naming which of his trades was used', plant: text('hooks/useRoomScanCopy.ts', "tn('office.roomScan.source.yoursMeasuredForLabel'", "tn('office.roomScan.source.yoursMeasuredLabel'") },
+  { rule: 'C1', what: 'a line borrowed from another trade is marked as the line\'s own', plant: mods({ draft: (...a) => { const d = PRICING.buildScanDraft(...a); return { ...d, lines: d.lines.map((l) => (l.claim ? { ...l, claim: { ...l.claim, exactTrade: true } } : l)) }; } }) },
+  { rule: 'D1', what: 'a room with no name can be priced', plant: mods({ scanBlock: (_s, q) => QTY.pricingBlock(q) }) },
+  { rule: 'D1', what: 'a draft with no room name can be pushed', plant: mods({ draftBlock: (p, d, c) => { const b = PRICING.draftBlock(p, d, c); return b === 'no_name' ? null : b; } }) },
+  { rule: 'D1', what: 'every scan is named Hall Bathroom again', plant: text('components/roomScan/RoomScanFlow.tsx', "          name: '',", "          name: copy.namePlaceholder,") },
+  { rule: 'D1', what: 'the name is only taken when the keyboard closes', plant: text('components/roomScan/FloorPlanView.tsx', 'onChangeText={(v) => { setNameText(v); p.onRename(v); }}', 'onEndEditing={(e) => p.onRename(e.nativeEvent.text)}') },
+  { rule: 'D1', what: 'a name of spaces counts as a name', plant: mods({ rename: (s, n) => (n.trim() ? EDITS.renameScan(s, n) : { ...s, name: n }), scanBlock: (s, q) => QTY.pricingBlock(q) ?? (s.name ? null : 'no_name') }) },
+  { rule: 'A1', what: 'every seat is let in', plant: mods({ seat: () => 'open' }) },
+  { rule: 'A1', what: 'the patch ignores the seat', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, mayEdit: true }), draftBlock: (p, d, c) => PRICING.draftBlock(p, d, { ...c, mayEdit: true }) }) },
+  { rule: 'A1', what: 'any project counts as holding the lines', plant: mods({ holds: () => true }) },
+  { rule: 'A1', what: 'the route mounts the flow for a refused seat', plant: text('app/scan-room.tsx', "if (seat !== 'open') {", 'if (false) {') },
+  { rule: 'A1', what: '"Added to the estimate." is said as soon as the write is sent', plant: text('components/roomScan/RoomScanFlow.tsx', '      updateProject(project.id, res.patch);', "      updateProject(project.id, res.patch);\n      setResult('added');") },
+  { rule: 'A1', what: 'the flow stops reading the project back', plant: text('components/roomScan/RoomScanFlow.tsx', 'kept = estimateHoldsPush(getProjectRef.current(project.id) ?? null, res);', 'kept = true;') },
+  { rule: 'F1', what: 'overlapping openings are summed', plant: mods({ quantities: (scan, opts) => { const q = QTY.computeQuantities(scan, opts); const seen = new Set<string>(); let m2 = 0; for (const x of scan.openings) { const wl = scan.walls.find((y) => y.id === x.wallId && y.onOutline); if (!wl || seen.has(x.id)) continue; seen.add(x.id); m2 += QTY.clippedWidthM(x, wl) * Math.min(x.heightM, (wl.heightM || scan.ceilingHeightM.typical) - x.sillM); } return q.openingSF == null || q.grossWallSF == null ? q : { ...q, openingSF: m2 * 10.7639, netWallSF: q.grossWallSF - m2 * 10.7639 }; } }) },
+  { rule: 'F1', what: 'a doorway covered twice loses the baseboard twice', plant: mods({ quantities: (scan, opts) => { const q = QTY.computeQuantities(scan, opts); const out = scan.openings.filter((x) => x.wallId && (x.kind === 'door' || (x.kind === 'opening' && x.sillM < 0.05))).reduce((t, x) => t + x.widthM, 0); return { ...q, baseboardLF: q.perimeterLF - out * 3.28084 }; } }) },
+  { rule: 'F1', what: 'an opening with no wall is dropped without a word', plant: mods({ facts: (s, q) => QTY.scanFacts(s, q).filter((f) => f.kind !== 'opening_no_wall') }) },
+  { rule: 'F1', what: 'an opening with no wall is subtracted anyway', plant: qWrap((q, scan) => { const lost = scan.openings.filter((x) => !x.wallId).reduce((t, x) => t + x.widthM * x.heightM, 0) * 10.7639; return q.openingSF == null ? q : { ...q, openingSF: q.openingSF + lost }; }) },
+  { rule: 'G10', what: 'the loop with the most walls is the floor', plant: mods({ build: (p, m) => { const s = GEO.buildRoomScan(p, m); const off = s.walls.filter((x) => !x.onOutline); const on = s.walls.filter((x) => x.onOutline); return off.length > on.length ? { ...s, walls: s.walls.map((x) => ({ ...x, onOutline: !x.onOutline })), floor: off.map((x) => x.a) } : s; } }) },
+  { rule: 'G10', what: 'a ring that crosses itself is given a floor', plant: mods({ build: (p, m) => { const s = GEO.buildRoomScan(p, m); return s.closure.crossing ? { ...s, floor: s.walls.map((x) => x.a), closure: { closed: true, gapM: 0, gaps: 0, gapWallIds: [], cause: 'scan' as const } } : s; } }) },
+  { rule: 'G10', what: 'walls that cross are not named', plant: mods({ facts: (s, q) => QTY.scanFacts(s, q).map((f) => (f.kind === 'outline_crosses' ? { ...f, kind: 'outline_open' as const } : f)) }) },
+  { rule: 'H1', what: 'no reading is ever far from the scan', plant: mods({ far: () => false }) },
+  { rule: 'H1', what: 'only ten times the scan is questioned', plant: mods({ far: (t, sc) => sc > 0 && (t > sc * 10 || t < sc / 10) }) },
+  { rule: 'H1', what: 'the sheet takes a far reading on the first tap', plant: text('components/roomScan/EditMeasureSheet.tsx', '    if (far && asked !== text) { setAsked(text); return; }\n', '') },
+  { rule: 'H1', what: 'the sheet stops showing what it read', plant: text('components/roomScan/EditMeasureSheet.tsx', '{copy.editReadsAsSub(formatFeetInches(reading))}', '{copy.editHintBody}') },
+  { rule: 'S1', what: 'the scan the cap drops is not reported', plant: mods({ upsert: (l, sv) => ({ list: STORE.upsertSavedScan(l, sv).list, dropped: [] }) }) },
+  { rule: 'S1', what: 'the store leaves the dropped scan\'s raw key behind', plant: text('utils/roomScan/store.ts', 'for (const id of dropped) {', 'for (const id of [] as string[]) {') },
+  { rule: 'S1', what: 'the trash button deletes without asking', plant: text('components/roomScan/RoomScanFlow.tsx', 'onPress={() => { setDeleteFailed(false); setDeleting(s); }}', 'onPress={() => void deleteScan(projectId, s.scan.id)}') },
+  { rule: 'S1', what: 'deleteScan leaves the raw JSON', plant: text('utils/roomScan/store.ts', '    await AsyncStorage.removeItem(roomScanRawKey(scanId));\n', '') },
+  { rule: 'K1', what: 'a project with no estimate is still blocked', plant: mods({ draftBlock: (p, d, c) => (p && !p.linkedEstimate ? 'no_markup' : PRICING.draftBlock(p, d, c)) }) },
+  { rule: 'K1', what: 'the new estimate is written at cost', plant: mods({ patch: (a) => { const r = PRICING.buildEstimatePatch(a); return r && r.started ? { ...r, next: { ...r.next, globalMarkup: 0, items: r.next.items.map((it) => ({ ...it, markup: 0, lineTotal: it.quantity * it.unitPrice })) } } : r; } }) },
+  { rule: 'K1', what: 'an unanswered markup starts the estimate at zero', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, markupPct: a.markupPct ?? 0 }) }) },
+  { rule: 'K1', what: 'the new estimate is started without the yes', plant: mods({ patch: (a) => PRICING.buildEstimatePatch({ ...a, confirmed: a.project?.linkedEstimate ? a.confirmed : true }) }) },
+  { rule: 'K1', what: 'the markup defaults to a number he never chose', plant: text('components/roomScan/RoomScanFlow.tsx', 'const markupPct: MarkupPct = markupDecided === true ? savedMarkup : null;', 'const markupPct: MarkupPct = savedMarkup;') },
+  { rule: 'K1', what: 'the confirm sheet hides that it starts an estimate', plant: text('components/roomScan/PricedDraftView.tsx', 'p.starting && p.markupPct != null ? copy.startConfirmBody(p.pushCount, total, p.markupPct) : copy.confirmBody(p.pushCount, total)', 'copy.confirmBody(p.pushCount, total)') },
+  { rule: 'J1', what: 'a sliver is shown as a priced line', plant: mods({ draft: (s, q, db, cat, ch) => PRICING.buildScanDraft(s, { ...q, baseboardLF: Math.max(q.baseboardLF, 1) }, db, cat, ch) }) },
+  { rule: 'J1', what: 'the start promises a price from past jobs', plant: en('office.roomScan.start.body', 'Walk the room once with this iPhone. You get a floor plan, the quantities and a draft price from your own past jobs. A scan is a fast first measure, not a survey.') },
+  { rule: 'J1', what: 'Back drops an unsaved scan without asking', plant: text('components/roomScan/RoomScanFlow.tsx', "    else if (step === 'plan' && dirty) setLeaving(true);\n", '') },
+  { rule: 'J1', what: 'the saved list is not read again after a push', plant: text('components/roomScan/RoomScanFlow.tsx', 'if (stored) { setDirty(false); await refreshSavedList(); }', 'if (stored) { setDirty(false); }') },
+  { rule: 'N4', what: 'the module is moved back under modules/ (autolinked)', plant: (w) => ({ ...w, modulesDirs: [...w.modulesDirs, 'mage-room-scan'] }) },
+  { rule: 'N4', what: 'package.json points autolinking at the staging folder', plant: text('package.json', '"scripts": {', '"expo": { "autolinking": { "nativeModulesDir": "./native-staging" } },\n  "scripts": {') },
+  { rule: 'N5', what: 'the idle timer is set to false instead of what it was', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'UIApplication.shared.isIdleTimerDisabled = prior', 'UIApplication.shared.isIdleTimerDisabled = false') },
+  { rule: 'N5', what: 'shouldPresent returns false on an error and tells nobody', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '      onMain { self.fail(message) }\n      return false', '      return false') },
+  { rule: 'N5', what: 'a scanner dismissed from outside never settles', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'if leaving, let pending = take() {', 'if false, let pending = take() {') },
+  { rule: 'N5', what: 'present does not reject when nothing was presented', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'scanner.abandon()?(.failure(Exceptions.RoomScanNoPresenter()))', '_ = scanner') },
+  { rule: 'N5', what: 'warnings are appended on RoomPlan\'s queue', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'onMain { if !self.warnings.contains(name) { self.warnings.append(name) } }', 'if !warnings.contains(name) { warnings.append(name) }') },
+  { rule: 'N8', what: 'the checklist loses the otool weak-link check', plant: text('docs/scan-the-room-native-checklist.md', /otool -L/g, 'a look at') },
+  { rule: 'N8', what: 'the checklist accepts a simulator for the iOS 15 launch', plant: text('docs/scan-the-room-native-checklist.md', /PHYSICAL iOS 15 phone/, 'iOS 15 phone or simulator that') },
   { rule: 'N1', what: 'the flag is turned on', plant: (w) => mods({ flag: true })(text('constants/featureFlags.ts', 'export const SCAN_ROOM_ENABLED = false;', 'export const SCAN_ROOM_ENABLED = true;')(w)) },
   { rule: 'N2', what: 'the route mounts the screen with the flag off', plant: text('app/scan-room.tsx', /  if \(!SCAN_ROOM_ENABLED\) return <Redirect href="\/\(tabs\)\/\(home\)" \/>;\n  return <ScanRoomScreen \/>;/, '  return <ScanRoomScreen />;') },
   { rule: 'N3', what: 'the project page links to the route', plant: outside('app/project-detail.tsx', "\nrouter.push({ pathname: '/scan-room', params: { projectId: id } });\n") },
@@ -1163,7 +1570,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N7', what: 'a screen writes a colour', plant: text('components/roomScan/styles.ts', 'screen: { flex: 1, backgroundColor: t.bg },', "screen: { flex: 1, backgroundColor: '#ECEDE9' },") },
   { rule: 'N7', what: 'a storage key leaves the owned prefix', plant: text('utils/roomScan/storeCore.ts', "'mageid_room_scans::'", "'roomscans::'") },
   { rule: 'N7', what: 'the route loses the tier gate', plant: text('app/scan-room.tsx', 'if (!canAccess(SCAN_ROOM_FEATURE)) {', 'if (false) {') },
-  { rule: 'N7', what: 'a screen uses @expo/vector-icons', plant: text('components/roomScan/RoomScanFlow.tsx', "import { ChevronLeft, Ruler } from 'lucide-react-native';", "import { ChevronLeft, Ruler } from 'lucide-react-native';\nimport { Ionicons } from '@expo/vector-icons';") },
+  { rule: 'N7', what: 'a screen uses @expo/vector-icons', plant: text('components/roomScan/RoomScanFlow.tsx', "import { ChevronLeft, Ruler, Trash2 } from 'lucide-react-native';", "import { ChevronLeft, Ruler, Trash2 } from 'lucide-react-native';\nimport { Ionicons } from '@expo/vector-icons';") },
   { rule: 'N7', what: 'a screen carries its own t() key', plant: text('components/roomScan/QuantitiesView.tsx', "const sf = copy.unitWord('SF');", "const sf = t('office.roomScan.unit.sf', 'sq ft');") },
   { rule: 'N8', what: 'app.json gets the scan sentence in this lane', plant: text('app.json', '"NSCameraUsageDescription": "', '"NSCameraUsageDescription": "It also measures a room when you start a room scan. ') },
   { rule: 'N8', what: 'the checklist loses the ten-room test', plant: text('docs/scan-the-room-native-checklist.md', /ten rooms/gi, 'some rooms') },

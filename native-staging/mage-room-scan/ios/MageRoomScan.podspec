@@ -26,13 +26,15 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  # (RoomPlan.framework IS in the simulator SDK, so a simulator link finds it.)
+  # (RoomPlan.framework IS in the simulator SDK, but this module compiles RoomPlan out there.)
   # RoomPlan does not exist on iOS 15. With a 15.1 deployment target Swift
   # weak-links a framework whose every symbol is newer than the target, but
   # that has NOT been checked on an iOS 15 phone for this module, so the weak
   # link is stated outright. Without it an iOS 15 phone could fail at launch
   # (dyld: Library not loaded) before any JavaScript runs.
-  # UNSURE: confirm on a real iOS 15 device or simulator (docs/scan-the-room-native-checklist.md).
+  # UNSURE: prove it with `otool -L` on the built app (RoomPlan must be a weak link) and one launch on a
+  # PHYSICAL iOS 15 phone. The simulator compiles RoomPlan out, so it proves nothing
+  # (docs/scan-the-room-native-checklist.md, section 0).
   s.weak_frameworks = 'RoomPlan'
 
   s.pod_target_xcconfig = {

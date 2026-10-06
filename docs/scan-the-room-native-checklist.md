@@ -1,25 +1,61 @@
 # Scan The Room: What The Next Native Build Needs
 
 Written 2026-10-06 by lane SCANROOM. The JavaScript for Phase 1 is in the repo
-and dark (`SCAN_ROOM_ENABLED = false`). The native module
-(`modules/mage-room-scan`) is written and typechecks against Apple's iOS SDK
-(iPhoneOS 27.0, deployment target 15.1, and the simulator SDK). It has never
-been linked into an app or run on a phone. Nothing here has been applied, built or submitted.
+and dark (`SCAN_ROOM_ENABLED = false`). The native module is written and
+typechecks against Apple's iOS SDK (iPhoneOS 27.0, deployment target 15.1, and
+the simulator SDK). It has never been compiled against the real
+ExpoModulesCore, linked into an app or run on a phone. Nothing here has been
+applied, built or submitted.
+
+**The module is NOT in the build.** It waits in `native-staging/mage-room-scan`,
+a folder Expo autolinking does not look at (autolinking reads `modules/` and
+`node_modules`; `package.json` sets no other path). So the next `eas build`
+does not compile this Swift, and no build carries it by accident.
+`bun run test:scan-room` fails if the folder is back under `modules/` or if
+`package.json` points autolinking at the staging folder.
 
 Work through this page in order. Do not turn the flag on until section 8 is
 done.
 
+## 0. Before any build that carries the scanner
+
+Do these four steps in this order. Each one can stop the build.
+
+1. **Move it back.** `git mv native-staging/mage-room-scan modules/mage-room-scan`,
+   and change the path in `scripts/validate-scan-room.ts` (the N4 rule then
+   has to be told the module is meant to be linked). Do this in the same
+   change as the camera sentence in section 2.
+2. **Compile it once against the real ExpoModulesCore**, in a local build
+   (`npx expo prebuild -p ios`, then build in Xcode) or an EAS `preview` build.
+   The typecheck in this repo stubs ExpoModulesCore, so this is the first time
+   the module's calls into it are compiled for real. Fix what the compiler
+   says before going on.
+3. **Run `otool -L` on the built app and require RoomPlan to be a WEAK link.**
+   `otool -L MAGEID.app/MAGEID | grep RoomPlan` (and the same on the framework
+   that holds the module, if the pods are built as frameworks). The line must
+   end in `(..., weak)`. A line without `weak` is a hard link: the app would
+   crash at launch on iOS 15 (dyld: Library not loaded) before any JavaScript
+   runs. If it is not weak, add `-weak_framework RoomPlan` to `OTHER_LDFLAGS`
+   through a config plugin, rebuild and run `otool -L` again.
+4. **Launch that build once on a PHYSICAL iOS 15 phone.** The app must open.
+   The simulator compiles RoomPlan out (`#if canImport(RoomPlan) &&
+   !targetEnvironment(simulator)`), so a simulator proves nothing about the
+   link: it never links RoomPlan at all. Only a real phone on iOS 15 shows
+   whether a build with the module still launches.
+
 ## 1. Founder decisions first
 
-1. **Does the next iPhone build carry the scanner?** `modules/` autolinks into
-   every iOS build, so the next `eas build` will compile this Swift whether or
-   not the feature is on. If the answer is "not yet", move
-   `modules/mage-room-scan` out of `modules/` before building.
-2. **A job with no estimate.** Today the priced draft can only go into a job
-   that already has an estimate (the takeoff's own rule: an empty estimate has
-   no markup ratio, so pushed lines would carry no markup). A fresh job shows
-   "This project has no estimate yet". Decide whether a scan may start an
-   estimate at the default markup in Settings.
+1. **Does the next iPhone build carry the scanner?** Not unless someone does
+   section 0. The module is outside `modules/`, so a build made today has no
+   scanner in it and the screen says "This version of the app does not include
+   room scanning".
+2. **A job with no estimate.** Decided 2026-10-06: the confirm sheet starts the
+   estimate. It uses the app's own "new estimate from cost lines" writer
+   (`utils/estimateLanding.buildNewEstimate`, the one the AI takeoff's Replace
+   and the Drawing Analyzer use) at the markup the contractor has already
+   stated in the estimator, the wizard or Quick Quote. If he has never stated
+   one, the push is blocked and says to choose a markup first: a markup he
+   never chose is never written.
 3. **Where the scan lives.** This lane keeps a scan on the phone it was made on
    (section 6). Decide whether Phase 1 needs the cloud table before launch.
 4. **The door into the feature.** There is none yet. The project-page tile is
@@ -82,10 +118,12 @@ Also in that commit, outside the code:
 - The app's floor stays iOS 15.1. RoomPlan needs iOS 16 and a LiDAR sensor
   (iPhone 12 Pro and newer Pro models, and iPad Pro; the app does not support
   iPad).
-- The podspec sets `s.weak_frameworks = 'RoomPlan'`. **Check on an iOS 15
-  phone or simulator that the app launches with the module linked.** A hard
-  link would crash at launch (dyld: Library not loaded) before any JavaScript
-  runs. This is the single most important device check.
+- The podspec sets `s.weak_frameworks = 'RoomPlan'`. **Prove the weak link
+  twice: `otool -L` on the built app, then one launch on a PHYSICAL iOS 15
+  phone** (section 0, steps 3 and 4). A hard link would crash at launch (dyld:
+  Library not loaded) before any JavaScript runs. This is the single most
+  important device check. A simulator cannot stand in for it: the simulator
+  compiles RoomPlan out, so it proves nothing.
 - Joining rooms and `polygonCorners` are iOS 17. Phase 1 uses neither natively.
 
 ## 4. Every Swift line to read before trusting the build (UNSURE list)
@@ -109,19 +147,20 @@ A typecheck is not a link and not a run. What is still unsure:
 
 | # | File | What | Why unsure | What to do |
 |---|---|---|---|---|
-| 1 | `MageRoomScan.podspec` | `s.weak_frameworks = 'RoomPlan'` | Not checked that CocoaPods plus a static framework carries the weak link into the app target. RoomPlan is in the simulator SDK, so a simulator link should find it | Launch on iOS 15. If it crashes at launch, add `-weak_framework RoomPlan` to `OTHER_LDFLAGS` through a config plugin |
+| 1 | `MageRoomScan.podspec` | `s.weak_frameworks = 'RoomPlan'` | Not checked that CocoaPods plus a static framework carries the weak link into the app target. The simulator slice compiles RoomPlan out, so only a device build shows it | Section 0: `otool -L` must show RoomPlan as weak, then one launch on a physical iOS 15 phone. If it is not weak, add `-weak_framework RoomPlan` to `OTHER_LDFLAGS` through a config plugin |
 | 2 | all three | The typecheck used the iPhoneOS 27.0 SDK | EAS may build with an older Xcode. The RoomPlan calls used are all iOS 16 API, so an older SDK should accept them, but that was not run | First EAS build log |
-| 3 | `MageRoomScanModule.swift` | Every call into ExpoModulesCore | Read against the source, not compiled against it | First EAS build log |
-| 4 | `RoomScanSupport.swift` | `captureSession(_:didEndWith:error:)` | Whether a failed session also calls `captureView(didPresent:)`. The code reports the error here and guards against resolving twice | Deny the camera mid-scan, cover the lens, and check one result arrives |
-| 5 | `RoomScanSupport.swift` | `captureView(shouldPresent:error:)` returns false on an error | Whether RoomPlan then leaves the screen waiting. The session delegate should have reported the error first | Force an error (cover the lens for a long time) and check the screen closes |
+| 3 | `MageRoomScanModule.swift` | Every call into ExpoModulesCore | Read against the source, never compiled against it | Section 0, step 2: one local or preview build before anything else |
+| 4 | `RoomScanSupport.swift` | `captureSession(_:didEndWith:error:)` | Whether a failed session also calls `captureView(didPresent:)`. The code reports the error here; the completion is taken before it is called (`take()`), so a second report does nothing | Deny the camera mid-scan, cover the lens, and check exactly one result arrives |
+| 5 | `RoomScanSupport.swift` | `captureView(shouldPresent:error:)` returns false on an error | It now also fails the scan itself (review round, 2026-10-06), so the screen is not left waiting whether or not the session delegate reported first | Force an error (cover the lens for a long time) and check the screen closes with one failure |
 | 6 | `RoomScanSupport.swift` | `try processedResult.export(to: url, exportOptions: .parametric)` | Compiles; never run. Off by default (`exportUsdz: false`) | Turn it on in a dev build and log the file size |
 | 7 | `RoomScanSupport.swift` | `JSONEncoder().encode(processedResult)` | Compiles (`CapturedRoom` is `Codable`). The KEY NAMES and the layout of `transform` and `dimensions` in the output are not documented | Section 5 |
 | 8 | `RoomScanSupport.swift` | `UINavigationController` wrapper with system Cancel and Done | Whether the bar covers Apple's own coaching text at the top of `RoomCaptureView` | Look at it on a phone. If it does, make the bar transparent or move the buttons |
-| 9 | `RoomScanSupport.swift` | `viewWillDisappear` stops the session | Whether that also fires when Apple presents its own sheet on top, and so ends a scan early | Check a normal Done still returns a room |
+| 9 | `RoomScanSupport.swift` | `viewWillDisappear` stops the session, and settles as cancelled when the scanner is being dismissed from outside | Whether it also fires when Apple presents its own sheet on top, and so ends a scan early. `isBeingDismissed` should be false then, so the scan is not cancelled, but that was not run | Check a normal Done still returns a room. Then dismiss the scanner from outside (open a deep link mid-scan) and check the start screen is not left waiting |
 | 10 | `RoomScanSupport.swift` | `doneTapped` calls `captureSession.stop()` and waits for `captureView(didPresent:)` | Apple's sample does the same. How long processing takes, and what the person sees meanwhile, is not known | Time it on a phone. Add a "Working" label if it is more than a second or two |
 | 11 | `MageRoomScanModule.swift` | `self.appContext?.utilities?.currentViewController()` | Returns the top controller in Expo SDK 54. Not checked from inside a modal route | Start a scan from the screen as it is presented |
-| 12 | `RoomScanSupport.swift` | `UIApplication.shared.isIdleTimerDisabled` | Restored in two places; check the phone still sleeps after a scan | Leave the phone after a scan |
-| 13 | `MageRoomScanModule.swift` | `private var scanning` read and written on the main queue | `.runOnQueue(.main)` is what keeps it on one queue; the completion is called from `dismiss`, also on main | Tap Start Scan twice quickly |
+| 12 | `RoomScanSupport.swift` | `UIApplication.shared.isIdleTimerDisabled` | Put back to what it was BEFORE the scan (not to false), once | Leave the phone after a scan: it must sleep as it did before. Start a scan from a screen that keeps the phone awake: it must stay awake after |
+| 13 | `MageRoomScanModule.swift` | `private var scanning` read and written on the main queue | `.runOnQueue(.main)` is what keeps it on one queue; the completion is called from `dismiss`, also on main. `present` now rejects and clears the guard when UIKit did not present | Tap Start Scan twice quickly. Start a scan while another sheet is up: one typed error, and the next scan still starts |
+| 14 | `RoomScanSupport.swift` | `presenter.presentedViewController == nil`, `viewIfLoaded?.window`, and `nav.presentingViewController == nil` right after `present` | That UIKit sets `presentingViewController` before `present` returns was read in the documentation, not run | Start a scan from the modal route as it is presented, and from a screen with a sheet open |
 
 ## 5. First real export (the parser has not read one)
 
@@ -193,7 +232,8 @@ Nothing here can be shown on a simulator. RoomPlan does not run there.
    (without the module). Publish this JavaScript to its channel with the flag
    on in a preview branch. The app must open, and `/scan-room` must say "This
    version of the app does not include room scanning".
-2. **iOS 15 with the module.** Section 3. The app must launch.
+2. **iOS 15 with the module.** Section 0, steps 3 and 4: `otool -L` shows
+   RoomPlan as a weak link, and the build launches on a physical iOS 15 phone.
 3. **A non-LiDAR iPhone with the module** (a standard iPhone 13 or 15). The
    screen must say "This iPhone has no LiDAR sensor".
 4. **Camera permission.** Fresh install: Allow Camera shows the system prompt
@@ -211,10 +251,14 @@ Nothing here can be shown on a simulator. RoomPlan does not run there.
    is outlined, the opposite wall moves and says so. Type a value that cannot
    close: the floor area goes to Not Known.
 10. **Pricing.** On a job with an estimate and a cost book: each line shows
-    where its price came from, a line with no price shows No Price Yet, the
-    total leaves it out. Open In Estimate asks first. After yes, the estimate
-    has the lines, its history has the old estimate, and pricing the same scan
-    again updates the lines instead of adding copies.
+    where its price came from (and which of his trades, when it is not the
+    line's own), a line with no price shows No Price Yet, the total leaves it
+    out. Open In Estimate asks first. After yes, the estimate has the lines,
+    its history has the old estimate, and pricing the same scan again updates
+    the lines instead of adding copies. Then on a job with NO estimate: the
+    sheet says it starts one and at which markup, and the estimate opens with
+    the lines at that markup. As a viewer or a field seat: the screen does not
+    open.
 11. **Heat and battery** over five scans in a row.
 12. **iOS 16, 17, 18 and 26**, from TestFlight, not from Xcode (a developer
     report says captures look wrong on iOS 26 from Xcode only; not confirmed).
