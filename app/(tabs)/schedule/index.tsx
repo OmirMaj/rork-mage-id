@@ -243,7 +243,7 @@ const UNDATED_QUICK_ADD_HINT =
 function tabLockRefusal(schedule: ProjectSchedule): { title: string; reason: string } | null {
   if (schedule.tasks.length === 0) {
     return {
-      title: 'Nothing to lock yet',
+      title: 'Nothing to Lock Yet',
       reason: 'A baseline is a snapshot of every task’s dates. Add tasks first, then lock the plan.',
     };
   }
@@ -819,8 +819,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const refusal = whatIfEditRefusal(activeSchedule);
     if (!refusal) return false;
     showAlert(refusal.title, refusal.reason, [
-      { text: 'Keep viewing', style: 'cancel' },
-      { text: 'Show live plan', onPress: exitSavedPlanView },
+      { text: 'Keep Viewing', style: 'cancel' },
+      { text: 'Show Live Plan', onPress: exitSavedPlanView },
     ]);
     return true;
   }, [activeSchedule, activeScenarioTasks, exitSavedPlanView]);
@@ -1085,11 +1085,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (refuseScheduleWrite('Start date')) return;
     // Validate YYYY-MM-DD
     const m = /^\d{4}-\d{2}-\d{2}$/.exec(isoYYYYMMDD.trim());
-    if (!m) { showAlert('Invalid date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
+    if (!m) { showAlert('Invalid Date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
     const parsed = new Date(isoYYYYMMDD + 'T12:00:00');
-    if (Number.isNaN(parsed.getTime())) { showAlert('Invalid date'); return; }
+    if (Number.isNaN(parsed.getTime())) { showAlert('Invalid Date'); return; }
     if (!activeSchedule) {
-      showAlert('No schedule', 'Add at least one task before setting a project start date.');
+      showAlert('No Schedule', 'Add at least one task before setting a project start date.');
       return;
     }
     // No re-mapping on the first anchor any more. `rebaseRawToCalendar` existed
@@ -1264,10 +1264,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (!live && refuseWhileWhatIf()) return;
     const baseTasks = live ? liveSortedTasks : sortedTasks;
     const title = draft.title.trim();
-    if (!title) { showAlert('Missing task name'); return; }
+    if (!title) { showAlert('Missing Task Name'); return; }
     const durationDays = parseInt(draft.durationDays, 10);
     if (Number.isNaN(durationDays) || durationDays < 0 || durationDays > 365) {
-      showAlert('Invalid duration', 'Enter 0-365 days.'); return;
+      showAlert('Invalid Duration', 'Enter 0-365 days.'); return;
     }
     const crewSize = parseInt(draft.crewSize, 10) || 1;
     const depLinks = draft.dependencyLinks;
@@ -1283,13 +1283,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         return;
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(rawStartDate)) {
-        showAlert('Invalid start date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
+        showAlert('Invalid Start Date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
         return;
       }
       const picked = new Date(rawStartDate + 'T12:00:00');
-      if (Number.isNaN(picked.getTime())) { showAlert('Invalid start date'); return; }
+      if (Number.isNaN(picked.getTime())) { showAlert('Invalid Start Date'); return; }
       if (beforeProjectStart(picked)) {
-        showAlert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
+        showAlert('Start Date Too Early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
         return;
       }
       // Same WORKING-ORDINAL conversion as isoToStartDay above — see its note.
@@ -1607,7 +1607,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       const undated = !resolveScheduleAnchor(activeSchedule).dated && activeSchedule.tasks.length > 0;
       showAlert(refusal.title, refusal.reason, undated
         ? [
-          { text: 'Not now', style: 'cancel' },
+          { text: 'Not Now', style: 'cancel' },
           { text: UNDATED_SCHEDULE_CTA, onPress: openStartDatePicker },
         ]
         : undefined);
@@ -1658,7 +1658,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const loss = scheduleReplacementLoss(running);
     if (!loss) { commit(); return; }
     showAlert('Replace the running schedule?', describeScheduleReplacement(loss, selectedProject?.name), [
-      { text: 'Keep current schedule', style: 'cancel' },
+      { text: 'Keep Current Schedule', style: 'cancel' },
       { text: 'Replace', style: 'destructive', onPress: commit },
     ]);
   }, [selectedProject, saveSchedule, refuseScheduleWrite]);
@@ -1698,7 +1698,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
   const handleBuildFromEstimate = useCallback(async () => {
     if (!selectedProject?.estimate && !selectedProject?.linkedEstimate) {
-      showAlert('No estimate', 'This project needs an estimate first.');
+      showAlert('No Estimate', 'This project needs an estimate first.');
       return;
     }
     // Before the generator runs, not after: the AI path costs a call and then
@@ -1744,7 +1744,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
       let prevId: string | null = null;
       const startMilestone: ScheduleTask = {
-        id: createId('task'), title: 'Project start', phase: 'General',
+        id: createId('task'), title: 'Project Start', phase: 'General',
         durationDays: 0, startDay: 1, progress: 0, crew: '', crewSize: 0,
         dependencies: [], notes: '', status: 'not_started', isMilestone: true,
         isCriticalPath: true, isWeatherSensitive: false,
@@ -1769,7 +1769,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       });
 
       const endMilestone: ScheduleTask = {
-        id: createId('task'), title: 'Project complete', phase: 'General',
+        id: createId('task'), title: 'Project Complete', phase: 'General',
         durationDays: 0, startDay: 1, progress: 0, crew: '', crewSize: 0,
         dependencies: prevId ? [prevId] : [],
         dependencyLinks: prevId ? [{ taskId: prevId, type: 'FS' as DependencyType, lagDays: 0 }] : [],
@@ -2123,7 +2123,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       <View style={styles.filterChipRow}>
         {([
           { key: 'all' as const, label: 'All' },
-          { key: 'critical' as const, label: 'Critical path' },
+          { key: 'critical' as const, label: 'Critical Path' },
           { key: 'milestones' as const, label: 'Milestones' },
           { key: 'overdue' as const, label: 'Overdue' },
         ]).map(f => (
@@ -2145,7 +2145,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     <View style={styles.fieldModeContainer}>
       <View style={styles.fieldModeHeader}>
         <MageAIMark size={20} color={themeColors.accent} />
-        <Text style={styles.fieldModeTitle}>Field update mode</Text>
+        <Text style={styles.fieldModeTitle}>Field Update Mode</Text>
         <TouchableOpacity style={styles.fieldModeClose} onPress={() => setIsFieldMode(false)} accessibilityRole="button" accessibilityLabel="Close">
           <X size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -2194,7 +2194,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
   const renderResourceView = useCallback(() => (
     <View style={styles.resourceContainer}>
-      <Text style={styles.resourceTitle}>Crew assignments</Text>
+      <Text style={styles.resourceTitle}>Crew Assignments</Text>
       {Object.entries(crewMap).map(([crew, tasks]) => {
         const totalDays = tasks.reduce((s, t) => s + t.durationDays, 0);
         const avgProgress = tasks.length > 0
@@ -2281,7 +2281,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           </View>
           <View style={styles.summaryStat}>
             <Text style={styles.summaryStatValue}>{daysRemaining}</Text>
-            <Text style={styles.summaryStatLabel}>Days left</Text>
+            <Text style={styles.summaryStatLabel}>Days Left</Text>
           </View>
           <View style={styles.summaryStat}>
             <Text style={[styles.summaryStatValue, { color: themeColors.danger }]}>{overdueTasks.length}</Text>
@@ -2289,7 +2289,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           </View>
         </View>
 
-        <Text style={styles.summarySectionTitle}>Phase progress</Text>
+        <Text style={styles.summarySectionTitle}>Phase Progress</Text>
         {Object.entries(phaseGroups).map(([phase, tasks]) => {
           const phaseProgress = tasks.length > 0
             ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length) : 0;
@@ -2336,7 +2336,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
         {criticalTasks.length > 0 && (
           <>
-            <Text style={styles.summarySectionTitle}>Critical path</Text>
+            <Text style={styles.summarySectionTitle}>Critical Path</Text>
             {criticalTasks.map(t => (
               <View key={t.id} style={styles.summaryCriticalRow}>
                 <View style={styles.summaryCriticalDot} />
@@ -2520,13 +2520,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fEdit.card]}>
                 {fEdit.showHandle && <View style={styles.bottomSheetHandle} />}
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{editingTask ? 'Edit task' : 'New task'}</Text>
+                  <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
                   <TouchableOpacity onPress={() => setIsEditModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Task name</Text>
+                <Text style={styles.fieldLabel}>Task Name</Text>
                 <TextInput style={styles.input} value={taskDraft.title} onChangeText={val => setTaskDraft(p => ({ ...p, title: val }))} placeholder="Task name" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.fieldLabel}>Phase</Text>
@@ -2636,7 +2636,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         }}
                         testID="task-edit-starts"
                         accessibilityRole="button"
-                        accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Pick task start date'}
+                        accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Pick Task Start Date'}
                       >
                         {isUndated
                           ? <CalendarOff size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
@@ -2658,7 +2658,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                             // Either way the modal used to just close and the
                             // task stayed where it was, with no explanation.
                             showAlert(
-                              isUndated ? UNDATED_SCHEDULE_TITLE : 'Before the schedule starts',
+                              isUndated ? UNDATED_SCHEDULE_TITLE : 'Before the Schedule Starts',
                               isUndated
                                 ? 'Set the schedule start date first — until then a calendar date has no day number on this plan.'
                                 : `This plan starts ${projectStartDate.toLocaleDateString()}. Pick that day or later, or move the schedule’s start date back.`,
@@ -2680,22 +2680,22 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
                 <View style={styles.dualRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Duration (days)</Text>
+                    <Text style={styles.fieldLabel}>Duration (Days)</Text>
                     <TextInput style={[styles.input, layout.isDesktop && (desktopField('xs') as TextStyle)]} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Crew size</Text>
+                    <Text style={styles.fieldLabel}>Crew Size</Text>
                     <TextInput style={[styles.input, layout.isDesktop && (desktopField('xs') as TextStyle)]} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 <View style={{ marginTop: 4 }}>
-                  <Text style={styles.fieldLabel}>Crew / trade</Text>
+                  <Text style={styles.fieldLabel}>Crew / Trade</Text>
                   <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={themeColors.textMuted} />
                 </View>
 
                 <View style={{ marginTop: 12 }}>
-                  <Text style={styles.fieldLabel}>Assign sub</Text>
+                  <Text style={styles.fieldLabel}>Assign Sub</Text>
                   {/* The Subs list (Subcontractor ids), the key every consumer
                       scores on: the scorecard, auto-schedule matching, the sub
                       network, and the lateness pad below. A task picked from
@@ -2754,7 +2754,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
                 <TouchableOpacity style={styles.depPickerBtn} onPress={() => setShowDepPicker(true)}>
                   <Link2 size={14} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to link predecessors'}</Text>
+                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to Link Predecessors'}</Text>
                 </TouchableOpacity>
                 {/* Dep type and lag per link */}
                 {taskDraft.dependencyLinks.length > 0 && (
@@ -2814,7 +2814,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   onPress={() => setShowAdvancedTaskFields(v => !v)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={showAdvancedTaskFields ? 'Hide advanced options' : 'Show advanced options'}
+                  accessibilityLabel={showAdvancedTaskFields ? 'Hide Advanced Options' : 'Show Advanced Options'}
                 >
                   <Text style={styles.advancedHeaderText}>Advanced</Text>
                   {showAdvancedTaskFields
@@ -2826,7 +2826,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <View style={styles.advancedBody}>
                     {editingTask && taskDraft.dependencyLinks.length === 0 && (
                       <View>
-                        <Text style={styles.fieldLabel}>Start day override</Text>
+                        <Text style={styles.fieldLabel}>Start Day Override</Text>
                         <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={themeColors.textMuted} />
                       </View>
                     )}
@@ -2835,11 +2835,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFF" />
                     </View>
                     <View style={styles.toggleRow}>
-                      <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Critical path</Text></View>
+                      <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
                       <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: themeColors.line, true: themeColors.danger }} thumbColor="#FFF" />
                     </View>
                     <View style={styles.toggleRow}>
-                      <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Weather sensitive</Text></View>
+                      <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
                       <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: themeColors.line, true: themeColors.info }} thumbColor="#FFF" />
                     </View>
                   </View>
@@ -2864,7 +2864,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <Pressable style={[styles.modalOverlay, fRipple.overlay]} onPress={() => setRippleConfirm(null)}>
           <Pressable style={[styles.modalCard, fRipple.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule will shift</Text>
+              <Text style={styles.modalTitle}>Schedule Will Shift</Text>
               <TouchableOpacity onPress={() => setRippleConfirm(null)} accessibilityRole="button" accessibilityLabel="Dismiss"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <Text style={styles.rippleSummary}>{rippleConfirm?.summary}</Text>
@@ -2888,7 +2888,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <Pressable style={[styles.modalOverlay, fDep.overlay]} onPress={() => setShowDepPicker(false)}>
           <Pressable style={[styles.modalCard, { maxHeight: '80%' }, fDep.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Link predecessors</Text>
+              <Text style={styles.modalTitle}>Link Predecessors</Text>
               <TouchableOpacity onPress={() => setShowDepPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
@@ -2931,7 +2931,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16, maxHeight: '75%' }, fTpl.card]}>
             {fTpl.showHandle && <View style={styles.bottomSheetHandle} />}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule templates</Text>
+              <Text style={styles.modalTitle}>Schedule Templates</Text>
               <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3006,13 +3006,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const savedPlanBanner = activeScenario ? (
     <View style={styles.scenarioBanner} testID="scenario-banner" accessibilityRole="alert">
       <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
-      <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowScenariosModal(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Manage saved plans">
+      <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowScenariosModal(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Manage Saved Plans">
         <Text style={styles.scenarioBannerText} numberOfLines={3}>
           {`Showing saved plan "${activeScenario.name}" — a frozen, read-only snapshot on the Gantt, board and list. Today and Lookahead show the live plan.`}
           {scheduleWriteBlockedReason ? ' Only the project owner or an editor can close it for everyone.' : ''}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={exitSavedPlanView} accessibilityRole="button" accessibilityLabel="Show live plan" hitSlop={8} testID="scenario-banner-exit">
+      <TouchableOpacity onPress={exitSavedPlanView} accessibilityRole="button" accessibilityLabel="Show Live Plan" hitSlop={8} testID="scenario-banner-exit">
         <Text style={styles.scenarioBannerExit}>Show live plan</Text>
       </TouchableOpacity>
     </View>
@@ -3036,14 +3036,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             testID="schedule-project-switcher"
           >
             <View style={[styles.projectChipDot, { backgroundColor: selectedProject?.status === 'in_progress' ? themeColors.success : selectedProject?.status === 'estimated' || selectedProject?.status === 'draft' ? themeColors.accent : themeColors.textMuted }]} />
-            <Text style={desktopStyles.projectSwitcherText} numberOfLines={1}>{selectedProject?.name ?? 'Select project'}</Text>
+            <Text style={desktopStyles.projectSwitcherText} numberOfLines={1}>{selectedProject?.name ?? 'Select Project'}</Text>
             <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           </Pressable>
           <SegmentedControl
             options={DESKTOP_VIEW_OPTIONS}
             value={viewMode}
             onChange={(v) => { setViewMode(v); setIsFieldMode(false); }}
-            accessibilityLabel="Schedule view"
+            accessibilityLabel="Schedule View"
             testID="schedule-view-tabs"
           />
           <View style={desktopStyles.headerSpacer} />
@@ -3201,7 +3201,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
                       <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.saveBaselineBtnText}>Lock plan</Text>
+                      <Text style={styles.saveBaselineBtnText}>Lock Plan</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.saveBaselineBtn}
@@ -3209,7 +3209,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       testID="scenarios-open-btn"
                     >
                       <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.saveBaselineBtnText}>Saved plans</Text>
+                      <Text style={styles.saveBaselineBtnText}>Saved Plans</Text>
                     </TouchableOpacity>
                   </View>
                   {isVerticalGantt ? (
@@ -3232,7 +3232,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <Pressable style={[styles.modalOverlay, fPicker.overlay]} onPress={() => setIsProjectPickerOpen(false)}>
             <Pressable style={[styles.modalCard, fPicker.card]} onPress={() => undefined} testID="schedule-project-picker">
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select project</Text>
+                <Text style={styles.modalTitle}>Select Project</Text>
                 <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3259,7 +3259,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <Pressable style={[styles.modalOverlay, fStart.overlay]} onPress={() => setIsProjectStartDatePickerOpen(false)}>
             <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }, fStart.card]} onPress={() => undefined}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Project start date</Text>
+                <Text style={styles.modalTitle}>Project Start Date</Text>
               </View>
               <Text style={styles.quickAddHint}>
                 This is Day 1 of the schedule. Changing it shifts every task&apos;s calendar dates but keeps their relative order.
@@ -3304,7 +3304,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fQuickAdd.card]} testID="schedule-quick-add-sheet">
                 {fQuickAdd.showHandle && <View style={styles.bottomSheetHandle} />}
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Quick add task</Text>
+                  <Text style={styles.modalTitle}>Quick Add Task</Text>
                 </View>
                 <TextInput
                   style={styles.quickAddInput}
@@ -3315,7 +3315,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   autoFocus
                 />
                 <View style={{ marginTop: 4 }}>
-                  <Text style={styles.quickAddFieldLabel}>Start date</Text>
+                  <Text style={styles.quickAddFieldLabel}>Start Date</Text>
                   {(() => {
                     const wdpw = activeSchedule?.workingDaysPerWeek ?? 5;
                     const toISO = (d: Date) => {
@@ -3327,7 +3327,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     const suggestions: { key: string; label: string; date: Date; iso: string }[] = [];
                     suggestions.push({
                       key: 'project-start',
-                      label: 'Project start',
+                      label: 'Project Start',
                       date: projectStartDate,
                       iso: toISO(projectStartDate),
                     });
@@ -3382,7 +3382,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 </View>
                 <View style={styles.quickAddFieldRow}>
                   <View style={styles.quickAddField}>
-                    <Text style={styles.quickAddFieldLabel}>Custom date</Text>
+                    <Text style={styles.quickAddFieldLabel}>Custom Date</Text>
                     <TextInput
                       style={[styles.quickAddSmallInput, layout.isDesktop && (desktopField('sm') as TextStyle)]}
                       value={taskDraft.startDateOverride}
@@ -3395,7 +3395,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     />
                   </View>
                   <View style={styles.quickAddField}>
-                    <Text style={styles.quickAddFieldLabel}>Duration (days)</Text>
+                    <Text style={styles.quickAddFieldLabel}>Duration (Days)</Text>
                     <TextInput
                       style={[styles.quickAddSmallInput, layout.isDesktop && (desktopField('xs') as TextStyle)]}
                       value={taskDraft.durationDays}
@@ -3414,7 +3414,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 <View style={[desktopStyles.quickAddActions, fQuickAdd.footer]}>
                   <TouchableOpacity style={[styles.addTaskBtn, fQuickAdd.footerButton]} onPress={handleQuickAdd} activeOpacity={0.85}>
                     <Plus size={16} color="#FFF" strokeWidth={1.75} />
-                    <Text style={styles.addTaskBtnText}>Add task</Text>
+                    <Text style={styles.addTaskBtnText}>Add Task</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -3449,7 +3449,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     />
                     <View style={styles.detailActions}>
                       <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task, taskDetailLive)}>
-                        <Text style={styles.detailEditBtnText}>Edit task</Text>
+                        <Text style={styles.detailEditBtnText}>Edit Task</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { const live = taskDetailLive; setTaskDetailModal(null); handleDeleteTask(task.id, live); }} accessibilityRole="button" accessibilityLabel="Delete">
                         <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
@@ -3593,7 +3593,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         {!selectedProject && (
           <View style={styles.emptyPrompt}>
             <MageSchedule size={40} color={themeColors.textMuted} />
-            <Text style={styles.emptyTitle}>No project selected</Text>
+            <Text style={styles.emptyTitle}>No Project Selected</Text>
             <Text style={styles.emptyDesc}>Select a project above to view or create a schedule.</Text>
           </View>
         )}
@@ -3651,7 +3651,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 <View style={styles.topBarDivider} />
                 <View style={styles.topBarStat}>
                   <Text style={styles.topBarStatValue}>{daysRemaining}</Text>
-                  <Text style={styles.topBarStatLabel}>Days left</Text>
+                  <Text style={styles.topBarStatLabel}>Days Left</Text>
                 </View>
                 <View style={styles.topBarDivider} />
                 <View style={styles.topBarStat}>
@@ -3674,7 +3674,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 activeOpacity={0.85}
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
+                <Text style={styles.copilotEntryText}>Rebuild by Voice</Text>
                 <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
@@ -3691,11 +3691,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   }}
                   testID="schedule-copilot-bar"
                   accessibilityRole="button"
-                  accessibilityLabel="Tell the copilot what to change"
+                  accessibilityLabel="Tell the Copilot What to Change"
                   activeOpacity={0.85}
                 >
                   <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.copilotBarText}>Tell me what to change</Text>
+                  <Text style={styles.copilotBarText}>Tell Me What to Change</Text>
                 </TouchableOpacity>
               );
               // Tutorial: the editor's front door (run only).
@@ -3728,12 +3728,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 })}
                 <TouchableOpacity
                   style={styles.weatherBtn}
-                  onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Check the jobsite weather for weather-sensitive tasks">
+                  onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Check the Jobsite Weather for Weather-Sensitive Tasks">
                   <Cloud size={13} color={themeColors.info} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.fieldModeBtn, isFieldMode && styles.fieldModeBtnActive]}
-                  onPress={() => setIsFieldMode(!isFieldMode)} accessibilityRole="button" accessibilityLabel="Field update mode">
+                  onPress={() => setIsFieldMode(!isFieldMode)} accessibilityRole="button" accessibilityLabel="Field Update Mode">
                   <MageAIMark size={13} color={isFieldMode ? '#FFF' : themeColors.accent} />
                 </TouchableOpacity>
               </View>
@@ -3843,7 +3843,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
                         <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.saveBaselineBtnText}>Lock plan</Text>
+                        <Text style={styles.saveBaselineBtnText}>Lock Plan</Text>
                       </TouchableOpacity>
                     </View>
                     {isVerticalGantt ? (
@@ -3944,21 +3944,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             style={styles.fabSecondary}
             onPress={() => setIsShareSheetOpen(true)}
             activeOpacity={0.85}
-            testID="open-share-sheet" accessibilityRole="button" accessibilityLabel="Share schedule">
+            testID="open-share-sheet" accessibilityRole="button" accessibilityLabel="Share Schedule">
             <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fabSecondary}
             onPress={() => setIsQuickBuildOpen(true)}
             activeOpacity={0.85}
-            testID="open-quick-build" accessibilityRole="button" accessibilityLabel="Quick build">
+            testID="open-quick-build" accessibilityRole="button" accessibilityLabel="Quick Build">
             <MageAIMark size={18} color={themeColors.accent} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
             activeOpacity={0.85}
-            testID="open-quick-add" accessibilityRole="button" accessibilityLabel="Add task">
+            testID="open-quick-add" accessibilityRole="button" accessibilityLabel="Add Task">
             <Plus size={22} color="#FFF" strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -3969,7 +3969,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <Pressable style={[styles.modalOverlay, fPicker.overlay]} onPress={() => setIsProjectPickerOpen(false)}>
           <Pressable style={[styles.modalCard, fPicker.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select project</Text>
+              <Text style={styles.modalTitle}>Select Project</Text>
               <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3998,7 +3998,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <Pressable style={[styles.modalOverlay, fStart.overlay]} onPress={() => setIsProjectStartDatePickerOpen(false)}>
           <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }, fStart.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Project start date</Text>
+              <Text style={styles.modalTitle}>Project Start Date</Text>
             </View>
             <Text style={styles.quickAddHint}>
               This is Day 1 of the schedule. Changing it shifts every task&apos;s calendar dates but keeps their relative order.
@@ -4044,7 +4044,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fQuickAdd.card]}>
               {fQuickAdd.showHandle && <View style={styles.bottomSheetHandle} />}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Quick add task</Text>
+                <Text style={styles.modalTitle}>Quick Add Task</Text>
                 {quickAddCount >= 3 && (
                   <TouchableOpacity style={styles.doneBtn} onPress={() => setIsQuickAddOpen(false)}>
                     <Text style={styles.doneBtnText}>Done</Text>
@@ -4079,7 +4079,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               </ScrollView>
 
               <View style={{ marginTop: 4 }}>
-                <Text style={styles.quickAddFieldLabel}>Start date (optional)</Text>
+                <Text style={styles.quickAddFieldLabel}>Start Date (Optional)</Text>
                 {(() => {
                   // Quick-pick suggestions so the user doesn't have to type a
                   // raw YYYY-MM-DD when the date they want is already obvious
@@ -4096,7 +4096,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   const suggestions: { key: string; label: string; date: Date; iso: string }[] = [];
                   suggestions.push({
                     key: 'project-start',
-                    label: 'Project start',
+                    label: 'Project Start',
                     date: projectStartDate,
                     iso: toISO(projectStartDate),
                   });
@@ -4183,7 +4183,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   </View>
                 </View>
                 <View style={styles.quickAddField}>
-                  <Text style={styles.quickAddLabel}>Crew size</Text>
+                  <Text style={styles.quickAddLabel}>Crew Size</Text>
                   <View style={styles.stepperRow}>
                     <Pressable style={styles.stepperBtn} onPress={() =>
                       setTaskDraft(prev => ({ ...prev, crewSize: String(Math.max(1, parseInt(prev.crewSize) - 1)) }))
@@ -4222,7 +4222,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
               <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85} testID="quick-add-btn">
                 <Plus size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.addTaskBtnText}>Add task</Text>
+                <Text style={styles.addTaskBtnText}>Add Task</Text>
               </TouchableOpacity>
 
               {quickAddCount > 0 && (
@@ -4294,7 +4294,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     </View>
                     {variance !== null && (
                       <View style={styles.detailGridItem}>
-                        <Text style={styles.detailGridLabel}>Baseline variance</Text>
+                        <Text style={styles.detailGridLabel}>Baseline Variance</Text>
                         <Text style={[styles.detailGridValue, { color: variance > 0 ? themeColors.danger : themeColors.success }]}>
                           {variance > 0 ? '+' : ''}{variance}d
                         </Text>
@@ -4364,7 +4364,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         <View style={styles.delayImpactSection}>
                           <View style={styles.delayImpactHeader}>
                             <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
-                            <Text style={styles.delayImpactTitle}>Schedule impact</Text>
+                            <Text style={styles.delayImpactTitle}>Schedule Impact</Text>
                           </View>
                           <Text style={styles.delayImpactBody}>
                             This task is {daysLate} day{daysLate > 1 ? 's' : ''} behind schedule.
@@ -4423,7 +4423,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <View style={styles.weatherImpactSection}>
                         <View style={styles.weatherImpactHeader}>
                           <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
-                          <Text style={styles.weatherImpactTitle}>Weather impact</Text>
+                          <Text style={styles.weatherImpactTitle}>Weather Impact</Text>
                         </View>
                         <WeatherPlaceLine text={ganttWeatherDesc.placeLine} days={shownDays} />
                         <SimulatedWeatherBanner days={shownDays} cause={ganttWeatherDesc.cause} />
@@ -4479,7 +4479,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         }}
                       >
                         <Camera size={13} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.addPhotoBtnText}>Add photo</Text>
+                        <Text style={styles.addPhotoBtnText}>Add Photo</Text>
                       </TouchableOpacity>
                     </View>
                     {task.photos && task.photos.length > 0 ? (
@@ -4503,7 +4503,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
                   <View style={styles.detailActions}>
                     <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task, taskDetailLive)}>
-                      <Text style={styles.detailEditBtnText}>Edit task</Text>
+                      <Text style={styles.detailEditBtnText}>Edit Task</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { const live = taskDetailLive; setTaskDetailModal(null); handleDeleteTask(task.id, live); }} accessibilityRole="button" accessibilityLabel="Delete">
                       <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />

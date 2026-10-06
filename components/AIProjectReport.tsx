@@ -93,7 +93,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
         ) : (
           <MageAIMark size={16} color={themeColors.accent} />
         )}
-        <Text style={styles.triggerText}>{isLoading ? 'Generating report…' : 'Generate status report'}</Text>
+        <Text style={styles.triggerText}>{isLoading ? 'Generating report…' : 'Generate Status Report'}</Text>
       </TouchableOpacity>
 
       <Modal
@@ -110,7 +110,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
               <MageAIMark size={16} color={themeColors.accent} />
-              <Text style={styles.modalTitle}>Project status report</Text>
+              <Text style={styles.modalTitle}>Project Status Report</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={22} color={themeColors.textSecondary} strokeWidth={1.75} />
@@ -125,26 +125,26 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Executive summary</Text>
+                <Text style={styles.sectionTitle}>Executive Summary</Text>
                 <Text style={styles.sectionText}>{result.executiveSummary}</Text>
               </View>
 
               <View style={styles.twoCol}>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.info }]}>
                   <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={styles.statusLabel}>Schedule status</Text>
+                  <Text style={styles.statusLabel}>Schedule Status</Text>
                   <Text style={styles.statusText}>{result.scheduleStatus}</Text>
                 </View>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.success }]}>
                   <FileText size={14} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={styles.statusLabel}>Budget status</Text>
+                  <Text style={styles.statusLabel}>Budget Status</Text>
                   <Text style={styles.statusText}>{result.budgetStatus}</Text>
                 </View>
               </View>
 
               {(result.keyAccomplishments ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Key accomplishments</Text>
+                  <Text style={styles.sectionTitle}>Key Accomplishments</Text>
                   {(result.keyAccomplishments ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
@@ -156,7 +156,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
               {(result.issuesAndRisks ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Issues and risks</Text>
+                  <Text style={styles.sectionTitle}>Issues and Risks</Text>
                   {(result.issuesAndRisks ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <AlertTriangle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
@@ -168,7 +168,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
               {(result.nextMilestones ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Next milestones</Text>
+                  <Text style={styles.sectionTitle}>Next Milestones</Text>
                   {(result.nextMilestones ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <Target size={13} color={themeColors.accent} strokeWidth={1.75} />

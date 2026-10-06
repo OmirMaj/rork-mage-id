@@ -642,13 +642,13 @@ export interface WipDerived {
  */
 export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   pay_app_contract_sum: 'Original contract sum on your LATEST saved AIA-style pay application',
-  estimate_grand_total: 'Linked estimate — grand total (priced)',
-  change_order_snapshot: 'Reconstructed from a change order’s contract snapshot',
-  target_budget: 'Target budget you entered in project setup',
-  gmp_cap: 'GMP cap you entered in project setup',
-  legacy_estimate_grand_total: 'Legacy estimate — grand total',
-  estimate_base_total: 'Linked estimate — base total (cost before markup)',
-  signed_commitments: 'Signed subcontracts and POs, including CO revisions',
+  estimate_grand_total: 'Linked Estimate — Grand Total (Priced)',
+  change_order_snapshot: 'Reconstructed from a Change Order’s Contract Snapshot',
+  target_budget: 'Target Budget You Entered in Project Setup',
+  gmp_cap: 'GMP Cap You Entered in Project Setup',
+  legacy_estimate_grand_total: 'Legacy Estimate — Grand Total',
+  estimate_base_total: 'Linked Estimate — Base Total (Cost Before Markup)',
+  signed_commitments: 'Signed Subcontracts and POs, Including CO Revisions',
   commitments_and_receipts:
     'Subs paid to date plus material receipts — self-performed labor not included, so this is a lower bound',
   recorded_actual_cost:
@@ -658,7 +658,7 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
     'Cost you have already paid out on this project — more than the estimate or the commitments, so it sets the floor',
   cost_to_complete_entered:
     'Cost to date plus the cost to complete you entered — your own forecast for this period, not a figure MAGE derived',
-  none: 'No source on file — enter this figure yourself',
+  none: 'No Source on File — Enter This Figure Yourself',
 };
 
 /**
@@ -841,7 +841,7 @@ export type WipCostToDateSource = WipSource | WipCostOverrideSource;
 
 export const WIP_COST_OVERRIDE_LABELS: Record<WipCostOverrideSource, string> = {
   entered_on_this_device: 'Cost-to-date you entered on this device — not yet synced to your account',
-  entered_and_synced: 'Cost-to-date you entered, synced across your devices',
+  entered_and_synced: 'Cost-to-Date You Entered, Synced Across Your Devices',
 };
 
 /**

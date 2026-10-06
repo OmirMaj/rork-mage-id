@@ -98,7 +98,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     hitSlop={10}
                     style={styles.closeBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Close without sending"
+                    accessibilityLabel="Close Without Sending"
                     testID="ask-close"
                   >
                     <X size={18} color={colors.textMuted} strokeWidth={1.9} />
@@ -109,7 +109,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
 
                 {question === 'identity' && (
                   <View style={styles.fieldBlock}>
-                    <Text style={styles.fieldLabel}>Company name</Text>
+                    <Text style={styles.fieldLabel}>Company Name</Text>
                     <TextInput
                       style={styles.input}
                       value={draft.companyName}
@@ -118,7 +118,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="words"
                       testID="ask-identity-company"
-                      accessibilityLabel="Company name"
+                      accessibilityLabel="Company Name"
                     />
                     {identityGap?.rule ? (
                       <>
@@ -193,7 +193,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     onChangeText={(v) => onChangeDraft({ months: v })}
                     keyboardType="number-pad"
                     testID="ask-warranty-months"
-                    accessibilityLabel="Warranty length in months"
+                    accessibilityLabel="Warranty Length in Months"
                   />
                   {warrantyLine.kind !== 'empty' ? (
                     <Text style={warrantyLine.kind === 'hint' ? styles.liveHint : styles.liveLine}>

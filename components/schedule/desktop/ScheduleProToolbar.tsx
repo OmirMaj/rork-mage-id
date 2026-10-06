@@ -164,7 +164,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           placeholderTextColor={t.textMuted}
           returnKeyType="send"
           style={styles.command}
-          accessibilityLabel="Ask or change the schedule"
+          accessibilityLabel="Ask or Change the Schedule"
           testID="schedule-command-field"
         />
         <View style={styles.spacer} />
@@ -205,7 +205,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           onChange={p.onView}
           variant="pill"
           size="sm"
-          accessibilityLabel="Schedule view"
+          accessibilityLabel="Schedule View"
           testID="schedule-view"
         />
         <Pressable
@@ -213,7 +213,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           onPress={openMore}
           style={[styles.textBtn, moreActive && styles.textBtnOn]}
           accessibilityRole="button"
-          accessibilityLabel="More views"
+          accessibilityLabel="More Views"
           testID="schedule-view-more"
         >
           <Text style={[styles.textBtnLabel, moreActive && styles.textBtnLabelOn]}>{moreActive ? VIEW_LABEL[p.view] : 'More'}</Text>
@@ -227,20 +227,20 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
         </Pressable>
         <View style={styles.spacer} />
         <View style={styles.group} accessibilityLabel={zoomReason}>
-          <Pressable onPress={p.zoom.zoomOut} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom out' : `Zoom out — ${zoomReason}`} testID="schedule-zoom-out">
+          <Pressable onPress={p.zoom.zoomOut} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom Out' : `Zoom out — ${zoomReason}`} testID="schedule-zoom-out">
             <Minus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
-          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the whole project' : `Fit — ${zoomReason}`} testID="schedule-zoom-fit">
+          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the Whole Project' : `Fit — ${zoomReason}`} testID="schedule-zoom-fit">
             {plan.zoomLabels
               ? <Text style={styles.textBtnLabel}>Fit</Text>
               : <Maximize2 size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
-          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to today' : `Today — ${zoomReason}`} testID="schedule-zoom-today">
+          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to Today' : `Today — ${zoomReason}`} testID="schedule-zoom-today">
             {plan.zoomLabels
               ? <Text style={styles.textBtnLabel}>Today</Text>
               : <CalendarDays size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
-          <Pressable onPress={p.zoom.zoomIn} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom in' : `Zoom in — ${zoomReason}`} testID="schedule-zoom-in">
+          <Pressable onPress={p.zoom.zoomIn} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom In' : `Zoom in — ${zoomReason}`} testID="schedule-zoom-in">
             <Plus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
         </View>
@@ -253,7 +253,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
               onChange={p.onDensity}
               variant="pill"
               size="sm"
-              accessibilityLabel="Row density"
+              accessibilityLabel="Row Density"
               testID="schedule-density"
             />
           </View>
@@ -272,7 +272,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
       </View>
 
       <Modal visible={moreOpen} transparent animationType="fade" onRequestClose={() => setMoreOpen(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setMoreOpen(false)} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <Pressable style={styles.menuBackdrop} onPress={() => setMoreOpen(false)} accessibilityRole="button" accessibilityLabel="Close Menu" />
         <View
           style={menuDrop
             ? [styles.menu, morePos ? { top: morePos.top, left: morePos.left } : styles.menuUnplaced, menuDrop]

@@ -40,7 +40,7 @@ function costBasisNote(rows: { costAtCompletion?: WipEstimatedCost; costToDate?:
 
 function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const meta = [
-    { label: 'Report type', value: 'Work in progress (WIP)' },
+    { label: 'Report Type', value: 'Work in progress (WIP)' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     { label: 'Projects',    value: String(report.rows.length) },
   ];
@@ -169,8 +169,8 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Work in progress',
+      eyebrow: 'Financial Report',
+      title:   'Work in Progress',
       subtitle: 'WIP across active projects.',
       meta,
     })}
@@ -244,7 +244,7 @@ function buildProfitHtml(
   noCostBasisRevenue = 0,
 ): string {
   const meta = [
-    { label: 'Report type', value: 'Profit and margin' },
+    { label: 'Report Type', value: 'Profit and margin' },
     { label: 'Generated',   value: fmtDate(new Date().toISOString()) },
     { label: 'Projects',    value: String(rows.length) },
   ];
@@ -306,8 +306,8 @@ function buildProfitHtml(
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Profit by project',
+      eyebrow: 'Financial Report',
+      title:   'Profit by Project',
       subtitle: 'Running margin across the active portfolio.',
       meta,
     })}
@@ -350,11 +350,11 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const collectible = report.rows.filter(r => r.outstanding > 0.5).length;
   const retainageOnly = report.rows.length - collectible;
   const meta = [
-    { label: 'Report type', value: 'A/R aging' },
+    { label: 'Report Type', value: 'A/R aging' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     // Collectible rows only — a retainage-only row owes nothing today.
-    { label: 'Open invoices', value: String(collectible) },
-    ...(retainageOnly > 0 ? [{ label: 'Retainage only', value: String(retainageOnly) }] : []),
+    { label: 'Open Invoices', value: String(collectible) },
+    ...(retainageOnly > 0 ? [{ label: 'Retainage Only', value: String(retainageOnly) }] : []),
   ];
 
   const bucketSummary = `
@@ -439,8 +439,8 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Accounts receivable aging',
+      eyebrow: 'Financial Report',
+      title:   'Accounts Receivable Aging',
       subtitle: 'Open invoices bucketed by days past due.',
       meta,
     })}

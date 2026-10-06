@@ -264,21 +264,21 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
           {fOverflow.showHandle && <View style={styles.overflowHandle} />}
           <Text style={styles.overflowGroup}>Plan</Text>
           <SheetRow label="List" active={active === 'list'} onPress={() => { onChange('list'); close(); }} />
-          <SheetRow label="Add task" onPress={() => { actions.onAddTask(); close(); }} />
+          <SheetRow label="Add Task" onPress={() => { actions.onAddTask(); close(); }} />
           <SheetRow label="Import" onPress={() => { actions.onImport(); close(); }} />
           <SheetRow label="Re-plan" onPress={() => { actions.onReflow(); close(); }} />
           <SheetRow label="Closures" onPress={() => { actions.onClosures(); close(); }} />
           <Text style={styles.overflowGroup}>Track</Text>
           <SheetRow label="Workload" active={active === 'workload'} onPress={() => { onChange('workload'); close(); }} />
-          <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
-          <SheetRow label="Fix overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
+          <SheetRow label="Critical Path" onPress={() => { actions.onCriticalPath(); close(); }} />
+          <SheetRow label="Fix Overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
           <SheetRow label="History" onPress={() => { actions.onHistory?.(); close(); }} />
           <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
-          <SheetRow label="Weather re-plan" onPress={() => { actions.onWeather(); close(); }} />
+          <SheetRow label="Weather Re-Plan" onPress={() => { actions.onWeather(); close(); }} />
           <Text style={styles.overflowGroup}>Share</Text>
           <SheetRow label="Export" onPress={() => { actions.onExport(); close(); }} />
-          <SheetRow label="Share link" onPress={() => { actions.onShare(); close(); }} />
-          <SheetRow label="AI assist" onPress={() => { actions.onAI(); close(); }} />
+          <SheetRow label="Share Link" onPress={() => { actions.onShare(); close(); }} />
+          <SheetRow label="AI Assist" onPress={() => { actions.onAI(); close(); }} />
         </View>
       </Modal>
     </View>

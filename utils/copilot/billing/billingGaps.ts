@@ -15,8 +15,8 @@ export function billingGaps(draft: BillingDraft, _grounding: Grounding): Gap[] {
       question: 'What are you billing — progress to date, or the full contract?',
       groundedDefault: { value: 'progress', basis: 'most draws are progress billing' },
       choices: [
-        { label: 'Progress to date', value: 'progress', recommended: true, basis: 'bill what’s complete so far' },
-        { label: 'Full contract', value: 'full' },
+        { label: 'Progress to Date', value: 'progress', recommended: true, basis: 'bill what’s complete so far' },
+        { label: 'Full Contract', value: 'full' },
       ],
     });
   }

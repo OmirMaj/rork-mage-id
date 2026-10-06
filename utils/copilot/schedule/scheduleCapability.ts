@@ -16,7 +16,7 @@ export interface ScheduleApplied { route: '/schedule-review'; projectId: string 
 
 export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplied> = {
   id: 'schedule',
-  label: 'Build a schedule',
+  label: 'Build a Schedule',
   // No dedicated FeatureKey exists for schedule creation; the `scheduleCopilot`
   // AI meter (3 free lifetime trials, smart tier) is the gate. Left unset.
   aiFeature: 'scheduleCopilot',
@@ -29,7 +29,7 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
   topicChecklist: [
     { label: 'Scope', hint: 'what rooms / trades' },
     { label: 'Start', hint: 'when you break ground' },
-    { label: 'Long-lead items', hint: 'cabinets, windows, ordered yet?' },
+    { label: 'Long-Lead Items', hint: 'cabinets, windows, ordered yet?' },
   ],
   copy: {
     voiceTitle: 'Build a schedule',

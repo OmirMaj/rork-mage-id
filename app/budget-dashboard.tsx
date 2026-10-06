@@ -230,7 +230,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
 
       const aiResult = await mageAI({ prompt, tier: 'fast', feature: 'fullBudgetDashboard' });
       if (!aiResult.success) {
-        showAlert('Couldn’t generate forecast', aiResult.error || 'Try again.');
+        showAlert('Couldn’t Generate Forecast', aiResult.error || 'Try again.');
         return;
       }
       setForecast(aiResult.data ?? aiResult.raw ?? '');
@@ -289,7 +289,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{
-          title: 'Budget dashboard',
+          title: 'Budget Dashboard',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -314,14 +314,14 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
   if (!metrics) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Budget dashboard' }} />
+        <Stack.Screen options={{ title: 'Budget Dashboard' }} />
         {/* A project IS selected here — the picker above handles "no project".
             This is the narrower case: the job has no estimate, so there is no
             planned value to chart earned value against. Saying "no project"
             here would be the same false copy the audit called out. */}
         <EmptyState
           icon={<BarChart3 size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="Nothing to chart yet"
+          title="Nothing to Chart Yet"
           message={`${project.name} has no estimate, so there's no planned budget to measure earned value (CPI / SPI) against.`}
           steps={[
             'Open the project and build or import an estimate.',
@@ -330,7 +330,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             'Record what the project costs as it runs: sub and PO payments, material receipts, crew hours.',
             'Come back here to see CPI / SPI against that plan.',
           ]}
-          actionLabel="Open project"
+          actionLabel="Open Project"
           onAction={() => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never })}
         />
       </View>
@@ -388,7 +388,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
   });
   if (costGrounded && cv != null) {
     metricCards.push({
-      label: 'Cost variance',
+      label: 'Cost Variance',
       value: formatCurrency(cv),
       icon: cv >= 0 ? TrendingUp : TrendingDown,
       color: cv >= 0 ? themeColors.success : themeColors.danger,
@@ -396,7 +396,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     });
   }
   metricCards.push({
-    label: 'Schedule variance',
+    label: 'Schedule Variance',
     value: formatCurrency(metrics.scheduleVariance),
     icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown,
     color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger,
@@ -404,7 +404,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
   });
   if (costGrounded && metrics.estimateAtCompletion != null) {
     metricCards.push({
-      label: 'Estimate at completion',
+      label: 'Estimate at Completion',
       value: formatCurrency(metrics.estimateAtCompletion),
       icon: Target,
       color: themeColors.info,
@@ -413,7 +413,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
   }
   if (costGrounded && vac != null) {
     metricCards.push({
-      label: 'Variance at completion',
+      label: 'Variance at Completion',
       value: formatCurrency(vac),
       icon: BarChart3,
       color: vac >= 0 ? themeColors.success : themeColors.danger,
@@ -421,14 +421,14 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     });
   }
   metricCards.push({
-    label: 'Earned value',
+    label: 'Earned Value',
     value: formatCurrency(metrics.earnedValue),
     icon: Activity,
     color: themeColors.info,
     caption: `The work you've completed, priced at your estimate — ${metrics.percentComplete.toFixed(0)}% of the budget`,
   });
   metricCards.push({
-    label: 'Collected to date',
+    label: 'Collected to Date',
     value: formatCurrency(metrics.collectedToDate),
     icon: Wallet,
     color: themeColors.accent,
@@ -440,14 +440,14 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Budget dashboard',
+        title: 'Budget Dashboard',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader
-          eyebrow="Earned value"
+          eyebrow="Earned Value"
           title="Are you making or losing money on this project?"
           subtitle="Compares the work you've earned against what you've spent and scheduled, so overruns show up early, not at closeout."
           style={styles.featureHeader}
@@ -488,7 +488,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
           <Text style={styles.progressText}>{metrics.percentComplete.toFixed(1)}% Complete</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>EVM metrics</Text>
+        <Text style={styles.sectionTitle}>EVM Metrics</Text>
         {!costGrounded && (
           <View style={styles.costGapCard} testID="cost-basis-gap">
             <View style={styles.costGapHeader}>
@@ -502,7 +502,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
               activeOpacity={0.85}
               testID="cost-basis-gap-action"
             >
-              <Text style={styles.costGapBtnText}>Record costs in job costing</Text>
+              <Text style={styles.costGapBtnText}>Record Costs in Job Costing</Text>
               <ChevronRight size={16} color={themeColors.accentLabel} />
             </TouchableOpacity>
           </View>
@@ -520,7 +520,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
           ))}
         </TileGrid>
 
-        <Text style={styles.sectionTitle}>Cash flow S-curve</Text>
+        <Text style={styles.sectionTitle}>Cash Flow S-Curve</Text>
         <View style={styles.chartCard} onLayout={onChartCardLayout}>
           <Svg width={chartWidth} height={CHART_HEIGHT}>
             <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={chartWidth - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
@@ -578,7 +578,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             ) : (
               <>
                 <MageAIMark size={16} color="#fff" />
-                <Text style={styles.forecastBtnText}>{forecast ? 'Regenerate forecast' : 'Generate forecast'}</Text>
+                <Text style={styles.forecastBtnText}>{forecast ? 'Regenerate Forecast' : 'Generate Forecast'}</Text>
               </>
             )}
           </TouchableOpacity>

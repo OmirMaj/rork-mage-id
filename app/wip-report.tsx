@@ -950,7 +950,7 @@ function WipReportScreenInner() {
       );
       return;
     }
-    if (liveRows.length === 0) { showAlert('Nothing to save yet', NOTHING_TO_REPORT); return; }
+    if (liveRows.length === 0) { showAlert('Nothing to Save Yet', NOTHING_TO_REPORT); return; }
     const periodEndDate = periodEndDraft;
     const duplicate = periods.find((p) => p.periodEndDate === periodEndDate);
     const save = () => {
@@ -967,17 +967,17 @@ function WipReportScreenInner() {
       // schedule dated 3/31 that quietly contains ten days of April cost is the
       // kind of thing a CPA finds later.
       showAlert(
-        'Period saved',
+        'Period Saved',
         'Figures are as of today, labelled with this period end. Check cost to date on each project '
         + 'before you lock it. Trades or equipment with no rate on file count as $0 until you add one.',
       );
     };
     if (duplicate) {
       showAlert(
-        'Another period already ends there',
+        'Another Period Already Ends There',
         `You already have a ${periodEndDate} snapshot${duplicate.lockedAt ? ', and it is locked' : ''}. `
         + 'Saving a second one leaves two documents claiming the same period end.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Save anyway', onPress: save }],
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Save Anyway', onPress: save }],
       );
       return;
     }
@@ -1072,7 +1072,7 @@ function WipReportScreenInner() {
 
   const handleExportCsv = useCallback(async () => {
     if (!exportPeriod) return;
-    if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
+    if (exportPeriod.rows.length === 0) { showAlert('Nothing to Export Yet', NOTHING_TO_REPORT); return; }
     // A FILE FIRST, THE CLIPBOARD ONLY AS A FALLBACK — F18 (audit 2026-09-11).
     // This was clipboard-only, on a phone: fourteen columns of WIP schedule with
     // no attachment to email, while `shareWipPeriodPdf` two lines down has always
@@ -1097,7 +1097,7 @@ function WipReportScreenInner() {
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'CSV copied' : 'Couldn’t export CSV',
+      ok ? 'CSV Copied' : 'Couldn’t Export CSV',
       ok
         ? "This device couldn't hand over a file, so the schedule is on your clipboard. Paste it "
           + 'into Excel, QuickBooks or Sage.'
@@ -1107,7 +1107,7 @@ function WipReportScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!exportPeriod) return;
-    if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
+    if (exportPeriod.rows.length === 0) { showAlert('Nothing to Export Yet', NOTHING_TO_REPORT); return; }
     // THE CONTRACTOR'S NAME, NOT THE VENDOR'S. This passed the literal 'MAGE ID',
     // so the H1 of the page a GC emails his banker read "MAGE ID —
     // Work-In-Progress Schedule". A WIP schedule is a statement of the
@@ -1119,7 +1119,7 @@ function WipReportScreenInner() {
     // its sentence ("allow pop-ups …") is let through; anything else keeps this
     // screen's own wording (#147, CONTRACT 25).
     try { await shareWipPeriodPdf(exportPeriod, settings?.branding?.companyName || 'MAGE ID', todayCalendarDay()); }
-    catch (err) { showAlert('Couldn’t export PDF', pdfFailureMessage(err, 'Couldn’t generate the WIP PDF. Try again.')); }
+    catch (err) { showAlert('Couldn’t Export PDF', pdfFailureMessage(err, 'Couldn’t generate the WIP PDF. Try again.')); }
   }, [exportPeriod, settings]);
 
   // THE HEADER'S PRINT AND EXPORT CSV (desktop only — contract D18). OBJECT
@@ -1193,15 +1193,15 @@ function WipReportScreenInner() {
       render: (r) => (
         <View style={styles.projectNameRow}>
           <Text style={styles.projectName} numberOfLines={1}>{r.projectName}</Text>
-          {r.output.anticipatedLoss ? <Text style={styles.lossTag}>Projected loss</Text> : null}
+          {r.output.anticipatedLoss ? <Text style={styles.lossTag}>Projected Loss</Text> : null}
           {rowFlagState(r).flagged ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} /> : null}
         </View>
       ),
     },
     { key: 'contract', label: 'Contract', width: 110, numeric: true, sortValue: (r) => wipScheduleCells(r).contract, value: (r) => money(wipScheduleCells(r).contract) },
-    { key: 'estCost', label: 'Est. cost at completion', width: 120, numeric: true, hideBelow: 1150, sortValue: (r) => wipScheduleCells(r).estCost, value: (r) => money(wipScheduleCells(r).estCost) },
+    { key: 'estCost', label: 'Est. Cost at Completion', width: 120, numeric: true, hideBelow: 1150, sortValue: (r) => wipScheduleCells(r).estCost, value: (r) => money(wipScheduleCells(r).estCost) },
     {
-      key: 'costToDate', label: 'Cost to date', width: 150, numeric: true, sortValue: (r) => wipScheduleCells(r).costToDate,
+      key: 'costToDate', label: 'Cost to Date', width: 150, numeric: true, sortValue: (r) => wipScheduleCells(r).costToDate,
       render: (r) => (
         <View style={styles.tableCellEnd}>
           <Text style={styles.tableMoney} numberOfLines={1}>{money(wipScheduleCells(r).costToDate)}</Text>
@@ -1259,8 +1259,8 @@ function WipReportScreenInner() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Financial reports</Text>
-          <Text style={styles.title}>WIP report</Text>
+          <Text style={styles.eyebrow}>Financial Reports</Text>
+          <Text style={styles.title}>WIP Report</Text>
         </View>
         {/* Print and Export CSV one click from the header, on a desk (D18). */}
         {isDesktop && <ToolbarActions actions={toolbar} testID="wip-toolbar" />}
@@ -1322,7 +1322,7 @@ function WipReportScreenInner() {
           <Text style={styles.muted} testID="wip-fade-basis">{fadeBasisNote}</Text>
           {displayRows.length === 0 ? (
             <>
-              <Text style={styles.emptyTitle}>{hasRows ? 'Nothing on this period' : 'No active projects'}</Text>
+              <Text style={styles.emptyTitle}>{hasRows ? 'Nothing on This Period' : 'No Active Projects'}</Text>
               <Text style={styles.muted}>
                 A WIP schedule compares what you have earned on each project against what you have
                 billed for it, so it needs a project to read. To put one on here:
@@ -1350,9 +1350,9 @@ function WipReportScreenInner() {
                   {' '}These are the figures as they were saved, not today&apos;s. Tap Live for today.
                 </Text>
               ) : null}
-              <Row label="Revised contract" value={money(displayPortfolio.revisedContract)} styles={styles} />
-              <Row label="Earned revenue" value={money(displayPortfolio.earnedRevenue)} styles={styles} />
-              <Row label="Billed to date" value={money(displayPortfolio.billedToDate)} styles={styles} />
+              <Row label="Revised Contract" value={money(displayPortfolio.revisedContract)} styles={styles} />
+              <Row label="Earned Revenue" value={money(displayPortfolio.earnedRevenue)} styles={styles} />
+              <Row label="Billed to Date" value={money(displayPortfolio.billedToDate)} styles={styles} />
               <Row label="Overbilling" value={money(displayPortfolio.overbilling)} styles={styles} />
               <Row label="Underbilling" value={money(displayPortfolio.underbilling)} styles={styles} />
               {/* Retainage held is a RECEIVABLE and the most illiquid asset a
@@ -1361,13 +1361,13 @@ function WipReportScreenInner() {
                   on a period frozen before it shipped — which reads "not
                   recorded", never $0. */}
               <Row
-                label="Retainage held"
+                label="Retainage Held"
                 value={displayPortfolio.retainageHeld == null
                   ? 'Not recorded on this period'
                   : money(displayPortfolio.retainageHeld)}
                 styles={styles} />
               <Row label="Backlog" value={money(displayPortfolio.backlog)} styles={styles} />
-              <Row label="Weighted margin" value={pct(displayPortfolio.weightedMarginPct)} styles={styles} />
+              <Row label="Weighted Margin" value={pct(displayPortfolio.weightedMarginPct)} styles={styles} />
               {/* THE WEIGHTED MARGIN NETS. A $200,000 forecast loss beside
                   $200,000 of profit prints 0%, and until now nothing under it
                   said a job was underwater — the only place the app admitted it
@@ -1456,7 +1456,7 @@ function WipReportScreenInner() {
             >
               <CalendarDays size={14} color={themeColors.textSecondary} strokeWidth={2} />
               <Text style={styles.periodEndText}>
-                Period end <Text style={styles.periodEndValue}>{periodEndDraft}</Text> — tap to change
+                Period End <Text style={styles.periodEndValue}>{periodEndDraft}</Text> — tap to change
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -1472,7 +1472,7 @@ function WipReportScreenInner() {
               accessibilityState={{ disabled: !hasRows || viewingFrozen }}
               accessibilityHint={saveBlockedReason ?? undefined}
             >
-              <Text style={styles.actionBtnText}>Save period</Text>
+              <Text style={styles.actionBtnText}>Save Period</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, !canLock && styles.actionBtnBlocked]}
@@ -1579,7 +1579,7 @@ function WipReportScreenInner() {
                   <View style={styles.projectNameRow}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
                   {r.output.anticipatedLoss ? (
-                    <Text style={styles.lossTag} testID="wip-loss-tag">Projected loss</Text>
+                    <Text style={styles.lossTag} testID="wip-loss-tag">Projected Loss</Text>
                   ) : null}
                 </View>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
@@ -1704,22 +1704,22 @@ function WipReportScreenInner() {
                         : 'Leave blank and MAGE forecasts it as cost at completion minus cost to date. '
                           + 'A surety asks for this figure by name, updated by whoever is running the project.'}
                   </Text>
-                  <Row label="Revised contract" value={money(drillOutput.revisedContract)} styles={styles} />
+                  <Row label="Revised Contract" value={money(drillOutput.revisedContract)} styles={styles} />
                   <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
-                  <Row label="Earned revenue" value={money(drillOutput.earnedRevenue)} styles={styles} />
+                  <Row label="Earned Revenue" value={money(drillOutput.earnedRevenue)} styles={styles} />
                   <Row label="Overbilling" value={money(drillOutput.overbilling)} styles={styles} />
                   <Row label="Underbilling" value={money(drillOutput.underbilling)} styles={styles} />
                   <Row
-                    label="Cost at completion"
+                    label="Cost at Completion"
                     value={money(drillOutput.estimatedCostAtCompletion ?? drillInput.totalEstimatedCost)}
                     styles={styles} />
-                  <Row label="Est. gross profit" value={money(drillOutput.estGrossProfit)} styles={styles} />
-                  <Row label="Est. gross margin" value={pct(drillOutput.estGrossMarginPct)} styles={styles} />
-                  <Row label="Profit to date" value={money(drillOutput.profitToDate)} styles={styles} />
-                  <Row label="Cost to complete" value={money(drillOutput.costToComplete)} styles={styles} />
+                  <Row label="Est. Gross Profit" value={money(drillOutput.estGrossProfit)} styles={styles} />
+                  <Row label="Est. Gross Margin" value={pct(drillOutput.estGrossMarginPct)} styles={styles} />
+                  <Row label="Profit to Date" value={money(drillOutput.profitToDate)} styles={styles} />
+                  <Row label="Cost to Complete" value={money(drillOutput.costToComplete)} styles={styles} />
                   <Row label="Backlog" value={money(drillOutput.backlog)} styles={styles} />
                   <Row
-                    label="Retainage held by client"
+                    label="Retainage Held by Client"
                     value={drillInput.retainageHeld == null ? 'Not recorded' : money(drillInput.retainageHeld)}
                     styles={styles} />
 
@@ -1728,7 +1728,7 @@ function WipReportScreenInner() {
                       lived only in deriveOriginalContract's branch order. */}
                   {drillRow ? (
                     <View style={styles.sourceBox} testID="wip-provenance">
-                      <Text style={styles.sourceTitle}>Where these numbers come from</Text>
+                      <Text style={styles.sourceTitle}>Where These Numbers Come From</Text>
                       <Text style={styles.sourceLine}>
                         Contract {money(drillInput.originalContract)} —{' '}
                         {WIP_SOURCE_LABELS[drillRow.sources.originalContract]}
@@ -1874,7 +1874,7 @@ function WipReportScreenInner() {
       <DatePickerModal
         visible={periodDateOpen}
         value={periodEndDraft}
-        title="Period end"
+        title="Period End"
         // A WIP period end is very often in the PAST (the close you are
         // preparing) and occasionally today; a future one is a schedule nobody
         // has lived through yet, so the picker's default past-only range is

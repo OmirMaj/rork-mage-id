@@ -148,7 +148,7 @@ function LastPlannerInner() {
       </TouchableOpacity>
       <View style={styles.headerText}>
         <Text style={styles.headerEyebrow}>Last Planner · MAGE ID</Text>
-        <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Production control'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Production Control'}</Text>
       </View>
       <View style={styles.headerBtn} />
     </View>
@@ -163,14 +163,14 @@ function LastPlannerInner() {
           {projects.length === 0 ? (
             <EmptyState
               icon={<Target size={36} color={t.accent} strokeWidth={1.6} />}
-              title="No projects yet"
+              title="No Projects Yet"
               message="Last Planner runs the weekly commitment loop on a project's schedule. Create a project and build a schedule first."
-              actionLabel="Open projects"
+              actionLabel="Open Projects"
               onAction={() => router.push('/(tabs)/(home)' as never)}
             />
           ) : (
             <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
-              <Text style={styles.sectionTitle}>Pick a project</Text>
+              <Text style={styles.sectionTitle}>Pick a Project</Text>
               {projects.map(p => (
                 <TouchableOpacity key={p.id} style={styles.pickRow} onPress={() => setProjectId(p.id)} activeOpacity={0.8}>
                   <Text style={styles.pickRowTitle} numberOfLines={1}>{p.name}</Text>
@@ -214,9 +214,9 @@ function LastPlannerInner() {
         <View style={[styles.centered, { maxWidth: contentWidth }]}>
           <EmptyState
             icon={<ListChecks size={36} color={t.accent} strokeWidth={1.6} />}
-            title="Build a schedule first"
+            title="Build a Schedule First"
             message="Last Planner sits on top of the CPM schedule — it needs tasks and a start date to plan the next 3 weeks."
-            actionLabel="Open schedule"
+            actionLabel="Open Schedule"
             onAction={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
           />
         </View>
@@ -257,7 +257,7 @@ function LastPlannerInner() {
           <NavRow
             variant="card"
             Icon={Send}
-            title="Tomorrow's lineup — a ready-to-send text per sub"
+            title="Tomorrow's Lineup — a Ready-to-Send Text per Sub"
             onPress={() => router.push({ pathname: '/tomorrow-lineup', params: { projectId: project.id } })}
             style={{ marginTop: 12 }}
             testID="lineup-link"
@@ -316,7 +316,7 @@ function Segment({ label, active, onPress, t, styles }: { label: string; active:
 function readinessMeta(r: Readiness, t: ThemeColors): { color: string; label: string } {
   switch (r) {
     case 'done': return { color: t.textMuted, label: 'Done' };
-    case 'in_progress': return { color: t.info ?? t.accent, label: 'In progress' };
+    case 'in_progress': return { color: t.info ?? t.accent, label: 'In Progress' };
     case 'ready': return { color: t.success, label: 'Ready' };
     case 'constrained': return { color: t.accentHot, label: 'Constrained' };
   }
@@ -346,7 +346,7 @@ function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstrain
       {la.weeks.map(week => (
         <View key={week.weekStart} style={{ marginBottom: 8 }}>
           <Text style={styles.weekHeading}>
-            {week.weeksOut === 0 ? 'This week' : week.weeksOut === 1 ? 'Next week' : `In ${week.weeksOut} weeks`} · {formatWeekRange(week.weekStart)}
+            {week.weeksOut === 0 ? 'This week' : week.weeksOut === 1 ? 'Next Week' : `In ${week.weeksOut} weeks`} · {formatWeekRange(week.weekStart)}
           </Text>
           {week.entries.map(e => {
             const m = readinessMeta(e.readiness, t);
@@ -373,7 +373,7 @@ function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstrain
                 ))}
                 <TouchableOpacity style={styles.addConstraintBtn} onPress={() => onAddConstraint(e.task)} activeOpacity={0.7}>
                   <Plus size={13} color={t.accent} strokeWidth={1.75} />
-                  <Text style={styles.addConstraintText}>Add constraint</Text>
+                  <Text style={styles.addConstraintText}>Add Constraint</Text>
                 </TouchableOpacity>
               </View>
             );
@@ -464,7 +464,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
           onDispatched(g.key, weekStart, 'email');
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
-          showAlert('Could not email', res.error || 'Try again, or share instead.');
+          showAlert('Could Not Email', res.error || 'Try again, or share instead.');
         }
       } else {
         await shareText({ message: buildCrewMessage(g, ctx) });
@@ -473,7 +473,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       }
     } catch {
       // Web/native share can reject (dismissed or unsupported) — surface the text to copy.
-      showAlert('Send manually', buildCrewMessage(g, ctx));
+      showAlert('Send Manually', buildCrewMessage(g, ctx));
     } finally {
       setSending(null);
     }
@@ -516,12 +516,12 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       {ppc.committed > 0 && (ppc.completed > 0 || wwp.some(e => e.outcome)) ? (
         <View style={[styles.ppcInline, { borderColor: bandColor(ppcBand(ppc.ppc), t) }]}>
           <Text style={[styles.ppcInlineNum, { color: bandColor(ppcBand(ppc.ppc), t) }]}>{Math.round(ppc.ppc * 100)}%</Text>
-          <Text style={styles.ppcInlineLabel}>PPC this week · {ppc.completed}/{ppc.committed} commitments kept</Text>
+          <Text style={styles.ppcInlineLabel}>PPC This Week · {ppc.completed}/{ppc.committed} commitments kept</Text>
         </View>
       ) : null}
 
       {wwp.length === 0 ? (
-        <View style={styles.infoCard}><ListChecks size={24} color={t.accent} strokeWidth={1.75} /><Text style={styles.infoTitle}>No tasks scheduled this week</Text><Text style={styles.infoBody}>Use the arrows to move weeks, or commit work from the lookahead.</Text></View>
+        <View style={styles.infoCard}><ListChecks size={24} color={t.accent} strokeWidth={1.75} /><Text style={styles.infoTitle}>No Tasks Scheduled This Week</Text><Text style={styles.infoBody}>Use the arrows to move weeks, or commit work from the lookahead.</Text></View>
       ) : (
         <>
           <Text style={styles.note}>Commit the work the crew <Text style={{ fontWeight: '700', color: t.text }}>will</Text> finish this week. At week's end, mark each kept or missed.</Text>
@@ -575,7 +575,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                   <View style={styles.clashCard}>
                     <View style={styles.warnRow}>
                       <CalendarOff size={12} color={t.dangerLabel} strokeWidth={1.75} />
-                      <Text style={styles.clashTitle}>{e.committed ? 'Committed, but double-booked' : 'Double-booked'}</Text>
+                      <Text style={styles.clashTitle}>{e.committed ? 'Committed, but Double-Booked' : 'Double-booked'}</Text>
                     </View>
                     {clashReasons.map(reason => (
                       <Text key={reason} style={styles.clashText}>{reason}</Text>
@@ -595,7 +595,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                           activeOpacity={0.85}
                           accessibilityRole="button"
                         >
-                          <Text style={styles.clashOverrideText}>Commit anyway</Text>
+                          <Text style={styles.clashOverrideText}>Commit Anyway</Text>
                         </TouchableOpacity>
                       </>
                     ) : null}
@@ -613,7 +613,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                   ) : (
                     <View style={styles.reviewBtns}>
                       <TouchableOpacity style={[styles.reviewBtn, { borderColor: t.success }]} onPress={() => { onReview(e.task); }} activeOpacity={0.85}>
-                        <Text style={[styles.reviewBtnText, { color: t.text }]}>Review at week-end</Text>
+                        <Text style={[styles.reviewBtnText, { color: t.text }]}>Review at Week-End</Text>
                       </TouchableOpacity>
                     </View>
                   )
@@ -627,7 +627,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
             <View style={styles.crewSection}>
               <View style={styles.crewSectionHead}>
                 <Users size={15} color={t.accent} strokeWidth={1.75} />
-                <Text style={styles.crewSectionTitle}>Send the week to your crews</Text>
+                <Text style={styles.crewSectionTitle}>Send the Week to Your Crews</Text>
               </View>
               {crews.map(g => {
                 const sentAt = sentAtFor(g.key);
@@ -643,7 +643,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                       </Text>
                     </View>
                     {isUnassigned ? (
-                      <View style={[styles.crewBtn, { borderColor: t.line }]}><Text style={[styles.crewBtnText, { color: t.textMuted }]}>Assign a sub</Text></View>
+                      <View style={[styles.crewBtn, { borderColor: t.line }]}><Text style={[styles.crewBtnText, { color: t.textMuted }]}>Assign a Sub</Text></View>
                     ) : (
                       <TouchableOpacity
                         style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accentFill, backgroundColor: t.accentFill }]}
@@ -682,7 +682,7 @@ function ReliabilityView({ commitments, weekStart, t, styles }: {
     return (
       <View style={styles.infoCard}>
         <Target size={26} color={t.accent} strokeWidth={1.7} />
-        <Text style={styles.infoTitle}>No reliability data yet</Text>
+        <Text style={styles.infoTitle}>No Reliability Data Yet</Text>
         <Text style={styles.infoBody}>Commit this week&apos;s tasks, then mark each kept or missed. Your percent plan complete (PPC) builds here. The Lean target is 80–85%.</Text>
       </View>
     );
@@ -696,12 +696,12 @@ function ReliabilityView({ commitments, weekStart, t, styles }: {
   return (
     <>
       <View style={[styles.ppcHero, { borderColor: bc }]}>
-        <Text style={styles.ppcHeroLabel}>Percent plan complete · latest week</Text>
+        <Text style={styles.ppcHeroLabel}>Percent Plan Complete · Latest Week</Text>
         <View style={styles.ppcHeroRow}>
           <Text style={[styles.ppcHeroNum, { color: bc }]}>{latestPct}%</Text>
           {trend.direction === 'up' ? <TrendingUp size={20} color={t.success} strokeWidth={1.75} /> : trend.direction === 'down' ? <TrendingDown size={20} color={t.danger} strokeWidth={1.75} /> : null}
           <View style={{ flex: 1 }} />
-          <View style={[styles.bandChip, { backgroundColor: bc + '22' }]}><Text style={[styles.bandChipText, { color: bc }]}>{band === 'strong' ? 'Reliable' : band === 'ok' ? 'Improving' : 'At risk'}</Text></View>
+          <View style={[styles.bandChip, { backgroundColor: bc + '22' }]}><Text style={[styles.bandChipText, { color: bc }]}>{band === 'strong' ? 'Reliable' : band === 'ok' ? 'Improving' : 'At Risk'}</Text></View>
         </View>
         <Text style={styles.ppcHeroSub}>{avgPct}% average over {history.length} week{history.length === 1 ? '' : 's'} · target 80–85%</Text>
       </View>
@@ -723,7 +723,7 @@ function ReliabilityView({ commitments, weekStart, t, styles }: {
 
       {variance.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>What's costing you</Text>
+          <Text style={styles.sectionTitle}>What's Costing You</Text>
           <View style={styles.trendCard}>
             {variance.map(v => (
               <View key={v.reason} style={styles.trendRow}>
@@ -769,7 +769,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
       <View style={[styles.modalBackdrop, fConstraint.overlay]}>
         <View style={[styles.modalSheet, fConstraint.card]}>
           <View style={styles.modalHead}>
-            <Text style={styles.modalTitle} numberOfLines={1}>What's blocking {task?.title}?</Text>
+            <Text style={styles.modalTitle} numberOfLines={1}>What's Blocking {task?.title}?</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}><X size={20} color={t.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <Text style={styles.fieldLabel}>Type</Text>
@@ -780,15 +780,15 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.fieldLabel}>What exactly</Text>
+          <Text style={styles.fieldLabel}>What Exactly</Text>
           <TextInput style={styles.fieldInput} value={description} onChangeText={setDescription} placeholder="e.g. Tile order not shipped yet" placeholderTextColor={t.textMuted} />
           <View style={styles.fieldRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Need by (optional)</Text>
+              <Text style={styles.fieldLabel}>Need by (Optional)</Text>
               <TextInput style={styles.fieldInput} value={needBy} onChangeText={setNeedBy} placeholder="YYYY-MM-DD" placeholderTextColor={t.textMuted} autoCapitalize="none" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Owner (optional)</Text>
+              <Text style={styles.fieldLabel}>Owner (Optional)</Text>
               <TextInput style={styles.fieldInput} value={owner} onChangeText={setOwner} placeholder="Who clears it" placeholderTextColor={t.textMuted} />
             </View>
           </View>
@@ -798,7 +798,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
             onPress={() => task && onSave({ taskId: task.id, category, description, needBy: needBy.trim() || undefined, owner: owner.trim() || undefined })}
             activeOpacity={0.85}
           >
-            <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.modalSaveText}>Add constraint</Text>
+            <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.modalSaveText}>Add Constraint</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -829,10 +829,10 @@ function ReviewModal({ task, onClose, onReview, t, styles }: {
           {!missed ? (
             <View style={{ gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={[styles.outcomeBtn, { borderColor: t.success }]} onPress={() => onReview('done')} activeOpacity={0.85}>
-                <CircleCheck size={18} color={t.success} strokeWidth={1.75} /><Text style={styles.outcomeText}>Yes — kept the commitment</Text>
+                <CircleCheck size={18} color={t.success} strokeWidth={1.75} /><Text style={styles.outcomeText}>Yes — Kept the Commitment</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.outcomeBtn, { borderColor: t.danger }]} onPress={() => setMissed(true)} activeOpacity={0.85}>
-                <X size={18} color={t.danger} strokeWidth={1.75} /><Text style={styles.outcomeText}>No — it slipped</Text>
+                <X size={18} color={t.danger} strokeWidth={1.75} /><Text style={styles.outcomeText}>No — It Slipped</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -846,7 +846,7 @@ function ReviewModal({ task, onClose, onReview, t, styles }: {
                 ))}
               </View>
               <TouchableOpacity style={[styles.modalSave, { backgroundColor: t.danger }]} onPress={() => onReview('missed', reason)} activeOpacity={0.85}>
-                <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.modalSaveText}>Log the miss</Text>
+                <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.modalSaveText}>Log the Miss</Text>
               </TouchableOpacity>
             </>
           )}

@@ -114,8 +114,8 @@ export interface AIAssistantPanelProps {
 
 type Mode = 'home' | 'risks' | 'optimize' | 'explain' | 'ask' | 'asbuilt' | 'generate' | 'bulk';
 const MODE_LABEL: Record<Mode, string> = {
-  home: 'Home', risks: 'Risks', optimize: 'Optimize', explain: 'Critical path', ask: 'Ask',
-  asbuilt: 'As-built', generate: 'Draft a schedule', bulk: 'Bulk edit',
+  home: 'Home', risks: 'Risks', optimize: 'Optimize', explain: 'Critical Path', ask: 'Ask',
+  asbuilt: 'As-built', generate: 'Draft a Schedule', bulk: 'Bulk Edit',
 };
 
 export default function AIAssistantPanel(props: AIAssistantPanelProps) {
@@ -456,7 +456,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               <MageAIMark size={16} color={themeColors.accent} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Schedule assistant</Text>
+              <Text style={styles.headerTitle}>Schedule Assistant</Text>
               <Text style={styles.headerSub}>
                 {callStats.total > 0
                   ? `${callStats.total} call${callStats.total === 1 ? '' : 's'} · ${callStats.cached} cached`
@@ -481,7 +481,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           )}
           <ModeChip icon={ShieldAlert} label="Risks"      active={mode === 'risks'}    onPress={handleDetectRisks} />
           <ModeChip icon={MageAIMark}   label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
-          <ModeChip icon={Target}       label="Critical path" active={mode === 'explain'}  onPress={handleExplain} />
+          <ModeChip icon={Target}       label="Critical Path" active={mode === 'explain'}  onPress={handleExplain} />
           <ModeChip icon={MessageSquare} label="Ask"       active={mode === 'ask'}      onPress={() => setMode('ask')} />
           <ModeChip icon={Mic}          label="As-built"  active={mode === 'asbuilt'}  onPress={() => setMode('asbuilt')} />
           <ModeChip icon={MageAIMark}   label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
@@ -540,7 +540,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
 
           {mode === 'explain' && explainText !== '' && !busy && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Why this is the critical path</Text>
+              <Text style={styles.cardTitle}>Why This Is the Critical Path</Text>
               <Text style={styles.cardBody}>{explainText}</Text>
             </View>
           )}
@@ -601,7 +601,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     <Text style={styles.cardTitle}>{asBuiltPatches.length} task{asBuiltPatches.length === 1 ? '' : 's'} to update</Text>
                     <TouchableOpacity style={styles.applyAllBtn} onPress={handleAsBuiltApplyAll}>
                       <Check size={12} color="#fff" strokeWidth={1.75} />
-                      <Text style={styles.applyAllBtnText}>Apply all</Text>
+                      <Text style={styles.applyAllBtnText}>Apply All</Text>
                     </TouchableOpacity>
                   </View>
                   {asBuiltPatches.map((p, i) => (
@@ -655,7 +655,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     {bulkResult.patches.length > 0 && (
                       <TouchableOpacity style={styles.applyAllBtn} onPress={handleBulkApplyAll}>
                         <Check size={12} color="#fff" strokeWidth={1.75} />
-                        <Text style={styles.applyAllBtnText}>Apply all</Text>
+                        <Text style={styles.applyAllBtnText}>Apply All</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -695,7 +695,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               {linkedEstimate && linkedEstimate.items.length > 0 && !genPreview && (
                 <QuickBtn
                   icon={MageAIMark}
-                  title="Draft from my estimate"
+                  title="Draft from My Estimate"
                   sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
                   onPress={handleGenerateFromEstimate}
                   featured
@@ -726,7 +726,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   {paceInfo.tradeCount > 0 ? (
                     <View style={styles.pacedChip}>
                       <Text style={styles.pacedChipText}>
-                        Paced from your history · {paceInfo.tradeCount} trade{paceInfo.tradeCount === 1 ? '' : 's'}
+                        Paced from Your History · {paceInfo.tradeCount} trade{paceInfo.tradeCount === 1 ? '' : 's'}
                       </Text>
                     </View>
                   ) : (
@@ -759,7 +759,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                       <Check size={12} color="#fff" strokeWidth={1.75} />
                       {/* Apply REPLACES the plan — say so where he taps. */}
                       <Text style={styles.primaryBtnText} testID="ai-generate-apply-label">
-                        {tasks.length > 0 ? `Replace ${tasks.length} task${tasks.length === 1 ? '' : 's'} with ${genPreview.length}` : 'Apply to project'}
+                        {tasks.length > 0 ? `Replace ${tasks.length} task${tasks.length === 1 ? '' : 's'} with ${genPreview.length}` : 'Apply to Project'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -863,14 +863,14 @@ function HomeCard({
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>Quick actions</Text>
+      <Text style={styles.sectionLabel}>Quick Actions</Text>
       <View style={styles.quickGrid}>
         {empty ? (
-          <QuickBtn icon={MageAIMark} title="Draft a schedule" sub="Describe the project, get a full plan" onPress={onGenerate} featured />
+          <QuickBtn icon={MageAIMark} title="Draft a Schedule" sub="Describe the project, get a full plan" onPress={onGenerate} featured />
         ) : (
           <>
-            <QuickBtn icon={ShieldAlert} title="Find risks" sub="Check the logic for problems" onPress={onRisks} featured />
-            <QuickBtn icon={Mic} title="Log progress" sub="Say what got done" onPress={onAsBuilt} />
+            <QuickBtn icon={ShieldAlert} title="Find Risks" sub="Check the logic for problems" onPress={onRisks} featured />
+            <QuickBtn icon={Mic} title="Log Progress" sub="Say what got done" onPress={onAsBuilt} />
           </>
         )}
       </View>

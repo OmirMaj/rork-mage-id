@@ -106,7 +106,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
       await runCommit(async () => {
         await sendToClientPortal({ kind, itemId, projectId });
       });
-      if (!isOwner) showAlert('Sent to the client portal', EDITOR_SEND_NOTE);
+      if (!isOwner) showAlert('Sent to the Client Portal', EDITOR_SEND_NOTE);
     }
     catch (e) { console.warn('[portal send] failed:', rawErrorMessage(e)); const copy = describeError(e, { action: 'send this to the client portal' }); showAlert(copy.title, copy.body); }
   }, [busy, computed, status, runCommit, kind, itemId, projectId, sendToClientPortal, isOwner]);
@@ -137,7 +137,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     return (
       <Bar style={barStyle}>
         <Button
-          label={(commit.busy ? heldRecalled : status === 'recalled') ? 'Resend to client portal' : 'Send to client portal'}
+          label={(commit.busy ? heldRecalled : status === 'recalled') ? 'Resend to Client Portal' : 'Send to Client Portal'}
           onPress={doSend}
           disabled={busy || !canSend}
           loading={commit.loading}
@@ -157,7 +157,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     return (
       <Bar style={barStyle}>
         <Button
-          label="Resend to client portal"
+          label="Resend to Client Portal"
           onPress={doSend}
           disabled={busy || !canSend}
           loading={commit.loading}

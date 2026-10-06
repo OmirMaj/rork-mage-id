@@ -260,13 +260,13 @@ export function asBuiltVariance(
     const v = toOrd(actual.actualEndDay) - planEndOrdinal;
     if (v > 0) return { label: `+${v}d late`, days: v, tone: 'late' };
     if (v < 0) return { label: `${v}d early`, days: v, tone: 'early' };
-    return { label: 'on time', days: 0, tone: 'on_time' };
+    return { label: 'On Time', days: 0, tone: 'on_time' };
   }
   if (actual.actualStartDay != null) {
     const v = toOrd(actual.actualStartDay) - planStartOrdinal;
     if (v > 0) return { label: `started +${v}d`, days: v, tone: 'started_late' };
     if (v < 0) return { label: `started ${v}d early`, days: v, tone: 'early' };
-    return { label: 'started on time', days: 0, tone: 'on_time' };
+    return { label: 'Started on Time', days: 0, tone: 'on_time' };
   }
   return null;
 }

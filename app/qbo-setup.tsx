@@ -336,7 +336,7 @@ function QboSetupScreenInner() {
       });
       if (error || !data?.success) {
         console.warn('[qbo-setup] refund ack not saved:', data?.error ?? error?.message);
-        showAlert('Not saved', 'MAGE couldn’t save this. Check your connection and try again. The refund stays listed until it is saved.');
+        showAlert('Not Saved', 'MAGE couldn’t save this. Check your connection and try again. The refund stays listed until it is saved.');
         return;
       }
       await ledgerQuery.refetch();
@@ -400,7 +400,7 @@ function QboSetupScreenInner() {
     const r = await connectQuickBooks();
     setBusy(false);
     if (!r.ok) {
-      showAlert('Connect failed', r.error ?? 'Try again.');
+      showAlert('Connect Failed', r.error ?? 'Try again.');
       return;
     }
     // Server write happens AFTER browser closes. Poll briefly.
@@ -483,7 +483,7 @@ function QboSetupScreenInner() {
               </View>
 
               {/* What gets synced */}
-              <Text style={styles.sectionLabel}>What gets synced</Text>
+              <Text style={styles.sectionLabel}>What Gets Synced</Text>
               <View style={styles.syncList}>
                 <SyncRow Icon={Users}    title="Customers"  sub="Each MAGE project becomes a QuickBooks Customer" styles={styles} colors={colors} />
                 <SyncRow Icon={Package}  title="Items"      sub="Estimate line items become Service items in QBO" styles={styles} colors={colors} />
@@ -492,11 +492,11 @@ function QboSetupScreenInner() {
               </View>
 
               {/* How it works */}
-              <Text style={styles.sectionLabel}>How it works</Text>
+              <Text style={styles.sectionLabel}>How It Works</Text>
               <View style={styles.stepsCard}>
-                <StepRow num={1} title="Connect once"    sub="Sign in to Intuit, pick your QuickBooks company, approve access. We never see your password." styles={styles} colors={colors} last={false} />
+                <StepRow num={1} title="Connect Once"    sub="Sign in to Intuit, pick your QuickBooks company, approve access. We never see your password." styles={styles} colors={colors} last={false} />
                 <StepRow num={2} title="Work in MAGE"    sub="Create projects and invoices like you normally would. Every save pushes to QuickBooks behind the scenes." styles={styles} colors={colors} last={false} />
-                <StepRow num={3} title="Reconcile automatically"  sub="A background job runs every 30 minutes: it sends Pay-link payments, retries anything that failed, and brings QBO-side payments back to MAGE." styles={styles} colors={colors} last={true} />
+                <StepRow num={3} title="Reconcile Automatically"  sub="A background job runs every 30 minutes: it sends Pay-link payments, retries anything that failed, and brings QBO-side payments back to MAGE." styles={styles} colors={colors} last={true} />
               </View>
 
               {/* Trust footer */}
@@ -517,7 +517,7 @@ function QboSetupScreenInner() {
           ) : status.status === 'error' || status.status === 'connecting' ? (
             <View style={[styles.card, styles.cardWarn]}>
               <AlertTriangle size={20} color={colors.danger} strokeWidth={1.75} />
-              <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection error'}</Text>
+              <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection Error'}</Text>
               <Text style={styles.cardSub}>{status.status === 'connecting'
                 ? 'OAuth in progress. Come back in a moment.'
                 : 'Your QuickBooks connection has an error. Reconnect to fix it.'}</Text>
@@ -609,7 +609,7 @@ function QboSetupScreenInner() {
                           {`QuickBooks still counts this money (its payment ${r.paymentQboId}). Record a refund receipt there, or edit that payment — MAGE does not do it for you, because how to book it is your bookkeeper's call.`}
                         </Text>
                         <Button
-                          label={ackBusy === r.key ? 'Saving…' : 'I recorded it in QuickBooks'}
+                          label={ackBusy === r.key ? 'Saving…' : 'I Recorded It in QuickBooks'}
                           onPress={() => { void onAckReversal(r); }}
                           variant="secondary"
                           size="sm"
@@ -676,12 +676,12 @@ function QboSetupScreenInner() {
                 onPress={() => router.push('/qbo-review' as never)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={pendingCount > 0 ? `Review ${pendingCount} QuickBooks costs` : 'Review QuickBooks costs'}
+                accessibilityLabel={pendingCount > 0 ? `Review ${pendingCount} QuickBooks costs` : 'Review QuickBooks Costs'}
                 testID="qbo-review-entry"
               >
                 <View style={styles.syncIcon}><Receipt size={18} color={colors.accent} strokeWidth={1.75} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.syncTitle}>Cost review</Text>
+                  <Text style={styles.syncTitle}>Cost Review</Text>
                   <Text style={styles.syncSub}>
                     {pendingCount > 0
                       ? `${pendingCount} purchase${pendingCount === 1 ? '' : 's'}/bill${pendingCount === 1 ? '' : 's'} from QuickBooks waiting for your confirm`
@@ -698,7 +698,7 @@ function QboSetupScreenInner() {
 
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onRefreshStatus} disabled={busy} testID="qbo-refresh-status">
                 <RefreshCw size={16} color="#FFFFFF" strokeWidth={1.75} />
-                <Text style={styles.primaryText}>{busy ? 'Refreshing…' : 'Refresh status'}</Text>
+                <Text style={styles.primaryText}>{busy ? 'Refreshing…' : 'Refresh Status'}</Text>
               </TouchableOpacity>
             </>
           )}

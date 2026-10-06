@@ -147,18 +147,18 @@ export default function QboCallbackScreen() {
             <Text style={styles.hint}>{Platform.OS === "web" ? "Taking you back…" : "Returning you to the MAGE app…"}</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return">
               <ExternalLink size={16} color="#FFFFFF" strokeWidth={1.75} />
-              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Continue to QuickBooks setup" : "Open MAGE app"}</Text>
+              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Continue to QuickBooks Setup" : "Open MAGE App"}</Text>
             </TouchableOpacity>
           </>
         )}
         {status === "error" && (
           <>
             <AlertTriangle size={64} color={colors.danger} strokeWidth={1.75} />
-            <Text style={styles.title}>Connection failed</Text>
+            <Text style={styles.title}>Connection Failed</Text>
             <Text style={styles.subtitle}>{error ?? "QuickBooks didn’t finish the connection."}</Text>
             <Text style={styles.hint}>{Platform.OS === "web" ? "Go back and try connecting again." : "Return to the MAGE app and try connecting again."}</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return-err">
-              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Back to QuickBooks setup" : "Return to MAGE"}</Text>
+              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Back to QuickBooks Setup" : "Return to MAGE"}</Text>
             </TouchableOpacity>
           </>
         )}

@@ -80,7 +80,7 @@ export function CriticalPathPanel(props: {
             <Text style={styles.sectionHead}>
               {explanation.criticalChains.length > 1
                 ? `The critical path — ${explanation.criticalChains.length} parallel branches`
-                : 'The critical path'}
+                : 'The Critical Path'}
             </Text>
             {explanation.criticalChains.length > 1 && (
               <Text style={styles.branchNote}>
@@ -113,7 +113,7 @@ export function CriticalPathPanel(props: {
             )}
 
             {/* Tasks with breathing room — how far each can slip without moving the finish. */}
-            <Text style={styles.sectionHead}>These have breathing room</Text>
+            <Text style={styles.sectionHead}>These Have Breathing Room</Text>
             {explanation.slack.length > 0 ? (
               explanation.slack.map((task) => (
                 <View key={task.id} style={styles.slackRow}>

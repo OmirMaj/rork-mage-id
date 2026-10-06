@@ -192,7 +192,7 @@ export function useClientDocumentGate() {
   const refuseUntilLoaded = useCallback(() => {
     const notice = profileGateNotice({ failed: settingsLoadFailed || sourceFailed });
     showAlert(notice.title, notice.message, [
-      { text: 'Not now', style: 'cancel' },
+      { text: 'Not Now', style: 'cancel' },
       { text: 'Retry', onPress: retryRemoteReads },
     ]);
   }, [settingsLoadFailed, sourceFailed, retryRemoteReads]);

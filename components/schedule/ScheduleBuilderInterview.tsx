@@ -237,7 +237,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
               testID="sb-job-create"
             >
               <FolderPlus size={20} color={colors.accent} strokeWidth={2} />
-              <Text style={styles.choiceText}>Create a project first</Text>
+              <Text style={styles.choiceText}>Create a Project First</Text>
               <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
             </TouchableOpacity>
           ) : (
@@ -261,7 +261,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
                     testID={`sb-job-${p.id}`}
                   >
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.choiceText} numberOfLines={1}>{p.name || 'Untitled project'}</Text>
+                      <Text style={styles.choiceText} numberOfLines={1}>{p.name || 'Untitled Project'}</Text>
                       {/* A job with a running schedule is replaced only at
                           review, which says what a replace loses — but he
                           should know that before ten questions, not after. */}
@@ -306,7 +306,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
         <Text style={styles.eyebrow}>Couldn&apos;t build the schedule</Text>
         <Text style={styles.question}>{errMsg}</Text>
         <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={() => setPhase('ask')} activeOpacity={0.9}>
-          <Text style={styles.primaryBtnText}>Try again</Text>
+          <Text style={styles.primaryBtnText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -377,7 +377,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
         ) : q.kind === 'date' ? (
           <TouchableOpacity style={[styles.choice, styles.choiceRec]} onPress={() => setDatePickerOpen(true)} activeOpacity={0.85} testID="sb-date">
             <CalendarDays size={20} color={colors.accent} strokeWidth={2} />
-            <Text style={styles.choiceText}>Pick a date</Text>
+            <Text style={styles.choiceText}>Pick a Date</Text>
             <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
         ) : (
@@ -397,7 +397,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
             />
             <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={submitEntry} activeOpacity={0.9} testID="sb-continue">
               {idx === questions.length - 1
-                ? <><Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} /><Text style={styles.primaryBtnText}>Build schedule</Text></>
+                ? <><Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} /><Text style={styles.primaryBtnText}>Build Schedule</Text></>
                 : <><Text style={styles.primaryBtnText}>Continue</Text><ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2} /></>}
             </TouchableOpacity>
           </View>

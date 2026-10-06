@@ -238,9 +238,9 @@ export default function PredecessorPicker(props: PredecessorPickerProps) {
     }
 
     return [
-      { label: 'After the task above', ids: [lastCandidate.id], lags: {} },
+      { label: 'After the Task Above', ids: [lastCandidate.id], lags: {} },
       ...(prevIds.length > 0
-        ? [{ label: 'Alongside it', ids: [...prevIds], lags: prevLagMap }]
+        ? [{ label: 'Alongside It', ids: [...prevIds], lags: prevLagMap }]
         : []),
       { label: 'Starts day 1', ids: [], lags: {} },
     ];
@@ -307,7 +307,7 @@ export default function PredecessorPicker(props: PredecessorPickerProps) {
             })}
           </View>
 
-          <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Waits for</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Waits For</Text>
           <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
             {candidates.map((o, i) => {
               const on = selected.includes(o.id);

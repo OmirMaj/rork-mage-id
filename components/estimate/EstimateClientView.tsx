@@ -41,11 +41,11 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
         <Text style={styles.lockText}>Costs, markups and margin are hidden in client view</Text>
       </View>
 
-      <Text style={styles.totalLabel}>Project total</Text>
+      <Text style={styles.totalLabel}>Project Total</Text>
       <Text style={styles.total}>{money(view.projectTotal)}</Text>
       {!!projectName && <Text style={styles.prep}>Proposal · {projectName}</Text>}
 
-      <Text style={styles.sectionLabel}>Scope of work</Text>
+      <Text style={styles.sectionLabel}>Scope of Work</Text>
       <View style={styles.card}>
         {view.scopeGroups.map((g, i) => (
           <View key={g.key} style={[styles.row, i < view.scopeGroups.length - 1 && styles.rowBorder]}>
@@ -57,7 +57,7 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
 
       {view.allowances.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Allowances included</Text>
+          <Text style={styles.sectionLabel}>Allowances Included</Text>
           <View style={styles.card}>
             {view.allowances.map((a, i) => (
               <View key={`${a.name}-${i}`} style={[styles.row, i < view.allowances.length - 1 && styles.rowBorder]}>
@@ -71,7 +71,7 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
 
       {!!paymentSchedule?.length && (
         <>
-          <Text style={styles.sectionLabel}>Payment schedule</Text>
+          <Text style={styles.sectionLabel}>Payment Schedule</Text>
           <View style={styles.card}>
             {paymentSchedule.map((m, i) => (
               <View key={`${m.label}-${i}`} style={[styles.payRow, i < paymentSchedule.length - 1 && styles.rowBorder]}>

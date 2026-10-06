@@ -38,7 +38,7 @@ export function coReasonCode(raw: string | null | undefined): COReasonCode | '' 
 
 export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
   id: 'change_order',
-  label: 'Draft a change order',
+  label: 'Draft a Change Order',
   aiFeature: 'changeOrderImpact',
   maxQuestions: 2,
   askThreshold: 0.4,

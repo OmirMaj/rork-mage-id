@@ -65,7 +65,7 @@ const LAYOUT_LABEL: Record<GanttPaneMode, string> = {
   split: 'Split',
   gantt: 'Gantt',
   lanes: 'Lanes',
-  living: 'Living plan',
+  living: 'Living Plan',
 };
 
 /** What the Pro toolbar can ask of the Timeline tab (lane DB's toolbar). */
@@ -303,7 +303,7 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
           // already uses on project-detail.
           style={[styles.fab, { bottom: insets.bottom + 70 + 56 + 12 }]}
           testID="gantt-phone-fab"
-          accessibilityLabel="Add task"
+          accessibilityLabel="Add Task"
           accessibilityRole="button"
         >
           <Text style={styles.fabIcon}>＋</Text>
@@ -399,7 +399,7 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
             {...divider.panHandlers}
             {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
             accessibilityRole="adjustable"
-            accessibilityLabel="Resize the task grid"
+            accessibilityLabel="Resize the Task Grid"
             testID="gantt-split-divider"
           >
             <View style={styles.dividerLine} />

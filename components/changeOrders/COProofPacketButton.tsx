@@ -86,7 +86,7 @@ export default function COProofPacketButton({ co, project, dirty, numberHold, de
     run
       .catch((err: unknown) => {
         showAlert(
-          t('money.coProof.failTitle', 'Could not make the packet'),
+          t('money.coProof.failTitle', 'Could Not Make the Packet'),
           pdfFailureMessage(err, t('money.coProof.failBody', "Couldn't build the proof packet. Try again.")),
         );
       })
@@ -103,7 +103,7 @@ export default function COProofPacketButton({ co, project, dirty, numberHold, de
 
   return (
     <Button
-      label={busy ? t('money.coProof.busy', 'Building the packet…') : t('money.coProof.button', 'Proof packet')}
+      label={busy ? t('money.coProof.busy', 'Building the packet…') : t('money.coProof.button', 'Proof Packet')}
       variant="secondary"
       size="sm"
       loading={busy}

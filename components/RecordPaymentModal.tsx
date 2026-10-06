@@ -108,7 +108,7 @@ export default function RecordPaymentModal({
         <Animated.View style={[styles.card, { paddingBottom: insets.bottom + 20 }, f.card, f.cardMotion]}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{mode === 'reconcile' ? 'Payment detail' : 'Record payment'}</Text>
+              <Text style={styles.title}>{mode === 'reconcile' ? 'Payment Detail' : 'Record Payment'}</Text>
               {title ? <Text style={styles.subtitle} numberOfLines={1}>{title}{amountLabel ? ` · ${amountLabel}` : ''}</Text> : null}
             </View>
             <TouchableOpacity onPress={onCancel} style={styles.closeBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -151,7 +151,7 @@ export default function RecordPaymentModal({
               testID="payment-reference-input"
             />
 
-            <Text style={styles.fieldLabel}>Date paid</Text>
+            <Text style={styles.fieldLabel}>Date Paid</Text>
             <TouchableOpacity
               style={[styles.input, styles.dateField]}
               onPress={() => setDatePicker(true)}
@@ -181,12 +181,12 @@ export default function RecordPaymentModal({
 
           <TouchableOpacity style={styles.primaryBtn} onPress={submit} accessibilityRole="button" testID="payment-save">
             <Text style={styles.primaryBtnText}>
-              {mode === 'reconcile' ? 'Save payment detail' : 'Record payment'}
+              {mode === 'reconcile' ? 'Save Payment Detail' : 'Record Payment'}
             </Text>
           </TouchableOpacity>
           {mode === 'pay' && onSkip ? (
             <TouchableOpacity style={styles.skipBtn} onPress={onSkip} accessibilityRole="button" testID="payment-skip">
-              <Text style={styles.skipBtnText}>Mark paid, add detail later</Text>
+              <Text style={styles.skipBtnText}>Mark Paid, Add Detail Later</Text>
             </TouchableOpacity>
           ) : null}
         </Animated.View>
@@ -195,7 +195,7 @@ export default function RecordPaymentModal({
         <DatePickerModal
           visible
           value={paidOn}
-          title="Date paid"
+          title="Date Paid"
           onClose={() => setDatePicker(false)}
           onChange={pickPaidOn}
         />

@@ -165,13 +165,13 @@ interface PermissionToggle {
 const PERMISSION_TOGGLES: PermissionToggle[] = [
   {
     key: 'showSchedule',
-    label: 'Project schedule',
+    label: 'Project Schedule',
     description: 'Gantt chart and task progress',
     icon: <CalendarDays size={18} color={"#1565C0"} strokeWidth={1.75} />,
   },
   {
     key: 'showBudgetSummary',
-    label: 'Budget summary',
+    label: 'Budget Summary',
     description: 'Overall spend against contract value',
     icon: <BarChart3 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
@@ -183,25 +183,25 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
   },
   {
     key: 'showChangeOrders',
-    label: 'Change orders',
+    label: 'Change Orders',
     description: 'Approved and pending change orders',
     icon: <FileText size={18} color={"#C84038"} strokeWidth={1.75} />,
   },
   {
     key: 'showPhotos',
-    label: 'Site photos',
+    label: 'Site Photos',
     description: 'Progress photos from the field',
     icon: <Image size={18} color={Colors.purple} strokeWidth={1.75} />,
   },
   {
     key: 'showDailyReports',
-    label: 'Daily reports',
+    label: 'Daily Reports',
     description: 'Weather, crew and work summaries',
     icon: <ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />,
   },
   {
     key: 'showPunchList',
-    label: 'Punch list',
+    label: 'Punch List',
     description: 'Open items and completion status',
     icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
@@ -352,7 +352,7 @@ function ClientPortalSetupScreenInner() {
   /** Returns true when it took over (a sample), so callers bail. */
   const warnIfSample = useCallback((): boolean => {
     if (!sampleJob) return false;
-    showAlert('Sample job', SAMPLE_PORTAL_NOTE);
+    showAlert('Sample Job', SAMPLE_PORTAL_NOTE);
     return true;
   }, [sampleJob]);
   /** The URL named a project that doesn't exist — different from "no id". */
@@ -540,7 +540,7 @@ function ClientPortalSetupScreenInner() {
 
   const handleProposalSwitch = useCallback((val: boolean) => {
     // #19: only the owner changes what the client sees (said at the top).
-    if (ownerOnlyReason) { showAlert('Not changed', ownerOnlyReason); return; }
+    if (ownerOnlyReason) { showAlert('Not Changed', ownerOnlyReason); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     if (!val) {
       // Off keeps the stamp: switching back on must print what the client
@@ -561,7 +561,7 @@ function ClientPortalSetupScreenInner() {
         // A stamp exists → kept (same split). No stamp → a FIRST stamp, which
         // needs no acceptance read: a proposal without terms can't be accepted.
         const next = nextProposalStamp({ existing, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
-        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        if ('refused' in next) { showAlert('Payment Terms', next.refused); return; }
         setPortal(p => ({ ...p, proposalApprovalEnabled: true, proposalPaymentTerms: next.stamp }));
         persistProposalKeys({ proposalApprovalEnabled: true, proposalPaymentTerms: next.stamp });
       },
@@ -579,7 +579,7 @@ function ClientPortalSetupScreenInner() {
       const acceptance = await fetchProposalAcceptanceState(id);
       const next = nextProposalStamp({ existing: portal.proposalPaymentTerms, split, acceptance, nowIso: new Date().toISOString() });
       if ('refused' in next) {
-        showAlert('Terms not changed', next.refused);
+        showAlert('Terms Not Changed', next.refused);
         void acceptancesQ.refetch();
         return;
       }
@@ -598,7 +598,7 @@ function ClientPortalSetupScreenInner() {
       { terms: true, purpose: 'portal_proposal', total: proposalTotal, projectType: project?.type ?? null },
       (a) => {
         const next = nextProposalStamp({ existing: portal.proposalPaymentTerms, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
-        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        if ('refused' in next) { showAlert('Payment Terms', next.refused); return; }
         setPortal(p => ({ ...p, proposalPaymentTerms: next.stamp }));
         persistProposalKeys({ proposalPaymentTerms: next.stamp });
       },
@@ -831,7 +831,7 @@ function ClientPortalSetupScreenInner() {
       'Discard portal changes?',
       "Your changes aren't saved, so your client's page hasn't changed. Leave without saving?",
       [
-        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Keep Editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => { allowLeaveRef.current = true; navigation.dispatch(e.data.action); } },
       ],
     );
@@ -993,21 +993,21 @@ function ClientPortalSetupScreenInner() {
     if (!linkPending) return false;
     if (linkOwnerOnly) {
       showAlert(
-        'Only the project owner can share this link',
+        'Only the Project Owner Can Share This Link',
         'The client link carries the key that lets your client sign change orders, and that key stays with the project owner’s account. Ask the owner to send it.',
       );
     } else if (linkNeedsSave) {
       showAlert(
-        'Save this portal first',
+        'Save This Portal First',
         'The security key that lets your client sign change orders is created when you save. Tap Save, then Copy or Share.',
       );
     } else if (linkHealFailed) {
       showAlert(
-        'Couldn’t get the secure link',
+        'Couldn’t Get the Secure Link',
         'This link’s security key didn’t come back from the server. Check your connection, then tap Retry under the link.',
       );
     } else {
-      showAlert('Finalizing secure link', 'Fetching your portal’s security key from the server — try again in a moment.');
+      showAlert('Finalizing Secure Link', 'Fetching your portal’s security key from the server — try again in a moment.');
     }
     return true;
   }, [linkPending, linkOwnerOnly, linkNeedsSave, linkHealFailed]);
@@ -1192,9 +1192,9 @@ function ClientPortalSetupScreenInner() {
     if (warnIfSample()) return;
     if (!id) return;
     // #19: never "Saved" for a save that reaches no one.
-    if (ownerOnlyReason) { showAlert('Not saved', ownerOnlyReason); return; }
+    if (ownerOnlyReason) { showAlert('Not Saved', ownerOnlyReason); return; }
     if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < PORTAL_PASSCODE_MIN_LENGTH)) {
-      showAlert('Add a passcode', `Enter a passcode of ${PORTAL_PASSCODE_MIN_LENGTH} to ${PORTAL_PASSCODE_MAX_LENGTH} characters, or turn off "Ask for a passcode".`);
+      showAlert('Add a Passcode', `Enter a passcode of ${PORTAL_PASSCODE_MIN_LENGTH} to ${PORTAL_PASSCODE_MAX_LENGTH} characters, or turn off "Ask for a passcode".`);
       return;
     }
     setIsSaving(true);
@@ -1222,7 +1222,7 @@ function ClientPortalSetupScreenInner() {
       // saved switches reach the homeowner even if he leaves right away.
       requestPortalPublish(id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Portal saved', portalListsServerRead
+      showAlert('Portal Saved', portalListsServerRead
         ? 'Portal settings updated.'
         : 'Portal settings saved. Your client\'s page will update when your lists finish syncing.');
     } finally {
@@ -1339,7 +1339,7 @@ function ClientPortalSetupScreenInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const nextState = linkState(nextExpiry, Date.now(), { untilHandover: durationChoice === null });
     showAlert(
-      'Link refreshed',
+      'Link Refreshed',
       durationChoice !== null
         ? `Same URL, new clock — it stays open for ${durationLabel(durationChoice)}. Send it again if your client lost the old message.`
         : nextState.kind === 'never'
@@ -1363,7 +1363,7 @@ function ClientPortalSetupScreenInner() {
       `${linkExpiry.label}. Anyone opening it sees a dead page — generate a new one before you send it.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Generate new link', onPress: handleGenerateLink },
+        { text: 'Generate New Link', onPress: handleGenerateLink },
       ],
     );
     return true;
@@ -1381,7 +1381,7 @@ function ClientPortalSetupScreenInner() {
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert(
-      ok ? 'Copied' : 'Copy failed',
+      ok ? 'Copied' : 'Copy Failed',
       ok
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
@@ -1460,11 +1460,11 @@ function ClientPortalSetupScreenInner() {
     `;
     const html = wrapEmailHtml({
       preheader: `Your private project portal for ${projectName} is ready.`,
-      eyebrow: 'Project portal',
+      eyebrow: 'Project Portal',
       title: `${projectName}`,
       subtitle: `Hi ${recipientFirstName ?? 'there'} — your live project view is ready.`,
       bodyHtml,
-      cta: { label: 'Open my project portal', href: link },
+      cta: { label: 'Open My Project Portal', href: link },
       companyName,
       logoUri: settings?.branding?.logoUri,
       project: { name: projectName },
@@ -1520,7 +1520,7 @@ function ClientPortalSetupScreenInner() {
     });
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
       console.warn('[ClientPortal] email fallback failed:', fallback.error);
-      showAlert('Email not sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
+      showAlert('Email Not Sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
     }
   }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending, warnIfSample, livePortal]);
 
@@ -1529,7 +1529,7 @@ function ClientPortalSetupScreenInner() {
       const digits = Math.floor(1000 + Math.random() * 9000).toString();
       setPortal(p => ({ ...p, passcode: digits, requirePasscode: true }));
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      showAlert('New passcode', `New passcode: ${digits}\n\nTap Save, then share the new passcode with your client.`);
+      showAlert('New Passcode', `New passcode: ${digits}\n\nTap Save, then share the new passcode with your client.`);
     };
     showAlert(
       'Reset passcode?',
@@ -1549,11 +1549,11 @@ function ClientPortalSetupScreenInner() {
     // can't get past Resend's validator should be caught here.
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!email || !EMAIL_REGEX.test(email)) {
-      showAlert('Check the email address', 'Enter a valid email address, like name@example.com.');
+      showAlert('Check the Email Address', 'Enter a valid email address, like name@example.com.');
       return;
     }
     if (portal.invites?.some(i => i.email === email)) {
-      showAlert('Already invited', 'This email is already on the portal.');
+      showAlert('Already Invited', 'This email is already on the portal.');
       return;
     }
     const invite: ClientPortalInvite = {
@@ -1609,11 +1609,11 @@ function ClientPortalSetupScreenInner() {
   const announceLinkReset = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      'Link reset',
+      'Link Reset',
       'The old link no longer opens your client’s portal. Send them the new one.',
       [
         { text: 'Later', style: 'cancel' },
-        { text: 'Send new link', onPress: () => handleShareRef.current() },
+        { text: 'Send New Link', onPress: () => handleShareRef.current() },
       ],
     );
   }, []);
@@ -1659,11 +1659,11 @@ function ClientPortalSetupScreenInner() {
       return;
     }
     if (outcome.kind === 'not-reset') {
-      showAlert('Link not reset', PORTAL_RESET_NOT_RESET_NOTE);
+      showAlert('Link Not Reset', PORTAL_RESET_NOT_RESET_NOTE);
       return;
     }
     forgetHeldKey();
-    showAlert('Reset not confirmed', PORTAL_RESET_UNKNOWN_NOTE);
+    showAlert('Reset Not Confirmed', PORTAL_RESET_UNKNOWN_NOTE);
   }, [id, adoptRotated, announceLinkReset, forgetHeldKey]);
 
   // ── #82: the key this device holds is checked against the server's ────────
@@ -1735,9 +1735,9 @@ function ClientPortalSetupScreenInner() {
 
   const handleResetLink = useCallback(() => {
     if (warnIfSample()) return;
-    if (ownerOnlyReason) { showAlert('Link not reset', ownerOnlyReason); return; }
+    if (ownerOnlyReason) { showAlert('Link Not Reset', ownerOnlyReason); return; }
     if (!id || !project?.clientPortal?.enabled) {
-      showAlert('Save this portal first', 'There is no client link to reset until the portal is saved.');
+      showAlert('Save This Portal First', 'There is no client link to reset until the portal is saved.');
       return;
     }
     // No key on this device yet (still being fetched, or dropped after a reset
@@ -1751,7 +1751,7 @@ function ClientPortalSetupScreenInner() {
     }
     showAlert('Reset the link?', 'Your client’s old link stops working. Send them the new one.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Reset link', style: 'destructive', onPress: () => { void performLinkReset(); } },
+      { text: 'Reset Link', style: 'destructive', onPress: () => { void performLinkReset(); } },
     ]);
   }, [warnIfSample, ownerOnlyReason, id, project?.clientPortal?.enabled, warnIfLinkPending, performLinkReset]);
 
@@ -1759,7 +1759,7 @@ function ClientPortalSetupScreenInner() {
     showAlert('Turn off the portal?', 'Every client loses access to the portal.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Turn off', style: 'destructive', onPress: () => {
+        text: 'Turn Off', style: 'destructive', onPress: () => {
           if (!id) return;
           // #134: revoking access also turns the weekly recap OFF, so turning
           // the portal back on never silently restarts emails he didn't
@@ -1783,7 +1783,7 @@ function ClientPortalSetupScreenInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Client portal' }} />
+        <Stack.Screen options={{ title: 'Client Portal' }} />
         <ToolProjectPicker
           toolName="Client portal"
           message="Each project gets its own private client portal with progress, photos, selections and pay buttons."
@@ -1805,7 +1805,7 @@ function ClientPortalSetupScreenInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Client portal',
+          title: 'Client Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -1862,7 +1862,7 @@ function ClientPortalSetupScreenInner() {
         <View style={styles.linkCard}>
           <View style={styles.linkCardHeader}>
             <Globe size={20} color={Colors.purple} strokeWidth={1.75} />
-            <Text style={styles.linkCardTitle}>Portal link</Text>
+            <Text style={styles.linkCardTitle}>Portal Link</Text>
             <View style={[styles.activeBadge, { backgroundColor: tone.badge }]}>
               <Text style={[styles.activeBadgeText, { color: tone.ink }]}>{tone.short}</Text>
             </View>
@@ -1907,7 +1907,7 @@ function ClientPortalSetupScreenInner() {
               onPress={retryTokenHeal}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Retry fetching the secure link"
+              accessibilityLabel="Retry Fetching the Secure Link"
               testID="portal-link-retry-btn"
             >
               <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -1944,7 +1944,7 @@ function ClientPortalSetupScreenInner() {
               style={styles.linkActionBtn}
               onPress={() => router.push({ pathname: '/client-view' as never, params: { portalId: portal.portalId, previewMode: '1' } as never })}
               accessibilityRole="button"
-              accessibilityLabel="Preview as your client"
+              accessibilityLabel="Preview as Your Client"
               testID="portal-preview-client-btn"
             >
               <Eye size={15} color={themeColors.accent} strokeWidth={1.75} />
@@ -2016,12 +2016,12 @@ function ClientPortalSetupScreenInner() {
               disabled={isCollaborator}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Generate new link"
+              accessibilityLabel="Generate New Link"
               accessibilityState={{ disabled: isCollaborator }}
               testID="portal-generate-link-btn"
             >
               <RefreshCw size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
-              <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>Generate new link</Text>
+              <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>Generate New Link</Text>
             </TouchableOpacity>
             <Text style={styles.expiryHint}>
               {isCollaborator
@@ -2039,12 +2039,12 @@ function ClientPortalSetupScreenInner() {
                   disabled={isCollaborator || resettingLink}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Reset link"
+                  accessibilityLabel="Reset Link"
                   accessibilityState={{ disabled: isCollaborator || resettingLink, busy: resettingLink }}
                   testID="portal-reset-link-btn"
                 >
                   <Lock size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resettingLink ? 'Resetting\u2026' : 'Reset link'}</Text>
+                  <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>{resettingLink ? 'Resetting\u2026' : 'Reset Link'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.expiryHint} testID="portal-reset-link-hint">
                   {isCollaborator
@@ -2065,14 +2065,14 @@ function ClientPortalSetupScreenInner() {
             the link is the only real credential. Until the passcode is
             enforced server-side, the copy says what it does. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Passcode (extra step)</Text>
+          <Text style={styles.sectionTitle}>Passcode (Extra Step)</Text>
           <Text style={styles.sectionSubtitle}>The link is the key: anyone who has it can reach this project. A passcode adds a light extra step on the page, not a lock. Share the link only with your client, and send the passcode separately.</Text>
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
                 <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Ask for a passcode</Text>
+                  <Text style={styles.toggleLabel}>Ask for a Passcode</Text>
                   <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'The page asks for the passcode first. The link is still the key.' : 'The link alone opens the page'}</Text>
                 </View>
               </View>
@@ -2100,7 +2100,7 @@ function ClientPortalSetupScreenInner() {
               />
               <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} disabled={!!ownerOnlyReason} activeOpacity={0.8}>
                 <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.resetPasscodeText}>New passcode</Text>
+                <Text style={styles.resetPasscodeText}>New Passcode</Text>
               </TouchableOpacity>
             </>
           )}
@@ -2140,7 +2140,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Welcome Message */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Welcome message</Text>
+          <Text style={styles.sectionTitle}>Welcome Message</Text>
           <Text style={styles.sectionSubtitle}>Optional message shown to clients when they open the portal</Text>
           <TextInput
             style={styles.welcomeInput}
@@ -2156,7 +2156,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Client Budget Input */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Client budget input</Text>
+          <Text style={styles.sectionTitle}>Client Budget Input</Text>
           <Text style={styles.sectionSubtitle}>
             Let the owner propose a starting budget directly from the portal — useful
             when you don&apos;t have an estimate yet and want to anchor the conversation.
@@ -2166,7 +2166,7 @@ function ClientPortalSetupScreenInner() {
               <View style={styles.toggleLeft}>
                 <HandCoins size={18} color={Colors.primary} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Allow client to suggest budget</Text>
+                  <Text style={styles.toggleLabel}>Allow Client to Suggest Budget</Text>
                   <Text style={styles.toggleDesc}>Shows a &quot;Set your target budget&quot; card on the portal</Text>
                 </View>
               </View>
@@ -2187,7 +2187,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.budgetStatusLabel}>
-                    Target budget {project.targetBudget.setBy === 'client' ? 'from client' : 'set by you'}
+                    Target Budget {project.targetBudget.setBy === 'client' ? 'from client' : 'set by you'}
                   </Text>
                   <Text style={styles.budgetStatusValue}>{formatMoney(project.targetBudget.amount)}</Text>
                   {project.targetBudget.clientName && (
@@ -2240,7 +2240,7 @@ function ClientPortalSetupScreenInner() {
             friendly recap via the homeowner-weekly-digest edge fn.
             Defaults off — opt in here. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weekly recap email</Text>
+          <Text style={styles.sectionTitle}>Weekly Recap Email</Text>
           {/* The sentence that says AI rewrites the recap is shown only while the
               ACCOUNT's own answer is yes (the server uses AI on nothing else). An
               account that could not be read, a collaborator's screen and a first
@@ -2257,7 +2257,7 @@ function ClientPortalSetupScreenInner() {
               <View style={styles.toggleLeft}>
                 <Sunrise size={18} color={Colors.primary} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Send weekly recap</Text>
+                  <Text style={styles.toggleLabel}>Send Weekly Recap</Text>
                   <Text style={styles.toggleDesc}>Friday afternoons. Goes to every portal invite email.</Text>
                 </View>
               </View>
@@ -2308,9 +2308,9 @@ function ClientPortalSetupScreenInner() {
                 // failure is not "no invites" either.
                 if (errs.includes('portal_disabled')) {
                   // #134: the function refuses a disabled portal outright.
-                  showAlert('Portal is off', 'Nothing was emailed. Turn the portal on to email your client.');
+                  showAlert('Portal Is Off', 'Nothing was emailed. Turn the portal on to email your client.');
                 } else if (sent > 0) {
-                  showAlert('Preview sent', recap === 'plain_ai_off'
+                  showAlert('Preview Sent', recap === 'plain_ai_off'
                     ? AI_ACCOUNT_COPY.previewSentPlain(sent)
                     : recap === 'plain_ai_unknown'
                       ? AI_ACCOUNT_COPY.previewSentUnchecked(sent)
@@ -2319,25 +2319,25 @@ function ClientPortalSetupScreenInner() {
                   // The closing email only goes out through the weekly recap's
                   // Friday run, which skips portals with the recap off — so
                   // promise it only when the recap is on.
-                  showAlert('Project is closed', portal.weeklyDigest?.enabled
+                  showAlert('Project Is Closed', portal.weeklyDigest?.enabled
                     ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the project is complete and when the portal link closes.'
                     : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out — tell your client yourself when the portal link closes.');
                 } else if (errs.includes('portal_link_ended')) {
-                  showAlert('Portal link has ended', 'Send your client a new portal link before previewing the weekly update.');
+                  showAlert('Portal Link Has Ended', 'Send your client a new portal link before previewing the weekly update.');
                 } else if (errs.length === 0 || errs.includes('no_invites')) {
-                  showAlert('No invites yet', 'Add a portal invite (with their email) before previewing the weekly recap.');
+                  showAlert('No Invites Yet', 'Add a portal invite (with their email) before previewing the weekly recap.');
                 } else if (errs.every(e => e === 'unsubscribed')) {
                   // Every invite unsubscribed from the weekly recap (or from all
                   // MAGE ID email) with a link in one of these emails. Only they
                   // can turn it back on.
-                  showAlert('Your client turned these emails off', 'Everyone on this portal unsubscribed from the weekly recap, so nothing was sent. Only they can turn it back on, from "Manage email preferences" at the bottom of any MAGE ID email.');
+                  showAlert('Your Client Turned These Emails Off', 'Everyone on this portal unsubscribed from the weekly recap, so nothing was sent. Only they can turn it back on, from "Manage email preferences" at the bottom of any MAGE ID email.');
                 } else {
                   const refusal = errs.find(e => e !== 'unsubscribed') ?? errs[0];
-                  showAlert('Preview not sent', `The email service refused it: ${refusal.replace(/^[^:]*:\s*/, '')}`);
+                  showAlert('Preview Not Sent', `The email service refused it: ${refusal.replace(/^[^:]*:\s*/, '')}`);
                 }
               } catch (err) {
                 const copy = describeError(err, { action: 'send the preview' });
-                showAlert("Couldn't send the preview", copy.body);
+                showAlert("Couldn't Send the Preview", copy.body);
               }
             }}
             activeOpacity={0.85}
@@ -2362,7 +2362,7 @@ function ClientPortalSetupScreenInner() {
               <View style={styles.toggleLeft}>
                 <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Accept the proposal</Text>
+                  <Text style={styles.toggleLabel}>Accept the Proposal</Text>
                   <Text style={styles.toggleDesc} testID="proposal-approval-desc">
                     {canProposeToClient
                       // #29: until the acceptance RPC is live the portal can
@@ -2418,7 +2418,7 @@ function ClientPortalSetupScreenInner() {
                     ) : (
                       <>
                         <Text style={styles.toggleDesc}>{termsState.reason}</Text>
-                        <Button label="Try again" variant="ghost" size="sm" onPress={() => { void acceptancesQ.refetch(); }} testID="proposal-terms-retry" />
+                        <Button label="Try Again" variant="ghost" size="sm" onPress={() => { void acceptancesQ.refetch(); }} testID="proposal-terms-retry" />
                       </>
                     )}
                   </>
@@ -2429,7 +2429,7 @@ function ClientPortalSetupScreenInner() {
                       Your client sees this proposal without payment terms and can&apos;t accept it yet.
                     </Text>
                     <Button
-                      label={termsState.action === 'use-profile' ? `Use ${splitLabel(termsState.profileSplit)}` : 'Set your payment terms'}
+                      label={termsState.action === 'use-profile' ? `Use ${splitLabel(termsState.profileSplit)}` : 'Set Your Payment Terms'}
                       variant="secondary" size="sm"
                       onPress={confirmTerms}
                       testID="proposal-terms-confirm"
@@ -2463,7 +2463,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.coApprovalLabel}>
-                    {a.decision === 'accepted' ? 'Proposal accepted' : 'Proposal declined'}
+                    {a.decision === 'accepted' ? 'Proposal Accepted' : 'Proposal Declined'}
                     {typeof a.proposal_total === 'number' ? ` · ${formatMoney(a.proposal_total)}` : ''}
                   </Text>
                   <Text style={styles.coApprovalMeta}>
@@ -2561,13 +2561,13 @@ function ClientPortalSetupScreenInner() {
             onPress={() => router.push(`/client-messages?id=${id}` as any)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Open messages thread"
+            accessibilityLabel="Open Messages Thread"
             testID="portal-recent-messages"
           >
             <View style={styles.messagesPreviewHeader}>
               <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.messagesPreviewLabel}>
-                {recentMessages.length === 0 ? 'Messages' : 'Recent messages'}
+                {recentMessages.length === 0 ? 'Messages' : 'Recent Messages'}
               </Text>
               {unreadFromClient > 0 && (
                 <View style={styles.unreadPill}>
@@ -2623,7 +2623,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Auto-share */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Auto-share with client</Text>
+          <Text style={styles.sectionTitle}>Auto-Share with Client</Text>
           <Text style={styles.sectionSubtitle}>
             When on, new items of that type are shared with your client the moment you save them.
             When off, new items go to your outbox as drafts. Tap Send to share each one.
@@ -2659,7 +2659,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Permissions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What clients can see</Text>
+          <Text style={styles.sectionTitle}>What Clients Can See</Text>
           <Text style={styles.sectionSubtitle}>Turn sections on or off. Changes reach your client when you save.</Text>
           <View style={styles.togglesCard}>
             {PERMISSION_TOGGLES.map((item, index) => (
@@ -2694,7 +2694,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Invite Clients */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invite clients</Text>
+          <Text style={styles.sectionTitle}>Invite Clients</Text>
           <Text style={styles.sectionSubtitle}>Add clients by email to track who has access.</Text>
           <View style={styles.inviteForm}>
             <TextInput
@@ -2715,7 +2715,7 @@ function ClientPortalSetupScreenInner() {
             />
             <TouchableOpacity style={[styles.inviteBtn, !!ownerOnlyReason && { opacity: 0.5 }]} onPress={handleAddInvite} disabled={!!ownerOnlyReason}>
               <Plus size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.inviteBtnText}>Add client</Text>
+              <Text style={styles.inviteBtnText}>Add Client</Text>
             </TouchableOpacity>
           </View>
 
@@ -2770,7 +2770,7 @@ function ClientPortalSetupScreenInner() {
             <MageAIMark size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.weeklyUpdateTitle}>Draft weekly update</Text>
+            <Text style={styles.weeklyUpdateTitle}>Draft Weekly Update</Text>
             <Text style={styles.weeklyUpdateSub}>MAGE drafts a progress email from the last 7 days. You edit, then send.</Text>
           </View>
           <Text style={styles.weeklyUpdateArrow}>›</Text>
@@ -2784,7 +2784,7 @@ function ClientPortalSetupScreenInner() {
           accessibilityState={{ disabled: !!ownerOnlyReason }}
         >
           <EyeOff size={16} color={themeColors.danger} strokeWidth={1.75} />
-          <Text style={styles.disableBtnText}>Turn off client portal</Text>
+          <Text style={styles.disableBtnText}>Turn Off Client Portal</Text>
         </TouchableOpacity>
       </ScrollView>
       <SendPortalLinkModal

@@ -222,7 +222,7 @@ function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      {logHost ? null : <ToolHeader eyebrow="Change orders · MAGE ID" title="Change order" />}
+      {logHost ? null : <ToolHeader eyebrow="Change Orders · MAGE ID" title="Change Order" />}
       <View style={styles.gateBody}>
         {gate === 'loading' ? (
           <Text style={styles.gateText}>{copy.body}</Text>
@@ -234,10 +234,10 @@ function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
             {!!prefillDescription && gate === 'collaborator' && (
               <View style={styles.gatePrefillBox}><Text style={styles.gatePrefill} selectable>{prefillDescription}</Text></View>
             )}
-            {gate === 'error' && <Button label="Try again" variant="primary" onPress={onRetry} fullWidth={isDesktop} />}
+            {gate === 'error' && <Button label="Try Again" variant="primary" onPress={onRetry} fullWidth={isDesktop} />}
             {gate === 'collaborator' && copy.canFileReport && !!projectId && (
               <Button
-                label="Log it in a daily report"
+                label="Log It in a Daily Report"
                 variant="primary"
                 fullWidth={isDesktop}
                 onPress={() => router.replace({
@@ -308,8 +308,8 @@ function coGateState(opts: {
  *  the client and then the save be refused ("No Items"), leaving a CO number
  *  in the client's inbox that exists nowhere. */
 export function coSaveBlocker(o: { description: string; lineItemCount: number }): { title: string; message: string } | null {
-  if (!o.description.trim()) return { title: 'Add a description', message: 'Enter a description for this change order.' };
-  if (o.lineItemCount === 0) return { title: 'Add a line item', message: 'A change order needs at least one line item.' };
+  if (!o.description.trim()) return { title: 'Add a Description', message: 'Enter a description for this change order.' };
+  if (o.lineItemCount === 0) return { title: 'Add a Line Item', message: 'A change order needs at least one line item.' };
   return null;
 }
 
@@ -361,7 +361,7 @@ export function coSendReport(o: {
   };
   if (o.email === 'sent') {
     return {
-      title: o.write === 'failed' ? 'Sent — not saved to MAGE' : 'Sent',
+      title: o.write === 'failed' ? 'Sent — Not Saved to MAGE' : 'Sent',
       message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`
         + (o.portal === 'shared' ? ' It is on the client portal for them to review and sign.' : '')
         + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet — open this change order and tap Send to client portal.' : ''),
@@ -380,7 +380,7 @@ export function coSendReport(o: {
     ? ' Once you have sent it from your mail app, open this change order and tap Mark submitted.'
     : '';
   return {
-    title: 'Email not sent',
+    title: 'Email Not Sent',
     message: `${saved}, but the email was NOT sent: ${reason.replace(/[.\s]+$/, '')}.${where[o.write]}${markIt}`,
   };
 }
@@ -449,7 +449,7 @@ export function coRoleBlockedCopy(gate: Exclude<CoRoleGate, 'open'>, role: strin
   if (gate === 'loading') return { title: '', body: 'Checking your role on this project…', canFileReport: false };
   if (gate === 'error') {
     return {
-      title: "Couldn't check your role on this project",
+      title: "Couldn't Check Your Role on This Project",
       body: 'MAGE could not load who is on this project, so it cannot tell whether you may write change orders here. Check your connection and try again.',
       canFileReport: false,
     };
@@ -463,7 +463,7 @@ export function coRoleBlockedCopy(gate: Exclude<CoRoleGate, 'open'>, role: strin
   }
   const canFileReport = role === 'field' || role === 'editor';
   return {
-    title: 'Your GC creates change orders on this project',
+    title: 'Your GC Creates Change Orders on This Project',
     body: canFileReport
       ? 'Send it as a field issue instead: log the extra work in a daily report, and the project owner sees it there and writes the change order. A change order written from your account would not reach your GC.'
       : 'You have view access on this project. Tell the account owner about the extra work so they can write the change order.',
@@ -771,7 +771,7 @@ export function coPipelineFor(status: CoW4Status): {
   const head: { key: CoW4Status; label: string; terminal?: boolean }[] = [
     { key: 'draft', label: 'Draft' },
     { key: 'submitted', label: 'Submitted' },
-    { key: 'under_review', label: 'In review' },
+    { key: 'under_review', label: 'In Review' },
   ];
   if (status === 'rejected') return { stages: [...head, { key: 'rejected', label: 'Declined', terminal: true }], current: 'rejected', canAdvance: false };
   if (status === 'void') return { stages: [...head, { key: 'void', label: 'Void', terminal: true }], current: 'void', canAdvance: false };
@@ -872,7 +872,7 @@ export function coUnconfirmedPriceBlocker(
   money: (n: number) => string,
 ): { kind: 'refuse'; title: string; message: string } | { kind: 'confirm'; title: string; message: string; lineIds: string[] } | null {
   if (/needs\s*price/i.test(description)) {
-    return { kind: 'refuse', title: 'The description still says NEEDS PRICE', message: 'That note is internal and would go to your client as written. Price the work as line items and rewrite the description as the scope your client is approving.' };
+    return { kind: 'refuse', title: 'The Description Still Says NEEDS PRICE', message: 'That note is internal and would go to your client as written. Price the work as line items and rewrite the description as the scope your client is approving.' };
   }
   // Only a line MAGE tagged 'needs_price' (a daily-report or leak-sweep draft
   // line nobody priced) is refused. An untagged $0 line is one he typed on
@@ -953,7 +953,7 @@ export function coApprovalLineForViewer<L extends { kind: string; who?: string; 
 export function coPdfAction(o: { saved: boolean; dirty: boolean; numberHold: string | null }): { enabled: boolean; label: string; reason?: string } {
   if (!o.saved) return { enabled: false, label: 'Share PDF', reason: 'Save the change order first — the PDF prints the saved change order.' };
   if (o.numberHold) return { enabled: false, label: 'Share PDF', reason: o.numberHold };
-  if (o.dirty) return { enabled: true, label: 'PDF of last saved version', reason: 'You have unsaved changes — the PDF prints the change order as last saved.' };
+  if (o.dirty) return { enabled: true, label: 'PDF of Last Saved Version', reason: 'You have unsaved changes — the PDF prints the change order as last saved.' };
   return { enabled: true, label: 'Share PDF' };
 }
 
@@ -1067,7 +1067,7 @@ function ChangeOrderGate() {
                   The link names a change order that hasn&apos;t synced here, or was deleted. Nothing was
                   opened in its place, so no new CO number was used.
                 </Text>
-                <Button label="Try again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
+                <Button label="Try Again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
               </>
             )}
           </View>
@@ -1083,7 +1083,7 @@ function ChangeOrderGate() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="Change orders · MAGE ID" title="Change order" />
+      <ToolHeader eyebrow="Change Orders · MAGE ID" title="Change Order" />
       <View style={styles.gateBody}>
         {state === 'loading' ? (
           <Text style={styles.gateText}>Loading this change order…</Text>
@@ -1095,10 +1095,10 @@ function ChangeOrderGate() {
               The link names a change order that hasn&apos;t synced here, or was deleted. Nothing was
               opened in its place, so no new CO number was used.
             </Text>
-            <Button label="Try again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
+            <Button label="Try Again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
             {!!paramProjectId && (
               <Button
-                label="Open the project"
+                label="Open the Project"
                 variant="secondary"
                 onPress={() => router.replace({ pathname: '/project-detail', params: { id: paramProjectId } })}
               />
@@ -1713,7 +1713,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const handleAddNewItem = useCallback(() => {
     const name = newItemName.trim();
     if (!name) {
-      showAlert('Add a name', 'Enter an item name.');
+      showAlert('Add a Name', 'Enter an item name.');
       return;
     }
     const qty = parseFloat(newItemQty) || 0;
@@ -1931,7 +1931,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
    *  just made. */
   const handleGridPaste = useCallback((cells: string[][], at: { rowKey: string; colKey: string }) => {
     if (at.colKey !== 'name') {
-      showAlert('Paste into the Item column', 'A block from Excel adds lines when it is pasted into the Item column, in the order Item, Qty, Unit, Unit $. To change one figure, type it.');
+      showAlert('Paste into the Item Column', 'A block from Excel adds lines when it is pasted into the Item column, in the order Item, Qty, Unit, Unit $. To change one figure, type it.');
       return;
     }
     const pasted = coLinesFromPaste(cells, () => createId('coli'));
@@ -1980,7 +1980,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // Lane PAYFIX: no figure is stamped as the contract sum before the row
     // can say where it came from.
     if (contractSumHold) {
-      showAlert('Checking the signed contract', contractSumHold);
+      showAlert('Checking the Signed Contract', contractSumHold);
       return null;
     }
 
@@ -2135,9 +2135,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (!b) { proceed(); return; }
     if (b.kind === 'refuse') { showAlert(b.title, b.message); return; }
     showAlert(b.title, b.message, [
-      { text: 'Change them', style: 'cancel' },
+      { text: 'Change Them', style: 'cancel' },
       {
-        text: 'Keep these prices',
+        text: 'Keep These Prices',
         onPress: () => {
           const ids = new Set(b.lineIds);
           setLineItems(prev => prev.map(l => (ids.has(l.id) ? { ...l, priceSource: undefined } : l)));
@@ -2186,7 +2186,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       `The client signs +${days} day${plural} — keep it?`,
       `${impactDaysSource === 'ai' ? 'The schedule impact was estimated by AI' : 'The schedule impact was taken from your voice note'} and has not been checked. It goes on the change order as the time extension your client approves.`,
       [
-        { text: 'Change it', style: 'cancel' },
+        { text: 'Change It', style: 'cancel' },
         { text: `Keep +${days} day${plural}`, onPress: () => { setImpactDaysSource('user'); proceed(); } },
       ],
     );
@@ -2233,10 +2233,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // #77/#141 — a saved CO whose number MAGE has not confirmed is not sent:
     // the email would carry a number another device may already have used.
     const hold = numberHold('email');
-    if (hold) { showAlert('Not yet', hold); return; }
+    if (hold) { showAlert('Not Yet', hold); return; }
     // Lane PAYFIX: the email prints the original contract sum, so the send
     // waits for the contract read to settle too.
-    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
+    if (contractSumHold) { showAlert('Checking the Signed Contract', contractSumHold); return; }
     withConfirmedPrices(() => withConfirmedImpactDays(() => setShowSendRecipient(true)));
   }, [withConfirmedImpactDays, withConfirmedPrices, numberHold, contractSumHold]);
 
@@ -2301,14 +2301,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       console.error('[CCD] Generate failed:', err);
       // CONTRACT 25 (#147): the blocked-window sentence passes through; any
       // other failure reads plainly. No success haptic on this path.
-      showAlert('Could not generate', pdfFailureMessage(err, "Couldn't build the G714 form. Try again."));
+      showAlert('Could Not Generate', pdfFailureMessage(err, "Couldn't build the G714 form. Try again."));
     }
   }, [project, settings, description, lineItems, nextCoNumber, parsedImpactDays]);
 
   const handleIssueAsCcd = useCallback(() => {
     if (!project) return;
     if (!description.trim()) {
-      showAlert('Add a description', 'A CCD needs a clear description of the work being directed.');
+      showAlert('Add a Description', 'A CCD needs a clear description of the work being directed.');
       return;
     }
     // A signed directive must not print a price his screen isn't showing (#126).
@@ -2321,11 +2321,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       'Issue as a construction change directive?',
       'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
       [
-        { text: 'Lump sum (estimate stated)',  onPress: () => generateCcd('lump_sum') },
-        { text: 'Time & materials',            onPress: () => generateCcd('time_and_materials') },
-        { text: 'Cost-plus fee',               onPress: () => generateCcd('cost_plus') },
-        { text: 'Unit prices in contract',     onPress: () => generateCcd('unit_prices') },
-        { text: 'Pending negotiation',         onPress: () => generateCcd('pending_negotiation') },
+        { text: 'Lump Sum (Estimate Stated)',  onPress: () => generateCcd('lump_sum') },
+        { text: 'Time & Materials',            onPress: () => generateCcd('time_and_materials') },
+        { text: 'Cost-Plus Fee',               onPress: () => generateCcd('cost_plus') },
+        { text: 'Unit Prices in Contract',     onPress: () => generateCcd('unit_prices') },
+        { text: 'Pending Negotiation',         onPress: () => generateCcd('pending_negotiation') },
         { text: 'Cancel', style: 'cancel' },
       ],
     ));
@@ -2380,7 +2380,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
-      showAlert('Add an email', 'Enter the recipient email address.');
+      showAlert('Add an Email', 'Enter the recipient email address.');
       return;
     }
     // Sample fence (utils/sampleGuard): a sample job is a real synced row a
@@ -2389,7 +2389,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // written or sent. (The tutorial practice pass never opens this screen:
     // it is opt-in on punch-walk / invoice / the hub only.)
     if (!sampleSendAllowed(project ?? '', sendRecipientEmail, authEmailRef.current)) {
-      showAlert('Sample job', `Change orders on a sample job go only to you${authEmailRef.current ? ` (${authEmailRef.current})` : ''}. Nothing is sent to a client or a sub.`);
+      showAlert('Sample Job', `Change orders on a sample job go only to you${authEmailRef.current ? ` (${authEmailRef.current})` : ''}. Nothing is sent to a client or a sub.`);
       return;
     }
     // Refuse BEFORE anything goes out — see coSaveBlocker.
@@ -2410,14 +2410,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // first and the send comes back once MAGE has numbered it (saveNewForSend).
     if (!existingCO) { saveNewForSend(); return; }
     const hold = numberHold('email');
-    if (hold) { showAlert('Not yet', hold); return; }
-    if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }
+    if (hold) { showAlert('Not Yet', hold); return; }
+    if (contractSumHold) { showAlert('Checking the Signed Contract', contractSumHold); return; }
     // Lane PAYFIX: a figure MAGE could not check goes to the client only after
     // he has been asked, with the figure named. Nothing is sent on Cancel.
     if (uncheckedSumNotice && uncheckedSumAcceptedRef.current !== originalContractSum) {
       showAlert(uncheckedSumNotice.title, uncheckedSumNotice.message, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Send anyway', onPress: () => { uncheckedSumAcceptedRef.current = originalContractSum; confirmSendRef.current(); } },
+        { text: 'Send Anyway', onPress: () => { uncheckedSumAcceptedRef.current = originalContractSum; confirmSendRef.current(); } },
       ]);
       return;
     }
@@ -2505,7 +2505,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         releaseSending();
         console.warn('[ChangeOrder] send failed:', e);
         const why = ownSentence(e) ?? describeError(e, { action: 'send the change order' }).body;
-        showAlert('Not sent', `The email was not sent and nothing was saved. ${why} Your change order is still open here.`);
+        showAlert('Not Sent', `The email was not sent and nothing was saved. ${why} Your change order is still open here.`);
         return;
       }
 
@@ -2514,7 +2514,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       // exactly as he left it, and we say so rather than returning silently.
       if (result.outcome === 'cancelled') {
         releaseSending();
-        showAlert('Not sent', 'The email was not sent and nothing was saved. Your change order is still open here.');
+        showAlert('Not Sent', 'The email was not sent and nothing was saved. Your change order is still open here.');
         return;
       }
       if (!result.success) console.warn('[ChangeOrder] Email not sent:', result.outcome, result.error);
@@ -2674,14 +2674,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const handleSharePdf = useCallback(async () => {
     if (!coForPdf || !project || pdfBusyRef.current) return;
     const hold = numberHold('pdf');
-    if (hold) { showAlert('Not yet', hold); return; }
+    if (hold) { showAlert('Not Yet', hold); return; }
     pdfBusyRef.current = true;
     try {
       const branding = settings.branding ?? { companyName: 'MAGE ID', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
       const co = coForPdf;
       await generateChangeOrderPDF(co, project, branding);
     } catch (err) {
-      showAlert('Could not make the PDF', pdfFailureMessage(err, "Couldn't build the change order PDF. Try again."));
+      showAlert('Could Not Make the PDF', pdfFailureMessage(err, "Couldn't build the change order PDF. Try again."));
     } finally {
       pdfBusyRef.current = false;
     }
@@ -2733,7 +2733,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // the confirmed words say "unsigned".
   const approveWithoutSigning = useCallback((co: ChangeOrder) => {
     // Lane PAYFIX: the same hold as every other approve, before anything else.
-    if (savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }
+    if (savedBaseHold) { showAlert('Not Yet', savedBaseHold); return; }
     const refusal = coUnconfirmedPriceBlocker(co.lineItems, co.description ?? '', formatCurrency);
     if (refusal?.kind === 'refuse') { showAlert(refusal.title, refusal.message); return; }
     const freeze: COFrozenFields = existingFrozenTaxRate == null ? coTaxFreeze(co.changeAmount, liveTaxRatePct) : {};
@@ -2758,7 +2758,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     setApproveUnsigned(null);
     setApproveSheetCO(null);
     setReflowPreviewCO(null);
-    showAlert('Not yet', savedBaseHold);
+    showAlert('Not Yet', savedBaseHold);
   }, [savedBaseHold, approveOpen]);
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
@@ -2775,7 +2775,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   useSheetPrimaryHotkey(showSendRecipient, sendInFlight ? null : () => void handleConfirmSend(), { saveKey: false });
   useSheetPrimaryHotkey(showAddItem, handleAddNewItem);
   usePrimaryAction(() => withConfirmedImpactDays(() => handleSave('draft')), {
-    label: 'Save change order',
+    label: 'Save Change Order',
     enabled: isDesktop,
     disabled: isLocked,
     reason: 'This change order is locked.',
@@ -2800,7 +2800,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        {logHost ? null : <ToolHeader eyebrow="Change orders · MAGE ID" title="Change orders" />}
+        {logHost ? null : <ToolHeader eyebrow="Change Orders · MAGE ID" title="Change Orders" />}
         <ToolProjectPicker
           toolName="Change orders"
           message="A change order adjusts an existing contract amount, so it is written against one project."
@@ -2823,8 +2823,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       <Stack.Screen options={{ headerShown: false }} />
       {logHost ? null : (
         <ToolHeader
-          eyebrow="Change orders · MAGE ID"
-          title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New change order'}
+          eyebrow="Change Orders · MAGE ID"
+          title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (Pending #)') : 'New Change Order'}
         />
       )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -2911,7 +2911,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     // line stands before both ways this tap can approve: the
                     // schedule preview's slide and confirmApprove's sheet (this
                     // is confirmApprove's only caller).
-                    if (next === 'approved' && savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }
+                    if (next === 'approved' && savedBaseHold) { showAlert('Not Yet', savedBaseHold); return; }
                     // Advancing to approved can now rewrite the Gantt. Same rule
                     // as the project screen: preview first, never on the tap.
                     if (
@@ -2954,7 +2954,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {pipe.canAdvance && existingCO.status !== 'approved' && (
                   <View style={styles.approveUnsignedWrap} testID="co-approve-unsigned">
                     <Button
-                      label="Client approved without signing"
+                      label="Client Approved Without Signing"
                       variant="secondary"
                       onPress={() => approveWithoutSigning(existingCO)}
                       fullWidth
@@ -2978,12 +2978,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 own label — and no original contract sum. */}
             {coRecordBaseOnly ? (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Contract sum prior to this CO</Text>
+                <Text style={styles.totalLabel}>Contract Sum Prior to This CO</Text>
                 <Text style={styles.totalValue}>{formatCurrency(originalContractValue)}</Text>
               </View>
             ) : (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Original contract sum</Text>
+                <Text style={styles.totalLabel}>Original Contract Sum</Text>
                 <Text style={styles.totalValue}>{formatCurrency(originalContractSum)}</Text>
               </View>
             )}
@@ -2994,11 +2994,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             {shownPriorApprovedChanges !== 0 && (
               <>
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Net change by prior approved COs</Text>
+                  <Text style={styles.totalLabel}>Net Change by Prior Approved COs</Text>
                   <Text style={styles.totalValue}>{shownPriorApprovedChanges >= 0 ? '+' : ''}{formatCurrency(shownPriorApprovedChanges)}</Text>
                 </View>
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Contract sum prior to this CO</Text>
+                  <Text style={styles.totalLabel}>Contract Sum Prior to This CO</Text>
                   <Text style={styles.totalValue}>{formatCurrency(originalContractValue)}</Text>
                 </View>
               </>
@@ -3020,7 +3020,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             {coMargin && coMargin.basisKnown && (
               <>
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Your cost</Text>
+                  <Text style={styles.totalLabel}>Your Cost</Text>
                   <Text style={styles.totalValue}>{formatCurrency(coMargin.cost)}</Text>
                 </View>
                 <View style={styles.totalRow}>
@@ -3074,7 +3074,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   </Text>
                 </View>
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>CO Total (incl. tax)</Text>
+                  <Text style={styles.totalLabel}>CO Total (Incl. Tax)</Text>
                   <Text style={styles.totalValueBold}>
                     {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmountWithTax)}
                   </Text>
@@ -3092,7 +3092,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             )}
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
-              <Text style={styles.grandLabel}>{taxRatePct > 0 && changeAmount !== 0 ? 'New contract total (pre-tax)' : 'New contract total'}</Text>
+              <Text style={styles.grandLabel}>{taxRatePct > 0 && changeAmount !== 0 ? 'New Contract Total (Pre-Tax)' : 'New Contract Total'}</Text>
               <TapeRollNumber
                 value={newContractTotal}
                 formatter={formatCurrency}
@@ -3109,9 +3109,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     fill parses with AI) — it steps aside until the run ends. */}
                 {runOnThis ? null : (
                 <InlineVoiceFill
-                  title="Dictate this change order"
+                  title="Dictate This Change Order"
                   contextLine={project?.name ? `for ${project.name}` : undefined}
-                  buttonLabel={existingCO ? 'Add detail by voice' : 'Fill change order by voice'}
+                  buttonLabel={existingCO ? 'Add Detail by Voice' : 'Fill Change Order by Voice'}
                   suggestions={[
                     'Owner wants the heat pump upgrade — change order for forty-five hundred dollars',
                     'Field condition — found knob and tube wiring, two days extra and twelve hundred dollars',
@@ -3175,7 +3175,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               </View>
 
               <View style={styles.fieldSection}>
-                <Text style={styles.fieldLabel}>Reason for change</Text>
+                <Text style={styles.fieldLabel}>Reason for Change</Text>
                 <TextInput
                   style={styles.input}
                   value={reason}
@@ -3189,7 +3189,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               {(() => {
                 const daysSection = (
                   <View style={styles.fieldSection}>
-                    <Text style={styles.fieldLabel}>Schedule Impact (days)</Text>
+                    <Text style={styles.fieldLabel}>Schedule Impact (Days)</Text>
                     <TextInput
                       style={[styles.input, isDesktop && styles.inputXsDesktop]}
                       value={scheduleImpactDays}
@@ -3255,7 +3255,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {declineLine && (
                   <View style={styles.declineBox} testID="co-decline-line">
                     <Text style={styles.declineTitle}>
-                      Declined by {declineLine.who}{declineLine.when ? ` on ${formatCalendarDay(calendarDayOf(declineLine.when) ?? declineLine.when)}` : ''}
+                      Declined By {declineLine.who}{declineLine.when ? ` on ${formatCalendarDay(calendarDayOf(declineLine.when) ?? declineLine.when)}` : ''}
                     </Text>
                     <Text style={styles.lockedSub}>
                       {declineLine.reason ? `Their reason: ${declineLine.reason}` : 'No reason given.'}
@@ -3265,7 +3265,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {/* #73 — the way forward the decline email names. */}
                 {existingCO?.status === 'rejected' && (
                   <Button
-                    label="Revise & re-issue"
+                    label="Revise & Re-Issue"
                     variant="primary"
                     size="sm"
                     onPress={handleReviseReissue}
@@ -3285,7 +3285,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {approvalLine && (
                   <View style={[styles.approvalBox, approvalLine.kind === 'manual' && styles.approvalBoxManual]} testID="co-approval-line">
                     <Text style={styles.approvalTitle}>
-                      {approvalLine.kind === 'client_signed' ? 'Client signature' : approvalLine.kind === 'manual' ? 'Approval' : 'Client approval'}
+                      {approvalLine.kind === 'client_signed' ? 'Client Signature' : approvalLine.kind === 'manual' ? 'Approval' : 'Client Approval'}
                     </Text>
                     <Text style={styles.lockedSub}>{approvalLine.text}</Text>
                   </View>
@@ -3329,7 +3329,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
           <View style={styles.fieldSection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.fieldLabel}>Line items</Text>
+              <Text style={styles.fieldLabel}>Line Items</Text>
               {isDesktopWeb && (
                 <SegmentedControl
                   size="sm"
@@ -3619,7 +3619,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   </>
                 ) : (
                   <>
-                    <Button label="Bill this change order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
+                    <Button label="Bill This Change Order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
                     <ActionBarReadout><Text style={styles.coBillNote}>{coBilling.reason}</Text></ActionBarReadout>
                   </>
                 )}
@@ -3634,7 +3634,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           <View style={[styles.modalOverlay, fSend.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Send for approval to</Text>
+                <Text style={styles.modalTitle}>Send for Approval To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3658,7 +3658,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       {`${NO_CLIENT_ON_FILE}. Add the client on the project once and every change order fills it in.`}
                     </Text>
                   ) : null}
-                  <Text style={styles.modalFieldLabel}>Approver name</Text>
+                  <Text style={styles.modalFieldLabel}>Approver Name</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={sendRecipientName}
@@ -3683,7 +3683,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       activeOpacity={0.7}
                     >
                       <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.pickContactText}>Pick from contacts</Text>
+                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -3745,7 +3745,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         visible={showContactPicker}
         onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
         contacts={contacts}
-        title="Select approver"
+        title="Select Approver"
         onSelect={(contact) => {
           const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
           setSendRecipientName(name);
@@ -3761,10 +3761,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           <View style={[styles.modalOverlay, fAddItem.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAddItem.card, fAddItem.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add new item</Text>
+                <Text style={styles.modalTitle}>Add New Item</Text>
                 <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
-              <Text style={styles.modalFieldLabel}>Item name</Text>
+              <Text style={styles.modalFieldLabel}>Item Name</Text>
               <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Description</Text>
               <TextInput style={styles.modalInput} value={newItemDesc} onChangeText={setNewItemDesc} placeholder="Optional description" placeholderTextColor={themeColors.textMuted} />
@@ -3778,7 +3778,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft" placeholderTextColor={themeColors.textMuted} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalFieldLabel}>Your cost</Text>
+                  <Text style={styles.modalFieldLabel}>Your Cost</Text>
                   <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" testID="co-new-item-cost" />
                 </View>
                 {/* The control this modal never had. Name / Description /
@@ -3809,7 +3809,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     : 'At 0% this line goes to the client at what it costs you — no overhead, no profit.'}
               </Text>
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
-                <Text style={styles.modalAddBtnText}>Add item</Text>
+                <Text style={styles.modalAddBtnText}>Add Item</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -3820,7 +3820,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         <View style={[styles.modalOverlay, fEstimate.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }, fEstimate.card, fEstimate.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add from estimate</Text>
+              <Text style={styles.modalTitle}>Add from Estimate</Text>
               <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -3856,7 +3856,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         <View style={[styles.modalOverlay, fMaterial.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }, fMaterial.card, fMaterial.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Search materials</Text>
+              <Text style={styles.modalTitle}>Search Materials</Text>
               <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 

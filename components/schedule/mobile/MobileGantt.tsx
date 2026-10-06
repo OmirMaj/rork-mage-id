@@ -594,7 +594,7 @@ export function MobileGantt({
           {bottomSpacerH > 0 && <View style={{ height: bottomSpacerH }} />}
           <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-gantt-add">
             <Plus size={15} color={colors.accent} strokeWidth={1.75} />
-            <Text style={styles.addText}>New work package</Text>
+            <Text style={styles.addText}>New Work Package</Text>
           </TouchableOpacity>
         </View>
 

@@ -55,7 +55,7 @@ export function LevelingPreviewModal(props: {
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
           {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
-            <Text style={styles.modalTitle}>Fix overloads</Text>
+            <Text style={styles.modalTitle}>Fix Overloads</Text>
             <TouchableOpacity
               onPress={props.onClose}
               hitSlop={8}
@@ -107,9 +107,9 @@ export function LevelingPreviewModal(props: {
               style={[styles.btn, styles.btnPrimary]}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Apply leveling"
+              accessibilityLabel="Apply Leveling"
             >
-              <Text style={styles.btnPrimaryText}>Apply leveling</Text>
+              <Text style={styles.btnPrimaryText}>Apply Leveling</Text>
             </TouchableOpacity>
           </View>
         </View>

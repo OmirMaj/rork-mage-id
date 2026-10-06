@@ -31,7 +31,7 @@ export function TaskChecklist({ items, onToggle, onAdd }: TaskChecklistProps) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title}>Task checklist</Text>
+        <Text style={styles.title}>Task Checklist</Text>
         <Text style={styles.count}>{doneCount}/{items.length}</Text>
       </View>
       {items.map((it) => (

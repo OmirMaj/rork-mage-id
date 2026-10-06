@@ -14,7 +14,7 @@ export interface BillingApplied {
 
 export const billingCapability: CopilotCapability<BillingDraft, BillingApplied> = {
   id: 'invoice',
-  label: 'Bill the client',
+  label: 'Bill the Client',
   aiFeature: 'invoicePrediction',
   maxQuestions: 1,
   askThreshold: 0.4,

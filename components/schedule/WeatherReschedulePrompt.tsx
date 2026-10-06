@@ -171,7 +171,7 @@ function WeatherReschedulePromptImpl({
             {fWx.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Weather conflicts</Text>
+                <Text style={styles.modalTitle}>Weather Conflicts</Text>
                 <Text style={styles.modalSub}>
                   Each task below will start on a non-workable day. Tap a row to push just that task, or use Push all to move every conflict at once.
                 </Text>
@@ -225,7 +225,7 @@ function WeatherReschedulePromptImpl({
                 activeOpacity={0.85}
               >
                 <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.modalPrimaryText}>Push all {conflicts.length}</Text>
+                <Text style={styles.modalPrimaryText}>Push All {conflicts.length}</Text>
               </TouchableOpacity>
             </View>
           </View>

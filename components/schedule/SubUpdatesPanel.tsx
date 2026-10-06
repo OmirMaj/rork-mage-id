@@ -105,7 +105,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
         >
           <Activity size={12} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.chipText} numberOfLines={1}>
-            Sub updates · {todayUpdates.length} today{blockerCount > 0 ? ` · ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}
+            Sub Updates · {todayUpdates.length} today{blockerCount > 0 ? ` · ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -122,7 +122,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
           <Activity size={14} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.tileLabel}>Sub updates</Text>
+          <Text style={styles.tileLabel}>Sub Updates</Text>
           <Text style={styles.tileSub}>
             {todayUpdates.length} today
             {uniqueSubsToday > 0 ? ` from ${uniqueSubsToday} sub${uniqueSubsToday === 1 ? '' : 's'}` : ''}
@@ -145,7 +145,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
             {fSub.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Sub updates</Text>
+                <Text style={styles.modalTitle}>Sub Updates</Text>
                 <Text style={styles.modalSub}>
                   Daily updates posted by subs from the shared schedule link.
                 </Text>
@@ -159,7 +159,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
             <View style={styles.statsRow}>
               <View style={styles.statCol}>
                 <Text style={styles.statValue}>{updates.length}</Text>
-                <Text style={styles.statLabel}>Total updates</Text>
+                <Text style={styles.statLabel}>Total Updates</Text>
               </View>
               <View style={styles.statCol}>
                 <Text style={styles.statValue}>{todayUpdates.length}</Text>
@@ -217,7 +217,7 @@ function UpdateRow({
     >
       <View style={styles.rowHead}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>{task?.title ?? '(deleted task)'}</Text>
+          <Text style={styles.rowTitle}>{task?.title ?? '(Deleted Task)'}</Text>
           <Text style={styles.rowMeta}>
             {update.subName} · {timeAgo(update.postedAt)}
           </Text>

@@ -109,7 +109,7 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
       <View style={styles.actions}>
         {!recorded ? (
           <Button
-            label="Apply to this bill"
+            label="Apply to This Bill"
             variant="secondary"
             size="sm"
             disabled={taken.length === 0}
@@ -119,7 +119,7 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
         ) : null}
         {note ? (
           <Button
-            label="Send note to sub"
+            label="Send Note to Sub"
             variant="ghost"
             size="sm"
             onPress={() => { void shareNote(); }}

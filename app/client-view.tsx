@@ -98,7 +98,7 @@ function formatDate(iso: string | undefined, opts: Intl.DateTimeFormatOptions): 
 // Status words the client reads come from a label map, never the raw enum
 // (docs/VOICE.md §6). Unknown values fall back to a sentence-case humanizer.
 const CO_STATUS_LABEL: Record<ChangeOrderStatus, string> = {
-  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under Review', approved: 'Approved',
   rejected: 'Rejected', revised: 'Revised', void: 'Void',
 };
 const RFI_STATUS_LABEL: Record<RFIStatus, string> = {
@@ -151,17 +151,17 @@ function portalFailureCopy(
       };
     case 'not_published':
       return {
-        title: 'Nothing here yet',
+        title: 'Nothing Here Yet',
         body: 'Your contractor hasn\'t published anything to this portal yet. It fills in as soon as they do.',
       };
     case 'unreachable':
       return {
-        title: 'Couldn\'t load your portal',
+        title: 'Couldn\'t Load Your Portal',
         body: 'Couldn\'t reach the server. Check your connection and try again.',
       };
     default:
       return {
-        title: 'Couldn\'t find this portal',
+        title: 'Couldn\'t Find This Portal',
         body: 'This link doesn\'t match any portal. Ask your contractor to send you a new link.',
       };
   }
@@ -923,11 +923,11 @@ export default function ClientViewScreen() {
     const project = localProject;
     if (!approvalCO || !project) return;
     if (!approverName.trim()) {
-      showAlert('Name required', 'Enter your name as it appears on the contract.');
+      showAlert('Name Required', 'Enter your name as it appears on the contract.');
       return;
     }
     if (!rejectionReason.trim()) {
-      showAlert('Reason required', 'Briefly explain why you are rejecting this change order.');
+      showAlert('Reason Required', 'Briefly explain why you are rejecting this change order.');
       return;
     }
 
@@ -1094,7 +1094,7 @@ export default function ClientViewScreen() {
     if (resolving) {
       return (
         <View style={styles.notFoundContainer} testID="client-view-loading">
-          <Stack.Screen options={{ title: 'Client portal', headerShown: false }} />
+          <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
           <ActivityIndicator color={themeColors.accent} />
           <Text style={styles.notFoundSubtitle}>Opening your portal…</Text>
         </View>
@@ -1110,7 +1110,7 @@ export default function ClientViewScreen() {
     );
     return (
       <View style={styles.notFoundContainer} testID={`client-view-${failure}`}>
-        <Stack.Screen options={{ title: 'Client portal', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
         <Globe size={48} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.notFoundTitle}>{copy.title}</Text>
         <Text style={styles.notFoundSubtitle}>{copy.body}</Text>
@@ -1120,9 +1120,9 @@ export default function ClientViewScreen() {
             onPress={remote.reload}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Try again"
+            accessibilityLabel="Try Again"
           >
-            <Text style={styles.notFoundRetryText}>Try again</Text>
+            <Text style={styles.notFoundRetryText}>Try Again</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1199,7 +1199,7 @@ export default function ClientViewScreen() {
           <View style={styles.passcodeIconWrap}>
             <Lock size={32} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.passcodeTitle}>Protected portal</Text>
+          <Text style={styles.passcodeTitle}>Protected Portal</Text>
           <Text style={styles.passcodeSub}>{project.name}</Text>
           <Text style={styles.passcodeDesc}>
             Enter the passcode your contractor gave you to open this portal.
@@ -1236,7 +1236,7 @@ export default function ClientViewScreen() {
             activeOpacity={0.85}
             disabled={verifying}
           >
-            <Text style={styles.passcodeBtnText}>{verifying ? 'Checking passcode…' : 'Open portal'}</Text>
+            <Text style={styles.passcodeBtnText}>{verifying ? 'Checking passcode…' : 'Open Portal'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1267,16 +1267,16 @@ export default function ClientViewScreen() {
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.headerBrand}>
             <Globe size={22} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.headerBrandText}>Client portal</Text>
+            <Text style={styles.headerBrandText}>Client Portal</Text>
           </View>
           <Text style={styles.headerProjectName}>{project.name}</Text>
           <Text style={styles.headerLocation}>{project.location}</Text>
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
-            Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            Last Updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
-              {project.status === 'in_progress' ? 'In progress' : project.status === 'completed' ? 'Completed' : 'Active'}
+              {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
           </View>
         </View>
@@ -1305,7 +1305,7 @@ export default function ClientViewScreen() {
           <View style={styles.decisionsCard}>
             <View style={styles.decisionsHead}>
               <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.decisionsTitle}>Waiting on you</Text>
+              <Text style={styles.decisionsTitle}>Waiting on You</Text>
               <Text style={styles.decisionsSub}>{summarizeOwnerDecisions(ownerDecisions)}</Text>
             </View>
             {ownerDecisions.map(d => {
@@ -1345,7 +1345,7 @@ export default function ClientViewScreen() {
                 <View style={styles.msgEmpty}>
                   <MessageSquare size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.msgEmptyTitle}>
-                    {isSnapshotMode ? 'No messages yet' : 'Ask your contractor anything'}
+                    {isSnapshotMode ? 'No Messages Yet' : 'Ask Your Contractor Anything'}
                   </Text>
                   <Text style={styles.msgEmptyHint}>
                     {isSnapshotMode
@@ -1415,7 +1415,7 @@ export default function ClientViewScreen() {
                     style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
                     onPress={handleSendMessage}
                     disabled={!composeBody.trim() || sendingMsg}
-                    activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send message"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
+                    activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send Message"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
                 </View>
               )}
             </View>
@@ -1426,7 +1426,7 @@ export default function ClientViewScreen() {
         {portal.showSchedule && tasks.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Project schedule"
+              title="Project Schedule"
               icon={<CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />}
               count={tasks.length}
               expanded={expanded.schedule}
@@ -1438,7 +1438,7 @@ export default function ClientViewScreen() {
                     rather than shown as a red 0%. */}
                 {healthScore !== null && (
                   <View style={styles.healthRow}>
-                    <Text style={styles.healthLabel}>Schedule health</Text>
+                    <Text style={styles.healthLabel}>Schedule Health</Text>
                     <View style={styles.healthBar}>
                       <View style={[styles.healthFill, {
                         width: `${healthScore}%` as any,
@@ -1462,7 +1462,7 @@ export default function ClientViewScreen() {
         {proposalBlock && (
           <View style={styles.section}>
             <SectionHeader
-              title="Your proposal"
+              title="Your Proposal"
               icon={<FileSignature size={18} color={themeColors.accent} strokeWidth={1.75} />}
               expanded={expanded.proposal}
               onToggle={() => toggleSection('proposal')}
@@ -1470,7 +1470,7 @@ export default function ClientViewScreen() {
             {expanded.proposal && (
               <View style={styles.sectionBody}>
                 <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Fixed price</Text>
+                  <Text style={styles.budgetLabelTotal}>Fixed Price</Text>
                   <Text style={styles.budgetValueTotal}>{formatMoney(proposalBlock.total)}</Text>
                 </View>
                 {proposalBlock.scope.map(g => (
@@ -1543,7 +1543,7 @@ export default function ClientViewScreen() {
         {portal.showBudgetSummary && (
           <View style={styles.section}>
             <SectionHeader
-              title="Budget summary"
+              title="Budget Summary"
               icon={<BarChart3 size={18} color={themeColors.success} strokeWidth={1.75} />}
               expanded={expanded.budget}
               onToggle={() => toggleSection('budget')}
@@ -1551,19 +1551,19 @@ export default function ClientViewScreen() {
             {expanded.budget && (
               <View style={styles.sectionBody}>
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Original contract</Text>
+                  <Text style={styles.budgetLabel}>Original Contract</Text>
                   <Text style={styles.budgetValue}>{formatMoney(contractValue)}</Text>
                 </View>
                 {coTotal !== 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Approved change orders</Text>
+                    <Text style={styles.budgetLabel}>Approved Change Orders</Text>
                     <Text style={[styles.budgetValue, { color: coTotal > 0 ? themeColors.danger : themeColors.success }]}>
                       {coTotal > 0 ? '+' : ''}{formatMoney(coTotal)}
                     </Text>
                   </View>
                 )}
                 <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Revised contract</Text>
+                  <Text style={styles.budgetLabelTotal}>Revised Contract</Text>
                   <Text style={styles.budgetValueTotal}>{formatMoney(revisedContract)}</Text>
                 </View>
                 <Text style={styles.budgetCaption}>Projected final cost — your contract plus any change orders you&apos;ve approved.</Text>
@@ -1578,22 +1578,22 @@ export default function ClientViewScreen() {
                 </Text>
 
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Total invoiced</Text>
+                  <Text style={styles.budgetLabel}>Total Invoiced</Text>
                   <Text style={styles.budgetValue}>{formatMoney(invoicedTotal)}</Text>
                 </View>
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Total paid</Text>
+                  <Text style={styles.budgetLabel}>Total Paid</Text>
                   <Text style={[styles.budgetValue, { color: themeColors.success }]}>{formatMoney(paidTotal)}</Text>
                 </View>
                 {outstanding > 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Invoiced, due now</Text>
+                    <Text style={styles.budgetLabel}>Invoiced, Due Now</Text>
                     <Text style={[styles.budgetValue, { color: themeColors.accent }]}>{formatMoney(outstanding)}</Text>
                   </View>
                 )}
                 {retentionHeld > 0 && (
                   <View style={styles.budgetRow} testID="client-view-retention-held">
-                    <Text style={styles.budgetLabel}>Retainage held (due at closeout)</Text>
+                    <Text style={styles.budgetLabel}>Retainage Held (Due at Closeout)</Text>
                     <Text style={styles.budgetValue}>{formatMoney(retentionHeld)}</Text>
                   </View>
                 )}
@@ -1635,7 +1635,7 @@ export default function ClientViewScreen() {
                     so the homeowner sees exactly why the number moved. */}
                 {approvedCOs.length > 0 && (
                   <View style={styles.coBreakdown}>
-                    <Text style={styles.coBreakdownTitle}>What changed the price</Text>
+                    <Text style={styles.coBreakdownTitle}>What Changed the Price</Text>
                     {approvedCOs.map(co => (
                       <View key={co.id} style={styles.coLine}>
                         <View style={{ flex: 1 }}>
@@ -1668,7 +1668,7 @@ export default function ClientViewScreen() {
                       testID="portal-financing-button"
                       onPress={() => { void Linking.openURL(portalFinancingUrl); }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check financing options</Text>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check Financing Options</Text>
                     </TouchableOpacity>
                     <Text style={[styles.budgetLabel, { marginTop: 6, textAlign: 'center' }]}>
                       {portalFinancing.disclosure}
@@ -1728,7 +1728,7 @@ export default function ClientViewScreen() {
         {portal.showChangeOrders && changeOrders.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Change orders"
+              title="Change Orders"
               infoTerm="change_order"
               icon={<FileText size={18} color={themeColors.danger} strokeWidth={1.75} />}
               count={changeOrders.length}
@@ -1781,7 +1781,7 @@ export default function ClientViewScreen() {
                             activeOpacity={0.85}
                           >
                             <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
-                            <Text style={[styles.coActionText, { color: '#FFF' }]}>Sign and approve</Text>
+                            <Text style={[styles.coActionText, { color: '#FFF' }]}>Sign and Approve</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1806,7 +1806,7 @@ export default function ClientViewScreen() {
         {portal.showPhotos && photos.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Project photos"
+              title="Project Photos"
               icon={<ImageIcon size={18} color={Colors.purple} strokeWidth={1.75} />}
               count={photos.length}
               expanded={expanded.photos}
@@ -1831,7 +1831,7 @@ export default function ClientViewScreen() {
         {portal.showDailyReports && dailyReports.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Daily reports"
+              title="Daily Reports"
               icon={<ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />}
               count={dailyReports.length}
               expanded={expanded.dailyReports}
@@ -1843,7 +1843,7 @@ export default function ClientViewScreen() {
                   <View key={report.id} style={styles.listRow}>
                     <View style={styles.listRowLeft}>
                       <Text style={styles.listRowTitle}>
-                        {formatDate(report.date, { weekday: 'short', month: 'short', day: 'numeric' }) ?? 'Daily report'}
+                        {formatDate(report.date, { weekday: 'short', month: 'short', day: 'numeric' }) ?? 'Daily Report'}
                       </Text>
                       <Text style={styles.listRowMeta} numberOfLines={2}>{report.workPerformed || 'No summary provided'}</Text>
                     </View>
@@ -1862,7 +1862,7 @@ export default function ClientViewScreen() {
         {portal.showPunchList && punchItems.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Punch list"
+              title="Punch List"
               infoTerm="punch_list"
               icon={<CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
@@ -2041,7 +2041,7 @@ export default function ClientViewScreen() {
           <View style={[styles.modalCard, fApproval.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {approvalMode === 'approve' ? 'Sign and approve' : 'Reject change order'}
+                {approvalMode === 'approve' ? 'Sign and Approve' : 'Reject Change Order'}
               </Text>
               <TouchableOpacity onPress={closeApprovalFlow} disabled={approvingBusy} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
@@ -2073,7 +2073,7 @@ export default function ClientViewScreen() {
                 <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                   {approvalCO && (
                     <View style={styles.modalSummary}>
-                      <Text style={styles.modalSummaryLabel}>Change order #{approvalCO.number}</Text>
+                      <Text style={styles.modalSummaryLabel}>Change Order #{approvalCO.number}</Text>
                       <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
                       <View style={styles.modalSummaryRow}>
                         <Text style={styles.modalSummaryKey}>Change amount</Text>
@@ -2091,7 +2091,7 @@ export default function ClientViewScreen() {
                     </View>
                   )}
 
-                  <Text style={styles.modalFieldLabel}>Your name</Text>
+                  <Text style={styles.modalFieldLabel}>Your Name</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={approverName}
@@ -2101,7 +2101,7 @@ export default function ClientViewScreen() {
                     autoCapitalize="words"
                   />
 
-                  <Text style={styles.modalFieldLabel}>Reason for rejection</Text>
+                  <Text style={styles.modalFieldLabel}>Reason for Rejection</Text>
                   <TextInput
                     style={[styles.modalInput, { minHeight: 100, textAlignVertical: 'top' }]}
                     value={rejectionReason}
@@ -2145,7 +2145,7 @@ export default function ClientViewScreen() {
       >
         <View style={styles.lbBackdrop}>
           <View style={styles.lbHeader}>
-            <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close photo viewer">
+            <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close Photo Viewer">
               <X size={22} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.lbCaption} numberOfLines={1}>

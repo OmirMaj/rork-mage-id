@@ -839,14 +839,14 @@ export function milestoneBillEffect(
   if (milestone.trigger === 'on_invoice') {
     return {
       kind: 'progress',
-      title: 'Billed as work is completed',
+      title: 'Billed as Work Is Completed',
       message: 'Progress payments are billed from Bill from estimate as the work gets done, so this row never becomes one lump invoice.',
     };
   }
   if (!bill.billable) {
     return {
       kind: 'refuse',
-      title: 'Can’t bill this milestone',
+      title: 'Can’t Bill This Milestone',
       message: bill.reason
         ? milestoneBlockMessage(bill.reason, bill.ceiling, bill.amount)
         : 'This milestone can’t be invoiced right now.',
@@ -980,7 +980,7 @@ export function recordPaymentDecision(
 ): RecordPaymentDecision {
   const parsed = parse(typed);
   if (parsed == null || !Number.isFinite(parsed)) {
-    return { kind: 'refuse', title: 'Couldn’t read that amount', message: 'Type it like 12500.00 or 12,500.00.' };
+    return { kind: 'refuse', title: 'Couldn’t Read That Amount', message: 'Type it like 12500.00 or 12,500.00.' };
   }
   const amount = toCents(parsed);
   if (amount <= 0) {
@@ -991,7 +991,7 @@ export function recordPaymentDecision(
     return {
       kind: 'confirm',
       amount,
-      title: 'More than the balance',
+      title: 'More Than the Balance',
       message: `This is ${fmt(toCents(amount - balance))} more than the ${fmt(balance)} balance. Record ${fmt(amount)} anyway?`,
     };
   }
@@ -1608,16 +1608,16 @@ export function invoiceRoleBlockedCopy(
       return { title: '', body: 'Checking your role on this project…' };
     case 'error':
       return {
-        title: 'Couldn’t check your role on this project',
+        title: 'Couldn’t Check Your Role on This Project',
         body: 'MAGE couldn’t load who is on this project, so it can’t tell whether you can bill the client here. Check your connection and try again.',
       };
     case 'paused':
       return {
-        title: 'Waiting for a connection',
+        title: 'Waiting for a Connection',
         body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this project yet."} Invoices open once MAGE can check who owns the project.`,
       };
     case 'collaborator':
-      return { title: 'Only the project owner bills', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
+      return { title: 'Only the Project Owner Bills', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
     default:
       return { title: 'You’re not on this project', body: `This project is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
   }

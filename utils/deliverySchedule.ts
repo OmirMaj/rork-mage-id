@@ -172,7 +172,7 @@ export function classifyDelivery(d: Delivery, nowMs: number = Date.now()): Deliv
   }
 
   if (daysOut === null) {
-    return { delivery: d, daysOut: null, flag: 'ok', label: 'No date set' };
+    return { delivery: d, daysOut: null, flag: 'ok', label: 'No Date Set' };
   }
 
   if (daysOut < 0) {
@@ -191,7 +191,7 @@ export function classifyDelivery(d: Delivery, nowMs: number = Date.now()): Deliv
       daysOut,
       flag: 'unconfirmed',
       label: daysOut === 0
-        ? 'Due today — not confirmed'
+        ? 'Due Today — Not Confirmed'
         : `Due in ${daysOut}d — not confirmed`,
     };
   }
@@ -201,7 +201,7 @@ export function classifyDelivery(d: Delivery, nowMs: number = Date.now()): Deliv
       delivery: d,
       daysOut,
       flag: 'due_soon',
-      label: daysOut === 0 ? 'Arriving today' : daysOut === 1 ? 'Arriving tomorrow' : `Arriving in ${daysOut}d`,
+      label: daysOut === 0 ? 'Arriving Today' : daysOut === 1 ? 'Arriving Tomorrow' : `Arriving in ${daysOut}d`,
     };
   }
 

@@ -57,13 +57,13 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       onScheduleCreated(result.schedule);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Schedule built',
+        'Schedule Built',
         `Created ${result.tasks.length} tasks across ${new Set(result.tasks.map(t => t.phase)).size} phases. ${result.linkedItemCount} estimate items linked to tasks.`,
         [
-          { text: 'Stay here', style: 'cancel' },
+          { text: 'Stay Here', style: 'cancel' },
           // Carry the project the schedule was just generated FOR, or the
           // schedule tab opens on whichever project was last active there.
-          { text: 'View schedule', onPress: () => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: String(Date.now()) } } as any) },
+          { text: 'View Schedule', onPress: () => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: String(Date.now()) } } as any) },
         ],
       );
     } catch (err: any) {
@@ -71,7 +71,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       console.warn('[AIAutoScheduleButton] build failed', rawErrorMessage(err));
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'build the schedule from this estimate' });
-      showAlert(own ? "Couldn't build the schedule" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Build the Schedule" : copy.title, own ?? copy.body);
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
           <MageAIMark size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Schedule from your estimate</Text>
+          <Text style={styles.title}>Schedule from Your Estimate</Text>
           <Text style={styles.subtitle}>
             Builds tasks and dependencies from your {itemCount} line item{itemCount === 1 ? '' : 's'} across {categoryCount} categor{categoryCount === 1 ? 'y' : 'ies'}.
           </Text>
@@ -120,7 +120,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
         ) : (
           <>
             <MageAIMark size={15} color="#FFF" />
-            <Text style={styles.actionBtnText}>Build schedule from estimate</Text>
+            <Text style={styles.actionBtnText}>Build Schedule from Estimate</Text>
           </>
         )}
       </TouchableOpacity>

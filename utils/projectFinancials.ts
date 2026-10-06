@@ -148,11 +148,11 @@ export type ContractSumBasis = ContractSumSource | 'estimate_unread' | 'saved_un
 /** The caption beside an original contract sum, by basis. Screen only: nothing
  *  that goes to an owner, architect or lender prints these. */
 export const CONTRACT_SUM_BASIS_LABEL: Record<ContractSumBasis, string> = {
-  signed_contract: 'Signed contract',
-  estimate: 'Estimate (no signed contract yet)',
-  estimate_unread: 'Estimate (signed contract not checked)',
-  saved_unread: 'As saved (signed contract not checked)',
-  estimate_signed_no_amount: 'Estimate (signed contract has no amount)',
+  signed_contract: 'Signed Contract',
+  estimate: 'Estimate (No Signed Contract Yet)',
+  estimate_unread: 'Estimate (Signed Contract Not Checked)',
+  saved_unread: 'As Saved (Signed Contract Not Checked)',
+  estimate_signed_no_amount: 'Estimate (Signed Contract Has No Amount)',
 };
 
 const sameContractCents = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) < 1;
@@ -521,7 +521,7 @@ export function uncheckedContractSumSendNotice(
 ): { title: string; message: string } | null {
   if (basis !== 'estimate_unread' && basis !== 'saved_unread') return null;
   return {
-    title: 'Signed contract not checked',
+    title: 'Signed Contract Not Checked',
     message: `MAGE ID could not check the signed contract. This change order will show ${money(value)} as the original contract sum. Send anyway?`,
   };
 }

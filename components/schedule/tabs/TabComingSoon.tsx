@@ -62,8 +62,8 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
         ) : (
           <Text style={styles.btnText}>
             {state === 'loading' ? 'Saving…'
-             : state === 'error' ? 'Try again'
-             : 'Notify me when it’s ready'}
+             : state === 'error' ? 'Try Again'
+             : 'Notify Me When It’s Ready'}
           </Text>
         )}
       </Pressable>

@@ -284,7 +284,7 @@ export function MobileScheduleList({
       testID="mobile-list-add"
     >
       <Plus size={16} color={colors.accent} strokeWidth={1.75} />
-      <Text style={styles.addText}>New work package</Text>
+      <Text style={styles.addText}>New Work Package</Text>
     </TouchableOpacity>
   );
 

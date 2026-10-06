@@ -1014,7 +1014,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const handleSyncFromSchedule = useCallback(() => {
     if (isReadOnly) {
       showAlert(
-        'Period locked',
+        'Period Locked',
         isLocked
           ? 'This pay app already has a pay link. Create the next period to revise it.'
           : 'You are viewing the saved certificate. Tap Edit draft to change it.'
@@ -1023,7 +1023,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     }
     if (!project?.schedule || !project.linkedEstimate || !app) {
       showAlert(
-        'No schedule data',
+        'No Schedule Data',
         'This project needs a schedule and a linked estimate to sync progress.'
       );
       return;
@@ -1033,7 +1033,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     const anyLinked = app.lines.some(l => l.linkedTaskId);
     if (projectPct <= 0 && !anyLinked) {
       showAlert(
-        'No progress yet',
+        'No Progress Yet',
         'Schedule shows 0% complete. Update task progress first.'
       );
       return;
@@ -1053,7 +1053,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     });
     if (appliedCount === 0) {
       showAlert(
-        'No progress yet',
+        'No Progress Yet',
         'The project and its linked tasks all show 0% progress.'
       );
       return;
@@ -1129,7 +1129,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const handleSave = useCallback(async () => {
     if (isReadOnly) {
       showAlert(
-        isLocked ? 'Period locked' : 'Viewing the saved certificate',
+        isLocked ? 'Period Locked' : 'Viewing the Saved Certificate',
         isLocked
           ? 'This pay app already has an active pay link. To revise the numbers, create the next period.'
           : 'This is the certificate as it was saved. Tap Edit draft if you need to change it.'
@@ -1255,18 +1255,18 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     // one-tap pay.
     if (stripeNotConnected && due > 0) {
       showAlert(
-        'Saved without a Pay button',
+        'Saved Without a Pay Button',
         'Stripe isn\'t connected, so this pay app was saved without a Pay button on the client portal. Set up Stripe to add Pay buttons to pay apps and invoices.',
         [
           { text: 'Later', style: 'cancel' },
-          { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
+          { text: 'Set Up Stripe', onPress: () => router.push('/payments-setup' as never) },
         ],
       );
     } else if (balanceRefusal && due > 0) {
-      showAlert('Saved without a Pay button', `${balanceRefusal} The pay app is saved without a Pay button.`, [{ text: 'OK', style: 'default' }]);
+      showAlert('Saved Without a Pay Button', `${balanceRefusal} The pay app is saved without a Pay button.`, [{ text: 'OK', style: 'default' }]);
     } else if (stripeFailureReason && due > 0) {
       showAlert(
-        'Pay button not added',
+        'Pay Button Not Added',
         'Stripe couldn\'t make the pay link. The pay app is saved. Share it again later to add a Pay button.',
         [{ text: 'OK', style: 'default' }],
       );
@@ -1433,7 +1433,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const requestGenerate = useCallback(() => {
     if (isLocked) {
       showAlert(
-        'Period locked',
+        'Period Locked',
         'This pay app has already been generated. Create the next period to make a new PDF and pay link.'
       );
       return;
@@ -1459,7 +1459,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       );
     } catch (err) {
       // CONTRACT 25 (#147): a blocked web window now throws — say so.
-      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app PDF couldn’t be generated. Try again.'));
+      showAlert('Couldn’t Generate the PDF', pdfFailureMessage(err, 'The pay app PDF couldn’t be generated. Try again.'));
     } finally {
       setGenerating(false);
     }
@@ -1604,7 +1604,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       );
     } catch (err) {
       // The certification is stored; only the PDF did not open.
-      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app is certified, but its PDF couldn’t be generated. Tap Reprint to try again.'));
+      showAlert('Couldn’t Generate the PDF', pdfFailureMessage(err, 'The pay app is certified, but its PDF couldn’t be generated. Tap Reprint to try again.'));
     } finally {
       setGenerating(false);
     }
@@ -1756,7 +1756,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   if (!project || forceProjectPick) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Pay apps' }} />
+        <Stack.Screen options={{ title: 'Pay Apps' }} />
         <ToolProjectPicker
           toolName="Pay apps"
           message="An AIA-style G702 / G703 certifies one billing period against one project's schedule of values."
@@ -1779,7 +1779,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   if (!invoice) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Pay apps' }} />
+        <Stack.Screen options={{ title: 'Pay Apps' }} />
         <ScrollView contentContainerStyle={styles.periodPickContent} showsVerticalScrollIndicator={false}>
           {progressInvoices.length === 0 ? (
             // The blocked case, said plainly: this is not "nothing here", it is
@@ -1789,7 +1789,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               icon={<MagePayApp size={36} color={themeColors.accent} />}
               title={`${project.name} has no progress invoice yet`}
               message="A pay app certifies one billing period, and each period is a progress invoice. MAGE fills the AIA-style G702/G703 from that invoice's schedule of values."
-              actionLabel="Create a progress invoice"
+              actionLabel="Create a Progress Invoice"
               onAction={() => router.push({
                 pathname: '/bill-from-estimate' as never,
                 params: { projectId: project.id, type: 'progress' } as never,
@@ -1801,7 +1801,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 {project.name} has {progressInvoices.length} progress invoices. A pay
                 app certifies one period. Pick the one you are billing.
               </Text>
-              <Text style={styles.periodPickTitle}>Pick a billing period</Text>
+              <Text style={styles.periodPickTitle}>Pick a Billing Period</Text>
               <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.pickPeriod" />}>
               {progressInvoices.map(inv => (
                 <TouchableOpacity
@@ -1833,10 +1833,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             onPress={() => setForceProjectPick(true)}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Pick a different project"
+            accessibilityLabel="Pick a Different Project"
             testID="aia-pick-other-project"
           >
-            <Text style={styles.periodPickAltText}>Different project</Text>
+            <Text style={styles.periodPickAltText}>Different Project</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -1846,7 +1846,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   if (!app || !totals) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Pay app' }} />
+        <Stack.Screen options={{ title: 'Pay App' }} />
         <ConstructionLoader size="lg" />
       </View>
     );
@@ -1861,12 +1861,12 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const g703Foot = g703Footer(app);
   const g703Columns: LineItemColumn<AIASOVLine>[] = [
     { key: 'itemNo', label: 'A Item', width: 48, getValue: (l) => draftOf(l, 'itemNo') ?? l.itemNo },
-    { key: 'description', label: 'B Description of work', flex: 1, maxWidth: Layout.field.search, getValue: (l) => draftOf(l, 'description') ?? l.description },
-    { key: 'scheduled', label: 'C Scheduled value', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'scheduled') ?? l.scheduledValue.toFixed(2) },
-    { key: 'fromPrevious', label: 'D From previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
-    { key: 'thisPeriod', label: 'E This period', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'thisPeriod') ?? l.thisPeriod.toFixed(2) },
+    { key: 'description', label: 'B Description of Work', flex: 1, maxWidth: Layout.field.search, getValue: (l) => draftOf(l, 'description') ?? l.description },
+    { key: 'scheduled', label: 'C Scheduled Value', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'scheduled') ?? l.scheduledValue.toFixed(2) },
+    { key: 'fromPrevious', label: 'D from Previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
+    { key: 'thisPeriod', label: 'E This Period', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'thisPeriod') ?? l.thisPeriod.toFixed(2) },
     { key: 'stored', label: 'F Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'stored') ?? l.materialsPresentlyStored.toFixed(2) },
-    { key: 'completed', label: 'G Completed & stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },
+    { key: 'completed', label: 'G Completed & Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },
     {
       key: 'percent', label: '% (G ÷ C)', kind: 'number', width: 56, total: true, format: (n) => n.toFixed(1),
       getValue: (l) => {
@@ -1874,7 +1874,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         return draftOf(l, 'percent') ?? (pct == null ? '' : pct.toFixed(1));
       },
     },
-    { key: 'balance', label: 'H Balance to finish', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).balanceToFinish },
+    { key: 'balance', label: 'H Balance to Finish', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).balanceToFinish },
     { key: 'retainage', label: 'I Retainage', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).retainage },
   ];
   const renderG703Grid = () => (
@@ -1920,7 +1920,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     <>
       <Stack.Screen
         options={{
-          title: 'Progress billing',
+          title: 'Progress Billing',
           headerLeft: () => (
             <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.back" />}>
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
@@ -1939,8 +1939,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       >
         <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>
         <FeatureHeader
-          eyebrow="AIA-style G702 / G703"
-          title="Bill for this period"
+          eyebrow="AIA-Style G702 / G703"
+          title="Bill for This Period"
           subtitle="Turn your % complete into a draft AIA-style pay application. Fills in the contract sum, retainage and schedule of values."
           explainer={{
             term: 'AIA-style pay app',
@@ -1972,11 +1972,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 onPress={handleReprint}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Print this saved pay app"
+                accessibilityLabel="Print This Saved Pay App"
                 testID="aia-reprint"
               >
                 <Printer size={15} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.sovFooterBtnText}>Print as saved</Text>
+                <Text style={styles.sovFooterBtnText}>Print as Saved</Text>
               </TouchableOpacity>
               {!isLocked && (
                 <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.editDraft" />}>
@@ -1985,7 +1985,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   onPress={() => setEditRequested(true)}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Edit this draft pay app"
+                  accessibilityLabel="Edit This Draft Pay App"
                   testID="aia-edit-draft"
                 >
                   <Pencil size={15} color={themeColors.accent} strokeWidth={2} />
@@ -2018,9 +2018,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               onPress={() => router.back()}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Back to invoice to create next period"
+              accessibilityLabel="Back to Invoice to Create Next Period"
             >
-              <Text style={styles.lockedBannerCtaText}>Back to invoice →</Text>
+              <Text style={styles.lockedBannerCtaText}>Back to Invoice →</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2049,7 +2049,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroTitleBlock}>
               <Text style={styles.heroLabel}>G702 · G703</Text>
-              <Text style={styles.heroTitle}>Pay app #{app.applicationNumber}</Text>
+              <Text style={styles.heroTitle}>Pay App #{app.applicationNumber}</Text>
               <Text style={styles.heroSub}>{project.name}</Text>
               {savedForThisAppNumber && (
                 <PortalStatusPill portalState={savedForThisAppNumber.portalState} itemUpdatedAt={savedForThisAppNumber.savedAt} />
@@ -2071,7 +2071,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
 
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Contract sum</Text>
+              <Text style={styles.heroStatLabel}>Contract Sum</Text>
               <Text style={styles.heroStatValue}>{formatMoney(app.contractSumToDate)}</Text>
               {app.netChangeByCO !== 0 && (
                 <Text style={styles.heroStatSub}>
@@ -2080,7 +2080,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               )}
             </View>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Due this period</Text>
+              <Text style={styles.heroStatLabel}>Due This Period</Text>
               <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>
                 {formatMoney(totals.currentPaymentDue)}
               </Text>
@@ -2091,9 +2091,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
 
         {/* Header meta */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Pay app details</Text>
+          <Text style={styles.sectionTitle}>Pay App Details</Text>
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Owner name</Text>
+            <Text style={styles.formLabel}>Owner Name</Text>
             <TextInput
               style={styles.formInput}
               value={app.ownerName}
@@ -2173,7 +2173,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               fields were added for. They are checked with the same predicate
               the consumers use, and the error is stated at the field. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Period from</Text>
+            <Text style={styles.formLabel}>Period From</Text>
             <TextInput
               style={styles.formInput}
               value={app.periodFrom ?? ''}
@@ -2194,7 +2194,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           )}
           <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.periodTo" />}>
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Period to</Text>
+            <Text style={styles.formLabel}>Period To</Text>
             <TextInput
               style={styles.formInput}
               value={app.periodTo ?? ''}
@@ -2215,7 +2215,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             </Text>
           )}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Pay app date</Text>
+            <Text style={styles.formLabel}>Pay App Date</Text>
             <TextInput
               style={styles.formInput}
               value={app.applicationDate ?? ''}
@@ -2237,7 +2237,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               hardcoded `undefined` by the seeder with no control anywhere, so
               the box printed an em dash on every certificate forever. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Contract date</Text>
+            <Text style={styles.formLabel}>Contract Date</Text>
             <TextInput
               style={styles.formInput}
               value={app.contractDate ?? ''}
@@ -2268,7 +2268,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           )}
 
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Less previous certificates</Text>
+            <Text style={styles.formLabel}>Less Previous Certificates</Text>
             <MoneyField
               style={styles.formInput}
               value={app.lessPreviousCertificates}
@@ -2385,7 +2385,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             figure when there is one.
           </Text>
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Amount certified</Text>
+            <Text style={styles.formLabel}>Amount Certified</Text>
             {app.amountCertified == null ? (
               <TouchableOpacity
                 style={[styles.chip, certReadOnly && styles.chipOff]}
@@ -2394,7 +2394,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 activeOpacity={0.8}
                 testID="aia-record-certified"
               >
-                <Text style={styles.chipText}>Not certified yet · Record it</Text>
+                <Text style={styles.chipText}>Not Certified Yet · Record It</Text>
               </TouchableOpacity>
             ) : (
               <MoneyField
@@ -2409,7 +2409,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           {app.amountCertified != null && (
             <>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Certified date</Text>
+                <Text style={styles.formLabel}>Certified Date</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.certifiedDate ?? ''}
@@ -2464,7 +2464,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               onPress={handleSaveCertification}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Save the architect's certified amount"
+              accessibilityLabel="Save the Architect's Certified Amount"
               testID="aia-save-certification"
             >
               <Save size={15} color={themeColors.accent} strokeWidth={2} />
@@ -2482,10 +2482,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 onPress={() => { if (savedForThisInvoice) void remintCertifiedPayLink(savedForThisInvoice); }}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Try replacing the pay link again"
+                accessibilityLabel="Try Replacing the Pay Link Again"
                 testID="aia-cert-remint-retry"
               >
-                <Text style={styles.sovFooterBtnText}>Replace the pay link again</Text>
+                <Text style={styles.sovFooterBtnText}>Replace the Pay Link Again</Text>
               </TouchableOpacity>
             </>
           )}
@@ -2514,7 +2514,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           {app.notarize && (
             <>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>State of</Text>
+                <Text style={styles.formLabel}>State Of</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.notaryState ?? ''}
@@ -2526,7 +2526,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 />
               </View>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>County of</Text>
+                <Text style={styles.formLabel}>County Of</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.notaryCounty ?? ''}
@@ -2549,10 +2549,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             testID="aia-g702-strip"
             style={isDesktop && styles.kpiDesktop}
             cells={[
-              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2), sub: lineOne.short ?? undefined },
+              { key: 'original', label: 'Original Contract', value: formatMoney(app.originalContractSum, 2), sub: lineOne.short ?? undefined },
               { key: 'net-co', label: 'Net COs', value: `${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}` },
-              { key: 'to-date', label: 'Contract to date', value: formatMoney(app.contractSumToDate, 2) },
-              { key: 'completed', label: 'Completed & stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
+              { key: 'to-date', label: 'Contract to Date', value: formatMoney(app.contractSumToDate, 2) },
+              { key: 'completed', label: 'Completed & Stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
               {
                 key: 'retainage',
                 label: 'Retainage',
@@ -2560,9 +2560,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   ? `+${formatMoney(Math.abs(totals.totalRetainage), 2)}`
                   : `-${formatMoney(totals.totalRetainage, 2)}`,
               },
-              { key: 'earned', label: 'Earned less retainage', value: formatMoney(totals.totalEarnedLessRetainage, 2) },
-              { key: 'previous', label: 'Previous certificates', value: `-${formatMoney(app.lessPreviousCertificates, 2)}` },
-              { key: 'due', label: 'Current payment due', value: formatMoney(totals.currentPaymentDue, 2), tone: 'good' },
+              { key: 'earned', label: 'Earned Less Retainage', value: formatMoney(totals.totalEarnedLessRetainage, 2) },
+              { key: 'previous', label: 'Previous Certificates', value: `-${formatMoney(app.lessPreviousCertificates, 2)}` },
+              { key: 'due', label: 'Current Payment Due', value: formatMoney(totals.currentPaymentDue, 2), tone: 'good' },
             ]}
           />
         ) : null}
@@ -2571,7 +2571,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.g703" />}>
         <View style={styles.section} {...(isDesktopWeb ? { onLayout: sovBox.onLayout } : null)}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Schedule of values (G703)</Text>
+            <Text style={styles.sectionTitle}>Schedule of Values (G703)</Text>
             <View style={styles.sovHeaderActions}>
               {isDesktopWeb && (
                 <SegmentedControl
@@ -2589,7 +2589,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   activeOpacity={0.8}
                   testID="aia-sync-from-schedule"
                 >
-                  <Text style={styles.chipText}>Sync from schedule</Text>
+                  <Text style={styles.chipText}>Sync from Schedule</Text>
                 </TouchableOpacity>
               )}
               {!isReadOnly && (
@@ -2598,11 +2598,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   style={[styles.chip, sovEditing && styles.chipActive]}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={sovEditing ? 'Done editing the schedule of values' : 'Edit the schedule of values'}
+                  accessibilityLabel={sovEditing ? 'Done Editing the Schedule of Values' : 'Edit the Schedule of Values'}
                   testID="aia-sov-edit-toggle"
                 >
                   <Text style={[styles.chipText, sovEditing && styles.chipTextActive]}>
-                    {sovEditing ? 'Done' : 'Edit lines'}
+                    {sovEditing ? 'Done' : 'Edit Lines'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -2792,7 +2792,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                     holds a different percentage on one trade is ordinary. */}
                 {sovEditing && !isReadOnly && (
                   <View style={styles.sovRetainageRow}>
-                    <Text style={styles.sovValueLabel}>Retainage on this line</Text>
+                    <Text style={styles.sovValueLabel}>Retainage on This Line</Text>
                     <TextInput
                       style={[styles.formInput, { width: 66, textAlign: 'center' }]}
                       value={String(line.retainagePercent)}
@@ -2900,7 +2900,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   >
                     <PackageCheck size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.sovInstalledText}>
-                      Installed this period: move {formatMoney(line.materialsPresentlyStored, 2)} from
+                      Installed This Period: Move {formatMoney(line.materialsPresentlyStored, 2)} from
                       stored into this period
                     </Text>
                   </TouchableOpacity>
@@ -2970,11 +2970,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 style={styles.sovFooterBtn}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Add a schedule of values line"
+                accessibilityLabel="Add a Schedule of Values Line"
                 testID="aia-add-sov-line"
               >
                 <Plus size={15} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.sovFooterBtnText}>Add line</Text>
+                <Text style={styles.sovFooterBtnText}>Add Line</Text>
               </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -2994,21 +2994,21 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
 
         {/* Running totals */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Summary (G702 cover)</Text>
+          <Text style={styles.sectionTitle}>Summary (G702 Cover)</Text>
           <View style={styles.totalsCard}>
             {/* CENTS, on every platform: the PDF the GC certifies prints cents,
                 and a summary a dollar off it is two documents (founder
                 default 2, wave 6d). */}
-            <Row label="Original contract sum" value={formatMoney(app.originalContractSum, 2)} />
+            <Row label="Original Contract Sum" value={formatMoney(app.originalContractSum, 2)} />
             {/* Lane PAYFIX: where line 1 came from — the signed contract, or
                 the estimate and why. */}
             {lineOne.caption ? (
               <Text style={styles.sovBasisNote} testID="aia-line1-source">{lineOne.caption}</Text>
             ) : null}
-            <Row label="Net change by change orders" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
-            <Row label="Contract sum to date" value={formatMoney(app.contractSumToDate, 2)} bold />
+            <Row label="Net Change by Change Orders" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
+            <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate, 2)} bold />
             <Divider />
-            <Row label="Total completed and stored" value={formatMoney(totals.totalCompletedAndStored, 2)} />
+            <Row label="Total Completed and Stored" value={formatMoney(totals.totalCompletedAndStored, 2)} />
             {/* A deductive change-order line carries NEGATIVE retainage, which
                 can make the certificate's total retainage a net add-back. The
                 hardcoded "-" prefix printed "--$250.00" on that certificate,
@@ -3020,11 +3020,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 : `-${formatMoney(totals.totalRetainage, 2)}`}
               dim
             />
-            <Row label="Total earned less retainage" value={formatMoney(totals.totalEarnedLessRetainage, 2)} />
-            <Row label="Less previous certificates" value={`-${formatMoney(app.lessPreviousCertificates, 2)}`} dim />
+            <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage, 2)} />
+            <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates, 2)}`} dim />
             <Divider />
-            <Row label="Current payment due" value={formatMoney(totals.currentPaymentDue, 2)} highlight />
-            <Row label="Balance to finish" value={formatMoney(totals.balanceToFinish, 2)} dim />
+            <Row label="Current Payment Due" value={formatMoney(totals.currentPaymentDue, 2)} highlight />
+            <Row label="Balance to Finish" value={formatMoney(totals.balanceToFinish, 2)} dim />
           </View>
 
           {/* Early-access interest capture, next to the figures they would
@@ -3038,7 +3038,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               <RevenueEarlyAccessCard
                 eventKey="revenue.factoring.altline"
                 icon={Banknote}
-                headline="Advances on certified pay apps"
+                headline="Advances on Certified Pay Apps"
                 body="Pay-app money waits with the owner until they certify and release it. We are looking at a factoring partner that could advance part of a certified amount. No partner is signed yet, so there are no rates or timelines to show."
                 footer="Not available yet. Tap to be told when it is."
                 testID="aia-factoring-cta"
@@ -3087,7 +3087,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 : <Printer size={18} color="#FFF" strokeWidth={1.75} />
               }
               <Text style={styles.generateBtnText}>
-                {generating ? 'Generating…' : 'Print as saved'}
+                {generating ? 'Generating…' : 'Print as Saved'}
               </Text>
             </TouchableOpacity>
           </ActionBar>
@@ -3104,7 +3104,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               : <Save size={18} color={themeColors.accent} strokeWidth={1.75} />
             }
             <Text style={styles.saveBtnText}>
-              {savedFlash ? 'Saved to project' : 'Save to project'}
+              {savedFlash ? 'Saved to Project' : 'Save to Project'}
             </Text>
           </TouchableOpacity>
           </TutorialWrap>
@@ -3143,7 +3143,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             <View style={styles.modalIconWrap}>
               <ShieldAlert size={26} color={themeColors.warningLabel} strokeWidth={1.75} />
             </View>
-            <Text style={styles.modalTitle}>Legal note</Text>
+            <Text style={styles.modalTitle}>Legal Note</Text>
             <Text style={styles.modalBody}>
               MAGE ID generates draft pay applications styled after AIA G702 / G703.{' '}
               <Text style={styles.modalBodyEmph}>
@@ -3157,7 +3157,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               </Text>
             </Text>
             <TouchableOpacity style={styles.modalCta} onPress={dismissFirstUseDisclaimer}>
-              <Text style={styles.modalCtaText}>I understand</Text>
+              <Text style={styles.modalCtaText}>I Understand</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -3212,7 +3212,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               accessibilityRole="button"
               testID="aia-certify-recheck"
             >
-              <Text style={styles.modalCtaSecondaryText}>Let me re-check</Text>
+              <Text style={styles.modalCtaSecondaryText}>Let Me Re-Check</Text>
             </TouchableOpacity>
           </View>
         </View>

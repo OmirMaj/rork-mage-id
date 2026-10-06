@@ -64,7 +64,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
       'Void this backcharge?',
       `${b.reason} — ${formatCents(b.amountCents)}. It will not come off any bill.`,
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: 'Keep It', style: 'cancel' },
         { text: 'Void', style: 'destructive', onPress: () => voidOne(b.id) },
       ],
     );
@@ -113,7 +113,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
           return (
             <View key={b.id} style={[styles.row, i > 0 && styles.divider]} testID={`backcharge-row-${b.id}`}>
               {thumb ? (
-                <Image source={{ uri: thumb }} style={styles.thumb} accessibilityLabel="Backcharge photo" />
+                <Image source={{ uri: thumb }} style={styles.thumb} accessibilityLabel="Backcharge Photo" />
               ) : (
                 <View style={[styles.thumb, styles.thumbEmpty]}>
                   <Camera size={16} color={t.textMuted} strokeWidth={1.75} />
@@ -157,7 +157,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
       </Card>
       <View style={styles.actions}>
         <Button
-          label="New backcharge"
+          label="New Backcharge"
           variant="secondary"
           size="sm"
           disabled={!loaded}

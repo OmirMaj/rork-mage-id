@@ -82,7 +82,7 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
         return <Text style={[styles.num, a !== null && a < 0 && { color: t.dangerLabel }]}>{logMoney(a, true) ?? '—'}</Text>;
       },
     },
-    { key: 'days', label: 'Sched days', width: 80, numeric: true, hideBelow: 900, sortValue: coScheduleDays, value: (co) => daysLabel(coScheduleDays(co)) },
+    { key: 'days', label: 'Sched Days', width: 80, numeric: true, hideBelow: 900, sortValue: coScheduleDays, value: (co) => daysLabel(coScheduleDays(co)) },
     { key: 'approvals', label: 'Approvals', width: 96, hideBelow: 800, sortValue: coApprovalsLabel, value: coApprovalsLabel },
     {
       key: 'status', label: 'Status', width: 110, sortValue: (co) => co.status,
@@ -96,7 +96,7 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
     { key: 'description', label: 'Description', csvValue: (co: ChangeOrder) => co.description },
     { key: 'reason', label: 'Reason', csvValue: (co: ChangeOrder) => co.reason || null },
     { key: 'amount', label: 'Amount', csvValue: coSignedAmount },
-    { key: 'days', label: 'Schedule days', csvValue: coScheduleDays },
+    { key: 'days', label: 'Schedule Days', csvValue: coScheduleDays },
     { key: 'approvals', label: 'Approvals', csvValue: coApprovalsLabel },
     { key: 'status', label: 'Status', csvValue: (co: ChangeOrder) => coStatusLabel(co.status) },
     { key: 'date', label: 'Date', csvValue: (co: ChangeOrder) => logDayKey(co.date) },
@@ -168,9 +168,9 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
           ) : (
             <EmptyState
               icon={<ClipboardList size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No change orders on this project yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No Change Orders on This Project Yet' : 'Nothing Under This Filter'}
               message={all.length === 0 ? 'Log added scope, the price, and who approved it.' : 'Pick another chip, or All.'}
-              actionLabel="New change order"
+              actionLabel="New Change Order"
               onAction={newCo}
             />
           )}

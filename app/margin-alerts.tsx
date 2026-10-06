@@ -160,11 +160,11 @@ function MarginAlertsInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin alerts · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>What changed</Text>
+          <Text style={styles.headerEyebrow}>Margin Alerts · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>What Changed</Text>
         </View>
         {alerts.length > 0 ? (
-          <TouchableOpacity onPress={markAllRead} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Mark all read" testID="margin-alerts-mark-read">
+          <TouchableOpacity onPress={markAllRead} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Mark All Read" testID="margin-alerts-mark-read">
             <CheckCheck size={20} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : (
@@ -177,14 +177,14 @@ function MarginAlertsInner() {
         // have loaded, so without this branch the screen flashed "No new
         // margin alerts" for a beat before a real alert appeared — a false
         // all-clear on a money screen. Say what it is waiting on instead.
-        <View style={styles.loading} testID="margin-alerts-loading" accessibilityRole="progressbar" accessibilityLabel="Loading crew hours and receipts">
+        <View style={styles.loading} testID="margin-alerts-loading" accessibilityRole="progressbar" accessibilityLabel="Loading Crew Hours and Receipts">
           <ActivityIndicator size="small" color={t.accent} />
           <Text style={styles.loadingText}>Loading crew hours and receipts before reading margins…</Text>
         </View>
       ) : alerts.length === 0 ? (
         <EmptyState
           icon={<BellOff size={36} color={t.success} strokeWidth={1.6} />}
-          title={trackedCount > 0 ? 'No new margin alerts' : 'Nothing to watch yet'}
+          title={trackedCount > 0 ? 'No New Margin Alerts' : 'Nothing to Watch Yet'}
           message={
             trackedCount > 0
               ? `Watching ${trackedCount} active ${trackedCount === 1 ? 'project' : 'projects'}. You get an alert when a project's risk goes up, its margin slips or it goes underwater.`
@@ -199,7 +199,7 @@ function MarginAlertsInner() {
                   'Award buyout and approve change orders. Alerts come in as margin moves.',
                 ]
           }
-          actionLabel={trackedCount > 0 ? 'Open margin board' : 'Open projects'}
+          actionLabel={trackedCount > 0 ? 'Open Margin Board' : 'Open Projects'}
           onAction={() =>
             trackedCount > 0
               ? router.push('/portfolio-margin' as any)

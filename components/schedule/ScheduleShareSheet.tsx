@@ -179,7 +179,7 @@ function ScheduleShareSheet({
           UTI: 'com.adobe.pdf',
         });
       } else {
-        showAlert('Sharing not available', "This device can't share files.");
+        showAlert('Sharing Not Available', "This device can't share files.");
       }
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -206,7 +206,7 @@ function ScheduleShareSheet({
           <View style={st.header}>
             <View style={st.headerLeft}>
               <Share2 size={18} color={Colors.primary} strokeWidth={1.75} />
-              <Text style={st.headerTitle}>Share schedule</Text>
+              <Text style={st.headerTitle}>Share Schedule</Text>
             </View>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
@@ -217,14 +217,14 @@ function ScheduleShareSheet({
               onPress={() => setShareMode('full')}
             >
               <FileText size={14} color={shareMode === 'full' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
-              <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full schedule</Text>
+              <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive, fS.isDesktop && segmentedDesktop.segment]}
               onPress={() => setShareMode('trade')}
             >
               <Users size={14} color={shareMode === 'trade' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
-              <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By trade</Text>
+              <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By Trade</Text>
             </TouchableOpacity>
           </View>
 

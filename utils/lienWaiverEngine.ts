@@ -652,7 +652,7 @@ export async function requestLienWaiverSignature(
   const formLine = lienWaiverFormLabel(waiver, ctx);
   const html = wrapEmailHtml({
     preheader: `${companyName} is asking you to sign a ${meta.short.toLowerCase()} lien waiver for ${ctx.projectName}.`,
-    eyebrow: 'Lien waiver',
+    eyebrow: 'Lien Waiver',
     title: ctx.projectName,
     subtitle: `${companyName} has prepared a ${meta.long.toLowerCase()} for your signature.`,
     bodyHtml: [
@@ -681,7 +681,7 @@ export async function requestLienWaiverSignature(
          waiver — reply to this email instead.
        </p>`,
     ].join(''),
-    cta: { label: 'Read and sign', href: signUrl },
+    cta: { label: 'Read and Sign', href: signUrl },
     companyName,
     project: { name: ctx.projectName, location: ctx.projectAddress },
     sender: { name: opts?.senderName ?? branding.contactName, email: opts?.senderEmail ?? branding.email, phone: branding.phone },

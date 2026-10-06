@@ -152,7 +152,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
     if (Platform.OS === 'web') {
       if (!window.confirm?.(confirmMsg)) return;
     } else {
-      showAlert('Delete baseline', confirmMsg, [
+      showAlert('Delete Baseline', confirmMsg, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -215,9 +215,9 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
             <Bookmark size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>
               {mode.kind === 'list' ? 'Baselines' :
-               mode.kind === 'capture' ? 'New baseline' :
-               mode.kind === 'rename' ? 'Rename baseline' :
-               mode.kind === 'compare-pick' ? 'Compare baselines' :
+               mode.kind === 'capture' ? 'New Baseline' :
+               mode.kind === 'rename' ? 'Rename Baseline' :
+               mode.kind === 'compare-pick' ? 'Compare Baselines' :
                'Variance'}
             </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Close">
@@ -371,7 +371,7 @@ function ListView(props: {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={onCapture} accessibilityRole="button">
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Capture new</Text>
+          <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Capture New</Text>
         </TouchableOpacity>
       </View>
     </>
@@ -409,7 +409,7 @@ function CaptureView(props: {
         autoFocus
       />
 
-      <Text style={styles.fieldLabel}>Note (optional)</Text>
+      <Text style={styles.fieldLabel}>Note (Optional)</Text>
       <TextInput
         value={props.draftNote}
         onChangeText={props.onChangeNote}
@@ -512,7 +512,7 @@ function ComparePicker(props: {
           accessibilityRole="button"
         >
           <GitCompare size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Show variance</Text>
+          <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Show Variance</Text>
         </TouchableOpacity>
       </View>
     </>

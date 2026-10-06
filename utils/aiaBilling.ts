@@ -299,8 +299,8 @@ export type PayAppContractSumSource = ContractSumBasis | 'estimate_not_contract'
  *  plus the reopened-record case. */
 export const PAY_APP_CONTRACT_SUM_LABEL: Record<PayAppContractSumSource, string> = {
   ...CONTRACT_SUM_BASIS_LABEL,
-  estimate_not_contract: 'Estimate (differs from the signed contract)',
-  carried_unread: 'Carried forward (signed contract not checked)',
+  estimate_not_contract: 'Estimate (Differs from the Signed Contract)',
+  carried_unread: 'Carried Forward (Signed Contract Not Checked)',
 };
 
 /**
@@ -1176,8 +1176,8 @@ const G703_MONEY_FIELD = {
 /** The header a refusal names ("Line 3 — This period"). */
 export const G703_COL_LABEL: Record<G703Col, string> = {
   itemNo: 'Item',
-  description: 'Description of work',
-  scheduled: 'Scheduled value',
+  description: 'Description of Work',
+  scheduled: 'Scheduled Value',
   thisPeriod: 'This period',
   stored: 'Stored',
   percent: '% complete',
@@ -1881,7 +1881,7 @@ export function payAppReviewNotice(state: {
   };
   if (state.isLocked) {
     return {
-      title: 'Certified record',
+      title: 'Certified Record',
       body: 'These are the figures on the pay app that went out. They can’t be changed. Bill the next period instead.',
       editLabel: 'Edit draft',
     };
@@ -1889,7 +1889,7 @@ export function payAppReviewNotice(state: {
   if (state.portalStatus === 'sent') {
     const when = day(state.sentAt);
     return {
-      title: 'Sent to the client',
+      title: 'Sent to the Client',
       body: `Your client has had this certificate${when ? ` since ${when}` : ''}, and the portal shows the copy that was sent. `
         + 'Editing changes your record only. The client keeps seeing the sent version until you send it again.',
       editLabel: 'Edit and re-send',
@@ -1897,7 +1897,7 @@ export function payAppReviewNotice(state: {
   }
   const when = day(state.savedAt);
   return {
-    title: 'Saved certificate',
+    title: 'Saved Certificate',
     body: `Saved${when ? ` ${when}` : ''}. This is exactly what was stored, not a fresh calculation. Editing replaces the saved figures.`,
     editLabel: 'Edit draft',
   };

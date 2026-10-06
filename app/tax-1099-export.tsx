@@ -240,7 +240,7 @@ export default function Tax1099ExportScreen() {
       : rows.length === 0 ? 'Add a sub to your Subs list to build the export.' : null;
 
   const handleExport = useCallback(async () => {
-    if (exportBlockedReason) { showAlert('Export not ready', exportBlockedReason); return; }
+    if (exportBlockedReason) { showAlert('Export Not Ready', exportBlockedReason); return; }
     setGenerating(true);
     try {
       const csv = tax1099DatasetToCsv(rows);
@@ -300,7 +300,7 @@ export default function Tax1099ExportScreen() {
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>Tax year</Text>
+        <Text style={styles.sectionLabel}>Tax Year</Text>
         <View style={styles.yearRow}>
           {yearOptions.map(y => (
             <TouchableOpacity
@@ -329,17 +329,17 @@ export default function Tax1099ExportScreen() {
               <View style={styles.errorCard} testID="tax-1099-load-error">
                 <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.errorTitle}>Sub-portal payments not loaded</Text>
+                  <Text style={styles.errorTitle}>Sub-Portal Payments Not Loaded</Text>
                   <Text style={styles.errorBody}>{loadError}</Text>
                   <TouchableOpacity
                     onPress={() => { void loadSubInvoices(); }}
                     style={styles.retryBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Load sub-portal payments again"
+                    accessibilityLabel="Load Sub-Portal Payments Again"
                     testID="tax-1099-retry"
                   >
                     <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.retryText}>Try again</Text>
+                    <Text style={styles.retryText}>Try Again</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -351,7 +351,7 @@ export default function Tax1099ExportScreen() {
               </View>
               <View style={styles.summaryCell}>
                 <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{cents(totals.totalPaid)}</Text>
-                <Text style={styles.summaryLabel}>Total paid {year}</Text>
+                <Text style={styles.summaryLabel}>Total Paid {year}</Text>
               </View>
             </View>
             )}
@@ -365,7 +365,7 @@ export default function Tax1099ExportScreen() {
                 file he never opened. Same sentence the CSV carries, verbatim,
                 so the screen and the export cannot drift. */}
             <View style={styles.coverageCard}>
-              <Text style={styles.coverageTitle}>What this counts</Text>
+              <Text style={styles.coverageTitle}>What This Counts</Text>
               {/* Derived from the ROWS, not from what this screen believes it
                   passed, so the sentence and the numbers cannot disagree —
                   `coverageNoteFor` widens it only when bills were actually
@@ -377,7 +377,7 @@ export default function Tax1099ExportScreen() {
               <View style={styles.warnBanner}>
                 <AlertTriangle size={14} color="#7A4500" strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.warnTitle}>Gaps to chase before filing</Text>
+                  <Text style={styles.warnTitle}>Gaps to Chase Before Filing</Text>
                   <Text style={styles.warnBody}>
                     {totals.missingTin > 0 && `${totals.missingTin} sub${totals.missingTin === 1 ? '' : 's'} missing TIN. `}
                     {totals.missingW9 > 0 && `${totals.missingW9} missing W-9. `}

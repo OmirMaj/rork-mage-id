@@ -532,7 +532,7 @@ export default function ScheduleWizardScreen() {
         remapDependencies(t, pid => idMap.get(pid) ?? pid);
       return {
         id: idMap.get(t.id)!,
-        title: t.name.trim() || 'Untitled task',
+        title: t.name.trim() || 'Untitled Task',
         phase: t.phase,
         durationDays: t.duration,
         // `t.startDay` is the preview's CALENDAR INDEX (cpm.es). ScheduleTask
@@ -638,9 +638,9 @@ export default function ScheduleWizardScreen() {
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>{documentMode ? 'New schedule' : 'Create schedule'}</Text>
+        <Text style={styles.topBarTitle}>{documentMode ? 'New Schedule' : 'Create Schedule'}</Text>
         {step === 3 || (isDesktop && step === 1) ? (
-          <TouchableOpacity onPress={onSavePressed} style={styles.topBarSaveBtn} accessibilityRole="button" accessibilityLabel="Save schedule">
+          <TouchableOpacity onPress={onSavePressed} style={styles.topBarSaveBtn} accessibilityRole="button" accessibilityLabel="Save Schedule">
             <Text style={styles.topBarSaveText}>Save</Text>
           </TouchableOpacity>
         ) : (
@@ -900,7 +900,7 @@ export default function ScheduleWizardScreen() {
         visible={datePickerOpen}
         value={startIso}
         allowFuture
-        title="Schedule start date"
+        title="Schedule Start Date"
         onClose={() => setDatePickerOpen(false)}
         onChange={(iso) => setStartIso(toIsoDate(new Date(iso)))}
       />
@@ -925,7 +925,7 @@ export default function ScheduleWizardScreen() {
               testID="wizard-save"
             >
               <Check size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
-              <Text style={styles.ctaBtnText}>Save schedule</Text>
+              <Text style={styles.ctaBtnText}>Save Schedule</Text>
             </TouchableOpacity>
           </>
         ) : step < 3 ? (
@@ -1011,7 +1011,7 @@ function ProjectStep(props: {
           ))}
           {projects.length === 0 && (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No projects yet</Text>
+              <Text style={styles.emptyTitle}>No Projects Yet</Text>
               <Text style={styles.helper}>
                 A schedule belongs to a project. Create the project first, then
                 open Schedule to build it.
@@ -1024,7 +1024,7 @@ function ProjectStep(props: {
                 testID="wizard-create-project"
               >
                 <FolderPlus size={16} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.emptyBtnText}>Create a project</Text>
+                <Text style={styles.emptyBtnText}>Create a Project</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1066,7 +1066,7 @@ function ProjectStep(props: {
         onQuickStart={onQuickStart}
       />
 
-      <Text style={styles.sectionLabel}>Your projects</Text>
+      <Text style={styles.sectionLabel}>Your Projects</Text>
       <View style={{ gap: 8 }}>
         {projects.map(p => {
           const active = p.id === pickedId;
@@ -1091,7 +1091,7 @@ function ProjectStep(props: {
         })}
         {projects.length === 0 && (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No projects yet</Text>
+            <Text style={styles.emptyTitle}>No Projects Yet</Text>
             <Text style={styles.helper}>
               A schedule belongs to a project. Create the project first, then
               open Schedule to build it.
@@ -1104,7 +1104,7 @@ function ProjectStep(props: {
               testID="wizard-create-project"
             >
               <FolderPlus size={16} color={Colors.textOnAccent} strokeWidth={2} />
-              <Text style={styles.emptyBtnText}>Create a project</Text>
+              <Text style={styles.emptyBtnText}>Create a Project</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1148,7 +1148,7 @@ function StartDateField(props: {
 
   return (
     <View style={{ gap: 8 }}>
-      <Text style={styles.sectionLabel}>Start date</Text>
+      <Text style={styles.sectionLabel}>Start Date</Text>
       <TouchableOpacity
         style={styles.dateRow}
         onPress={onEdit}
@@ -1332,13 +1332,13 @@ function TasksStep(props: {
         style={[styles.templateCard, styles.scratchCard, scratchActive && styles.templateCardActive]}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel="Start from scratch"
+        accessibilityLabel="Start from Scratch"
       >
         <View style={[styles.templateIcon, scratchActive && { backgroundColor: themeColors.accent + '15' }]}>
           <PencilRuler size={22} color={scratchActive ? themeColors.accent : themeColors.textSecondary} />
         </View>
         <Text style={[styles.templateName, scratchActive && { color: themeColors.accent }]} numberOfLines={2}>
-          From scratch
+          From Scratch
         </Text>
         <Text style={styles.templateSub}>Build your own</Text>
       </TouchableOpacity>
@@ -1417,7 +1417,7 @@ function TasksStep(props: {
         </View>
       ) : (
         <>
-          <Text style={styles.sectionLabel}>Choose a starting point</Text>
+          <Text style={styles.sectionLabel}>Choose a Starting Point</Text>
           {wrapTemplates ? (
             // Desktop web: a horizontal ScrollView can't be dragged with a
             // mouse and doesn't take the wheel, so everything past the third
@@ -1469,7 +1469,7 @@ function TasksStep(props: {
             testID="wizard-add-first-task"
           >
             <Plus size={16} color={Colors.textOnAccent} strokeWidth={2} />
-            <Text style={styles.emptyBtnText}>Add a task</Text>
+            <Text style={styles.emptyBtnText}>Add a Task</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -1519,11 +1519,11 @@ function TasksStep(props: {
             onPress={() => addTask(null)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Add task"
+            accessibilityLabel="Add Task"
             testID="wizard-add-task"
           >
             <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.addTaskBtnText}>Add task</Text>
+            <Text style={styles.addTaskBtnText}>Add Task</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1541,7 +1541,7 @@ function TasksStep(props: {
           <LayoutTemplate size={14} color={themeColors.textMuted} strokeWidth={1.9} />
           <Text style={styles.templateLinkText}>
             {scratchActive
-              ? 'Or start from a template'
+              ? 'Or Start from a Template'
               : `Started from ${activeTemplate?.name ?? 'a template'} — change`}
           </Text>
         </TouchableOpacity>
@@ -1727,7 +1727,7 @@ function TaskRow(props: {
         onPress={() => setRefined(r => !r)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={refined ? 'Collapse refine options' : 'Expand refine options: phase and sequence'}
+        accessibilityLabel={refined ? 'Collapse Refine Options' : 'Expand refine options: phase and sequence'}
         testID={`task-refine-${idx}`}
       >
         <Text style={styles.refineToggleText}>Refine</Text>
@@ -1804,7 +1804,7 @@ function DurationField(props: { value: number; onCommit: (days: number) => void;
       returnKeyType="done"
       selectTextOnFocus
       style={styles.durVal}
-      accessibilityLabel="Duration in days"
+      accessibilityLabel="Duration in Days"
       testID={`task-duration-${index}`}
     />
   );
@@ -1879,7 +1879,7 @@ function TemplateSheet(props: {
         <Pressable style={[styles.sheet, f.card]} onPress={() => undefined}>
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sheetTitle}>Start from a template</Text>
+              <Text style={styles.sheetTitle}>Start from a Template</Text>
               <Text style={styles.sheetSub}>Replaces the tasks you have now</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
@@ -1896,7 +1896,7 @@ function TemplateSheet(props: {
             >
               <PencilRuler size={17} color={activeId === SCRATCH_ID ? themeColors.accent : themeColors.textMuted} strokeWidth={1.9} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.predOptionText}>Empty schedule</Text>
+                <Text style={styles.predOptionText}>Empty Schedule</Text>
                 <Text style={styles.templateSub}>Build your own</Text>
               </View>
               {activeId === SCRATCH_ID && <Check size={16} color={themeColors.accent} strokeWidth={2.5} />}
@@ -1998,7 +1998,7 @@ function ScheduleStep(props: {
 
   return (
     <View style={styles.stepContent}>
-      <Text style={styles.sectionLabel}>Schedule timeline</Text>
+      <Text style={styles.sectionLabel}>Schedule Timeline</Text>
       <Text style={styles.helper}>
         {scheduledTasks.length} task{scheduledTasks.length === 1 ? '' : 's'} · {totalDays} day
         {totalDays === 1 ? '' : 's'} · finishes {fmtShort(addDays(startDate, Math.max(0, totalDays - 1)))}
@@ -2109,7 +2109,7 @@ function ReviewStep(props: {
         <Text style={styles.reviewSub}>{displayText(project.location, 'No location set')}</Text>
       </View>
       <View style={styles.reviewCard}>
-        <Text style={styles.reviewLabel}>Starting point</Text>
+        <Text style={styles.reviewLabel}>Starting Point</Text>
         <Text style={styles.reviewValue}>{startingPoint}</Text>
       </View>
       <View style={styles.reviewCard}>
@@ -2126,11 +2126,11 @@ function ReviewStep(props: {
         onPress={onEditStartDate}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel="Change the schedule start date"
+        accessibilityLabel="Change the Schedule Start Date"
       >
         <View style={styles.reviewHeadRow}>
           <Text style={styles.reviewLabel}>Dates</Text>
-          <Text style={styles.dateChange}>Change start</Text>
+          <Text style={styles.dateChange}>Change Start</Text>
         </View>
         <Text style={styles.reviewValue}>{totalDays} working-day plan</Text>
         <Text style={styles.reviewSub}>{fmtLong(startDate)} → {fmtLong(endDate)}</Text>

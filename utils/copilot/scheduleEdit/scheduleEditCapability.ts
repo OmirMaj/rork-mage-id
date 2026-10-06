@@ -61,7 +61,7 @@ export const SCHEDULE_EDIT_SCHEMA_HINT = {
 
 export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, ScheduleEditApplied> = {
   id: 'scheduleEdit',
-  label: 'Edit the schedule',
+  label: 'Edit the Schedule',
   aiFeature: 'scheduleCopilot',
   maxQuestions: 0,
   askThreshold: 1,

@@ -106,7 +106,7 @@ export default function LatenessPadChip({
       <View style={styles.chipBody}>
         <Text style={styles.chipTitle}>{title}</Text>
         <Text style={styles.chipEvidence}>{evidence}</Text>
-        <Text style={styles.chipSource}>{t('schedule.lateness.fromRecords', 'From your records')}</Text>
+        <Text style={styles.chipSource}>{t('schedule.lateness.fromRecords', 'From Your Records')}</Text>
       </View>
     </TouchableOpacity>
   );

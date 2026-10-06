@@ -253,7 +253,7 @@ export default function ReportInboxScreen() {
 
   const kindChips: FilterChip<ReportKind>[] = [
     { value: 'all', label: 'All', count: counts.all },
-    { value: 'dfr', label: 'Daily reports', count: counts.dfr },
+    { value: 'dfr', label: 'Daily Reports', count: counts.dfr },
     { value: 'rfi', label: 'RFIs', count: counts.rfi },
     { value: 'submittal', label: 'Submittals', count: counts.submittal },
     { value: 'invoice', label: 'Invoices', count: counts.invoice },
@@ -261,14 +261,14 @@ export default function ReportInboxScreen() {
   ];
 
   const statusChips: FilterChip<StatusFilter>[] = [
-    { value: 'all', label: 'Any status' },
-    { value: 'open', label: 'Open or unpaid', color: themeColors.warningLabel },
+    { value: 'all', label: 'Any Status' },
+    { value: 'open', label: 'Open or Unpaid', color: themeColors.warningLabel },
     { value: 'overdue', label: 'Overdue', color: themeColors.danger },
-    { value: 'closed', label: 'Closed or paid', color: themeColors.success },
+    { value: 'closed', label: 'Closed or Paid', color: themeColors.success },
   ];
 
   const projectChips: FilterChip<string>[] = [
-    { value: 'all', label: 'All projects' },
+    { value: 'all', label: 'All Projects' },
     ...projects.map(p => ({ value: p.id, label: p.name.length > 18 ? p.name.slice(0, 17) + '…' : p.name })),
   ];
 
@@ -315,7 +315,7 @@ export default function ReportInboxScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Report inbox',
+        title: 'Report Inbox',
         headerLeft: () => (
           <TouchableOpacity onPress={goBack} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
@@ -343,7 +343,7 @@ export default function ReportInboxScreen() {
       {rows.length === 0 && sourceFailed ? (
         <ErrorState
           icon={<CloudOff size={32} color={themeColors.warningLabel} strokeWidth={1.75} />}
-          title="Couldn't reach MAGE"
+          title="Couldn't Reach MAGE"
           body="Your reports didn't come back from the last read, so this inbox is showing nothing rather than everything. Nothing has been deleted."
           steps={[
             'Check that you have signal or Wi-Fi.',
@@ -356,14 +356,14 @@ export default function ReportInboxScreen() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<ArrowDownRight size={32} color={themeColors.accent} strokeWidth={1.75} />}
-          title="Nothing in this slice"
+          title="Nothing in This Slice"
           message="The report inbox shows daily reports, RFIs, submittals, invoices and change orders across every project. To fill it:"
           steps={[
             'Open a project from the Projects tab.',
             'Create a daily report, RFI, submittal, invoice or change order from its tile grid.',
             'It lands here on its own. Use the chips above to filter by type or project.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.replace('/(tabs)/(home)' as never)}
         />
       ) : (

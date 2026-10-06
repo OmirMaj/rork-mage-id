@@ -218,7 +218,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       summary: 'Empty schedule — add a few tasks to get a real score.',
       checks: [{
         key: 'has_tasks',
-        label: 'Schedule populated',
+        label: 'Schedule Populated',
         description: 'Your schedule needs tasks to be evaluated.',
         value: 0,
         weight: 1,
@@ -257,7 +257,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 12;
     checks.push({
       key: 'logic_completeness',
-      label: 'Logic completeness',
+      label: 'Logic Completeness',
       dcmaLabel: 'DCMA #1 — Logic',
       description: 'Tasks should connect to others via dependencies. Floaters reveal missing logic.',
       value: Math.max(0, value),
@@ -294,7 +294,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 8;
     checks.push({
       key: 'open_ends',
-      label: 'Open ends',
+      label: 'Open Ends',
       dcmaLabel: 'DCMA #1 — Logic (open ends)',
       description: 'Pro schedules have one start and one finish. Multiple of either means detached chains.',
       value,
@@ -321,7 +321,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 4;
     checks.push({
       key: 'leads',
-      label: 'Leads (negative lag)',
+      label: 'Leads (Negative Lag)',
       dcmaLabel: 'DCMA #2 — Leads',
       description: 'A negative lag pulls a task earlier than its predecessor allows. DCMA wants zero.',
       value,
@@ -366,7 +366,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const relWeight = 4;
     checks.push({
       key: 'relationship_types',
-      label: 'Relationship types',
+      label: 'Relationship Types',
       dcmaLabel: 'DCMA #4 — Relationship types',
       description: 'At least 90% of links should be Finish-to-Start. SS/FF/SF are harder to read and easier to get wrong.',
       value: relValue,
@@ -393,7 +393,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 5;
     checks.push({
       key: 'hard_constraints',
-      label: 'Hard date pins',
+      label: 'Hard Date Pins',
       dcmaLabel: 'DCMA #5 — Hard constraints',
       description: 'Must-start-on / must-finish-on pins beat the logic. DCMA wants them on under 5% of tasks.',
       value,
@@ -421,7 +421,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 10;
     checks.push({
       key: 'negative_float',
-      label: 'Negative float',
+      label: 'Negative Float',
       dcmaLabel: 'DCMA #7 — Negative float',
       description: 'Negative float means the plan cannot be built as drawn — something has to give.',
       value,
@@ -467,7 +467,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 8;
     checks.push({
       key: 'invalid_dates',
-      label: 'Invalid dates',
+      label: 'Invalid Dates',
       dcmaLabel: 'DCMA #9 — Invalid dates',
       description: 'Date fields that contradict themselves — an actual finish before its start, or a pin with no usable date.',
       value,
@@ -490,7 +490,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     if (withBaseline.length === 0 || cpm.projectFinish <= 1 || !calendar?.scheduleStartDate) {
       checks.push({
         key: 'cpli',
-        label: 'Critical path length index',
+        label: 'Critical Path Length Index',
         dcmaLabel: 'DCMA #13 — CPLI',
         description: 'How the forecast finish compares to the promised one. Needs a baseline.',
         value: 0.5,
@@ -514,7 +514,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       const value = Math.max(0, Math.min(1, (cpli - 0.8) / 0.2));
       checks.push({
         key: 'cpli',
-        label: 'Critical path length index',
+        label: 'Critical Path Length Index',
         dcmaLabel: 'DCMA #13 — CPLI',
         description: 'CPLI = (critical path length + project float) ÷ critical path length. 1.00 hits the baseline; DCMA fails under 0.95.',
         value,
@@ -541,7 +541,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 8;
     checks.push({
       key: 'critical_density',
-      label: 'Critical-path density',
+      label: 'Critical-Path Density',
       description: '25–55% of tasks on the critical path is the sweet spot. Higher is brittle, lower means no real chain.',
       value,
       weight,
@@ -567,7 +567,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 5;
     checks.push({
       key: 'long_tasks',
-      label: 'Long tasks',
+      label: 'Long Tasks',
       dcmaLabel: 'DCMA #8 — High duration',
       description: `Tasks longer than ${longThreshold} working days hide several pieces of work. Break them down.`,
       value,
@@ -589,7 +589,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 7;
     checks.push({
       key: 'missing_durations',
-      label: 'Realistic durations',
+      label: 'Realistic Durations',
       description: 'Every non-milestone task should have a duration of 1+ day.',
       value,
       weight,
@@ -609,7 +609,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       const weight = 6;
       checks.push({
         key: 'baseline_drift',
-        label: 'Baseline drift',
+        label: 'Baseline Drift',
         description: 'Capture a baseline so we can track slippage over time.',
         value: 0.5,
         weight,
@@ -627,7 +627,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       const weight = 10;
       checks.push({
         key: 'baseline_drift',
-        label: 'Baseline drift',
+        label: 'Baseline Drift',
         description: 'How many tasks have slipped past their captured baseline end.',
         value,
         weight,
@@ -674,7 +674,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 6;
     checks.push({
       key: 'progress_freshness',
-      label: 'Progress freshness',
+      label: 'Progress Freshness',
       // The label tells the user WHICH reading produced the number. It stays a
       // "(proxy …)" label without a data date, because that is what it is, and
       // validate-schedule-health pins the partial-item wording either way.
@@ -713,7 +713,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const taskById = new Map(leafTasks.map(t => [t.id, t]));
     checks.push({
       key: 'resource_overallocation',
-      label: 'Resource overallocation',
+      label: 'Resource Overallocation',
       dcmaLabel: 'DCMA #10 — Resources',
       description: 'Same crew assigned to overlapping tasks creates a real-world conflict.',
       value,
@@ -744,7 +744,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 4;
     checks.push({
       key: 'milestone_clarity',
-      label: 'Milestone clarity',
+      label: 'Milestone Clarity',
       description: 'Named milestones (foundation, dry-in, C of O) anchor the schedule for you and the client.',
       value,
       weight,
@@ -769,7 +769,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 4;
     checks.push({
       key: 'phase_grouping',
-      label: 'Phase grouping',
+      label: 'Phase Grouping',
       description: 'Tasks should sit under named phases (Demo, Frame, MEP, Finishes) — not all "General".',
       value,
       weight,
@@ -800,7 +800,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     const weight = 3;
     checks.push({
       key: 'note_completeness',
-      label: 'Critical-task notes',
+      label: 'Critical-Task Notes',
       description: 'Critical-path tasks should have a short note explaining why they\'re critical.',
       value,
       weight,

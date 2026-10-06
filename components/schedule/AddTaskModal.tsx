@@ -173,7 +173,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
     <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onCancel}>
       <Pressable style={[styles.backdrop, frame.overlay]} onPress={onCancel}>
         <Pressable style={[styles.sheet, frame.card]} onPress={() => { /* swallow taps inside */ }}>
-          <Text style={styles.title}>Add task</Text>
+          <Text style={styles.title}>Add Task</Text>
           <Text style={styles.sub}>Fill in what you know — you can edit anything later.</Text>
 
           <View style={styles.field}>
@@ -193,7 +193,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
 
           <View style={styles.row}>
             <View style={[styles.field, styles.flex1]}>
-              <Text style={styles.label}>Duration (days)</Text>
+              <Text style={styles.label}>Duration (Days)</Text>
               <TextInput
                 value={duration}
                 onChangeText={(t) => { setDuration(t); if (error) setError(null); }}
@@ -217,7 +217,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
 
           <View style={styles.row}>
             <View style={[styles.field, styles.flex1]}>
-              <Text style={styles.label}>Start date</Text>
+              <Text style={styles.label}>Start Date</Text>
               {Platform.OS === 'web' ? (
                 React.createElement('input' as any, {
                   type: 'date',

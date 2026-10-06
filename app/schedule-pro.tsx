@@ -179,8 +179,8 @@ type LiveCopy = ScheduleCopy & { activeBaselineId?: string | null };
 /** How the refused-edit notice names a field-owned task key. */
 const FIELD_KEY_LABEL: Record<string, string> = {
   progress: 'progress', status: 'status', notes: 'notes',
-  actualStartDate: 'actual start', actualStartDay: 'actual start',
-  actualEndDate: 'actual finish', actualEndDay: 'actual finish',
+  actualStartDate: 'Actual Start', actualStartDay: 'Actual Start',
+  actualEndDate: 'Actual Finish', actualEndDay: 'Actual Finish',
 };
 
 // The width gate (GRID_BREAKPOINT, 900) lives in utils/scheduleProLayout and
@@ -243,7 +243,7 @@ export default function ScheduleProScreen() {
   if (gate === 'error' || gate === 'no_access') {
     return (
       <View style={styles.gateWrap} testID={`schedule-pro-gate-${gate}`}>
-        <Text style={styles.gateTitle}>{gate === 'error' ? 'Couldn’t check your access' : 'You don’t have access to this schedule'}</Text>
+        <Text style={styles.gateTitle}>{gate === 'error' ? 'Couldn’t Check Your Access' : 'You don’t have access to this schedule'}</Text>
         <Text style={styles.gateBody}>
           {gate === 'error'
             ? 'Your access to this project couldn’t be read, so Schedule Pro stays closed. Check your connection and try again.'
@@ -251,8 +251,8 @@ export default function ScheduleProScreen() {
         </Text>
         <View style={styles.gateActions}>
           {gate === 'error' ? (
-            <TouchableOpacity style={styles.gateBtn} onPress={() => { void roleState.refetch(); }} accessibilityRole="button" accessibilityLabel="Try again">
-              <Text style={styles.gateBtnText}>Try again</Text>
+            <TouchableOpacity style={styles.gateBtn} onPress={() => { void roleState.refetch(); }} accessibilityRole="button" accessibilityLabel="Try Again">
+              <Text style={styles.gateBtnText}>Try Again</Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity style={styles.gateBtn} onPress={goBack} accessibilityRole="button" accessibilityLabel="Back">
@@ -1081,7 +1081,7 @@ function ScheduleProScreenInner() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clean up',
+          text: 'Clean Up',
           style: 'destructive',
           onPress: () => {
             const { cleanedTasks, removed } = pruneStaleLinkedEstimateItems(
@@ -1758,9 +1758,9 @@ function ScheduleProScreenInner() {
       `${logEntry.projectSlipDays} day${logEntry.projectSlipDays === 1 ? '' : 's'} of slip is on the schedule. ` +
       'Logging it starts your contract\u2019s written-notice clock and attaches this weather record as evidence.',
       [
-        { text: 'Not now', style: 'cancel' },
+        { text: 'Not Now', style: 'cancel' },
         {
-          text: 'Log it',
+          text: 'Log It',
           onPress: () => router.push({
             pathname: '/delay-events',
             params: {
@@ -1952,11 +1952,11 @@ function ScheduleProScreenInner() {
       if (typeof window !== 'undefined' && window.confirm(confirmMsg)) go();
     } else {
       showAlert(
-        'Load demo schedule',
+        'Load Demo Schedule',
         confirmMsg,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Load demo', onPress: go },
+          { text: 'Load Demo', onPress: go },
         ],
       );
     }
@@ -2128,7 +2128,7 @@ function ScheduleProScreenInner() {
     if (withActuals.length === 0) {
       const msg = 'No tasks have an actual start or finish logged yet. Log an actual on at least one task, then reflow to cascade the delta to downstream work.';
       if (Platform.OS === 'web') window.alert?.(msg);
-      else showAlert('Nothing to reflow', msg);
+      else showAlert('Nothing to Reflow', msg);
       return;
     }
     // Actuals are CALENDAR indices (utils/pace/stampActuals.ts); the reflow
@@ -2140,7 +2140,7 @@ function ScheduleProScreenInner() {
       ? 'Everything is on track — no downstream shifts needed.'
       : `Pushed ${changedCount} task${changedCount === 1 ? '' : 's'} based on actuals. Undo if this looks off.`;
     if (Platform.OS === 'web') window.alert?.(msg);
-    else showAlert('Reflow complete', msg);
+    else showAlert('Reflow Complete', msg);
   }, [workingTasks, commit, summaryScale]);
 
   // Critical-path / conflict summary — moved out of the toolbar into the
@@ -2186,7 +2186,7 @@ function ScheduleProScreenInner() {
       // heatmap can still show resource-capacity overloads the leveler doesn't
       // act on (those are resolved by reassigning or rescheduling manually).
       const msg = 'Nothing to level. Leveling shifts overlapping crew and sub work, and none was found to move.';
-      if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix overloads', msg);
+      if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix Overloads', msg);
       return;
     }
     // `leveledResult.projectFinish` is the UNLEVELLED finish — runCpm fixes it at
@@ -2247,7 +2247,7 @@ function ScheduleProScreenInner() {
     } else {
       // Native: pop the CSV into an alert so the user can at least grab it
       // via long-press. A real share-sheet flow comes later.
-      showAlert('CSV ready', `Copy the text below:\n\n${csv.slice(0, 600)}${csv.length > 600 ? '…' : ''}`);
+      showAlert('CSV Ready', `Copy the text below:\n\n${csv.slice(0, 600)}${csv.length > 600 ? '…' : ''}`);
     }
   }, [workingTasks, projectStartDate, project?.name]);
 
@@ -2292,7 +2292,7 @@ function ScheduleProScreenInner() {
         return;
       }
       if (Platform.OS === 'web') {
-        showAlert('Calendar ready', `${result.eventCount} ${result.eventCount === 1 ? 'event' : 'events'} downloaded. Open the file to add them to your calendar.`);
+        showAlert('Calendar Ready', `${result.eventCount} ${result.eventCount === 1 ? 'event' : 'events'} downloaded. Open the file to add them to your calendar.`);
       }
       // Native already opens the share sheet from inside exportProjectIcs.
     } catch (err) {
@@ -2361,7 +2361,7 @@ function ScheduleProScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
-      showAlert('PDF export is on the Pro plan', 'See plans to add it.');
+      showAlert('PDF Export Is on the Pro Plan', 'See plans to add it.');
       return;
     }
     if (namedBaselines.length === 0) {
@@ -2383,7 +2383,7 @@ function ScheduleProScreenInner() {
       'Export PDF',
       'Include baseline variance in the export?',
       [
-        { text: 'Current plan only', onPress: () => { void promptPaperSize(size => { void runPdfExport(undefined, size); }); } },
+        { text: 'Current Plan Only', onPress: () => { void promptPaperSize(size => { void runPdfExport(undefined, size); }); } },
         ...recent.map(b => ({
           text: `vs ${b.name}`,
           onPress: () => { void promptPaperSize(size => { void runPdfExport(b, size); }); },
@@ -2474,7 +2474,7 @@ function ScheduleProScreenInner() {
       }
     } else {
       showAlert(
-        'Share link',
+        'Share Link',
         `Open this URL in a laptop browser:\n\n${url}`,
       );
     }
@@ -2670,10 +2670,10 @@ function ScheduleProScreenInner() {
     // Not while he types in a grid cell or the command field (wave 6d, C7):
     // Cmd+E / Cmd+Shift+S there must not download a CSV or copy a link.
     { combo: 'mod+e', handler: handleExportCsv, blockInInput: true, label: 'Export CSV', group: 'Schedule' },
-    { combo: 'mod+shift+s', handler: () => { void handleShare(); }, blockInInput: true, label: 'Copy share link', group: 'Schedule' },
-    { combo: 'mod+j', handler: focusCommand, label: 'Ask or change the schedule', group: 'Schedule' },
+    { combo: 'mod+shift+s', handler: () => { void handleShare(); }, blockInInput: true, label: 'Copy Share Link', group: 'Schedule' },
+    { combo: 'mod+j', handler: focusCommand, label: 'Ask or Change the Schedule', group: 'Schedule' },
     // The pane's own Esc (SidePanel) closes it; with it closed, Esc clears focus.
-    { combo: 'escape', handler: () => setFocusedTaskId(null), blockInInput: true, enabled: !!focusedTaskId && !paneOpen, label: 'Clear task focus', group: 'Schedule' },
+    { combo: 'escape', handler: () => setFocusedTaskId(null), blockInInput: true, enabled: !!focusedTaskId && !paneOpen, label: 'Clear Task Focus', group: 'Schedule' },
   ], { enabled: isDesktopWeb });
 
   // Pro renders at all (the width gate below): the arrival params wait for it,
@@ -2707,7 +2707,7 @@ function ScheduleProScreenInner() {
         ? 'Not saved: field access saves progress, status, notes and actual start/finish only — adding, removing or moving tasks needs editor access from the project owner.'
         : 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       setFieldNotice(reason);
-      if (writePath !== 'field_rpc') showAlert('Schedule not changed', reason);
+      if (writePath !== 'field_rpc') showAlert('Schedule Not Changed', reason);
       return;
     }
     openChange(seed, { autoSubmit: true });
@@ -2736,7 +2736,7 @@ function ScheduleProScreenInner() {
       <View style={[styles.container, styles.narrowGate, { paddingTop: 28 }]}>
         <Stack.Screen options={{ title: 'Schedule Pro' }} />
         <MageAIMark size={28} color={themeColors.accent} />
-        <Text style={styles.emptyTitle}>Best on a bigger screen</Text>
+        <Text style={styles.emptyTitle}>Best on a Bigger Screen</Text>
         {/* This used to say "built for laptops and iPad" — hands-on UI pass
             2026-09-07, finding 5. app.json sets ios.supportsTablet:false, so
             there is no iPad build: a contractor who followed that advice got
@@ -2761,20 +2761,20 @@ function ScheduleProScreenInner() {
           onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: projectId, focus: String(Date.now()) } } as any)}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Open classic schedule"
+          accessibilityLabel="Open Classic Schedule"
           testID="schedule-pro-open-classic"
         >
-          <Text style={styles.primaryBtnText}>Open classic schedule</Text>
+          <Text style={styles.primaryBtnText}>Open Classic Schedule</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={goBack}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Go Back"
           testID="schedule-pro-narrow-back"
         >
-          <Text style={styles.secondaryBtnText}>Go back</Text>
+          <Text style={styles.secondaryBtnText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -3339,7 +3339,7 @@ function ScheduleProScreenInner() {
           {writePath === 'row' && fieldConflictNotice ? (
             <View style={styles.fieldConflict} testID="schedule-field-conflict-notice" accessibilityRole="alert">
               <Text style={styles.fieldConflictText}>{fieldConflictNotice}</Text>
-              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss Notice" hitSlop={8}>
                 <Text style={styles.fieldConflictDismiss}>Dismiss</Text>
               </TouchableOpacity>
             </View>
@@ -3451,10 +3451,10 @@ function ScheduleProScreenInner() {
         style={styles.copilotDesktopBar}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel="Tell me what to change"
+        accessibilityLabel="Tell Me What to Change"
       >
         <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.copilotDesktopBarText}>Tell me what to change</Text>
+        <Text style={styles.copilotDesktopBarText}>Tell Me What to Change</Text>
       </TouchableOpacity>
 
       {/* Body — Phase 27: the SchedulerTabShell (tab nav + SchedulerHeader +
@@ -3498,7 +3498,7 @@ function ScheduleProScreenInner() {
           {writePath === 'row' && fieldConflictNotice ? (
             <View style={styles.fieldConflict} testID="schedule-field-conflict-notice" accessibilityRole="alert">
               <Text style={styles.fieldConflictText}>{fieldConflictNotice}</Text>
-              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss Notice" hitSlop={8}>
                 <Text style={styles.fieldConflictDismiss}>Dismiss</Text>
               </TouchableOpacity>
             </View>

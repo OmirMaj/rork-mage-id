@@ -135,7 +135,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
           <View style={s.header}>
             <View style={s.headerLeft}>
               <MageAIMark size={20} color={Colors.accent} />
-              <Text style={s.headerTitle}>Quick build</Text>
+              <Text style={s.headerTitle}>Quick Build</Text>
             </View>
             <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
@@ -212,7 +212,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
                   <Text style={s.reviewValue}>{scaledTemplate.tasks.length}</Text>
                 </View>
                 <View style={s.reviewCard}>
-                  <Text style={s.reviewLabel}>Est. duration</Text>
+                  <Text style={s.reviewLabel}>Est. Duration</Text>
                   <Text style={s.reviewValue}>{totalDuration}d</Text>
                 </View>
                 <View style={s.reviewCard}>
@@ -221,7 +221,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
                 </View>
               </View>
               <View style={s.reviewCard}>
-                <Text style={s.reviewLabel}>Start date</Text>
+                <Text style={s.reviewLabel}>Start Date</Text>
                 <Text style={s.reviewValue}>
                   {startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </Text>
@@ -238,7 +238,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
 
               <TouchableOpacity style={s.createBtn} onPress={handleCreate} activeOpacity={0.85}>
                 <MageAIMark size={16} color="#FFF" />
-                <Text style={s.createBtnText}>Create schedule</Text>
+                <Text style={s.createBtnText}>Create Schedule</Text>
               </TouchableOpacity>
             </>
           )}

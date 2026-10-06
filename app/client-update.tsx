@@ -85,7 +85,7 @@ export default function ClientUpdateScreen() {
 
   const handleDraft = useCallback(async () => {
     if (!project) {
-      showAlert('Pick a project', 'Select a project first.');
+      showAlert('Pick a Project', 'Select a project first.');
       return;
     }
     try {
@@ -133,7 +133,7 @@ export default function ClientUpdateScreen() {
   const handleSend = useCallback(async () => {
     if (!draft) return;
     if (recipients.length === 0) {
-      showAlert('Add a recipient', 'Add at least one email address to send this update.');
+      showAlert('Add a Recipient', 'Add at least one email address to send this update.');
       return;
     }
     try {
@@ -151,8 +151,8 @@ export default function ClientUpdateScreen() {
       const contentHtml = renderDraftToHtml(draft);
       const html = wrapEmailHtml({
         preheader: draft.subject,
-        eyebrow: 'Weekly update',
-        title: project?.name ?? 'Project update',
+        eyebrow: 'Weekly Update',
+        title: project?.name ?? 'Project Update',
         bodyHtml: contentHtml,
         companyName: gcName,
         logoUri: settings?.branding?.logoUri,
@@ -182,7 +182,7 @@ export default function ClientUpdateScreen() {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const tail = failed.length > 0 ? ` (${failed.length} couldn't be delivered)` : '';
         showAlert(
-          'Update sent',
+          'Update Sent',
           `Weekly update sent to ${sent} ${sent === 1 ? 'recipient' : 'recipients'}${tail}.`,
           [{ text: 'OK', onPress: () => router.back() }],
         );
@@ -196,14 +196,14 @@ export default function ClientUpdateScreen() {
           && /^[A-Z][^\n]{0,240}[.!]$/.test(reason)
           && !/^(Error|TypeError|FunctionsHttpError)\b/.test(reason);
         showAlert(
-          "Couldn't send the update",
+          "Couldn't Send the Update",
           readable ? `${reason} Your draft is still here.` : 'No emails went out. Check your connection and try again. Your draft is still here.',
         );
       }
     } catch (err) {
       console.error('[ClientUpdate] send failed', err);
       console.warn('[ClientUpdate] send failed:', rawErrorMessage(err));
-      showAlert("Couldn't send the update", describeError(err, { action: 'send the update', keptLocally: true }).body);
+      showAlert("Couldn't Send the Update", describeError(err, { action: 'send the update', keptLocally: true }).body);
     } finally {
       setSending(false);
     }
@@ -212,7 +212,7 @@ export default function ClientUpdateScreen() {
   const addRecipient = useCallback(() => {
     const e = newEmail.trim().toLowerCase();
     if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
-      showAlert('Invalid email', 'Enter a valid email address.');
+      showAlert('Invalid Email', 'Enter a valid email address.');
       return;
     }
     if (recipients.includes(e)) {
@@ -258,7 +258,7 @@ export default function ClientUpdateScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroIcon}><MageAIMark size={22} color={themeColors.accent} /></View>
-          <Text style={styles.heroTitle}>Weekly client update</Text>
+          <Text style={styles.heroTitle}>Weekly Client Update</Text>
           <Text style={styles.heroSub}>
             AI drafts a friendly email from the last 7 days of field data. Review, edit, then send from your mail app.
           </Text>
@@ -331,7 +331,7 @@ export default function ClientUpdateScreen() {
             ) : (
               <>
                 <MageAIMark size={16} color={'#FFFFFF'} />
-                <Text style={styles.draftBtnTxt}>Draft update</Text>
+                <Text style={styles.draftBtnTxt}>Draft Update</Text>
               </>
             )}
           </TouchableOpacity>
@@ -347,7 +347,7 @@ export default function ClientUpdateScreen() {
         {draft && (
           <>
             <View style={styles.draftHeader}>
-              <Text style={styles.sectionLabel}>AI draft · Edit anything</Text>
+              <Text style={styles.sectionLabel}>AI Draft · Edit Anything</Text>
               <TouchableOpacity onPress={handleDraft} style={styles.regenBtn} activeOpacity={0.7}>
                 <RefreshCw size={12} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.regenTxt}>Regenerate</Text>
@@ -392,14 +392,14 @@ export default function ClientUpdateScreen() {
               onRemove={(i) => removeBullet('accomplishments', i)}
             />
             <BulletEditor
-              title="Coming up"
+              title="Coming Up"
               items={draft.upcoming}
               onChange={(i, v) => updateBullet('upcoming', i, v)}
               onAdd={() => addBullet('upcoming')}
               onRemove={(i) => removeBullet('upcoming', i)}
             />
             <BulletEditor
-              title="Heads up"
+              title="Heads Up"
               items={draft.issues}
               onChange={(i, v) => updateBullet('issues', i, v)}
               onAdd={() => addBullet('issues')}
@@ -407,7 +407,7 @@ export default function ClientUpdateScreen() {
             />
 
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Financial note</Text>
+              <Text style={styles.fieldLabel}>Financial Note</Text>
               <TextInput
                 style={[styles.fieldInput, styles.multiline]}
                 value={draft.financial}
@@ -440,7 +440,7 @@ export default function ClientUpdateScreen() {
             <View style={styles.previewCard}>
               <View style={styles.previewHeader}>
                 <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-                <Text style={styles.previewHeaderTxt}>Plain-text preview</Text>
+                <Text style={styles.previewHeaderTxt}>Plain-Text Preview</Text>
               </View>
               <Text style={styles.previewBody}>{renderDraftToPlainText(draft)}</Text>
             </View>
@@ -462,7 +462,7 @@ export default function ClientUpdateScreen() {
               <>
                 <Users size={16} color={'#FFFFFF'} strokeWidth={1.75} />
                 <Text style={styles.sendBtnTxt}>
-                  Send to {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
+                  Send To {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
                 </Text>
               </>
             )}

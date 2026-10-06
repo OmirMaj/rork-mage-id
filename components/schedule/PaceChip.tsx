@@ -52,7 +52,7 @@ export default function PaceChip({ suggestedDays, jobCount, confidence, onApply,
       >
         <History size={11} color={t.success} strokeWidth={2} />
         <Text style={[styles.text, { color: t.success }]}>
-          Set from your {jobCount} project{jobCount === 1 ? '' : 's'} · Tap to use the AI draft ({aiOriginalDays ?? suggestedDays}d)
+          Set from Your {jobCount} project{jobCount === 1 ? '' : 's'} · Tap to use the AI draft ({aiOriginalDays ?? suggestedDays}d)
         </Text>
         <View style={[styles.dot, { backgroundColor: t.success }]} />
       </TouchableOpacity>

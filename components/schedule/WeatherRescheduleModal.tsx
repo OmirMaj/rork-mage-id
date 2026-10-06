@@ -35,7 +35,7 @@ export interface WeatherRescheduleModalProps {
 }
 
 const CONDITION_LABEL: Record<DayForecast['condition'], string> = {
-  storm: 'Storm', snow: 'Snow', rain: 'Rain', wind: 'High wind', cloudy: 'Overcast', clear: 'Clear',
+  storm: 'Storm', snow: 'Snow', rain: 'Rain', wind: 'High Wind', cloudy: 'Overcast', clear: 'Clear',
 };
 
 function dateForDay(projectStartDate: Date, dayNumber: number): string {
@@ -80,7 +80,7 @@ export default function WeatherRescheduleModal({
         <TouchableOpacity activeOpacity={1} style={[styles.card, fW.card]} onPress={() => {}}>
           <View style={styles.header}>
             <CloudRain size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.title}>Weather reschedule</Text>
+            <Text style={styles.title}>Weather Reschedule</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
               Forecast vs. your weather-sensitive tasks.
             </Text>
@@ -92,7 +92,7 @@ export default function WeatherRescheduleModal({
           {!hasImpact ? (
             <View style={styles.emptyWrap}>
               <CheckCircle2 size={30} color={t.success} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No weather delays ahead</Text>
+              <Text style={styles.emptyTitle}>No Weather Delays Ahead</Text>
               <Text style={styles.emptyBody}>
                 No rained-out days fall on a weather-sensitive task in the forecast window.
                 Mark exterior tasks (pours, roofing, sitework) as weather-sensitive so they&apos;re watched.
@@ -106,7 +106,7 @@ export default function WeatherRescheduleModal({
                   <CloudOff size={15} color={t.warningLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.provenanceTitle}>
-                      {isFullySimulated ? SIMULATED_WEATHER_HEADLINE : 'Partly simulated forecast'}
+                      {isFullySimulated ? SIMULATED_WEATHER_HEADLINE : 'Partly Simulated Forecast'}
                     </Text>
                     <Text style={styles.provenanceBody}>
                       {isFullySimulated
@@ -125,7 +125,7 @@ export default function WeatherRescheduleModal({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.summaryTitle}>
-                    {slip > 0 ? `Project finish slips ${slip} day${slip === 1 ? '' : 's'}` : 'No net project slip'}
+                    {slip > 0 ? `Project finish slips ${slip} day${slip === 1 ? '' : 's'}` : 'No Net Project Slip'}
                   </Text>
                   <Text style={styles.summarySub}>
                     {result!.directHitCount} weather-sensitive task{result!.directHitCount === 1 ? '' : 's'} rained out
@@ -177,11 +177,11 @@ export default function WeatherRescheduleModal({
 
           <View style={[styles.footer, fW.footer]}>
             <TouchableOpacity style={[styles.btnGhost, fW.footerButton]} onPress={onClose} activeOpacity={0.7}>
-              <Text style={styles.btnGhostText}>{hasImpact ? 'Not now' : 'Close'}</Text>
+              <Text style={styles.btnGhostText}>{hasImpact ? 'Not Now' : 'Close'}</Text>
             </TouchableOpacity>
             {hasImpact && (
               <TouchableOpacity style={[styles.btnPrimary, fW.footerButton]} onPress={onApply} activeOpacity={0.7}>
-                <Text style={styles.btnPrimaryText}>Apply reschedule</Text>
+                <Text style={styles.btnPrimaryText}>Apply Reschedule</Text>
               </TouchableOpacity>
             )}
           </View>

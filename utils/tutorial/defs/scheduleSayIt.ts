@@ -99,7 +99,7 @@ function finishLine(ctx: CopyCtx): string {
 export const scheduleSayIt: TutorialDef = {
   id: 'schedule-say-it',
   version: 1,
-  title: 'Move a task by saying it',
+  title: 'Move a Task by Saying It',
   seconds: 35,
   endsWith: 'Drywall moved 2 days and the finish date updated',
   group: 'schedule',

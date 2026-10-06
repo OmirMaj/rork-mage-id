@@ -37,8 +37,8 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
       question: `Your ${c.name.toLowerCase()} line is $${(c.total / 1000).toFixed(0)}k — that usually means a multi-week lead. Add a procurement milestone before install?`,
       groundedDefault: { value: [c.name], basis: `$${c.total.toLocaleString()} category, no lead recorded` },
       choices: [
-        { label: 'Yes — add the milestone', value: [c.name], basis: 'keeps install off the critical path', recommended: true },
-        { label: 'No — already on site', value: [] },
+        { label: 'Yes — Add the Milestone', value: [c.name], basis: 'keeps install off the critical path', recommended: true },
+        { label: 'No — Already on Site', value: [] },
       ],
     });
   }
@@ -60,8 +60,8 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
       question: 'Occupied remodel by the look of it — phase it by area, or can trades overlap?',
       groundedDefault: { value: false, basis: 'defaulting to overlapping trades' },
       choices: [
-        { label: 'Trades can overlap', value: false, recommended: true },
-        { label: 'Phase it by area', value: true },
+        { label: 'Trades Can Overlap', value: false, recommended: true },
+        { label: 'Phase It by Area', value: true },
       ],
     });
   }

@@ -275,7 +275,7 @@ export function AutoScheduleReviewSheet(
                   accessibilityRole="link"
                   testID="zoning-unknown-code-link"
                 >
-                  Open the adoption record
+                  Open the Adoption Record
                 </Text>
               ) : null}
               <Text style={styles.zoningAsk} testID="zoning-unknown-ask">{unknown.ask}</Text>
@@ -296,7 +296,7 @@ export function AutoScheduleReviewSheet(
                 autoCapitalize="characters"
                 autoCorrect={false}
                 style={styles.zoningInput}
-                accessibilityLabel="Zoning district"
+                accessibilityLabel="Zoning District"
                 testID="zoning-district-input"
               />
               <TouchableOpacity
@@ -305,7 +305,7 @@ export function AutoScheduleReviewSheet(
                 style={[styles.zoningConfirmBtn, !typedReady && styles.zoningConfirmBtnDisabled]}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !typedReady }}
-                accessibilityLabel="Confirm zoning district"
+                accessibilityLabel="Confirm Zoning District"
                 testID="confirm-zoning-btn"
               >
                 <ShieldCheck {...Tokens.iconSize.small} color={typedReady ? colors.accentFill : colors.textMuted} />
@@ -393,15 +393,15 @@ export function AutoScheduleReviewSheet(
           accessibilityRole="button"
           accessibilityState={{ disabled: zoningBlocked }}
           accessibilityLabel={
-            zoningBlocked ? 'Confirm zoning to enable' : `Confirm and add ${count} to schedule`
+            zoningBlocked ? 'Confirm Zoning to Enable' : `Confirm and add ${count} to schedule`
           }
           testID="review-confirm-btn"
         >
           <Text style={[styles.confirmText, zoningBlocked && styles.confirmTextDisabled]}>
             {zoningBlocked
-              ? 'Confirm zoning to enable'
+              ? 'Confirm Zoning to Enable'
               : count === 1
-                ? 'Add to schedule'
+                ? 'Add to Schedule'
                 : `Add ${count} to schedule`}
           </Text>
         </TouchableOpacity>

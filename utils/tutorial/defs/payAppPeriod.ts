@@ -25,7 +25,7 @@ function usdCents(cents: number): string {
 export const payAppPeriod: TutorialDef = {
   id: 'pay-app-period',
   version: 1,
-  title: 'Fill in a pay application period',
+  title: 'Fill In a Pay Application Period',
   seconds: 45,
   endsWith: 'A draft pay application for this period',
   group: 'money',
@@ -100,7 +100,7 @@ export const payAppPeriod: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'payApp.saved' },
       success: {
-        title: 'Pay application saved as a draft',
+        title: 'Pay Application Saved as a Draft',
         sub: ctx => {
           const s = ctx.payloads['payApp.saved'];
           if (!s) return 'Saved on the sample job';

@@ -131,19 +131,19 @@ export function ProjectWorkspaceHeader(props: ProjectWorkspaceHeaderProps) {
         onPress: () => router.push(routeHref('/scan', { projectId: pid })),
       },
       {
-        key: 'closeout', label: 'Build closeout packet', icon: Archive, overflow: true,
+        key: 'closeout', label: 'Build Closeout Packet', icon: Archive, overflow: true,
         testID: 'project-closeout-packet-btn', onPress: onCloseoutPacket,
         disabled: generatingCloseout, disabledReason: generatingCloseout ? 'Already building…' : null,
       },
-      { key: 'aiReport', label: 'AI project report', icon: FileText, overflow: true, testID: 'project-ai-report-btn', onPress: onAIReport },
-      { key: 'calendar', label: 'Export calendar', icon: CalendarDays, overflow: true, testID: 'project-export-calendar-btn', onPress: onExportCalendar },
+      { key: 'aiReport', label: 'AI Project Report', icon: FileText, overflow: true, testID: 'project-ai-report-btn', onPress: onAIReport },
+      { key: 'calendar', label: 'Export Calendar', icon: CalendarDays, overflow: true, testID: 'project-export-calendar-btn', onPress: onExportCalendar },
     ];
     // The screen's own handlers confirm (and name the job); no second dialog.
     if (canDelete) {
-      list.push({ key: 'delete', label: 'Delete project', icon: Trash2, destructive: true, testID: 'delete-project-btn', onPress: onDelete });
+      list.push({ key: 'delete', label: 'Delete Project', icon: Trash2, destructive: true, testID: 'delete-project-btn', onPress: onDelete });
     } else if (canLeave) {
       list.push({
-        key: 'leave', label: 'Leave project', icon: ArrowDownRight, destructive: true, testID: 'leave-project-btn', onPress: onLeave,
+        key: 'leave', label: 'Leave Project', icon: ArrowDownRight, destructive: true, testID: 'leave-project-btn', onPress: onLeave,
         disabled: !!leaveBusyReason, disabledReason: leaveBusyReason,
       });
     }
@@ -188,7 +188,7 @@ export function ProjectWorkspaceHeader(props: ProjectWorkspaceHeaderProps) {
     <View style={styles.root} testID="project-workspace-header">
       <View style={styles.rowA}>
         <View style={styles.titleBlock}>
-          <RowLink href={routeHref('/(tabs)/(home)')} style={styles.crumb} accessibilityLabel="Back to your projects" testID="project-breadcrumb-projects">
+          <RowLink href={routeHref('/(tabs)/(home)')} style={styles.crumb} accessibilityLabel="Back to Your Projects" testID="project-breadcrumb-projects">
             <ChevronLeft {...Tokens.iconSize.small} color={t.textSecondary} />
             <Text style={styles.crumbText}>Projects</Text>
           </RowLink>
@@ -205,7 +205,7 @@ export function ProjectWorkspaceHeader(props: ProjectWorkspaceHeaderProps) {
           options={stageOptions}
           value={currentStage}
           onChange={onStageChange}
-          accessibilityLabel="Project stage"
+          accessibilityLabel="Project Stage"
         />
         <BidConfidenceBadge project={project} variant="light" />
         <NoticeStrip style={styles.notices} notices={notices} testID="project-notices" />

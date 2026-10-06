@@ -86,7 +86,7 @@ export function coLogTotals(rows: readonly CoLike[]): { approved: number; pendin
 const STATUS_LABEL: Readonly<Record<ChangeOrderStatus, string>> = {
   draft: 'Draft',
   submitted: 'Submitted',
-  under_review: 'Under review',
+  under_review: 'Under Review',
   approved: 'Approved',
   rejected: 'Rejected',
   revised: 'Revised',

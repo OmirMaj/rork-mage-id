@@ -96,7 +96,7 @@ export default function TaskInspector({
   const handleAddPhoto = useCallback(async (source: 'camera' | 'library') => {
     if (!task) return;
     if (Platform.OS === 'web' && source === 'camera') {
-      showAlert('Camera unavailable on web', 'Use the library picker instead.');
+      showAlert('Camera Unavailable on Web', 'Use the library picker instead.');
       return;
     }
     try {
@@ -187,11 +187,11 @@ export default function TaskInspector({
   return (
     <View style={embedded ? styles.embeddedPanel : styles.panel} testID={embedded ? 'task-inspector-embedded' : undefined}>
       {embedded ? (
-        <Text style={styles.embeddedTitle} numberOfLines={2} accessibilityRole="header">{task.title || 'Untitled task'}</Text>
+        <Text style={styles.embeddedTitle} numberOfLines={2} accessibilityRole="header">{task.title || 'Untitled Task'}</Text>
       ) : (
       <View style={styles.header}>
         <Info size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled Task'}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
       )}
@@ -201,19 +201,19 @@ export default function TaskInspector({
             position legible without the user having to open settings. */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Schedule</Text>
-          <Row label="Early start"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.es) : '—'} />
-          <Row label="Early finish" value={cpmRow ? dayToDate(projectStartDate, cpmRow.ef) : '—'} />
-          <Row label="Late start"   value={cpmRow ? dayToDate(projectStartDate, cpmRow.ls) : '—'} />
-          <Row label="Late finish"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.lf) : '—'} />
+          <Row label="Early Start"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.es) : '—'} />
+          <Row label="Early Finish" value={cpmRow ? dayToDate(projectStartDate, cpmRow.ef) : '—'} />
+          <Row label="Late Start"   value={cpmRow ? dayToDate(projectStartDate, cpmRow.ls) : '—'} />
+          <Row label="Late Finish"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.lf) : '—'} />
           {/* Both floats are WORKING days on the task's own calendar, so these
               two rows can be read against each other — free float ≤ total float
               is a CPM invariant, and this is the pair where a P6 user checks it.
               They used to be raw calendar-index subtractions computed
               independently, so the same row could read "Total float 0d / Free
               float 2d", which is not a state CPM can be in. */}
-          <Row label="Total float"  value={cpmRow ? `${cpmRow.totalFloat}d` : '—'}
+          <Row label="Total Float"  value={cpmRow ? `${cpmRow.totalFloat}d` : '—'}
             valueColor={cpmRow?.isCritical ? "#C84038" : themeColors.text} />
-          <Row label="Free float"   value={cpmRow ? `${cpmRow.freeFloat}d` : '—'} />
+          <Row label="Free Float"   value={cpmRow ? `${cpmRow.freeFloat}d` : '—'} />
           <Row label="Duration"     value={`${task.durationDays ?? 0}d`} />
         </View>
 
@@ -277,7 +277,7 @@ export default function TaskInspector({
             onPress={() => setTradeDropdownOpen(true)}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Select trade"
+            accessibilityLabel="Select Trade"
           >
             <View style={[styles.dropdownDot, { backgroundColor: Colors.tradeColors[tradeKeyForTask(task)] }]} />
             <Text style={styles.dropdownText}>{tradeLabel(tradeKeyForTask(task))}</Text>
@@ -385,7 +385,7 @@ export default function TaskInspector({
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Bell size={12} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
+            <Text style={styles.sectionTitle}>Notification List {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
             Only people on this list get pinged when this task shifts. Add a sub by name, email or phone. No sign-in needed.

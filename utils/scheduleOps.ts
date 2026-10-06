@@ -1082,14 +1082,14 @@ export type BaselineReasonCode =
   | 'other';
 
 export const BASELINE_REASON_LABELS: Record<BaselineReasonCode, string> = {
-  as_bid: 'As-bid baseline',
-  permit_delay: 'Permit delay',
-  scope_change: 'Scope change',
+  as_bid: 'As-Bid Baseline',
+  permit_delay: 'Permit Delay',
+  scope_change: 'Scope Change',
   weather: 'Weather',
-  client_direction: 'Client direction',
-  sub_unavailability: 'Sub unavailable',
-  design_revision: 'Design revision',
-  material_delay: 'Material delay',
+  client_direction: 'Client Direction',
+  sub_unavailability: 'Sub Unavailable',
+  design_revision: 'Design Revision',
+  material_delay: 'Material Delay',
   other: 'Other',
 };
 

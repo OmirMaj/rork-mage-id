@@ -96,7 +96,7 @@ export const QUESTIONS: QuestionSpec[] = [
     field: 'weather', eyebrow: 'THE WEATHER', question: 'Much weather-exposed work?',
     subtext: 'Excavation, foundations, roofing, exterior — I’ll buffer those for the season you’re in.',
     kind: 'choice', skipLabel: 'Handle it automatically',
-    choices: [{ label: 'Yes — buffer it', value: 'handle', recommended: true }, { label: 'Mostly interior', value: 'interior' }],
+    choices: [{ label: 'Yes — Buffer It', value: 'handle', recommended: true }, { label: 'Mostly Interior', value: 'interior' }],
   },
   {
     field: 'knownRisks', eyebrow: 'THE RISKS', question: 'Anything that could bite you?',

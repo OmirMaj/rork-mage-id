@@ -1435,7 +1435,7 @@ export function describeVariance(variance: number): VarianceDisplay {
   if (variance > VARIANCE_EPSILON) {
     return {
       tone: 'over',
-      label: 'Over by',
+      label: 'Over By',
       banner: `Projecting ${formatMoney(amount)} over budget`,
       amount,
       colorKey: 'danger',
@@ -1445,7 +1445,7 @@ export function describeVariance(variance: number): VarianceDisplay {
   if (variance < -VARIANCE_EPSILON) {
     return {
       tone: 'under',
-      label: 'Under by',
+      label: 'Under By',
       banner: `On track to finish ${formatMoney(amount)} under budget`,
       amount,
       colorKey: 'success',
@@ -1456,7 +1456,7 @@ export function describeVariance(variance: number): VarianceDisplay {
   // painted as one — `formatMoney` would render "$0" beside "Under by".
   return {
     tone: 'on_budget',
-    label: 'On budget',
+    label: 'On Budget',
     banner: 'Projecting to finish on budget',
     amount: 0,
     colorKey: 'neutral',

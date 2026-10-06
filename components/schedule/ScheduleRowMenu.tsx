@@ -105,7 +105,7 @@ export function ScheduleRowMenu({ visible, title, actions, onClose, anchor }: {
           style={styles.popoverBackdrop}
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close menu"
+          accessibilityLabel="Close Menu"
           // A second right-click elsewhere closes this menu instead of opening
           // the browser's own on top of it.
           {...({ onContextMenu: (e: { preventDefault?: () => void }) => { e?.preventDefault?.(); onClose(); } } as object)}

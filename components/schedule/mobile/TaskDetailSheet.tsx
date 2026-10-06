@@ -344,7 +344,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
 
                 <TouchableOpacity style={[styles.deleteBtn, locks.plan ? styles.lockedControl : null]} activeOpacity={0.8} onPress={handleDelete} disabled={locks.plan} accessibilityState={{ disabled: locks.plan }} testID="task-delete">
                   <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
-                  <Text style={styles.deleteText}>Delete task</Text>
+                  <Text style={styles.deleteText}>Delete Task</Text>
                 </TouchableOpacity>
                 {/* A "4D model — coming soon" card used to live here. It was
                     advertising a delivered capability as future work: the
