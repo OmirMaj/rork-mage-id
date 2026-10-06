@@ -247,7 +247,7 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
     expect(el.textContent).toContain("Couldn't load RFIs. Check your connection.");
     expect(el.textContent).not.toMatch(/No RFIs on This Project Yet/);
     const spy = jest.spyOn(qc, 'invalidateQueries');
-    const retry = [...el.querySelectorAll('[role="button"], div')].find((n) => n.textContent === 'Try again');
+    const retry = [...el.querySelectorAll('[role="button"], div')].find((n) => n.textContent === 'Try Again');
     expect(retry).toBeTruthy();
     await click(retry!);
     expect(spy).toHaveBeenCalledWith({ queryKey: ['rfis'] });

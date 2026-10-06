@@ -146,7 +146,7 @@ describe('client thread: photos, PDFs and messages that are not sent yet', () =>
     expect(screen.queryByText(timeOf(queuedMessage.createdAt))).toBeNull();
 
     // The failed file message: "Not sent", its reason, Retry and Remove, no time.
-    expect(screen.getByText('Not sent')).toBeTruthy();
+    expect(screen.getByText('Not Sent')).toBeTruthy();
     expect(screen.getByText("The upload didn't finish. Retry when you have a good connection.")).toBeTruthy();
     expect(screen.getByTestId(`message-status-${FAILED_ID}-retry`)).toBeTruthy();
     expect(screen.getByTestId(`message-status-${FAILED_ID}-remove`)).toBeTruthy();
