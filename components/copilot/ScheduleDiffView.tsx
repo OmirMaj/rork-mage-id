@@ -106,7 +106,7 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
       )}
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         {diff.finishDeltaDays !== 0 && (
-          <Text style={styles.finish}>Finish {dd(diff.finishDeltaDays)} — day {diff.finishBeforeDay} → {diff.finishAfterDay}</Text>
+          <Text style={styles.finish}>Finish {dd(diff.finishDeltaDays)}: day {diff.finishBeforeDay} to {diff.finishAfterDay}</Text>
         )}
         {diff.moved.map(m => (
           <Text key={m.id} style={styles.line}>
@@ -115,7 +115,7 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
         ))}
         {diff.added.map((a, i) => (
           <Text key={`a${i}`} style={styles.add} testID="schedule-edit-added">
-            + {a.name} ({a.durationDays}d{a.isMilestone ? ', milestone' : ''}){loose.has(a.id) ? ' — nothing waits on it yet' : ''}
+            + {a.name} ({a.durationDays}d{a.isMilestone ? ', milestone' : ''}){loose.has(a.id) ? ', nothing waits on it yet' : ''}
           </Text>
         ))}
         {diff.removed.map((r, i) => <Text key={`r${i}`} style={styles.remove}>− {r.name}</Text>)}
@@ -129,7 +129,7 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
         {diff.criticalLeft.length > 0 && <Text style={styles.line}>Off critical: {diff.criticalLeft.join(', ')}</Text>}
         {dropped.map((d, i) => <Text key={`u${i}`} style={styles.reject} testID="schedule-edit-unread">Couldn’t read: {describeDropped(d, ctx.currentTasks ?? [])}</Text>)}
         {diff.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>Couldn’t apply: {r.summary}</Text>)}
-        {!valid && <Text style={styles.reject}>Nothing to change yet — say it another way below.</Text>}
+        {!valid && <Text style={styles.reject}>Nothing to change yet. Say it another way below.</Text>}
       </ScrollView>
     </>
   );
@@ -146,7 +146,7 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
       {runOnThis ? <TutorialTarget id="scheduleEdit.apply">{applyBtn}</TutorialTarget> : applyBtn}
       <TouchableOpacity style={styles.discard} onPress={onDiscard} activeOpacity={0.7} testID="schedule-edit-discard" accessibilityRole="button">
         <X size={14} color={colors.textMuted} strokeWidth={2} />
-        <Text style={styles.discardText}>Not That — Discard</Text>
+        <Text style={styles.discardText}>Not That, Discard</Text>
       </TouchableOpacity>
     </View>
   );

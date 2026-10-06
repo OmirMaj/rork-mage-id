@@ -138,7 +138,7 @@ export function COScheduleReflowPreviewModal(props: {
   const confirmLabel = intent === 'place'
     ? (isReady ? `Apply ${dayWord}` : 'Pick a task first')
     : isReady
-      ? `Approve & move ${dayWord}`
+      ? `Approve and Move ${dayWord}`
       : plan.status === 'no_anchor'
         ? 'Approve without moving dates'
         : `Approve CO #${changeOrder.number}`;
@@ -184,7 +184,7 @@ export function COScheduleReflowPreviewModal(props: {
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>
               {intent === 'place'
-                ? `CO #${changeOrder.number} — place ${dayWord}`
+                ? `CO #${changeOrder.number}: place ${dayWord}`
                 : `Approve CO #${changeOrder.number}`}
             </Text>
             <TouchableOpacity
@@ -217,7 +217,7 @@ export function COScheduleReflowPreviewModal(props: {
                   </View>
                   <Text style={styles.anchorTitle} numberOfLines={2}>{plan.anchorTaskTitle}</Text>
                   <Text style={styles.anchorMeta}>
-                    {plan.anchorDurationBefore}d → {plan.anchorDurationAfter}d · {describeAnchorReason(plan.anchorReason)}
+                    {plan.anchorDurationBefore}d to {plan.anchorDurationAfter}d · {describeAnchorReason(plan.anchorReason)}
                   </Text>
                   {plan.candidates.length > 1 && (
                     <TouchableOpacity

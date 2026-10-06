@@ -77,8 +77,8 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
 
   const shareNote = useCallback(async () => {
     if (!note) return;
-    const r = await shareText({ message: note, title: `Invoice #${invoice.invoiceNumber} — backcharges` });
-    setShareMsg(r === 'copied' ? 'Note copied — paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
+    const r = await shareText({ message: note, title: `Invoice #${invoice.invoiceNumber}: backcharges` });
+    setShareMsg(r === 'copied' ? 'Note copied. Paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
   }, [note, invoice.invoiceNumber]);
 
   if (d.kind === 'none') return null;
@@ -90,11 +90,11 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
         <MinusCircle size={15} color={t.textSecondary} strokeWidth={1.75} />
         {d.kind === 'recorded' ? (
           <Text style={styles.headline} testID={`backcharge-deduct-line-${invoice.id}`}>
-            Deducted {formatCents(d.deductCents)} on this bill → pay {formatCents(d.payCents)}
+            Deducted {formatCents(d.deductCents)} on this bill, pay {formatCents(d.payCents)}
           </Text>
         ) : (
           <Text style={styles.headline} testID={`backcharge-deduct-line-${invoice.id}`}>
-            Backcharges open: {formatCents(sumCents(d.open))} · Deduct {formatCents(d.plan.deductCents)} on this bill → pay {formatCents(d.plan.payCents)}
+            Backcharges open: {formatCents(sumCents(d.open))} · Deduct {formatCents(d.plan.deductCents)} on this bill, pay {formatCents(d.plan.payCents)}
           </Text>
         )}
       </View>
@@ -103,7 +103,7 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
       ))}
       {waiting.length > 0 ? (
         <Text style={styles.muted}>
-          {formatCents(sumCents(waiting))} carries to the next bill ({waiting.map(b => b.reason).join(', ')}) — a backcharge comes off whole, never split.
+          {formatCents(sumCents(waiting))} carries to the next bill ({waiting.map(b => b.reason).join(', ')}). A backcharge comes off whole, never split.
         </Text>
       ) : null}
       <View style={styles.actions}>
@@ -132,7 +132,7 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
         <Text style={styles.muted}>Nothing fits on this bill: the oldest open backcharge is bigger than the invoice.</Text>
       ) : null}
       <Text style={styles.muted}>
-        MAGE records the deduction. Pay {formatCents(payCents)} when you mark this bill paid — MAGE never moves the money.{storage ? ' ' : null}
+        MAGE records the deduction. Pay {formatCents(payCents)} when you mark this bill paid. MAGE never moves the money.{storage ? ' ' : null}
         {storage?.retry ? (
           <Text
             style={styles.retry}

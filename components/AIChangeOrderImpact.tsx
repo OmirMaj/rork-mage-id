@@ -150,7 +150,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           style={styles.clarifyInput}
           value={clarifyAnswer}
           onChangeText={setClarifyAnswer}
-          placeholder="e.g. Electrical — add 4 recessed lights in the living room"
+          placeholder="Electrical: add 4 recessed lights in the living room"
           placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"

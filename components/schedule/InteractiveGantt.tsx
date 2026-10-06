@@ -1416,7 +1416,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             <Pressable
               style={{ width: timelineWidth, height: gridHeight }}
               onPress={handleBackgroundPress}
-              accessibilityLabel="Timeline background — double-tap to add a task at that day"
+              accessibilityLabel="Timeline background, double-tap to add a task at that day"
             >
               {/* --- Header --- */}
               <View style={[styles.timelineHeader, { width: timelineWidth, height: headerH }, isDesktopWeb && STICKY_HEADER_WEB]}>

@@ -239,7 +239,7 @@ export function SubLatenessRow({
   } else if (entry?.status === 'on_plan') {
     line = t('schedule.lateness.rowOnPlan', 'Finished on plan across your last {jobs} jobs.', { jobs });
   } else {
-    line = t('schedule.lateness.rowNotEnough', 'Not enough history yet — {have} of {need} finished jobs with start and finish dates.', {
+    line = t('schedule.lateness.rowNotEnough', 'Not enough history yet: {have} of {need} finished jobs with start and finish dates.', {
       have: jobs, need: LATE_MIN_JOBS,
     });
   }

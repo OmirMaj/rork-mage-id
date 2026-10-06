@@ -394,7 +394,7 @@ export default function TaskInspector({
             <TextInput
               value={subscriberDraft}
               onChangeText={setSubscriberDraft}
-              placeholder="e.g. Volt Bros, joe@example.com"
+              placeholder="Volt Bros, joe@example.com"
               placeholderTextColor={themeColors.textMuted}
               style={styles.subInput}
               onSubmitEditing={handleAddSubscriber}

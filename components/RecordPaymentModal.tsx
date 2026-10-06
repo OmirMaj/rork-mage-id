@@ -117,7 +117,7 @@ export default function RecordPaymentModal({
           </View>
 
           <Text style={styles.hint}>
-            MAGE doesn&rsquo;t move the money — record the payment you made so this
+            MAGE doesn’t move the money. Record the payment you made so this
             reconciles against your bank statement.
           </Text>
 
@@ -168,7 +168,7 @@ export default function RecordPaymentModal({
               </Text>
             ) : null}
             <Text style={styles.fieldHint}>
-              The day the money actually left your account — not today, if the check was written earlier.
+              The day the money actually left your account, not today if the check was written earlier.
             </Text>
           </ScrollView>
 

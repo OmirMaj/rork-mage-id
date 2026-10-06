@@ -108,7 +108,7 @@ export function StartDayBasisNotice({
           about baselines and calendar indices and could not be checked. */}
       {model.rows.slice(0, 4).map((r) => (
         <Text key={r.id} style={s.evidence} numberOfLines={1}>
-          • {r.title} — now {dayLabel(projectStartDate, r.storedDay)}, or {dayLabel(projectStartDate, r.remappedDay)}
+          • {r.title}: now {dayLabel(projectStartDate, r.storedDay)}, or {dayLabel(projectStartDate, r.remappedDay)}
         </Text>
       ))}
       {model.rows.length > 4 && (

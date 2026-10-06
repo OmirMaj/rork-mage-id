@@ -403,7 +403,7 @@ function CaptureView(props: {
       <TextInput
         value={props.draftName}
         onChangeText={props.onChangeName}
-        placeholder="e.g. Signed contract"
+        placeholder="Signed contract"
         placeholderTextColor={themeColors.textMuted}
         style={styles.input}
         autoFocus
@@ -479,7 +479,7 @@ function ComparePicker(props: {
             style={[styles.pickerRow, compareB === null && styles.pickerRowSelected]}
             onPress={() => setCompareB(null)}
           >
-            <Text style={styles.pickerRowName}>Today&apos;s plan</Text>
+            <Text style={styles.pickerRowName}>Today’s Plan</Text>
             <Text style={styles.pickerRowMeta}>Working tasks</Text>
           </TouchableOpacity>
         )}

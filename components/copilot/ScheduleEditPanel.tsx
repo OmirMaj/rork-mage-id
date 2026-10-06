@@ -106,8 +106,8 @@ export default function ScheduleEditPanel({
       return {
         ok: false,
         message: hasToolbarUndo
-          ? 'The schedule changed since — use Undo in the toolbar instead.'
-          : 'The schedule changed since this was applied, so nothing was undone — change it back on the schedule.',
+          ? 'The schedule changed since. Use Undo in the toolbar instead.'
+          : 'The schedule changed since this was applied, so nothing was undone. Change it back on the schedule.',
       };
     }
     // The host can refuse the write (seat role, a saved plan on screen) — then

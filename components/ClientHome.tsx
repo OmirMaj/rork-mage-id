@@ -375,7 +375,7 @@ export default function ClientHome() {
                   My RFPs now shows the real alerted count (audit round 2, #8). */}
               <Text style={styles.emptyBody}>
                 Post your scope. We alert MAGE ID contractors who cover your area and show you how many that was.
-                Compare side-by-side, pick the build you like, and track the work — one app, your whole portfolio.
+                Compare side-by-side, pick the build you like, and track the work. One app for your whole portfolio.
               </Text>
             </View>
           </FadeRise>

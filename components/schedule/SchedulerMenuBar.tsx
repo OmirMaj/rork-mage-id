@@ -42,7 +42,7 @@ const MENUS: { key: string; label: string; items: Item[] }[] = [
   ]},
   { key: 'share', label: 'Share', items: [
     { label: 'Export', action: 'onExport' }, { label: 'Share Link', action: 'onShare' }, { label: 'AI Assist', action: 'onAI' },
-    { label: 'Today & Lookahead (Classic)', action: 'openClassic', onlyIfPresent: true },
+    { label: 'Today and Lookahead (Classic)', action: 'openClassic', onlyIfPresent: true },
   ]},
 ];
 

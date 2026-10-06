@@ -87,7 +87,7 @@ const RAIL_AUTO_OPEN_MIN_WIDTH = 1280;
 const ASPECT_CACHE = new Map<string, number>();
 
 const SIZE_READING = 'Reading the sheet size…';
-const SIZE_FAILED = 'Couldn’t read this sheet’s image — measuring is off for it.';
+const SIZE_FAILED = 'Couldn’t read this sheet’s image. Measuring is off for it.';
 
 const money = (n: number) => formatMoneyFull(n);
 const DRAW_KINDS: readonly TakeoffTool[] = ['area', 'linear', 'count'];
@@ -409,7 +409,7 @@ export default function TakeoffWorkspace() {
       nth.set(m.sheetId, n);
       const what = m.kind === 'area' ? 'Area' : m.kind === 'linear' ? 'Line' : 'Count';
       const q = measurementQuantity(m, m.kind === 'count' ? null : calFor(m.sheetId));
-      const qty = q == null ? 'not measured — no scale' : qtyLabel(m.kind, q);
+      const qty = q == null ? 'not measured (no scale)' : qtyLabel(m.kind, q);
       return { id: m.id, text: `${sheetLabel(m.sheetId)} · ${what} ${n} · ${qty}` };
     });
   }, [doc.measurements, filter, active, sheetOrder, calFor, sheetLabel]);
@@ -546,7 +546,7 @@ export default function TakeoffWorkspace() {
     const add = preview ? preview.afterGrand - preview.beforeGrand : 0;
     markupLine = `Markup ${pct}% · Sell ${add < 0 ? '−' : '+'}${money(Math.abs(add))} with this push`;
   } else if (est) {
-    markupLine = 'This total is your cost — the estimate has no markup yet';
+    markupLine = 'This total is your cost. The estimate has no markup yet';
   }
   const skippedLines = useMemo(() => {
     const n = (r: string) => skipped.filter((s) => s.reason === r).length;
@@ -554,17 +554,17 @@ export default function TakeoffWorkspace() {
     const noRate = n('no_rate');
     const notMeasured = n('not_measured');
     const noQty = n('no_quantity');
-    if (noRate) out.push(`${noRate} ${plural(noRate, 'has', 'have')} no rate yet — not pushed`);
-    if (notMeasured) out.push(`${notMeasured} not measured (no scale on the sheet) — not pushed`);
-    if (noQty) out.push(`${noQty} ${plural(noQty, 'has', 'have')} nothing measured — not pushed`);
+    if (noRate) out.push(`${noRate} ${plural(noRate, 'has', 'have')} no rate yet, not pushed`);
+    if (notMeasured) out.push(`${notMeasured} not measured (no scale on the sheet), not pushed`);
+    if (noQty) out.push(`${noQty} ${plural(noQty, 'has', 'have')} nothing measured, not pushed`);
     // The AI label rides into the estimate: say so before he pushes.
     const aiLines = lines.filter((l) => l.aiRead).length;
-    if (aiLines) out.push(`${aiLines} ${plural(aiLines, 'line is an', 'lines are')} AI read, not measured — pushed as “… — AI read, not measured”`);
+    if (aiLines) out.push(`${aiLines} ${plural(aiLines, 'line is an', 'lines are')} AI read, not measured, pushed as “… (AI read, not measured)”`);
     return out;
   }, [skipped, lines]);
   const lp = doc.lastPush && project && doc.lastPush.projectId === project.id ? doc.lastPush : null;
   const result = lp
-    ? { line: `Estimate updated ${money(lp.before)} → ${money(lp.after)}`, counts: lp.updated + lp.added === 0 ? 'Already up to date — nothing changed' : `${lp.updated} updated, ${lp.added} added` }
+    ? { line: `Estimate updated ${money(lp.before)} to ${money(lp.after)}`, counts: lp.updated + lp.added === 0 ? 'Already up to date, nothing changed' : `${lp.updated} updated, ${lp.added} added` }
     : null;
   const pushLabel = `Push ${lines.length} ${plural(lines.length, 'line', 'lines')} to estimate`;
 
@@ -837,7 +837,7 @@ function ScaleDialog({ onSave, onClose }: { onSave: (ft: number) => void; onClos
   const styles = useThemedStyles(makeStyles);
   const [text, setText] = useState('');
   const ft = parseDecimalInput(text);
-  const reason = ft != null && ft > 0 ? null : 'Type the real length in feet (e.g. 12 or 12.5).';
+  const reason = ft != null && ft > 0 ? null : 'Type the real length in feet (for example 12 or 12.5).';
   const save = useCallback(() => { if (ft != null && ft > 0) onSave(ft); }, [ft, onSave]);
   useHotkeys([
     { combo: 'escape', handler: onClose, label: 'Close', group: 'Scale' },
@@ -857,14 +857,14 @@ function ScaleDialog({ onSave, onClose }: { onSave: (ft: number) => void; onClos
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Feet, e.g. 24"
+        placeholder="24"
         placeholderTextColor={t.textMuted}
         keyboardType="decimal-pad"
         style={styles.input}
         accessibilityLabel="Real Length in Feet"
         testID="takeoffws-scale-feet"
       />
-      <Text style={styles.hint}>Saved to this sheet — Plan Viewer and the phone use the same scale.</Text>
+      <Text style={styles.hint}>Saved to this sheet. Plan Viewer and the phone use the same scale.</Text>
     </Sheet>
   );
 }

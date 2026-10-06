@@ -81,7 +81,7 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
         singleWallSheet: override?.singleWallSheet ?? false,
       };
       const html = renderScheduleReportHtml(model, opts);
-      await generateScheduleReportPdf(html, `${project.name} — Schedule report`);
+      await generateScheduleReportPdf(html, `${project.name} Schedule Report`);
       onClose();
     } catch (e) {
       console.warn('[ExportCenterSheet] report export failed', rawErrorMessage(e));

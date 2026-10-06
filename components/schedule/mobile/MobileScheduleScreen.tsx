@@ -134,7 +134,7 @@ const ROW_FIELD_KEY_LABEL: Record<string, string> = {
  *  (its % slider, title, crew and notes inputs) — a peer change to one of these
  *  cannot show in the open sheet, so the screen says so. */
 const SHEET_DRAFT_KEYS: readonly string[] = ['progress', 'title', 'crew', 'notes'];
-const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`;
+const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only. Ask the project owner for editor access to move dates or change tasks.`;
 
 /**
  * Before/after snapshots holding only what really changed. summarizeTaskDiff
@@ -185,7 +185,7 @@ export function describeMobileScheduleEdit(input: {
   if (total === 0) return null;
 
   const finishMoved = finishBefore !== finishAfter && finishBefore > 0 && finishAfter > 0;
-  const finishClause = finishMoved ? ` — finish ${formatFinish(finishBefore)} → ${formatFinish(finishAfter)}` : '';
+  const finishClause = finishMoved ? `, finish ${formatFinish(finishBefore)} to ${formatFinish(finishAfter)}` : '';
 
   if (total === 1 && !reason) {
     if (created.length === 1) {
@@ -651,7 +651,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const wholePlanWriteBlocked = useMemo<string | null>(() => {
     if (writePath === 'row') return null;
     return writePath === 'field_rpc'
-      ? 'Field access can’t move schedule dates or lock a plan. Your progress, status, notes and actual start/finish still save — ask the project owner for editor access to do this.'
+      ? 'Field access can’t move schedule dates or lock a plan. Your progress, status, notes and actual start/finish still save. Ask the project owner for editor access to do this.'
       : VIEWER_SCHEDULE_NOTICE;
   }, [writePath]);
 
@@ -1091,7 +1091,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           ? calendarDayToDate(anchor.date, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           : `day ${d}`);
         const who = snap.waitsOn ? `it waits on ${snap.waitsOn}` : 'its links and constraints hold it later';
-        setScheduleNotice(`${stamped.title || 'This task'} can’t start ${fmtDay(snap.requestedCalendarDay)} — ${who}, so it stays on ${fmtDay(snap.scheduledCalendarDay)}. To bring it earlier, shorten or unlink ${snap.waitsOn ?? 'what it depends on'}.`);
+        setScheduleNotice(`${stamped.title || 'This task'} can’t start ${fmtDay(snap.requestedCalendarDay)}: ${who}, so it stays on ${fmtDay(snap.scheduledCalendarDay)}. To bring it earlier, shorten or unlink ${snap.waitsOn ?? 'what it depends on'}.`);
       } else {
         setScheduleNotice(null);
       }
@@ -1269,7 +1269,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
         user: auditUser,
         kind: 'baseline_capture',
-        summary: `Locked the plan as baseline ${snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+        summary: `Locked the plan as baseline ${snap.name}${finishLabel ? `, finish ${finishLabel}` : ''}`,
       }));
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1329,7 +1329,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
         user: auditUser,
         kind: 'reflow',
-        summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} → ${iso}` : `set to ${iso}`}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+        summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} to ${iso}` : `set to ${iso}`}${finishLabel ? `, finish ${finishLabel}` : ''}`,
       }));
     }
     // THE MOMENT TO LOCK. A start date plus a task list is the first time this
@@ -1342,7 +1342,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     if (writePath === 'row' && nextTasks.length > 0 && (activeSchedule.baselines?.length ?? 0) === 0 && finishLabel) {
       showAlert(
         'Lock this as the plan?',
-        `Every task now has a date, and the finish is ${finishLabel} — the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not just how the pace looks.`,
+        `Every task now has a date, and the finish is ${finishLabel}, the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not only how the pace looks.`,
         [
           { text: 'Not Now', style: 'cancel' },
           { text: 'Lock the Plan', onPress: () => lockPlan(nextSchedule) },
@@ -1911,7 +1911,7 @@ function FinishDateSheet({
             {!!verdict.detail && <Text style={styles.finishDetail}>{verdict.detail}</Text>}
           </View>
 
-          <Text style={styles.section}>What&apos;s driving the finish date</Text>
+          <Text style={styles.section}>What’s Driving the Finish Date</Text>
           <View style={styles.finishCard}>
             {chain.length === 0 ? (
               <Text style={styles.finishEmpty}>
@@ -1948,7 +1948,7 @@ function FinishDateSheet({
               <>
                 {/* A blocked button says why, and offers the one fix. */}
                 <Text style={styles.finishEmpty}>
-                  {UNDATED_SCHEDULE_TITLE}, so there is no “today” to catch up to — day numbers alone cannot say what is late.
+                  {UNDATED_SCHEDULE_TITLE}, so there is no “today” to catch up to. Day numbers alone cannot say what is late.
                 </Text>
                 <TouchableOpacity
                   style={[styles.finishBtn, styles.finishBtnDisabled]}
@@ -1991,7 +1991,7 @@ function FinishDateSheet({
               </>
             ) : changeCount === 0 ? (
               <Text style={styles.finishEmpty}>
-                Nothing is behind as of today — the plan already matches the field.
+                Nothing is behind as of today. The plan already matches the field.
               </Text>
             ) : (
               <>
@@ -2001,7 +2001,7 @@ function FinishDateSheet({
                     : 'Work downstream of what has actually happened has not been re-dated yet.'}
                   {' '}Starting what is left today moves {changeCount} task{changeCount === 1 ? '' : 's'}
                   {afterFinishLabel && finishDateLabel !== '—'
-                    ? ` and the finish ${finishDateLabel} → ${afterFinishLabel}.`
+                    ? ` and the finish ${finishDateLabel} to ${afterFinishLabel}.`
                     : '.'}
                 </Text>
                 <Text style={styles.finishNote}>
@@ -2061,7 +2061,7 @@ function FinishDateSheet({
                 {!!activeBaseline && (
                   <Text style={styles.finishNote}>
                     {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                    {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                    {baselineFinishLabel ? `, planned finish ${baselineFinishLabel}.` : '.'}
                   </Text>
                 )}
               </>
@@ -2089,7 +2089,7 @@ function FinishDateSheet({
               <>
                 <Text style={styles.finishBody}>
                   {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                  {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                  {baselineFinishLabel ? `, planned finish ${baselineFinishLabel}.` : '.'}
                 </Text>
                 <TouchableOpacity
                   style={styles.finishLink}
@@ -2279,7 +2279,7 @@ function LivingFloorPlanContainer({
     });
     if (planNotSynced) {
       showAlert('Share Floor Plan', planUnsigned
-        ? 'Couldn’t get a link for this plan — check your signal and try again.'
+        ? 'Couldn’t get a link for this plan. Check your signal and try again.'
         : 'This plan hasn’t synced yet, so the link would open blank. Wait until the offline-sync pill shows "Synced," then try again.');
       return;
     }
@@ -2290,11 +2290,11 @@ function LivingFloorPlanContainer({
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
     if (droppedExcess > 0) extras.push(`Oldest ${droppedExcess} left out (limit ${PLAN_SHARE_MAX_PHOTOS})`);
-    if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link — try again online)`);
+    if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link, try again online)`);
     if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} photo${droppedWithdrawn === 1 ? '' : 's'} left out (draft or recalled from the client portal)`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
-      showAlert('Floor Plan Link Copied', `Paste it into a text or email. Your client sees rooms, trades, and photos — never costs or task detail.${detail}`);
+      showAlert('Floor Plan Link Copied', `Paste it into a text or email. Your client sees rooms, trades, and photos, never costs or task detail.${detail}`);
     } else {
       showAlert('Floor Plan Link', `${url}${detail}`);
     }

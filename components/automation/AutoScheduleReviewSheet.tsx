@@ -188,7 +188,7 @@ export function AutoScheduleReviewSheet(
               : `${count} inspections will be added to your schedule`}
           </Text>
           <Text style={styles.subtitle}>
-            Draft only — nothing changes until you confirm.
+            Draft only. Nothing changes until you confirm.
           </Text>
         </View>
       </View>
@@ -207,7 +207,7 @@ export function AutoScheduleReviewSheet(
               <Text style={styles.zoningBody} testID="zoning-gate-reason">
                 {zoning?.reason
                   ?? (zoning?.district
-                    ? `We guessed ${zoning.district} from the address. Confirm it to enable auto-scheduling — we won't schedule on a guess.`
+                    ? `We guessed ${zoning.district} from the address. Confirm it to enable auto-scheduling. We won't schedule on a guess.`
                     : `We can't auto-schedule until the district is confirmed.`)}
               </Text>
             </View>
@@ -264,7 +264,7 @@ export function AutoScheduleReviewSheet(
                 <Text style={styles.zoningFact} testID="zoning-unknown-code">
                   <Text style={styles.zoningFactKey}>Building code on file: </Text>
                   {unknown.codeSummary}
-                  {unknown.codeCheckedOn ? ` (checked ${unknown.codeCheckedOn})` : ''} — that is
+                  {unknown.codeCheckedOn ? ` (checked ${unknown.codeCheckedOn})` : ''}. That is
                   the building code, not zoning.
                 </Text>
               ) : null}
@@ -291,7 +291,7 @@ export function AutoScheduleReviewSheet(
               <TextInput
                 value={typed}
                 onChangeText={setTyped}
-                placeholder="Zoning district (e.g. R-5)"
+                placeholder="R-5"
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -371,8 +371,8 @@ export function AutoScheduleReviewSheet(
       {unresolvedCount > 0 ? (
         <Text style={styles.unresolvedNote} testID="unresolved-note">
           {unresolvedCount === 1
-            ? `1 task couldn't be linked — it's anchored to its book-by date until you pick a predecessor.`
-            : `${unresolvedCount} tasks couldn't be linked — they're anchored to their book-by dates until you pick predecessors.`}
+            ? `1 task couldn't be linked. It's anchored to its book-by date until you pick a predecessor.`
+            : `${unresolvedCount} tasks couldn't be linked. They're anchored to their book-by dates until you pick predecessors.`}
         </Text>
       ) : null}
 

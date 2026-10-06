@@ -227,20 +227,20 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
         </Pressable>
         <View style={styles.spacer} />
         <View style={styles.group} accessibilityLabel={zoomReason}>
-          <Pressable onPress={p.zoom.zoomOut} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom Out' : `Zoom out — ${zoomReason}`} testID="schedule-zoom-out">
+          <Pressable onPress={p.zoom.zoomOut} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom Out' : `Zoom out, ${zoomReason}`} testID="schedule-zoom-out">
             <Minus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
-          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the Whole Project' : `Fit — ${zoomReason}`} testID="schedule-zoom-fit">
+          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the Whole Project' : `Fit, ${zoomReason}`} testID="schedule-zoom-fit">
             {plan.zoomLabels
               ? <Text style={styles.textBtnLabel}>Fit</Text>
               : <Maximize2 size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
-          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to Today' : `Today — ${zoomReason}`} testID="schedule-zoom-today">
+          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to Today' : `Today, ${zoomReason}`} testID="schedule-zoom-today">
             {plan.zoomLabels
               ? <Text style={styles.textBtnLabel}>Today</Text>
               : <CalendarDays size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
-          <Pressable onPress={p.zoom.zoomIn} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom In' : `Zoom in — ${zoomReason}`} testID="schedule-zoom-in">
+          <Pressable onPress={p.zoom.zoomIn} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom In' : `Zoom in, ${zoomReason}`} testID="schedule-zoom-in">
             <Plus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
         </View>

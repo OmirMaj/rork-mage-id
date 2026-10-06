@@ -94,13 +94,13 @@ export function coNumberHoldReason(state: CoNumberState, action: 'email' | 'port
     case 'confirmed': return null;
     case 'checking': return 'Checking this change order’s number with MAGE…';
     case 'pending':
-      return `This change order is still reaching MAGE, which gives it its final number. It can be ${what} once it has synced — another device may already have used this number.`;
+      return `This change order is still reaching MAGE, which gives it its final number. It can be ${what} once it has synced. Another device may already have used this number.`;
     case 'unsaved':
       return `This change order did not reach MAGE (see the sync status), so it has no confirmed number and cannot be ${what} yet. Retry it from the sync status first.`;
     case 'unverified':
       return `MAGE could not confirm this change order’s number (no connection), so it cannot be ${what} yet. Try again with signal.`;
     case 'edit_unsaved':
-      return `Your latest change to this change order is not saved to MAGE yet (it is under Not saved on the sync status), so it cannot be ${what} — the client would get a version MAGE does not have. Retry or discard it there first.`;
+      return `Your latest change to this change order is not saved to MAGE yet (it is under Not saved on the sync status), so it cannot be ${what}. The client would get a version MAGE does not have. Retry or discard it there first.`;
   }
 }
 // <<< co-number-state

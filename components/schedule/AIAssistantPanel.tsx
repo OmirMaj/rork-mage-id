@@ -696,7 +696,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                 <QuickBtn
                   icon={MageAIMark}
                   title="Draft from My Estimate"
-                  sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
+                  sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} to a cost-loaded plan`}
                   onPress={handleGenerateFromEstimate}
                   featured
                 />

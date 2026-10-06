@@ -132,7 +132,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
             // scope question with the thin answer prefilled so the user can
             // enrich it, and remember where to resume afterwards.
             thinHintShownRef.current = true;
-            setThinScopeHint("Tell me the rooms and trades — one word isn't enough to schedule from.");
+            setThinScopeHint("Tell me the rooms and trades. One word isn't enough to schedule from.");
             resumeIdxRef.current = idx;
             prefillEntryRef.current = scopeText;
             setIdx(scopeIdx);
@@ -266,7 +266,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
                           review, which says what a replace loses — but he
                           should know that before ten questions, not after. */}
                       <Text style={styles.jobMeta} numberOfLines={1}>
-                        {n > 0 ? `Has a ${n}-task schedule — you’ll review before anything replaces it` : 'No schedule yet'}
+                        {n > 0 ? `Has a ${n}-task schedule. You’ll review before anything replaces it` : 'No schedule yet'}
                       </Text>
                     </View>
                     <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
@@ -303,7 +303,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
     return (
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.eyebrow}>Couldn&apos;t build the schedule</Text>
+        <Text style={styles.eyebrow}>Couldn’t Build the Schedule</Text>
         <Text style={styles.question}>{errMsg}</Text>
         <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={() => setPhase('ask')} activeOpacity={0.9}>
           <Text style={styles.primaryBtnText}>Try Again</Text>

@@ -34,7 +34,7 @@ import { displayText } from '@/utils/formatters';
 import { PROJECT_STAGES, STAGE_LABELS, type ProjectStage } from '@/utils/projectStage';
 import { inPlaceTileForStep, noticeToneForStep } from '@/utils/projectWorkspaceLayout';
 
-export const SHARE_NEEDS_ESTIMATE = 'Build an estimate first — Share sends the estimate.';
+export const SHARE_NEEDS_ESTIMATE = 'Build an estimate first. Share sends the estimate.';
 export const ROLE_ERROR_NOTICE = "Couldn't verify your access to this job's financials.";
 
 export interface ProjectWorkspaceHeaderProps {

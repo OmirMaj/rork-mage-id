@@ -30,7 +30,7 @@ import { backchargeSheetSubtitle } from '@/utils/backchargeCopy';
 import { useBackcharges } from '@/hooks/useBackcharges';
 import type { Commitment, Project, ProjectPhoto, PunchItem, Subcontractor } from '@/types';
 
-export const NO_LABOR_RATE_TEXT = 'No labor rate on file — type the amount';
+export const NO_LABOR_RATE_TEXT = 'No labor rate on file. Type the amount';
 
 export interface BackchargeSheetProps {
   visible: boolean;
@@ -119,7 +119,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
         uri,
         timestamp: now,
         tag: 'Backcharge',
-        location: `Backcharge — ${sub.companyName}${reason.trim() ? `: ${reason.trim()}` : ''}`,
+        location: `Backcharge, ${sub.companyName}${reason.trim() ? `: ${reason.trim()}` : ''}`,
         createdAt: now,
       };
       addProjectPhoto(saved);
@@ -173,7 +173,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       <TextInput
         value={reason}
         onChangeText={setReason}
-        placeholder="e.g. Cleanup after drywall — 2 dumpsters of debris"
+        placeholder="Cleanup after drywall, 2 dumpsters of debris"
         placeholderTextColor={t.textMuted}
         style={styles.input}
         testID="backcharge-reason"

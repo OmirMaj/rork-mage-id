@@ -1892,8 +1892,8 @@ const ANCHOR_OPTIONS: { value: AnchorType; label: string; help: string }[] = [
   { value: 'start-no-later', label: 'Start No Later Than', help: 'Task must start on or before the anchor date.' },
   { value: 'finish-no-earlier', label: 'Finish No Earlier Than', help: 'Task may finish on or after the anchor date.' },
   { value: 'finish-no-later', label: 'Finish No Later Than', help: 'Task must finish on or before the anchor date.' },
-  { value: 'must-start-on', label: 'Must Start On', help: 'Hard pin — task starts exactly on this date.' },
-  { value: 'must-finish-on', label: 'Must Finish On', help: 'Hard pin — task finishes exactly on this date.' },
+  { value: 'must-start-on', label: 'Must Start On', help: 'Hard pin. Task starts exactly on this date.' },
+  { value: 'must-finish-on', label: 'Must Finish On', help: 'Hard pin. Task finishes exactly on this date.' },
   { value: 'as-late-as-possible', label: 'As Late as Possible', help: 'Push task to its late-start without slipping the project.' },
 ];
 

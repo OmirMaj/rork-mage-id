@@ -126,7 +126,7 @@ export default function ScenariosModal({
               // itself reversible.
               const backup: ScheduleScenario = {
                 id: `scn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                name: `Before restore — ${new Date().toLocaleDateString()}`,
+                name: `Before restore: ${new Date().toLocaleDateString()}`,
                 note: 'Auto-saved before restoring a saved plan.',
                 createdAt: new Date().toISOString(),
                 tasks: schedule.tasks.map((t) => ({ ...t })) as ScheduleTask[],
@@ -335,7 +335,7 @@ export default function ScenariosModal({
               <Text style={styles.createTitle}>Save This Plan</Text>
               <Text style={styles.createHint}>
                 Saves a frozen copy of the schedule as it is now. The copy can{"'"}t
-                be edited — keep working in the live plan, and restore this copy
+                be edited. Keep working in the live plan, and restore this copy
                 any time.
               </Text>
 
@@ -344,7 +344,7 @@ export default function ScenariosModal({
                 style={styles.input}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="e.g. Before re-sequencing framing"
+                placeholder="Before re-sequencing framing"
                 placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="scenarios-new-name"

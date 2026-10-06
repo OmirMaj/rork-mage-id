@@ -62,7 +62,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
   const confirmVoid = useCallback((b: Backcharge) => {
     showAlert(
       'Void this backcharge?',
-      `${b.reason} — ${formatCents(b.amountCents)}. It will not come off any bill.`,
+      `${b.reason}: ${formatCents(b.amountCents)}. It will not come off any bill.`,
       [
         { text: 'Keep It', style: 'cancel' },
         { text: 'Void', style: 'destructive', onPress: () => voidOne(b.id) },
@@ -77,8 +77,8 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
       companyName: settings?.branding?.companyName ?? '',
       items: open,
     });
-    const r = await shareText({ message, title: `Backcharges — ${project.name}` });
-    setShareMsg(r === 'copied' ? 'Notice copied — paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
+    const r = await shareText({ message, title: `Backcharges: ${project.name}` });
+    setShareMsg(r === 'copied' ? 'Notice copied. Paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
   }, [sub, project.name, settings, open]);
 
   return (
@@ -90,7 +90,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
         ) : null}
       </View>
       <Text style={styles.subtitle}>
-        Damage, cleanup or rework you paid for — taken off {sub.companyName}’s next bill.{storage ? ' ' : null}
+        Damage, cleanup or rework you paid for, taken off {sub.companyName}’s next bill.{storage ? ' ' : null}
         {storage?.retry ? (
           <Text
             style={styles.retry}

@@ -559,7 +559,7 @@ export function MobileGantt({
           onPress={() => setWeekdayOnly((v) => !v)}
           testID="mobile-gantt-weekday-only"
         >
-          <Text style={[styles.chipText, weekdayOnly ? styles.chipTextActive : null]}>M–F</Text>
+          <Text style={[styles.chipText, weekdayOnly ? styles.chipTextActive : null]}>M-F</Text>
         </TouchableOpacity>
       </View>
 

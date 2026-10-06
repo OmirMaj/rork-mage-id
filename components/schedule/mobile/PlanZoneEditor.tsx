@@ -317,7 +317,7 @@ export function PlanZoneEditor({
               style={styles.promptInput}
               value={nameInput}
               onChangeText={setNameInput}
-              placeholder="e.g. Kitchen"
+              placeholder="Kitchen"
               placeholderTextColor={colors.textMuted}
               autoFocus
               returnKeyType="done"

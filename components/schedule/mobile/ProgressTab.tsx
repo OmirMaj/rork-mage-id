@@ -104,7 +104,7 @@ export function ProgressTab({
         {/* Honest empty state — with zero tasks this card rendered as a bare
             white pill (sim-audit #12). Mirrors the milestones card below. */}
         {phases.length === 0 && (
-          <Text style={styles.empty}>No phases yet — add work packages to the schedule.</Text>
+          <Text style={styles.empty}>No phases yet. Add work packages to the schedule.</Text>
         )}
         {phases.map((p, i) => (
           <View key={p.phase} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>

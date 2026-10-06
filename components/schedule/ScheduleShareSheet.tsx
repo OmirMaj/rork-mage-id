@@ -129,7 +129,7 @@ function ScheduleShareSheet({
       </head>
       <body>
         ${companyName ? `<div style="font-size:11px;color:#888;margin-bottom:4px;">${companyName}</div>` : ''}
-        <h1>${projectName} — Schedule</h1>
+        <h1>${projectName} Schedule</h1>
         <div class="subtitle">
           ${formatShortDate(projectStartDate)} – ${formatShortDate(endDate)} · ${schedule.totalDurationDays} working days
           ${shareMode === 'trade' && selectedPhase ? ` · ${selectedPhase} only` : ''}

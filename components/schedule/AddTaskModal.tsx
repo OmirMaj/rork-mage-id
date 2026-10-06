@@ -174,7 +174,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
       <Pressable style={[styles.backdrop, frame.overlay]} onPress={onCancel}>
         <Pressable style={[styles.sheet, frame.card]} onPress={() => { /* swallow taps inside */ }}>
           <Text style={styles.title}>Add Task</Text>
-          <Text style={styles.sub}>Fill in what you know — you can edit anything later.</Text>
+          <Text style={styles.sub}>Fill in what you know. You can edit anything later.</Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>Title</Text>
@@ -184,7 +184,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
               onChangeText={(t) => { setTitle(t); if (error) setError(null); }}
               onSubmitEditing={submit}
               returnKeyType="next"
-              placeholder="e.g. Rough plumbing"
+              placeholder="Rough plumbing"
               placeholderTextColor={Colors.textMuted}
               style={styles.input}
               testID="add-task-title"
@@ -207,7 +207,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
               <TextInput
                 value={crew}
                 onChangeText={setCrew}
-                placeholder="Optional — crew name or sub"
+                placeholder="Crew name or sub (optional)"
                 placeholderTextColor={Colors.textMuted}
                 style={styles.input}
                 testID="add-task-crew"
@@ -261,7 +261,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
             <TextInput
               value={predecessorsText}
               onChangeText={(t) => { setPredecessorsText(t); if (error) setError(null); }}
-              placeholder='Tasks this depends on — e.g. "T2, T5"'
+              placeholder="T2, T5"
               placeholderTextColor={Colors.textMuted}
               style={styles.input}
               autoCapitalize="characters"
@@ -277,7 +277,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
             <TextInput
               value={successorsText}
               onChangeText={(t) => { setSuccessorsText(t); if (error) setError(null); }}
-              placeholder='Tasks that depend on this — e.g. "T8"'
+              placeholder="T8"
               placeholderTextColor={Colors.textMuted}
               style={styles.input}
               autoCapitalize="characters"
