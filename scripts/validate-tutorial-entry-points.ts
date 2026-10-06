@@ -107,8 +107,8 @@ ok('punch on Free is missing Business', missingTierFor(punch, free) === 'busines
 ok('invoice on Free is missing Pro', missingTierFor(invoice, free) === 'pro');
 ok('invoice on Pro is missing nothing', missingTierFor(invoice, pro) === null);
 ok('the daily report needs no plan', missingTierFor(dfr, free) === null);
-ok("pass ON, Free: 'Business — practise free on the sample'", tierTagFor(punch, free, true) === 'Business — practise free on the sample');
-ok("pass ON, Free: 'Pro — practise free on the sample'", tierTagFor(invoice, free, true) === 'Pro — practise free on the sample');
+ok("pass ON, Free: 'Business — practise free on the sample'", tierTagFor(punch, free, true) === 'Business. Practise free on the sample.');
+ok("pass ON, Free: 'Pro — practise free on the sample'", tierTagFor(invoice, free, true) === 'Pro. Practise free on the sample.');
 ok('owned feature: no tag', tierTagFor(punch, all, true) === null);
 ok('pass OFF: never a "practise free" tag', tierTagFor(punch, free, false) === null);
 ok('pass OFF, Free: only the daily report is offered',

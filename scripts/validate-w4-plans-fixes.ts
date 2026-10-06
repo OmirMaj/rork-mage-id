@@ -183,13 +183,13 @@ console.log('\n#114 an editor indexes; #118 an editor deletes the sheets he adde
   ok('a viewer / field seat is never told to "tap Index"',
     !/tap Index/i.test(RA.staleMatchesNote(2, true, false) ?? '') && !/Tap Index/.test(RA.staleMatchesNote(2, false, false) ?? '')
     && /owner or an editor/.test(RA.staleMatchesNote(2, true, false) ?? ''));
-  ok('a seat that can index still is', /tap Index/.test(RA.staleMatchesNote(2, true, true) ?? ''));
+  ok('a seat that can index still is', /Tap Index/.test(RA.staleMatchesNote(2, true, true) ?? ''));
   const panel = code('components/plans/AskPlansPanel.tsx');
   ok('the panel passes canIndex from its own index block', /staleMatchesNote\(staleDropped, !!answer, indexBlock === null\)/.test(panel));
 
   ok('owner deletes any sheet', RA.sheetDeleteBlock('owner', {}, 'u1') === null);
   ok('an editor deletes a sheet he added', RA.sheetDeleteBlock('editor', { userId: 'u1' }, 'u1') === null);
-  ok('…not someone else\'s', /someone else added this one/.test(RA.sheetDeleteBlock('editor', { userId: 'u2' }, 'u1') ?? ''));
+  ok('…not someone else\'s', /Someone else added this one/.test(RA.sheetDeleteBlock('editor', { userId: 'u2' }, 'u1') ?? ''));
   ok('…nor a legacy sheet with no uploader', RA.sheetDeleteBlock('editor', {}, 'u1') !== null);
   ok('a field / viewer seat never deletes', RA.sheetDeleteBlock('field', { userId: 'u1' }, 'u1') !== null && RA.sheetDeleteBlock('viewer', { userId: 'u1' }, 'u1') !== null);
   ok('an unresolved role says why', /Checking/.test(RA.sheetDeleteBlock(null, { userId: 'u1' }, 'u1') ?? ''));

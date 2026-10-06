@@ -589,8 +589,8 @@ console.log('fixtures');
       SCHEDULE_SAMPLE.normalize('Push drywall 3 days') !== SCHEDULE_SAMPLE.normalize(SCHEDULE_SAMPLE.sentence));
   // The sample schedule the sandbox writes ('schedule' need).
   const titles = SAMPLE_SCHEDULE_TASKS.map(t => t.title);
-  ok('sample schedule: the six tasks Demo, Rough plumbing, Rough electrical, Frame walls, Hang & finish drywall, Paint',
-    titles.length === 6 && ['Demo', 'Rough plumbing', 'Rough electrical', 'Frame walls', 'Hang & finish drywall', 'Paint'].every(x => titles.includes(x)), titles.join(', '));
+  ok('sample schedule: the six tasks Demo, Rough Plumbing, Rough Electrical, Frame Walls, Hang and Finish Drywall, Paint',
+    titles.length === 6 && ['Demo', 'Rough Plumbing', 'Rough Electrical', 'Frame Walls', 'Hang and Finish Drywall', 'Paint'].every(x => titles.includes(x)), titles.join(', '));
   let n = 0;
   const built = sampleScheduleTasks(() => `id-${++n}`);
   const drywall = built.filter(t => /drywall/i.test(t.title));

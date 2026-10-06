@@ -98,7 +98,7 @@ eq('an inactive entitlement is not a backing store', planSourceFor('pro', storeO
 
 console.log('\n#126 — restoreOutcome:');
 const o = (x: unknown, s: 'App Store' | 'Google Play' = 'App Store') => restoreOutcome(x, s);
-ok('a restored Pro says so by name and may leave', o('pro').leave && /Restored. You're on Pro/.test(o('pro').title));
+ok('a restored Pro says so by name and may leave', o('pro').leave && /Restored\. You're on Pro/.test(o('pro').title));
 ok('a restored Enterprise names Enterprise', /Enterprise/.test(o('enterprise').title) && o('enterprise').leave);
 ok('nothing found → stays, and names the store account', !o('free').leave && /No active subscription found for this App Store account/.test(o('free').body));
 ok('…Google Play on Android', /Google Play account/.test(o('free', 'Google Play').body));

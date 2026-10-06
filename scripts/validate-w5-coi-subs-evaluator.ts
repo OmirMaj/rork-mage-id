@@ -86,7 +86,7 @@ console.log('\n#115 · the panel:');
 console.log('\n#27 · the Subs form:');
 {
   const subs = src('app/(tabs)/subs/index.tsx');
-  const Save = subs.slice(subs.indexOf('const handleSave = useCallback'), subs.indexOf('if (editingSub) {', subs.indexOf('const handleSave = useCallback')));
+  const save = subs.slice(subs.indexOf('const handleSave = useCallback'), subs.indexOf('if (editingSub) {', subs.indexOf('const handleSave = useCallback')));
   ok('a TIN that is not exactly 4 digits is refused before saving (so the CHECK never refuses a queued row)',
     /if \(tin && !\/\^\[0-9\]\{4\}\$\/\.test\(tin\)\) \{/.test(save) && /return;/.test(save));
   ok('"View W-9" mints a signed link on demand', /signW9Url\(path\)/.test(subs) && /accessibilityLabel="View W-9"/.test(subs));
@@ -105,7 +105,7 @@ console.log('\n#17 (carry) · deleting a paid sub:');
   ok('it looks for commitments with paidToDate > 0', /c\.subcontractorId === sub\.id && \(c\.paidToDate \?\? 0\) > 0/.test(del));
   ok('…and paid sub-portal invoices', /\.from\('sub_submitted_invoices'\)[\s\S]*?\.eq\('subcontractor_id', sub\.id\)[\s\S]*?\.eq\('status', 'paid'\)/.test(del));
   ok('…and warns that the 1099 export loses the TIN and address', /They'll still appear on the 1099 export, but their TIN and address will be gone/.test(del));
-  ok('…with keeping them the cancel (easy) choice', /\{ text: 'Keep them', style: 'cancel' \}/.test(del));
+  ok('…with keeping them the cancel (easy) choice', /\{ text: 'Keep Them', style: 'cancel' \}/.test(del));
   ok('a failed invoice check is said out loud, not read as "none"', /Couldn’t check this sub’s portal invoices/.test(del));
 }
 

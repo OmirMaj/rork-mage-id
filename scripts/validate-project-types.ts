@@ -380,7 +380,7 @@ console.log('\nI. what a prospect / homeowner / the AI reads (fix round 2)');
   const vals = (tg?.choices ?? []).map(c => c.value);
   ok('copilot type question: Plumbing and Electrical are tap choices', vals.includes('plumbing') && vals.includes('electrical'), JSON.stringify(vals));
   ok('copilot type question: no wordless tap "other" (it would build a renovation)', !vals.includes('other'));
-  ok('copilot type question: says how to name something else (the mic, which mergeDraft turns into Other + his words)', /Something else — tap the mic and say it/.test(tg?.question ?? ''), tg?.question);
+  ok('copilot type question: says how to name something else (the mic, which mergeDraft turns into Other + his words)', /For something else, tap the mic and say it/.test(tg?.question ?? ''), tg?.question);
   const go = await import('../utils/copilot/gapOptions');
   const shown = go.optionsForGap(tg!).map(o => o.label);
   ok('the shell\'s tap buttons (optionsForGap) show Plumbing and Electrical', shown.includes('Plumbing') && shown.includes('Electrical'), JSON.stringify(shown));

@@ -326,7 +326,7 @@ export default function WarrantyWalkScreen() {
       const html = wrapEmailHtml({
         preheader: `${companyName} completed the ${emailWalk} for ${project.name}.`,
         eyebrow: 'Warranty Walk',
-        title: `${project.name} — ${emailWalkTitle}`,
+        title: `${project.name}: ${emailWalkTitle}`,
         subtitle: `${companyName} walked the home with you in mind. Here's what we checked and what we'll follow up on.`,
         bodyHtml: [
           checkedRows

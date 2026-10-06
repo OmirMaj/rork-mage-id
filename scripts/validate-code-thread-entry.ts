@@ -200,9 +200,9 @@ const btn = stripComments(read('components', 'codeThread', 'CodeCheckThisButton.
 check('CodeCheckThisButton closes first, then pushes codeCheckRoute after 350 ms on iOS',
   /onBeforeNavigate\?\.\(\);\s*const href = codeCheckRoute\(\{ projectId, source, sourceId \}\);\s*setTimeout\(\(\) => router\.push\(href\), Platform\.OS === 'ios' \? IOS_MODAL_NAV_DELAY_MS : 0\);/.test(btn)
   && count(btn, 'router.push(') === 1);
-check("the icon variant is labelled 'Code check this sheet' with a 12 pt hitSlop; the row says 'Code check this item'",
-  btn.includes('accessibilityLabel="Code check this sheet"') && btn.includes('hitSlop={12}')
-  && btn.includes('>Code check this item</Text>') && count(btn, /testID=\{testID\}/g) === 2);
+check("the icon variant is labelled 'Code Check This Sheet' with a 12 pt hitSlop; the row says 'Code Check This Item'",
+  btn.includes('accessibilityLabel="Code Check This Sheet"') && btn.includes('hitSlop={12}')
+  && btn.includes('>Code Check This Item</Text>') && count(btn, /testID=\{testID\}/g) === 2);
 
 const sheet = stripComments(read('components', 'codeThread', 'SavedCodeCheckSheet.tsx'));
 const runAgain = bodyOf(sheet, 'const runAgain = () =>');

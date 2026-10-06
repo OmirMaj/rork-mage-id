@@ -92,7 +92,7 @@ console.log('\n#73 the plan screens open for the job, not only for the tier');
     && planControlBlock(effectivePlanRole(null, { ownerUserId: 'u1' }, 'u1'), 'delete', { isError: true }) === null);
   ok('…but a collaborator\'s null role is never inferred', effectivePlanRole(null, { ownerUserId: 'gc' }, 'u1') === null
     && effectivePlanRole(null, {}, 'u1') === null && effectivePlanRole('viewer', { ownerUserId: 'u1' }, 'u1') === 'viewer');
-  ok('a viewer may not mark up, and is told to ask for a field seat', /field seat/.test(planControlBlock('viewer', 'markup') ?? ''));
+  ok('a viewer may not mark up, and is told to ask for Field access', /Field access/.test(planControlBlock('viewer', 'markup') ?? ''));
   ok('field / editor / owner may mark up', ['field', 'editor', 'owner'].every(r => planControlBlock(r as 'field', 'markup') === null));
   ok('an unresolved role may not mark up', !!planControlBlock(null, 'markup'));
 
@@ -236,7 +236,7 @@ console.log('\n#78 answers come only from the current revision');
   ok('only-old-revisions never says "not in your plans"', /isn't indexed yet/.test(staleMatchesNote(2, false) ?? '') && !/couldn't find/i.test(staleMatchesNote(2, false) ?? ''));
   ok('a mixed answer still says what was left out', /2 matches came from a superseded or deleted sheet/.test(staleMatchesNote(2, true) ?? ''));
   ok('nothing dropped, nothing said', staleMatchesNote(0, true) === null);
-  ok('the index button names changed sheets', changedSinceIndexLabel(3) === 'Index 3 changed sheets — answers may be from older revisions');
+  ok('the index button names changed sheets', changedSinceIndexLabel(3) === 'Index 3 changed sheets. Answers may be from older revisions.');
   ok('an unreadable manifest claims nothing', changedSinceIndexLabel(null) === null);
 
   const ayp = code('utils/plans/askYourPlans.ts');

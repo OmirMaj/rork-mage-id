@@ -98,7 +98,7 @@ ok('…and says "Expires Today" / "Expired N days ago"', /'Expires Today'/.test(
 console.log('\n#145 permits — a logged verdict and the status:');
 {
   const b = block(pm, 'const addLoggedInspection = useCallback(');
-  ok('logging a verdict for the booked visit ASKS', /showAlert\(\s*'Update the permit status\?'/.test(b) && /'Keep as scheduled'/.test(b) && /'Update status'/.test(b), b.slice(0, 200));
+  ok('logging a verdict for the booked visit ASKS', /showAlert\(\s*'Update the permit status\?'/.test(b) && /'Keep as Scheduled'/.test(b) && /'Update Status'/.test(b), b.slice(0, 200));
   ok('…only when it is on/after the booked day and the permit is scheduled',
     /form\.status === 'inspection_scheduled'/.test(b) && /row\.scheduledFor >= headDay/.test(b));
   ok('…and never changes the status outside the Update-status button',
@@ -155,7 +155,7 @@ if (wg) {
   ok('the screen reads the role for the route job', /useProjectRoleState\(projectId \|\| undefined\)/.test(screen));
   ok('…and renders the note INSTEAD of the list when not open', /if \(gate !== 'open'\) \{[\s\S]*<WarrantiesAccessNote/.test(screen) && /return <WarrantiesScreenInner \/>;/.test(screen));
 }
-ok('the note names whose warranties they are', /Warranties are kept on the project owner's account — ask them to log one/.test(wrRaw));
+ok('the note names whose warranties they are', /Warranties are kept on the project owner's account\. Ask them to log one/.test(wrRaw));
 ok('the account-wide form lists only jobs he owns', /ownProjects\.map\(p => \(/.test(wr) && !/\{projects\.map\(p => \(/.test(wr));
 ok('…and says why a shared job is missing', /warranty-shared-jobs-note/.test(wr));
 
@@ -183,7 +183,7 @@ ok('no hard-wired "12-month warranty closes"', !/12-month warranty closes/.test(
 ok('no "year-one" anywhere in the screen', !/year-one/i.test(ww));
 ok('no hard-wired "11-month" in the title, email title, subject or preheader', !/11-month/.test(ww));
 ok('hero names his N months', /before your \$\{warrantyMonths\}-month warranty closes/.test(ww));
-ok('email title/subject/preheader use the walk label', /completed the \$\{emailWalk\}/.test(ww) && /\$\{project\.name\} — \$\{emailWalkTitle\}/.test(ww) && /\$\{project\.name\} — \$\{emailWalk\} summary/.test(ww));
+ok('email title/subject/preheader use the walk label', /completed the \$\{emailWalk\}/.test(ww) && /\$\{project\.name\}: \$\{emailWalkTitle\}/.test(ww) && /\$\{project\.name\}: \$\{emailWalk\} summary/.test(ww));
 ok('an unset warranty is SAID to be an assumption, with the way to set it', /these dates assume 12 months/.test(ww) && /router\.push\('\/\(tabs\)\/settings' as never\)/.test(ww));
 ok('…and the homeowner email then names no month count', /monthsAssumed \? 'warranty walk'/.test(ww));
 ok('a close-date start is said as such (#136)', /counted from the day you closed the job/.test(ww));

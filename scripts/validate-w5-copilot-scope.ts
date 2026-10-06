@@ -72,7 +72,7 @@ ok('warranty on a job he does not own says why (owner-only interim)', /useProjec
 ok('…with loading / offline / error states that say so', /Checking your role on/.test(host) && /roleState\.isPaused/.test(host) && /Couldn’t check your role/.test(host));
 ok('the ctx bag still carries receipts, labor and seeds, plus his decided markup', /markupDecided, markup: globalMarkup, receipts, laborSamples, seeds \}/.test(host));
 const shell = src('components/copilot/CopilotShell.tsx');
-ok('a Build error offers "Pick a project" / "Back to review", not only the mic', /Pick a project/.test(shell) && /Back to review/.test(shell) && /onPress=\{backToReview\}/.test(shell));
+ok('a Build error offers "Pick a project" / "Back to review", not only the mic', /Pick a Project/.test(shell) && /Back to Review/.test(shell) && /onPress=\{backToReview\}/.test(shell));
 const hook = src('hooks/useCopilotConversation.ts');
 ok('the hook names a missing job / estimate on a Build failure', /copilotPrecondition\(cap\.id, ctx\.project\)/.test(hook) && /pre\.ok \? 'apply_failed' : pre\.kind/.test(hook));
 

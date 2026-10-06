@@ -404,7 +404,7 @@ ok('Draft a question mounts inside the roadmap branch, before Inspections',
 ok("the Roadmap hands Draft a question this job's own permit numbers",
   /<DraftQuestionButton[\s\S]*?permitNumbers=\{permits\.filter\(\(x\) => x\.projectId === roadmapProject\.id\)[\s\S]*?testID="roadmap-draft-question"/.test(index));
 ok("an 'attention' building asks before adding a permit",
-  /showAlert\(\s*'Before you add this permit'/.test(index) && index.includes("{ text: 'Add anyway', onPress: () => addRoadmapPermit(p) }"));
+  /showAlert\(\s*'Before You Add This Permit'/.test(index) && index.includes("{ text: 'Add Anyway', onPress: () => addRoadmapPermit(p) }"));
 
 // ── Lane C: run a marked pure block ───────────────────────────────────────
 /** The exports of the `// <pure:name>` block in `src`, transpiled and run, or

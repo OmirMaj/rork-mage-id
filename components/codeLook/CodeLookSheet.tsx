@@ -241,7 +241,7 @@ export default function CodeLookSheet({
     >
       <View style={s.header}>
         <View style={s.headerBody}>
-          <Text style={s.sheetHeading}>Photo Code Check</Text>
+          <Text style={s.sheetHeading}>Photo code check</Text>
           <Text style={s.disclaimer} testID="codelook-disclaimer">{CODE_LOOK_DISCLAIMER}</Text>
           <Text style={s.groundingChip}>{grounding.chipLabel}</Text>
         </View>

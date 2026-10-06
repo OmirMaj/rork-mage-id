@@ -434,7 +434,7 @@ const fc = code(finaleSrc);
 ok('FinaleCard draws the quiz button above Done', fc.indexOf('tutorial-finale-quiz') > 0 && fc.indexOf('tutorial-finale-quiz') < fc.indexOf('tutorial-finale-done'));
 const hb = code(hubSrc);
 ok('the hub lines: passed / take it, from checkAvailability', /checkAvailability\(c\.id, progress, TUTORIAL_DEFS, certs, QUIZ_BANKS\)/.test(hb)
-  && hb.includes("'Skills check: passed'") && hb.includes("'Skills check: take it'") && /pathname: '\/skills-check', params: \{ topic: id \}/.test(hb));
+  && hb.includes("'Skills Check: Passed'") && hb.includes("'Skills Check: Take It'") && /pathname: '\/skills-check', params: \{ topic: id \}/.test(hb));
 ok('the hub view stays prop-driven (checks default to none)', /checks = \{\}/.test(hb));
 ok("desktop: 'skills-check' is a 'form' page", /'skills-check': 'form'/.test(read('utils/desktopPage.ts')));
 ok('question / choice / why text renders from data, never t(q.key …)', !/t\(\s*(q|question|c|choice)\.(key|whyKey)/.test(code(read('components/learn/QuizQuestionCard.tsx')) + sc));

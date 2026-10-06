@@ -139,7 +139,7 @@ export function checkHelpers(): string[] {
   const missing = topicsNotEarned(certs).map(t => t.id);
   if (missing.length !== 13 || missing.includes('punch-walk') || !missing.includes('invoice-to-self')) p.push(`topicsNotEarned wrong: ${missing.join(', ')}`);
   const share = certificateShareText(cert(), CO, URL_OK);
-  if (share !== `MAGE ID skills: Change orders — Dana Ruiz. ${CERT_NAME_NOTE} Check it at ${URL_OK}`) p.push(`share text (must carry CERT_NAME_NOTE after the name): ${share}`);
+  if (share !== `MAGE ID skills: Change orders, Dana Ruiz. ${CERT_NAME_NOTE} Check it at ${URL_OK}`) p.push(`share text (must carry CERT_NAME_NOTE after the name): ${share}`);
   const a11y = certificateA11yLabel(cert(), CO, 'October 1, 2026');
   if (a11y !== 'MAGE ID skills: Change orders. Awarded to Dana Ruiz, October 1, 2026. Covers using the MAGE ID app only.') p.push(`a11y label: ${a11y}`);
   return p;

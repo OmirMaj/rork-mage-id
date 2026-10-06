@@ -107,9 +107,9 @@ ok('plan-viewer measures only with an image-frame row', /usableCalibration\(save
 ok('plan-viewer saves stamped points', /p1: stampImageFrame\(pointBuffer\[0\]\)/.test(viewer) && /p2: stampImageFrame\(pointBuffer\[1\]\)/.test(viewer));
 ok('plan-viewer shows Re-check scale for an older row', /scaleNeedsRecheck \? \(/.test(viewer));
 ok('the Re-check scale pill is blocked up front like Calibrate when the frame is unknown',
-  (() => { const at = viewer.indexOf("showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY)");
+  (() => { const at = viewer.indexOf("showAlert('Re-Check Scale', PLAN_SCALE_RECHECK_COPY)");
     const pre = at > 0 ? viewer.slice(Math.max(0, at - 600), at) : '';
-    return /if \(!imageFrameKnown\) \{ showAlert\('Can\\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY\); return; \}\s*switchMode\('calibrate'\); $/.test(pre); })());
+    return /if \(!imageFrameKnown\) \{ showAlert\('Can\\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY\); return; \}\s*switchMode\('calibrate'\); $/.test(pre); })());
 // Integration round 1: with the sheet's aspect ratio unknown, imgLayout falls
 // back to the whole container, and points tapped there were still stamped
 // frame:'image' — a container-frame scale that every reader then trusted.
@@ -120,23 +120,23 @@ ok('plan-viewer knows whether imgLayout is the image rect or the container fallb
 {
   const cc = viewer.slice(viewer.indexOf('const confirmCalibration = useCallback('));
   const refuse = cc.indexOf('if (!imageFrameKnown)');
-  const Save = cc.indexOf('upsertPlanCalibration({');
+  const save = cc.indexOf('upsertPlanCalibration({');
   ok('confirmCalibration refuses to stamp before the frame is known — before the save, and says why',
     refuse > 0 && refuse < save && /CALIBRATE_FRAME_UNKNOWN_COPY/.test(cc.slice(refuse, save)));
 }
 ok('the Calibrate button is blocked with the reason while the frame is unknown',
-  /if \(!imageFrameKnown\) \{ showAlert\('Can\\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY\); return; \}/.test(viewer));
+  /if \(!imageFrameKnown\) \{ showAlert\('Can\\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY\); return; \}/.test(viewer));
 // Integration round 3: Measure with no usable scale was a third way into
 // calibrate mode that skipped the frame block, and called a re-check "no scale".
 {
   const m = viewer.indexOf("if (!scaleFtPerPx) {");
   const branch = m > 0 ? viewer.slice(m, viewer.indexOf("switchMode('measure');", m)) : '';
-  const block = branch.indexOf("if (!imageFrameKnown) { showAlert('Can\\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }");
+  const block = branch.indexOf("if (!imageFrameKnown) { showAlert('Can\\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }");
   const enter = branch.indexOf("switchMode('calibrate');");
   ok('Measure with no scale is blocked up front when the frame is unknown, before entering calibrate',
     block >= 0 && enter > block);
   ok('...and an older scale is called a re-check there, not "no scale"',
-    /if \(scaleNeedsRecheck\) \{\s*showAlert\('Re-check scale', PLAN_SCALE_RECHECK_COPY\);/.test(branch.slice(enter)));
+    /if \(scaleNeedsRecheck\) \{\s*showAlert\('Re-Check Scale', PLAN_SCALE_RECHECK_COPY\);/.test(branch.slice(enter)));
 }
 // Integration round 3: a re-calibration keeps the row's id, and a plain insert
 // on that id is refused (plan_calibrations_pkey) online and dropped as

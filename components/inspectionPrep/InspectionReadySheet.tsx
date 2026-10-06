@@ -334,11 +334,11 @@ export default function InspectionReadySheet({
             style={s.action}
             onPress={() => { void openCodeLook(item); }}
             accessibilityRole="button"
-            accessibilityLabel="Photo Code Check"
+            accessibilityLabel="Photo code check"
             testID={`codelook-prep-${item.id}`}
           >
             <ScanSearch size={13} color={t.textSecondary} strokeWidth={1.75} />
-            <Text style={s.actionText} numberOfLines={1}>Photo Code Check</Text>
+            <Text style={s.actionText} numberOfLines={1}>Photo code check</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.action, na && s.actionOn]}

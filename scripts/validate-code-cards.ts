@@ -440,7 +440,7 @@ async function main(): Promise<void> {
     && passesProseCheck(withheldNotice(['R312.1'], { viewer: true })) && passesEchoCheck(PROSE_VIEWER_LINE));
   ok('B26c the notice a paragraph carries in its own text never points at the viewer (that text is saved, and printed where no link is rendered)',
     [para, 'Guards shall be there.', 'Fine. The note reads "X". Fine too.'].every((t) => !NO_BUTTON.test(ownWordsProse(t).text.replace('Keep gaps under 4 in. Check the stairs.', ''))));
-  const SavedBefore = `The deck needs a guard. ${LINE_WITHHELD} Section: R312.1. Check the stairs.`;
+  const savedBefore = `The deck needs a guard. ${LINE_WITHHELD} Section: R312.1. Check the stairs.`;
   ok('B26d a paragraph SAVED with the card’s line in it (before the prose notice) prints the prose notice in its place, once, and nothing is counted as withheld',
     ownWordsProse(savedBefore).text === `The deck needs a guard. ${PROSE_WITHHELD} Section: R312.1. Check the stairs.` && ownWordsProse(savedBefore).withheld === 0
     && !ownWordsProse(savedBefore).text.includes('Official text') && ownWordsProse(ownWordsProse(savedBefore).text).text === ownWordsProse(savedBefore).text
@@ -1352,7 +1352,7 @@ async function main(): Promise<void> {
   ok('K21 the opened card starts from the saved number when given one, fixed at open',
     /jobValue\?: CodeJobValue;/.test(sheet) && /const \[baseJv\] = useState<CodeJobValue \| undefined>\(\(\) => jobValueProp \?\? item\.jobValue\);/.test(sheet));
   ok('K22 a card with no section says "No section given" on the card, the row and the opened card',
-    /NO_SECTION_GIVEN = 'No section given'/.test(code('CodeCard.tsx')) && ['CodeCard.tsx', 'CodeCardRow.tsx', 'CodeCardSheet.tsx'].every((f) => /\{NO_SECTION_GIVEN\}/.test(code(f))));
+    /NO_SECTION_GIVEN = 'No Section Given'/.test(code('CodeCard.tsx')) && ['CodeCard.tsx', 'CodeCardRow.tsx', 'CodeCardSheet.tsx'].every((f) => /\{NO_SECTION_GIVEN\}/.test(code(f))));
 
   const row = code('CodeCardRow.tsx');
   const card = code('CodeCard.tsx');
@@ -1360,7 +1360,7 @@ async function main(): Promise<void> {
   ok('K23 the row prints the evidence word from evidence.ts and holds no government label of its own',
     /<Text style=\{styles\.mText\}>\{rowEvidenceWord\(item\.evidence\)\}<\/Text>/.test(row) && !/Named in law|State amendment|evidenceView/.test(row));
   ok('K24 on the opened card a government source line sits ONLY under the verified edition; what the card cites goes on its own line under it',
-    /<Text style=\{styles\.rrText\}>\{info\.editionLabel\}<\/Text>\s*<Text style=\{styles\.rrSmall\}>\{sourceLine\(info\.editionSourceUrl, info\.editionCheckedOn\) \?\? 'Source not on file'\}<\/Text>\s*\{edition\.citedLine \? <Text style=\{styles\.rrSmall\} testID=\{`\$\{tid\}-cited`\}>\{edition\.citedLine\}<\/Text> : null\}/.test(sheet)
+    /<Text style=\{styles\.rrText\}>\{info\.editionLabel\}<\/Text>\s*<Text style=\{styles\.rrSmall\}>\{sourceLine\(info\.editionSourceUrl, info\.editionCheckedOn\) \?\? 'Source Not on File'\}<\/Text>\s*\{edition\.citedLine \? <Text style=\{styles\.rrSmall\} testID=\{`\$\{tid\}-cited`\}>\{edition\.citedLine\}<\/Text> : null\}/.test(sheet)
     && (sheet.match(/info\.editionSourceUrl/g) ?? []).length === 1
     && /<Text style=\{styles\.rrText\}>\{edition\.citedLine \?\? EDITION_NOT_CONFIRMED\}<\/Text>\s*<Text style=\{styles\.rrSmall\}>No verified adoption record for this address\.<\/Text>/.test(sheet)
     && (sheet.match(/sourceLine\(/g) ?? []).length === 2 && !/edition\.(?:meta|cited)\b/.test(sheet)

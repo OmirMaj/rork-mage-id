@@ -3551,7 +3551,7 @@ ${SPECIFICS_RULE}`;
               {rungSummary ? (
                 <Text style={styles.rungSummary} testID="code-check-rung-summary">{rungSummary}</Text>
               ) : null}
-              <Text style={styles.codeTapHint}>{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the inspector checks under a code for what it requires.'}</Text>
+              <Text style={styles.codeTapHint}>{anyCard ? 'Tap a card for what it requires and what the inspector checks.' : 'Tap What the Inspector Checks under a code for what it requires.'}</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
                 const isOpen = openCode === key;

@@ -705,7 +705,7 @@ console.log('\nsource assertions (the screen the pure functions cannot reach):')
     /minHeight: 30,/.test(code));
 
   // The honest-chip family the screen already ships stays intact.
-  ok('screen: the model-recall chip above the code list is untouched', /From model recall. Verify with your AHJ./.test(code));
+  ok('screen: the model-recall chip above the code list is untouched', /From model recall\. Verify with your AHJ/.test(code));
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1443,7 +1443,7 @@ console.log('\nthe screen — the ladder is rendered, and the recall chip is not
       iSummary > iChip && iChip >= 0);
   }
   ok('screen: the model-recall chip is still exactly where and what it was',
-    /From model recall. Verify with your AHJ before relying on a section number./.test(code));
+    /From model recall\. Verify with your AHJ before relying on a section number\./.test(code));
   ok('screen: the prompt still tells the model it has no code lookup',
     /You have no code lookup here: a section number is your own recall/.test(code));
   ok('screen: the loading copy still says Recalling, never Searching',

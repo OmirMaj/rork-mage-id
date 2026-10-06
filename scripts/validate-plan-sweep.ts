@@ -156,7 +156,7 @@ console.log('\n2. which sheets, and why the rest were not reviewed');
       && r.notReviewed.find(x => x.sheet.id === 'a1')?.why === "Matched, but over this sweep's limit of 1 sheet");
   ok('a below-floor match is not a match (A-301 at 0.30 → no_match)', r.notReviewed.find(x => x.sheet.id === 'a3')?.kind === 'no_match');
   ok('an unindexed sheet reads not_indexed, with where to fix it',
-    r.notReviewed.find(x => x.sheet.id === 'u1')?.kind === 'not_indexed' && /index it in Ask your plans/.test(r.notReviewed.find(x => x.sheet.id === 'u1')!.why));
+    r.notReviewed.find(x => x.sheet.id === 'u1')?.kind === 'not_indexed' && /Index it in Ask Your Plans/.test(r.notReviewed.find(x => x.sheet.id === 'u1')!.why));
   ok('a sheet nothing matched says so', r.notReviewed.find(x => x.sheet.id === 's1')?.why === 'Nothing on it matched your scope');
   ok('why chosen: each topic with a quoted snippet ≤ 90 chars',
     r.selected[0].reasons.length === 2 && r.selected[0].reasons.every(x => x.snippet.length <= 90) && r.selected[0].reasons[0].snippet.endsWith('…'),

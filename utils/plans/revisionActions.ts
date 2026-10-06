@@ -604,7 +604,7 @@ export type PlanControl = 'import' | 'delete' | 'compare' | 'estimate' | 'index'
 
 /** The one sentence for a seat that may not build the index — the same words
  *  plan-extract and project-memory-embed refuse with. */
-export const PLAN_INDEX_REFUSAL = 'The project owner or an editor indexes the plan set. You can ask questions of the sheets they indexed.';
+export const PLAN_INDEX_REFUSAL = 'The project owner or an editor indexes the plan set \u2014 you can ask questions of the sheets they indexed.';
 
 /** Why the role read has not produced a role. A null role means different
  *  things, and each needs its own sentence: still in flight, the read FAILED

@@ -156,7 +156,7 @@ type H = { at: string; fromParty: string; toParty: string; note?: string };
     const persist = new Function(...names, t.transformSync(`const __run = () => {${body}\n};\nreturn __run();`));
 
     /** persistForm on `r` with Status flipped to Closed and nothing else touched. */
-    const SaveAsClosed = (r: RFI, ms: number): { updates: Partial<RFI>[]; alerts: string[] } => {
+    const saveAsClosed = (r: RFI, ms: number): { updates: Partial<RFI>[]; alerts: string[] } => {
       const form: Record<string, unknown> = { ...formOf(r), status: 'closed' };
       const updates: Partial<RFI>[] = [];
       const alerts: string[] = [];
@@ -240,7 +240,7 @@ console.log('\ne) the plans skip what they must and name it:');
   ok('bulk Close takes answered RFIs only', same(rp.close.map((c) => c.id), ['2']), JSON.stringify(rp.close));
   ok('…open → "not answered yet — close it from its record", closed → "already closed", void → "void"',
     same(rp.skipped, [{ number: 1, reason: RFI_CLOSE_SKIP.open }, { number: 3, reason: RFI_CLOSE_SKIP.closed }, { number: 4, reason: RFI_CLOSE_SKIP.void }])
-    && RFI_CLOSE_SKIP.open === 'not answered yet — close it from its record' && RFI_CLOSE_SKIP.closed === 'already closed' && RFI_CLOSE_SKIP.void === 'void',
+    && RFI_CLOSE_SKIP.open === 'not answered yet, so close it from its record' && RFI_CLOSE_SKIP.closed === 'already closed' && RFI_CLOSE_SKIP.void === 'void',
     JSON.stringify(rp.skipped));
   const blocked = rfiBulkClosePlan([r('5', 5, 'answered')], nowIso, { ...deps, regressionReason: () => 'no' });
   ok('an answered RFI the regression rule refuses is skipped with that rule\'s words, not written', blocked.close.length === 0

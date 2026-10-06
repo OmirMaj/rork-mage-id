@@ -304,7 +304,7 @@ const HEX = /#[0-9a-fA-F]{3,8}\b/;
 
 // ── E. The two analyzing branches ────────────────────────────────────────────
 for (const [f, anchor, title, typical] of [
-  ['app/extract-submittals.tsx', "if (step === 'uploading' || step === 'analyzing') {", "step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'", 'usually 60–90 s'],
+  ['app/extract-submittals.tsx', "if (step === 'uploading' || step === 'analyzing') {", "step === 'uploading' ? 'Rendering Pages' : 'Reading the Spec Book'", 'usually 60–90 s'],
   ['app/compare-drawings.tsx', "if (step === 'analyzing') {", '"Comparing Sheets"', 'usually 30–60 s'],
 ] as const) {
   const src = code(read(f));

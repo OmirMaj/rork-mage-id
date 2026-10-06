@@ -308,7 +308,7 @@ const nyc1931In = inputs({ jurisdiction: NYC_J, answers: nyc1931Answers, parcel:
 const nyc1931 = build(nyc1931In);
 {
   ok('M11.1 station order', JSON.stringify(nyc1931.stations.map((s) => s.id)) === JSON.stringify(STATION_ORDER));
-  ok('M11.1 station titles from copy', nyc1931.stations.map((s) => s.title).join('|') === 'Scope|Checks|Drawings and who stamps them|Filing|Plan review|Permit issued|Work and inspections|Sign-off');
+  ok('M11.1 station titles from copy', nyc1931.stations.map((s) => s.title).join('|') === 'Scope|Checks|Drawings and Who Stamps Them|Filing|Plan Review|Permit Issued|Work and Inspections|Sign-off');
   const lpc = item(nyc1931, 'nyc.lpc');
   ok('M11.2 LPC item on checks', lpc?.station === 'checks' && lpc.certainty === 'verified');
   ok('M11.2 ACP-5 item appears', item(nyc1931, 'nyc.acp5')?.station === 'checks');

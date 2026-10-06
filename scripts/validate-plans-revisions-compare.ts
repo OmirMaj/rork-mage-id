@@ -112,10 +112,10 @@ async function main() {
 
   console.log('\n#75 the sheet number: typed inline, or read from the title block and confirmed');
   const unnumbered = revisionFiling({ oldSheet: s({ id: 'u', name: 'IFC — Page 12' }), allSheets: [], newPath: 'p1/x.png' });
-  ok('the no-number block is flagged for the inline field', unnumbered.kind === 'blocked' && unnumbered.needsNumber === true && /this comparison is kept/.test(unnumbered.reason), JSON.stringify(unnumbered));
+  ok('the no-number block is flagged for the inline field', unnumbered.kind === 'blocked' && unnumbered.needsNumber === true && /This comparison is kept/.test(unnumbered.reason), JSON.stringify(unnumbered));
   ok('Compare re-reads the old sheet from allSheets, so the number unblocks the kept result',
     /allSheets\.find\(s => s\.id === oldPick\.id\) \?\? oldPick/.test(cd));
-  const SaveNumber = callbackBody(cd, 'handleSaveNumber');
+  const saveNumber = callbackBody(cd, 'handleSaveNumber');
   ok('the inline number runs planRenumber and writes the chain columns through the queue',
     /planRenumber\(oldSheet, numberDraft, allSheets\)/.test(saveNumber) && /updatePlanSheet\(p\.id, p\.updates\)/.test(saveNumber)
     && /chainColumnsPatch\(p\.updates\)/.test(saveNumber) && /supabaseWrite\('plan_sheets', 'update'/.test(saveNumber));
@@ -171,7 +171,7 @@ async function main() {
   const apply = callbackBody(plans, 'applyTitleNumbers');
   ok('only the numbers he ticked are applied, through planBatchRenumber + the queue',
     /filter\(i => i\.use\)/.test(apply) && /planBatchRenumber\(accepted, allSheetsRef\.current\)/.test(apply) && /chainColumnsPatch\(p\.updates\)/.test(apply));
-  ok('the confirm sheet says the numbers are AI readings', /Title block reads \{item\.sheetNumber\} — use it\?/.test(plans) && /Read by AI/.test(plans));
+  ok('the confirm sheet says the numbers are AI readings', /Title block reads \{item\.sheetNumber\}\. Use it\?/.test(plans) && /Read by AI/.test(plans));
 
   console.log('\n#160 a JPG/PNG revision is uploaded and compared by path');
   ok('the "Need a public URL" dead end is gone', !/Need a public URL/.test(cd) && !/public image URL/.test(cd));
@@ -184,7 +184,7 @@ async function main() {
   console.log('\n#162 Plans can photograph a paper plan');
   ok('neither picker is hard-wired to the library', !/pickFloorPlanImage\('library'\)/.test(plans) && (plans.match(/pickFloorPlanImage\(source\)/g) ?? []).length === 2);
   ok('native asks Camera or Library; web goes straight in',
-    /Platform\.OS === 'web'\) return Promise\.resolve\('library'\)/.test(plans) && /text: 'Take photo'/.test(plans) && /text: 'Choose from library'/.test(plans));
+    /Platform\.OS === 'web'\) return Promise\.resolve\('library'\)/.test(plans) && /text: 'Take Photo'/.test(plans) && /text: 'Choose from Library'/.test(plans));
   ok('a refused camera is titled as the camera', /source === 'camera' \? 'Can\\u2019t open camera'/.test(plans) && !/showAlert\('Can\\u2019t open photos'/.test(plans));
 
   console.log('\n#165 nothing is rendered before the limit says yes');

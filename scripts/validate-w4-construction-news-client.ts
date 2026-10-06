@@ -107,11 +107,11 @@ eq('header: an old copy reads "on <date>"', newsHeaderLine(P([{ name: 'A', ok: t
 eq('failed sources are named', failedSourcesLine(P([{ name: 'ENR', ok: true, count: 1 }, { name: 'OSHA', ok: false, count: 0 }, { name: 'JLC', ok: false, count: 0 }])), "Didn't load: OSHA, JLC");
 eq('no failed line when every source answered', failedSourcesLine(P([{ name: 'ENR', ok: true, count: 1 }])), null);
 
-eq('offline banner — the founder-spec wording', staleBannerText('offline', agoMs(2 * HR), NOW), 'Offline — showing news from 2 hr ago');
-eq('offline banner — seconds old reads "a moment ago"', staleBannerText('offline', agoMs(10_000), NOW), 'Offline — showing news from a moment ago');
-eq('offline banner — yesterday', staleBannerText('offline', new Date(2026, 8, 21, 9, 0).toISOString(), NOW), 'Offline — showing news from yesterday');
-eq('offline banner — an old copy', staleBannerText('offline', new Date(2026, 8, 3, 9, 0).toISOString(), NOW), 'Offline — showing news from Sep 3');
-eq('online but the refresh failed does NOT claim offline', staleBannerText('refresh_failed', agoMs(40 * MIN), NOW), "Couldn't refresh — showing news from 40 min ago");
+eq('offline banner — the founder-spec wording', staleBannerText('offline', agoMs(2 * HR), NOW), 'Offline. Showing news from 2 hr ago.');
+eq('offline banner — seconds old reads "a moment ago"', staleBannerText('offline', agoMs(10_000), NOW), 'Offline. Showing news from a moment ago.');
+eq('offline banner — yesterday', staleBannerText('offline', new Date(2026, 8, 21, 9, 0).toISOString(), NOW), 'Offline. Showing news from yesterday.');
+eq('offline banner — an old copy', staleBannerText('offline', new Date(2026, 8, 3, 9, 0).toISOString(), NOW), 'Offline. Showing news from Sep 3.');
+eq('online but the refresh failed does NOT claim offline', staleBannerText('refresh_failed', agoMs(40 * MIN), NOW), "Couldn't refresh. Showing news from 40 min ago.");
 
 // ── Chips ──────────────────────────────────────────────────────────────────
 {
@@ -165,7 +165,7 @@ ok('screen: the stale banner is rendered from staleBannerText when there is a re
   /\{staleReason \? \([\s\S]*staleBannerText\(staleReason, payload\.fetchedAt, now\)/.test(screen));
 ok('screen: topic chips from topicChips, hidden when only All', /topicChips\(items\)/.test(screen) && /chips\.length > 1 \?/.test(screen));
 ok('screen: error state says why and offers Retry',
-  /title="The news didn't load"[\s\S]{0,120}message=\{errorMessage/.test(screen) && /actionLabel="Retry"/.test(screen));
+  /title="The News Didn't Load"[\s\S]{0,120}message=\{errorMessage/.test(screen) && /actionLabel="Retry"/.test(screen));
 ok('screen: empty state says why and offers Retry', /title="No Stories Right Now"[\s\S]{0,300}actionLabel="Retry"/.test(screen));
 ok('screen: the spinner shows only while nothing is on screen', /if \(isLoading\) \{/.test(screen));
 ok('screen: lucide Newspaper icon + @/components/ui primitives',

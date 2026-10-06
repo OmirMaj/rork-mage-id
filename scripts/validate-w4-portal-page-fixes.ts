@@ -448,7 +448,7 @@ ok('#72 the pending Client approver is stamped in the same plan (status, signer,
 const pB = plan(rowB, 'approved', [sealA, sealB, pA.entry!], sent);
 ok('another row\'s sealed decision for THIS send → portal_decision_conflict, no flip, no approver stamp',
   pB.entry?.action === 'portal_decision_conflict' && pB.status === null && pB.approvers === null
-  && pB.entry?.id === 'audit-portal-bbbbbbbb' && /confirm with your client/.test(pB.entry?.detail ?? ''));
+  && pB.entry?.id === 'audit-portal-bbbbbbbb' && /Confirm with your client/.test(pB.entry?.detail ?? ''));
 const pB2 = plan(rowB, 'approved', [sealB, { id: 'audit-portal-aaaaaaaa', action: 'approved_via_portal', actor: 'Jane', timestamp: '2026-09-20T12:00:00Z' }], sent);
 ok('another row\'s applied key (legacy path) is a conflict too', pB2.entry?.action === 'portal_decision_conflict' && pB2.status === null);
 const resent = plan(rowB, 'submitted', [sealA, sealB], { approvers, sentAt: '2026-09-20T12:02:00Z' });

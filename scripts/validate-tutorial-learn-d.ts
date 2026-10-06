@@ -210,7 +210,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   ok('contract: Sign together is disabled on a sample, and the reason prints under the row',
     /onPress=\{handleSignTogetherPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving \|\| sampleJob\}/.test(CT)
       && /\{contract\.status === 'draft' && sampleJob && \(\s*<Text[^>]*testID="contract-sample-note">\{SAMPLE_DOC_NOT_SENT\}<\/Text>/.test(CT));
-  const SaveDraft = callbackBody(CT, 'saveDraftFrom');
+  const saveDraft = callbackBody(CT, 'saveDraftFrom');
   ok('contract: contract.terms.set follows the confirmed draft write (saved.ok), on the SAVED row, schedule non-empty',
     before(saveDraft, 'if (saved.ok) {', "tutorialSignal('contract.terms.set'") && before(saveDraft, 'setContract(saved.contract);', "tutorialSignal('contract.terms.set'")
       && /if \(tut\.runOnThis && row\.paymentSchedule\.length > 0\)/.test(saveDraft) && saveDraft.indexOf("tutorialSignal('contract.terms.set'") < saveDraft.indexOf("saved.reason === 'duplicate'"));
@@ -250,7 +250,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   // ── binder: the outbound fence + the save ──
   const deliver = callbackBody(BD, 'handleDeliver');
   ok('binder: handleDeliver refuses a sample before it writes, publishes or notifies',
-    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
+    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
   ok('binder: Deliver and Re-deliver are disabled on a sample, with the reason above the bar',
     (BD.match(/disabled=\{delivering \|\| sampleJob\}/g) ?? []).length === 2 && /testID="binder-sample-note">\{SAMPLE_DOC_NOT_SENT\}/.test(BD));
   const bsave = callbackBody(BD, 'handleSave');
